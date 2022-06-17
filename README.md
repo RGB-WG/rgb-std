@@ -43,6 +43,17 @@ The library can be integrated into other rust projects via `Cargo.toml`
 rgb-std = "0.8.0"
 ```
 
+If the library will be used for wallet applications and work with PSBT files,
+than use `wallet` feature, which is non-default:
+
+```toml
+[dependencies]
+rgb-core = { version = "0.8", features = ["wallet"] }
+```
+
+For serialization purposes library provides `serde` feature, which is turned off
+by default.
+
 ## Contributing
 
 Altcoins and "blockchains" other than Bitcoin blockchain/Bitcoin protocols are
