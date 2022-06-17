@@ -336,13 +336,19 @@ impl FullConsignment {
 pub(crate) mod test {
     use amplify::Wrapper;
     use commit_verify::tagged_hash;
-    use strict_encoding::StrictDecode;
-    use wallet::onchain::TxResolverError;
 
     use super::*;
-    use crate::schema::test::schema;
 
-    static CONSIGNMENT: [u8; 1496] = include!("../../test/consignment.in");
+    #[test]
+    fn test_consignment_id_midstate() {
+        let midstate = tagged_hash::Midstate::with(b"rgb:consignment");
+        assert_eq!(midstate.into_inner().into_inner(), MIDSTATE_CONSIGNMENT_ID);
+    }
+
+    /*
+    use crate::test::schema;
+
+    static CONSIGNMENT: [u8; 1496] = include!("../test/consignment.in");
 
     pub(crate) fn consignment() -> FullConsignment {
         FullConsignment::strict_decode(&CONSIGNMENT[..]).unwrap()
@@ -364,10 +370,5 @@ pub(crate) mod test {
         let status = consignment.validate(&schema, None, TestResolver);
         println!("{}", status);
     }
-
-    #[test]
-    fn test_consignment_id_midstate() {
-        let midstate = tagged_hash::Midstate::with(b"rgb:consignment");
-        assert_eq!(midstate.into_inner().into_inner(), MIDSTATE_CONSIGNMENT_ID);
-    }
+     */
 }
