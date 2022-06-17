@@ -21,7 +21,6 @@ use amplify::Wrapper;
 use bitcoin::hashes::{self, sha256, sha256t, Hash, HashEngine};
 use bitcoin::secp256k1::ecdsa::Signature;
 use bitcoin::secp256k1::PublicKey;
-use bp::dbc::{Anchor, AnchorId};
 use commit_verify::{
     commit_encode, lnpbp4, CommitEncode, CommitVerify, ConsensusCommit, PrehashedProtocol,
     TaggedHash,
@@ -29,8 +28,10 @@ use commit_verify::{
 use lnpbp::bech32::{self, FromBech32Str, ToBech32String};
 use strict_encoding::StrictEncode;
 
-use crate::contract::seal::Confidential;
-use crate::{ConcealAnchors, ConcealSeals, ConcealState, ContractId, Extension, TransitionBundle};
+use crate::{
+    seal, Anchor, AnchorId, ConcealAnchors, ConcealSeals, ConcealState, ContractId, Extension,
+    TransitionBundle,
+};
 
 pub const RGB_DISCLOSURE_VERSION: u16 = 0;
 
@@ -188,7 +189,7 @@ impl ConsensusCommit for Disclosure {
 }
 
 impl ConcealSeals for Disclosure {
-    fn conceal_seals(&mut self, seals: &[Confidential]) -> usize {
+    fn conceal_seals(&mut self, seals: &[seal::Confidential]) -> usize {
         let mut count = 0usize;
         for (_, map) in self.anchored_bundles.values_mut() {
             for bundle in map.values_mut() {
@@ -208,7 +209,7 @@ impl ConcealSeals for Disclosure {
 }
 
 impl ConcealState for Disclosure {
-    fn conceal_state_except(&mut self, seals: &[Confidential]) -> usize {
+    fn conceal_state_except(&mut self, seals: &[seal::Confidential]) -> usize {
         let mut count = 0usize;
         for (_, map) in self.anchored_bundles.values_mut() {
             for bundle in map.values_mut() {

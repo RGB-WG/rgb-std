@@ -9,9 +9,30 @@
 // You should have received a copy of the MIT License along with this software.
 // If not, see <https://opensource.org/licenses/MIT>.
 
-pub mod consignment;
-pub mod disclosure;
-pub mod graph;
-pub mod iter;
-pub mod stash;
+#[macro_use]
+extern crate amplify;
+#[macro_use]
+extern crate strict_encoding;
+#[cfg(feature = "serde")]
+#[macro_use]
+extern crate serde_crate as serde;
 
+mod consignment;
+mod disclosure;
+mod graph;
+mod iter;
+mod stash;
+
+pub mod prelude {
+    pub use consignment::{
+        ConsignmentEndpoints, ConsignmentId, FullConsignment, RGB_CONSIGNMENT_VERSION,
+    };
+    pub use disclosure::{Disclosure, DisclosureId, RGB_DISCLOSURE_VERSION};
+    pub use iter::ChainIter;
+    pub use rgb_core::prelude::*;
+    pub use stash::Stash;
+
+    use super::*;
+}
+
+pub use prelude::*;

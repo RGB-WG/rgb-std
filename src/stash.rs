@@ -9,7 +9,17 @@
 // You should have received a copy of the MIT License along with this software.
 // If not, see <https://opensource.org/licenses/MIT>.
 
-pub trait StashExt {
+use std::collections::BTreeSet;
+
+use commit_verify::lnpbp4;
+
+use crate::{
+    seal, Anchor, ContractId, Disclosure, FullConsignment, SealEndpoint, TransitionBundle,
+};
+
+pub trait Stash {
+    type Error: std::error::Error;
+
     /// When we need to send over to somebody else an update (like we have
     /// transferred him some state, for instance an asset) for each transfer we
     /// ask [`Stash`] to create a new [`Consignment`] for the given set of seals
@@ -22,14 +32,14 @@ pub trait StashExt {
         bundle: TransitionBundle,
         anchor: Option<&Anchor<lnpbp4::MerkleProof>>,
         endpoints: &BTreeSet<SealEndpoint>,
-    ) -> Result<Consignment, Self::Error>;
+    ) -> Result<FullConsignment, Self::Error>;
 
     /// When we have received data from other peer (which usually relate to our
     /// newly owned state, like assets) we do `accept` a [`Consignment`],
     /// and it gets into the known data.
     fn accept(
         &mut self,
-        consignment: &Consignment,
+        consignment: &FullConsignment,
         known_seals: &[seal::Revealed],
     ) -> Result<(), Self::Error>;
 

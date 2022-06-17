@@ -9,7 +9,18 @@
 // You should have received a copy of the MIT License along with this software.
 // If not, see <https://opensource.org/licenses/MIT>.
 
-impl GraphApi for Consignment {
+use std::collections::BTreeSet;
+
+use bitcoin::{OutPoint, Txid};
+use bp::seals::txout::TxoSeal;
+
+use crate::schema::OwnedRightType;
+use crate::{
+    BundleId, ConsistencyError, Extension, FullConsignment, GraphApi, Node, NodeId, Transition,
+    TransitionBundle,
+};
+
+impl GraphApi for FullConsignment {
     fn node_by_id(&self, node_id: NodeId) -> Option<&dyn Node> {
         if self.genesis.node_id() == node_id {
             return Some(&self.genesis);

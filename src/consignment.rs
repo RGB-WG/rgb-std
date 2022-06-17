@@ -16,20 +16,16 @@ use std::str::FromStr;
 
 use bitcoin::hashes::{sha256, sha256t};
 use bitcoin::Txid;
-use bp::dbc::Anchor;
 use commit_verify::{
     commit_encode, lnpbp4, CommitConceal, CommitVerify, ConsensusCommit, PrehashedProtocol,
     TaggedHash,
 };
 use lnpbp::bech32::{self, FromBech32Str, ToBech32String};
 use strict_encoding::{LargeVec, StrictDecode};
-use wallet::onchain::ResolveTx;
 
-use crate::contract::ConcealSeals;
-use crate::stash::TransitionBundle;
 use crate::{
-    schema, seal, validation, BundleId, ConcealState, ConsistencyError, Extension, Genesis,
-    GraphApi, Node, NodeId, Schema, SealEndpoint, Transition, Validator,
+    schema, seal, Anchor, BundleId, ConcealSeals, ConcealState, ConsistencyError, Extension,
+    Genesis, GraphApi, Node, NodeId, Schema, SealEndpoint, Transition, TransitionBundle,
 };
 
 pub type ConsignmentEndpoints = Vec<(BundleId, SealEndpoint)>;
@@ -101,7 +97,7 @@ impl FromStr for ConsignmentId {
     serde(crate = "serde_crate")
 )]
 #[derive(Clone, PartialEq, Eq, Debug, StrictEncode)]
-pub struct Consignment {
+pub struct FullConsignment {
     /// Version, used internally
     version: u8,
 
@@ -128,15 +124,15 @@ pub struct Consignment {
     pub state_extensions: ExtensionList,
 }
 
-impl commit_encode::Strategy for Consignment {
+impl commit_encode::Strategy for FullConsignment {
     type Strategy = commit_encode::strategies::UsingStrict;
 }
 
-impl ConsensusCommit for Consignment {
+impl ConsensusCommit for FullConsignment {
     type Commitment = ConsignmentId;
 }
 
-impl StrictDecode for Consignment {
+impl StrictDecode for FullConsignment {
     fn strict_decode<D: Read>(mut d: D) -> Result<Self, strict_encoding::Error> {
         let consignment = strict_decode_self!(d; version, schema, genesis, endpoints, anchored_bundles, state_extensions);
         if consignment.version != 0 {
@@ -150,7 +146,7 @@ impl StrictDecode for Consignment {
 
 // TODO #60: Implement different conceal procedures for the consignment
 
-impl Consignment {
+impl FullConsignment {
     #[inline]
     pub fn with(
         schema: Schema,
@@ -158,7 +154,7 @@ impl Consignment {
         endpoints: ConsignmentEndpoints,
         anchored_bundles: AnchoredBundles,
         state_extensions: ExtensionList,
-    ) -> Consignment {
+    ) -> FullConsignment {
         Self {
             version: RGB_CONSIGNMENT_VERSION,
             schema,
@@ -249,15 +245,6 @@ impl Consignment {
             .flat_map(Vec::into_iter)
             .filter(|node| types.contains(&node.transition_type()))
             .collect()
-    }
-
-    pub fn validate<R: ResolveTx>(
-        &self,
-        schema: &Schema,
-        root_schema: Option<&Schema>,
-        resolver: R,
-    ) -> validation::Status {
-        Validator::validate(schema, root_schema, self, resolver)
     }
 
     pub fn finalize(&mut self, expose: &BTreeSet<SealEndpoint>) -> usize {
@@ -357,8 +344,8 @@ pub(crate) mod test {
 
     static CONSIGNMENT: [u8; 1496] = include!("../../test/consignment.in");
 
-    pub(crate) fn consignment() -> Consignment {
-        Consignment::strict_decode(&CONSIGNMENT[..]).unwrap()
+    pub(crate) fn consignment() -> FullConsignment {
+        FullConsignment::strict_decode(&CONSIGNMENT[..]).unwrap()
     }
 
     struct TestResolver;

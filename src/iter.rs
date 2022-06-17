@@ -9,6 +9,17 @@
 // You should have received a copy of the MIT License along with this software.
 // If not, see <https://opensource.org/licenses/MIT>.
 
+use std::collections::{btree_map, BTreeSet};
+use std::slice;
+
+use bitcoin::Txid;
+use commit_verify::lnpbp4;
+
+use crate::schema::{OwnedRightType, TransitionType};
+use crate::{
+    Anchor, ConsistencyError, FullConsignment, GraphApi, Node, NodeId, Transition, TransitionBundle,
+};
+
 /// Iterator over transitions and corresponding witness transaction ids which
 /// can be created out of consignment data. Transitions of this type must be
 /// organized into a chain connecting 1-to-1 via the provided `connected_by`
@@ -17,7 +28,7 @@
 /// Iterator is created with [`Consignment::chain_iter`]
 #[derive(Debug)]
 pub struct ChainIter<'iter> {
-    consignment: &'iter Consignment,
+    consignment: &'iter FullConsignment,
     connected_by: OwnedRightType,
     next_item: Option<(&'iter Transition, Txid)>,
     error: Option<ConsistencyError>,
@@ -66,7 +77,7 @@ impl<'iter> Iterator for ChainIter<'iter> {
     }
 }
 
-impl Consignment {
+impl FullConsignment {
     /// Creates iterator over a single chain of state transition starting from
     /// `node_id` which must be one of the consignment endpoints, and
     /// corresponding witness transaction ids. Transitions must be organized
@@ -98,6 +109,38 @@ impl Consignment {
             bundles,
             transitions,
             transition_types,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct MeshIter<'iter> {
+    bundles: slice::Iter<'iter, (Anchor<lnpbp4::MerkleProof>, TransitionBundle)>,
+    transitions: Option<(Txid, btree_map::Keys<'iter, Transition, BTreeSet<u16>>)>,
+    transition_types: &'iter [TransitionType],
+}
+
+impl<'iter> Iterator for MeshIter<'iter> {
+    type Item = (&'iter Transition, Txid);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            while let Some((txid, transition)) = self
+                .transitions
+                .as_mut()
+                .and_then(|(txid, iter)| iter.next().map(|transition| (txid, transition)))
+            {
+                if self
+                    .transition_types
+                    .contains(&transition.transition_type())
+                {
+                    return Some((transition, *txid));
+                }
+            }
+            let next = self.bundles.next();
+            self.transitions =
+                next.map(|(anchor, bundle)| (anchor.txid, bundle.known_transitions()));
+            self.transitions.as_ref()?;
         }
     }
 }

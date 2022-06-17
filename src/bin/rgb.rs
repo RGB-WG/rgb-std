@@ -242,10 +242,7 @@ impl FromStr for Format {
 }
 
 fn input_read<T>(data: Option<String>, format: Format) -> Result<T, String>
-where
-    T: FromStr + StrictDecode + for<'de> serde::Deserialize<'de>,
-    <T as FromStr>::Err: ToString,
-{
+where T: StrictDecode + for<'de> serde::Deserialize<'de> {
     let data = data
         .map(|d| d.as_bytes().to_vec())
         .ok_or_else(String::new)
@@ -261,9 +258,6 @@ where
             Ok(buf)
         })?;
     Ok(match format {
-        Format::Bech32 => {
-            T::from_str(&String::from_utf8_lossy(&data)).map_err(|err| err.to_string())?
-        }
         Format::Yaml => {
             serde_yaml::from_str(&String::from_utf8_lossy(&data)).map_err(|err| err.to_string())?
         }
@@ -282,12 +276,11 @@ where
 
 fn output_write<T>(data: T, format: Format) -> Result<(), String>
 where
-    T: Debug + Display + Serialize + StrictEncode + ConsensusCommit,
+    T: Debug + Serialize + StrictEncode + ConsensusCommit,
     <T as ConsensusCommit>::Commitment: Display,
 {
     match format {
         Format::Debug => println!("{:#?}", data),
-        Format::Bech32 => println!("{}", data),
         Format::Yaml => println!(
             "{}",
             serde_yaml::to_string(&data)
@@ -310,6 +303,7 @@ where
         Format::Commitment => {
             println!("{}", data.consensus_commit())
         }
+        format => panic!("Can't read data in {} format", format),
     }
     Ok(())
 }
