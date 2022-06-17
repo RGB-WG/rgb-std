@@ -34,7 +34,7 @@ Nodes, implementing RGB functionality and using this library include:
 
 ## Use
 
-Minimum supported rust compiler version (MSRV): 1.59, rust 2022 edition.
+### As library
 
 The library can be integrated into other rust projects via `Cargo.toml`
 `[dependecies]` section:
@@ -53,6 +53,22 @@ rgb-core = { version = "0.8", features = ["wallet"] }
 
 For serialization purposes library provides `serde` feature, which is turned off
 by default.
+
+### Aso command-line tool
+
+The library also provides small command-line tool for hacking and debugging RGB
+related data structures. In order to compile the tool you have to run the
+following commands:
+
+```console
+rustup update
+cargo install rgb-std
+```
+
+### MSRV
+
+Minimum supported rust compiler version (MSRV): 1.59, rust 2022 edition.
+
 
 ## Contributing
 
