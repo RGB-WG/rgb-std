@@ -13,6 +13,10 @@
 extern crate amplify;
 #[macro_use]
 extern crate strict_encoding;
+#[macro_use]
+extern crate stens;
+#[macro_use]
+extern crate rgb_core;
 #[cfg(feature = "serde")]
 #[macro_use]
 extern crate serde_crate as serde;
@@ -22,6 +26,7 @@ mod disclosure;
 mod graph;
 mod iter;
 mod stash;
+mod schemata;
 
 pub mod prelude {
     pub use consignment::{
@@ -30,6 +35,7 @@ pub mod prelude {
     pub use disclosure::{Disclosure, DisclosureId, RGB_DISCLOSURE_VERSION};
     pub use iter::ChainIter;
     pub use rgb_core::prelude::*;
+    pub use schemata::rgb20;
     pub use stash::Stash;
 
     use super::*;

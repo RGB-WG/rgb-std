@@ -25,6 +25,7 @@ required-features = ["cli", "serde"]
 amplify = "3.12.0"
 lnpbp_bech32 = "0.7.0"
 strict_encoding = { version = "~1.8.8", features = ["crypto", "chrono", "bitcoin"] }
+stens = "0.3.2"
 commit_verify = "0.7.0"
 bp-core = "0.7.0"
 rgb_core = { package = "rgb-core", version = "0.8.0-alpha.1" } #, git = "https://github.com/RGB-WG/rgb-core" }
@@ -45,7 +46,7 @@ default = ["serde", "cli"]
 all = ["serde", "cli", "wallet"]
 wallet = ["rgb_core/wallet", "bp-core/wallet"]
 cli = ["clap", "serde_yaml", "serde_json", "descriptor-wallet/electrum", "electrum-client"]
-serde = ["serde_crate", "serde_with", "lnpbp_bech32/serde",
+serde = ["serde_crate", "serde_with", "lnpbp_bech32/serde", "stens/serde",
     "amplify/serde", "commit_verify/serde", "strict_encoding/serde", "rgb_core/serde",
     "amplify/serde", "descriptor-wallet/serde", "bp-core/serde",
     "bitcoin/use-serde"]
