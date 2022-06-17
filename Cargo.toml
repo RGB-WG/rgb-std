@@ -1,6 +1,6 @@
 [package]
 name = "rgb-std"
-version = "0.8.0"
+version = "0.8.0-alpha.1"
 license = "MIT"
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
 description = "RGB Standard Library: high-level API for private & scalable client-validated smart contracts on Bitcoin & Lightning"
@@ -23,22 +23,18 @@ required-features = ["cli", "serde"]
 
 [dependencies]
 amplify = "3.12.0"
-lnpbp = { version = "~0.7.0", features = ["zip"] }
+lnpbp_bech32 = "0.7.0"
 strict_encoding = { version = "~1.8.8", features = ["crypto", "chrono", "bitcoin"] }
 commit_verify = "0.7.0"
 bp-core = "0.7.0"
-rgb_core = { package = "rgb-core", version = "0.8.0", git = "https://github.com/RGB-WG/rgb-core" }
+rgb_core = { package = "rgb-core", version = "0.8.0-alpha.1" } #, git = "https://github.com/RGB-WG/rgb-core" }
 descriptor-wallet = { version = "~0.7.1", features = ["descriptors"] }
 bitcoin = "0.28.1"
 electrum-client = { version = "0.10.0", optional = true }
-bech32 = "~0.9.0"
 serde_crate = { package = "serde", version = "1", features = ["derive"], optional = true }
 serde_with = { version = "1.8", features = ["hex"], optional = true }
 serde_yaml = { version = "0.8", optional = true }
 serde_json = { version = "1", optional = true }
-deflate = "~0.8.6"
-inflate = "~0.4.5"
-chrono = "~0.4.19"
 clap = { version = "~3.1.18", optional = true, features = ["derive"] }
 
 [dev-dependencies]
@@ -49,7 +45,7 @@ default = ["serde", "cli"]
 all = ["serde", "cli", "wallet"]
 wallet = ["rgb_core/wallet", "bp-core/wallet"]
 cli = ["clap", "serde_yaml", "serde_json", "descriptor-wallet/electrum", "electrum-client"]
-serde = ["serde_crate", "serde_with",
+serde = ["serde_crate", "serde_with", "lnpbp_bech32/serde",
     "amplify/serde", "commit_verify/serde", "strict_encoding/serde", "rgb_core/serde",
-    "lnpbp/serde", "amplify/serde", "descriptor-wallet/serde", "bp-core/serde",
+    "amplify/serde", "descriptor-wallet/serde", "bp-core/serde",
     "bitcoin/use-serde"]

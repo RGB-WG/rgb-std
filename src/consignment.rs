@@ -20,7 +20,7 @@ use commit_verify::{
     commit_encode, lnpbp4, CommitConceal, CommitVerify, ConsensusCommit, PrehashedProtocol,
     TaggedHash,
 };
-use lnpbp::bech32::{self, FromBech32Str, ToBech32String};
+use lnpbp_bech32::{self, FromBech32Str, ToBech32String};
 use strict_encoding::{LargeVec, StrictDecode};
 
 use crate::{
@@ -69,13 +69,13 @@ impl commit_encode::Strategy for ConsignmentId {
     type Strategy = commit_encode::strategies::UsingStrict;
 }
 
-impl bech32::Strategy for ConsignmentId {
+impl lnpbp_bech32::Strategy for ConsignmentId {
     const HRP: &'static str = "id";
-    type Strategy = bech32::strategies::UsingStrictEncoding;
+    type Strategy = lnpbp_bech32::strategies::UsingStrictEncoding;
 }
 
 impl FromStr for ConsignmentId {
-    type Err = bech32::Error;
+    type Err = lnpbp_bech32::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> { ConsignmentId::from_bech32_str(s) }
 }

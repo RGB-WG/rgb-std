@@ -25,7 +25,7 @@ use commit_verify::{
     commit_encode, lnpbp4, CommitEncode, CommitVerify, ConsensusCommit, PrehashedProtocol,
     TaggedHash,
 };
-use lnpbp::bech32::{self, FromBech32Str, ToBech32String};
+use lnpbp_bech32::{self, FromBech32Str, ToBech32String};
 use strict_encoding::StrictEncode;
 
 use crate::{
@@ -71,13 +71,13 @@ impl commit_encode::Strategy for DisclosureId {
     type Strategy = commit_encode::strategies::UsingStrict;
 }
 
-impl bech32::Strategy for DisclosureId {
+impl lnpbp_bech32::Strategy for DisclosureId {
     const HRP: &'static str = "id";
-    type Strategy = bech32::strategies::UsingStrictEncoding;
+    type Strategy = lnpbp_bech32::strategies::UsingStrictEncoding;
 }
 
 impl FromStr for DisclosureId {
-    type Err = bech32::Error;
+    type Err = lnpbp_bech32::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> { DisclosureId::from_bech32_str(s) }
 }
