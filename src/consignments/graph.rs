@@ -14,13 +14,16 @@ use std::collections::BTreeSet;
 use bitcoin::{OutPoint, Txid};
 use bp::seals::txout::TxoSeal;
 
+use crate::consignments::InmemConsignment;
 use crate::schema::OwnedRightType;
 use crate::{
-    BundleId, ConsistencyError, Extension, GraphApi, Node, NodeId, StateTransfer, Transition,
+    BundleId, ConsignmentType, ConsistencyError, Extension, GraphApi, Node, NodeId, Transition,
     TransitionBundle,
 };
 
-impl GraphApi for StateTransfer {
+impl<T> GraphApi for InmemConsignment<T>
+where T: ConsignmentType
+{
     fn node_by_id(&self, node_id: NodeId) -> Option<&dyn Node> {
         if self.genesis.node_id() == node_id {
             return Some(&self.genesis);

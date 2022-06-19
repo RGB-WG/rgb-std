@@ -19,14 +19,14 @@ extern crate serde_crate as serde;
 
 mod consignments;
 mod disclosure;
-mod graph;
 mod iter;
 mod stash;
 pub mod fungible;
 
 pub mod prelude {
     pub use consignments::{
-        ConsignmentEndpoints, ConsignmentId, Contract, StateTransfer, RGB_TRANSFER_VERSION,
+        AnchoredBundles, ConsignmentEndpoints, ConsignmentId, ConsignmentType, Contract,
+        ContractConsignment, ExtensionList, StateTransfer, RGB_INMEM_CONSIGNMENT_VERSION,
     };
     pub use disclosure::{Disclosure, DisclosureId, RGB_DISCLOSURE_VERSION};
     pub use iter::ChainIter;

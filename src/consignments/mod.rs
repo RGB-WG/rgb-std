@@ -12,15 +12,30 @@
 mod transfer;
 mod id;
 mod contract;
+mod container;
+mod graph;
 
 use commit_verify::lnpbp4;
 use rgb_core::{Anchor, BundleId, Extension, SealEndpoint, TransitionBundle};
 use strict_encoding::LargeVec;
 
-pub use self::contract::{Contract, RGB_CONTRACT_VERSION};
+pub use self::container::{InmemConsignment, RGB_INMEM_CONSIGNMENT_VERSION};
 pub use self::id::ConsignmentId;
-pub use self::transfer::{StateTransfer, RGB_TRANSFER_VERSION};
 
 pub type AnchoredBundles = LargeVec<(Anchor<lnpbp4::MerkleProof>, TransitionBundle)>;
 pub type ExtensionList = LargeVec<Extension>;
 pub type ConsignmentEndpoints = Vec<(BundleId, SealEndpoint)>;
+
+pub trait ConsignmentType: Clone {}
+
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
+pub struct TransferConsignment;
+
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
+pub struct ContractConsignment;
+
+impl ConsignmentType for TransferConsignment {}
+impl ConsignmentType for ContractConsignment {}
+
+pub type StateTransfer = InmemConsignment<TransferConsignment>;
+pub type Contract = InmemConsignment<ContractConsignment>;

@@ -15,9 +15,10 @@ use std::slice;
 use bitcoin::Txid;
 use commit_verify::lnpbp4;
 
+use crate::consignments::InmemConsignment;
 use crate::schema::{OwnedRightType, TransitionType};
 use crate::{
-    Anchor, ConsistencyError, GraphApi, Node, NodeId, StateTransfer, Transition, TransitionBundle,
+    Anchor, ConsignmentType, ConsistencyError, GraphApi, Node, NodeId, Transition, TransitionBundle,
 };
 
 /// Iterator over transitions and corresponding witness transaction ids which
@@ -27,14 +28,18 @@ use crate::{
 ///
 /// Iterator is created with [`Consignment::chain_iter`]
 #[derive(Debug)]
-pub struct ChainIter<'iter> {
-    consignment: &'iter StateTransfer,
+pub struct ChainIter<'iter, T>
+where T: ConsignmentType
+{
+    consignment: &'iter InmemConsignment<T>,
     connected_by: OwnedRightType,
     next_item: Option<(&'iter Transition, Txid)>,
     error: Option<ConsistencyError>,
 }
 
-impl<'iter> ChainIter<'iter> {
+impl<'iter, T> ChainIter<'iter, T>
+where T: ConsignmentType
+{
     /// Detects whether iterator was stopped by a error
     pub fn is_err(&'iter self) -> bool { self.error.is_some() }
 
@@ -49,7 +54,9 @@ impl<'iter> ChainIter<'iter> {
     }
 }
 
-impl<'iter> Iterator for ChainIter<'iter> {
+impl<'iter, T> Iterator for ChainIter<'iter, T>
+where T: ConsignmentType
+{
     type Item = (&'iter Transition, Txid);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -77,13 +84,15 @@ impl<'iter> Iterator for ChainIter<'iter> {
     }
 }
 
-impl StateTransfer {
+impl<T> InmemConsignment<T>
+where T: ConsignmentType
+{
     /// Creates iterator over a single chain of state transition starting from
     /// `node_id` which must be one of the consignment endpoints, and
     /// corresponding witness transaction ids. Transitions must be organized
     /// into a chain connecting 1-to-1 via the provided `connected_by` owned
     /// rights (one or none of them must be present for each state transition).
-    pub fn chain_iter(&self, start_with: NodeId, connected_by: OwnedRightType) -> ChainIter {
+    pub fn chain_iter(&self, start_with: NodeId, connected_by: OwnedRightType) -> ChainIter<T> {
         let next_item = self
             .endpoint_transition_by_id(start_with)
             .into_iter()
