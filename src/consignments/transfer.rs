@@ -47,6 +47,8 @@ pub struct StateTransfer {
 
     pub schema: Schema,
 
+    pub root_schema: Option<Schema>,
+
     /// Genesis data
     pub genesis: Genesis,
 
@@ -78,7 +80,7 @@ impl ConsensusCommit for StateTransfer {
 
 impl StrictDecode for StateTransfer {
     fn strict_decode<D: Read>(mut d: D) -> Result<Self, strict_encoding::Error> {
-        let consignment = strict_decode_self!(d; version, schema, genesis, endpoints, anchored_bundles, state_extensions);
+        let consignment = strict_decode_self!(d; version, schema, root_schema, genesis, endpoints, anchored_bundles, state_extensions);
         if consignment.version != RGB_TRANSFER_VERSION {
             return Err(strict_encoding::Error::UnsupportedDataStructure(
                 "State transfer versions above 0 are not supported",
@@ -94,6 +96,7 @@ impl StateTransfer {
     #[inline]
     pub fn with(
         schema: Schema,
+        root_schema: Option<Schema>,
         genesis: Genesis,
         endpoints: ConsignmentEndpoints,
         anchored_bundles: AnchoredBundles,
@@ -102,6 +105,7 @@ impl StateTransfer {
         Self {
             version: RGB_TRANSFER_VERSION,
             schema,
+            root_schema,
             genesis,
             endpoints,
             state_extensions,
