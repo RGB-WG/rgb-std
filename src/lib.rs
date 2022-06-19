@@ -27,6 +27,7 @@ mod graph;
 mod iter;
 mod stash;
 mod schemata;
+pub mod fungible;
 
 pub mod prelude {
     pub use consignment::{
