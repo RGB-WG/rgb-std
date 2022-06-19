@@ -10,3 +10,4 @@
 // If not, see <https://opensource.org/licenses/MIT>.
 
 pub mod amount;
+pub mod allocation;
