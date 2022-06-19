@@ -17,7 +17,7 @@ use commit_verify::lnpbp4;
 
 use crate::schema::{OwnedRightType, TransitionType};
 use crate::{
-    Anchor, ConsistencyError, FullConsignment, GraphApi, Node, NodeId, Transition, TransitionBundle,
+    Anchor, ConsistencyError, GraphApi, Node, NodeId, StateTransfer, Transition, TransitionBundle,
 };
 
 /// Iterator over transitions and corresponding witness transaction ids which
@@ -28,7 +28,7 @@ use crate::{
 /// Iterator is created with [`Consignment::chain_iter`]
 #[derive(Debug)]
 pub struct ChainIter<'iter> {
-    consignment: &'iter FullConsignment,
+    consignment: &'iter StateTransfer,
     connected_by: OwnedRightType,
     next_item: Option<(&'iter Transition, Txid)>,
     error: Option<ConsistencyError>,
@@ -77,7 +77,7 @@ impl<'iter> Iterator for ChainIter<'iter> {
     }
 }
 
-impl FullConsignment {
+impl StateTransfer {
     /// Creates iterator over a single chain of state transition starting from
     /// `node_id` which must be one of the consignment endpoints, and
     /// corresponding witness transaction ids. Transitions must be organized

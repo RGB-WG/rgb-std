@@ -16,11 +16,11 @@ use bp::seals::txout::TxoSeal;
 
 use crate::schema::OwnedRightType;
 use crate::{
-    BundleId, ConsistencyError, Extension, FullConsignment, GraphApi, Node, NodeId, Transition,
+    BundleId, ConsistencyError, Extension, GraphApi, Node, NodeId, StateTransfer, Transition,
     TransitionBundle,
 };
 
-impl GraphApi for FullConsignment {
+impl GraphApi for StateTransfer {
     fn node_by_id(&self, node_id: NodeId) -> Option<&dyn Node> {
         if self.genesis.node_id() == node_id {
             return Some(&self.genesis);

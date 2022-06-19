@@ -12,84 +12,33 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryInto;
 use std::io::Read;
-use std::str::FromStr;
 
-use bitcoin::hashes::{sha256, sha256t};
 use bitcoin::Txid;
-use commit_verify::{
-    commit_encode, lnpbp4, CommitConceal, CommitVerify, ConsensusCommit, PrehashedProtocol,
-    TaggedHash,
-};
-use lnpbp_bech32::{self, FromBech32Str, ToBech32String};
+use commit_verify::{commit_encode, lnpbp4, CommitConceal, ConsensusCommit};
 use strict_encoding::{LargeVec, StrictDecode};
 
+use super::ConsignmentId;
 use crate::{
     schema, seal, Anchor, BundleId, ConcealSeals, ConcealState, ConsistencyError, Extension,
     Genesis, GraphApi, Node, NodeId, Schema, SealEndpoint, Transition, TransitionBundle,
 };
 
-pub type ConsignmentEndpoints = Vec<(BundleId, SealEndpoint)>;
+pub type TransferEndpoints = Vec<(BundleId, SealEndpoint)>;
 pub type AnchoredBundles = LargeVec<(Anchor<lnpbp4::MerkleProof>, TransitionBundle)>;
 pub type ExtensionList = LargeVec<Extension>;
 
-pub const RGB_CONSIGNMENT_VERSION: u8 = 0;
-
-static MIDSTATE_CONSIGNMENT_ID: [u8; 32] = [
-    8, 36, 37, 167, 51, 70, 76, 241, 171, 132, 169, 56, 76, 108, 174, 226, 197, 98, 75, 254, 29,
-    125, 170, 233, 184, 121, 13, 183, 90, 51, 134, 6,
-];
-
-/// Tag used for [`ConsignmentId`] hash types
-pub struct ConsignmentIdTag;
-
-impl sha256t::Tag for ConsignmentIdTag {
-    #[inline]
-    fn engine() -> sha256::HashEngine {
-        let midstate = sha256::Midstate::from_inner(MIDSTATE_CONSIGNMENT_ID);
-        sha256::HashEngine::from_midstate(midstate, 64)
-    }
-}
-
-/// Unique consignment identifier equivalent to the commitment hash
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
-#[derive(Wrapper, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Display, From)]
-#[derive(StrictEncode, StrictDecode)]
-#[wrapper(Debug, LowerHex, Index, IndexRange, IndexFrom, IndexTo, IndexFull)]
-#[display(ConsignmentId::to_bech32_string)]
-pub struct ConsignmentId(sha256t::Hash<ConsignmentIdTag>);
-
-impl<Msg> CommitVerify<Msg, PrehashedProtocol> for ConsignmentId
-where Msg: AsRef<[u8]>
-{
-    #[inline]
-    fn commit(msg: &Msg) -> ConsignmentId { ConsignmentId::hash(msg) }
-}
-
-impl commit_encode::Strategy for ConsignmentId {
-    type Strategy = commit_encode::strategies::UsingStrict;
-}
-
-impl lnpbp_bech32::Strategy for ConsignmentId {
-    const HRP: &'static str = "id";
-    type Strategy = lnpbp_bech32::strategies::UsingStrictEncoding;
-}
-
-impl FromStr for ConsignmentId {
-    type Err = lnpbp_bech32::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> { ConsignmentId::from_bech32_str(s) }
-}
+pub const RGB_TRANSFER_VERSION: u8 = 0;
 
 /// Consignment represents contract-specific data, always starting with genesis,
 /// which must be valid under client-side-validation rules (i.e. internally
 /// consistent and properly committed into the commitment layer, like bitcoin
 /// blockchain or current state of the lightning channel).
 ///
-/// All consignment-related procedures, including validation or merging
-/// consignment data into stash or schema-specific data storage, must start with
+/// All consignments-related procedures, including validation or merging
+/// consignments data into stash or schema-specific data storage, must start with
 /// `endpoints` and process up to the genesis. If any of the nodes within the
-/// consignment are not part of the paths connecting endpoints with the genesis,
-/// consignment validation will return
+/// consignments are not part of the paths connecting endpoints with the genesis,
+/// consignments validation will return
 /// [`crate::validation::Warning::ExcessiveNode`] warning
 #[cfg_attr(
     all(feature = "cli", feature = "serde"),
@@ -97,7 +46,7 @@ impl FromStr for ConsignmentId {
     serde(crate = "serde_crate")
 )]
 #[derive(Clone, PartialEq, Eq, Debug, StrictEncode)]
-pub struct FullConsignment {
+pub struct StateTransfer {
     /// Version, used internally
     version: u8,
 
@@ -106,33 +55,33 @@ pub struct FullConsignment {
     /// Genesis data
     pub genesis: Genesis,
 
-    /// The final state ("endpoints") provided by this consignment.
+    /// The final state ("endpoints") provided by this consignments.
     ///
     /// There are two reasons for having endpoints:
     /// - navigation towards genesis from the final state is more
     ///   computationally efficient, since state transition/extension graph is
     ///   directed towards genesis (like bitcoin transaction graph)
-    /// - if the consignment contains concealed state (known by the receiver),
+    /// - if the consignments contains concealed state (known by the receiver),
     ///   it will be computationally inefficient to understand which of the
     ///   state transitions represent the final state
-    pub endpoints: ConsignmentEndpoints,
+    pub endpoints: TransferEndpoints,
 
-    /// Data on all anchored state transitions contained in the consignment
+    /// Data on all anchored state transitions contained in the consignments
     pub anchored_bundles: AnchoredBundles,
 
-    /// Data on all state extensions contained in the consignment
+    /// Data on all state extensions contained in the consignments
     pub state_extensions: ExtensionList,
 }
 
-impl commit_encode::Strategy for FullConsignment {
+impl commit_encode::Strategy for StateTransfer {
     type Strategy = commit_encode::strategies::UsingStrict;
 }
 
-impl ConsensusCommit for FullConsignment {
+impl ConsensusCommit for StateTransfer {
     type Commitment = ConsignmentId;
 }
 
-impl StrictDecode for FullConsignment {
+impl StrictDecode for StateTransfer {
     fn strict_decode<D: Read>(mut d: D) -> Result<Self, strict_encoding::Error> {
         let consignment = strict_decode_self!(d; version, schema, genesis, endpoints, anchored_bundles, state_extensions);
         if consignment.version != 0 {
@@ -144,19 +93,19 @@ impl StrictDecode for FullConsignment {
     }
 }
 
-// TODO #60: Implement different conceal procedures for the consignment
+// TODO #60: Implement different conceal procedures for the consignments
 
-impl FullConsignment {
+impl StateTransfer {
     #[inline]
     pub fn with(
         schema: Schema,
         genesis: Genesis,
-        endpoints: ConsignmentEndpoints,
+        endpoints: TransferEndpoints,
         anchored_bundles: AnchoredBundles,
         state_extensions: ExtensionList,
-    ) -> FullConsignment {
+    ) -> StateTransfer {
         Self {
-            version: RGB_CONSIGNMENT_VERSION,
+            version: RGB_TRANSFER_VERSION,
             schema,
             genesis,
             endpoints,
@@ -303,7 +252,7 @@ impl FullConsignment {
     }
 
     /// Reveals previously known seal information (replacing blind UTXOs with
-    /// unblind ones). Function is used when a peer receives consignment
+    /// unblind ones). Function is used when a peer receives consignments
     /// containing concealed seals for the outputs owned by the peer
     pub fn reveal_seals<'a>(
         &mut self,
@@ -332,25 +281,14 @@ impl FullConsignment {
     }
 }
 
+/*
 #[cfg(test)]
 pub(crate) mod test {
-    use amplify::Wrapper;
-    use commit_verify::tagged_hash;
-
-    use super::*;
-
-    #[test]
-    fn test_consignment_id_midstate() {
-        let midstate = tagged_hash::Midstate::with(b"rgb:consignment");
-        assert_eq!(midstate.into_inner().into_inner(), MIDSTATE_CONSIGNMENT_ID);
-    }
-
-    /*
     use crate::test::schema;
 
-    static CONSIGNMENT: [u8; 1496] = include!("../test/consignment.in");
+    static CONSIGNMENT: [u8; 1496] = include!("../test/consignments.in");
 
-    pub(crate) fn consignment() -> FullConsignment {
+    pub(crate) fn consignments() -> FullConsignment {
         FullConsignment::strict_decode(&CONSIGNMENT[..]).unwrap()
     }
 
@@ -365,10 +303,10 @@ pub(crate) mod test {
 
     #[test]
     fn test_consignment_validation() {
-        let consignment = consignment();
+        let consignments = consignments();
         let schema = schema();
-        let status = consignment.validate(&schema, None, TestResolver);
+        let status = consignments.validate(&schema, None, TestResolver);
         println!("{}", status);
     }
-     */
 }
+*/

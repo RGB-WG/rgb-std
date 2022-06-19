@@ -17,7 +17,7 @@ extern crate strict_encoding;
 #[macro_use]
 extern crate serde_crate as serde;
 
-mod consignment;
+mod consignments;
 mod disclosure;
 mod graph;
 mod iter;
@@ -25,9 +25,7 @@ mod stash;
 pub mod fungible;
 
 pub mod prelude {
-    pub use consignment::{
-        ConsignmentEndpoints, ConsignmentId, FullConsignment, RGB_CONSIGNMENT_VERSION,
-    };
+    pub use consignments::{ConsignmentId, StateTransfer, TransferEndpoints, RGB_TRANSFER_VERSION};
     pub use disclosure::{Disclosure, DisclosureId, RGB_DISCLOSURE_VERSION};
     pub use iter::ChainIter;
     pub use rgb_core::prelude::*;

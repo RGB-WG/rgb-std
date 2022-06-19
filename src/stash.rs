@@ -13,9 +13,7 @@ use std::collections::BTreeSet;
 
 use commit_verify::lnpbp4;
 
-use crate::{
-    seal, Anchor, ContractId, Disclosure, FullConsignment, SealEndpoint, TransitionBundle,
-};
+use crate::{seal, Anchor, ContractId, Disclosure, SealEndpoint, StateTransfer, TransitionBundle};
 
 pub trait Stash {
     type Error: std::error::Error;
@@ -32,14 +30,14 @@ pub trait Stash {
         bundle: TransitionBundle,
         anchor: Option<&Anchor<lnpbp4::MerkleProof>>,
         endpoints: &BTreeSet<SealEndpoint>,
-    ) -> Result<FullConsignment, Self::Error>;
+    ) -> Result<StateTransfer, Self::Error>;
 
     /// When we have received data from other peer (which usually relate to our
     /// newly owned state, like assets) we do `accept` a [`Consignment`],
     /// and it gets into the known data.
     fn accept(
         &mut self,
-        consignment: &FullConsignment,
+        consignment: &StateTransfer,
         known_seals: &[seal::Revealed],
     ) -> Result<(), Self::Error>;
 
