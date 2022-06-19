@@ -11,8 +11,16 @@
 
 mod transfer;
 mod id;
+mod contract;
 
-pub use id::ConsignmentId;
-pub use transfer::{
-    AnchoredBundles, ExtensionList, StateTransfer, TransferEndpoints, RGB_TRANSFER_VERSION,
-};
+use commit_verify::lnpbp4;
+use rgb_core::{Anchor, BundleId, Extension, SealEndpoint, TransitionBundle};
+use strict_encoding::LargeVec;
+
+pub use self::contract::{Contract, RGB_CONTRACT_VERSION};
+pub use self::id::ConsignmentId;
+pub use self::transfer::{StateTransfer, RGB_TRANSFER_VERSION};
+
+pub type AnchoredBundles = LargeVec<(Anchor<lnpbp4::MerkleProof>, TransitionBundle)>;
+pub type ExtensionList = LargeVec<Extension>;
+pub type ConsignmentEndpoints = Vec<(BundleId, SealEndpoint)>;

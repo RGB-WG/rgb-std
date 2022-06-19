@@ -25,7 +25,9 @@ mod stash;
 pub mod fungible;
 
 pub mod prelude {
-    pub use consignments::{ConsignmentId, StateTransfer, TransferEndpoints, RGB_TRANSFER_VERSION};
+    pub use consignments::{
+        ConsignmentEndpoints, ConsignmentId, Contract, StateTransfer, RGB_TRANSFER_VERSION,
+    };
     pub use disclosure::{Disclosure, DisclosureId, RGB_DISCLOSURE_VERSION};
     pub use iter::ChainIter;
     pub use rgb_core::prelude::*;

@@ -10,22 +10,17 @@
 // If not, see <https://opensource.org/licenses/MIT>.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::convert::TryInto;
 use std::io::Read;
 
 use bitcoin::Txid;
-use commit_verify::{commit_encode, lnpbp4, CommitConceal, ConsensusCommit};
-use strict_encoding::{LargeVec, StrictDecode};
+use commit_verify::{commit_encode, CommitConceal, ConsensusCommit};
+use strict_encoding::StrictDecode;
 
-use super::ConsignmentId;
+use super::{AnchoredBundles, ConsignmentEndpoints, ConsignmentId, ExtensionList};
 use crate::{
-    schema, seal, Anchor, BundleId, ConcealSeals, ConcealState, ConsistencyError, Extension,
-    Genesis, GraphApi, Node, NodeId, Schema, SealEndpoint, Transition, TransitionBundle,
+    schema, seal, BundleId, ConcealSeals, ConcealState, ConsistencyError, Extension, Genesis,
+    GraphApi, Node, NodeId, Schema, SealEndpoint, Transition, TransitionBundle,
 };
-
-pub type TransferEndpoints = Vec<(BundleId, SealEndpoint)>;
-pub type AnchoredBundles = LargeVec<(Anchor<lnpbp4::MerkleProof>, TransitionBundle)>;
-pub type ExtensionList = LargeVec<Extension>;
 
 pub const RGB_TRANSFER_VERSION: u8 = 0;
 
@@ -64,7 +59,7 @@ pub struct StateTransfer {
     /// - if the consignments contains concealed state (known by the receiver),
     ///   it will be computationally inefficient to understand which of the
     ///   state transitions represent the final state
-    pub endpoints: TransferEndpoints,
+    pub endpoints: ConsignmentEndpoints,
 
     /// Data on all anchored state transitions contained in the consignments
     pub anchored_bundles: AnchoredBundles,
@@ -84,9 +79,9 @@ impl ConsensusCommit for StateTransfer {
 impl StrictDecode for StateTransfer {
     fn strict_decode<D: Read>(mut d: D) -> Result<Self, strict_encoding::Error> {
         let consignment = strict_decode_self!(d; version, schema, genesis, endpoints, anchored_bundles, state_extensions);
-        if consignment.version != 0 {
+        if consignment.version != RGB_TRANSFER_VERSION {
             return Err(strict_encoding::Error::UnsupportedDataStructure(
-                "Consignment versions above 0 are not supported",
+                "State transfer versions above 0 are not supported",
             ));
         }
         Ok(consignment)
@@ -100,7 +95,7 @@ impl StateTransfer {
     pub fn with(
         schema: Schema,
         genesis: Genesis,
-        endpoints: TransferEndpoints,
+        endpoints: ConsignmentEndpoints,
         anchored_bundles: AnchoredBundles,
         state_extensions: ExtensionList,
     ) -> StateTransfer {
