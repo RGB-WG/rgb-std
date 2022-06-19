@@ -8,3 +8,25 @@
 //
 // You should have received a copy of the MIT License along with this software.
 // If not, see <https://opensource.org/licenses/MIT>.
+
+use std::fmt::{self, Display, Formatter};
+use std::str::FromStr;
+
+use lnpbp_bech32::{FromBech32Str, ToBech32String};
+
+use super::Contract;
+
+impl lnpbp_bech32::Strategy for Contract {
+    const HRP: &'static str = "rgbc";
+    type Strategy = lnpbp_bech32::strategies::CompressedStrictEncoding;
+}
+
+impl Display for Contract {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { f.write_str(&self.to_bech32_string()) }
+}
+
+impl FromStr for Contract {
+    type Err = lnpbp_bech32::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_bech32_str(s) }
+}
