@@ -36,7 +36,7 @@ pub mod prelude {
     pub use disclosure::{Disclosure, DisclosureId, RGB_DISCLOSURE_VERSION};
     pub use iter::ChainIter;
     pub use rgb_core::prelude::*;
-    pub use rgb_core::{field, type_map};
+    pub use rgb_core::{field, secp256k1zkp, type_map};
     pub use schemata::rgb20;
     pub use stash::Stash;
 
