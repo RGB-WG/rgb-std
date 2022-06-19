@@ -9,17 +9,18 @@
 // You should have received a copy of the MIT License along with this software.
 // If not, see <https://opensource.org/licenses/MIT>.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::io;
 use std::marker::PhantomData;
 
 use bitcoin::Txid;
 use commit_verify::{commit_encode, ConsensusCommit};
+use rgb_core::contract::container::ContainerId;
 use rgb_core::{
     schema, BundleId, ConsistencyError, Extension, Genesis, GraphApi, Node, NodeId, Schema,
     Transition, TransitionBundle,
 };
-use strict_encoding::StrictDecode;
+use strict_encoding::{LargeVec, StrictDecode};
 
 use super::{AnchoredBundles, ConsignmentEndpoints, ConsignmentType, ExtensionList};
 use crate::ConsignmentId;
@@ -73,10 +74,16 @@ where T: ConsignmentType
     /// Data on all state extensions contained in the consignments
     pub state_extensions: ExtensionList,
 
+    /// Data containers coming with this consignment. For the purposes of
+    /// in-memory consignments we are restricting the size of the containers to
+    /// 24 bit value (RGB allows containers up to 32-bit values in size).
+    pub data_containers: BTreeMap<ContainerId, LargeVec<u8>>,
+
     #[strict_encoding(skip)]
     _phantom: PhantomData<T>,
 }
 
+// TODO: Switch to "UsingConceal" strategy
 impl<T> commit_encode::Strategy for InmemConsignment<T>
 where T: ConsignmentType
 {
@@ -101,6 +108,7 @@ where T: ConsignmentType
             endpoints: StrictDecode::strict_decode(&mut d)?,
             anchored_bundles: StrictDecode::strict_decode(&mut d)?,
             state_extensions: StrictDecode::strict_decode(&mut d)?,
+            data_containers: StrictDecode::strict_decode(&mut d)?,
             _phantom: none!(),
         };
         if consignment.version != RGB_INMEM_CONSIGNMENT_VERSION {
@@ -132,6 +140,7 @@ where T: ConsignmentType
             endpoints,
             state_extensions,
             anchored_bundles,
+            data_containers: none!(),
             _phantom: none!(),
         }
     }
