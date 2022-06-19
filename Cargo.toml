@@ -28,7 +28,7 @@ strict_encoding = { version = "~1.8.8", features = ["crypto", "chrono", "bitcoin
 stens = "0.3.2"
 commit_verify = "0.7.0"
 bp-core = "0.7.0"
-rgb_core = { package = "rgb-core", version = "0.8.0-alpha.1" } #, git = "https://github.com/RGB-WG/rgb-core" }
+rgb_core = { package = "rgb-core", version = "0.8.0-alpha.1", git = "https://github.com/RGB-WG/rgb-core" }
 descriptor-wallet = { version = "~0.7.1", features = ["descriptors"] }
 bitcoin = "0.28.1"
 electrum-client = { version = "0.10.0", optional = true }
