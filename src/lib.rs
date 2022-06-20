@@ -21,6 +21,7 @@ mod consignments;
 mod disclosure;
 mod stash;
 pub mod fungible;
+mod state;
 
 pub mod prelude {
     pub use consignments::{
