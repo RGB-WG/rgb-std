@@ -20,7 +20,7 @@ static MIDSTATE_CONSIGNMENT_ID: [u8; 32] = [
     125, 170, 233, 184, 121, 13, 183, 90, 51, 134, 6,
 ];
 
-/// Tag used for [`TransferId`] hash types
+/// Tag used for [`ConsignmentId`] hash types
 pub struct ConsignmentIdTag;
 
 impl sha256t::Tag for ConsignmentIdTag {
@@ -35,7 +35,7 @@ impl sha256t::Tag for ConsignmentIdTag {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
 #[derive(Wrapper, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Display, From)]
 #[derive(StrictEncode, StrictDecode)]
-#[wrapper(Debug, LowerHex, Index, IndexRange, IndexFrom, IndexTo, IndexFull)]
+#[wrapper(LowerHex, BorrowSlice)]
 #[display(ConsignmentId::to_bech32_string)]
 pub struct ConsignmentId(sha256t::Hash<ConsignmentIdTag>);
 

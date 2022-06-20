@@ -56,7 +56,7 @@ impl sha256t::Tag for DisclosureIdTag {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
 #[derive(Wrapper, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Display, From)]
 #[derive(StrictEncode, StrictDecode)]
-#[wrapper(Debug)]
+#[wrapper(LowerHex, BorrowSlice)]
 #[display(DisclosureId::to_bech32_string)]
 pub struct DisclosureId(sha256t::Hash<DisclosureIdTag>);
 
