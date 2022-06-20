@@ -15,10 +15,9 @@ use std::marker::PhantomData;
 
 use bitcoin::Txid;
 use commit_verify::{commit_encode, ConsensusCommit};
-use rgb_core::contract::container::ContainerId;
 use rgb_core::{
-    schema, BundleId, ConsistencyError, Extension, Genesis, GraphApi, Node, NodeId, Schema,
-    Transition, TransitionBundle,
+    schema, AttachmentId, BundleId, ConsistencyError, Extension, Genesis, GraphApi, Node, NodeId,
+    Schema, Transition, TransitionBundle,
 };
 use strict_encoding::{LargeVec, StrictDecode};
 
@@ -77,7 +76,7 @@ where T: ConsignmentType
     /// Data containers coming with this consignment. For the purposes of
     /// in-memory consignments we are restricting the size of the containers to
     /// 24 bit value (RGB allows containers up to 32-bit values in size).
-    pub data_containers: BTreeMap<ContainerId, LargeVec<u8>>,
+    pub data_containers: BTreeMap<AttachmentId, LargeVec<u8>>,
 
     #[strict_encoding(skip)]
     _phantom: PhantomData<T>,

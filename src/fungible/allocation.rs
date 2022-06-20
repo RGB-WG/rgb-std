@@ -316,7 +316,7 @@ impl AllocationMap for SealValueMap {
 
     fn into_assignments(self) -> AssignmentVec {
         let mut rng = thread_rng();
-        AssignmentVec::DiscreteFiniteField(
+        AssignmentVec::Fungible(
             self.into_iter()
                 .map(|(seal, value)| Assignment::Revealed {
                     seal_definition: seal,
@@ -332,7 +332,7 @@ impl AllocationMap for EndpointValueMap {
 
     fn into_assignments(self) -> AssignmentVec {
         let mut rng = thread_rng();
-        AssignmentVec::DiscreteFiniteField(
+        AssignmentVec::Fungible(
             self.into_iter()
                 .map(|(seal, value)| {
                     let assigned_state = value::Revealed::with_amount(value, &mut rng);
