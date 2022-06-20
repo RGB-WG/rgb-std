@@ -82,10 +82,10 @@ impl FromStr for DisclosureId {
     fn from_str(s: &str) -> Result<Self, Self::Err> { DisclosureId::from_bech32_str(s) }
 }
 
-// TODO #62: Change the value
-static MIDSTATE_SIG_HASH: [u8; 32] = [
-    8, 36, 37, 167, 51, 70, 76, 241, 171, 132, 169, 56, 76, 108, 174, 226, 197, 98, 75, 254, 29,
-    125, 170, 233, 184, 121, 13, 183, 90, 51, 134, 6,
+// "rgb:disclosure:sighash"
+static MIDSTATE_DISCLOSURE_SIG_HASH: [u8; 32] = [
+    140, 213, 168, 56, 70, 106, 191, 1, 83, 233, 1, 100, 218, 177, 13, 8, 222, 50, 200, 107, 105,
+    5, 58, 80, 37, 77, 178, 238, 18, 252, 96, 98,
 ];
 
 /// Tag used for [`SigHash`] hash types
@@ -94,7 +94,7 @@ pub struct SigHashTag;
 impl sha256t::Tag for SigHashTag {
     #[inline]
     fn engine() -> sha256::HashEngine {
-        let midstate = sha256::Midstate::from_inner(MIDSTATE_SIG_HASH);
+        let midstate = sha256::Midstate::from_inner(MIDSTATE_DISCLOSURE_SIG_HASH);
         sha256::HashEngine::from_midstate(midstate, 64)
     }
 }
@@ -319,8 +319,17 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_container_id_midstate() {
+    fn test_disclosure_id_midstate() {
         let midstate = tagged_hash::Midstate::with(b"rgb:disclosure");
         assert_eq!(midstate.into_inner().into_inner(), MIDSTATE_DISCLOSURE_ID);
+    }
+
+    #[test]
+    fn test_sighash_id_midstate() {
+        let midstate = tagged_hash::Midstate::with(b"rgb:disclosure:sighash");
+        assert_eq!(
+            midstate.into_inner().into_inner(),
+            MIDSTATE_DISCLOSURE_SIG_HASH
+        );
     }
 }
