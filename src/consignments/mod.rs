@@ -14,6 +14,7 @@ mod id;
 mod contract;
 mod container;
 mod graph;
+mod iter;
 
 use commit_verify::lnpbp4;
 use rgb_core::{Anchor, BundleId, Extension, SealEndpoint, TransitionBundle};
@@ -21,6 +22,7 @@ use strict_encoding::LargeVec;
 
 pub use self::container::{InmemConsignment, RGB_INMEM_CONSIGNMENT_VERSION};
 pub use self::id::ConsignmentId;
+pub use self::iter::{ChainIter, MeshIter};
 
 pub type AnchoredBundles = LargeVec<(Anchor<lnpbp4::MerkleProof>, TransitionBundle)>;
 pub type ExtensionList = LargeVec<Extension>;
