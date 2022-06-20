@@ -50,7 +50,7 @@ impl StateTransfer {
             .iter()
             .map(|(anchor, bundle)| {
                 let bundle = bundle
-                    .into_iter()
+                    .revealed_iter()
                     .map(|(transition, inputs)| {
                         let mut transition = transition.clone();
                         count += transition.conceal_state_except(&concealed_endpoints)
@@ -84,7 +84,7 @@ impl StateTransfer {
         let mut counter = 0;
         for (_, bundle) in self.anchored_bundles.iter_mut() {
             *bundle = bundle
-                .into_iter()
+                .revealed_iter()
                 .map(|(transition, inputs)| {
                     let mut transition = transition.clone();
                     for (_, assignment) in transition.owned_rights_mut().iter_mut() {
