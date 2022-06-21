@@ -29,7 +29,7 @@ pub mod prelude {
     pub use crate::consignments::{
         AnchoredBundles, ChainIter, ConsignmentEndpoints, ConsignmentId, ConsignmentType, Contract,
         ContractConsignment, ExtensionList, InmemConsignment, MeshIter, StateTransfer,
-        RGB_INMEM_CONSIGNMENT_VERSION,
+        TransferConsignment, RGB_INMEM_CONSIGNMENT_VERSION,
     };
     pub use crate::disclosure::{Disclosure, DisclosureId, RGB_DISCLOSURE_VERSION};
     pub use crate::fungible;
