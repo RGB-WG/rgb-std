@@ -24,18 +24,17 @@ pub mod fungible;
 mod state;
 
 pub mod prelude {
-    pub use consignments::{
+    pub use rgb_core::*;
+
+    pub use crate::consignments::{
         AnchoredBundles, ChainIter, ConsignmentEndpoints, ConsignmentId, ConsignmentType, Contract,
         ContractConsignment, ExtensionList, InmemConsignment, MeshIter, StateTransfer,
         RGB_INMEM_CONSIGNMENT_VERSION,
     };
-    pub use disclosure::{Disclosure, DisclosureId, RGB_DISCLOSURE_VERSION};
-    pub use rgb_core::prelude::*;
-    pub use rgb_core::{field, secp256k1zkp, type_map};
-    pub use stash::Stash;
-    pub use state::{AssignedState, ContractState, StateAtom};
-
-    use super::*;
+    pub use crate::disclosure::{Disclosure, DisclosureId, RGB_DISCLOSURE_VERSION};
+    pub use crate::fungible;
+    pub use crate::stash::Stash;
+    pub use crate::state::{AssignedState, ContractState, StateAtom};
 }
 
 pub use prelude::*;
