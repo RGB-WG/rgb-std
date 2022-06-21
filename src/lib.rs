@@ -26,7 +26,8 @@ mod state;
 pub mod prelude {
     pub use consignments::{
         AnchoredBundles, ChainIter, ConsignmentEndpoints, ConsignmentId, ConsignmentType, Contract,
-        ContractConsignment, ExtensionList, MeshIter, StateTransfer, RGB_INMEM_CONSIGNMENT_VERSION,
+        ContractConsignment, ExtensionList, InmemConsignment, MeshIter, StateTransfer,
+        RGB_INMEM_CONSIGNMENT_VERSION,
     };
     pub use disclosure::{Disclosure, DisclosureId, RGB_DISCLOSURE_VERSION};
     pub use rgb_core::prelude::*;
