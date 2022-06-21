@@ -1129,7 +1129,7 @@ dependencies = [
 
 [[package]]
 name = "rgb-std"
-version = "0.8.0-alpha.1"
+version = "0.8.0-beta.1"
 dependencies = [
  "amplify",
  "bitcoin",
