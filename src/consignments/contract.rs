@@ -13,7 +13,6 @@ use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 
 use lnpbp_bech32::{FromBech32Str, ToBech32String};
-use rgb_core::ContractId;
 
 use super::Contract;
 
@@ -30,8 +29,4 @@ impl FromStr for Contract {
     type Err = lnpbp_bech32::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_bech32_str(s) }
-}
-
-impl Contract {
-    pub fn contract_id(&self) -> ContractId { self.genesis.contract_id() }
 }

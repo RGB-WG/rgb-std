@@ -16,8 +16,8 @@ use std::marker::PhantomData;
 use bitcoin::Txid;
 use commit_verify::{commit_encode, ConsensusCommit};
 use rgb_core::{
-    schema, AttachmentId, BundleId, ConsistencyError, Extension, Genesis, GraphApi, Node, NodeId,
-    Schema, Transition, TransitionBundle,
+    schema, AttachmentId, BundleId, ConsistencyError, ContractId, Extension, Genesis, GraphApi,
+    Node, NodeId, Schema, Transition, TransitionBundle,
 };
 use strict_encoding::{LargeVec, StrictDecode};
 
@@ -146,6 +146,8 @@ where T: ConsignmentType
 
     #[inline]
     pub fn id(&self) -> ConsignmentId { self.clone().consensus_commit() }
+
+    pub fn contract_id(&self) -> ContractId { self.genesis.contract_id() }
 
     #[inline]
     pub fn version(&self) -> u8 { self.version }
