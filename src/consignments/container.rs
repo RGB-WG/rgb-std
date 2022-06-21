@@ -10,19 +10,20 @@
 // If not, see <https://opensource.org/licenses/MIT>.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::io;
 use std::marker::PhantomData;
+use std::{io, slice};
 
 use bitcoin::Txid;
+use commit_verify::lnpbp4::MerkleProof;
 use commit_verify::{commit_encode, ConsensusCommit};
 use rgb_core::{
-    schema, AttachmentId, BundleId, ConsistencyError, ContractId, Extension, Genesis, GraphApi,
-    Node, NodeId, Schema, Transition, TransitionBundle,
+    schema, AttachmentId, BundleId, Consignment, ConsignmentEndpoint, ConsistencyError, ContractId,
+    Extension, Genesis, GraphApi, Node, NodeId, Schema, Transition, TransitionBundle,
 };
 use strict_encoding::{LargeVec, StrictDecode};
 
 use super::{AnchoredBundles, ConsignmentEndpoints, ConsignmentType, ExtensionList};
-use crate::ConsignmentId;
+use crate::{Anchor, ConsignmentId};
 
 pub const RGB_INMEM_CONSIGNMENT_VERSION: u8 = 0;
 
@@ -119,6 +120,40 @@ where T: ConsignmentType
     }
 }
 
+impl<'consignment, T> Consignment<'consignment> for InmemConsignment<T>
+where
+    Self: 'consignment,
+    T: ConsignmentType,
+{
+    type EndpointIter = slice::Iter<'consignment, ConsignmentEndpoint>;
+    type BundleIter = slice::Iter<'consignment, (Anchor<MerkleProof>, TransitionBundle)>;
+    type ExtensionsIter = slice::Iter<'consignment, Extension>;
+
+    fn schema(&'consignment self) -> &'consignment Schema { &self.schema }
+
+    fn root_schema(&'consignment self) -> Option<&'consignment Schema> { self.root_schema.as_ref() }
+
+    fn genesis(&'consignment self) -> &'consignment Genesis { &self.genesis }
+
+    fn node_ids(&'consignment self) -> BTreeSet<NodeId> {
+        // TODO: Implement node id cache with making all fields private
+        let mut set = bset![self.genesis.node_id()];
+        set.extend(
+            self.anchored_bundles
+                .iter()
+                .flat_map(|(_, bundle)| bundle.known_node_ids()),
+        );
+        set.extend(self.state_extensions.iter().map(Extension::node_id));
+        set
+    }
+
+    fn endpoints(&'consignment self) -> Self::EndpointIter { self.endpoints.iter() }
+
+    fn anchored_bundles(&'consignment self) -> Self::BundleIter { self.anchored_bundles.iter() }
+
+    fn state_extensions(&'consignment self) -> Self::ExtensionsIter { self.state_extensions.iter() }
+}
+
 impl<T> InmemConsignment<T>
 where T: ConsignmentType
 {
@@ -152,7 +187,6 @@ where T: ConsignmentType
     #[inline]
     pub fn version(&self) -> u8 { self.version }
 
-    #[inline]
     pub fn txids(&self) -> BTreeSet<Txid> {
         self.anchored_bundles
             .iter()
@@ -160,19 +194,6 @@ where T: ConsignmentType
             .collect()
     }
 
-    #[inline]
-    pub fn node_ids(&self) -> BTreeSet<NodeId> {
-        let mut set = bset![self.genesis.node_id()];
-        set.extend(
-            self.anchored_bundles
-                .iter()
-                .flat_map(|(_, bundle)| bundle.known_node_ids()),
-        );
-        set.extend(self.state_extensions.iter().map(Extension::node_id));
-        set
-    }
-
-    #[inline]
     pub fn endpoint_bundle_ids(&self) -> BTreeSet<BundleId> {
         self.endpoints
             .iter()
@@ -181,7 +202,6 @@ where T: ConsignmentType
             .collect()
     }
 
-    #[inline]
     pub fn endpoint_bundles(&self) -> Vec<&TransitionBundle> {
         self.endpoint_bundle_ids()
             .into_iter()
@@ -189,7 +209,6 @@ where T: ConsignmentType
             .collect()
     }
 
-    #[inline]
     pub fn endpoint_transition_by_id(
         &self,
         node_id: NodeId,
@@ -207,7 +226,6 @@ where T: ConsignmentType
         self.transition_by_id(node_id)
     }
 
-    #[inline]
     pub fn endpoint_transitions_by_type(
         &self,
         transition_type: schema::TransitionType,
@@ -215,7 +233,6 @@ where T: ConsignmentType
         self.endpoint_transitions_by_types(&[transition_type])
     }
 
-    #[inline]
     pub fn endpoint_transitions_by_types(
         &self,
         types: &[schema::TransitionType],

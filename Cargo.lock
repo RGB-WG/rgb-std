@@ -348,9 +348,9 @@ dependencies = [
 
 [[package]]
 name = "clap_lex"
-version = "0.2.2"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5538cd660450ebeb4234cfecf8f2284b844ffc4c50531e66d584ad5b91293613"
+checksum = "87eba3c8c7f42ef17f6c659fc7416d0f4758cd3e58861ee63c5fa4a4dde649e4"
 dependencies = [
  "os_str_bytes",
 ]
@@ -646,9 +646,9 @@ checksum = "b9e0384b61958566e926dc50660321d12159025e767c18e043daf26b70104c39"
 
 [[package]]
 name = "indexmap"
-version = "1.9.0"
+version = "1.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c6392766afd7964e2531940894cffe4bd8d7d17dbc3c1c4857040fd4b33bdb3"
+checksum = "10a35a97730320ffe8e2d410b5d3b69279b98d2c14bdb8b70ea89ecf7888d41e"
 dependencies = [
  "autocfg 1.1.0",
  "hashbrown",
@@ -1108,8 +1108,8 @@ dependencies = [
 
 [[package]]
 name = "rgb-core"
-version = "0.8.0-alpha.1"
-source = "git+https://github.com/RGB-WG/rgb-core#c597729f6122b7c7c276c0a16fe984213fed7c15"
+version = "0.8.0-beta.1"
+source = "git+https://github.com/RGB-WG/rgb-core#275100a00400be3743db86e6e70845beeac2b343"
 dependencies = [
  "aluvm",
  "amplify",
@@ -1362,9 +1362,9 @@ dependencies = [
 
 [[package]]
 name = "stens"
-version = "0.3.2"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e56c50a9ee6529486f13b8ca5682c4f23260f5900e4f2206cd7be689bb4f095"
+checksum = "dc1e031ab71b85047628043fc99cbd286277b956534fd4f6762cce7cdb26b150"
 dependencies = [
  "amplify",
  "serde",
