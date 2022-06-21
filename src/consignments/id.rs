@@ -33,7 +33,7 @@ impl sha256t::Tag for ConsignmentIdTag {
 
 /// Unique transfer identifier equivalent to the commitment hash
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
-#[derive(Wrapper, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Display, From)]
+#[derive(Wrapper, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug, Display, From)]
 #[derive(StrictEncode, StrictDecode)]
 #[wrapper(LowerHex, BorrowSlice)]
 #[display(ConsignmentId::to_bech32_string)]
