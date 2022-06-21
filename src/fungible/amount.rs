@@ -25,7 +25,8 @@
 //! floating point amount with `*_amount` suffix, and reserve `*_value` suffix
 //! for methods returning atomic value.
 
-use std::ops::{Add, AddAssign};
+use std::convert::TryFrom;
+use std::ops::{Add, AddAssign, Deref};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -139,5 +140,88 @@ impl AddAssign for PreciseAmount {
         } else {
             self.0 += rhs.0
         }
+    }
+}
+
+#[derive(Clone, Debug, Display, PartialEq, Eq)]
+#[display(doc_comments)]
+/// Asset decimal precision exceeds 18 digits
+pub struct DecimalPrecisionOverflowError;
+
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Display)]
+#[display(inner)]
+/// Decimal precision for asset value: a wrapper limiting the value range to 0..=18
+pub struct DecimalPrecision(u8);
+
+impl Deref for DecimalPrecision {
+    type Target = u8;
+
+    fn deref(&self) -> &Self::Target { &self.0 }
+}
+
+impl TryFrom<amplify::num::u5> for DecimalPrecision {
+    type Error = DecimalPrecisionOverflowError;
+
+    fn try_from(value: amplify::num::u5) -> Result<Self, Self::Error> {
+        Self::try_from(value.as_u8())
+    }
+}
+
+impl TryFrom<u8> for DecimalPrecision {
+    type Error = DecimalPrecisionOverflowError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0..=18 => Ok(DecimalPrecision(value)),
+            _ => Err(DecimalPrecisionOverflowError),
+        }
+    }
+}
+
+impl TryFrom<usize> for DecimalPrecision {
+    type Error = DecimalPrecisionOverflowError;
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        Self::try_from(u8::try_from(value).map_err(|_| DecimalPrecisionOverflowError)?)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use amplify::num::u5;
+
+    use super::*;
+
+    #[test]
+    fn decimal_precision() {
+        // Minimal
+        assert_eq!(*DecimalPrecision::try_from(u5::ZERO).unwrap(), 0);
+        assert_eq!(*DecimalPrecision::try_from(0u8).unwrap(), 0);
+        assert_eq!(*DecimalPrecision::try_from(0usize).unwrap(), 0);
+
+        // Maximal
+        let u5_18 = u5::try_from(18).unwrap();
+        assert_eq!(*DecimalPrecision::try_from(u5_18).unwrap(), 18);
+        assert_eq!(*DecimalPrecision::try_from(18u8).unwrap(), 18);
+        assert_eq!(*DecimalPrecision::try_from(18usize).unwrap(), 18);
+
+        // Overflow: >18
+        let u5_19 = u5::try_from(19).unwrap();
+        assert_eq!(
+            DecimalPrecision::try_from(u5_19).unwrap_err(),
+            DecimalPrecisionOverflowError
+        );
+        assert_eq!(
+            DecimalPrecision::try_from(19u8).unwrap_err(),
+            DecimalPrecisionOverflowError
+        );
+        assert_eq!(
+            DecimalPrecision::try_from(19usize).unwrap_err(),
+            DecimalPrecisionOverflowError
+        );
+        assert_eq!(
+            DecimalPrecision::try_from(usize::MAX).unwrap_err(),
+            DecimalPrecisionOverflowError
+        );
     }
 }
