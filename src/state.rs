@@ -24,6 +24,8 @@ use rgb_core::{
     data, seal, Assignment, AssignmentVec, AtomicValue, AttachmentStrategy, ContractId,
     DeclarativeStrategy, HashStrategy, Node, NodeId, NodeOutpoint, PedersenStrategy, State,
 };
+#[cfg(feature = "serde")]
+use serde_with::{As, DisplayFromStr, Same};
 use strict_encoding::{StrictDecode, StrictEncode};
 
 pub trait StateAtom:
@@ -88,12 +90,17 @@ pub type OwnedAttachment = AssignedState<attachment::Revealed>;
 
 #[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
 #[derive(StrictEncode, StrictDecode)]
+#[cfg_attr(feature = "serde", derive(Serialize), serde(crate = "serde_crate"))]
 pub struct ContractState {
     pub contract_id: ContractId,
     pub metadata: BTreeMap<FieldType, Vec<data::Revealed>>,
+    #[cfg_attr(feature = "serde", serde(with = "As::<BTreeMap<Same, Vec<DisplayFromStr>>>"))]
     pub owned_rights: BTreeMap<OwnedRightType, Vec<OwnedRight>>,
+    #[cfg_attr(feature = "serde", serde(with = "As::<BTreeMap<Same, Vec<DisplayFromStr>>>"))]
     pub owned_values: BTreeMap<OwnedRightType, Vec<OwnedValue>>,
+    #[cfg_attr(feature = "serde", serde(with = "As::<BTreeMap<Same, Vec<DisplayFromStr>>>"))]
     pub owned_data: BTreeMap<OwnedRightType, Vec<OwnedData>>,
+    #[cfg_attr(feature = "serde", serde(with = "As::<BTreeMap<Same, Vec<DisplayFromStr>>>"))]
     pub owned_attachments: BTreeMap<OwnedRightType, Vec<OwnedAttachment>>,
 }
 
