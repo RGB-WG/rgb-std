@@ -13,12 +13,12 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::marker::PhantomData;
 use std::{io, slice};
 
-use bitcoin::Txid;
+use bitcoin::{OutPoint, Txid};
 use commit_verify::lnpbp4::MerkleProof;
 use commit_verify::{commit_encode, ConsensusCommit};
 use rgb_core::{
     schema, AttachmentId, BundleId, Consignment, ConsignmentEndpoint, ConsistencyError, ContractId,
-    Extension, Genesis, GraphApi, Node, NodeId, NodeOutpoint, Schema, Transition, TransitionBundle,
+    Extension, Genesis, GraphApi, Node, NodeId, Schema, Transition, TransitionBundle,
 };
 #[cfg(feature = "serde")]
 use serde_with::{As, DisplayFromStr};
@@ -60,7 +60,7 @@ where T: ConsignmentType
     /// Genesis data
     pub genesis: Genesis,
 
-    /// State transitions containing current known state of the contract.
+    /// Set of seals defining the current known state of the contract.
     ///
     /// There are two reasons for having tips:
     /// - navigation towards genesis from the final state is more
@@ -69,7 +69,7 @@ where T: ConsignmentType
     /// - to provide quick access to the current contract state without the need
     ///   for parsing the state of all transitions in the consignment.
     #[cfg_attr(feature = "serde", serde(with = "As::<BTreeSet<DisplayFromStr>>"))]
-    pub tips: BTreeSet<NodeOutpoint>,
+    pub tips: BTreeSet<OutPoint>,
 
     /// Set of seals for the state transfer beneficiaries.
     pub endseals: ConsignmentEndseals,
@@ -169,7 +169,7 @@ where T: ConsignmentType
         schema: Schema,
         root_schema: Option<Schema>,
         genesis: Genesis,
-        tips: BTreeSet<NodeOutpoint>,
+        tips: BTreeSet<OutPoint>,
         endseals: ConsignmentEndseals,
         anchored_bundles: AnchoredBundles,
         state_extensions: ExtensionList,

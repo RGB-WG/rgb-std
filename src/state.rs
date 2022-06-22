@@ -9,7 +9,7 @@
 // You should have received a copy of the MIT License along with this software.
 // If not, see <https://opensource.org/licenses/MIT>.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::ops::Deref;
@@ -106,7 +106,7 @@ pub struct ContractState {
 }
 
 impl ContractState {
-    pub fn with(contract_id: ContractId, genesis: &Genesis) -> Self {
+    pub fn with(contract_id: ContractId, genesis: &Genesis, tips: &BTreeSet<OutPoint>) -> Self {
         let mut state = ContractState {
             contract_id,
             metadata: empty!(),
@@ -115,17 +115,24 @@ impl ContractState {
             owned_data: empty!(),
             owned_attachments: empty!(),
         };
-        state.add_node(zero!(), genesis);
+        state.add_node(zero!(), genesis, tips);
         state
     }
 
-    pub fn add_transition(&mut self, txid: Txid, transition: &Transition) {
-        self.add_node(txid, transition);
+    pub fn add_transition(
+        &mut self,
+        txid: Txid,
+        transition: &Transition,
+        tips: &BTreeSet<OutPoint>,
+    ) {
+        self.add_node(txid, transition, tips);
     }
 
-    pub fn add_extension(&mut self, extension: &Extension) { self.add_node(zero!(), extension); }
+    pub fn add_extension(&mut self, extension: &Extension, tips: &BTreeSet<OutPoint>) {
+        self.add_node(zero!(), extension, tips);
+    }
 
-    fn add_node(&mut self, txid: Txid, node: &impl Node) {
+    fn add_node(&mut self, txid: Txid, node: &impl Node, tips: &BTreeSet<OutPoint>) {
         let node_id = node.node_id();
 
         for (ty, meta) in node.metadata() {
@@ -140,6 +147,7 @@ impl ContractState {
             assignments: &[Assignment<S::StateType>],
             node_id: NodeId,
             txid: Txid,
+            tips: &BTreeSet<OutPoint>,
         ) where
             <S::StateType as State>::Confidential: Eq
                 + From<<<S::StateType as State>::Revealed as CommitConceal>::ConcealedCommitment>,
@@ -149,6 +157,10 @@ impl ContractState {
                 .enumerate()
                 .filter_map(|(n, a)| a.to_revealed().map(|(seal, state)| (n, seal, state)))
             {
+                // Ignore if the state is not part of the tips
+                if !tips.contains(&seal.outpoint_or(txid)) {
+                    continue;
+                }
                 let assigned_state =
                     AssignedState::with(seal, txid, state.into(), node_id, no as u16);
                 fields.push(assigned_state);
@@ -159,19 +171,19 @@ impl ContractState {
             match assignments {
                 AssignmentVec::Declarative(assignments) => {
                     let fields = self.owned_rights.entry(*ty).or_default();
-                    process(fields, assignments, node_id, txid)
+                    process(fields, assignments, node_id, txid, tips)
                 }
                 AssignmentVec::Fungible(assignments) => {
                     let fields = self.owned_values.entry(*ty).or_default();
-                    process(fields, assignments, node_id, txid)
+                    process(fields, assignments, node_id, txid, tips)
                 }
                 AssignmentVec::NonFungible(assignments) => {
                     let fields = self.owned_data.entry(*ty).or_default();
-                    process(fields, assignments, node_id, txid)
+                    process(fields, assignments, node_id, txid, tips)
                 }
                 AssignmentVec::Attachment(assignments) => {
                     let fields = self.owned_attachments.entry(*ty).or_default();
-                    process(fields, assignments, node_id, txid)
+                    process(fields, assignments, node_id, txid, tips)
                 }
             }
         }
