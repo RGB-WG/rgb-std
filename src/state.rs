@@ -21,7 +21,7 @@ use rgb_core::schema::{FieldType, OwnedRightType};
 use rgb_core::{
     data, seal, Assignment, AssignmentVec, AtomicValue, AttachmentStrategy, ContractId,
     DeclarativeStrategy, Extension, Genesis, HashStrategy, Node, NodeId, NodeOutpoint,
-    PedersenStrategy, State, Transition,
+    PedersenStrategy, SchemaId, State, Transition,
 };
 #[cfg(feature = "serde")]
 use serde_with::{As, DisplayFromStr};
@@ -92,6 +92,8 @@ pub type OwnedAttachment = AssignedState<attachment::Revealed>;
 #[derive(StrictEncode, StrictDecode)]
 #[cfg_attr(feature = "serde", derive(Serialize), serde(crate = "serde_crate"))]
 pub struct ContractState {
+    pub schema_id: SchemaId,
+    pub root_schema_id: Option<SchemaId>,
     pub contract_id: ContractId,
     pub metadata: BTreeMap<FieldType, Vec<data::Revealed>>,
     #[cfg_attr(feature = "serde", serde(with = "As::<BTreeSet<DisplayFromStr>>"))]
@@ -105,8 +107,15 @@ pub struct ContractState {
 }
 
 impl ContractState {
-    pub fn with(contract_id: ContractId, genesis: &Genesis) -> Self {
+    pub fn with(
+        schema_id: SchemaId,
+        root_schema_id: Option<SchemaId>,
+        contract_id: ContractId,
+        genesis: &Genesis,
+    ) -> Self {
         let mut state = ContractState {
+            schema_id,
+            root_schema_id,
             contract_id,
             metadata: empty!(),
             owned_rights: empty!(),

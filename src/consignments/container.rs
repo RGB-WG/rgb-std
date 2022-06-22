@@ -179,6 +179,11 @@ where T: ConsignmentType
     pub fn schema_id(&self) -> SchemaId { self.schema.schema_id() }
 
     #[inline]
+    pub fn root_schema_id(&self) -> Option<SchemaId> {
+        self.root_schema.as_ref().map(Schema::schema_id)
+    }
+
+    #[inline]
     pub fn contract_id(&self) -> ContractId { self.genesis.contract_id() }
 
     #[inline]
@@ -250,7 +255,12 @@ where T: ConsignmentType
         let genesis = consignment.genesis();
         let contract_id = consignment.contract_id();
 
-        let mut state = ContractState::with(contract_id, genesis);
+        let mut state = ContractState::with(
+            consignment.schema_id(),
+            consignment.root_schema_id(),
+            contract_id,
+            genesis,
+        );
         for (anchor, bundle) in consignment.anchored_bundles() {
             let witness_txid = anchor.txid;
             for (transition, _) in bundle.revealed_iter() {
