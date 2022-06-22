@@ -18,7 +18,7 @@ use commit_verify::lnpbp4::MerkleProof;
 use commit_verify::{commit_encode, ConsensusCommit};
 use rgb_core::{
     schema, AttachmentId, BundleId, Consignment, ConsignmentEndpoint, ConsistencyError, ContractId,
-    Extension, Genesis, GraphApi, Node, NodeId, Schema, Transition, TransitionBundle,
+    Extension, Genesis, GraphApi, Node, NodeId, Schema, SchemaId, Transition, TransitionBundle,
 };
 use strict_encoding::{LargeVec, StrictDecode};
 
@@ -175,6 +175,10 @@ where T: ConsignmentType
     #[inline]
     pub fn id(&self) -> ConsignmentId { self.clone().consensus_commit() }
 
+    #[inline]
+    pub fn schema_id(&self) -> SchemaId { self.schema.schema_id() }
+
+    #[inline]
     pub fn contract_id(&self) -> ContractId { self.genesis.contract_id() }
 
     #[inline]
