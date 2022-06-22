@@ -22,8 +22,8 @@ use rgb_core::contract::attachment;
 use rgb_core::schema::{FieldType, OwnedRightType};
 use rgb_core::{
     data, seal, Assignment, AssignmentVec, AtomicValue, AttachmentStrategy, ContractId,
-    DeclarativeStrategy, Genesis, HashStrategy, Node, NodeId, NodeOutpoint, PedersenStrategy,
-    State,
+    DeclarativeStrategy, Extension, Genesis, HashStrategy, Node, NodeId, NodeOutpoint,
+    PedersenStrategy, State, Transition,
 };
 #[cfg(feature = "serde")]
 use serde_with::{As, DisplayFromStr, Same};
@@ -115,11 +115,17 @@ impl ContractState {
             owned_data: empty!(),
             owned_attachments: empty!(),
         };
-        state.extend(zero!(), genesis);
+        state.add_node(zero!(), genesis);
         state
     }
 
-    pub fn extend(&mut self, txid: Txid, node: &impl Node) {
+    pub fn add_transition(&mut self, txid: Txid, transition: &Transition) {
+        self.add_node(txid, transition);
+    }
+
+    pub fn add_extension(&mut self, extension: &Extension) { self.add_node(zero!(), extension); }
+
+    fn add_node(&mut self, txid: Txid, node: &impl Node) {
         let node_id = node.node_id();
 
         for (ty, meta) in node.metadata() {
