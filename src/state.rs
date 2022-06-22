@@ -24,7 +24,7 @@ use rgb_core::{
     PedersenStrategy, State, Transition,
 };
 #[cfg(feature = "serde")]
-use serde_with::{As, DisplayFromStr, Same};
+use serde_with::{As, DisplayFromStr};
 use strict_encoding::{StrictDecode, StrictEncode};
 
 pub trait StateAtom:
@@ -94,14 +94,14 @@ pub type OwnedAttachment = AssignedState<attachment::Revealed>;
 pub struct ContractState {
     pub contract_id: ContractId,
     pub metadata: BTreeMap<FieldType, Vec<data::Revealed>>,
-    #[cfg_attr(feature = "serde", serde(with = "As::<BTreeMap<Same, BTreeSet<DisplayFromStr>>>"))]
-    pub owned_rights: BTreeMap<OwnedRightType, BTreeSet<OwnedRight>>,
-    #[cfg_attr(feature = "serde", serde(with = "As::<BTreeMap<Same, BTreeSet<DisplayFromStr>>>"))]
-    pub owned_values: BTreeMap<OwnedRightType, BTreeSet<OwnedValue>>,
-    #[cfg_attr(feature = "serde", serde(with = "As::<BTreeMap<Same, BTreeSet<DisplayFromStr>>>"))]
-    pub owned_data: BTreeMap<OwnedRightType, BTreeSet<OwnedData>>,
-    #[cfg_attr(feature = "serde", serde(with = "As::<BTreeMap<Same, BTreeSet<DisplayFromStr>>>"))]
-    pub owned_attachments: BTreeMap<OwnedRightType, BTreeSet<OwnedAttachment>>,
+    #[cfg_attr(feature = "serde", serde(with = "As::<BTreeSet<DisplayFromStr>>"))]
+    pub owned_rights: BTreeSet<OwnedRight>,
+    #[cfg_attr(feature = "serde", serde(with = "As::<BTreeSet<DisplayFromStr>>"))]
+    pub owned_values: BTreeSet<OwnedValue>,
+    #[cfg_attr(feature = "serde", serde(with = "As::<BTreeSet<DisplayFromStr>>"))]
+    pub owned_data: BTreeSet<OwnedData>,
+    #[cfg_attr(feature = "serde", serde(with = "As::<BTreeSet<DisplayFromStr>>"))]
+    pub owned_attachments: BTreeSet<OwnedAttachment>,
 }
 
 impl ContractState {
@@ -155,23 +155,22 @@ impl ContractState {
             }
         }
 
+        // Remove invalidated state
+        for output in node.parent_outputs() {}
+
         for (ty, assignments) in node.owned_rights().iter() {
             match assignments {
                 AssignmentVec::Declarative(assignments) => {
-                    let state = self.owned_rights.entry(*ty).or_default();
-                    process(state, assignments, node_id, *ty, txid)
+                    process(&mut self.owned_rights, assignments, node_id, *ty, txid)
                 }
                 AssignmentVec::Fungible(assignments) => {
-                    let state = self.owned_values.entry(*ty).or_default();
-                    process(state, assignments, node_id, *ty, txid)
+                    process(&mut self.owned_values, assignments, node_id, *ty, txid)
                 }
                 AssignmentVec::NonFungible(assignments) => {
-                    let state = self.owned_data.entry(*ty).or_default();
-                    process(state, assignments, node_id, *ty, txid)
+                    process(&mut self.owned_data, assignments, node_id, *ty, txid)
                 }
                 AssignmentVec::Attachment(assignments) => {
-                    let state = self.owned_attachments.entry(*ty).or_default();
-                    process(state, assignments, node_id, *ty, txid)
+                    process(&mut self.owned_attachments, assignments, node_id, *ty, txid)
                 }
             }
         }
