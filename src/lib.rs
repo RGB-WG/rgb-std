@@ -29,7 +29,7 @@ pub mod prelude {
     pub use rgb_core::*;
 
     pub use crate::consignments::{
-        AnchoredBundles, ChainIter, ConsignmentEndpoints, ConsignmentId, ConsignmentType, Contract,
+        AnchoredBundles, ChainIter, ConsignmentEndseals, ConsignmentId, ConsignmentType, Contract,
         ContractConsignment, ExtensionList, InmemConsignment, MeshIter, StateTransfer,
         TransferConsignment, RGB_INMEM_CONSIGNMENT_VERSION,
     };

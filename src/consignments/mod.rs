@@ -26,7 +26,7 @@ pub use self::iter::{ChainIter, MeshIter};
 
 pub type AnchoredBundles = LargeVec<(Anchor<lnpbp4::MerkleProof>, TransitionBundle)>;
 pub type ExtensionList = LargeVec<Extension>;
-pub type ConsignmentEndpoints = Vec<(BundleId, SealEndpoint)>;
+pub type ConsignmentEndseals = Vec<(BundleId, SealEndpoint)>;
 
 pub trait ConsignmentType: Clone + Eq + Default {}
 

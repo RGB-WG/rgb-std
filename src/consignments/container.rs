@@ -22,11 +22,12 @@ use rgb_core::{
 };
 use strict_encoding::{LargeVec, StrictDecode};
 
-use super::{AnchoredBundles, ConsignmentEndpoints, ConsignmentType, ExtensionList};
+use super::{AnchoredBundles, ConsignmentEndseals, ConsignmentType, ExtensionList};
 use crate::{Anchor, ConsignmentId};
 
 pub const RGB_INMEM_CONSIGNMENT_VERSION: u8 = 0;
 
+// TODO: Refactor internal data store; separate state transitions from bundles
 /// Consignment represents contract-specific data, always starting with genesis,
 /// which must be valid under client-side-validation rules (i.e. internally
 /// consistent and properly committed into the commitment layer, like bitcoin
@@ -57,16 +58,18 @@ where T: ConsignmentType
     /// Genesis data
     pub genesis: Genesis,
 
-    /// The final state ("endpoints") provided by this consignments.
+    /// State transitions containing current known state of the contract.
     ///
-    /// There are two reasons for having endpoints:
+    /// There are two reasons for having tips:
     /// - navigation towards genesis from the final state is more
     ///   computationally efficient, since state transition/extension graph is
-    ///   directed towards genesis (like bitcoin transaction graph)
-    /// - if the consignments contains concealed state (known by the receiver),
-    ///   it will be computationally inefficient to understand which of the
-    ///   state transitions represent the final state
-    pub endpoints: ConsignmentEndpoints,
+    ///   directed towards genesis (like bitcoin transaction graph);
+    /// - to provide quick access to the current contract state without the need
+    ///   for parsing the state of all transitions in the consignment.
+    pub tips: BTreeSet<NodeId>,
+
+    /// Set of seals for the state transfer beneficiaries.
+    pub endseals: ConsignmentEndseals,
 
     /// Data on all anchored state transitions contained in the consignments
     pub anchored_bundles: AnchoredBundles,
@@ -105,7 +108,8 @@ where T: ConsignmentType
             schema: StrictDecode::strict_decode(&mut d)?,
             root_schema: StrictDecode::strict_decode(&mut d)?,
             genesis: StrictDecode::strict_decode(&mut d)?,
-            endpoints: StrictDecode::strict_decode(&mut d)?,
+            tips: StrictDecode::strict_decode(&mut d)?,
+            endseals: StrictDecode::strict_decode(&mut d)?,
             anchored_bundles: StrictDecode::strict_decode(&mut d)?,
             state_extensions: StrictDecode::strict_decode(&mut d)?,
             data_containers: StrictDecode::strict_decode(&mut d)?,
@@ -147,7 +151,7 @@ where
         set
     }
 
-    fn endpoints(&'consignment self) -> Self::EndpointIter { self.endpoints.iter() }
+    fn endpoints(&'consignment self) -> Self::EndpointIter { self.endseals.iter() }
 
     fn anchored_bundles(&'consignment self) -> Self::BundleIter { self.anchored_bundles.iter() }
 
@@ -162,7 +166,8 @@ where T: ConsignmentType
         schema: Schema,
         root_schema: Option<Schema>,
         genesis: Genesis,
-        endpoints: ConsignmentEndpoints,
+        tips: BTreeSet<NodeId>,
+        endseals: ConsignmentEndseals,
         anchored_bundles: AnchoredBundles,
         state_extensions: ExtensionList,
     ) -> Self {
@@ -171,7 +176,8 @@ where T: ConsignmentType
             schema,
             root_schema,
             genesis,
-            endpoints,
+            tips,
+            endseals,
             state_extensions,
             anchored_bundles,
             data_containers: none!(),
@@ -195,7 +201,7 @@ where T: ConsignmentType
     }
 
     pub fn endpoint_bundle_ids(&self) -> BTreeSet<BundleId> {
-        self.endpoints
+        self.endseals
             .iter()
             .map(|(bundle_id, _)| bundle_id)
             .copied()
@@ -214,7 +220,7 @@ where T: ConsignmentType
         node_id: NodeId,
     ) -> Result<&Transition, ConsistencyError> {
         if self
-            .endpoints
+            .endseals
             .iter()
             .filter_map(|(id, _)| self.bundle_by_id(*id).ok())
             .flat_map(|bundle| bundle.known_node_ids())

@@ -26,8 +26,8 @@ impl StateTransfer {
             .collect::<Vec<_>>();
 
         let mut removed_endpoints = vec![];
-        self.endpoints = self
-            .endpoints
+        self.endseals = self
+            .endseals
             .clone()
             .into_iter()
             .filter(|(_, endpoint)| {
