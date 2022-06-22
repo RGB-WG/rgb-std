@@ -56,6 +56,7 @@ use bitcoin::OutPoint;
 use bp::seals;
 use bp::seals::txout::blind::RevealedSeal;
 use bp::seals::txout::ExplicitSeal;
+use rgb_core::schema::OwnedRightType;
 use rgb_core::{EndpointValueMap, SealValueMap};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -206,6 +207,9 @@ pub struct Allocation {
     /// Unique primary key is `node_id` + `index`
     node_id: NodeId,
 
+    /// Owned rights type
+    ty: OwnedRightType,
+
     /// Index of the assignment of ownership right type within the node
     index: u16,
 
@@ -225,12 +229,14 @@ impl Allocation {
     #[inline]
     pub fn with(
         node_id: NodeId,
+        ty: OwnedRightType,
         index: u16,
         outpoint: OutPoint,
         value: value::Revealed,
     ) -> Allocation {
         Allocation {
             node_id,
+            ty,
             index,
             outpoint,
             revealed_amount: value,
@@ -247,7 +253,8 @@ impl Allocation {
     pub fn node_output(&self) -> NodeOutpoint {
         NodeOutpoint {
             node_id: self.node_id,
-            output_no: self.index,
+            ty: self.ty,
+            no: self.index,
         }
     }
 

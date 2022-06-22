@@ -74,12 +74,13 @@ where State: StateAtom
         witness_txid: Txid,
         state: State,
         node_id: NodeId,
+        ty: OwnedRightType,
         no: u16,
     ) -> Self {
         AssignedState {
             seal: seal.outpoint_or(witness_txid),
             state,
-            outpoint: NodeOutpoint::new(node_id, no),
+            outpoint: NodeOutpoint::new(node_id, ty, no),
         }
     }
 }
@@ -146,6 +147,7 @@ impl ContractState {
             fields: &mut Vec<AssignedState<S>>,
             assignments: &[Assignment<S::StateType>],
             node_id: NodeId,
+            ty: OwnedRightType,
             txid: Txid,
             tips: &BTreeSet<OutPoint>,
         ) where
@@ -162,7 +164,7 @@ impl ContractState {
                     continue;
                 }
                 let assigned_state =
-                    AssignedState::with(seal, txid, state.into(), node_id, no as u16);
+                    AssignedState::with(seal, txid, state.into(), node_id, ty, no as u16);
                 fields.push(assigned_state);
             }
         }
@@ -171,19 +173,19 @@ impl ContractState {
             match assignments {
                 AssignmentVec::Declarative(assignments) => {
                     let fields = self.owned_rights.entry(*ty).or_default();
-                    process(fields, assignments, node_id, txid, tips)
+                    process(fields, assignments, node_id, *ty, txid, tips)
                 }
                 AssignmentVec::Fungible(assignments) => {
                     let fields = self.owned_values.entry(*ty).or_default();
-                    process(fields, assignments, node_id, txid, tips)
+                    process(fields, assignments, node_id, *ty, txid, tips)
                 }
                 AssignmentVec::NonFungible(assignments) => {
                     let fields = self.owned_data.entry(*ty).or_default();
-                    process(fields, assignments, node_id, txid, tips)
+                    process(fields, assignments, node_id, *ty, txid, tips)
                 }
                 AssignmentVec::Attachment(assignments) => {
                     let fields = self.owned_attachments.entry(*ty).or_default();
-                    process(fields, assignments, node_id, txid, tips)
+                    process(fields, assignments, node_id, *ty, txid, tips)
                 }
             }
         }

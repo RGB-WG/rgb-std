@@ -97,7 +97,7 @@ where T: ConsignmentType
             let outpoint = parent
                 .owned_rights_by_type(owned_right_type)
                 .ok_or(ConsistencyError::NoSealsClosed(owned_right_type, node_id))?
-                .revealed_seal_at(output.output_no)
+                .revealed_seal_at(output.no)
                 .map_err(|_| ConsistencyError::OutputNotPresent(output))?
                 .ok_or(ConsistencyError::ConfidentialSeal(output))?
                 .outpoint_or(witness);
