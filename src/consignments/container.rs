@@ -13,15 +13,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::marker::PhantomData;
 use std::{io, slice};
 
-use bitcoin::{OutPoint, Txid};
+use bitcoin::Txid;
 use commit_verify::lnpbp4::MerkleProof;
 use commit_verify::{commit_encode, ConsensusCommit};
 use rgb_core::{
     schema, AttachmentId, BundleId, Consignment, ConsignmentEndpoint, ConsistencyError, ContractId,
     Extension, Genesis, GraphApi, Node, NodeId, Schema, Transition, TransitionBundle,
 };
-#[cfg(feature = "serde")]
-use serde_with::{As, DisplayFromStr};
 use strict_encoding::{LargeVec, StrictDecode};
 
 use super::{AnchoredBundles, ConsignmentEndseals, ConsignmentType, ExtensionList};
@@ -59,17 +57,6 @@ where T: ConsignmentType
 
     /// Genesis data
     pub genesis: Genesis,
-
-    /// Set of seals defining the current known state of the contract.
-    ///
-    /// There are two reasons for having tips:
-    /// - navigation towards genesis from the final state is more
-    ///   computationally efficient, since state transition/extension graph is
-    ///   directed towards genesis (like bitcoin transaction graph);
-    /// - to provide quick access to the current contract state without the need
-    ///   for parsing the state of all transitions in the consignment.
-    #[cfg_attr(feature = "serde", serde(with = "As::<BTreeSet<DisplayFromStr>>"))]
-    pub tips: BTreeSet<OutPoint>,
 
     /// Set of seals for the state transfer beneficiaries.
     pub endseals: ConsignmentEndseals,
@@ -111,7 +98,6 @@ where T: ConsignmentType
             schema: StrictDecode::strict_decode(&mut d)?,
             root_schema: StrictDecode::strict_decode(&mut d)?,
             genesis: StrictDecode::strict_decode(&mut d)?,
-            tips: StrictDecode::strict_decode(&mut d)?,
             endseals: StrictDecode::strict_decode(&mut d)?,
             anchored_bundles: StrictDecode::strict_decode(&mut d)?,
             state_extensions: StrictDecode::strict_decode(&mut d)?,
@@ -169,7 +155,6 @@ where T: ConsignmentType
         schema: Schema,
         root_schema: Option<Schema>,
         genesis: Genesis,
-        tips: BTreeSet<OutPoint>,
         endseals: ConsignmentEndseals,
         anchored_bundles: AnchoredBundles,
         state_extensions: ExtensionList,
@@ -179,7 +164,6 @@ where T: ConsignmentType
             schema,
             root_schema,
             genesis,
-            tips,
             endseals,
             state_extensions,
             anchored_bundles,
