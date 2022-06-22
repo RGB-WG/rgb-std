@@ -156,7 +156,24 @@ impl ContractState {
         }
 
         // Remove invalidated state
-        for output in node.parent_outputs() {}
+        for output in node.parent_outputs() {
+            if let Some(o) = self.owned_rights.iter().find(|r| r.outpoint == output) {
+                let o = o.clone(); // need this b/c of borrow checker
+                self.owned_rights.remove(&o);
+            }
+            if let Some(o) = self.owned_values.iter().find(|r| r.outpoint == output) {
+                let o = o.clone();
+                self.owned_values.remove(&o);
+            }
+            if let Some(o) = self.owned_data.iter().find(|r| r.outpoint == output) {
+                let o = o.clone();
+                self.owned_data.remove(&o);
+            }
+            if let Some(o) = self.owned_attachments.iter().find(|r| r.outpoint == output) {
+                let o = o.clone();
+                self.owned_attachments.remove(&o);
+            }
+        }
 
         for (ty, assignments) in node.owned_rights().iter() {
             match assignments {
