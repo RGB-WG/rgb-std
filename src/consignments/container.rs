@@ -200,6 +200,14 @@ where T: ConsignmentType
             .collect()
     }
 
+    pub fn transition_by_id(&self, node_id: NodeId) -> Option<&Transition> {
+        self.anchored_bundles
+            .iter()
+            .map(|(_, bundle)| bundle.known_transitions())
+            .flatten()
+            .find(|transition| transition.node_id() == node_id)
+    }
+
     pub fn endpoint_bundle_ids(&self) -> BTreeSet<BundleId> {
         self.endseals
             .iter()
