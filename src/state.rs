@@ -22,7 +22,8 @@ use rgb_core::contract::attachment;
 use rgb_core::schema::{FieldType, OwnedRightType};
 use rgb_core::{
     data, seal, Assignment, AssignmentVec, AtomicValue, AttachmentStrategy, ContractId,
-    DeclarativeStrategy, HashStrategy, Node, NodeId, NodeOutpoint, PedersenStrategy, State,
+    DeclarativeStrategy, Genesis, HashStrategy, Node, NodeId, NodeOutpoint, PedersenStrategy,
+    State,
 };
 #[cfg(feature = "serde")]
 use serde_with::{As, DisplayFromStr, Same};
@@ -105,15 +106,17 @@ pub struct ContractState {
 }
 
 impl ContractState {
-    pub fn new(contract_id: ContractId) -> Self {
-        ContractState {
+    pub fn with(contract_id: ContractId, genesis: &Genesis) -> Self {
+        let mut state = ContractState {
             contract_id,
             metadata: empty!(),
             owned_rights: empty!(),
             owned_values: empty!(),
             owned_data: empty!(),
             owned_attachments: empty!(),
-        }
+        };
+        state.extend(zero!(), genesis);
+        state
     }
 
     pub fn extend(&mut self, txid: Txid, node: &impl Node) {
