@@ -19,7 +19,7 @@ use commit_verify::CommitConceal;
 use rgb_core::contract::attachment;
 use rgb_core::schema::{FieldType, OwnedRightType};
 use rgb_core::{
-    data, seal, Assignment, AssignmentVec, AtomicValue, AttachmentStrategy, ContractId,
+    data, seal, value, Assignment, AssignmentVec, AttachmentStrategy, ContractId,
     DeclarativeStrategy, Extension, Genesis, HashStrategy, Node, NodeId, NodeOutpoint,
     PedersenStrategy, SchemaId, State, Transition,
 };
@@ -43,7 +43,7 @@ pub trait StateAtom:
 impl StateAtom for data::Void {
     type StateType = DeclarativeStrategy;
 }
-impl StateAtom for AtomicValue {
+impl StateAtom for value::Revealed {
     type StateType = PedersenStrategy;
 }
 impl StateAtom for data::Revealed {
@@ -84,7 +84,7 @@ where State: StateAtom
 }
 
 pub type OwnedRight = AssignedState<data::Void>;
-pub type OwnedValue = AssignedState<AtomicValue>;
+pub type OwnedValue = AssignedState<value::Revealed>;
 pub type OwnedData = AssignedState<data::Revealed>;
 pub type OwnedAttachment = AssignedState<attachment::Revealed>;
 
