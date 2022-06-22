@@ -51,26 +51,26 @@ where T: ConsignmentType
     /// Version, used internally
     version: u8,
 
-    pub schema: Schema,
+    pub(crate) schema: Schema,
 
-    pub root_schema: Option<Schema>,
+    pub(crate) root_schema: Option<Schema>,
 
     /// Genesis data
-    pub genesis: Genesis,
+    pub(crate) genesis: Genesis,
 
     /// Set of seals for the state transfer beneficiaries.
-    pub endseals: ConsignmentEndseals,
+    pub(crate) endseals: ConsignmentEndseals,
 
     /// Data on all anchored state transitions contained in the consignments
-    pub anchored_bundles: AnchoredBundles,
+    pub(crate) anchored_bundles: AnchoredBundles,
 
     /// Data on all state extensions contained in the consignments
-    pub state_extensions: ExtensionList,
+    pub(crate) state_extensions: ExtensionList,
 
     /// Data containers coming with this consignment. For the purposes of
     /// in-memory consignments we are restricting the size of the containers to
     /// 24 bit value (RGB allows containers up to 32-bit values in size).
-    pub data_containers: BTreeMap<AttachmentId, LargeVec<u8>>,
+    pub(crate) data_containers: BTreeMap<AttachmentId, LargeVec<u8>>,
 
     #[strict_encoding(skip)]
     _phantom: PhantomData<T>,
