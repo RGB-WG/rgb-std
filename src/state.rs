@@ -9,11 +9,9 @@
 // You should have received a copy of the MIT License along with this software.
 // If not, see <https://opensource.org/licenses/MIT>.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
-use std::ops::Deref;
-use std::slice;
 
 use bitcoin::{OutPoint, Txid};
 use bp::seals::txout::TxoSeal;
@@ -61,9 +59,9 @@ impl StateAtom for attachment::Revealed {
 pub struct AssignedState<State>
 where State: StateAtom
 {
+    pub outpoint: NodeOutpoint,
     pub seal: OutPoint,
     pub state: State,
-    pub outpoint: NodeOutpoint,
 }
 
 impl<State> AssignedState<State>
@@ -78,9 +76,9 @@ where State: StateAtom
         no: u16,
     ) -> Self {
         AssignedState {
+            outpoint: NodeOutpoint::new(node_id, ty, no),
             seal: seal.outpoint_or(witness_txid),
             state,
-            outpoint: NodeOutpoint::new(node_id, ty, no),
         }
     }
 }
@@ -96,14 +94,14 @@ pub type OwnedAttachment = AssignedState<attachment::Revealed>;
 pub struct ContractState {
     pub contract_id: ContractId,
     pub metadata: BTreeMap<FieldType, Vec<data::Revealed>>,
-    #[cfg_attr(feature = "serde", serde(with = "As::<BTreeMap<Same, Vec<DisplayFromStr>>>"))]
-    pub owned_rights: BTreeMap<OwnedRightType, Vec<OwnedRight>>,
-    #[cfg_attr(feature = "serde", serde(with = "As::<BTreeMap<Same, Vec<DisplayFromStr>>>"))]
-    pub owned_values: BTreeMap<OwnedRightType, Vec<OwnedValue>>,
-    #[cfg_attr(feature = "serde", serde(with = "As::<BTreeMap<Same, Vec<DisplayFromStr>>>"))]
-    pub owned_data: BTreeMap<OwnedRightType, Vec<OwnedData>>,
-    #[cfg_attr(feature = "serde", serde(with = "As::<BTreeMap<Same, Vec<DisplayFromStr>>>"))]
-    pub owned_attachments: BTreeMap<OwnedRightType, Vec<OwnedAttachment>>,
+    #[cfg_attr(feature = "serde", serde(with = "As::<BTreeMap<Same, BTreeSet<DisplayFromStr>>>"))]
+    pub owned_rights: BTreeMap<OwnedRightType, BTreeSet<OwnedRight>>,
+    #[cfg_attr(feature = "serde", serde(with = "As::<BTreeMap<Same, BTreeSet<DisplayFromStr>>>"))]
+    pub owned_values: BTreeMap<OwnedRightType, BTreeSet<OwnedValue>>,
+    #[cfg_attr(feature = "serde", serde(with = "As::<BTreeMap<Same, BTreeSet<DisplayFromStr>>>"))]
+    pub owned_data: BTreeMap<OwnedRightType, BTreeSet<OwnedData>>,
+    #[cfg_attr(feature = "serde", serde(with = "As::<BTreeMap<Same, BTreeSet<DisplayFromStr>>>"))]
+    pub owned_attachments: BTreeMap<OwnedRightType, BTreeSet<OwnedAttachment>>,
 }
 
 impl ContractState {
@@ -137,7 +135,7 @@ impl ContractState {
         }
 
         fn process<S: StateAtom>(
-            fields: &mut Vec<AssignedState<S>>,
+            contract_state: &mut BTreeSet<AssignedState<S>>,
             assignments: &[Assignment<S::StateType>],
             node_id: NodeId,
             ty: OwnedRightType,
@@ -153,69 +151,29 @@ impl ContractState {
             {
                 let assigned_state =
                     AssignedState::with(seal, txid, state.into(), node_id, ty, no as u16);
-                fields.push(assigned_state);
+                contract_state.insert(assigned_state);
             }
         }
 
         for (ty, assignments) in node.owned_rights().iter() {
             match assignments {
                 AssignmentVec::Declarative(assignments) => {
-                    let fields = self.owned_rights.entry(*ty).or_default();
-                    process(fields, assignments, node_id, *ty, txid)
+                    let state = self.owned_rights.entry(*ty).or_default();
+                    process(state, assignments, node_id, *ty, txid)
                 }
                 AssignmentVec::Fungible(assignments) => {
-                    let fields = self.owned_values.entry(*ty).or_default();
-                    process(fields, assignments, node_id, *ty, txid)
+                    let state = self.owned_values.entry(*ty).or_default();
+                    process(state, assignments, node_id, *ty, txid)
                 }
                 AssignmentVec::NonFungible(assignments) => {
-                    let fields = self.owned_data.entry(*ty).or_default();
-                    process(fields, assignments, node_id, *ty, txid)
+                    let state = self.owned_data.entry(*ty).or_default();
+                    process(state, assignments, node_id, *ty, txid)
                 }
                 AssignmentVec::Attachment(assignments) => {
-                    let fields = self.owned_attachments.entry(*ty).or_default();
-                    process(fields, assignments, node_id, *ty, txid)
+                    let state = self.owned_attachments.entry(*ty).or_default();
+                    process(state, assignments, node_id, *ty, txid)
                 }
             }
         }
-    }
-
-    pub fn metadata(&self, ty: FieldType) -> slice::Iter<data::Revealed> {
-        self.metadata
-            .get(&ty)
-            .map(Vec::deref)
-            .map(<[_]>::iter)
-            .unwrap_or_else(|| [].iter())
-    }
-
-    pub fn owned_rights(&self, ty: OwnedRightType) -> slice::Iter<OwnedRight> {
-        self.owned_rights
-            .get(&ty)
-            .map(Vec::deref)
-            .map(<[_]>::iter)
-            .unwrap_or_else(|| [].iter())
-    }
-
-    pub fn owned_values(&self, ty: OwnedRightType) -> slice::Iter<OwnedValue> {
-        self.owned_values
-            .get(&ty)
-            .map(Vec::deref)
-            .map(<[_]>::iter)
-            .unwrap_or_else(|| [].iter())
-    }
-
-    pub fn owned_data(&self, ty: OwnedRightType) -> slice::Iter<OwnedData> {
-        self.owned_data
-            .get(&ty)
-            .map(Vec::deref)
-            .map(<[_]>::iter)
-            .unwrap_or_else(|| [].iter())
-    }
-
-    pub fn owned_attachments(&self, ty: OwnedRightType) -> slice::Iter<OwnedAttachment> {
-        self.owned_attachments
-            .get(&ty)
-            .map(Vec::deref)
-            .map(<[_]>::iter)
-            .unwrap_or_else(|| [].iter())
     }
 }
