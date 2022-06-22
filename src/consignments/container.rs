@@ -23,7 +23,7 @@ use rgb_core::{
 use strict_encoding::{LargeVec, StrictDecode};
 
 use super::{AnchoredBundles, ConsignmentEndseals, ConsignmentType, ExtensionList};
-use crate::{Anchor, ConsignmentId};
+use crate::{Anchor, ConsignmentId, ContractState};
 
 pub const RGB_INMEM_CONSIGNMENT_VERSION: u8 = 0;
 
@@ -240,5 +240,27 @@ where T: ConsignmentType
             .flat_map(Vec::into_iter)
             .filter(|node| types.contains(&node.transition_type()))
             .collect()
+    }
+}
+
+impl<T> From<&InmemConsignment<T>> for ContractState
+where T: ConsignmentType
+{
+    fn from(consignment: &InmemConsignment<T>) -> Self {
+        let genesis = consignment.genesis();
+        let contract_id = consignment.contract_id();
+
+        let mut state = ContractState::with(contract_id, genesis);
+        for (anchor, bundle) in consignment.anchored_bundles() {
+            let witness_txid = anchor.txid;
+            for (transition, _) in bundle.revealed_iter() {
+                state.add_transition(witness_txid, transition);
+            }
+        }
+        for extension in consignment.state_extensions() {
+            state.add_extension(extension);
+        }
+
+        state
     }
 }
