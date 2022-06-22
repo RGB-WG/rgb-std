@@ -28,7 +28,7 @@ pub type AnchoredBundles = LargeVec<(Anchor<lnpbp4::MerkleProof>, TransitionBund
 pub type ExtensionList = LargeVec<Extension>;
 pub type ConsignmentEndpoints = Vec<(BundleId, SealEndpoint)>;
 
-pub trait ConsignmentType: Clone + Default {}
+pub trait ConsignmentType: Clone + Eq + Default {}
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default)]
 pub struct TransferConsignment;
