@@ -18,8 +18,10 @@ use commit_verify::lnpbp4::MerkleProof;
 use commit_verify::{commit_encode, ConsensusCommit};
 use rgb_core::{
     schema, AttachmentId, BundleId, Consignment, ConsignmentEndpoint, ConsistencyError, ContractId,
-    Extension, Genesis, GraphApi, Node, NodeId, Schema, Transition, TransitionBundle,
+    Extension, Genesis, GraphApi, Node, NodeId, NodeOutpoint, Schema, Transition, TransitionBundle,
 };
+#[cfg(feature = "serde")]
+use serde_with::{As, DisplayFromStr};
 use strict_encoding::{LargeVec, StrictDecode};
 
 use super::{AnchoredBundles, ConsignmentEndseals, ConsignmentType, ExtensionList};
@@ -66,7 +68,8 @@ where T: ConsignmentType
     ///   directed towards genesis (like bitcoin transaction graph);
     /// - to provide quick access to the current contract state without the need
     ///   for parsing the state of all transitions in the consignment.
-    pub tips: BTreeSet<NodeId>,
+    #[cfg_attr(feature = "serde", serde(with = "As::<BTreeSet<DisplayFromStr>>"))]
+    pub tips: BTreeSet<NodeOutpoint>,
 
     /// Set of seals for the state transfer beneficiaries.
     pub endseals: ConsignmentEndseals,
@@ -166,7 +169,7 @@ where T: ConsignmentType
         schema: Schema,
         root_schema: Option<Schema>,
         genesis: Genesis,
-        tips: BTreeSet<NodeId>,
+        tips: BTreeSet<NodeOutpoint>,
         endseals: ConsignmentEndseals,
         anchored_bundles: AnchoredBundles,
         state_extensions: ExtensionList,
@@ -198,14 +201,6 @@ where T: ConsignmentType
             .iter()
             .map(|(anchor, _)| anchor.txid)
             .collect()
-    }
-
-    pub fn transition_by_id(&self, node_id: NodeId) -> Option<&Transition> {
-        self.anchored_bundles
-            .iter()
-            .map(|(_, bundle)| bundle.known_transitions())
-            .flatten()
-            .find(|transition| transition.node_id() == node_id)
     }
 
     pub fn endpoint_bundle_ids(&self) -> BTreeSet<BundleId> {
