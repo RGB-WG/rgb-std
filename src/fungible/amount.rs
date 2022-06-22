@@ -25,7 +25,6 @@
 //! floating point amount with `*_amount` suffix, and reserve `*_value` suffix
 //! for methods returning atomic value.
 
-use std::convert::TryFrom;
 use std::ops::{Add, AddAssign, Deref};
 
 #[cfg(feature = "serde")]
@@ -143,10 +142,10 @@ impl AddAssign for PreciseAmount {
     }
 }
 
-#[derive(Clone, Debug, Display, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Display, PartialEq, Eq)]
 #[display(doc_comments)]
 /// Asset decimal precision exceeds 18 digits
-pub struct DecimalPrecisionOverflowError;
+pub struct DecimalPrecisionOverflow;
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Display)]
 #[display(inner)]
@@ -160,7 +159,7 @@ impl Deref for DecimalPrecision {
 }
 
 impl TryFrom<amplify::num::u5> for DecimalPrecision {
-    type Error = DecimalPrecisionOverflowError;
+    type Error = DecimalPrecisionOverflow;
 
     fn try_from(value: amplify::num::u5) -> Result<Self, Self::Error> {
         Self::try_from(value.as_u8())
@@ -168,22 +167,28 @@ impl TryFrom<amplify::num::u5> for DecimalPrecision {
 }
 
 impl TryFrom<u8> for DecimalPrecision {
-    type Error = DecimalPrecisionOverflowError;
+    type Error = DecimalPrecisionOverflow;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
             0..=18 => Ok(DecimalPrecision(value)),
-            _ => Err(DecimalPrecisionOverflowError),
+            _ => Err(DecimalPrecisionOverflow),
         }
     }
 }
 
 impl TryFrom<usize> for DecimalPrecision {
-    type Error = DecimalPrecisionOverflowError;
+    type Error = DecimalPrecisionOverflow;
 
     fn try_from(value: usize) -> Result<Self, Self::Error> {
-        Self::try_from(u8::try_from(value).map_err(|_| DecimalPrecisionOverflowError)?)
+        Self::try_from(u8::try_from(value).map_err(|_| DecimalPrecisionOverflow)?)
     }
+}
+
+impl DecimalPrecision {
+    pub fn zero() -> Self { Self(0) }
+
+    pub fn one() -> Self { Self(1) }
 }
 
 #[cfg(test)]
@@ -209,19 +214,25 @@ mod test {
         let u5_19 = u5::try_from(19).unwrap();
         assert_eq!(
             DecimalPrecision::try_from(u5_19).unwrap_err(),
-            DecimalPrecisionOverflowError
+            DecimalPrecisionOverflow
         );
         assert_eq!(
             DecimalPrecision::try_from(19u8).unwrap_err(),
-            DecimalPrecisionOverflowError
+            DecimalPrecisionOverflow
         );
         assert_eq!(
             DecimalPrecision::try_from(19usize).unwrap_err(),
-            DecimalPrecisionOverflowError
+            DecimalPrecisionOverflow
         );
         assert_eq!(
             DecimalPrecision::try_from(usize::MAX).unwrap_err(),
-            DecimalPrecisionOverflowError
+            DecimalPrecisionOverflow
         );
+    }
+
+    #[test]
+    fn decimal_precision_constructors() {
+        assert_eq!(*DecimalPrecision::zero(), 0);
+        assert_eq!(*DecimalPrecision::one(), 1);
     }
 }
