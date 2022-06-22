@@ -36,7 +36,9 @@ pub mod prelude {
     pub use crate::disclosure::{Disclosure, DisclosureId, RGB_DISCLOSURE_VERSION};
     pub use crate::fungible;
     pub use crate::stash::Stash;
-    pub use crate::state::{AssignedState, ContractState, StateAtom};
+    pub use crate::state::{
+        AssignedState, ContractState, OwnedAttachment, OwnedData, OwnedRight, OwnedValue, StateAtom,
+    };
 }
 
 pub use prelude::*;
