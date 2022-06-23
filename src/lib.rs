@@ -24,6 +24,7 @@ mod disclosure;
 mod stash;
 pub mod fungible;
 mod state;
+mod psbt;
 
 pub mod prelude {
     pub use rgb_core::*;
