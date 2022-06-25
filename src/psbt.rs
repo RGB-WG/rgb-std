@@ -15,7 +15,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use bitcoin::psbt::raw::ProprietaryKey;
 use commit_verify::TaggedHash;
-use rgb_core::{ContractId, NodeId, Transition, TransitionBundle};
+use rgb_core::{reveal, ContractId, MergeReveal, Node, NodeId, Transition, TransitionBundle};
+use strict_encoding::{StrictDecode, StrictEncode};
 use wallet::psbt;
 use wallet::psbt::Psbt;
 
@@ -34,20 +35,20 @@ pub const PSBT_IN_RGB_CONSUMED_BY: u8 = 0x03;
 /// Extension trait for static functions returning RGB-related proprietary keys.
 pub trait ProprietaryKeyRgb {
     /// Constructs [`PSBT_GLOBAL_RGB_CONTRACT`] proprietary key.
-    fn rgb_contract() -> ProprietaryKey {
+    fn rgb_contract(contract_id: ContractId) -> ProprietaryKey {
         ProprietaryKey {
             prefix: PSBT_RGB_PREFIX.to_vec(),
             subtype: PSBT_GLOBAL_RGB_CONTRACT,
-            key: vec![],
+            key: contract_id.to_bytes().to_vec(),
         }
     }
 
     /// Constructs [`PSBT_GLOBAL_RGB_TRANSITION`] proprietary key.
-    fn rgb_transition() -> ProprietaryKey {
+    fn rgb_transition(node_id: NodeId) -> ProprietaryKey {
         ProprietaryKey {
             prefix: PSBT_RGB_PREFIX.to_vec(),
             subtype: PSBT_GLOBAL_RGB_TRANSITION,
-            key: vec![],
+            key: node_id.to_bytes().to_vec(),
         }
     }
 
@@ -74,6 +75,9 @@ pub enum KeyError {
 
     /// The key is already present, but has a different value
     AlreadySet,
+
+    /// state transition {0} already present in PSBT is not related to the state transition {1} which has to be added to RGB
+    UnrelatedTransitions(NodeId, NodeId, reveal::Error),
 }
 
 pub trait RgbExt {
@@ -90,12 +94,12 @@ pub trait RgbExt {
         contract_id: ContractId,
     ) -> Result<BTreeSet<(NodeId, u16)>, KeyError>;
 
-    fn merge_rgb_contract(&self, contract: Contract) -> Result<bool, KeyError>;
+    fn set_rgb_contract(&mut self, contract: Contract) -> Result<(), KeyError>;
 
-    fn rgb_node_ids(&self) -> BTreeSet<NodeId>;
+    fn rgb_node_ids(&self, contract_id: ContractId) -> BTreeSet<NodeId>;
 
-    fn rgb_transitions(&self) -> BTreeMap<NodeId, Transition> {
-        self.rgb_node_ids()
+    fn rgb_transitions(&self, contract_id: ContractId) -> BTreeMap<NodeId, Transition> {
+        self.rgb_node_ids(contract_id)
             .into_iter()
             .filter_map(|node_id| {
                 self.rgb_transition(node_id)
@@ -108,7 +112,7 @@ pub trait RgbExt {
 
     fn rgb_transition(&self, node_id: NodeId) -> Result<Option<Transition>, KeyError>;
 
-    fn push_rgb_transition(&self, transition: &Transition) -> bool;
+    fn push_rgb_transition(&mut self, transition: Transition) -> Result<bool, KeyError>;
 
     fn rgb_bundles(&self) -> Result<BTreeMap<ContractId, TransitionBundle>, KeyError> {
         self.rgb_contract_ids()
@@ -121,6 +125,93 @@ pub trait RgbExt {
                 Ok((contract_id, TransitionBundle::from(map)))
             })
             .collect()
+    }
+}
+
+impl RgbExt for Psbt {
+    fn rgb_contract_ids(&self) -> BTreeSet<ContractId> {
+        self.proprietary
+            .keys()
+            .filter(|prop_key| {
+                prop_key.prefix == PSBT_RGB_PREFIX && prop_key.subtype == PSBT_GLOBAL_RGB_CONTRACT
+            })
+            .map(|prop_key| &prop_key.key)
+            .filter_map(|key| ContractId::from_slice(key).ok())
+            .collect()
+    }
+
+    fn rgb_contract(&self, contract_id: ContractId) -> Result<Option<Contract>, KeyError> {
+        self.proprietary
+            .get(&ProprietaryKey::rgb_contract(contract_id))
+            .map(|val| Contract::strict_deserialize(val).map_err(KeyError::from))
+            .transpose()
+    }
+
+    fn rgb_contract_consumers(
+        &self,
+        contract_id: ContractId,
+    ) -> Result<BTreeSet<(NodeId, u16)>, KeyError> {
+        self.inputs
+            .iter()
+            .enumerate()
+            .filter_map(|(no, input)| {
+                let node_id = input
+                    .proprietary
+                    .get(&ProprietaryKey::rgb_contract(contract_id))
+                    .map(|val| NodeId::strict_deserialize(val).map_err(KeyError::from))?;
+                Some(node_id.map(|id| (id, no as u16)))
+            })
+            .collect()
+    }
+
+    fn set_rgb_contract(&mut self, contract: Contract) -> Result<(), KeyError> {
+        let contract_id = contract.contract_id();
+        if self.has_rgb_contract(contract_id) {
+            return Err(KeyError::AlreadySet);
+        }
+        let serialized_contract = contract.strict_serialize().map_err(KeyError::from)?;
+        self.proprietary.insert(
+            ProprietaryKey::rgb_contract(contract_id),
+            serialized_contract,
+        );
+        Ok(())
+    }
+
+    fn rgb_node_ids(&self, contract_id: ContractId) -> BTreeSet<NodeId> {
+        self.inputs
+            .iter()
+            .filter_map(|input| {
+                input
+                    .proprietary
+                    .get(&ProprietaryKey::rgb_contract(contract_id))
+                    .and_then(|val| NodeId::strict_deserialize(val).ok())
+            })
+            .collect()
+    }
+
+    fn rgb_transition(&self, node_id: NodeId) -> Result<Option<Transition>, KeyError> {
+        self.proprietary
+            .get(&ProprietaryKey::rgb_transition(node_id))
+            .map(|val| Transition::strict_deserialize(val).map_err(KeyError::from))
+            .transpose()
+    }
+
+    fn push_rgb_transition(&mut self, mut transition: Transition) -> Result<bool, KeyError> {
+        let node_id = transition.node_id();
+        let prev_transition = self.rgb_transition(node_id).ok().flatten();
+        if let Some(ref prev_transition) = prev_transition {
+            transition = transition
+                .merge_reveal(prev_transition.clone())
+                .map_err(|err| {
+                    KeyError::UnrelatedTransitions(prev_transition.node_id(), node_id, err)
+                })?;
+        }
+        let serialized_transition = transition.strict_serialize()?;
+        self.proprietary.insert(
+            ProprietaryKey::rgb_transition(node_id),
+            serialized_transition,
+        );
+        Ok(prev_transition.is_none())
     }
 }
 
