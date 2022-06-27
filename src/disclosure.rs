@@ -242,6 +242,24 @@ impl ConcealAnchors for Disclosure {
 }
 
 impl Disclosure {
+    pub fn new() -> Disclosure { Disclosure::default() }
+
+    pub fn with(
+        anchor: Anchor<lnpbp4::MerkleBlock>,
+        bundles: impl IntoIterator<Item = (ContractId, TransitionBundle)>,
+        comment: Option<String>,
+    ) -> Disclosure {
+        let mut disclosure = Disclosure {
+            version: 0,
+            anchored_bundles: empty!(),
+            extensions: empty!(),
+            comment,
+            signatures: none!(),
+        };
+        disclosure.insert_anchored_bundles(anchor, bundles.into_iter().collect());
+        disclosure
+    }
+
     pub fn insert_anchored_bundles(
         &mut self,
         anchor: Anchor<lnpbp4::MerkleBlock>,
