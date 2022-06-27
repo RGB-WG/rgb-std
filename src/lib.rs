@@ -24,7 +24,7 @@ mod disclosure;
 mod stash;
 pub mod fungible;
 mod state;
-mod psbt;
+pub mod psbt;
 pub mod blank;
 
 pub mod prelude {
