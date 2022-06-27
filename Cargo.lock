@@ -719,9 +719,9 @@ dependencies = [
 
 [[package]]
 name = "linked-hash-map"
-version = "0.5.4"
+version = "0.5.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7fb9b38af92608140b86b693604b9ffcc5824240a484d1ecd4795bacb2fe88f3"
+checksum = "0717cef1bc8b636c6e1c1bbdefc09e6322da8a9321966e8928ef80d20f7f770f"
 
 [[package]]
 name = "lnpbp"
@@ -1109,7 +1109,7 @@ dependencies = [
 [[package]]
 name = "rgb-core"
 version = "0.8.0-beta.1"
-source = "git+https://github.com/RGB-WG/rgb-core#2fcae911c94fb9ea9e0ee56c7df76afdaf77aa16"
+source = "git+https://github.com/RGB-WG/rgb-core#f2f47d462f9ae33154875d4c6f2626f5c11b6baa"
 dependencies = [
  "aluvm",
  "amplify",
