@@ -17,7 +17,8 @@ use bitcoin::Txid;
 use commit_verify::{commit_encode, lnpbp4, ConsensusCommit};
 use rgb_core::{
     schema, AttachmentId, BundleId, Consignment, ConsignmentEndpoint, ConsistencyError, ContractId,
-    Extension, Genesis, GraphApi, Node, NodeId, Schema, SchemaId, Transition, TransitionBundle,
+    Extension, Genesis, GraphApi, Node, NodeId, Schema, SchemaId, SealEndpoint, Transition,
+    TransitionBundle,
 };
 use strict_encoding::{LargeVec, StrictDecode};
 
@@ -252,6 +253,10 @@ where T: ConsignmentType
         bundle: TransitionBundle,
     ) -> Result<usize, strict_encoding::Error> {
         self.anchored_bundles.push((anchor, bundle))
+    }
+
+    pub fn push_seal_endpoint(&mut self, bundle_id: BundleId, endseal: SealEndpoint) {
+        self.endseals.push((bundle_id, endseal));
     }
 }
 
