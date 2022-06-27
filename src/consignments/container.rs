@@ -14,8 +14,7 @@ use std::marker::PhantomData;
 use std::{io, slice};
 
 use bitcoin::Txid;
-use commit_verify::lnpbp4::MerkleProof;
-use commit_verify::{commit_encode, ConsensusCommit};
+use commit_verify::{commit_encode, lnpbp4, ConsensusCommit};
 use rgb_core::{
     schema, AttachmentId, BundleId, Consignment, ConsignmentEndpoint, ConsistencyError, ContractId,
     Extension, Genesis, GraphApi, Node, NodeId, Schema, SchemaId, Transition, TransitionBundle,
@@ -119,7 +118,7 @@ where
     T: ConsignmentType,
 {
     type EndpointIter = slice::Iter<'consignment, ConsignmentEndpoint>;
-    type BundleIter = slice::Iter<'consignment, (Anchor<MerkleProof>, TransitionBundle)>;
+    type BundleIter = slice::Iter<'consignment, (Anchor<lnpbp4::MerkleProof>, TransitionBundle)>;
     type ExtensionsIter = slice::Iter<'consignment, Extension>;
 
     fn schema(&'consignment self) -> &'consignment Schema { &self.schema }
@@ -245,6 +244,14 @@ where T: ConsignmentType
             .flat_map(Vec::into_iter)
             .filter(|node| types.contains(&node.transition_type()))
             .collect()
+    }
+
+    pub fn push_anchored_bundle(
+        &mut self,
+        anchor: Anchor<lnpbp4::MerkleProof>,
+        bundle: TransitionBundle,
+    ) -> Result<usize, strict_encoding::Error> {
+        self.anchored_bundles.push((anchor, bundle))
     }
 }
 
