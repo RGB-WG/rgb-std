@@ -308,7 +308,7 @@ impl Disclosure {
         if let Some(ref comment) = self.comment {
             engine.input(&sha256::Hash::hash(comment.as_bytes()))
         }
-        SigHash::from_engine(engine)
+        <SigHash as TaggedHash<_>>::from_engine(engine)
     }
 
     pub fn add_signature(&mut self, pubkey: PublicKey, signature: Signature) -> Option<Signature> {

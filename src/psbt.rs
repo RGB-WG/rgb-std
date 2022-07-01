@@ -39,7 +39,7 @@ pub trait ProprietaryKeyRgb {
         ProprietaryKey {
             prefix: PSBT_RGB_PREFIX.to_vec(),
             subtype: PSBT_GLOBAL_RGB_CONTRACT,
-            key: contract_id.to_bytes().to_vec(),
+            key: contract_id.to_vec(),
         }
     }
 
@@ -48,7 +48,7 @@ pub trait ProprietaryKeyRgb {
         ProprietaryKey {
             prefix: PSBT_RGB_PREFIX.to_vec(),
             subtype: PSBT_GLOBAL_RGB_TRANSITION,
-            key: node_id.to_bytes().to_vec(),
+            key: node_id.to_vec(),
         }
     }
 
@@ -57,7 +57,7 @@ pub trait ProprietaryKeyRgb {
         ProprietaryKey {
             prefix: PSBT_RGB_PREFIX.to_vec(),
             subtype: PSBT_IN_RGB_CONSUMED_BY,
-            key: contract_id.to_bytes().to_vec(),
+            key: contract_id.to_vec(),
         }
     }
 }
@@ -136,7 +136,7 @@ impl RgbExt for Psbt {
                 prop_key.prefix == PSBT_RGB_PREFIX && prop_key.subtype == PSBT_GLOBAL_RGB_CONTRACT
             })
             .map(|prop_key| &prop_key.key)
-            .filter_map(|key| ContractId::from_slice(key).ok())
+            .filter_map(|key| ContractId::from_bytes(key).ok())
             .collect()
     }
 
@@ -240,8 +240,7 @@ impl RgbInExt for psbt::Input {
     fn rgb_consumer(&self, contract_id: ContractId) -> Result<Option<NodeId>, KeyError> {
         self.proprietary
             .get(&ProprietaryKey::rgb_in_consumed_by(contract_id))
-            .map(Vec::as_slice)
-            .map(NodeId::from_slice)
+            .map(NodeId::from_bytes)
             .transpose()
             .map_err(KeyError::from)
     }
