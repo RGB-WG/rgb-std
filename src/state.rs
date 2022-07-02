@@ -27,7 +27,7 @@ use rgb_core::{
 use serde_with::{As, DisplayFromStr};
 use strict_encoding::{StrictDecode, StrictEncode};
 
-pub trait StateAtom:
+pub trait StateTrait:
     Clone
     + Eq
     + Ord
@@ -40,24 +40,42 @@ pub trait StateAtom:
 {
     type StateType: State;
 }
-impl StateAtom for data::Void {
+impl StateTrait for data::Void {
     type StateType = DeclarativeStrategy;
 }
-impl StateAtom for value::Revealed {
+impl StateTrait for value::Revealed {
     type StateType = PedersenStrategy;
 }
-impl StateAtom for data::Revealed {
+impl StateTrait for data::Revealed {
     type StateType = HashStrategy;
 }
-impl StateAtom for attachment::Revealed {
+impl StateTrait for attachment::Revealed {
     type StateType = AttachmentStrategy;
+}
+
+#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, From)]
+#[derive(StrictEncode, StrictDecode)]
+#[display(inner)]
+pub enum StateAtom {
+    #[display("void")]
+    #[from(data::Void)]
+    Void,
+
+    #[from]
+    Value(value::Revealed),
+
+    #[from]
+    Data(data::Revealed),
+
+    #[from]
+    Attachment(attachment::Revealed),
 }
 
 #[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
 #[derive(StrictEncode, StrictDecode)]
 #[display("{state}@{seal}")]
 pub struct AssignedState<State>
-where State: StateAtom
+where State: StateTrait
 {
     pub outpoint: NodeOutpoint,
     pub seal: OutPoint,
@@ -65,7 +83,7 @@ where State: StateAtom
 }
 
 impl<State> AssignedState<State>
-where State: StateAtom
+where State: StateTrait
 {
     pub fn with(
         seal: seal::Revealed,
@@ -87,6 +105,17 @@ pub type OwnedRight = AssignedState<data::Void>;
 pub type OwnedValue = AssignedState<value::Revealed>;
 pub type OwnedData = AssignedState<data::Revealed>;
 pub type OwnedAttachment = AssignedState<attachment::Revealed>;
+
+#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
+#[derive(StrictEncode, StrictDecode)]
+#[cfg_attr(feature = "serde", derive(Serialize), serde(crate = "serde_crate"))]
+#[display("{state}@{node_outpoint}")]
+pub struct OutpointState {
+    #[cfg_attr(feature = "serde", serde(with = "As::<DisplayFromStr>"))]
+    pub node_outpoint: NodeOutpoint,
+    #[cfg_attr(feature = "serde", serde(with = "As::<DisplayFromStr>"))]
+    pub state: StateAtom,
+}
 
 #[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
 #[derive(StrictEncode, StrictDecode)]
@@ -128,6 +157,83 @@ impl ContractState {
         state
     }
 
+    pub fn outpoint_state(&self, outpoint: OutPoint) -> BTreeSet<OutpointState> {
+        let mut state: BTreeSet<OutpointState> = bset! {};
+        for owned_right in &self.owned_rights {
+            if owned_right.seal == outpoint {
+                state.insert(OutpointState {
+                    node_outpoint: owned_right.outpoint,
+                    state: StateAtom::Void,
+                });
+            }
+        }
+        for owned_value in &self.owned_values {
+            if owned_value.seal == outpoint {
+                state.insert(OutpointState {
+                    node_outpoint: owned_value.outpoint,
+                    state: owned_value.state.clone().into(),
+                });
+            }
+        }
+        for owned_data in &self.owned_data {
+            if owned_data.seal == outpoint {
+                state.insert(OutpointState {
+                    node_outpoint: owned_data.outpoint,
+                    state: owned_data.state.clone().into(),
+                });
+            }
+        }
+        for owned_attachment in &self.owned_attachments {
+            if owned_attachment.seal == outpoint {
+                state.insert(OutpointState {
+                    node_outpoint: owned_attachment.outpoint,
+                    state: owned_attachment.clone().state.into(),
+                });
+            }
+        }
+        state
+    }
+
+    pub fn filter_outpoint_state(
+        &self,
+        outpoints: &BTreeSet<OutPoint>,
+    ) -> BTreeMap<OutPoint, OutpointState> {
+        let mut state: BTreeMap<OutPoint, OutpointState> = bmap! {};
+        for owned_right in &self.owned_rights {
+            if outpoints.contains(&owned_right.seal) {
+                state.insert(owned_right.seal, OutpointState {
+                    node_outpoint: owned_right.outpoint,
+                    state: StateAtom::Void,
+                });
+            }
+        }
+        for owned_value in &self.owned_values {
+            if outpoints.contains(&owned_value.seal) {
+                state.insert(owned_value.seal, OutpointState {
+                    node_outpoint: owned_value.outpoint,
+                    state: owned_value.state.clone().into(),
+                });
+            }
+        }
+        for owned_data in &self.owned_data {
+            if outpoints.contains(&owned_data.seal) {
+                state.insert(owned_data.seal, OutpointState {
+                    node_outpoint: owned_data.outpoint,
+                    state: owned_data.state.clone().into(),
+                });
+            }
+        }
+        for owned_attachment in &self.owned_attachments {
+            if outpoints.contains(&owned_attachment.seal) {
+                state.insert(owned_attachment.seal, OutpointState {
+                    node_outpoint: owned_attachment.outpoint,
+                    state: owned_attachment.state.clone().into(),
+                });
+            }
+        }
+        state
+    }
+
     pub fn add_transition(&mut self, txid: Txid, transition: &Transition) {
         self.add_node(txid, transition);
     }
@@ -144,7 +250,7 @@ impl ContractState {
                 .extend(meta.iter().cloned());
         }
 
-        fn process<S: StateAtom>(
+        fn process<S: StateTrait>(
             contract_state: &mut BTreeSet<AssignedState<S>>,
             assignments: &[Assignment<S::StateType>],
             node_id: NodeId,
