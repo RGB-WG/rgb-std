@@ -16,18 +16,21 @@ extern crate amplify;
 extern crate serde_crate as serde;
 
 use std::fmt::{Debug, Display};
+use std::fs;
 use std::io::{self, Read};
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use amplify::hex::{self, FromHex, ToHex};
+use amplify::hex::{FromHex, ToHex};
+use bitcoin::psbt::serialize::{Deserialize, Serialize};
 use clap::Parser;
 use commit_verify::ConsensusCommit;
 use electrum_client::Client as ElectrumClient;
-use rgb::{Disclosure, Extension, Genesis, Schema, StateTransfer, Transition};
+use rgb::psbt::RgbExt;
+use rgb::{Disclosure, Extension, Schema, StateTransfer, Transition};
 use rgb_core::Validator;
-use serde::Serialize;
 use strict_encoding::{StrictDecode, StrictEncode};
+use wallet::psbt::Psbt;
 
 #[derive(Parser, Clone, Debug)]
 #[clap(
@@ -63,12 +66,6 @@ pub enum Command {
         subcommand: SchemaCommand,
     },
 
-    /// Commands for working with anchors and multi-message commitments
-    Anchor {
-        #[clap(subcommand)]
-        subcommand: AnchorCommand,
-    },
-
     /// Commands for working with state extensions
     Extension {
         #[clap(subcommand)]
@@ -81,10 +78,10 @@ pub enum Command {
         subcommand: TransitionCommand,
     },
 
-    /// Commands for working with contract geneses
-    Genesis {
+    /// Commands working with RGB-specific PSBT information
+    Psbt {
         #[clap(subcommand)]
-        subcommand: GenesisCommand,
+        subcommand: PsbtCommand,
     },
 }
 
@@ -143,9 +140,6 @@ pub enum SchemaCommand {
 }
 
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-pub enum AnchorCommand {}
-
-#[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub enum ExtensionCommand {
     Convert {
         /// State extension data; if none are given reads from STDIN
@@ -178,18 +172,16 @@ pub enum TransitionCommand {
 }
 
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-pub enum GenesisCommand {
-    Convert {
-        /// Genesis data; if none are given reads from STDIN
-        genesis: Option<String>,
+pub enum PsbtCommand {
+    /// Finalize RGB bundle information in PSBT file.
+    Bundle {
+        /// Input file containing PSBT of the transfer witness transaction.
+        psbt_in: PathBuf,
 
-        /// Formatting of the input data
-        #[clap(short, long, default_value = "bech32")]
-        input: Format,
-
-        /// Formatting for the output
-        #[clap(short, long, default_value = "yaml")]
-        output: Format,
+        /// Output file to save the PSBT updated with state transition(s)
+        /// information. If not given, the source PSBT file is overwritten.
+        #[clap(short = 'o', long = "out")]
+        psbt_out: Option<PathBuf>,
     },
 }
 
@@ -246,56 +238,37 @@ impl FromStr for Format {
     }
 }
 
-fn input_read<T>(data: Option<String>, format: Format) -> Result<T, String>
+fn input_read<T>(data: Option<String>, format: Format) -> Result<T, Error>
 where T: StrictDecode + for<'de> serde::Deserialize<'de> {
     // TODO: Refactor with microservices cli
     let data = data
         .map(|d| d.as_bytes().to_vec())
         .ok_or_else(String::new)
-        .or_else(|_| -> Result<Vec<u8>, String> {
+        .or_else(|_| -> Result<Vec<u8>, Error> {
             let mut buf = Vec::new();
-            io::stdin()
-                .read_to_end(&mut buf)
-                .as_ref()
-                .map_err(io::Error::to_string)?;
+            io::stdin().read_to_end(&mut buf)?;
             Ok(buf)
         })?;
     Ok(match format {
-        Format::Yaml => {
-            serde_yaml::from_str(&String::from_utf8_lossy(&data)).map_err(|err| err.to_string())?
+        Format::Yaml => serde_yaml::from_str(&String::from_utf8_lossy(&data))?,
+        Format::Json => serde_json::from_str(&String::from_utf8_lossy(&data))?,
+        Format::Hexadecimal => {
+            T::strict_deserialize(Vec::<u8>::from_hex(&String::from_utf8_lossy(&data))?)?
         }
-        Format::Json => {
-            serde_json::from_str(&String::from_utf8_lossy(&data)).map_err(|err| err.to_string())?
-        }
-        Format::Hexadecimal => T::strict_deserialize(
-            Vec::<u8>::from_hex(&String::from_utf8_lossy(&data))
-                .as_ref()
-                .map_err(hex::Error::to_string)?,
-        )?,
         Format::Binary => T::strict_deserialize(&data)?,
         _ => panic!("Can't read data from {} format", format),
     })
 }
 
-fn output_print<T>(data: T, format: Format) -> Result<(), String>
+fn output_print<T>(data: T, format: Format) -> Result<(), Error>
 where
-    T: Debug + Serialize + StrictEncode + ConsensusCommit,
+    T: Debug + serde::Serialize + StrictEncode + ConsensusCommit,
     <T as ConsensusCommit>::Commitment: Display,
 {
     match format {
         Format::Debug => println!("{:#?}", data),
-        Format::Yaml => println!(
-            "{}",
-            serde_yaml::to_string(&data)
-                .as_ref()
-                .map_err(serde_yaml::Error::to_string)?
-        ),
-        Format::Json => println!(
-            "{}",
-            serde_json::to_string(&data)
-                .as_ref()
-                .map_err(serde_json::Error::to_string)?
-        ),
+        Format::Yaml => println!("{}", serde_yaml::to_string(&data)?),
+        Format::Json => println!("{}", serde_json::to_string(&data)?),
         Format::Hexadecimal => {
             println!("{}", data.strict_serialize()?.to_hex())
         }
@@ -311,7 +284,17 @@ where
     Ok(())
 }
 
-fn main() -> Result<(), String> {
+#[derive(Debug, Display)]
+#[display(inner)]
+pub struct Error(Box<dyn std::error::Error>);
+
+impl<E> From<E> for Error
+where E: std::error::Error + 'static
+{
+    fn from(e: E) -> Self { Error(Box::new(e)) }
+}
+
+fn main() -> Result<(), Error> {
     let opts = Opts::parse();
 
     match opts.command {
@@ -329,16 +312,10 @@ fn main() -> Result<(), String> {
             } => {
                 let transfer = StateTransfer::strict_file_load(consignment)?;
 
-                let electrum =
-                    ElectrumClient::new(&electrum).map_err(|err| format!("{:#?}", err))?;
+                let electrum = ElectrumClient::new(&electrum)?;
                 let status = Validator::validate(&transfer, &electrum);
 
-                println!(
-                    "{}",
-                    serde_yaml::to_string(&status)
-                        .as_ref()
-                        .map_err(serde_yaml::Error::to_string)?
-                );
+                println!("{}", serde_yaml::to_string(&status)?);
             }
         },
         Command::Disclosure { subcommand } => match subcommand {
@@ -361,7 +338,6 @@ fn main() -> Result<(), String> {
                 output_print(schema, output)?;
             }
         },
-        Command::Anchor { subcommand } => match subcommand {},
         Command::Extension { subcommand } => match subcommand {
             ExtensionCommand::Convert {
                 extension,
@@ -382,14 +358,16 @@ fn main() -> Result<(), String> {
                 output_print(transition, output)?;
             }
         },
-        Command::Genesis { subcommand } => match subcommand {
-            GenesisCommand::Convert {
-                genesis,
-                input,
-                output,
-            } => {
-                let genesis: Genesis = input_read(genesis, input)?;
-                output_print(genesis, output)?;
+        Command::Psbt { subcommand } => match subcommand {
+            PsbtCommand::Bundle { psbt_in, psbt_out } => {
+                let psbt_bytes = fs::read(&psbt_in)?;
+                let mut psbt = Psbt::deserialize(&psbt_bytes)?;
+
+                let count = psbt.rgb_bundle_to_lnpbp4()?;
+                println!("Total {} bundles converted", count);
+
+                let psbt_bytes = psbt.serialize();
+                fs::write(psbt_out.unwrap_or(psbt_in), psbt_bytes)?;
             }
         },
     }
