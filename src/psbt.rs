@@ -65,7 +65,7 @@ pub trait ProprietaryKeyRgb {
 impl ProprietaryKeyRgb for ProprietaryKey {}
 
 /// Errors processing RGB-related proprietary PSBT keys and their values.
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, Error, From)]
+#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum KeyError {
     /// The key contains invalid value
@@ -75,6 +75,9 @@ pub enum KeyError {
 
     /// The key is already present, but has a different value
     AlreadySet,
+
+    /// internal mismatch between RGB data stored in different keys. {0}
+    InternalMismatch(String),
 
     /// state transition {0} already present in PSBT is not related to the state transition {1} which has to be added to RGB
     UnrelatedTransitions(NodeId, NodeId, reveal::Error),
@@ -118,9 +121,15 @@ pub trait RgbExt {
         self.rgb_contract_ids()
             .into_iter()
             .map(|contract_id| {
-                let mut map: BTreeMap<NodeId, BTreeSet<u16>> = bmap!();
+                let mut map: BTreeMap<Transition, BTreeSet<u16>> = bmap!();
                 for (node_id, no) in self.rgb_contract_consumers(contract_id)? {
-                    map.entry(node_id).or_default().insert(no);
+                    let transition =
+                        self.rgb_transition(node_id)?
+                            .ok_or(KeyError::InternalMismatch(format!(
+                                "Transition data are absent for node {} under contract {}",
+                                node_id, contract_id
+                            )))?;
+                    map.entry(transition).or_default().insert(no);
                 }
                 Ok((contract_id, TransitionBundle::from(map)))
             })
