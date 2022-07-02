@@ -27,6 +27,9 @@ use rgb_core::{
 use serde_with::{As, DisplayFromStr, Same};
 use strict_encoding::{StrictDecode, StrictEncode};
 
+pub type OutpointStateMap = BTreeMap<OutPoint, BTreeSet<OutpointState>>;
+pub type ContractStateMap = BTreeMap<ContractId, OutpointStateMap>;
+
 pub trait StateTrait:
     Clone
     + Eq

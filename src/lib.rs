@@ -39,8 +39,8 @@ pub mod prelude {
     pub use crate::fungible;
     pub use crate::stash::Stash;
     pub use crate::state::{
-        AssignedState, ContractState, OwnedAttachment, OwnedData, OwnedRight, OwnedValue,
-        StateTrait,
+        AssignedState, ContractState, ContractStateMap, OutpointState, OutpointStateMap,
+        OwnedAttachment, OwnedData, OwnedRight, OwnedValue, StateAtom, StateTrait,
     };
 }
 
