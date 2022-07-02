@@ -222,10 +222,48 @@ impl ContractState {
         state
     }
 
-    pub fn filter_outpoint_state(
-        &self,
-        outpoints: &BTreeSet<OutPoint>,
-    ) -> BTreeMap<OutPoint, BTreeSet<OutpointState>> {
+    pub fn all_outpoint_state(&self) -> OutpointStateMap {
+        let mut state: BTreeMap<OutPoint, BTreeSet<OutpointState>> = bmap! {};
+        for owned_right in &self.owned_rights {
+            state
+                .entry(owned_right.seal)
+                .or_default()
+                .insert(OutpointState {
+                    node_outpoint: owned_right.outpoint,
+                    state: StateAtom::Void,
+                });
+        }
+        for owned_value in &self.owned_values {
+            state
+                .entry(owned_value.seal)
+                .or_default()
+                .insert(OutpointState {
+                    node_outpoint: owned_value.outpoint,
+                    state: owned_value.state.clone().into(),
+                });
+        }
+        for owned_data in &self.owned_data {
+            state
+                .entry(owned_data.seal)
+                .or_default()
+                .insert(OutpointState {
+                    node_outpoint: owned_data.outpoint,
+                    state: owned_data.state.clone().into(),
+                });
+        }
+        for owned_attachment in &self.owned_attachments {
+            state
+                .entry(owned_attachment.seal)
+                .or_default()
+                .insert(OutpointState {
+                    node_outpoint: owned_attachment.outpoint,
+                    state: owned_attachment.state.clone().into(),
+                });
+        }
+        state
+    }
+
+    pub fn filter_outpoint_state(&self, outpoints: &BTreeSet<OutPoint>) -> OutpointStateMap {
         let mut state: BTreeMap<OutPoint, BTreeSet<OutpointState>> = bmap! {};
         for owned_right in &self.owned_rights {
             if outpoints.contains(&owned_right.seal) {
