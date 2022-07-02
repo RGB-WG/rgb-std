@@ -121,17 +121,16 @@ pub trait RgbExt {
         self.rgb_contract_ids()
             .into_iter()
             .map(|contract_id| {
-                let mut map: BTreeMap<Transition, BTreeSet<u16>> = bmap!();
+                let mut revealed: BTreeMap<Transition, BTreeSet<u16>> = bmap!();
+                let mut concealed: BTreeMap<NodeId, BTreeSet<u16>> = bmap!();
                 for (node_id, no) in self.rgb_contract_consumers(contract_id)? {
-                    let transition =
-                        self.rgb_transition(node_id)?
-                            .ok_or(KeyError::InternalMismatch(format!(
-                                "Transition data are absent for node {} under contract {}",
-                                node_id, contract_id
-                            )))?;
-                    map.entry(transition).or_default().insert(no);
+                    if let Some(transition) = self.rgb_transition(node_id)? {
+                        revealed.entry(transition).or_default().insert(no);
+                    } else {
+                        concealed.entry(node_id).or_default().insert(no);
+                    }
                 }
-                Ok((contract_id, TransitionBundle::from(map)))
+                Ok((contract_id, TransitionBundle::with(revealed, concealed)))
             })
             .collect()
     }
