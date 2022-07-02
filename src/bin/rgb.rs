@@ -17,12 +17,15 @@ extern crate serde_crate as serde;
 
 use std::fmt::{Debug, Display};
 use std::io::{self, Read};
+use std::path::PathBuf;
 use std::str::FromStr;
 
 use amplify::hex::{self, FromHex, ToHex};
 use clap::Parser;
 use commit_verify::ConsensusCommit;
-use rgb::{Disclosure, Extension, Genesis, Schema, Transition};
+use electrum_client::Client as ElectrumClient;
+use rgb::{Disclosure, Extension, Genesis, Schema, StateTransfer, Transition};
+use rgb_core::Validator;
 use serde::Serialize;
 use strict_encoding::{StrictDecode, StrictEncode};
 
@@ -87,17 +90,19 @@ pub enum Command {
 
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub enum ConsignmentCommand {
+    /// Inspects the consignment structure by printing it out.
+    Inspect {
+        /// Formatting for the output
+        #[clap(short, long, default_value = "yaml")]
+        format: Format,
+
+        /// Consignment data; if none are given reads from STDIN
+        consignment: PathBuf,
+    },
+
     Validate {
         /// Consignment data; if none are given reads from STDIN
         consignment: Option<String>,
-
-        /// Schema string (in a Bech32 format). Defaults to RGB20 schema if
-        /// omitted.
-        schema: Option<String>,
-
-        /// Formatting of the input data
-        #[clap(short, long, default_value = "bech32")]
-        input: Format,
 
         /// Address for Electrum server
         #[clap(default_value = "pandora.network:60001")]
@@ -274,7 +279,7 @@ where T: StrictDecode + for<'de> serde::Deserialize<'de> {
     })
 }
 
-fn output_write<T>(data: T, format: Format) -> Result<(), String>
+fn output_print<T>(data: T, format: Format) -> Result<(), String>
 where
     T: Debug + Serialize + StrictEncode + ConsensusCommit,
     <T as ConsensusCommit>::Commitment: Display,
@@ -313,29 +318,29 @@ fn main() -> Result<(), String> {
 
     match opts.command {
         Command::Consignment { subcommand } => match subcommand {
-            ConsignmentCommand::Validate { .. } => {
-                /* TODO: Re-implement reading consignments from a file
-                        let consignment: Consignment = input_read(consignment, input)?;
-                        let schema = Schema::from_str(&schema.unwrap_or(s!(
-                            "schema1qxx4qkcjsgcqehyk7gg9lrp8uqw9a34r8r0qfay0lm\
-                cr3pxh7yrr2n2mvszq0s7symvkvdcf2ck6whm9zpgpqyk2nqypf8pget8vlk798ccuats4j\
-                zzn98ena4p2us7eyvmxvsz5zzvcc4yu5nvjdhlw76rkxn8vvs27f0qs4qyemfdfczyvve45\
-                qvfds8kryuuc4kzh03t2xruw932u6e7rn9szn8uz2kkcc7lrkzpw4ct4xpgej2s8e3vn224\
-                mmwh8yjwm3c3uzcsz350urqt6gfm6wpj6gcajd6uevncqy74u87jtfmx8raza9nlm2hazyd\
-                l7hyevmls6amyy4kl7rv6skggq"
-                        )))?;
-                        let status = consignment.validate(
-                            &schema,
-                            None,
-                            ElectrumClient::new(&electrum).map_err(|err| format!("{:#?}", err))?,
-                        );
-                        println!(
-                            "{}",
-                            serde_yaml::to_string(&status)
-                                .as_ref()
-                                .map_err(serde_yaml::Error::to_string)?
-                        );
-                     */
+            ConsignmentCommand::Inspect {
+                format,
+                consignment,
+            } => {
+                let transfer = StateTransfer::strict_file_load(consignment)?;
+                output_print(transfer, format)?;
+            }
+            ConsignmentCommand::Validate {
+                consignment,
+                electrum,
+            } => {
+                let consignment: StateTransfer = input_read(consignment, Format::Binary)?;
+
+                let electrum =
+                    ElectrumClient::new(&electrum).map_err(|err| format!("{:#?}", err))?;
+                let status = Validator::validate(&consignment, &electrum);
+
+                println!(
+                    "{}",
+                    serde_yaml::to_string(&status)
+                        .as_ref()
+                        .map_err(serde_yaml::Error::to_string)?
+                );
             }
         },
         Command::Disclosure { subcommand } => match subcommand {
@@ -345,7 +350,7 @@ fn main() -> Result<(), String> {
                 output,
             } => {
                 let disclosure: Disclosure = input_read(disclosure, input)?;
-                output_write(disclosure, output)?;
+                output_print(disclosure, output)?;
             }
         },
         Command::Schema { subcommand } => match subcommand {
@@ -355,7 +360,7 @@ fn main() -> Result<(), String> {
                 output,
             } => {
                 let schema: Schema = input_read(schema, input)?;
-                output_write(schema, output)?;
+                output_print(schema, output)?;
             }
         },
         Command::Anchor { subcommand } => match subcommand {},
@@ -366,7 +371,7 @@ fn main() -> Result<(), String> {
                 output,
             } => {
                 let extension: Extension = input_read(extension, input)?;
-                output_write(extension, output)?;
+                output_print(extension, output)?;
             }
         },
         Command::Transition { subcommand } => match subcommand {
@@ -376,7 +381,7 @@ fn main() -> Result<(), String> {
                 output,
             } => {
                 let transition: Transition = input_read(transition, input)?;
-                output_write(transition, output)?;
+                output_print(transition, output)?;
             }
         },
         Command::Genesis { subcommand } => match subcommand {
@@ -386,7 +391,7 @@ fn main() -> Result<(), String> {
                 output,
             } => {
                 let genesis: Genesis = input_read(genesis, input)?;
-                output_write(genesis, output)?;
+                output_print(genesis, output)?;
             }
         },
     }
