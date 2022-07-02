@@ -43,7 +43,7 @@ serde_json = "1"
 [features]
 default = ["serde", "cli"]
 all = ["serde", "cli", "wallet"]
-wallet = ["rgb_core/wallet", "bp-core/wallet"]
+wallet = ["bp-core/wallet"]
 cli = ["clap", "serde_yaml", "serde_json", "descriptor-wallet/electrum", "electrum-client"]
 serde = ["serde_crate", "serde_with", "lnpbp_bech32/serde",
     "amplify/serde", "commit_verify/serde", "strict_encoding/serde", "rgb_core/serde",
