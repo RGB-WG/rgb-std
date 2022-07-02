@@ -96,13 +96,13 @@ pub enum ConsignmentCommand {
         #[clap(short, long, default_value = "yaml")]
         format: Format,
 
-        /// Consignment data; if none are given reads from STDIN
+        /// File with consignment data
         consignment: PathBuf,
     },
 
     Validate {
-        /// Consignment data; if none are given reads from STDIN
-        consignment: Option<String>,
+        /// File with consignment data
+        consignment: String,
 
         /// Address for Electrum server
         #[clap(default_value = "pandora.network:60001")]
@@ -248,6 +248,7 @@ impl FromStr for Format {
 
 fn input_read<T>(data: Option<String>, format: Format) -> Result<T, String>
 where T: StrictDecode + for<'de> serde::Deserialize<'de> {
+    // TODO: Refactor with microservices cli
     let data = data
         .map(|d| d.as_bytes().to_vec())
         .ok_or_else(String::new)
@@ -257,9 +258,6 @@ where T: StrictDecode + for<'de> serde::Deserialize<'de> {
                 .read_to_end(&mut buf)
                 .as_ref()
                 .map_err(io::Error::to_string)?;
-            if format == Format::Binary {
-                buf = buf[4..].to_vec();
-            }
             Ok(buf)
         })?;
     Ok(match format {
@@ -329,11 +327,11 @@ fn main() -> Result<(), String> {
                 consignment,
                 electrum,
             } => {
-                let consignment: StateTransfer = input_read(consignment, Format::Binary)?;
+                let transfer = StateTransfer::strict_file_load(consignment)?;
 
                 let electrum =
                     ElectrumClient::new(&electrum).map_err(|err| format!("{:#?}", err))?;
-                let status = Validator::validate(&consignment, &electrum);
+                let status = Validator::validate(&transfer, &electrum);
 
                 println!(
                     "{}",
