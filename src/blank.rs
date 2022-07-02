@@ -15,40 +15,69 @@ use bitcoin::{OutPoint, Txid};
 use bp::seals::txout::CloseMethod;
 use rgb_core::schema::OwnedRightType;
 use rgb_core::{
-    seal, Assignment, AssignmentVec, Node, NodeId, NodeOutpoint, OwnedRights, ParentOwnedRights,
-    Transition, TransitionBundle,
+    seal, Assignment, AssignmentVec, Extension, Genesis, Node, NodeId, NodeOutpoint, OwnedRights,
+    ParentOwnedRights, Transition, TransitionBundle,
 };
 
 pub const BLANK_TRANSITION_TYPE: u16 = 0x8000;
 
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, Error)]
+#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, Error)]
 #[display(doc_comments)]
 pub enum Error {
     /// no seal definition outpoint provided for an owned right type {0}
     NoOutpoint(OwnedRightType),
+
+    /// duplicate assignments at {0}
+    DuplicateAssignments(NodeOutpoint, AssignmentVec),
 }
 
 pub trait BlankBundle {
-    fn blank<'transitions>(
-        prev_transitions: impl IntoIterator<Item = (&'transitions Transition, Txid)>,
+    fn blank<'nodes>(
+        genesis: Option<&'nodes Genesis>,
+        prev_transitions: impl IntoIterator<Item = (&'nodes Transition, Txid)>,
+        prev_extensions: impl IntoIterator<Item = &'nodes Extension>,
         prev_outpoints: impl IntoIterator<Item = OutPoint>,
         new_outpoints: &BTreeMap<OwnedRightType, (OutPoint, CloseMethod)>,
     ) -> Result<TransitionBundle, Error>;
 }
 
 impl BlankBundle for TransitionBundle {
-    fn blank<'transitions>(
-        prev_transitions: impl IntoIterator<Item = (&'transitions Transition, Txid)>,
+    fn blank<'nodes>(
+        genesis: Option<&'nodes Genesis>,
+        prev_transitions: impl IntoIterator<Item = (&'nodes Transition, Txid)>,
+        prev_extensions: impl IntoIterator<Item = &'nodes Extension>,
         prev_outpoints: impl IntoIterator<Item = OutPoint>,
         new_outpoints: &BTreeMap<OwnedRightType, (OutPoint, CloseMethod)>,
     ) -> Result<TransitionBundle, Error> {
         let mut inputs: BTreeMap<OutPoint, BTreeSet<NodeOutpoint>> = bmap! {};
         let mut assignments: BTreeMap<NodeOutpoint, &AssignmentVec> = bmap! {};
+        if let Some(genesis) = genesis {
+            for (node_outpoint, tx_outpoint) in genesis.node_outputs(zero!()) {
+                inputs.entry(tx_outpoint).or_default().insert(node_outpoint);
+                if let Some(vec) = genesis.owned_rights_by_type(node_outpoint.ty) {
+                    if assignments.insert(node_outpoint, vec).is_some() {
+                        return Err(Error::DuplicateAssignments(node_outpoint, vec.clone()));
+                    }
+                }
+            }
+        }
         for (transition, txid) in prev_transitions {
             for (node_outpoint, tx_outpoint) in transition.node_outputs(txid) {
                 inputs.entry(tx_outpoint).or_default().insert(node_outpoint);
                 if let Some(vec) = transition.owned_rights_by_type(node_outpoint.ty) {
-                    debug_assert!(assignments.insert(node_outpoint, vec).is_none());
+                    if assignments.insert(node_outpoint, vec).is_some() {
+                        return Err(Error::DuplicateAssignments(node_outpoint, vec.clone()));
+                    }
+                }
+            }
+        }
+        for extension in prev_extensions {
+            for (node_outpoint, tx_outpoint) in extension.node_outputs(empty!()) {
+                inputs.entry(tx_outpoint).or_default().insert(node_outpoint);
+                if let Some(vec) = extension.owned_rights_by_type(node_outpoint.ty) {
+                    if assignments.insert(node_outpoint, vec).is_some() {
+                        return Err(Error::DuplicateAssignments(node_outpoint, vec.clone()));
+                    }
                 }
             }
         }
