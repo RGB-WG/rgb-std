@@ -19,9 +19,9 @@ use commit_verify::CommitConceal;
 use rgb_core::contract::attachment;
 use rgb_core::schema::{FieldType, OwnedRightType};
 use rgb_core::{
-    data, seal, value, Assignment, AssignmentVec, AttachmentStrategy, ContractId,
-    DeclarativeStrategy, Extension, Genesis, HashStrategy, Node, NodeId, NodeOutpoint,
-    PedersenStrategy, SchemaId, State, Transition,
+    data, seal, value, Assignment, AttachmentStrategy, ContractId, DeclarativeStrategy, Extension,
+    Genesis, HashStrategy, Node, NodeId, NodeOutpoint, PedersenStrategy, SchemaId, State,
+    Transition, TypedAssignments,
 };
 #[cfg(feature = "serde")]
 use serde_with::{As, DisplayFromStr};
@@ -72,24 +72,26 @@ pub enum StateAtom {
 }
 
 impl StateAtom {
-    pub fn to_revealed_assignment_vec(&self, seal_definition: seal::Revealed) -> AssignmentVec {
+    pub fn to_revealed_assignment_vec(&self, seal: seal::Revealed) -> TypedAssignments {
         match self {
-            StateAtom::Void => AssignmentVec::Declarative(vec![Assignment::Revealed {
-                seal_definition,
-                assigned_state: data::Void(),
+            StateAtom::Void => TypedAssignments::Void(vec![Assignment::Revealed {
+                seal,
+                state: data::Void(),
             }]),
-            StateAtom::Value(state) => AssignmentVec::Fungible(vec![Assignment::Revealed {
-                seal_definition,
-                assigned_state: *state,
+            StateAtom::Value(state) => TypedAssignments::Value(vec![Assignment::Revealed {
+                seal,
+                state: *state,
             }]),
-            StateAtom::Data(state) => AssignmentVec::NonFungible(vec![Assignment::Revealed {
-                seal_definition,
-                assigned_state: state.clone(),
+            StateAtom::Data(state) => TypedAssignments::Data(vec![Assignment::Revealed {
+                seal,
+                state: state.clone(),
             }]),
-            StateAtom::Attachment(state) => AssignmentVec::Attachment(vec![Assignment::Revealed {
-                seal_definition,
-                assigned_state: state.clone(),
-            }]),
+            StateAtom::Attachment(state) => {
+                TypedAssignments::Attachment(vec![Assignment::Revealed {
+                    seal,
+                    state: state.clone(),
+                }])
+            }
         }
     }
 }
@@ -328,16 +330,16 @@ impl ContractState {
 
         for (ty, assignments) in node.owned_rights().iter() {
             match assignments {
-                AssignmentVec::Declarative(assignments) => {
+                TypedAssignments::Void(assignments) => {
                     process(&mut self.owned_rights, assignments, node_id, *ty, txid)
                 }
-                AssignmentVec::Fungible(assignments) => {
+                TypedAssignments::Value(assignments) => {
                     process(&mut self.owned_values, assignments, node_id, *ty, txid)
                 }
-                AssignmentVec::NonFungible(assignments) => {
+                TypedAssignments::Data(assignments) => {
                     process(&mut self.owned_data, assignments, node_id, *ty, txid)
                 }
-                AssignmentVec::Attachment(assignments) => {
+                TypedAssignments::Attachment(assignments) => {
                     process(&mut self.owned_attachments, assignments, node_id, *ty, txid)
                 }
             }

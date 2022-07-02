@@ -57,15 +57,14 @@ use bp::seals;
 use bp::seals::txout::blind::RevealedSeal;
 use bp::seals::txout::ExplicitSeal;
 use rgb_core::schema::OwnedRightType;
-use rgb_core::{EndpointValueMap, SealValueMap};
+use rgb_core::{EndpointValueMap, SealValueMap, TypedAssignments};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "serde")]
 use serde_with::{As, DisplayFromStr};
 
 use crate::{
-    seal, value, Assignment, AssignmentVec, AtomicValue, IntoRevealedSeal, NodeId, NodeOutpoint,
-    SealEndpoint,
+    seal, value, Assignment, AtomicValue, IntoRevealedSeal, NodeId, NodeOutpoint, SealEndpoint,
 };
 
 /// Error parsing allocation data
@@ -291,43 +290,43 @@ pub trait AllocationMap {
     fn sum(&self) -> AtomicValue;
 
     /// Turns allocation map into [`AssignmentVec`]
-    fn into_assignments(self) -> AssignmentVec;
+    fn into_assignments(self) -> TypedAssignments;
 }
 
 impl AllocationMap for OutpointValueVec {
     fn sum(&self) -> u64 { self.iter().map(|v| v.value).sum() }
 
-    fn into_assignments(self) -> AssignmentVec { self.into_seal_value_map().into_assignments() }
+    fn into_assignments(self) -> TypedAssignments { self.into_seal_value_map().into_assignments() }
 }
 
 impl AllocationMap for OutpointValueMap {
     fn sum(&self) -> u64 { self.values().sum() }
 
-    fn into_assignments(self) -> AssignmentVec { self.into_seal_value_map().into_assignments() }
+    fn into_assignments(self) -> TypedAssignments { self.into_seal_value_map().into_assignments() }
 }
 
 impl AllocationMap for AllocationValueVec {
     fn sum(&self) -> u64 { self.iter().map(|v| v.value).sum() }
 
-    fn into_assignments(self) -> AssignmentVec { self.into_seal_value_map().into_assignments() }
+    fn into_assignments(self) -> TypedAssignments { self.into_seal_value_map().into_assignments() }
 }
 
 impl AllocationMap for AllocationValueMap {
     fn sum(&self) -> u64 { self.values().sum() }
 
-    fn into_assignments(self) -> AssignmentVec { self.into_seal_value_map().into_assignments() }
+    fn into_assignments(self) -> TypedAssignments { self.into_seal_value_map().into_assignments() }
 }
 
 impl AllocationMap for SealValueMap {
     fn sum(&self) -> u64 { self.values().sum() }
 
-    fn into_assignments(self) -> AssignmentVec {
+    fn into_assignments(self) -> TypedAssignments {
         let mut rng = thread_rng();
-        AssignmentVec::Fungible(
+        TypedAssignments::Value(
             self.into_iter()
                 .map(|(seal, value)| Assignment::Revealed {
-                    seal_definition: seal,
-                    assigned_state: value::Revealed::with_amount(value, &mut rng),
+                    seal,
+                    state: value::Revealed::with_amount(value, &mut rng),
                 })
                 .collect(),
         )
@@ -337,29 +336,29 @@ impl AllocationMap for SealValueMap {
 impl AllocationMap for EndpointValueMap {
     fn sum(&self) -> u64 { self.values().sum() }
 
-    fn into_assignments(self) -> AssignmentVec {
+    fn into_assignments(self) -> TypedAssignments {
         let mut rng = thread_rng();
-        AssignmentVec::Fungible(
+        TypedAssignments::Value(
             self.into_iter()
                 .map(|(seal, value)| {
-                    let assigned_state = value::Revealed::with_amount(value, &mut rng);
+                    let state = value::Revealed::with_amount(value, &mut rng);
                     match seal {
                         SealEndpoint::ConcealedUtxo(confidential) => Assignment::ConfidentialSeal {
-                            seal_definition: confidential,
-                            assigned_state,
+                            seal: confidential,
+                            state,
                         },
                         SealEndpoint::WitnessVout {
                             method,
                             vout,
                             blinding,
                         } => Assignment::Revealed {
-                            seal_definition: seal::Revealed {
+                            seal: seal::Revealed {
                                 method,
                                 txid: None,
                                 vout,
                                 blinding,
                             },
-                            assigned_state,
+                            state,
                         },
                     }
                 })

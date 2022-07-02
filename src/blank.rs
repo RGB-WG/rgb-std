@@ -15,8 +15,8 @@ use bitcoin::OutPoint;
 use bp::seals::txout::CloseMethod;
 use rgb_core::schema::OwnedRightType;
 use rgb_core::{
-    seal, AssignmentVec, NodeId, NodeOutpoint, OwnedRights, ParentOwnedRights, Transition,
-    TransitionBundle,
+    seal, NodeId, NodeOutpoint, OwnedRights, ParentOwnedRights, Transition, TransitionBundle,
+    TypedAssignments,
 };
 
 use crate::state::OutpointState;
@@ -30,7 +30,7 @@ pub enum Error {
     NoOutpoint(OwnedRightType),
 
     /// duplicate assignments at {0}
-    DuplicateAssignments(NodeOutpoint, AssignmentVec),
+    DuplicateAssignments(NodeOutpoint, TypedAssignments),
 }
 
 pub trait BlankBundle {
@@ -50,7 +50,7 @@ impl BlankBundle for TransitionBundle {
         for (tx_outpoint, inputs) in prev_state {
             let mut parent_owned_rights: BTreeMap<NodeId, BTreeMap<OwnedRightType, Vec<u16>>> =
                 bmap! {};
-            let mut owned_rights: BTreeMap<OwnedRightType, AssignmentVec> = bmap! {};
+            let mut owned_rights: BTreeMap<OwnedRightType, TypedAssignments> = bmap! {};
             for OutpointState {
                 node_outpoint: input,
                 state,
