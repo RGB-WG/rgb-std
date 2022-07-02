@@ -151,17 +151,13 @@ impl RgbExt for Psbt {
         &self,
         contract_id: ContractId,
     ) -> Result<BTreeSet<(NodeId, u16)>, KeyError> {
-        self.inputs
-            .iter()
-            .enumerate()
-            .filter_map(|(no, input)| {
-                let node_id = input
-                    .proprietary
-                    .get(&ProprietaryKey::rgb_contract(contract_id))
-                    .map(|val| NodeId::strict_deserialize(val).map_err(KeyError::from))?;
-                Some(node_id.map(|id| (id, no as u16)))
-            })
-            .collect()
+        let mut consumers: BTreeSet<(NodeId, u16)> = bset! {};
+        for (no, input) in self.inputs.iter().enumerate() {
+            if let Some(node_id) = input.rgb_consumer(contract_id)? {
+                consumers.insert((node_id, no as u16));
+            }
+        }
+        Ok(consumers)
     }
 
     fn set_rgb_contract(&mut self, contract: Contract) -> Result<(), KeyError> {
