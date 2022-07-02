@@ -229,9 +229,9 @@ dependencies = [
 
 [[package]]
 name = "bp-core"
-version = "0.8.0-beta.1"
+version = "0.8.0-beta.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8d6f0c002f4d4c5c61ee24ef4d1a8f5da62cbc6cba8ef8b548b005c9b392bbb"
+checksum = "c0568da45a618f56ce82c1c3dfe9ebd63293bcdd299550c01089f3782b94ca98"
 dependencies = [
  "amplify",
  "bitcoin",
@@ -247,9 +247,9 @@ dependencies = [
 
 [[package]]
 name = "bp-dbc"
-version = "0.8.0-alpha.1"
+version = "0.8.0-alpha.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b996214a85599017d3836caf624fe730d900a6aba88508d74884bbd8a3ae932"
+checksum = "a15a3f75bb7a8ee8981d2f3207dc74bd50fd78550a8814dd4300d4691ad15bdd"
 dependencies = [
  "amplify",
  "bitcoin",
@@ -450,9 +450,9 @@ dependencies = [
 
 [[package]]
 name = "descriptor-wallet"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a5712fee424fc1d817969ca31208ffb5c364ee47a192574bd7b5f6fa514629b"
+checksum = "c2ca925ccf1ac313aa1289d60ba54864073dc8694bee11d74bc4b7ff99580669"
 dependencies = [
  "amplify",
  "bitcoin",
@@ -886,15 +886,16 @@ dependencies = [
 
 [[package]]
 name = "psbt"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "44d284502e21e6e016ef61100d0e6e8de8acf9140780afbbaeb1cb9cdf159c1d"
+checksum = "76e1e5e68bbef1d45903dbf5cfb8c480b13703e6a5e99a8fd9e18ad3e0c088e9"
 dependencies = [
  "amplify",
  "bitcoin",
  "bitcoin_hd",
  "bitcoin_onchain",
  "bitcoin_scripts",
+ "commit_verify",
  "descriptors",
  "miniscript",
  "serde",

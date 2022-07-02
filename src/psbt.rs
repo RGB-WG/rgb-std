@@ -14,11 +14,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use bitcoin::psbt::raw::ProprietaryKey;
-use commit_verify::TaggedHash;
+use bitcoin::{Script, TxOut};
+use commit_verify::{lnpbp4, TaggedHash};
 use rgb_core::{reveal, ContractId, MergeReveal, Node, NodeId, Transition, TransitionBundle};
 use strict_encoding::{StrictDecode, StrictEncode};
 use wallet::psbt;
-use wallet::psbt::Psbt;
+use wallet::psbt::{Output, Psbt};
 
 use crate::Contract;
 
@@ -134,6 +135,8 @@ pub trait RgbExt {
             })
             .collect()
     }
+
+    fn rgb_bundle_to_lnpbp4(&mut self) -> Result<usize, KeyError>;
 }
 
 impl RgbExt for Psbt {
@@ -216,6 +219,38 @@ impl RgbExt for Psbt {
             serialized_transition,
         );
         Ok(prev_transition.is_none())
+    }
+
+    fn rgb_bundle_to_lnpbp4(&mut self) -> Result<usize, KeyError> {
+        let bundles = self.rgb_bundles()?;
+
+        let output = match self
+            .outputs
+            .iter_mut()
+            .find(|output| output.is_tapret_host())
+        {
+            Some(output) => output,
+            None => {
+                let output = Output::new(self.outputs.len(), TxOut {
+                    value: 0,
+                    script_pubkey: Script::new_op_return(&[0u8; 32]),
+                });
+                self.outputs.push(output);
+                self.outputs.last_mut().expect("just inserted")
+            }
+        };
+
+        let len = bundles.len();
+        for (contract_id, bundle) in bundles {
+            output
+                .set_lnpbp4_message(
+                    lnpbp4::ProtocolId::from(contract_id),
+                    bundle.bundle_id().into(),
+                )
+                .map_err(|_| KeyError::AlreadySet)?;
+        }
+
+        Ok(len)
     }
 }
 
