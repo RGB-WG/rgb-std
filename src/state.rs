@@ -24,7 +24,7 @@ use rgb_core::{
     Transition, TypedAssignments,
 };
 #[cfg(feature = "serde")]
-use serde_with::{As, DisplayFromStr};
+use serde_with::{As, DisplayFromStr, Same};
 use strict_encoding::{StrictDecode, StrictEncode};
 
 pub trait StateTrait:
@@ -149,7 +149,7 @@ pub struct ContractState {
     pub schema_id: SchemaId,
     pub root_schema_id: Option<SchemaId>,
     pub contract_id: ContractId,
-    // TODO: Metadata should not be a part of the contract state
+    #[cfg_attr(feature = "serde", serde(with = "As::<BTreeMap<Same, Vec<DisplayFromStr>>>"))]
     pub metadata: BTreeMap<FieldType, Vec<data::Revealed>>,
     #[cfg_attr(feature = "serde", serde(with = "As::<BTreeSet<DisplayFromStr>>"))]
     pub owned_rights: BTreeSet<OwnedRight>,
