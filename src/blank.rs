@@ -11,13 +11,15 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use bitcoin::{OutPoint, Txid};
+use bitcoin::OutPoint;
 use bp::seals::txout::CloseMethod;
 use rgb_core::schema::OwnedRightType;
 use rgb_core::{
-    seal, Assignment, AssignmentVec, Extension, Genesis, Node, NodeId, NodeOutpoint, OwnedRights,
-    ParentOwnedRights, Transition, TransitionBundle,
+    seal, AssignmentVec, NodeId, NodeOutpoint, OwnedRights, ParentOwnedRights, Transition,
+    TransitionBundle,
 };
+
+use crate::state::OutpointState;
 
 pub const BLANK_TRANSITION_TYPE: u16 = 0x8000;
 
@@ -32,65 +34,28 @@ pub enum Error {
 }
 
 pub trait BlankBundle {
-    fn blank<'nodes>(
-        genesis: Option<&'nodes Genesis>,
-        prev_transitions: impl IntoIterator<Item = (&'nodes Transition, Txid)>,
-        prev_extensions: impl IntoIterator<Item = &'nodes Extension>,
-        prev_outpoints: impl IntoIterator<Item = OutPoint>,
+    fn blank(
+        prev_state: &BTreeMap<OutPoint, BTreeSet<OutpointState>>,
         new_outpoints: &BTreeMap<OwnedRightType, (OutPoint, CloseMethod)>,
     ) -> Result<TransitionBundle, Error>;
 }
 
 impl BlankBundle for TransitionBundle {
-    fn blank<'nodes>(
-        genesis: Option<&'nodes Genesis>,
-        prev_transitions: impl IntoIterator<Item = (&'nodes Transition, Txid)>,
-        prev_extensions: impl IntoIterator<Item = &'nodes Extension>,
-        prev_outpoints: impl IntoIterator<Item = OutPoint>,
+    fn blank(
+        prev_state: &BTreeMap<OutPoint, BTreeSet<OutpointState>>,
         new_outpoints: &BTreeMap<OwnedRightType, (OutPoint, CloseMethod)>,
     ) -> Result<TransitionBundle, Error> {
-        let mut inputs: BTreeMap<OutPoint, BTreeSet<NodeOutpoint>> = bmap! {};
-        let mut assignments: BTreeMap<NodeOutpoint, &AssignmentVec> = bmap! {};
-        if let Some(genesis) = genesis {
-            for (node_outpoint, tx_outpoint) in genesis.node_outputs(zero!()) {
-                inputs.entry(tx_outpoint).or_default().insert(node_outpoint);
-                if let Some(vec) = genesis.owned_rights_by_type(node_outpoint.ty) {
-                    if assignments.insert(node_outpoint, vec).is_some() {
-                        return Err(Error::DuplicateAssignments(node_outpoint, vec.clone()));
-                    }
-                }
-            }
-        }
-        for (transition, txid) in prev_transitions {
-            for (node_outpoint, tx_outpoint) in transition.node_outputs(txid) {
-                inputs.entry(tx_outpoint).or_default().insert(node_outpoint);
-                if let Some(vec) = transition.owned_rights_by_type(node_outpoint.ty) {
-                    if assignments.insert(node_outpoint, vec).is_some() {
-                        return Err(Error::DuplicateAssignments(node_outpoint, vec.clone()));
-                    }
-                }
-            }
-        }
-        for extension in prev_extensions {
-            for (node_outpoint, tx_outpoint) in extension.node_outputs(empty!()) {
-                inputs.entry(tx_outpoint).or_default().insert(node_outpoint);
-                if let Some(vec) = extension.owned_rights_by_type(node_outpoint.ty) {
-                    if assignments.insert(node_outpoint, vec).is_some() {
-                        return Err(Error::DuplicateAssignments(node_outpoint, vec.clone()));
-                    }
-                }
-            }
-        }
-
         let mut transitions: BTreeMap<Transition, BTreeSet<u16>> = bmap! {};
-        for (tx_outpoint, input_outpoints) in prev_outpoints
-            .into_iter()
-            .filter_map(|outpoint| inputs.get(&outpoint).map(|set| (outpoint, set)))
-        {
+
+        for (tx_outpoint, inputs) in prev_state {
             let mut parent_owned_rights: BTreeMap<NodeId, BTreeMap<OwnedRightType, Vec<u16>>> =
                 bmap! {};
             let mut owned_rights: BTreeMap<OwnedRightType, AssignmentVec> = bmap! {};
-            for input in input_outpoints {
+            for OutpointState {
+                node_outpoint: input,
+                state,
+            } in inputs
+            {
                 parent_owned_rights
                     .entry(input.node_id)
                     .or_default()
@@ -101,31 +66,7 @@ impl BlankBundle for TransitionBundle {
                     .get(&input.ty)
                     .ok_or(Error::NoOutpoint(input.ty))?;
                 let new_seal = seal::Revealed::new(*close_method, *op);
-                let new_assignments = match assignments
-                    .get(input)
-                    .expect("blank transition algorithm broken")
-                {
-                    AssignmentVec::Declarative(vec) => AssignmentVec::Declarative(
-                        vec.iter()
-                            .map(|a| Assignment::with_seal_replaced(a, new_seal))
-                            .collect(),
-                    ),
-                    AssignmentVec::Fungible(vec) => AssignmentVec::Fungible(
-                        vec.iter()
-                            .map(|a| Assignment::with_seal_replaced(a, new_seal))
-                            .collect(),
-                    ),
-                    AssignmentVec::NonFungible(vec) => AssignmentVec::NonFungible(
-                        vec.iter()
-                            .map(|a| Assignment::with_seal_replaced(a, new_seal))
-                            .collect(),
-                    ),
-                    AssignmentVec::Attachment(vec) => AssignmentVec::Attachment(
-                        vec.iter()
-                            .map(|a| Assignment::with_seal_replaced(a, new_seal))
-                            .collect(),
-                    ),
-                };
+                let new_assignments = state.to_revealed_assignment_vec(new_seal);
                 owned_rights.insert(input.ty, new_assignments);
             }
             let transition = Transition::with(
@@ -138,6 +79,7 @@ impl BlankBundle for TransitionBundle {
             );
             transitions.insert(transition, bset! { tx_outpoint.vout as u16 });
         }
+
         Ok(TransitionBundle::from(transitions))
     }
 }

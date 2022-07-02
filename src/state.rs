@@ -71,6 +71,29 @@ pub enum StateAtom {
     Attachment(attachment::Revealed),
 }
 
+impl StateAtom {
+    pub fn to_revealed_assignment_vec(&self, seal_definition: seal::Revealed) -> AssignmentVec {
+        match self {
+            StateAtom::Void => AssignmentVec::Declarative(vec![Assignment::Revealed {
+                seal_definition,
+                assigned_state: data::Void(),
+            }]),
+            StateAtom::Value(state) => AssignmentVec::Fungible(vec![Assignment::Revealed {
+                seal_definition,
+                assigned_state: *state,
+            }]),
+            StateAtom::Data(state) => AssignmentVec::NonFungible(vec![Assignment::Revealed {
+                seal_definition,
+                assigned_state: state.clone(),
+            }]),
+            StateAtom::Attachment(state) => AssignmentVec::Attachment(vec![Assignment::Revealed {
+                seal_definition,
+                assigned_state: state.clone(),
+            }]),
+        }
+    }
+}
+
 #[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
 #[derive(StrictEncode, StrictDecode)]
 #[display("{state}@{seal}")]
@@ -197,38 +220,50 @@ impl ContractState {
     pub fn filter_outpoint_state(
         &self,
         outpoints: &BTreeSet<OutPoint>,
-    ) -> BTreeMap<OutPoint, OutpointState> {
-        let mut state: BTreeMap<OutPoint, OutpointState> = bmap! {};
+    ) -> BTreeMap<OutPoint, BTreeSet<OutpointState>> {
+        let mut state: BTreeMap<OutPoint, BTreeSet<OutpointState>> = bmap! {};
         for owned_right in &self.owned_rights {
             if outpoints.contains(&owned_right.seal) {
-                state.insert(owned_right.seal, OutpointState {
-                    node_outpoint: owned_right.outpoint,
-                    state: StateAtom::Void,
-                });
+                state
+                    .entry(owned_right.seal)
+                    .or_default()
+                    .insert(OutpointState {
+                        node_outpoint: owned_right.outpoint,
+                        state: StateAtom::Void,
+                    });
             }
         }
         for owned_value in &self.owned_values {
             if outpoints.contains(&owned_value.seal) {
-                state.insert(owned_value.seal, OutpointState {
-                    node_outpoint: owned_value.outpoint,
-                    state: owned_value.state.clone().into(),
-                });
+                state
+                    .entry(owned_value.seal)
+                    .or_default()
+                    .insert(OutpointState {
+                        node_outpoint: owned_value.outpoint,
+                        state: owned_value.state.clone().into(),
+                    });
             }
         }
         for owned_data in &self.owned_data {
             if outpoints.contains(&owned_data.seal) {
-                state.insert(owned_data.seal, OutpointState {
-                    node_outpoint: owned_data.outpoint,
-                    state: owned_data.state.clone().into(),
-                });
+                state
+                    .entry(owned_data.seal)
+                    .or_default()
+                    .insert(OutpointState {
+                        node_outpoint: owned_data.outpoint,
+                        state: owned_data.state.clone().into(),
+                    });
             }
         }
         for owned_attachment in &self.owned_attachments {
             if outpoints.contains(&owned_attachment.seal) {
-                state.insert(owned_attachment.seal, OutpointState {
-                    node_outpoint: owned_attachment.outpoint,
-                    state: owned_attachment.state.clone().into(),
-                });
+                state
+                    .entry(owned_attachment.seal)
+                    .or_default()
+                    .insert(OutpointState {
+                        node_outpoint: owned_attachment.outpoint,
+                        state: owned_attachment.state.clone().into(),
+                    });
             }
         }
         state
