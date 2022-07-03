@@ -193,15 +193,7 @@ impl ConcealSeals for Disclosure {
         let mut count = 0usize;
         for (_, map) in self.anchored_bundles.values_mut() {
             for bundle in map.values_mut() {
-                *bundle = bundle
-                    .revealed_iter()
-                    .map(|(transition, inputs)| {
-                        let mut transition = transition.clone();
-                        count += transition.conceal_seals(seals);
-                        (transition, inputs.clone())
-                    })
-                    .collect::<BTreeMap<_, _>>()
-                    .into();
+                count += bundle.conceal_seals(seals);
             }
         }
         count
@@ -213,15 +205,7 @@ impl ConcealState for Disclosure {
         let mut count = 0usize;
         for (_, map) in self.anchored_bundles.values_mut() {
             for bundle in map.values_mut() {
-                *bundle = bundle
-                    .revealed_iter()
-                    .map(|(transition, inputs)| {
-                        let mut transition = transition.clone();
-                        count += transition.conceal_state_except(seals);
-                        (transition, inputs.clone())
-                    })
-                    .collect::<BTreeMap<_, _>>()
-                    .into();
+                count += bundle.conceal_state_except(seals);
             }
         }
         count

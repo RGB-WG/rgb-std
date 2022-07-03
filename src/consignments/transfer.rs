@@ -14,12 +14,15 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use commit_verify::CommitConceal;
-use rgb_core::{seal, ConcealSeals, ConcealState, Node, SealEndpoint, TransitionBundle};
+use rgb_core::bundle::NoDataError;
+use rgb_core::{
+    seal, ConcealSeals, ConcealState, Node, RevealSeals, SealEndpoint, TransitionBundle,
+};
 
 use super::StateTransfer;
 
 impl StateTransfer {
-    pub fn finalize(&mut self, expose: &BTreeSet<SealEndpoint>) -> usize {
+    pub fn finalize(&mut self, expose: &BTreeSet<SealEndpoint>) -> Result<usize, NoDataError> {
         let concealed_endpoints = expose
             .iter()
             .map(SealEndpoint::commit_conceal)
@@ -58,11 +61,12 @@ impl StateTransfer {
                         (transition, inputs.clone())
                     })
                     .collect::<BTreeMap<_, _>>();
-                (anchor.clone(), TransitionBundle::from(bundle))
+                let new_bundle = TransitionBundle::try_from(bundle)?;
+                Ok((anchor.clone(), new_bundle))
             })
-            .collect::<Vec<_>>()
+            .collect::<Result<Vec<_>, _>>()?
             .try_into()
-            .expect("size of the original collection not changed");
+            .expect("the size of the original collection has not changed");
 
         count = self
             .state_extensions
@@ -71,33 +75,19 @@ impl StateTransfer {
                 count + extension.conceal_state_except(&concealed_endpoints)
             });
 
-        count
+        Ok(count)
     }
+}
 
-    /// Reveals previously known seal information (replacing blind UTXOs with
-    /// unblind ones). Function is used when a peer receives consignments
-    /// containing concealed seals for the outputs owned by the peer
-    pub fn reveal_seals<'a>(
-        &mut self,
-        known_seals: impl Iterator<Item = &'a seal::Revealed> + Clone,
-    ) -> usize {
+impl RevealSeals for StateTransfer {
+    fn reveal_seals(&mut self, known_seals: &[seal::Revealed]) -> usize {
         let mut counter = 0;
         for (_, bundle) in self.anchored_bundles.iter_mut() {
-            *bundle = bundle
-                .revealed_iter()
-                .map(|(transition, inputs)| {
-                    let mut transition = transition.clone();
-                    for (_, assignment) in transition.owned_rights_mut().iter_mut() {
-                        counter += assignment.reveal_seals(known_seals.clone());
-                    }
-                    (transition, inputs.clone())
-                })
-                .collect::<BTreeMap<_, _>>()
-                .into();
+            counter += bundle.reveal_seals(known_seals);
         }
         for extension in self.state_extensions.iter_mut() {
             for (_, assignment) in extension.owned_rights_mut().iter_mut() {
-                counter += assignment.reveal_seals(known_seals.clone())
+                counter += assignment.reveal_seals(known_seals)
             }
         }
         counter

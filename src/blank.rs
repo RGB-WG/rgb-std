@@ -13,6 +13,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use bitcoin::OutPoint;
 use bp::seals::txout::CloseMethod;
+use rgb_core::bundle::NoDataError;
 use rgb_core::schema::OwnedRightType;
 use rgb_core::{
     seal, NodeId, NodeOutpoint, OwnedRights, ParentOwnedRights, Transition, TransitionBundle,
@@ -23,7 +24,7 @@ use crate::state::OutpointState;
 
 pub const BLANK_TRANSITION_TYPE: u16 = 0x8000;
 
-#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, Error)]
+#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum Error {
     /// no seal definition outpoint provided for an owned right type {0}
@@ -31,6 +32,10 @@ pub enum Error {
 
     /// duplicate assignments at {0}
     DuplicateAssignments(NodeOutpoint, TypedAssignments),
+
+    /// unable to construct blank state transition bundle from empty previous state
+    #[from(NoDataError)]
+    EmptyData,
 }
 
 pub trait BlankBundle {
@@ -80,6 +85,6 @@ impl BlankBundle for TransitionBundle {
             transitions.insert(transition, bset! { tx_outpoint.vout as u16 });
         }
 
-        Ok(TransitionBundle::from(transitions))
+        TransitionBundle::try_from(transitions).map_err(Error::from)
     }
 }

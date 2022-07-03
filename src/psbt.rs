@@ -16,6 +16,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use bitcoin::psbt::raw::ProprietaryKey;
 use bitcoin::{Script, TxOut};
 use commit_verify::{lnpbp4, TaggedHash};
+use rgb_core::bundle::NoDataError;
 use rgb_core::{reveal, ContractId, MergeReveal, Node, NodeId, Transition, TransitionBundle};
 use strict_encoding::{StrictDecode, StrictEncode};
 use wallet::psbt;
@@ -82,6 +83,10 @@ pub enum KeyError {
 
     /// state transition {0} already present in PSBT is not related to the state transition {1} which has to be added to RGB
     UnrelatedTransitions(NodeId, NodeId, reveal::Error),
+
+    /// state transition bundle with zero transitions
+    #[from(NoDataError)]
+    EmptyData,
 }
 
 pub trait RgbExt {
@@ -131,7 +136,8 @@ pub trait RgbExt {
                         concealed.entry(node_id).or_default().insert(no);
                     }
                 }
-                Ok((contract_id, TransitionBundle::with(revealed, concealed)))
+                let bundle = TransitionBundle::with(revealed, concealed)?;
+                Ok((contract_id, bundle))
             })
             .collect()
     }
