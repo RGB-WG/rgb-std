@@ -23,12 +23,14 @@ use std::str::FromStr;
 
 use amplify::hex::{FromHex, ToHex};
 use bitcoin::psbt::serialize::{Deserialize, Serialize};
+use bitcoin::OutPoint;
+use bp::seals::txout::CloseMethod;
 use clap::Parser;
 use commit_verify::ConsensusCommit;
 use electrum_client::Client as ElectrumClient;
 use rgb::psbt::RgbExt;
 use rgb::{Disclosure, Extension, Schema, StateTransfer, Transition};
-use rgb_core::Validator;
+use rgb_core::{seal, Validator};
 use strict_encoding::{StrictDecode, StrictEncode};
 use wallet::psbt::Psbt;
 
@@ -48,6 +50,16 @@ pub struct Opts {
 
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub enum Command {
+    /// Generate blinded UTXO value
+    Blind {
+        /// Method for seal closing ('tapret1st' or 'opret1st'; defaults to 'tapret1st')
+        #[clap(short, long, default_value = "tapret1st")]
+        method: CloseMethod,
+
+        /// Unspent transaction output to define as a blinded seal
+        utxo: OutPoint,
+    },
+
     /// Commands for working with consignments
     Consignment {
         #[clap(subcommand)]
@@ -297,6 +309,12 @@ fn main() -> Result<(), Error> {
     let opts = Opts::parse();
 
     match opts.command {
+        Command::Blind { utxo, method } => {
+            let seal = seal::Revealed::new(method, utxo);
+            println!("{}", seal.to_concealed_seal());
+            println!("Blinding factor: {}", seal.blinding);
+        }
+
         Command::Consignment { subcommand } => match subcommand {
             ConsignmentCommand::Inspect {
                 format,
