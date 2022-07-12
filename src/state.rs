@@ -103,7 +103,8 @@ impl StateAtom {
 #[derive(StrictEncode, StrictDecode)]
 #[display("{state}@{seal}")]
 pub struct AssignedState<State>
-where State: StateTrait
+where
+    State: StateTrait,
 {
     pub outpoint: NodeOutpoint,
     pub seal: OutPoint,
@@ -111,7 +112,8 @@ where State: StateTrait
 }
 
 impl<State> AssignedState<State>
-where State: StateTrait
+where
+    State: StateTrait,
 {
     pub fn with(
         seal: seal::Revealed,
@@ -199,7 +201,7 @@ impl ContractState {
             if owned_value.seal == outpoint {
                 state.insert(OutpointState {
                     node_outpoint: owned_value.outpoint,
-                    state: owned_value.state.clone().into(),
+                    state: owned_value.state.into(),
                 });
             }
         }
@@ -239,7 +241,7 @@ impl ContractState {
                 .or_default()
                 .insert(OutpointState {
                     node_outpoint: owned_value.outpoint,
-                    state: owned_value.state.clone().into(),
+                    state: owned_value.state.into(),
                 });
         }
         for owned_data in &self.owned_data {
@@ -283,7 +285,7 @@ impl ContractState {
                     .or_default()
                     .insert(OutpointState {
                         node_outpoint: owned_value.outpoint,
-                        state: owned_value.state.clone().into(),
+                        state: owned_value.state.into(),
                     });
             }
         }
@@ -316,7 +318,9 @@ impl ContractState {
         self.add_node(txid, transition);
     }
 
-    pub fn add_extension(&mut self, extension: &Extension) { self.add_node(zero!(), extension); }
+    pub fn add_extension(&mut self, extension: &Extension) {
+        self.add_node(zero!(), extension);
+    }
 
     fn add_node(&mut self, txid: Txid, node: &impl Node) {
         let node_id = node.node_id();
