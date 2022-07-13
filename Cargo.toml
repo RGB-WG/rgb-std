@@ -23,19 +23,23 @@ required-features = ["cli", "serde"]
 
 [dependencies]
 amplify = "3.12.1"
-lnpbp_bech32 = "~0.8.0"
-strict_encoding = { version = "~0.8.0", features = ["crypto", "chrono", "bitcoin"] }
-commit_verify = "~0.8.0"
-bp-core = { version = "~0.8.0-rc.1", features = ["wallet"] }
-rgb_core = { package = "rgb-core", version = "0.8.0-rc.5" }
-descriptor-wallet = { version = "~0.8.1", features = ["descriptors"] }
 bitcoin = "0.28.1"
+bp-core = { version = "~0.8.0-rc.1", features = ["wallet"] }
+chrono = "0.4"
+clap = { version = "~3.1.18", optional = true, features = ["derive", "env"] }
+colored = "2.0.0"
+commit_verify = "~0.8.0"
+descriptor-wallet = { version = "~0.8.1", features = ["descriptors"] }
 electrum-client = { version = "0.10.1", optional = true }
+lnpbp = "0.8.0"
+lnpbp_bech32 = "~0.8.0"
+rgb_core = { package = "rgb-core", version = "0.8.0-rc.5" }
 serde_crate = { package = "serde", version = "1", features = ["derive"], optional = true }
+serde_json = { version = "1", optional = true }
 serde_with = { version = "1.8", features = ["hex"], optional = true }
 serde_yaml = { version = "0.8", optional = true }
-serde_json = { version = "1", optional = true }
-clap = { version = "~3.1.18", optional = true, features = ["derive"] }
+stens = "0.7.1"
+strict_encoding = { version = "~0.8.0", features = ["crypto", "chrono", "bitcoin"] }
 
 [dev-dependencies]
 serde_json = "1"

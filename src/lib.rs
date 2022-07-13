@@ -18,6 +18,8 @@ extern crate serde_crate as serde;
 #[cfg(feature = "serde")]
 #[macro_use]
 extern crate serde_with;
+#[macro_use]
+extern crate stens;
 
 mod consignments;
 mod disclosure;
@@ -26,6 +28,7 @@ pub mod fungible;
 mod state;
 pub mod psbt;
 pub mod blank;
+pub mod util;
 
 pub mod prelude {
     pub use rgb_core::*;
