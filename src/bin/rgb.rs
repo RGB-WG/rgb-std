@@ -30,7 +30,7 @@ use commit_verify::ConsensusCommit;
 use electrum_client::Client as ElectrumClient;
 use rgb::psbt::RgbExt;
 use rgb::{Disclosure, Extension, Schema, StateTransfer, Transition};
-use rgb_core::{seal, Validator};
+use rgb_core::{seal, Node, Validator};
 use strict_encoding::{StrictDecode, StrictEncode};
 use wallet::psbt::Psbt;
 
@@ -193,6 +193,12 @@ pub enum PsbtCommand {
         /// Output file to save the PSBT updated with state transition(s)
         /// information. If not given, the source PSBT file is overwritten.
         psbt_out: Option<PathBuf>,
+    },
+
+    /// Analyze PSBT file and print out all RGB-related information from it
+    Analyze {
+        /// File to analyze
+        psbt: PathBuf,
     },
 }
 
@@ -385,6 +391,95 @@ fn main() -> Result<(), Error> {
 
                 let psbt_bytes = psbt.serialize();
                 fs::write(psbt_out.unwrap_or(psbt_in), psbt_bytes)?;
+            }
+            PsbtCommand::Analyze { psbt } => {
+                let psbt_bytes = fs::read(&psbt)?;
+                let psbt = Psbt::deserialize(&psbt_bytes)?;
+
+                println!("contracts:");
+                for contract_id in psbt.rgb_contract_ids() {
+                    println!("- contract_id: {}", contract_id);
+                    if let Some(contract) = psbt.rgb_contract(contract_id)? {
+                        println!("  - source: {}", contract);
+                    } else {
+                        println!("  - warning: contract source is absent");
+                    }
+                    println!("  - transitions:");
+                    for node_id in psbt.rgb_node_ids(contract_id) {
+                        if let Some(transition) = psbt.rgb_transition(node_id)? {
+                            println!("    - {}", transition.strict_serialize()?.to_hex());
+                        } else {
+                            println!("    - warning: transition is absent");
+                        }
+                    }
+                    println!("  - used in:");
+                    for (node_id, vin) in psbt.rgb_contract_consumers(contract_id)? {
+                        println!("    - input: {}", vin);
+                        println!("      node_id: {}", node_id);
+                    }
+                }
+
+                println!("bundles:");
+                for (contract_id, bundle) in psbt.rgb_bundles()? {
+                    println!("- contract_id: {}", contract_id);
+                    println!("  bundle_id: {}", bundle.bundle_id());
+                    println!("    - revealed: # nodes");
+                    for transition in bundle.known_transitions() {
+                        println!(
+                            "      - {}: {}",
+                            transition.node_id(),
+                            transition.strict_serialize()?.to_hex()
+                        );
+                    }
+                    println!("    - concealed: # nodes and inputs");
+                    for (node_id, vins) in bundle.concealed_iter() {
+                        println!("      - {}: {:?}", node_id, vins);
+                    }
+                }
+
+                println!("proprietary: # all proprietary keys");
+                println!("- global:");
+                for (key, value) in psbt.proprietary {
+                    let prefix = String::from_utf8(key.prefix.clone())
+                        .unwrap_or_else(|_| key.prefix.to_hex());
+                    println!(
+                        "  - {}/{:#04x}/{}: {}",
+                        prefix,
+                        u8::from(key.subtype),
+                        key.key.to_hex(),
+                        value.to_hex()
+                    );
+                }
+                println!("- inputs:");
+                for (no, input) in psbt.inputs.iter().enumerate() {
+                    println!("  - {}:", no);
+                    for (key, value) in &input.proprietary {
+                        let prefix = String::from_utf8(key.prefix.clone())
+                            .unwrap_or_else(|_| key.prefix.to_hex());
+                        println!(
+                            "    - {}/{:#04x}/{}: {}",
+                            prefix,
+                            u8::from(key.subtype),
+                            key.key.to_hex(),
+                            value.to_hex()
+                        );
+                    }
+                }
+                println!("- outputs:");
+                for (no, output) in psbt.outputs.iter().enumerate() {
+                    println!("  - {}:", no);
+                    for (key, value) in &output.proprietary {
+                        let prefix = String::from_utf8(key.prefix.clone())
+                            .unwrap_or_else(|_| key.prefix.to_hex());
+                        println!(
+                            "    - {}/{:#04x}/{}: {}",
+                            prefix,
+                            u8::from(key.subtype),
+                            key.key.to_hex(),
+                            value.to_hex()
+                        );
+                    }
+                }
             }
         },
     }
