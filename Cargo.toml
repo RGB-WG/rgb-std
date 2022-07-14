@@ -33,7 +33,7 @@ descriptor-wallet = { version = "~0.8.1", features = ["descriptors"] }
 electrum-client = { version = "0.10.1", optional = true }
 lnpbp = "0.8.0"
 lnpbp_bech32 = "~0.8.0"
-rgb_core = { package = "rgb-core", version = "0.8.0-rc.5" }
+rgb_core = { package = "rgb-core", version = "0.8.0-rc.6" }
 serde_crate = { package = "serde", version = "1", features = ["derive"], optional = true }
 serde_json = { version = "1", optional = true }
 serde_with = { version = "1.8", features = ["hex"], optional = true }

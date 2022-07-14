@@ -14,7 +14,6 @@ use std::collections::BTreeMap;
 use bitcoin::OutPoint;
 use chrono::Utc;
 use lnpbp::chain::Chain;
-// use rgb_core::{field, type_map};
 use stens::AsciiString;
 
 use crate::fungible::allocation::{
