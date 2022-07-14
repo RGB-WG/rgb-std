@@ -16,14 +16,12 @@ use chrono::Utc;
 use lnpbp::chain::Chain;
 use stens::AsciiString;
 
-use crate::fungible::allocation::{
-    AllocationMap, IntoSealValueMap, OutpointValueMap, OutpointValueVec,
-};
-use crate::schema;
-use crate::schema::{FieldType, OwnedRightType};
 use crate::{
-    data, prelude::*, secp256k1zkp, value, Assignment, Consignment, Contract, Genesis,
-    TypedAssignments,
+    data,
+    fungible::allocation::{AllocationMap, IntoSealValueMap, OutpointValueMap, OutpointValueVec},
+    prelude::*,
+    schema::{self, FieldType, OwnedRightType},
+    secp256k1zkp, value, Assignment, Consignment, Contract, Genesis, TypedAssignments,
 };
 
 /// Extension trait for consignments defining RGB20-specific API.
