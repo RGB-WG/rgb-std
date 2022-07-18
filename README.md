@@ -32,9 +32,7 @@ Nodes, implementing RGB functionality and using this library include:
   decentralized data storage and propagation (Storm) and wallet services. It can
   run as embedded, desktop, server or cloud-based node.
 
-## Use
-
-### As library
+## Library
 
 The library can be integrated into other rust projects via `Cargo.toml`
 `[dependecies]` section:
@@ -54,7 +52,7 @@ rgb-core = { version = "0.8", features = ["wallet"] }
 For serialization purposes library provides `serde` feature, which is turned off
 by default.
 
-### Aso command-line tool
+## Command-line utility
 
 The library also provides small command-line tool for hacking and debugging RGB
 related data structures. In order to compile the tool you have to run the
@@ -65,10 +63,33 @@ rustup update
 cargo install rgb-std
 ```
 
+### Install with Docker
+
+#### Build
+
+Clone the repository and checkout to the desired version (here `v0.8.0`):
+
+```console
+$ git clone https://github.com/RGB-WG/rgb-std
+$ cd rgb-std
+$ git checkout v0.8.0
+```
+
+Build and tag the Docker image:
+
+```console
+$ docker build -t rgb:v0.8.0 .
+```
+
+#### Usage
+
+```console
+$ docker run rgb:v0.8.0 --help
+```
+
 ### MSRV
 
 Minimum supported rust compiler version (MSRV): 1.59, rust 2022 edition.
-
 
 ## Contributing
 
