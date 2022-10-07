@@ -180,26 +180,26 @@ pub struct StateReducer {
     pub value_reducers: BTreeMap<OwnedRightType, ValueReducer>, /* TODO: Add data reducers using AluVM program */
 }
 
-#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
+#[derive(Getters, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
 #[derive(StrictEncode, StrictDecode)]
 #[cfg_attr(feature = "serde", derive(Serialize), serde(crate = "serde_crate"))]
 pub struct ContractState {
-    pub schema_id: SchemaId,
-    pub root_schema_id: Option<SchemaId>,
-    pub contract_id: ContractId,
+    schema_id: SchemaId,
+    root_schema_id: Option<SchemaId>,
+    contract_id: ContractId,
     #[cfg_attr(
         feature = "serde",
         serde(with = "As::<BTreeMap<Same, BTreeMap<Same, Vec<DisplayFromStr>>>>")
     )]
-    pub metadata: BTreeMap<NodeId, BTreeMap<FieldType, Vec<data::Revealed>>>,
+    metadata: BTreeMap<NodeId, BTreeMap<FieldType, Vec<data::Revealed>>>,
     #[cfg_attr(feature = "serde", serde(with = "As::<BTreeSet<DisplayFromStr>>"))]
-    pub owned_rights: BTreeSet<OwnedRight>,
+    owned_rights: BTreeSet<OwnedRight>,
     #[cfg_attr(feature = "serde", serde(with = "As::<BTreeSet<DisplayFromStr>>"))]
-    pub owned_values: BTreeSet<OwnedValue>,
+    owned_values: BTreeSet<OwnedValue>,
     #[cfg_attr(feature = "serde", serde(with = "As::<BTreeSet<DisplayFromStr>>"))]
-    pub owned_data: BTreeSet<OwnedData>,
+    owned_data: BTreeSet<OwnedData>,
     #[cfg_attr(feature = "serde", serde(with = "As::<BTreeSet<DisplayFromStr>>"))]
-    pub owned_attachments: BTreeSet<OwnedAttachment>,
+    owned_attachments: BTreeSet<OwnedAttachment>,
 }
 
 impl ContractState {
