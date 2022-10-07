@@ -23,6 +23,7 @@ use rgb_core::{
 use strict_encoding::{LargeVec, StrictDecode};
 
 use super::{AnchoredBundles, ConsignmentEndseals, ConsignmentType, ExtensionList};
+use crate::state::StateReducer;
 use crate::{Anchor, ConsignmentId, ContractState};
 
 pub const RGB_INMEM_CONSIGNMENT_VERSION: u8 = 0;
@@ -260,16 +261,16 @@ where T: ConsignmentType
     }
 }
 
-impl<T> From<&InmemConsignment<T>> for ContractState
-where T: ConsignmentType
-{
-    fn from(consignment: &InmemConsignment<T>) -> Self {
+impl ContractState {
+    pub fn with<T>(consignment: &InmemConsignment<T>, reducer: StateReducer) -> Self
+    where T: ConsignmentType {
         let genesis = consignment.genesis();
         let contract_id = consignment.contract_id();
 
-        let mut state = ContractState::with(
+        let mut state = ContractState::new(
             consignment.schema_id(),
             consignment.root_schema_id(),
+            reducer,
             contract_id,
             genesis,
         );

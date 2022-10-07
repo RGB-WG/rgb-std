@@ -186,6 +186,7 @@ pub struct StateReducer {
 pub struct ContractState {
     schema_id: SchemaId,
     root_schema_id: Option<SchemaId>,
+    reducer: StateReducer,
     contract_id: ContractId,
     #[cfg_attr(
         feature = "serde",
@@ -203,15 +204,17 @@ pub struct ContractState {
 }
 
 impl ContractState {
-    pub fn with(
+    pub fn new(
         schema_id: SchemaId,
         root_schema_id: Option<SchemaId>,
+        reducer: StateReducer,
         contract_id: ContractId,
         genesis: &Genesis,
     ) -> Self {
         let mut state = ContractState {
             schema_id,
             root_schema_id,
+            reducer,
             contract_id,
             metadata: empty!(),
             owned_rights: empty!(),
