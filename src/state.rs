@@ -19,9 +19,9 @@ use commit_verify::CommitConceal;
 use rgb_core::contract::attachment;
 use rgb_core::schema::{FieldType, OwnedRightType};
 use rgb_core::{
-    data, seal, value, Assignment, AttachmentStrategy, ContractId, DeclarativeStrategy, Extension,
-    Genesis, HashStrategy, Node, NodeId, NodeOutpoint, PedersenStrategy, SchemaId, State,
-    Transition, TypedAssignments,
+    data, seal, value, Assignment, AtomicValue, AttachmentStrategy, ContractId,
+    DeclarativeStrategy, Extension, Genesis, HashStrategy, Node, NodeId, NodeOutpoint,
+    PedersenStrategy, SchemaId, State, Transition, TypedAssignments,
 };
 #[cfg(feature = "serde")]
 use serde_with::{As, DisplayFromStr, Same};
@@ -171,6 +171,16 @@ pub enum ValueReducer {
 
     #[display("sub")]
     Subtract,
+}
+
+impl ValueReducer {
+    pub fn reduce(self, previous_state: AtomicValue, new_state: AtomicValue) -> AtomicValue {
+        match self {
+            ValueReducer::Replace => new_state,
+            ValueReducer::Add => previous_state + new_state,
+            ValueReducer::Subtract => previous_state - new_state,
+        }
+    }
 }
 
 #[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
@@ -377,6 +387,7 @@ impl ContractState {
             node_id: NodeId,
             ty: OwnedRightType,
             txid: Txid,
+            reducer: impl Fn(<S::StateType as State>::Revealed) -> <S::StateType as State>::Revealed,
         ) where
             <S::StateType as State>::Confidential: Eq
                 + From<<<S::StateType as State>::Revealed as CommitConceal>::ConcealedCommitment>,
@@ -386,13 +397,15 @@ impl ContractState {
                 .enumerate()
                 .filter_map(|(n, a)| a.to_revealed().map(|(seal, state)| (n, seal, state)))
             {
+                let reduced_state = reducer(state);
                 let assigned_state =
-                    AssignedState::with(seal, txid, state.into(), node_id, ty, no as u16);
+                    AssignedState::with(seal, txid, reduced_state.into(), node_id, ty, no as u16);
                 contract_state.insert(assigned_state);
             }
         }
 
-        // Remove invalidated state
+        // Remove invalidated state into a special buffers
+        let mut removed_values: BTreeMap<OwnedRightType, value::Revealed> = bmap!();
         for output in node.parent_outputs() {
             if let Some(o) = self.owned_rights.iter().find(|r| r.outpoint == output) {
                 let o = o.clone(); // need this b/c of borrow checker
@@ -401,6 +414,7 @@ impl ContractState {
             if let Some(o) = self.owned_values.iter().find(|r| r.outpoint == output) {
                 let o = o.clone();
                 self.owned_values.remove(&o);
+                removed_values.insert(o.outpoint.ty, o.state);
             }
             if let Some(o) = self.owned_data.iter().find(|r| r.outpoint == output) {
                 let o = o.clone();
@@ -412,19 +426,38 @@ impl ContractState {
             }
         }
 
+        let o_r = &mut self.owned_rights;
+        let o_v = &mut self.owned_values;
+        let o_d = &mut self.owned_data;
+        let o_a = &mut self.owned_attachments;
         for (ty, assignments) in node.owned_rights().iter() {
             match assignments {
                 TypedAssignments::Void(assignments) => {
-                    process(&mut self.owned_rights, assignments, node_id, *ty, txid)
+                    process(o_r, assignments, node_id, *ty, txid, |x| x)
                 }
                 TypedAssignments::Value(assignments) => {
-                    process(&mut self.owned_values, assignments, node_id, *ty, txid)
+                    let previous_state = removed_values.get(ty);
+                    let reducer = self.reducer.value_reducers.get(ty);
+                    let reducer = |new_state: value::Revealed| {
+                        let reduced_state = match (previous_state, reducer) {
+                            (Some(previous_state), Some(reducer)) => {
+                                reducer.reduce(previous_state.value, new_state.value)
+                            }
+                            _ => new_state.value,
+                        };
+                        value::Revealed {
+                            value: reduced_state,
+                            // We preserve blinding since it is required for spendings
+                            blinding: new_state.blinding,
+                        }
+                    };
+                    process(o_v, assignments, node_id, *ty, txid, reducer)
                 }
                 TypedAssignments::Data(assignments) => {
-                    process(&mut self.owned_data, assignments, node_id, *ty, txid)
+                    process(o_d, assignments, node_id, *ty, txid, |x| x)
                 }
                 TypedAssignments::Attachment(assignments) => {
-                    process(&mut self.owned_attachments, assignments, node_id, *ty, txid)
+                    process(o_a, assignments, node_id, *ty, txid, |x| x)
                 }
             }
         }
