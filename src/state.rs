@@ -145,6 +145,41 @@ pub struct OutpointState {
     pub state: StateAtom,
 }
 
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
+#[derive(StrictEncode, StrictDecode)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
+pub enum MetaReducer {
+    #[display("acc")]
+    Accumulate,
+
+    #[display("rany")]
+    ReplaceOnAnySpending,
+
+    #[display("rall")]
+    ReplaceOnAllSpent,
+}
+
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
+#[derive(StrictEncode, StrictDecode)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
+pub enum ValueReducer {
+    #[display("repl")]
+    Replace,
+
+    #[display("add")]
+    Add,
+
+    #[display("sub")]
+    Subtract,
+}
+
+#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
+#[derive(StrictEncode, StrictDecode)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
+pub struct StateReducer {
+    pub value_reducers: BTreeMap<OwnedRightType, ValueReducer>, /* TODO: Add data reducers using AluVM program */
+}
+
 #[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
 #[derive(StrictEncode, StrictDecode)]
 #[cfg_attr(feature = "serde", derive(Serialize), serde(crate = "serde_crate"))]
