@@ -152,8 +152,11 @@ pub struct ContractState {
     pub schema_id: SchemaId,
     pub root_schema_id: Option<SchemaId>,
     pub contract_id: ContractId,
-    #[cfg_attr(feature = "serde", serde(with = "As::<BTreeMap<Same, Vec<DisplayFromStr>>>"))]
-    pub metadata: BTreeMap<FieldType, Vec<data::Revealed>>,
+    #[cfg_attr(
+        feature = "serde",
+        serde(with = "As::<BTreeMap<Same, BTreeMap<Same, Vec<DisplayFromStr>>>>")
+    )]
+    pub metadata: BTreeMap<NodeId, BTreeMap<FieldType, Vec<data::Revealed>>>,
     #[cfg_attr(feature = "serde", serde(with = "As::<BTreeSet<DisplayFromStr>>"))]
     pub owned_rights: BTreeSet<OwnedRight>,
     #[cfg_attr(feature = "serde", serde(with = "As::<BTreeSet<DisplayFromStr>>"))]
@@ -323,6 +326,8 @@ impl ContractState {
 
         for (ty, meta) in node.metadata() {
             self.metadata
+                .entry(node_id)
+                .or_default()
                 .entry(*ty)
                 .or_default()
                 .extend(meta.iter().cloned());
