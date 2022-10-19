@@ -15,14 +15,13 @@ use bitcoin::OutPoint;
 use bp::seals::txout::CloseMethod;
 use rgb_core::bundle::NoDataError;
 use rgb_core::schema::OwnedRightType;
+use rgb_core::vm::embedded::constants::TRANSITION_TYPE_VALUE_TRANSFER;
 use rgb_core::{
     seal, NodeId, NodeOutpoint, OwnedRights, ParentOwnedRights, Transition, TransitionBundle,
     TypedAssignments,
 };
 
 use crate::state::OutpointState;
-
-pub const BLANK_TRANSITION_TYPE: u16 = 0x8000;
 
 #[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, Error, From)]
 #[display(doc_comments)]
@@ -75,7 +74,7 @@ impl BlankBundle for TransitionBundle {
                 owned_rights.insert(input.ty, new_assignments);
             }
             let transition = Transition::with(
-                BLANK_TRANSITION_TYPE,
+                TRANSITION_TYPE_VALUE_TRANSFER,
                 empty!(),
                 empty!(),
                 OwnedRights::from(owned_rights),
