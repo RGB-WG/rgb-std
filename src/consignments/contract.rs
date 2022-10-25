@@ -14,18 +14,24 @@ use std::str::FromStr;
 
 use lnpbp_bech32::{FromBech32Str, ToBech32String};
 
-use super::Contract;
+use super::{ConsignmentType, InmemConsignment};
 
-impl lnpbp_bech32::Strategy for Contract {
+impl<T> lnpbp_bech32::Strategy for InmemConsignment<T>
+where T: ConsignmentType
+{
     const HRP: &'static str = "rgbc";
     type Strategy = lnpbp_bech32::strategies::CompressedStrictEncoding;
 }
 
-impl Display for Contract {
+impl<T> Display for InmemConsignment<T>
+where T: ConsignmentType
+{
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { f.write_str(&self.to_bech32_string()) }
 }
 
-impl FromStr for Contract {
+impl<T> FromStr for InmemConsignment<T>
+where T: ConsignmentType
+{
     type Err = lnpbp_bech32::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_bech32_str(s) }
