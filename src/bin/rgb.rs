@@ -52,7 +52,7 @@ pub struct Opts {
 pub enum Command {
     /// Generate blinded UTXO value
     Blind {
-        /// Method for seal closing ('tapret1st' or 'opret1st'; defaults to 'tapret1st')
+        /// Method for seal closing ('tapret1st' or 'opret1st')
         #[clap(short, long, default_value = "tapret1st")]
         method: CloseMethod,
 
