@@ -293,18 +293,6 @@ pub trait AllocationMap {
     fn into_assignments(self) -> TypedAssignments;
 }
 
-impl AllocationMap for OutpointValueVec {
-    fn sum(&self) -> u64 { self.iter().map(|v| v.value).sum() }
-
-    fn into_assignments(self) -> TypedAssignments { self.into_seal_value_map().into_assignments() }
-}
-
-impl AllocationMap for OutpointValueMap {
-    fn sum(&self) -> u64 { self.values().sum() }
-
-    fn into_assignments(self) -> TypedAssignments { self.into_seal_value_map().into_assignments() }
-}
-
 impl AllocationMap for AllocationValueVec {
     fn sum(&self) -> u64 { self.iter().map(|v| v.value).sum() }
 
@@ -375,6 +363,22 @@ pub trait IntoSealValueMap {
     fn into_seal_value_map(self) -> SealValueMap;
 }
 
+impl IntoSealValueMap for AllocationValueVec {
+    fn into_seal_value_map(self) -> SealValueMap {
+        self.into_iter()
+            .map(|allocated_value| (allocated_value.seal.into(), allocated_value.value))
+            .collect()
+    }
+}
+
+impl IntoSealValueMap for AllocationValueMap {
+    fn into_seal_value_map(self) -> SealValueMap {
+        self.into_iter()
+            .map(|(seal, value)| (seal.into(), value))
+            .collect()
+    }
+}
+
 impl IntoSealValueMap for OutpointValueVec {
     fn into_seal_value_map(self) -> SealValueMap {
         self.into_iter()
@@ -392,22 +396,6 @@ impl IntoSealValueMap for OutpointValueMap {
     fn into_seal_value_map(self) -> SealValueMap {
         self.into_iter()
             .map(|(outpoint, value)| (seal::Revealed::from(outpoint), value))
-            .collect()
-    }
-}
-
-impl IntoSealValueMap for AllocationValueVec {
-    fn into_seal_value_map(self) -> SealValueMap {
-        self.into_iter()
-            .map(|allocated_value| (allocated_value.seal.into(), allocated_value.value))
-            .collect()
-    }
-}
-
-impl IntoSealValueMap for AllocationValueMap {
-    fn into_seal_value_map(self) -> SealValueMap {
-        self.into_iter()
-            .map(|(seal, value)| (seal.into(), value))
             .collect()
     }
 }
