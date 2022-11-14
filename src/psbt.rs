@@ -233,7 +233,7 @@ impl RgbExt for Psbt {
         let output = match self
             .outputs
             .iter_mut()
-            .find(|output| output.is_tapret_host())
+            .find(|output| output.is_tapret_host() | output.is_opret_host())
         {
             Some(output) => output,
             None => {
