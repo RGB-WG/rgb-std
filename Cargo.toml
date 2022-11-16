@@ -1,6 +1,6 @@
 [package]
 name = "rgb-std"
-version = "0.8.0"
+version = "0.8.1"
 license = "MIT"
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
 description = "RGB Standard Library: high-level API for private & scalable client-validated smart contracts on Bitcoin & Lightning"
@@ -24,10 +24,10 @@ required-features = ["cli", "serde"]
 [dependencies]
 amplify = "3.13.0"
 lnpbp_bech32 = "~0.8.0"
-strict_encoding = { version = "~0.8.1", features = ["crypto", "chrono", "bitcoin"] }
+strict_encoding = { version = "~0.8.2", features = ["crypto", "chrono", "bitcoin"] }
 commit_verify = "~0.8.0"
-bp-core = { version = "~0.8.0", features = ["wallet"] }
-rgb_core = { package = "rgb-core", version = "0.8.0" }
+bp-core = { version = "~0.8.1", features = ["wallet"] }
+rgb_core = { package = "rgb-core", version = "0.8.1" }
 descriptor-wallet = { version = "~0.8.1", features = ["descriptors"] }
 bitcoin = "0.28.1"
 electrum-client = { version = "0.10.1", optional = true }
