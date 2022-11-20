@@ -25,7 +25,7 @@ required-features = ["cli", "serde"]
 amplify = "3.13.0"
 lnpbp_bech32 = "~0.8.0"
 strict_encoding = { version = "~0.8.2", features = ["crypto", "chrono", "bitcoin"] }
-commit_verify = "~0.8.0"
+commit_verify = "~0.8.1"
 bp-core = { version = "~0.8.1", features = ["wallet"] }
 rgb_core = { package = "rgb-core", version = "0.8.1" }
 descriptor-wallet = { version = "~0.8.1", features = ["descriptors"] }
