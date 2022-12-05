@@ -1240,6 +1240,7 @@ version = "0.8.2"
 dependencies = [
  "amplify",
  "bitcoin",
+ "bitcoin_scripts",
  "bp-core",
  "clap",
  "commit_verify",
