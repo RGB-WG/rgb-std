@@ -956,6 +956,7 @@ version = "0.9.0-rc.1"
 dependencies = [
  "amplify",
  "bitcoin",
+ "bitcoin_scripts",
  "bp-core",
  "clap",
  "commit_verify",

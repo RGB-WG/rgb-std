@@ -23,6 +23,7 @@ required-features = ["cli", "serde"]
 
 [dependencies]
 amplify = "3.13.0"
+bitcoin_scripts = "0.9.0-rc.1"
 lnpbp_bech32 = "~0.9.0-rc.1"
 strict_encoding = { version = "~0.9.0-rc.2", features = ["crypto", "chrono", "bitcoin"] }
 commit_verify = "~0.9.0-rc.1"
