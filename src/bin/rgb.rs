@@ -393,7 +393,7 @@ fn main() -> Result<(), Error> {
                 fs::write(psbt_out.unwrap_or(psbt_in), psbt_bytes)?;
             }
             PsbtCommand::Analyze { psbt } => {
-                let psbt_bytes = fs::read(&psbt)?;
+                let psbt_bytes = fs::read(psbt)?;
                 let psbt = Psbt::deserialize(&psbt_bytes)?;
 
                 println!("contracts:");
@@ -445,7 +445,7 @@ fn main() -> Result<(), Error> {
                     println!(
                         "  - {}/{:#04x}/{}: {}",
                         prefix,
-                        u8::from(key.subtype),
+                        key.subtype,
                         key.key.to_hex(),
                         value.to_hex()
                     );
@@ -459,7 +459,7 @@ fn main() -> Result<(), Error> {
                         println!(
                             "    - {}/{:#04x}/{}: {}",
                             prefix,
-                            u8::from(key.subtype),
+                            key.subtype,
                             key.key.to_hex(),
                             value.to_hex()
                         );
@@ -474,7 +474,7 @@ fn main() -> Result<(), Error> {
                         println!(
                             "    - {}/{:#04x}/{}: {}",
                             prefix,
-                            u8::from(key.subtype),
+                            key.subtype,
                             key.key.to_hex(),
                             value.to_hex()
                         );
