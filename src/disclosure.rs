@@ -123,6 +123,8 @@ impl Hash for SigHash {
     fn as_inner(&self) -> &Self::Inner { Wrapper::as_inner(self).as_inner() }
 
     fn from_inner(inner: Self::Inner) -> Self { <Self as Wrapper>::Inner::from_inner(inner).into() }
+
+    fn all_zeros() -> Self { SigHash(sha256t::Hash::all_zeros()) }
 }
 
 /// Disclosure purpose is to expose a set of stash data related to number of

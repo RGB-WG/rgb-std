@@ -13,6 +13,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
+use bitcoin::hashes::Hash as _;
 use bitcoin::{OutPoint, Txid};
 use bp::seals::txout::TxoSeal;
 use commit_verify::CommitConceal;
@@ -184,7 +185,7 @@ impl ContractState {
             owned_data: empty!(),
             owned_attachments: empty!(),
         };
-        state.add_node(zero!(), genesis);
+        state.add_node(Txid::all_zeros(), genesis);
         state
     }
 
@@ -319,7 +320,9 @@ impl ContractState {
         self.add_node(txid, transition);
     }
 
-    pub fn add_extension(&mut self, extension: &Extension) { self.add_node(zero!(), extension); }
+    pub fn add_extension(&mut self, extension: &Extension) {
+        self.add_node(Txid::all_zeros(), extension);
+    }
 
     fn add_node(&mut self, txid: Txid, node: &impl Node) {
         let node_id = node.node_id();
