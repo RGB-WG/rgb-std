@@ -1,6 +1,6 @@
 [package]
 name = "rgb-std"
-version = "0.8.2"
+version = "0.9.0-rc.1"
 license = "MIT"
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
 description = "RGB Standard Library: high-level API for private & scalable client-validated smart contracts on Bitcoin & Lightning"
