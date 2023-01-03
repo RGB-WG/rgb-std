@@ -24,7 +24,7 @@ use std::str::FromStr;
 use amplify::hex::{FromHex, ToHex};
 use bitcoin::psbt::serialize::{Deserialize, Serialize};
 use bitcoin::OutPoint;
-use bitcoin_scripts::taproot::DfsPath;
+use bitcoin_scripts::taproot::{DfsOrder, DfsPath};
 use bp::seals::txout::CloseMethod;
 use clap::Parser;
 use commit_verify::ConsensusCommit;
@@ -395,23 +395,30 @@ fn main() -> Result<(), Error> {
                 let psbt_bytes = fs::read(&psbt_in)?;
                 let mut psbt = Psbt::deserialize(&psbt_bytes)?;
 
-                if method == CloseMethod::TapretFirst {
-                    let output = psbt.outputs.last_mut().expect("PSBT should have outputs");
-                    if output.tapret_dfs_path().is_none() {
-                        output
-                            .set_tapret_dfs_path(&DfsPath::from_str("1")?)
-                            .expect("given output should be valid");
+                let mut count: usize = 0;
+                match method {
+                    CloseMethod::TapretFirst => {
+                        if let Some(output) =
+                            psbt.outputs.iter_mut().find(|o| o.script.is_v1_p2tr())
+                        {
+                            if output.tapret_dfs_path().is_none() {
+                                output.set_tapret_dfs_path(&DfsPath::with([&DfsOrder::Last]))?;
+                            }
+                        }
+                        count = psbt.rgb_bundle_to_lnpbp4()?;
                     }
-                }
-                let count = psbt.rgb_bundle_to_lnpbp4()?;
-                if method == CloseMethod::OpretFirst {
-                    let output = psbt.outputs.last_mut().expect("PSBT should have outputs");
-                    if !output.is_opret_host() {
-                        output
-                            .set_opret_host()
-                            .expect("given output should be valid");
+                    CloseMethod::OpretFirst => {
+                        count = psbt.rgb_bundle_to_lnpbp4()?;
+                        if let Some(output) =
+                            psbt.outputs.iter_mut().find(|o| o.script.is_op_return())
+                        {
+                            if !output.is_opret_host() {
+                                output.set_opret_host()?;
+                            }
+                        }
                     }
-                }
+                    _ => {}
+                };
 
                 println!("Total {} bundles converted", count);
 
