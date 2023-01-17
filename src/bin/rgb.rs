@@ -24,6 +24,7 @@ use std::str::FromStr;
 use amplify::hex::{FromHex, ToHex};
 use bitcoin::psbt::serialize::{Deserialize, Serialize};
 use bitcoin::OutPoint;
+use bitcoin_scripts::taproot::{DfsOrder, DfsPath};
 use bp::seals::txout::CloseMethod;
 use clap::Parser;
 use commit_verify::ConsensusCommit;
@@ -193,6 +194,10 @@ pub enum PsbtCommand {
         /// Output file to save the PSBT updated with state transition(s)
         /// information. If not given, the source PSBT file is overwritten.
         psbt_out: Option<PathBuf>,
+
+        /// Method for seal closing ('tapret1st' or 'opret1st')
+        #[clap(short, long, default_value = "tapret1st")]
+        method: CloseMethod,
     },
 
     /// Analyze PSBT file and print out all RGB-related information from it
@@ -382,11 +387,39 @@ fn main() -> Result<(), Error> {
             }
         },
         Command::Psbt { subcommand } => match subcommand {
-            PsbtCommand::Bundle { psbt_in, psbt_out } => {
+            PsbtCommand::Bundle {
+                psbt_in,
+                psbt_out,
+                method,
+            } => {
                 let psbt_bytes = fs::read(&psbt_in)?;
                 let mut psbt = Psbt::deserialize(&psbt_bytes)?;
 
-                let count = psbt.rgb_bundle_to_lnpbp4()?;
+                let mut count: usize = 0;
+                match method {
+                    CloseMethod::TapretFirst => {
+                        if let Some(output) =
+                            psbt.outputs.iter_mut().find(|o| o.script.is_v1_p2tr())
+                        {
+                            if output.tapret_dfs_path().is_none() {
+                                output.set_tapret_dfs_path(&DfsPath::with([&DfsOrder::Last]))?;
+                            }
+                        }
+                        count = psbt.rgb_bundle_to_lnpbp4()?;
+                    }
+                    CloseMethod::OpretFirst => {
+                        count = psbt.rgb_bundle_to_lnpbp4()?;
+                        if let Some(output) =
+                            psbt.outputs.iter_mut().find(|o| o.script.is_op_return())
+                        {
+                            if !output.is_opret_host() {
+                                output.set_opret_host()?;
+                            }
+                        }
+                    }
+                    _ => {}
+                };
+
                 println!("Total {} bundles converted", count);
 
                 let psbt_bytes = psbt.serialize();

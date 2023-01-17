@@ -23,11 +23,12 @@ required-features = ["cli", "serde"]
 
 [dependencies]
 amplify = "3.13.0"
+bitcoin_scripts = "0.8.2"
 lnpbp_bech32 = "~0.8.0"
 strict_encoding = { version = "~0.8.2", features = ["crypto", "chrono", "bitcoin"] }
-commit_verify = "~0.8.2"
+commit_verify = "~0.8.3"
 bp-core = { version = "~0.8.1", features = ["wallet"] }
-rgb-core = { package = "rgb-core", version = "0.8.1" }
+rgb-core = { package = "rgb-core", version = "0.8.2" }
 descriptor-wallet = { version = "~0.8.3", features = ["descriptors"] }
 bitcoin = "0.28.1"
 electrum-client = { version = "0.10.2", optional = true }
