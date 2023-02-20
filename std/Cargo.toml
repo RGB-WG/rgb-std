@@ -1,0 +1,27 @@
+[package]
+name = "rgb-std"
+version = "0.10.0-alpha.1"
+description = "RGB standard library for working with smart contracts"
+keywords = ["bitcoin", "lightning", "rgb", "smart-contracts", "lnp-bp"]
+categories = ["cryptography::cryptocurrencies"]
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+rust-version = { workspace = true }
+readme = "../README.md"
+
+[lib]
+name = "rgb"
+
+[dependencies]
+rgb-core = { workspace = true }
+
+[features]
+default = []
+all = ["in-mem"]
+in-mem = []
+
+[package.metadata.docs.rs]
+features = [ "all" ]

@@ -1,22 +1,53 @@
-[package]
-name = "rgb-std"
-version = "0.10.0"
-license = "MIT"
+[workspace]
+members = [
+    "std",
+    "."
+]
+default-members = [
+    "std",
+    "."
+]
+
+[workspace.package]
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
-description = "RGB: private & scalable client-validated smart contracts on Bitcoin & Lightning"
-repository = "https://github.com/RGB-WG/rgb-std"
-homepage = "https://rgb.tech"
+homepage = "https://github.com/RGB-WG"
+repository = "https://github.com/RGB-WG/rgb-wallet"
+rust-version = "1.66" # Due to strict encoding library (caused by GAD)
+edition = "2021"
+license = "Apache-2.0"
+
+[workspace.dependencies]
+rgb-core = "0.10.0-beta.1"
+
+[package]
+name = "rgb-wallet"
+version = "0.10.0-alpha.1"
+description = "RGB wallet library for smart contracts on Bitcoin & Lightning network"
 keywords = ["bitcoin", "lightning", "rgb", "smart-contracts", "lnp-bp"]
 categories = ["cryptography::cryptocurrencies"]
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+rust-version = { workspace = true }
 readme = "README.md"
-edition = "2021"
-rust-version = "1.59.0"
-exclude = [".github"]
+exclude = [".github", "std"]
 
 [lib]
 name = "rgb"
 
 [dependencies]
+rgb-core = { workspace = true }
+rgb-std = { version = "0.10.0-alpha.1", path = "std" }
 
 [features]
 default = []
+all = ["in-mem"]
+in-mem = ["rgb-std/in-mem"]
+
+[package.metadata.docs.rs]
+features = [ "all" ]
+
+[patch.crates-io]
+rgb-core = { git = "https://github.com/RGB-WG/rgb-core" }
