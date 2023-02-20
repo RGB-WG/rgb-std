@@ -5,8 +5,8 @@
 #
 # https://github.com/LukeMathWalker/cargo-chef
 
-ARG SRC_DIR=/usr/local/src/rgb-std
-ARG BUILDER_DIR=/srv/rgb-std
+ARG SRC_DIR=/usr/local/src/rgb-wallet
+ARG BUILDER_DIR=/srv/rgb-wallet
 
 # Base image
 FROM rust:1.59.0-slim-bullseye as chef
