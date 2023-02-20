@@ -64,6 +64,9 @@
 // transitions and bundles them together finalize  :: Psbt -> Psbt -- should be
 // performed by BP; converts individual commitments into tapret
 
-mod containers;
 mod state;
-mod stash;
+mod interface;
+mod containers;
+mod persistance;
+#[cfg(feature = "in-mem")]
+pub mod inmem;
