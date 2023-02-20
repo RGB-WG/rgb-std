@@ -1,52 +1,22 @@
 [package]
 name = "rgb-std"
-version = "0.9.0"
+version = "0.10.0"
 license = "MIT"
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
-description = "RGB Standard Library: high-level API for private & scalable client-validated smart contracts on Bitcoin & Lightning"
+description = "RGB: private & scalable client-validated smart contracts on Bitcoin & Lightning"
 repository = "https://github.com/RGB-WG/rgb-std"
-homepage = "https://rgb.network"
+homepage = "https://rgb.tech"
 keywords = ["bitcoin", "lightning", "rgb", "smart-contracts", "lnp-bp"]
 categories = ["cryptography::cryptocurrencies"]
 readme = "README.md"
 edition = "2021"
 rust-version = "1.59.0"
-exclude = [".github", "contrib"]
+exclude = [".github"]
 
 [lib]
 name = "rgb"
 
-[[bin]]
-name = "rgb"
-path = "src/bin/rgb.rs"
-required-features = ["cli", "serde"]
-
 [dependencies]
-amplify = "3.13.0"
-bitcoin_scripts = "0.9.0"
-lnpbp_bech32 = "~0.9.0"
-strict_encoding = { version = "~0.9.0", features = ["crypto", "chrono", "bitcoin"] }
-commit_verify = "~0.9.0"
-bp-core = { version = "~0.9.0", features = ["wallet"] }
-rgb-core = { package = "rgb-core", version = "0.9.0" }
-descriptor-wallet = { version = "~0.9.0", features = ["descriptors"] }
-bitcoin = "0.29.2"
-electrum-client = { version = "0.12.0", optional = true }
-serde_crate = { package = "serde", version = "1", features = ["derive"], optional = true }
-serde_with = { version = "1.14", features = ["hex"], optional = true }
-serde_yaml = { version = "0.9", optional = true }
-serde_json = { version = "1", optional = true }
-clap = { version = "~3.2.23", optional = true, features = ["derive"] }
-
-[dev-dependencies]
-serde_json = "1"
 
 [features]
-default = ["serde", "cli"]
-all = ["serde", "cli", "wallet"]
-wallet = ["bp-core/wallet"]
-cli = ["clap", "serde_yaml", "serde_json", "descriptor-wallet/electrum", "electrum-client"]
-serde = ["serde_crate", "serde_with", "lnpbp_bech32/serde",
-    "amplify/serde", "commit_verify/serde", "strict_encoding/serde", "rgb-core/serde",
-    "descriptor-wallet/serde", "bp-core/serde",
-    "bitcoin/serde"]
+default = []
