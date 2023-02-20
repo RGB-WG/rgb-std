@@ -19,6 +19,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Module defines API used by providers of persistent data for RGB contracts.
+//!
+//! These data include:
+//! 1. [`Stash`]: a consensus-critical data for client-side-validation which
+//!    must be preserved and backed up.
+//! 2. [`ContractState`], updated with each enclosed consignment and disclosure.
+//! 3. [`Index`] over stash, which simplifies construction of a new
+//!    consignments.
+//! 4. [`Inventory`], which abstracts stash, contract states and
+//!    index for complex operations requiring participation of all of them.
+//!
+//! 2-4 data can be re-computed from the stash in case of loss or corruption.
+
 mod stash;
 mod inventory;
 mod index;
+mod state;

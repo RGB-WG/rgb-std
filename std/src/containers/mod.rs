@@ -19,5 +19,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! RGB containers are data packages which can be transferred between smart
+//! contract users. There are two main types of containers:
+//! 1. [`Consignments`], containing information about partial state of a *single
+//!    contract*, extending from its genesis up to certain contract endpoints.
+//! 2. [`Disclosures`], containing extracts from (possibly) independent state
+//!    transitions and extensions under multiple contracts. Useful fro
+//!    disclosing the concealed state for some other parties, and also for
+//!    performing "change" operations on inventory during state transfers.
+
 mod consignment;
 mod disclosure;

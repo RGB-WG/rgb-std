@@ -64,7 +64,6 @@
 // transitions and bundles them together finalize  :: Psbt -> Psbt -- should be
 // performed by BP; converts individual commitments into tapret
 
-mod state;
 mod interface;
 mod containers;
 mod persistance;

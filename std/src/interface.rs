@@ -18,3 +18,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+//! RGB contract interface provides a mapping between identifiers of RGB schema-
+//! defined contract state and operation types to a human-readable and
+//! standardized wallet APIs.
