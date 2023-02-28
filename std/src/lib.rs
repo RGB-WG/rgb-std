@@ -66,6 +66,6 @@
 
 mod interface;
 mod containers;
-mod persistance;
+mod persistence;
 #[cfg(feature = "in-mem")]
 pub mod inmem;
