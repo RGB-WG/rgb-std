@@ -127,31 +127,6 @@ impl StrictDeserialize for IfaceImpl {}
 
 // TODO: Implement validation of implementation against interface requirements
 
-impl core::fmt::Display for IfaceImpl {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        use base64::Engine;
-
-        writeln!(f, "----- BEGIN RGB INTERFACE IMPLEMENTATION -----")?;
-        writeln!(f, "Interface: {:#}", self.iface_id)?;
-        writeln!(f, "Schema: {:#}", self.schema_id)?;
-        writeln!(f)?;
-
-        let data = self.to_strict_serialized::<0xFFFFFF>().expect("in-memory");
-        let engine = base64::engine::general_purpose::STANDARD;
-        let data = engine.encode(data);
-        let mut data = data.as_str();
-        while data.len() >= 76 {
-            let (line, rest) = data.split_at(76);
-            writeln!(f, "{}", line)?;
-            data = rest;
-        }
-        writeln!(f, "{}", data)?;
-
-        writeln!(f, "\n----- END RGB INTERFACE IMPLEMENTATION -----")?;
-        Ok(())
-    }
-}
-
 #[derive(Clone, Eq, PartialEq, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]

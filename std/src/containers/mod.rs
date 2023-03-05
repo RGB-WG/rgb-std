@@ -30,7 +30,7 @@
 
 mod consignment;
 mod disclosure;
-mod bindle;
+mod container;
 mod contract;
 mod transfer;
 mod builder;
@@ -40,8 +40,9 @@ mod check;
 mod certs;
 
 pub use builder::{ContractBuilder, ForgeError, IssueError};
-pub use certs::{Certificate, ContentId, Identity, SignedOff};
+pub use certs::{Cert, ContentId, Identity, SignedBy};
 pub use check::CheckError;
 pub use consignment::{Consignment, Contract, Transfer};
+pub use container::{Bindle, Container};
 pub use seal::{EndpointSeal, VoutSeal};
 pub use util::{AnchoredBundle, ContainerVer, Terminal};

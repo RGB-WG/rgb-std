@@ -198,7 +198,7 @@ impl ContractBuilder {
             valencies: none!(),
         };
 
-        // TODO: Check against interface requirements
+        // TODO: Validate against schema
 
         Ok(Contract::new(
             self.schema.clone(),

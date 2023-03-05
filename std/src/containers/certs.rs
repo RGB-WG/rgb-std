@@ -19,7 +19,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use amplify::confinement::{Confined, TinyBlob, TinyOrdMap};
+use amplify::confinement::{Confined, TinyAscii, TinyBlob, TinyOrdMap, TinyString};
 use rgb::{ContractId, SchemaId};
 
 use crate::interface::{IfaceId, ImplId};
@@ -40,19 +40,41 @@ pub enum ContentId {
     Impl(ImplId),
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug, Display)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD, tags = order, dumb = Identity::Pgp(none!()))]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+#[display("{name} <{email}>; using={suite}")]
+#[non_exhaustive]
+pub struct Identity {
+    pub name: TinyString,
+    pub email: TinyAscii,
+    pub suite: IdSuite,
+    pub pk: TinyBlob,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, Display)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD, tags = repr, into_u8, try_from_u8)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 #[non_exhaustive]
-pub enum Identity {
-    Pgp(TinyBlob),
-    Ssh(TinyBlob),
-    Ssi(TinyBlob),
+#[repr(u8)]
+pub enum IdSuite {
+    #[strict_type(dumb)]
+    #[display("OpenPGP")]
+    Pgp,
+    #[display("OpenSSH")]
+    Ssh,
+    #[display("SSI")]
+    Ssi,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
@@ -63,7 +85,7 @@ pub enum Identity {
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-pub struct Certificate {
+pub struct Cert {
     pub signer: Identity,
     pub signature: TinyBlob,
 }
@@ -74,7 +96,7 @@ pub struct Certificate {
 #[derive(StrictDumb, StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD, dumb = Sigs(confined_vec!(strict_dumb!())))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
-pub struct Sigs(Confined<Vec<Certificate>, 1, 10>);
+pub struct Sigs(Confined<Vec<Cert>, 1, 10>);
 
 #[derive(Wrapper, WrapperMut, Clone, PartialEq, Eq, Hash, Debug, Default, From)]
 #[wrapper(Deref)]
@@ -82,4 +104,4 @@ pub struct Sigs(Confined<Vec<Certificate>, 1, 10>);
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
-pub struct SignedOff(TinyOrdMap<ContentId, Sigs>);
+pub struct SignedBy(TinyOrdMap<ContentId, Sigs>);
