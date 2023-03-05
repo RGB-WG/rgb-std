@@ -21,6 +21,7 @@ strict_encoding = { workspace = true }
 commit_verify = { workspace = true }
 bp-core = { workspace = true }
 rgb-core = { workspace = true }
+base64 = "0.21.0"
 
 [features]
 default = []

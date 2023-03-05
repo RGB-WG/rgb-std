@@ -68,6 +68,10 @@
 //                           -- commitments into tapret
 
 extern crate core;
+#[macro_use]
+extern crate amplify;
+#[macro_use]
+extern crate strict_encoding;
 
 pub use rgb::{contract, schema, validation, vm};
 
@@ -77,4 +81,6 @@ mod persistence;
 #[cfg(feature = "in-mem")]
 pub mod inmem;
 
-pub use interface::{IfaceImpl, NamedType};
+pub use interface::{IfaceImpl, IfaceStd, NamedType, SchemaTypeId};
+
+pub const LIB_NAME_RGB_STD: &str = "RGBStd";
