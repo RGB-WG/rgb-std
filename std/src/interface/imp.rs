@@ -19,23 +19,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! RGB contract interface provides a mapping between identifiers of RGB schema-
-//! defined contract state and operation types to a human-readable and
-//! standardized wallet APIs.
-
 use amplify::confinement::TinyOrdSet;
-use rgb::{ExtensionType, GlobalStateType, OwnedStateType, SchemaId, TransitionType, ValencyType};
-use strict_encoding::{
+use rgb::{
+    ExtensionType, GlobalStateType, OwnedStateType, SchemaId, SchemaTypeIndex, TransitionType,
+    ValencyType,
+};
+use strict_types::encoding::{
     StrictDecode, StrictDeserialize, StrictEncode, StrictSerialize, StrictType, TypeName,
 };
 
+use super::IfaceStd;
 use crate::LIB_NAME_RGB_STD;
-
-pub trait SchemaTypeId:
-    Copy + Eq + Ord + Default + StrictType + StrictEncode + StrictDecode
-{
-}
-impl SchemaTypeId for u16 {}
 
 /// Maps certain form of type id (global or owned state or a specific operation
 /// type) to a human-readable name.
@@ -50,46 +44,19 @@ impl SchemaTypeId for u16 {}
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-pub struct NamedType<T: SchemaTypeId> {
+pub struct NamedType<T: SchemaTypeIndex> {
     pub id: T,
     pub name: TypeName,
 }
 
 impl<T> PartialEq for NamedType<T>
-where T: SchemaTypeId
+where T: SchemaTypeIndex
 {
     fn eq(&self, other: &Self) -> bool { self.id == other.id || self.name == other.name }
 }
 
-impl<T: SchemaTypeId> NamedType<T> {
+impl<T: SchemaTypeIndex> NamedType<T> {
     pub fn with(id: T, name: TypeName) -> NamedType<T> { NamedType { id, name } }
-}
-
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD, tags = repr, into_u8, try_from_u8)]
-#[repr(u8)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-pub enum IfaceStd {
-    #[strict_type(dumb)]
-    #[display("RGB20")]
-    Rgb20Fungible = 20,
-
-    #[display("RGB21")]
-    Rgb21Collectible = 21,
-
-    #[display("RGB22")]
-    Rgb22Identity = 22,
-
-    #[display("RGB23")]
-    Rgb23Audit = 23,
-
-    #[display("RGB24")]
-    Rgb24Naming = 24,
 }
 
 /// Interface implementation for some specific schema.
@@ -122,7 +89,7 @@ impl core::fmt::Display for IfaceImpl {
         if let Some(standard) = self.standard {
             writeln!(f, "Standard: {}", standard)?;
         }
-        writeln!(f, "For-Schema: {:#}", self.schema_id)?;
+        writeln!(f, "Schema: {:#}", self.schema_id)?;
         writeln!(f)?;
 
         let data = self.to_strict_serialized::<0xFFFFFF>().expect("in-memory");

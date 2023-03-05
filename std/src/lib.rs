@@ -81,6 +81,6 @@ mod persistence;
 #[cfg(feature = "in-mem")]
 pub mod inmem;
 
-pub use interface::{IfaceImpl, IfaceStd, NamedType, SchemaTypeId};
+pub use interface::{IfaceImpl, IfaceStd, NamedType};
 
 pub const LIB_NAME_RGB_STD: &str = "RGBStd";

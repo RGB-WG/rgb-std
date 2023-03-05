@@ -18,13 +18,3 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-//! Implementation of all [`persistence`] types for keeping the data in-memory.
-//!
-//! Useful for WASM and other edge implementations; however does not provide the
-//! required persistence functionality.
-
-mod bindle;
-mod contract;
-mod hoard;
-mod transfer;

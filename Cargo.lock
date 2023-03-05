@@ -571,7 +571,7 @@ dependencies = [
 [[package]]
 name = "rgb-core"
 version = "0.10.0-beta.1"
-source = "git+https://github.com/RGB-WG/rgb-core#fb9295adec10fd10d99494436ae06a29765a273c"
+source = "git+https://github.com/RGB-WG/rgb-core#e627358fad8ed5dbb47008b23f9baf61df058314"
 dependencies = [
  "aluvm",
  "amplify",
@@ -599,6 +599,7 @@ dependencies = [
  "rand",
  "rgb-core",
  "strict_encoding",
+ "strict_types",
  "wasm-bindgen",
  "wasm-bindgen-test",
 ]
