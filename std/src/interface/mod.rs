@@ -32,4 +32,4 @@ pub use iface::{
     ExtensionIface, GenesisIface, GlobalIface, Iface, IfaceId, OwnedIface, Req, TransitionIface,
     TypeReqMap,
 };
-pub use imp::{IfaceImpl, IfacePair, NamedType};
+pub use imp::{IfaceImpl, IfacePair, ImplId, NamedType};

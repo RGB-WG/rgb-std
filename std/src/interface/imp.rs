@@ -19,7 +19,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::str::FromStr;
+
 use amplify::confinement::TinyOrdSet;
+use amplify::{Bytes32, RawArray};
+use baid58::{Baid58ParseError, FromBaid58, ToBaid58};
+use commit_verify::{CommitStrategy, CommitmentId};
 use rgb::{
     ExtensionType, GlobalStateType, OwnedStateType, SchemaId, SchemaTypeIndex, TransitionType,
     ValencyType,
@@ -31,6 +36,35 @@ use strict_types::encoding::{
 use crate::interface::iface::IfaceId;
 use crate::interface::Iface;
 use crate::LIB_NAME_RGB_STD;
+/// Interface identifier.
+///
+/// Interface identifier commits to all of the interface data.
+#[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, From)]
+#[wrapper(Deref, BorrowSlice, Hex, Index, RangeOps)]
+#[display(Self::to_baid58)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", transparent)
+)]
+pub struct ImplId(
+    #[from]
+    #[from([u8; 32])]
+    Bytes32,
+);
+
+impl ToBaid58<32> for ImplId {
+    const HRI: &'static str = "rgb-impl";
+    fn to_baid58_payload(&self) -> [u8; 32] { self.to_raw_array() }
+}
+impl FromBaid58<32> for ImplId {}
+
+impl FromStr for ImplId {
+    type Err = Baid58ParseError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_baid58_str(s) }
+}
 
 /// Maps certain form of type id (global or owned state or a specific operation
 /// type) to a human-readable name.
@@ -79,6 +113,15 @@ pub struct IfaceImpl {
     pub extensions: TinyOrdSet<NamedType<ExtensionType>>,
 }
 
+impl CommitStrategy for IfaceImpl {
+    type Strategy = commit_verify::strategies::Strict;
+}
+
+impl CommitmentId for IfaceImpl {
+    const TAG: [u8; 32] = *b"urn:lnpbp:rgb:ifaceimpl:v01#2303";
+    type Id = ImplId;
+}
+
 impl StrictSerialize for IfaceImpl {}
 impl StrictDeserialize for IfaceImpl {}
 
@@ -120,4 +163,10 @@ impl core::fmt::Display for IfaceImpl {
 pub struct IfacePair {
     pub iface: Iface,
     pub imp: IfaceImpl,
+}
+
+impl IfacePair {
+    pub fn with(iface: Iface, imp: IfaceImpl) -> IfacePair { IfacePair { iface, imp } }
+
+    pub fn iface_id(&self) -> IfaceId { self.iface.iface_id() }
 }
