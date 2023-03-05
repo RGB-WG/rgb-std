@@ -16,6 +16,8 @@ readme = "../README.md"
 name = "rgb"
 
 [dependencies]
+amplify = { workspace = true }
+strict_encoding = { workspace = true }
 rgb-core = { workspace = true }
 
 [features]

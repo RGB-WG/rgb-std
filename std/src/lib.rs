@@ -72,3 +72,5 @@ mod containers;
 mod persistence;
 #[cfg(feature = "in-mem")]
 pub mod inmem;
+
+pub use interface::{IfaceImpl, NamedType};

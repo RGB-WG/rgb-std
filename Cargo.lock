@@ -584,9 +584,11 @@ dependencies = [
 name = "rgb-std"
 version = "0.10.0-alpha.1"
 dependencies = [
+ "amplify",
  "getrandom",
  "rand",
  "rgb-core",
+ "strict_encoding",
  "wasm-bindgen",
  "wasm-bindgen-test",
 ]

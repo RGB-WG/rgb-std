@@ -22,3 +22,39 @@
 //! RGB contract interface provides a mapping between identifiers of RGB schema-
 //! defined contract state and operation types to a human-readable and
 //! standardized wallet APIs.
+
+use amplify::confinement::TinyOrdSet;
+use rgb::{ExtensionType, GlobalStateType, OwnedStateType, SchemaId, TransitionType, ValencyType};
+use strict_encoding::TypeName;
+
+/// Maps certain form of type id (global or owned state or a specific operation
+/// type) to a human-readable name.
+///
+/// Two distinct [`NamedType`] objects must always have both different state ids
+/// and names.   
+#[derive(Clone, Eq, PartialOrd, Ord, Debug)]
+pub struct NamedType<T> {
+    pub id: T,
+    pub name: TypeName,
+}
+
+impl<T> PartialEq for NamedType<T>
+where T: Eq
+{
+    fn eq(&self, other: &Self) -> bool { self.id == other.id || self.name == other.name }
+}
+
+impl<T> NamedType<T> {
+    pub fn with(id: T, name: TypeName) -> NamedType<T> { NamedType { id, name } }
+}
+
+/// Interface implementation for some specific schema.
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub struct IfaceImpl {
+    pub schema_id: SchemaId,
+    pub global_state: TinyOrdSet<NamedType<GlobalStateType>>,
+    pub owned_state: TinyOrdSet<NamedType<OwnedStateType>>,
+    pub valencies: TinyOrdSet<NamedType<ValencyType>>,
+    pub transitions: TinyOrdSet<NamedType<TransitionType>>,
+    pub extensions: TinyOrdSet<NamedType<ExtensionType>>,
+}
