@@ -81,6 +81,8 @@ pub struct IfaceImpl {
 impl StrictSerialize for IfaceImpl {}
 impl StrictDeserialize for IfaceImpl {}
 
+// TODO: Implement validation of implementation against interface requirements
+
 impl core::fmt::Display for IfaceImpl {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         use base64::Engine;
