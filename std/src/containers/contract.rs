@@ -18,3 +18,25 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+use rgb::{Genesis, Schema};
+
+use crate::containers::{ContainerVer, Contract};
+use crate::interface::IfacePair;
+
+impl Contract {
+    pub fn new(schema: Schema, iface: IfacePair, genesis: Genesis) -> Self {
+        Contract {
+            version: ContainerVer::V1,
+            transfer: false,
+            schema,
+            ifaces: tiny_bmap! { iface.iface_id() => iface },
+            genesis,
+            terminals: none!(),
+            bundles: none!(),
+            extensions: none!(),
+            attachments: none!(),
+            signatures: none!(),
+        }
+    }
+}

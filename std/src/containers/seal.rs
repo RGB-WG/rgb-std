@@ -123,7 +123,7 @@ impl From<VoutSeal> for RevealedSeal {
 /// witness transaction output on behalf of receiver
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, From)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD, tags = custom, dumb = { Self::ConcealedUtxo(strict_dumb!()) })]
+#[strict_type(lib = LIB_NAME_RGB_STD, tags = custom, dumb = Self::ConcealedUtxo(strict_dumb!()))]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),

@@ -19,15 +19,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use rgb::Schema;
+use bp::Chain;
+use rgb::{Genesis, Schema};
 use strict_types::StrictVal;
 
 use crate::containers::Contract;
-use crate::interface::{Iface, IfaceImpl};
+use crate::interface::{Iface, IfaceImpl, IfacePair};
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
-pub enum ForgeError {}
+pub enum ForgeError {
+    /// interface implementation references different interface that the one
+    /// provided to the forge.
+    InterfaceMismatch,
+
+    /// interface implementation references different schema that the one
+    /// provided to the forge.
+    SchemaMismatch,
+}
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
@@ -35,21 +44,46 @@ pub enum IssueError {}
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Forge {
-    pub iface: Iface,
-    pub schema: Schema,
-    pub imp: IfaceImpl,
+    schema: Schema,
+    iface: Iface,
+    imp: IfaceImpl,
 }
 
 impl Forge {
     pub fn with(iface: Iface, schema: Schema, imp: IfaceImpl) -> Result<Self, ForgeError> {
-        todo!()
+        if imp.iface_id != iface.iface_id() {
+            return Err(ForgeError::InterfaceMismatch);
+        }
+        if imp.schema_id != schema.schema_id() {
+            return Err(ForgeError::SchemaMismatch);
+        }
+
+        // TODO: check schema internal consistency
+        // TODO: check interface internal consistency
+        // TODO: check implmenetation internal consistency
+
+        Ok(Forge { schema, iface, imp })
     }
 
     pub fn issue(
         &self,
+        chain: Chain,
         global: impl Into<StrictVal>,
         owned: impl Into<StrictVal>,
     ) -> Result<Contract, IssueError> {
-        todo!()
+        let genesis = Genesis {
+            ffv: none!(),
+            schema_id: self.schema.schema_id(),
+            chain,
+            metadata: None,
+            global_state: Default::default(),
+            owned_state: Default::default(),
+            valencies: none!(),
+        };
+        Ok(Contract::new(
+            self.schema.clone(),
+            IfacePair::with(self.iface.clone(), self.imp.clone()),
+            genesis,
+        ))
     }
 }
