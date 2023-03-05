@@ -125,6 +125,11 @@ impl CommitmentId for IfaceImpl {
 impl StrictSerialize for IfaceImpl {}
 impl StrictDeserialize for IfaceImpl {}
 
+impl IfaceImpl {
+    #[inline]
+    pub fn impl_id(&self) -> ImplId { self.commitment_id() }
+}
+
 // TODO: Implement validation of implementation against interface requirements
 
 #[derive(Clone, Eq, PartialEq, Debug)]
