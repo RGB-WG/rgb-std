@@ -23,11 +23,9 @@
 //! defined contract state and operation types to a human-readable and
 //! standardized wallet APIs.
 
-mod forge;
 mod iface;
 mod imp;
 
-pub use forge::{Forge, ForgeError, IssueError};
 pub use iface::{
     ExtensionIface, GenesisIface, GlobalIface, Iface, IfaceId, OwnedIface, Req, TransitionIface,
     TypeReqMap,

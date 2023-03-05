@@ -19,9 +19,9 @@ dependencies = [
 
 [[package]]
 name = "amplify"
-version = "4.0.0-beta.18"
+version = "4.0.0-beta.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b52c4d735bf8fdf9d0d177ba22d0ca21f14c79bda216e3a1a6d882eb3d79112"
+checksum = "015181670696f32b43334da39fa4e8926b8b2d154acc4aa26614c42a667a1b84"
 dependencies = [
  "amplify_apfloat",
  "amplify_derive",
@@ -181,7 +181,7 @@ dependencies = [
 [[package]]
 name = "bp-core"
 version = "0.10.0-beta.2"
-source = "git+https://github.com/BP-WG/bp-core#fe916a0a5195905d1752171a8df65542bd638add"
+source = "git+https://github.com/BP-WG/bp-core#93ec82d7f4db3be1b9c7fe14d446d3f184617ed3"
 dependencies = [
  "amplify",
  "bp-dbc",
@@ -196,7 +196,7 @@ dependencies = [
 [[package]]
 name = "bp-dbc"
 version = "0.10.0-beta.2"
-source = "git+https://github.com/BP-WG/bp-core#fe916a0a5195905d1752171a8df65542bd638add"
+source = "git+https://github.com/BP-WG/bp-core#93ec82d7f4db3be1b9c7fe14d446d3f184617ed3"
 dependencies = [
  "amplify",
  "bp-primitives",
@@ -209,7 +209,7 @@ dependencies = [
 [[package]]
 name = "bp-primitives"
 version = "0.10.0-beta.2"
-source = "git+https://github.com/BP-WG/bp-core#fe916a0a5195905d1752171a8df65542bd638add"
+source = "git+https://github.com/BP-WG/bp-core#93ec82d7f4db3be1b9c7fe14d446d3f184617ed3"
 dependencies = [
  "amplify",
  "commit_verify",
@@ -221,7 +221,7 @@ dependencies = [
 [[package]]
 name = "bp-seals"
 version = "0.10.0-beta.2"
-source = "git+https://github.com/BP-WG/bp-core#fe916a0a5195905d1752171a8df65542bd638add"
+source = "git+https://github.com/BP-WG/bp-core#93ec82d7f4db3be1b9c7fe14d446d3f184617ed3"
 dependencies = [
  "amplify",
  "baid58",
@@ -794,7 +794,7 @@ dependencies = [
 [[package]]
 name = "rgb-core"
 version = "0.10.0-beta.1"
-source = "git+https://github.com/RGB-WG/rgb-core#e3426b560ad94649030b6d90456ee0e7c2b10b1d"
+source = "git+https://github.com/RGB-WG/rgb-core#5451f438685a02651f7e4771e7841d4af2eaa666"
 dependencies = [
  "aluvm",
  "amplify",
@@ -1070,7 +1070,7 @@ dependencies = [
 [[package]]
 name = "strict_types"
 version = "1.0.0-beta.3"
-source = "git+https://github.com/strict-types/strict-types#e5ed291f545441f1e3b6155e051f51003d832748"
+source = "git+https://github.com/strict-types/strict-types#be7b1b5a04fde705c0e3f67ee66d8c75ec3a4938"
 dependencies = [
  "amplify",
  "baid58",

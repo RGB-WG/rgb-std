@@ -33,11 +33,13 @@ mod disclosure;
 mod bindle;
 mod contract;
 mod transfer;
+mod builder;
 mod seal;
 mod util;
 mod check;
 mod certs;
 
+pub use builder::{ContractBuilder, ForgeError, IssueError};
 pub use certs::{Certificate, ContentId, Identity, SignedOff};
 pub use check::CheckError;
 pub use consignment::{Consignment, Contract, Transfer};
