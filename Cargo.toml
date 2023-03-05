@@ -49,8 +49,9 @@ rgb-std = { version = "0.10.0-alpha.1", path = "std" }
 
 [features]
 default = []
-all = ["serde"]
+all = ["fs", "serde"]
 serde = ["rgb-std/serde", "rgb-core/serde"]
+fs = ["rgb-std/fs"]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2"

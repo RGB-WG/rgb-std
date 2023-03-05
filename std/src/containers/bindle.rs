@@ -135,6 +135,7 @@ impl<C: Bindle> core::fmt::Display for BindleWrap<C> {
     }
 }
 
+#[cfg(feature = "fs")]
 mod _fs {
     use std::io::{Read, Write};
     use std::path::Path;
