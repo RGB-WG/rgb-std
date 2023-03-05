@@ -18,3 +18,38 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+use rgb::Schema;
+use strict_types::StrictVal;
+
+use crate::containers::Contract;
+use crate::interface::{Iface, IfaceImpl};
+
+#[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
+#[display(doc_comments)]
+pub enum ForgeError {}
+
+#[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
+#[display(doc_comments)]
+pub enum IssueError {}
+
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub struct Forge {
+    pub iface: Iface,
+    pub schema: Schema,
+    pub imp: IfaceImpl,
+}
+
+impl Forge {
+    pub fn with(iface: Iface, schema: Schema, imp: IfaceImpl) -> Result<Self, ForgeError> {
+        todo!()
+    }
+
+    pub fn issue(
+        &self,
+        global: impl Into<StrictVal>,
+        owned: impl Into<StrictVal>,
+    ) -> Result<Contract, IssueError> {
+        todo!()
+    }
+}

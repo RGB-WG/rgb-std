@@ -24,11 +24,12 @@ bp-core = { workspace = true }
 rgb-core = { workspace = true }
 baid58 = "0.2.0"
 base64 = "0.21.0"
+serde_crate = { package = "serde", version = "1", features = ["derive"] }
 
 [features]
 default = []
-all = ["in-mem"]
-in-mem = []
+all = ["serde"]
+serde = []
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2"

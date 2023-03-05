@@ -27,7 +27,9 @@ mod forge;
 mod iface;
 mod imp;
 
+pub use forge::{Forge, ForgeError, IssueError};
 pub use iface::{
-    ExtensionIface, GenesisIface, GlobalIface, Iface, OwnedIface, Req, TransitionIface, TypeReqMap,
+    ExtensionIface, GenesisIface, GlobalIface, Iface, IfaceId, OwnedIface, Req, TransitionIface,
+    TypeReqMap,
 };
-pub use imp::{IfaceImpl, NamedType};
+pub use imp::{IfaceImpl, IfacePair, NamedType};

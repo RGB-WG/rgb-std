@@ -214,7 +214,7 @@ impl Debug for ContractDetails {
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", transparent)
+    serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct Nominal {
     ticker: Ticker,

@@ -29,6 +29,7 @@ use strict_types::encoding::{
 };
 
 use crate::interface::iface::IfaceId;
+use crate::interface::Iface;
 use crate::LIB_NAME_RGB_STD;
 
 /// Maps certain form of type id (global or owned state or a specific operation
@@ -106,4 +107,17 @@ impl core::fmt::Display for IfaceImpl {
         writeln!(f, "\n----- END RGB INTERFACE IMPLEMENTATION -----")?;
         Ok(())
     }
+}
+
+#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct IfacePair {
+    pub iface: Iface,
+    pub imp: IfaceImpl,
 }

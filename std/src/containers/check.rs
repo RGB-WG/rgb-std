@@ -18,3 +18,19 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+use super::Consignment;
+
+#[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
+#[display(doc_comments)]
+pub enum CheckError {}
+
+impl<const TYPE: bool> Consignment<TYPE> {
+    pub fn check(&self) -> Result<(), Vec<CheckError>> {
+        // TODO: check that self.transfer == TYPE
+        // TODO: check that interface ids match implementations
+        // TODO: check bundle ids listed in terminals are present in the consignment
+        // TODO: check attach ids from data containers are present in operations
+        Ok(())
+    }
+}

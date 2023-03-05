@@ -19,73 +19,78 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use core::slice;
-use std::collections::{btree_map, BTreeSet};
+use amplify::confinement::{LargeVec, MediumBlob, SmallOrdMap, SmallVec, TinyOrdMap};
+use rgb::{AttachId, ContractId, Extension, Genesis, Schema, SchemaId};
+use strict_encoding::StrictDumb;
 
-use bp::{Outpoint, Txid};
-use commit_verify::mpc;
-use rgb::validation::{ConsistencyError, ContainerApi, HistoryApi};
-use rgb::{
-    seal, Anchor, BundleId, Extension, Genesis, OpId, Operation, OwnedStateType, Schema,
-    Transition, TransitionBundle,
-};
+use super::{AnchoredBundle, ContainerVer, Terminal};
+use crate::interface::{IfaceId, IfacePair};
+use crate::LIB_NAME_RGB_STD;
 
-pub trait ConsignmentApi {}
+pub type Transfer = Consignment<true>;
+pub type Contract = Consignment<false>;
 
-pub struct Consignment<C: ConsignmentApi>(pub C);
+/// Consignment represents contract-specific data, always starting with genesis,
+/// which must be valid under client-side-validation rules (i.e. internally
+/// consistent and properly committed into the commitment layer, like bitcoin
+/// blockchain or current state of the lightning channel).
+///
+/// All consignments-related procedures, including validation or merging
+/// consignments data into stash or schema-specific data storage, must start
+/// with `endpoints` and process up to the genesis. If any of the nodes within
+/// the consignments are not part of the paths connecting endpoints with the
+/// genesis, consignments validation will return
+/// [`crate::validation::Warning::ExcessiveNode`] warning.
+#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct Consignment<const TYPE: bool> {
+    /// Version.
+    pub version: ContainerVer,
 
-impl<C: ConsignmentApi> ContainerApi for Consignment<C> {
-    fn node_by_id(&self, node_id: OpId) -> Option<&dyn Operation> { todo!() }
+    /// Specifies whether the consignment contrains information about state
+    /// transfer (true), or it is just a consignment with an information about a
+    /// contract.
+    pub transfer: bool,
 
-    fn bundle_by_id(&self, bundle_id: BundleId) -> Result<&TransitionBundle, ConsistencyError> {
-        todo!()
-    }
+    /// Schema (plus root schema, if any) under which contract is issued.
+    pub schema: Schema,
 
-    fn known_transitions_by_bundle_id(
-        &self,
-        bundle_id: BundleId,
-    ) -> Result<Vec<&Transition>, ConsistencyError> {
-        todo!()
-    }
+    /// Interfaces supported by the contract.
+    pub ifaces: TinyOrdMap<IfaceId, IfacePair>,
 
-    fn transition_by_id(&self, node_id: OpId) -> Result<&Transition, ConsistencyError> { todo!() }
+    /// Genesis data.
+    pub genesis: Genesis,
 
-    fn extension_by_id(&self, node_id: OpId) -> Result<&Extension, ConsistencyError> { todo!() }
+    /// Set of seals which are history terminals.
+    pub terminals: SmallVec<Terminal>,
 
-    fn transition_witness_by_id(
-        &self,
-        node_id: OpId,
-    ) -> Result<(&Transition, Txid), ConsistencyError> {
-        todo!()
-    }
+    /// Data on all anchored state transitions contained in the consignments.
+    pub bundles: LargeVec<AnchoredBundle>,
 
-    fn seals_closed_with(
-        &self,
-        node_id: OpId,
-        owned_right_type: impl Into<OwnedStateType>,
-        witness: Txid,
-    ) -> Result<BTreeSet<Outpoint>, ConsistencyError> {
-        todo!()
-    }
+    /// Data on all state extensions contained in the consignments.
+    pub extensions: LargeVec<Extension>,
+
+    /// Data containers coming with this consignment. For the purposes of
+    /// in-memory consignments we are restricting the size of the containers to
+    /// 24 bit value (RGB allows containers up to 32-bit values in size).
+    pub attachments: SmallOrdMap<AttachId, MediumBlob>,
 }
 
-impl<C: ConsignmentApi> HistoryApi for Consignment<C> {
-    type EndpointIter<'container> = btree_map::Iter<'container, BundleId, seal::Confidential> where Self: 'container;
-    type BundleIter<'container> =
-        btree_map::Iter<'container, Anchor<mpc::MerkleProof>, TransitionBundle> where Self: 'container;
-    type ExtensionsIter<'container> = slice::Iter<'container, Extension> where Self: 'container;
+impl<const TYPE: bool> Consignment<TYPE> {
+    #[inline]
+    pub fn schema_id(&self) -> SchemaId { self.schema.schema_id() }
 
-    fn schema(&self) -> &Schema { todo!() }
+    #[inline]
+    pub fn root_schema_id(&self) -> Option<SchemaId> {
+        self.schema.subset_of.as_deref().map(Schema::schema_id)
+    }
 
-    fn root_schema(&self) -> Option<&Schema> { todo!() }
-
-    fn genesis(&self) -> &Genesis { todo!() }
-
-    fn node_ids(&self) -> BTreeSet<OpId> { todo!() }
-
-    fn endpoints(&self) -> Self::EndpointIter<'_> { todo!() }
-
-    fn anchored_bundles(&self) -> Self::BundleIter<'_> { todo!() }
-
-    fn state_extensions(&self) -> Self::ExtensionsIter<'_> { todo!() }
+    #[inline]
+    pub fn contract_id(&self) -> ContractId { self.genesis.contract_id() }
 }

@@ -30,3 +30,14 @@
 
 mod consignment;
 mod disclosure;
+mod bindle;
+mod contract;
+mod transfer;
+mod seal;
+mod util;
+mod check;
+
+pub use check::CheckError;
+pub use consignment::{Consignment, Contract, Transfer};
+pub use seal::{EndpointSeal, VoutSeal};
+pub use util::{AnchoredBundle, ContainerVer, Terminal};

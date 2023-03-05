@@ -72,14 +72,15 @@ extern crate core;
 extern crate amplify;
 #[macro_use]
 extern crate strict_encoding;
+#[cfg(feature = "serde")]
+#[macro_use]
+extern crate serde_crate as serde;
 
 pub use rgb::{contract, schema, validation, vm};
-pub mod stl;
 
+pub mod stl;
 pub mod interface;
-mod containers;
-mod persistence;
-#[cfg(feature = "in-mem")]
-pub mod inmem;
+pub mod containers;
+pub mod persistence;
 
 pub const LIB_NAME_RGB_STD: &str = "RGBStd";

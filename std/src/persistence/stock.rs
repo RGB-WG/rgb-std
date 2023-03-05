@@ -19,12 +19,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Implementation of all [`persistence`] types for keeping the data in-memory.
-//!
-//! Useful for WASM and other edge implementations; however does not provide the
-//! required persistence functionality.
-
-mod bindle;
-mod contract;
-mod stock;
-mod transfer;
+//! Stock is an in-memory inventory (stash, index, contract state) which can be
+//! serialized and stored as a single piece of data.
