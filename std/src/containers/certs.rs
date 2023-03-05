@@ -104,4 +104,4 @@ pub struct Sigs(Confined<Vec<Cert>, 1, 10>);
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
-pub struct SignedBy(TinyOrdMap<ContentId, Sigs>);
+pub struct ContentSigs(TinyOrdMap<ContentId, Sigs>);

@@ -40,7 +40,7 @@ mod check;
 mod certs;
 
 pub use builder::{ContractBuilder, ForgeError, IssueError};
-pub use certs::{Cert, ContentId, Identity, SignedBy};
+pub use certs::{Cert, ContentId, ContentSigs, Identity};
 pub use check::CheckError;
 pub use consignment::{Consignment, Contract, Transfer};
 pub use container::{Bindle, Container};

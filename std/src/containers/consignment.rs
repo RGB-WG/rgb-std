@@ -23,7 +23,7 @@ use amplify::confinement::{LargeVec, MediumBlob, SmallOrdMap, SmallVec, TinyOrdM
 use rgb::{AttachId, ContractId, Extension, Genesis, Schema, SchemaId, SubSchema};
 use strict_encoding::StrictDumb;
 
-use super::{AnchoredBundle, ContainerVer, SignedBy, Terminal};
+use super::{AnchoredBundle, ContainerVer, ContentSigs, Terminal};
 use crate::interface::{IfaceId, IfacePair};
 use crate::LIB_NAME_RGB_STD;
 
@@ -83,7 +83,7 @@ pub struct Consignment<const TYPE: bool> {
 
     /// Signatures on the pieces of content which are the part of the
     /// consignment.
-    pub signatures: SignedBy,
+    pub signatures: ContentSigs,
 }
 
 impl<const TYPE: bool> Consignment<TYPE> {
