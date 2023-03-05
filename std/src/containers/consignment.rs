@@ -20,7 +20,7 @@
 // limitations under the License.
 
 use amplify::confinement::{LargeVec, MediumBlob, SmallOrdMap, SmallVec, TinyOrdMap};
-use rgb::{AttachId, ContractId, Extension, Genesis, Schema, SchemaId};
+use rgb::{AttachId, ContractId, Extension, Genesis, Schema, SchemaId, SubSchema};
 use strict_encoding::StrictDumb;
 
 use super::{AnchoredBundle, ContainerVer, SignedBy, Terminal};
@@ -59,7 +59,7 @@ pub struct Consignment<const TYPE: bool> {
     pub transfer: bool,
 
     /// Schema (plus root schema, if any) under which contract is issued.
-    pub schema: Schema,
+    pub schema: SubSchema,
 
     /// Interfaces supported by the contract.
     pub ifaces: TinyOrdMap<IfaceId, IfacePair>,
@@ -92,7 +92,7 @@ impl<const TYPE: bool> Consignment<TYPE> {
 
     #[inline]
     pub fn root_schema_id(&self) -> Option<SchemaId> {
-        self.schema.subset_of.as_deref().map(Schema::schema_id)
+        self.schema.subset_of.as_ref().map(Schema::schema_id)
     }
 
     #[inline]

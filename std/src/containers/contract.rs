@@ -19,13 +19,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use rgb::{Genesis, Schema};
+use rgb::{Genesis, SubSchema};
 
 use crate::containers::{ContainerVer, Contract};
 use crate::interface::IfacePair;
 
 impl Contract {
-    pub fn new(schema: Schema, iface: IfacePair, genesis: Genesis) -> Self {
+    pub fn new(schema: SubSchema, iface: IfacePair, genesis: Genesis) -> Self {
         Contract {
             version: ContainerVer::V1,
             transfer: false,

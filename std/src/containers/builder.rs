@@ -26,8 +26,8 @@ use amplify::{confinement, Wrapper};
 use bp::secp256k1::rand::thread_rng;
 use bp::{Chain, Outpoint};
 use rgb::{
-    fungible, Assign, FungibleType, Genesis, GlobalState, OwnedState, OwnedStateType, Schema,
-    StateSchema, TypedAssign,
+    fungible, Assign, FungibleType, Genesis, GlobalState, OwnedState, OwnedStateType, StateSchema,
+    SubSchema, TypedAssign,
 };
 use strict_encoding::{SerializeError, StrictSerialize, TypeName};
 use strict_types::reify;
@@ -75,7 +75,7 @@ pub enum IssueError {}
 
 #[derive(Clone, Debug)]
 pub struct ContractBuilder {
-    schema: Schema,
+    schema: SubSchema,
     iface: Iface,
     imp: IfaceImpl,
 
@@ -89,7 +89,7 @@ pub struct ContractBuilder {
 }
 
 impl ContractBuilder {
-    pub fn with(iface: Iface, schema: Schema, imp: IfaceImpl) -> Result<Self, ForgeError> {
+    pub fn with(iface: Iface, schema: SubSchema, imp: IfaceImpl) -> Result<Self, ForgeError> {
         if imp.iface_id != iface.iface_id() {
             return Err(ForgeError::InterfaceMismatch);
         }
