@@ -21,7 +21,7 @@
 
 use amplify::confinement::{LargeVec, MediumBlob, SmallOrdMap, SmallVec, TinyOrdMap};
 use rgb::{AttachId, ContractId, Extension, Genesis, Schema, SchemaId, SubSchema};
-use strict_encoding::StrictDumb;
+use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 
 use super::{AnchoredBundle, ContainerVer, ContentSigs, Terminal};
 use crate::interface::{IfaceId, IfacePair};
@@ -85,6 +85,9 @@ pub struct Consignment<const TYPE: bool> {
     /// consignment.
     pub signatures: ContentSigs,
 }
+
+impl<const TYPE: bool> StrictSerialize for Consignment<TYPE> {}
+impl<const TYPE: bool> StrictDeserialize for Consignment<TYPE> {}
 
 impl<const TYPE: bool> Consignment<TYPE> {
     #[inline]
