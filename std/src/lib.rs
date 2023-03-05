@@ -74,6 +74,7 @@ extern crate amplify;
 extern crate strict_encoding;
 
 pub use rgb::{contract, schema, validation, vm};
+pub mod stl;
 
 pub mod interface;
 mod containers;

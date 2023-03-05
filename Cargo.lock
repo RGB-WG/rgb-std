@@ -60,9 +60,9 @@ checksum = "ddce3bc63e807ea02065e8d8b702695f3d302ae4158baddff8b0ce5c73947251"
 
 [[package]]
 name = "amplify_syn"
-version = "2.0.0-beta.2"
+version = "2.0.0-beta.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e3db5cb96f8f18a9566a975c521b77485f6f8e3e8d866d0f52369446ba31274"
+checksum = "fa4ba0b995a9379a410822026a2bedbba790197dd7cb980954fb64b14476bb8d"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -571,7 +571,7 @@ dependencies = [
 [[package]]
 name = "rgb-core"
 version = "0.10.0-beta.1"
-source = "git+https://github.com/RGB-WG/rgb-core#e627358fad8ed5dbb47008b23f9baf61df058314"
+source = "git+https://github.com/RGB-WG/rgb-core#11d3910e75c791070b7c52b92552621e31e684d9"
 dependencies = [
  "aluvm",
  "amplify",
@@ -716,7 +716,7 @@ dependencies = [
 [[package]]
 name = "strict_encoding"
 version = "2.0.0-rc.1"
-source = "git+https://github.com/strict-types/strict-encoding#02e306c57eb487143b968db11828496191253658"
+source = "git+https://github.com/strict-types/strict-encoding#fe998b25072c73b77bdaa83766b6a93ca8ff06f4"
 dependencies = [
  "amplify",
  "half",
@@ -725,8 +725,8 @@ dependencies = [
 
 [[package]]
 name = "strict_encoding_derive"
-version = "2.0.0-beta.2"
-source = "git+https://github.com/strict-types/strict-encoding#02e306c57eb487143b968db11828496191253658"
+version = "2.0.0-beta.3"
+source = "git+https://github.com/strict-types/strict-encoding#fe998b25072c73b77bdaa83766b6a93ca8ff06f4"
 dependencies = [
  "amplify_syn",
  "heck",
@@ -738,7 +738,7 @@ dependencies = [
 [[package]]
 name = "strict_types"
 version = "1.0.0-beta.3"
-source = "git+https://github.com/strict-types/strict-types#f0647560281bc0595fc06eee9dbba7f1483b81c9"
+source = "git+https://github.com/strict-types/strict-types#e5ed291f545441f1e3b6155e051f51003d832748"
 dependencies = [
  "amplify",
  "baid58",
