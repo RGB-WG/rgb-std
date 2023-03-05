@@ -23,7 +23,7 @@ use amplify::confinement::{LargeVec, MediumBlob, SmallOrdMap, SmallVec, TinyOrdM
 use rgb::{AttachId, ContractId, Extension, Genesis, Schema, SchemaId};
 use strict_encoding::StrictDumb;
 
-use super::{AnchoredBundle, ContainerVer, Terminal};
+use super::{AnchoredBundle, ContainerVer, SignedOff, Terminal};
 use crate::interface::{IfaceId, IfacePair};
 use crate::LIB_NAME_RGB_STD;
 
@@ -53,7 +53,7 @@ pub struct Consignment<const TYPE: bool> {
     /// Version.
     pub version: ContainerVer,
 
-    /// Specifies whether the consignment contrains information about state
+    /// Specifies whether the consignment contains information about state
     /// transfer (true), or it is just a consignment with an information about a
     /// contract.
     pub transfer: bool,
@@ -80,6 +80,10 @@ pub struct Consignment<const TYPE: bool> {
     /// in-memory consignments we are restricting the size of the containers to
     /// 24 bit value (RGB allows containers up to 32-bit values in size).
     pub attachments: SmallOrdMap<AttachId, MediumBlob>,
+
+    /// Signatures on the pieces of content which are the part of the
+    /// consignment.
+    pub signatures: SignedOff,
 }
 
 impl<const TYPE: bool> Consignment<TYPE> {

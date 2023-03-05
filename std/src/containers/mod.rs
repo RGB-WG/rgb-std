@@ -36,7 +36,9 @@ mod transfer;
 mod seal;
 mod util;
 mod check;
+mod certs;
 
+pub use certs::{Certificate, ContentId, Identity, SignedOff};
 pub use check::CheckError;
 pub use consignment::{Consignment, Contract, Transfer};
 pub use seal::{EndpointSeal, VoutSeal};
