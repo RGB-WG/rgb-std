@@ -23,56 +23,72 @@
 //! and optionally signed by the creator with certain id and send over to a
 //! remote party.
 
-use amplify::confinement::TinyVec;
-use baid58::{Baid58, ToBaid58};
-use rgb::{Schema, SchemaRoot};
-use strict_encoding::{StrictDeserialize, StrictSerialize};
+use std::fmt::Display;
 
+use amplify::confinement::TinyVec;
+use baid58::ToBaid58;
+use rgb::{ContractId, Schema, SchemaId, SchemaRoot};
+use strict_encoding::{
+    StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, StrictType,
+};
+
+use crate::containers::transfer::TransferId;
 use crate::containers::{Cert, Contract, Transfer};
-use crate::interface::{Iface, IfaceImpl};
+use crate::interface::{Iface, IfaceId, IfaceImpl, ImplId};
+use crate::LIB_NAME_RGB_STD;
 
 // TODO: Move to UBIDECO crate
-pub trait Bindle: StrictSerialize + StrictDeserialize {
+pub trait Bindle: StrictSerialize + StrictDeserialize + StrictDumb {
     /// Magic bytes used in saving/restoring container from a file.
     const MAGIC: [u8; 4];
     /// String used in ASCII armored blocks
     const PLATE_TITLE: &'static str;
-    fn baid58(&self) -> Baid58<32>;
+
+    type Id: ToBaid58<32> + Display + StrictType + StrictDumb + StrictEncode + StrictDecode;
+
+    fn bindle_id(&self) -> Self::Id;
 }
 
 impl<Root: SchemaRoot> Bindle for Schema<Root> {
     const MAGIC: [u8; 4] = *b"SCHM";
     const PLATE_TITLE: &'static str = "RGB SCHEMA";
-    fn baid58(&self) -> Baid58<32> { self.schema_id().to_baid58() }
+    type Id = SchemaId;
+    fn bindle_id(&self) -> Self::Id { self.schema_id() }
 }
 
 impl Bindle for Contract {
     const MAGIC: [u8; 4] = *b"CNRC";
     const PLATE_TITLE: &'static str = "RGB CONTRACT";
-    fn baid58(&self) -> Baid58<32> { self.contract_id().to_baid58() }
+    type Id = ContractId;
+    fn bindle_id(&self) -> Self::Id { self.contract_id() }
 }
 
 impl Bindle for Transfer {
     const MAGIC: [u8; 4] = *b"TRNS";
     const PLATE_TITLE: &'static str = "RGB STATE TRANSFER";
-    fn baid58(&self) -> Baid58<32> { self.transfer_id().to_baid58() }
+    type Id = TransferId;
+    fn bindle_id(&self) -> Self::Id { self.transfer_id() }
 }
 
 impl Bindle for Iface {
     const MAGIC: [u8; 4] = *b"IFCE";
     const PLATE_TITLE: &'static str = "RGB INTERFACE";
-    fn baid58(&self) -> Baid58<32> { self.iface_id().to_baid58() }
+    type Id = IfaceId;
+    fn bindle_id(&self) -> Self::Id { self.iface_id() }
 }
 
 impl Bindle for IfaceImpl {
     const MAGIC: [u8; 4] = *b"IMPL";
     const PLATE_TITLE: &'static str = "RGB INTERFACE IMPLEMENTATION";
-    fn baid58(&self) -> Baid58<32> { self.impl_id().to_baid58() }
+    type Id = ImplId;
+    fn bindle_id(&self) -> Self::Id { self.impl_id() }
 }
 
 #[derive(Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
 pub struct BindleWrap<C: Bindle> {
-    id: Baid58<32>,
+    id: C::Id,
     data: C,
     sigs: TinyVec<Cert>,
 }
@@ -80,7 +96,7 @@ pub struct BindleWrap<C: Bindle> {
 impl<C: Bindle> BindleWrap<C> {
     pub fn new(data: C) -> Self {
         BindleWrap {
-            id: data.baid58(),
+            id: data.bindle_id(),
             data,
             sigs: empty!(),
         }
@@ -93,7 +109,7 @@ impl<C: Bindle> core::fmt::Display for BindleWrap<C> {
 
         writeln!(f, "----- BEGIN {} -----", C::PLATE_TITLE)?;
         writeln!(f, "Id: {}", self.id)?;
-        writeln!(f, "Checksum: {}", self.id)?;
+        writeln!(f, "Checksum: {}", self.id.to_baid58().mnemonic())?;
         for cert in &self.sigs {
             writeln!(f, "Signed-By: {}", cert.signer)?;
         }
@@ -120,11 +136,48 @@ impl<C: Bindle> core::fmt::Display for BindleWrap<C> {
 }
 
 mod _fs {
+    use std::io::{Read, Write};
     use std::path::Path;
+    use std::{fs, io};
+
+    use strict_encoding::{DecodeError, StrictEncode, StrictReader, StrictWriter};
 
     use super::*;
 
+    #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
+    #[display(doc_comments)]
+    pub enum LoadError {
+        /// invalid file data.
+        InvalidMagic,
+
+        #[display(inner)]
+        #[from]
+        #[from(io::Error)]
+        Decode(DecodeError),
+    }
+
     impl<C: Bindle> BindleWrap<C> {
-        pub fn save(&self, _path: impl AsRef<Path>) { todo!() }
+        pub fn load(&self, path: impl AsRef<Path>) -> Result<Self, LoadError> {
+            let mut rgb = [0u8; 3];
+            let mut magic = [0u8; 4];
+            let mut file = fs::File::open(path)?;
+            file.read_exact(&mut rgb)?;
+            file.read_exact(&mut magic)?;
+            if rgb != *b"RGB" || magic != C::MAGIC {
+                return Err(LoadError::InvalidMagic);
+            }
+            let mut reader = StrictReader::with(usize::MAX, file);
+            let me = Self::strict_decode(&mut reader)?;
+            Ok(me)
+        }
+
+        pub fn save(&self, path: impl AsRef<Path>) -> Result<(), io::Error> {
+            let mut file = fs::File::create(path)?;
+            file.write_all(b"RGB")?;
+            file.write_all(&C::MAGIC)?;
+            let writer = StrictWriter::with(usize::MAX, file);
+            self.strict_encode(writer)?;
+            Ok(())
+        }
     }
 }
