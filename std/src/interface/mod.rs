@@ -27,33 +27,7 @@ mod forge;
 mod iface;
 mod imp;
 
+pub use iface::{
+    ExtensionIface, GenesisIface, GlobalIface, Iface, OwnedIface, Req, TransitionIface, TypeReqMap,
+};
 pub use imp::{IfaceImpl, NamedType};
-
-use crate::LIB_NAME_RGB_STD;
-
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD, tags = repr, into_u8, try_from_u8)]
-#[repr(u8)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-pub enum IfaceStd {
-    #[strict_type(dumb)]
-    #[display("RGB20")]
-    Rgb20Fungible = 20,
-
-    #[display("RGB21")]
-    Rgb21Collectible = 21,
-
-    #[display("RGB22")]
-    Rgb22Identity = 22,
-
-    #[display("RGB23")]
-    Rgb23Audit = 23,
-
-    #[display("RGB24")]
-    Rgb24Naming = 24,
-}

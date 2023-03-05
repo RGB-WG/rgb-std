@@ -592,6 +592,7 @@ name = "rgb-std"
 version = "0.10.0-alpha.1"
 dependencies = [
  "amplify",
+ "baid58",
  "base64",
  "bp-core",
  "commit_verify",

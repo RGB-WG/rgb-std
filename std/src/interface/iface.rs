@@ -19,7 +19,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::cmp::Ordering;
+use std::str::FromStr;
+
 use amplify::confinement::TinyOrdMap;
+use amplify::{Bytes32, RawArray};
+use baid58::{Baid58ParseError, FromBaid58, ToBaid58};
+use commit_verify::{CommitStrategy, CommitmentId};
 use rgb::Occurrences;
 use strict_encoding::{
     StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, StrictType,
@@ -28,6 +34,36 @@ use strict_encoding::{
 use strict_types::SemId;
 
 use crate::LIB_NAME_RGB_STD;
+
+/// Interface identifier.
+///
+/// Interface identifier commits to all of the interface data.
+#[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, From)]
+#[wrapper(Deref, BorrowSlice, Hex, Index, RangeOps)]
+#[display(Self::to_baid58)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", transparent)
+)]
+pub struct IfaceId(
+    #[from]
+    #[from([u8; 32])]
+    Bytes32,
+);
+
+impl ToBaid58<32> for IfaceId {
+    const HRI: &'static str = "rgb-iface";
+    fn to_baid58_payload(&self) -> [u8; 32] { self.to_raw_array() }
+}
+impl FromBaid58<32> for IfaceId {}
+
+impl FromStr for IfaceId {
+    type Err = Baid58ParseError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_baid58_str(s) }
+}
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
@@ -124,7 +160,7 @@ pub struct TransitionIface {
 }
 
 /// Interface definition.
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(
@@ -133,6 +169,7 @@ pub struct TransitionIface {
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct Iface {
+    pub name: TypeName,
     pub global_state: TinyOrdMap<TypeName, Req<GlobalIface>>,
     pub owned_state: TinyOrdMap<TypeName, Req<OwnedIface>>,
     pub valencies: TinyOrdMap<TypeName, Req<()>>,
@@ -141,5 +178,31 @@ pub struct Iface {
     pub extensions: TinyOrdMap<TypeName, Req<ExtensionIface>>,
 }
 
+impl PartialEq for Iface {
+    fn eq(&self, other: &Self) -> bool { self.iface_id() == other.iface_id() }
+}
+
+impl Ord for Iface {
+    fn cmp(&self, other: &Self) -> Ordering { self.iface_id().cmp(&other.iface_id()) }
+}
+
+impl PartialOrd for Iface {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
+}
+
+impl CommitStrategy for Iface {
+    type Strategy = commit_verify::strategies::Strict;
+}
+
+impl CommitmentId for Iface {
+    const TAG: [u8; 32] = *b"urn:lnpbp:rgb:interface:v01#2303";
+    type Id = IfaceId;
+}
+
 impl StrictSerialize for Iface {}
 impl StrictDeserialize for Iface {}
+
+impl Iface {
+    #[inline]
+    pub fn iface_id(&self) -> IfaceId { self.commitment_id() }
+}

@@ -28,7 +28,7 @@ use strict_types::encoding::{
     StrictDecode, StrictDeserialize, StrictEncode, StrictSerialize, StrictType, TypeName,
 };
 
-use super::IfaceStd;
+use crate::interface::iface::IfaceId;
 use crate::LIB_NAME_RGB_STD;
 
 /// Maps certain form of type id (global or owned state or a specific operation
@@ -70,7 +70,7 @@ impl<T: SchemaTypeIndex> NamedType<T> {
 )]
 pub struct IfaceImpl {
     pub schema_id: SchemaId,
-    pub standard: Option<IfaceStd>,
+    pub iface_id: IfaceId,
     pub global_state: TinyOrdSet<NamedType<GlobalStateType>>,
     pub owned_state: TinyOrdSet<NamedType<OwnedStateType>>,
     pub valencies: TinyOrdSet<NamedType<ValencyType>>,
@@ -88,9 +88,7 @@ impl core::fmt::Display for IfaceImpl {
         use base64::Engine;
 
         writeln!(f, "----- BEGIN RGB INTERFACE IMPLEMENTATION -----")?;
-        if let Some(standard) = self.standard {
-            writeln!(f, "Standard: {}", standard)?;
-        }
+        writeln!(f, "Interface: {:#}", self.iface_id)?;
         writeln!(f, "Schema: {:#}", self.schema_id)?;
         writeln!(f)?;
 

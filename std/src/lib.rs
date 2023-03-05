@@ -75,12 +75,10 @@ extern crate strict_encoding;
 
 pub use rgb::{contract, schema, validation, vm};
 
-mod interface;
+pub mod interface;
 mod containers;
 mod persistence;
 #[cfg(feature = "in-mem")]
 pub mod inmem;
-
-pub use interface::{IfaceImpl, IfaceStd, NamedType};
 
 pub const LIB_NAME_RGB_STD: &str = "RGBStd";

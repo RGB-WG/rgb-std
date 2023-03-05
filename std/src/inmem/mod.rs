@@ -26,5 +26,5 @@
 
 mod bindle;
 mod contract;
-mod hoard;
+mod stock;
 mod transfer;
