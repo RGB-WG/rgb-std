@@ -33,7 +33,7 @@ use strict_encoding::TypeName;
 /// Two distinct [`NamedType`] objects must always have both different state ids
 /// and names.   
 #[derive(Clone, Eq, PartialOrd, Ord, Debug)]
-pub struct NamedType<T> {
+pub struct NamedType<T: Eq> {
     pub id: T,
     pub name: TypeName,
 }
@@ -44,7 +44,7 @@ where T: Eq
     fn eq(&self, other: &Self) -> bool { self.id == other.id || self.name == other.name }
 }
 
-impl<T> NamedType<T> {
+impl<T: Eq> NamedType<T> {
     pub fn with(id: T, name: TypeName) -> NamedType<T> { NamedType { id, name } }
 }
 

@@ -26,7 +26,7 @@
     unused_mut,
     unused_imports,
     dead_code,
-    missing_docs
+    // missing_docs
 )]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
@@ -66,6 +66,8 @@
 // bundle    :: Psbt -> Psbt -- takes individual transitions and bundles them
 // finalize  :: Psbt -> Psbt -- should be performed by BP; converts individual
 //                           -- commitments into tapret
+
+extern crate core;
 
 mod interface;
 mod containers;

@@ -26,6 +26,6 @@
     unused_mut,
     unused_imports,
     dead_code,
-    missing_docs
+    //missing_docs
 )]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
