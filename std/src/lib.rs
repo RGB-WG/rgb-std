@@ -69,6 +69,8 @@
 
 extern crate core;
 
+pub use rgb::{contract, schema, validation, vm};
+
 mod interface;
 mod containers;
 mod persistence;
