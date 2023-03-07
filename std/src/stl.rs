@@ -26,7 +26,7 @@ use std::str::FromStr;
 use amplify::ascii::AsciiString;
 use amplify::confinement::{Confined, SmallString};
 use amplify::IoError;
-use strict_encoding::{InvalidIdent, StrictDumb};
+use strict_encoding::{InvalidIdent, StrictDeserialize, StrictDumb, StrictSerialize};
 use strict_types::typelib::{LibBuilder, TranslateError};
 use strict_types::typesys::SystemBuilder;
 use strict_types::{typesys, SemId, TypeSystem};
@@ -62,6 +62,8 @@ pub enum Precision {
     CentiFemto = 17,
     Atto = 18,
 }
+impl StrictSerialize for Precision {}
+impl StrictDeserialize for Precision {}
 
 #[derive(Wrapper, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, From)]
 #[wrapper(Deref, Display)]
@@ -226,23 +228,25 @@ pub struct Nominal {
     details: Option<ContractDetails>,
     precision: Precision,
 }
+impl StrictSerialize for Nominal {}
+impl StrictDeserialize for Nominal {}
 
 impl Nominal {
-    pub fn new(ticker: &'static str, name: &'static str) -> Nominal {
+    pub fn new(ticker: &'static str, name: &'static str, precision: Precision) -> Nominal {
         Nominal {
             ticker: Ticker::from(ticker),
             name: ContractName::from(name),
             details: None,
-            precision: Precision::default(),
+            precision,
         }
     }
 
-    pub fn with(ticker: &str, name: &str) -> Result<Nominal, InvalidIdent> {
+    pub fn with(ticker: &str, name: &str, precision: Precision) -> Result<Nominal, InvalidIdent> {
         Ok(Nominal {
             ticker: Ticker::try_from(ticker.to_owned())?,
             name: ContractName::try_from(name.to_owned())?,
             details: None,
-            precision: Precision::default(),
+            precision,
         })
     }
 }
@@ -256,6 +260,8 @@ impl Nominal {
     serde(crate = "serde_crate", transparent)
 )]
 pub struct ContractText(SmallString);
+impl StrictSerialize for ContractText {}
+impl StrictDeserialize for ContractText {}
 
 pub struct StandardTypes(TypeSystem);
 
