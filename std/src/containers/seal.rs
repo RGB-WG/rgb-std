@@ -24,11 +24,12 @@
 use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 
-use bp::seals::txout::blind::{ConcealedSeal, ParseError, RevealedSeal};
-use bp::seals::txout::CloseMethod;
+use bp::seals::txout::blind::ParseError;
+use bp::seals::txout::{CloseMethod, TxPtr};
 use bp::secp256k1::rand::{thread_rng, RngCore};
 use bp::Vout;
 use commit_verify::Conceal;
+use rgb::{GraphSeal, SecretSeal};
 
 use crate::LIB_NAME_RGB_STD;
 
@@ -105,10 +106,8 @@ impl VoutSeal {
     }
 }
 
-impl From<VoutSeal> for RevealedSeal {
-    fn from(seal: VoutSeal) -> Self {
-        RevealedSeal::with_vout(seal.method, seal.vout, seal.blinding)
-    }
+impl From<VoutSeal> for GraphSeal {
+    fn from(seal: VoutSeal) -> Self { Self::with_vout(seal.method, seal.vout, seal.blinding) }
 }
 
 /// Seal endpoint is a confidential seal which may be linked to the witness
@@ -134,20 +133,20 @@ pub enum EndpointSeal {
     /// [`seal::Confidential`])
     #[from]
     #[strict_type(tag = 0)]
-    ConcealedUtxo(ConcealedSeal),
+    ConcealedUtxo(SecretSeal),
 
     /// Seal contained within the witness transaction
     #[strict_type(tag = 1)]
     WitnessVout(VoutSeal),
 }
 
-impl From<RevealedSeal> for EndpointSeal {
-    fn from(seal: RevealedSeal) -> Self {
+impl From<GraphSeal> for EndpointSeal {
+    fn from(seal: GraphSeal) -> Self {
         match seal.txid {
-            None => {
+            TxPtr::WitnessTx => {
                 EndpointSeal::WitnessVout(VoutSeal::with(seal.method, seal.vout, seal.blinding))
             }
-            Some(_) => EndpointSeal::ConcealedUtxo(seal.conceal()),
+            TxPtr::Txid(_) => EndpointSeal::ConcealedUtxo(seal.conceal()),
         }
     }
 }
@@ -161,12 +160,12 @@ impl EndpointSeal {
 }
 
 impl Conceal for EndpointSeal {
-    type Concealed = ConcealedSeal;
+    type Concealed = SecretSeal;
 
     fn conceal(&self) -> Self::Concealed {
         match *self {
             EndpointSeal::ConcealedUtxo(hash) => hash,
-            EndpointSeal::WitnessVout(seal) => RevealedSeal::from(seal).conceal(),
+            EndpointSeal::WitnessVout(seal) => GraphSeal::from(seal).conceal(),
         }
     }
 }
@@ -175,7 +174,7 @@ impl Display for EndpointSeal {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match *self {
             EndpointSeal::ConcealedUtxo(ref seal) => Display::fmt(seal, f),
-            EndpointSeal::WitnessVout(seal) => Display::fmt(&RevealedSeal::from(seal), f),
+            EndpointSeal::WitnessVout(seal) => Display::fmt(&GraphSeal::from(seal), f),
         }
     }
 }
@@ -184,8 +183,8 @@ impl FromStr for EndpointSeal {
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        ConcealedSeal::from_str(s)
+        SecretSeal::from_str(s)
             .map(EndpointSeal::from)
-            .or_else(|_| RevealedSeal::from_str(s).map(EndpointSeal::from))
+            .or_else(|_| GraphSeal::from_str(s).map(EndpointSeal::from))
     }
 }

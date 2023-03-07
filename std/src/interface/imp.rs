@@ -26,7 +26,7 @@ use amplify::{Bytes32, RawArray};
 use baid58::{Baid58ParseError, FromBaid58, ToBaid58};
 use commit_verify::{CommitStrategy, CommitmentId};
 use rgb::{
-    ExtensionType, GlobalStateType, OwnedStateType, SchemaId, SchemaTypeIndex, TransitionType,
+    AssignmentsType, ExtensionType, GlobalStateType, SchemaId, SchemaTypeIndex, TransitionType,
     ValencyType,
 };
 use strict_types::encoding::{
@@ -107,7 +107,7 @@ pub struct IfaceImpl {
     pub schema_id: SchemaId,
     pub iface_id: IfaceId,
     pub global_state: TinyOrdSet<NamedType<GlobalStateType>>,
-    pub owned_state: TinyOrdSet<NamedType<OwnedStateType>>,
+    pub owned_state: TinyOrdSet<NamedType<AssignmentsType>>,
     pub valencies: TinyOrdSet<NamedType<ValencyType>>,
     pub transitions: TinyOrdSet<NamedType<TransitionType>>,
     pub extensions: TinyOrdSet<NamedType<ExtensionType>>,

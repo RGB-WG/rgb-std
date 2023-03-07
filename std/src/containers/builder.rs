@@ -26,8 +26,8 @@ use amplify::{confinement, Wrapper};
 use bp::secp256k1::rand::thread_rng;
 use bp::{Chain, Outpoint};
 use rgb::{
-    fungible, Assign, FungibleType, Genesis, GlobalState, OwnedState, OwnedStateType, StateSchema,
-    SubSchema, TypedAssign,
+    fungible, Assign, Assignments, AssignmentsType, FungibleType, Genesis, GlobalState,
+    StateSchema, SubSchema, TypedAssigns,
 };
 use strict_encoding::{SerializeError, StrictSerialize, TypeName};
 use strict_types::reify;
@@ -81,9 +81,9 @@ pub struct ContractBuilder {
 
     chain: Chain,
     global: GlobalState,
-    // rights: TinyOrdMap<OwnedStateType, Confined<BTreeSet<Outpoint>, 1, U8>>,
-    fungible: TinyOrdMap<OwnedStateType, Confined<BTreeMap<Outpoint, fungible::Revealed>, 1, U8>>,
-    // data: TinyOrdMap<OwnedStateType, Confined<BTreeMap<Outpoint, SmallBlob>, 1, U8>>,
+    // rights: TinyOrdMap<AssignmentsType, Confined<BTreeSet<Outpoint>, 1, U8>>,
+    fungible: TinyOrdMap<AssignmentsType, Confined<BTreeMap<Outpoint, fungible::Revealed>, 1, U8>>,
+    // data: TinyOrdMap<AssignmentsType, Confined<BTreeMap<Outpoint, SmallBlob>, 1, U8>>,
     // TODO: add attachments
     // TODO: add valencies
 }
@@ -182,19 +182,19 @@ impl ContractBuilder {
                 state: value,
             });
             let state = Confined::try_from_iter(vec).expect("at least one element");
-            let state = TypedAssign::Fungible(state);
+            let state = TypedAssigns::Fungible(state);
             (id, state)
         });
         let owned_state = Confined::try_from_iter(owned_state).expect("same size");
-        let owned_state = OwnedState::from_inner(owned_state);
+        let assignments = Assignments::from_inner(owned_state);
 
         let genesis = Genesis {
             ffv: none!(),
             schema_id: self.schema.schema_id(),
             chain: self.chain,
             metadata: None,
-            global_state: self.global,
-            owned_state,
+            globals: self.global,
+            assignments,
             valencies: none!(),
         };
 
