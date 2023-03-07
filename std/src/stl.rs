@@ -285,6 +285,8 @@ impl StandardTypes {
         Self(builder().expect("error in standard RGBContract type library"))
     }
 
+    pub fn type_system(&self) -> TypeSystem { self.0.clone() }
+
     pub fn get(&self, name: &'static str) -> SemId {
         self.0
             .id_by_name(name)
