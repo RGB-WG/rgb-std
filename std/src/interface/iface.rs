@@ -78,6 +78,33 @@ pub struct Req<Info: StrictType + StrictEncode + StrictDecode + StrictDumb> {
     pub required: bool,
 }
 
+impl Req<GlobalIface> {
+    pub fn some() -> Self {
+        Req {
+            info: GlobalIface::Any,
+            required: false,
+        }
+    }
+    pub fn require_any() -> Self {
+        Req {
+            info: GlobalIface::Any,
+            required: true,
+        }
+    }
+    pub fn optional(sem_id: SemId) -> Self {
+        Req {
+            info: GlobalIface::Typed(sem_id),
+            required: false,
+        }
+    }
+    pub fn require(sem_id: SemId) -> Self {
+        Req {
+            info: GlobalIface::Typed(sem_id),
+            required: true,
+        }
+    }
+}
+
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD, tags = order)]
@@ -103,10 +130,10 @@ pub enum GlobalIface {
 pub enum OwnedIface {
     #[strict_type(dumb)]
     Any,
-    AnyData,
-    AnyValue,
-    AnyAttach,
     Rights,
+    Amount,
+    AnyData,
+    AnyAttach,
     Data(SemId),
 }
 
@@ -122,8 +149,8 @@ pub type TypeReqMap = TinyOrdMap<TypeName, Occurrences>;
 )]
 pub struct GenesisIface {
     pub metadata: Option<SemId>,
-    pub global_state: TypeReqMap,
-    pub owned_state: TypeReqMap,
+    pub global: TypeReqMap,
+    pub assignments: TypeReqMap,
     pub valencies: TypeReqMap,
 }
 
@@ -137,9 +164,9 @@ pub struct GenesisIface {
 )]
 pub struct ExtensionIface {
     pub metadata: Option<SemId>,
-    pub global_state: TypeReqMap,
+    pub globals: TypeReqMap,
     pub redeems: TypeReqMap,
-    pub owned_state: TypeReqMap,
+    pub assignments: TypeReqMap,
     pub valencies: TypeReqMap,
 }
 
@@ -153,9 +180,9 @@ pub struct ExtensionIface {
 )]
 pub struct TransitionIface {
     pub metadata: Option<SemId>,
-    pub global_state: TypeReqMap,
-    pub closes: TypeReqMap,
-    pub owned_state: TypeReqMap,
+    pub globals: TypeReqMap,
+    pub inputs: TypeReqMap,
+    pub assignments: TypeReqMap,
     pub valencies: TypeReqMap,
 }
 
@@ -171,11 +198,11 @@ pub struct TransitionIface {
 pub struct Iface {
     pub name: TypeName,
     pub global_state: TinyOrdMap<TypeName, Req<GlobalIface>>,
-    pub owned_state: TinyOrdMap<TypeName, Req<OwnedIface>>,
+    pub owned_state: TinyOrdMap<TypeName, OwnedIface>,
     pub valencies: TinyOrdMap<TypeName, Req<()>>,
     pub genesis: GenesisIface,
-    pub transitions: TinyOrdMap<TypeName, Req<TransitionIface>>,
-    pub extensions: TinyOrdMap<TypeName, Req<ExtensionIface>>,
+    pub transitions: TinyOrdMap<TypeName, TransitionIface>,
+    pub extensions: TinyOrdMap<TypeName, ExtensionIface>,
 }
 
 impl PartialEq for Iface {

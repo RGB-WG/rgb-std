@@ -18,3 +18,49 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+use rgb::Occurrences;
+
+use crate::interface::{GenesisIface, Iface, OwnedIface, Req, TransitionIface};
+use crate::stl::StandardTypes;
+
+pub fn rgb20() -> Iface {
+    let types = StandardTypes::new();
+
+    Iface {
+        name: tn!("RGB20"),
+        global_state: tiny_bmap! {
+            tn!("Nominal") => Req::require(types.get("RGBContract.Nominal")),
+            tn!("ContractText") => Req::require(types.get("RGBContract.ContractText")),
+        },
+        owned_state: tiny_bmap! {
+            tn!("Assets") => OwnedIface::Amount,
+        },
+        valencies: none!(),
+        genesis: GenesisIface {
+            metadata: None,
+            global: tiny_bmap! {
+                tn!("Nominal") => Occurrences::Once,
+                tn!("ContractText") => Occurrences::Once,
+            },
+            assignments: tiny_bmap! {
+                tn!("Assets") => Occurrences::OnceOrMore
+            },
+            valencies: none!(),
+        },
+        transitions: tiny_bmap! {
+            tn!("Transfer") => TransitionIface {
+                metadata: None,
+                globals: none!(),
+                inputs: tiny_bmap! {
+                    tn!("Assets") => Occurrences::OnceOrMore,
+                },
+                assignments: tiny_bmap! {
+                    tn!("Assets") => Occurrences::OnceOrMore,
+                },
+                valencies: none!(),
+            }
+        },
+        extensions: none!(),
+    }
+}

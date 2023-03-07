@@ -26,6 +26,7 @@
 mod iface;
 mod imp;
 mod contract;
+mod rgb20;
 
 pub use contract::{ContractIface, OwnedState, TypedState};
 pub use iface::{
@@ -33,3 +34,4 @@ pub use iface::{
     TypeReqMap,
 };
 pub use imp::{IfaceImpl, IfacePair, ImplId, NamedType};
+pub use rgb20::rgb20;

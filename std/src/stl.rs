@@ -25,7 +25,11 @@ use std::str::FromStr;
 
 use amplify::ascii::AsciiString;
 use amplify::confinement::{Confined, SmallString};
+use amplify::IoError;
 use strict_encoding::{InvalidIdent, StrictDumb};
+use strict_types::typelib::{LibBuilder, TranslateError};
+use strict_types::typesys::SystemBuilder;
+use strict_types::{typesys, SemId, TypeSystem};
 
 pub const LIB_NAME_RGB_CONTRACT: &str = "RGBContract";
 
@@ -252,3 +256,38 @@ impl Nominal {
     serde(crate = "serde_crate", transparent)
 )]
 pub struct ContractText(SmallString);
+
+pub struct StandardTypes(TypeSystem);
+
+impl StandardTypes {
+    pub fn new() -> Self {
+        #[derive(Debug, From)]
+        enum Error {
+            #[from(std::io::Error)]
+            Io(IoError),
+            #[from]
+            Translate(TranslateError),
+            #[from]
+            Compile(typesys::Error),
+            #[from]
+            Link(Vec<typesys::Error>),
+        }
+
+        fn builder() -> Result<TypeSystem, Error> {
+            let lib = LibBuilder::new(libname!(LIB_NAME_RGB_CONTRACT))
+                .process::<Nominal>()?
+                .process::<ContractText>()?
+                .compile(none!())?;
+            let sys = SystemBuilder::new().import(lib)?.finalize()?;
+            Ok(sys)
+        }
+
+        Self(builder().expect("error in standard RGBContract type library"))
+    }
+
+    pub fn get(&self, name: &'static str) -> SemId {
+        self.0
+            .id_by_name(name)
+            .expect("type is absent in standard RGBContract type library")
+    }
+}
