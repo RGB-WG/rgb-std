@@ -29,7 +29,13 @@ serde_crate = { package = "serde", version = "1", features = ["derive"] }
 [features]
 default = []
 all = ["fs", "serde"]
-serde = []
+serde = [
+    "amplify/serde",
+    "strict_encoding/serde", "strict_types/serde",
+    "commit_verify/serde",
+    "bp-core/serde",
+    "rgb-core/serde",
+]
 fs = []
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
