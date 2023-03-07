@@ -38,7 +38,7 @@ use crate::interface::{Iface, IfaceId, IfaceImpl, ImplId};
 use crate::LIB_NAME_RGB_STD;
 
 // TODO: Move to UBIDECO crate
-pub trait Bindle: StrictSerialize + StrictDeserialize + StrictDumb {
+pub trait BindleContent: StrictSerialize + StrictDeserialize + StrictDumb {
     /// Magic bytes used in saving/restoring container from a file.
     const MAGIC: [u8; 4];
     /// String used in ASCII armored blocks
@@ -47,37 +47,38 @@ pub trait Bindle: StrictSerialize + StrictDeserialize + StrictDumb {
     type Id: ToBaid58<32> + Display + StrictType + StrictDumb + StrictEncode + StrictDecode;
 
     fn bindle_id(&self) -> Self::Id;
+    fn bindle(self) -> Bindle<Self> { Bindle::new(self) }
 }
 
-impl<Root: SchemaRoot> Bindle for Schema<Root> {
+impl<Root: SchemaRoot> BindleContent for Schema<Root> {
     const MAGIC: [u8; 4] = *b"SCHM";
     const PLATE_TITLE: &'static str = "RGB SCHEMA";
     type Id = SchemaId;
     fn bindle_id(&self) -> Self::Id { self.schema_id() }
 }
 
-impl Bindle for Contract {
+impl BindleContent for Contract {
     const MAGIC: [u8; 4] = *b"CNRC";
     const PLATE_TITLE: &'static str = "RGB CONTRACT";
     type Id = ContractId;
     fn bindle_id(&self) -> Self::Id { self.contract_id() }
 }
 
-impl Bindle for Transfer {
+impl BindleContent for Transfer {
     const MAGIC: [u8; 4] = *b"TRNS";
     const PLATE_TITLE: &'static str = "RGB STATE TRANSFER";
     type Id = TransferId;
     fn bindle_id(&self) -> Self::Id { self.transfer_id() }
 }
 
-impl Bindle for Iface {
+impl BindleContent for Iface {
     const MAGIC: [u8; 4] = *b"IFCE";
     const PLATE_TITLE: &'static str = "RGB INTERFACE";
     type Id = IfaceId;
     fn bindle_id(&self) -> Self::Id { self.iface_id() }
 }
 
-impl Bindle for IfaceImpl {
+impl BindleContent for IfaceImpl {
     const MAGIC: [u8; 4] = *b"IMPL";
     const PLATE_TITLE: &'static str = "RGB INTERFACE IMPLEMENTATION";
     type Id = ImplId;
@@ -87,23 +88,25 @@ impl Bindle for IfaceImpl {
 #[derive(Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
-pub struct BindleWrap<C: Bindle> {
+pub struct Bindle<C: BindleContent> {
     id: C::Id,
     data: C,
     sigs: TinyVec<Cert>,
 }
 
-impl<C: Bindle> BindleWrap<C> {
+impl<C: BindleContent> Bindle<C> {
     pub fn new(data: C) -> Self {
-        BindleWrap {
+        Bindle {
             id: data.bindle_id(),
             data,
             sigs: empty!(),
         }
     }
+
+    pub fn unbindle(self) -> C { self.data }
 }
 
-impl<C: Bindle> core::fmt::Display for BindleWrap<C> {
+impl<C: BindleContent> Display for Bindle<C> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         use base64::Engine;
 
@@ -157,7 +160,7 @@ mod _fs {
         Decode(DecodeError),
     }
 
-    impl<C: Bindle> BindleWrap<C> {
+    impl<C: BindleContent> Bindle<C> {
         pub fn load(&self, path: impl AsRef<Path>) -> Result<Self, LoadError> {
             let mut rgb = [0u8; 3];
             let mut magic = [0u8; 4];

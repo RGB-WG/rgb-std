@@ -39,7 +39,7 @@ mod util;
 mod check;
 mod certs;
 
-pub use bindle::{Bindle, BindleWrap};
+pub use bindle::{Bindle, BindleContent};
 pub use builder::{ContractBuilder, ForgeError, IssueError};
 pub use certs::{Cert, ContentId, ContentSigs, Identity};
 pub use check::CheckError;
