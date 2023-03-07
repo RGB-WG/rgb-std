@@ -25,7 +25,9 @@
 
 mod iface;
 mod imp;
+mod contract;
 
+pub use contract::{ContractIface, OwnedState, TypedState};
 pub use iface::{
     ExtensionIface, GenesisIface, GlobalIface, Iface, IfaceId, OwnedIface, Req, TransitionIface,
     TypeReqMap,
