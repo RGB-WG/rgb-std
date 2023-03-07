@@ -64,3 +64,19 @@ pub fn rgb20() -> Iface {
         extensions: none!(),
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::containers::BindleContent;
+
+    const RGB20: &str = include_str!("../../tests/data/rgb20.asc.rgb");
+
+    #[test]
+    fn iface_creation() { rgb20(); }
+
+    #[test]
+    fn iface_bindle() {
+        assert_eq!(format!("{}", rgb20().bindle()), RGB20);
+    }
+}
