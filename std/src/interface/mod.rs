@@ -24,7 +24,7 @@
 //! standardized wallet APIs.
 
 mod iface;
-mod imp;
+mod iimpl;
 mod contract;
 mod rgb20;
 
@@ -33,5 +33,5 @@ pub use iface::{
     ExtensionIface, GenesisIface, GlobalIface, Iface, IfaceId, OwnedIface, Req, TransitionIface,
     TypeReqMap,
 };
-pub use imp::{IfaceImpl, IfacePair, ImplId, NamedType};
+pub use iimpl::{IfaceImpl, IfacePair, ImplId, NamedType, SchemaIfaces};
 pub use rgb20::rgb20;

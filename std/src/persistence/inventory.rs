@@ -18,3 +18,16 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+use crate::containers::{Consignment, Contract, Transfer};
+
+pub trait Inventory {
+    type Error: std::error::Error;
+
+    fn export_contract(&self) -> Result<Contract, Self::Error>;
+    fn consign(&mut self) -> Result<Transfer, Self::Error>;
+    fn accept<const TYPE: bool>(
+        &mut self,
+        consignment: Consignment<TYPE>,
+    ) -> Result<(), Self::Error>;
+}

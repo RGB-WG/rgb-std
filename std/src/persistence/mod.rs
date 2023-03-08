@@ -33,6 +33,6 @@
 //! 2-4 data can be re-computed from the stash in case of loss or corruption.
 
 mod stash;
-mod stock;
+pub mod stock;
 mod inventory;
 mod index;

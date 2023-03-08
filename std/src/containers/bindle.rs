@@ -94,6 +94,10 @@ pub struct Bindle<C: BindleContent> {
     sigs: TinyVec<Cert>,
 }
 
+impl<C: BindleContent> From<C> for Bindle<C> {
+    fn from(value: C) -> Self { todo!() }
+}
+
 impl<C: BindleContent> Bindle<C> {
     pub fn new(data: C) -> Self {
         Bindle {
@@ -103,6 +107,7 @@ impl<C: BindleContent> Bindle<C> {
         }
     }
 
+    pub fn into_split(self) -> (C, TinyVec<Cert>) { (self.data, self.sigs) }
     pub fn unbindle(self) -> C { self.data }
 }
 

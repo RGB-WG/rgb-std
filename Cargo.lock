@@ -794,7 +794,7 @@ dependencies = [
 [[package]]
 name = "rgb-core"
 version = "0.10.0-beta.1"
-source = "git+https://github.com/RGB-WG/rgb-core#53443ab8f2da617f5281152face0d81495d620cd"
+source = "git+https://github.com/RGB-WG/rgb-core#235fc17f413a8f301db628955de5ae368f012812"
 dependencies = [
  "aluvm",
  "amplify",
@@ -1069,7 +1069,7 @@ dependencies = [
 [[package]]
 name = "strict_types"
 version = "1.0.0-beta.3"
-source = "git+https://github.com/strict-types/strict-types#911eaabacf42118de06c11165c839ef5e5fd28da"
+source = "git+https://github.com/strict-types/strict-types#0072886ba7ab855c2122b846f9481fd7583904bf"
 dependencies = [
  "amplify",
  "baid58",

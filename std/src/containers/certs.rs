@@ -19,7 +19,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use amplify::confinement::{Confined, TinyAscii, TinyBlob, TinyOrdMap, TinyString};
+use std::collections::BTreeSet;
+
+use amplify::confinement::{Confined, TinyAscii, TinyBlob, TinyString};
 use rgb::{ContractId, SchemaId};
 
 use crate::interface::{IfaceId, ImplId};
@@ -37,10 +39,10 @@ pub enum ContentId {
     Schema(SchemaId),
     Genesis(ContractId),
     Iface(IfaceId),
-    Impl(ImplId),
+    IfaceImpl(ImplId),
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug, Display)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Display)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(
@@ -57,7 +59,7 @@ pub struct Identity {
     pub pk: TinyBlob,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, Display)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Display)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD, tags = repr, into_u8, try_from_u8)]
 #[cfg_attr(
@@ -77,7 +79,7 @@ pub enum IdSuite {
     Ssi,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(
@@ -94,14 +96,6 @@ pub struct Cert {
 #[wrapper(Deref)]
 #[wrapper_mut(DerefMut)]
 #[derive(StrictDumb, StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD, dumb = Sigs(confined_vec!(strict_dumb!())))]
+#[strict_type(lib = LIB_NAME_RGB_STD, dumb = Self(confined_bset!(strict_dumb!())))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
-pub struct Sigs(Confined<Vec<Cert>, 1, 10>);
-
-#[derive(Wrapper, WrapperMut, Clone, PartialEq, Eq, Hash, Debug, Default, From)]
-#[wrapper(Deref)]
-#[wrapper_mut(DerefMut)]
-#[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
-pub struct ContentSigs(TinyOrdMap<ContentId, Sigs>);
+pub struct ContentSigs(Confined<BTreeSet<Cert>, 1, 10>);

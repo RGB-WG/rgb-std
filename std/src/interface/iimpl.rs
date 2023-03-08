@@ -21,13 +21,13 @@
 
 use std::str::FromStr;
 
-use amplify::confinement::TinyOrdSet;
+use amplify::confinement::{TinyOrdMap, TinyOrdSet};
 use amplify::{Bytes32, RawArray};
 use baid58::{Baid58ParseError, FromBaid58, ToBaid58};
 use commit_verify::{CommitStrategy, CommitmentId};
 use rgb::{
-    AssignmentsType, ExtensionType, GlobalStateType, SchemaId, SchemaTypeIndex, TransitionType,
-    ValencyType,
+    AssignmentsType, ExtensionType, GlobalStateType, SchemaId, SchemaTypeIndex, SubSchema,
+    TransitionType, ValencyType,
 };
 use strict_types::encoding::{
     StrictDecode, StrictDeserialize, StrictEncode, StrictSerialize, StrictType, TypeName,
@@ -36,6 +36,7 @@ use strict_types::encoding::{
 use crate::interface::iface::IfaceId;
 use crate::interface::Iface;
 use crate::LIB_NAME_RGB_STD;
+
 /// Interface identifier.
 ///
 /// Interface identifier commits to all of the interface data.
@@ -92,6 +93,23 @@ where T: SchemaTypeIndex
 
 impl<T: SchemaTypeIndex> NamedType<T> {
     pub fn with(id: T, name: TypeName) -> NamedType<T> { NamedType { id, name } }
+}
+
+#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
+pub struct SchemaIfaces {
+    pub schema: SubSchema,
+    pub iimpls: TinyOrdMap<IfaceId, IfaceImpl>,
+}
+
+impl SchemaIfaces {
+    pub fn new(schema: SubSchema) -> Self {
+        SchemaIfaces {
+            schema,
+            iimpls: none!(),
+        }
+    }
 }
 
 /// Interface implementation for some specific schema.
