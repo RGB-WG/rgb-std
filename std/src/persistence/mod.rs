@@ -24,8 +24,9 @@
 //! These data include:
 //! 1. [`Stash`]: a consensus-critical data for client-side-validation which
 //!    must be preserved and backed up.
-//! 2. [`ContractState`], updated with each enclosed consignment and disclosure.
-//! 3. [`Index`] over stash, which simplifies construction of a new
+//! 2. [`rgb::ContractState`], updated with each enclosed consignment and
+//!    disclosure.
+//! 3. Index over stash, which simplifies construction of a new
 //!    consignments.
 //! 4. [`Inventory`], which abstracts stash, contract states and
 //!    index for complex operations requiring participation of all of them.
@@ -37,3 +38,4 @@ pub mod stock;
 mod inventory;
 
 pub use inventory::Inventory;
+pub use stash::Stash;

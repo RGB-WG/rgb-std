@@ -115,7 +115,7 @@ impl From<VoutSeal> for GraphSeal {
 ///
 /// Seal endpoint can be either a pointer to the output in the witness
 /// transaction, plus blinding factor value, or a confidential seal
-/// [`ConcealedSeal`] value pointing some external unknown transaction
+/// [`SecretSeal`] value pointing some external unknown transaction
 /// output
 ///
 /// Seal endpoint is required in situations where sender assigns state to the
@@ -129,8 +129,7 @@ impl From<VoutSeal> for GraphSeal {
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub enum EndpointSeal {
-    /// External transaction output in concealed form (see
-    /// [`seal::Confidential`])
+    /// External transaction output in concealed form (see [`SecretSeal`])
     #[from]
     #[strict_type(tag = 0)]
     ConcealedUtxo(SecretSeal),

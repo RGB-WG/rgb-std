@@ -21,9 +21,9 @@
 
 //! RGB containers are data packages which can be transferred between smart
 //! contract users. There are two main types of containers:
-//! 1. [`Consignments`], containing information about partial state of a *single
+//! 1. [`Consignment`]s, containing information about partial state of a *single
 //!    contract*, extending from its genesis up to certain contract endpoints.
-//! 2. [`Disclosures`], containing extracts from (possibly) independent state
+//! 2. [`Disclosure`]s, containing extracts from (possibly) independent state
 //!    transitions and extensions under multiple contracts. Useful fro
 //!    disclosing the concealed state for some other parties, and also for
 //!    performing "change" operations on inventory during state transfers.
@@ -43,5 +43,6 @@ pub use bindle::{Bindle, BindleContent};
 pub use builder::{ContractBuilder, ForgeError, IssueError};
 pub use certs::{Cert, ContentId, ContentSigs, Identity};
 pub use consignment::{Consignment, Contract, Transfer};
+pub use disclosure::Disclosure;
 pub use seal::{EndpointSeal, VoutSeal};
 pub use util::{ContainerVer, Terminal};
