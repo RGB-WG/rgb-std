@@ -41,6 +41,7 @@ exclude = [".github", "std"]
 
 [lib]
 name = "rgbwallet"
+crate-type = ["cdylib", "rlib"] # We need this for WASM
 
 [dependencies]
 rgb-core = { workspace = true }
