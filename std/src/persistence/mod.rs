@@ -35,4 +35,5 @@
 mod stash;
 pub mod stock;
 mod inventory;
-mod index;
+
+pub use inventory::Inventory;

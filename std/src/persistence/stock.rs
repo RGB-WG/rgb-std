@@ -25,6 +25,7 @@ use rgb::{validation, ContractId, ContractState, SchemaId, SubSchema};
 
 use crate::containers::{Bindle, Cert, ContentId, ContentSigs, Contract};
 use crate::interface::{ContractIface, Iface, IfaceId, IfaceImpl, SchemaIfaces};
+use crate::persistence::Inventory;
 use crate::LIB_NAME_RGB_STD;
 
 #[derive(Clone, Debug, Display, Error, From)]
@@ -68,7 +69,7 @@ pub struct Stock {
 }
 
 impl Stock {
-    pub fn import_sigs<I>(
+    fn import_sigs_internal<I>(
         &mut self,
         content_id: ContentId,
         sigs: I,
@@ -88,8 +89,23 @@ impl Stock {
         }
         Ok(())
     }
+}
 
-    pub fn import_schema(
+impl Inventory for Stock {
+    type ImportError = Error;
+    type ConsignError = Error;
+    type InternalError = InternalError;
+
+    fn import_sigs<I>(&mut self, content_id: ContentId, sigs: I) -> Result<(), Self::ImportError>
+    where
+        I: IntoIterator<Item = Cert>,
+        I::IntoIter: ExactSizeIterator<Item = Cert>,
+    {
+        self.import_sigs_internal(content_id, sigs)
+            .map_err(Error::from)
+    }
+
+    fn import_schema(
         &mut self,
         schema: impl Into<Bindle<SubSchema>>,
     ) -> Result<validation::Status, Error> {
@@ -110,12 +126,12 @@ impl Stock {
 
         let content_id = ContentId::Schema(id);
         // Do not bother if we can't import all the sigs
-        self.import_sigs(content_id, sigs).ok();
+        self.import_sigs_internal(content_id, sigs).ok();
 
         Ok(status)
     }
 
-    pub fn import_iface(
+    fn import_iface(
         &mut self,
         iface: impl Into<Bindle<Iface>>,
     ) -> Result<validation::Status, Error> {
@@ -132,12 +148,12 @@ impl Stock {
 
         let content_id = ContentId::Iface(id);
         // Do not bother if we can't import all the sigs
-        self.import_sigs(content_id, sigs).ok();
+        self.import_sigs_internal(content_id, sigs).ok();
 
         Ok(status)
     }
 
-    pub fn import_iface_impl(
+    fn import_iface_impl(
         &mut self,
         iimpl: impl Into<Bindle<IfaceImpl>>,
     ) -> Result<validation::Status, Error> {
@@ -163,26 +179,26 @@ impl Stock {
 
         let content_id = ContentId::IfaceImpl(impl_id);
         // Do not bother if we can't import all the sigs
-        self.import_sigs(content_id, sigs).ok();
+        self.import_sigs_internal(content_id, sigs).ok();
 
         Ok(status)
     }
 
-    pub fn import_contract(
+    fn import_contract(
         &mut self,
         iimpl: impl Into<Bindle<Contract>>,
     ) -> Result<validation::Status, Error> {
         todo!()
     }
 
-    pub fn export_contract(
+    fn export_contract(
         &mut self,
         contract_id: ContractId,
     ) -> Result<Bindle<Contract>, InternalError> {
         todo!()
     }
 
-    pub fn contract_iface(
+    fn contract_iface(
         &mut self,
         contract_id: ContractId,
         iface_id: IfaceId,

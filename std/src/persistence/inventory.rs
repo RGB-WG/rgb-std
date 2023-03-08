@@ -19,15 +19,58 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::containers::{Consignment, Contract, Transfer};
+use rgb::{validation, ContractId, SubSchema};
+
+use crate::containers::{Bindle, Cert, ContentId, Contract};
+use crate::interface::{ContractIface, Iface, IfaceId, IfaceImpl};
 
 pub trait Inventory {
-    type Error: std::error::Error;
+    type ImportError: std::error::Error;
+    type ConsignError: std::error::Error;
+    type InternalError: std::error::Error;
 
-    fn export_contract(&self) -> Result<Contract, Self::Error>;
-    fn consign(&mut self) -> Result<Transfer, Self::Error>;
+    fn import_sigs<I>(&mut self, content_id: ContentId, sigs: I) -> Result<(), Self::ImportError>
+    where
+        I: IntoIterator<Item = Cert>,
+        I::IntoIter: ExactSizeIterator<Item = Cert>;
+
+    fn import_schema(
+        &mut self,
+        schema: impl Into<Bindle<SubSchema>>,
+    ) -> Result<validation::Status, Self::ImportError>;
+
+    fn import_iface(
+        &mut self,
+        iface: impl Into<Bindle<Iface>>,
+    ) -> Result<validation::Status, Self::ImportError>;
+
+    fn import_iface_impl(
+        &mut self,
+        iimpl: impl Into<Bindle<IfaceImpl>>,
+    ) -> Result<validation::Status, Self::ImportError>;
+
+    fn import_contract(
+        &mut self,
+        iimpl: impl Into<Bindle<Contract>>,
+    ) -> Result<validation::Status, Self::ImportError>;
+
+    fn export_contract(
+        &mut self,
+        contract_id: ContractId,
+    ) -> Result<Bindle<Contract>, Self::InternalError>;
+
+    fn contract_iface(
+        &mut self,
+        contract_id: ContractId,
+        iface_id: IfaceId,
+    ) -> Result<ContractIface, Self::InternalError>;
+
+    /*
+    fn consign(&mut self) -> Result<Transfer, Self::ConsignError>;
+
     fn accept<const TYPE: bool>(
         &mut self,
         consignment: Consignment<TYPE>,
-    ) -> Result<(), Self::Error>;
+    ) -> Result<(), Self::ImportError>;
+     */
 }
