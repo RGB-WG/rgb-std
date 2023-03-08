@@ -1,52 +1,74 @@
-[package]
-name = "rgb-std"
-version = "0.9.0"
-license = "MIT"
+[workspace]
+members = [
+    "std",
+    ".",
+]
+default-members = [
+    "std",
+    "."
+]
+
+[workspace.package]
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
-description = "RGB Standard Library: high-level API for private & scalable client-validated smart contracts on Bitcoin & Lightning"
-repository = "https://github.com/RGB-WG/rgb-std"
-homepage = "https://rgb.network"
+homepage = "https://github.com/RGB-WG"
+repository = "https://github.com/RGB-WG/rgb-wallet"
+rust-version = "1.66" # Due to strict encoding library (caused by GAD)
+edition = "2021"
+license = "Apache-2.0"
+
+[workspace.dependencies]
+amplify = "4.0.0-beta.17"
+strict_encoding = "2.0.0-rc.1"
+strict_types = "1.0.0-beta.3"
+commit_verify = "0.10.0-beta.3"
+bp-core = "0.10.0-beta.2"
+rgb-core = "0.10.0-beta.1"
+
+[package]
+name = "rgb-wallet"
+version = "0.10.0-alpha.1"
+description = "RGB wallet library for smart contracts on Bitcoin & Lightning network"
 keywords = ["bitcoin", "lightning", "rgb", "smart-contracts", "lnp-bp"]
 categories = ["cryptography::cryptocurrencies"]
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+rust-version = { workspace = true }
 readme = "README.md"
-edition = "2021"
-rust-version = "1.59.0"
-exclude = [".github", "contrib"]
+exclude = [".github", "std"]
 
 [lib]
-name = "rgb"
-
-[[bin]]
-name = "rgb"
-path = "src/bin/rgb.rs"
-required-features = ["cli", "serde"]
+name = "rgbwallet"
+crate-type = ["cdylib", "rlib"] # We need this for WASM
 
 [dependencies]
-amplify = "3.13.0"
-bitcoin_scripts = "0.9.0"
-lnpbp_bech32 = "~0.9.0"
-strict_encoding = { version = "~0.9.0", features = ["crypto", "chrono", "bitcoin"] }
-commit_verify = "~0.9.0"
-bp-core = { version = "~0.9.0", features = ["wallet"] }
-rgb-core = { package = "rgb-core", version = "0.9.0" }
-descriptor-wallet = { version = "~0.9.0", features = ["descriptors"] }
-bitcoin = "0.29.2"
-electrum-client = { version = "0.12.0", optional = true }
-serde_crate = { package = "serde", version = "1", features = ["derive"], optional = true }
-serde_with = { version = "1.14", features = ["hex"], optional = true }
-serde_yaml = { version = "0.9", optional = true }
-serde_json = { version = "1", optional = true }
-clap = { version = "~3.2.23", optional = true, features = ["derive"] }
-
-[dev-dependencies]
-serde_json = "1"
+rgb-core = { workspace = true }
+rgb-std = { version = "0.10.0-alpha.1", path = "std" }
 
 [features]
-default = ["serde", "cli"]
-all = ["serde", "cli", "wallet"]
-wallet = ["bp-core/wallet"]
-cli = ["clap", "serde_yaml", "serde_json", "descriptor-wallet/electrum", "electrum-client"]
-serde = ["serde_crate", "serde_with", "lnpbp_bech32/serde",
-    "amplify/serde", "commit_verify/serde", "strict_encoding/serde", "rgb-core/serde",
-    "descriptor-wallet/serde", "bp-core/serde",
-    "bitcoin/serde"]
+default = []
+all = ["fs", "serde"]
+serde = ["rgb-std/serde", "rgb-core/serde"]
+fs = ["rgb-std/fs"]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+rand = { version = "0.8.4", optional = true }
+getrandom = { version = "0.2", features = ["js"] }
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+[package.metadata.docs.rs]
+features = [ "all" ]
+
+[patch.crates-io]
+strict_encoding = { git = "https://github.com/strict-types/strict-encoding" }
+strict_types = { git = "https://github.com/strict-types/strict-types" }
+aluvm = { git = "https://github.com/AluVM/rust-aluvm" }
+commit_verify = { git = "https://github.com/LNP-BP/client_side_validation" }
+single_use_seals = { git = "https://github.com/LNP-BP/client_side_validation" }
+bp-core = { git = "https://github.com/BP-WG/bp-core" }
+rgb-core = { git = "https://github.com/RGB-WG/rgb-core" }

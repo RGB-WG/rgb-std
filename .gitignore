@@ -6,7 +6,6 @@
 **/*.rs.bk
 
 .idea
-.vscode
 
 *.swp
 
