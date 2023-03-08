@@ -19,7 +19,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::BTreeSet;
+use std::collections::{btree_set, BTreeSet};
 
 use amplify::confinement::{Confined, TinyAscii, TinyBlob, TinyString};
 use rgb::{ContractId, SchemaId};
@@ -99,3 +99,10 @@ pub struct Cert {
 #[strict_type(lib = LIB_NAME_RGB_STD, dumb = Self(confined_bset!(strict_dumb!())))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
 pub struct ContentSigs(Confined<BTreeSet<Cert>, 1, 10>);
+
+impl IntoIterator for ContentSigs {
+    type Item = Cert;
+    type IntoIter = btree_set::IntoIter<Cert>;
+
+    fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
+}

@@ -82,5 +82,6 @@ pub mod stl;
 pub mod interface;
 pub mod containers;
 pub mod persistence;
+pub mod resolvers;
 
 pub const LIB_NAME_RGB_STD: &str = "RGBStd";

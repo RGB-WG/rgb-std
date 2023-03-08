@@ -77,7 +77,7 @@ pub enum IssueError {}
 pub struct ContractBuilder {
     schema: SubSchema,
     iface: Iface,
-    imp: IfaceImpl,
+    iimpl: IfaceImpl,
 
     chain: Chain,
     global: GlobalState,
@@ -89,11 +89,11 @@ pub struct ContractBuilder {
 }
 
 impl ContractBuilder {
-    pub fn with(iface: Iface, schema: SubSchema, imp: IfaceImpl) -> Result<Self, ForgeError> {
-        if imp.iface_id != iface.iface_id() {
+    pub fn with(iface: Iface, schema: SubSchema, iimpl: IfaceImpl) -> Result<Self, ForgeError> {
+        if iimpl.iface_id != iface.iface_id() {
             return Err(ForgeError::InterfaceMismatch);
         }
-        if imp.schema_id != schema.schema_id() {
+        if iimpl.schema_id != schema.schema_id() {
             return Err(ForgeError::SchemaMismatch);
         }
 
@@ -104,7 +104,7 @@ impl ContractBuilder {
         Ok(ContractBuilder {
             schema,
             iface,
-            imp,
+            iimpl,
 
             chain: default!(),
             global: none!(),
@@ -126,7 +126,7 @@ impl ContractBuilder {
         let serialized = value.to_strict_serialized::<{ u16::MAX as usize }>()?;
 
         // Check value matches type requirements
-        let Some(id) = self.imp.global_state.iter().find(|t| t.name == name).map(|t| t.id) else {
+        let Some(id) = self.iimpl.global_state.iter().find(|t| t.name == name).map(|t| t.id) else {
             return Err(BuilderError::TypeNotFound(name));
         };
         let ty_id = self
@@ -150,7 +150,7 @@ impl ContractBuilder {
     ) -> Result<Self, BuilderError> {
         let name = name.into();
 
-        let Some(id) = self.imp.owned_state.iter().find(|t| t.name == name).map(|t| t.id) else {
+        let Some(id) = self.iimpl.owned_state.iter().find(|t| t.name == name).map(|t| t.id) else {
             return Err(BuilderError::TypeNotFound(name));
         };
         let ty = self
@@ -202,7 +202,7 @@ impl ContractBuilder {
 
         Ok(Contract::new(
             self.schema.clone(),
-            IfacePair::with(self.iface.clone(), self.imp.clone()),
+            IfacePair::with(self.iface.clone(), self.iimpl.clone()),
             genesis,
         ))
     }

@@ -43,6 +43,8 @@ pub use bindle::{Bindle, BindleContent};
 pub use builder::{ContractBuilder, ForgeError, IssueError};
 pub use certs::{Cert, ContentId, ContentSigs, Identity};
 pub use check::CheckError;
-pub use consignment::{Consignment, Contract, Transfer};
+pub use consignment::{
+    Consignment, Contract, Transfer, VerifiedConsignment, VerifiedContract, VerifiedTransfer,
+};
 pub use seal::{EndpointSeal, VoutSeal};
 pub use util::{AnchoredBundle, ContainerVer, Terminal};

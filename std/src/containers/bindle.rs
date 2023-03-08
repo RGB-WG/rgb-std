@@ -95,7 +95,7 @@ pub struct Bindle<C: BindleContent> {
 }
 
 impl<C: BindleContent> From<C> for Bindle<C> {
-    fn from(value: C) -> Self { todo!() }
+    fn from(data: C) -> Self { Bindle::new(data) }
 }
 
 impl<C: BindleContent> Bindle<C> {

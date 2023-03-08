@@ -160,11 +160,11 @@ impl IfaceImpl {
 )]
 pub struct IfacePair {
     pub iface: Iface,
-    pub imp: IfaceImpl,
+    pub iimpl: IfaceImpl,
 }
 
 impl IfacePair {
-    pub fn with(iface: Iface, imp: IfaceImpl) -> IfacePair { IfacePair { iface, imp } }
+    pub fn with(iface: Iface, iimpl: IfaceImpl) -> IfacePair { IfacePair { iface, iimpl } }
 
     pub fn iface_id(&self) -> IfaceId { self.iface.iface_id() }
 }

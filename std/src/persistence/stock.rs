@@ -21,11 +21,12 @@
 
 use amplify::confinement::{self, Confined, SmallOrdMap, TinyOrdMap};
 use rgb::validation::Warning;
-use rgb::{validation, ContractId, ContractState, SchemaId, SubSchema};
+use rgb::{validation, ContractHistory, ContractId, ContractState, SchemaId, SubSchema};
 
-use crate::containers::{Bindle, Cert, ContentId, ContentSigs, Contract};
-use crate::interface::{ContractIface, Iface, IfaceId, IfaceImpl, SchemaIfaces};
+use crate::containers::{Bindle, Cert, ContentId, ContentSigs, Contract, VerifiedContract};
+use crate::interface::{ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, SchemaIfaces};
 use crate::persistence::Inventory;
+use crate::resolvers::HeightResolver;
 use crate::LIB_NAME_RGB_STD;
 
 #[derive(Clone, Debug, Display, Error, From)]
@@ -38,7 +39,7 @@ pub enum IfaceImplError {
     UnknownIface(IfaceId),
 }
 
-#[derive(Clone, Debug, Display, Error, From)]
+#[derive(Debug, Display, Error, From)]
 #[display(inner)]
 pub enum Error {
     #[from]
@@ -49,6 +50,9 @@ pub enum Error {
 
     #[from]
     IfaceImpl(IfaceImplError),
+
+    #[from]
+    HeightResolver(Box<dyn std::error::Error>),
 }
 
 /// Stock is an in-memory inventory (stash, index, contract state) usefult for
@@ -64,7 +68,7 @@ pub struct Stock {
     sigs: SmallOrdMap<ContentId, ContentSigs>,
 
     // state
-    state: TinyOrdMap<ContractId, ContractState>,
+    history: TinyOrdMap<ContractId, ContractHistory>,
     // index
 }
 
@@ -184,11 +188,43 @@ impl Inventory for Stock {
         Ok(status)
     }
 
-    fn import_contract(
+    fn import_contract<R: HeightResolver>(
         &mut self,
-        iimpl: impl Into<Bindle<Contract>>,
-    ) -> Result<validation::Status, Error> {
-        todo!()
+        contract: VerifiedContract,
+        resolver: &mut R,
+    ) -> Result<validation::Status, Error>
+    where
+        R::Error: 'static,
+    {
+        let mut contract = contract.unbox();
+        let id = contract.contract_id();
+
+        let mut status = validation::Status::new();
+        self.import_schema(contract.schema.clone())?;
+        for IfacePair { iface, iimpl } in contract.ifaces.values() {
+            self.import_iface(iface.clone())?;
+            self.import_iface_impl(iimpl.clone())?;
+        }
+        for (content_id, sigs) in contract.signatures {
+            // Do not bother if we can't import all the sigs
+            self.import_sigs_internal(content_id, sigs).ok();
+        }
+        contract.signatures = none!();
+
+        // TODO: Update existing contract state
+        let history = contract
+            .build_history(resolver)
+            .map_err(|err| Error::HeightResolver(Box::new(err)))?;
+        self.history.insert(id, history)?;
+
+        // TODO: Merge contracts
+        if self.contracts.insert(id, contract)?.is_some() {
+            status.add_warning(Warning::Custom(format!(
+                "contract {id::<0} has replaced previously known contract version",
+            )));
+        }
+
+        Ok(status)
     }
 
     fn export_contract(
@@ -203,23 +239,27 @@ impl Inventory for Stock {
         contract_id: ContractId,
         iface_id: IfaceId,
     ) -> Result<ContractIface, InternalError> {
-        let contract_state = self
-            .state
+        let history = self
+            .history
             .get(&contract_id)
             .ok_or(InternalError::NoContract(contract_id))?
             .clone();
-        let schema_id = contract_state.schema_id();
-        let schema = self
+        let schema_id = history.schema_id();
+        let schema_ifaces = self
             .schemata
-            .get(schema_id)
-            .ok_or(InternalError::NoSchema(*schema_id))?;
-        let iimpl = schema
+            .get(&schema_id)
+            .ok_or(InternalError::NoSchema(schema_id))?;
+        let state = ContractState {
+            schema: schema_ifaces.schema.clone(),
+            history,
+        };
+        let iimpl = schema_ifaces
             .iimpls
             .get(&iface_id)
-            .ok_or(InternalError::NoIfaceImpl(iface_id, *schema_id))?
+            .ok_or(InternalError::NoIfaceImpl(iface_id, schema_id))?
             .clone();
         Ok(ContractIface {
-            state: contract_state,
+            state,
             iface: iimpl,
         })
     }
