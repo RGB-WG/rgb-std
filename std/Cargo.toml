@@ -13,7 +13,7 @@ rust-version = { workspace = true }
 readme = "../README.md"
 
 [lib]
-name = "rgb"
+name = "rgbstd"
 
 [dependencies]
 amplify = { workspace = true }

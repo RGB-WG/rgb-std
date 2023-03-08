@@ -40,7 +40,7 @@ readme = "README.md"
 exclude = [".github", "std"]
 
 [lib]
-name = "rgb"
+name = "rgbwallet"
 
 [dependencies]
 rgb-core = { workspace = true }
