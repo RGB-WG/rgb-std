@@ -36,13 +36,12 @@ mod transfer;
 mod builder;
 mod seal;
 mod util;
-mod check;
+mod validate;
 mod certs;
 
 pub use bindle::{Bindle, BindleContent};
 pub use builder::{ContractBuilder, ForgeError, IssueError};
 pub use certs::{Cert, ContentId, ContentSigs, Identity};
-pub use check::CheckError;
 pub use consignment::{Consignment, Contract, Transfer};
 pub use seal::{EndpointSeal, VoutSeal};
 pub use util::{ContainerVer, Terminal};

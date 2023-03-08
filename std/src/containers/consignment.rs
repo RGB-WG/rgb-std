@@ -24,7 +24,7 @@ use std::{iter, slice};
 
 use amplify::confinement::{LargeVec, MediumBlob, SmallOrdMap, SmallOrdSet, TinyOrdMap};
 use commit_verify::Conceal;
-use rgb::validation::{AnchoredBundle, ConsignmentApi, ResolveTx, Validator, Validity};
+use rgb::validation::{AnchoredBundle, ConsignmentApi};
 use rgb::{
     validation, AttachId, BundleId, ContractHistory, ContractId, Extension, Genesis, OpId, OpRef,
     Operation, OrderedTxid, Schema, SchemaId, SecretSeal, SubSchema, Transition, TransitionBundle,
@@ -118,20 +118,6 @@ impl<const TYPE: bool> Consignment<TYPE> {
 
     #[inline]
     pub fn contract_id(&self) -> ContractId { self.genesis.contract_id() }
-
-    pub fn validate<R: ResolveTx>(
-        mut self,
-        resolver: &mut R,
-    ) -> Result<Consignment<TYPE>, Consignment<TYPE>> {
-        let status = Validator::validate(&self, resolver);
-        let validity = status.validity();
-        self.validation_status = Some(status);
-        if validity != Validity::Valid {
-            Err(self)
-        } else {
-            Ok(self)
-        }
-    }
 
     pub fn validation_status(&self) -> Option<&validation::Status> {
         self.validation_status.as_ref()

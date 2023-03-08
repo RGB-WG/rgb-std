@@ -20,7 +20,7 @@
 // limitations under the License.
 
 use amplify::confinement::{self, Confined, SmallOrdMap, TinyOrdMap};
-use rgb::validation::{Status, Validity, Warning};
+use rgb::validation::{Validity, Warning};
 use rgb::{validation, ContractHistory, ContractId, ContractState, SchemaId, SubSchema};
 
 use crate::containers::{Bindle, Cert, ContentId, ContentSigs, Contract};
@@ -206,7 +206,7 @@ impl Inventory for Stock {
         &mut self,
         contract: Contract,
         resolver: &mut R,
-    ) -> Result<Status, Self::ImportError>
+    ) -> Result<validation::Status, Self::ImportError>
     where
         R::Error: 'static,
     {
@@ -217,7 +217,7 @@ impl Inventory for Stock {
         &mut self,
         contract: Contract,
         resolver: &mut R,
-    ) -> Result<Status, Self::ImportError>
+    ) -> Result<validation::Status, Self::ImportError>
     where
         R::Error: 'static,
     {
