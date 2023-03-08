@@ -2,7 +2,6 @@
 members = [
     "std",
     ".",
-    "rgbx"
 ]
 default-members = [
     "std",
