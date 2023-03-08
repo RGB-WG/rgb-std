@@ -21,11 +21,24 @@
 
 use amplify::confinement::{LargeOrdMap, LargeVec, SmallVec};
 use bp::Outpoint;
-use rgb::{attachment, AssignmentsType, ContractState, GlobalStateType};
-use strict_types::StrictVal;
+use rgb::{attachment, AssignmentsType, ContractState};
+use strict_encoding::TypeName;
+use strict_types::typify::TypedVal;
+use strict_types::{reify, StrictVal};
 
 use crate::interface::IfaceImpl;
 use crate::LIB_NAME_RGB_STD;
+
+#[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
+#[display(doc_comments)]
+pub enum ContractError {
+    /// type name {0} is unknown to the contract interface
+    TypeNameUnknown(TypeName),
+
+    #[from]
+    #[display(inner)]
+    Reify(reify::Error),
+}
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum TypedState {
@@ -57,9 +70,41 @@ pub struct ContractIface {
 }
 
 impl ContractIface {
-    pub fn global(&self, state_type: GlobalStateType) -> SmallVec<StrictVal> { todo!() }
-    pub fn rights(&self, assign_type: AssignmentsType) -> LargeVec<Outpoint> { todo!() }
-    pub fn fungible(&self, assign_type: AssignmentsType) -> LargeVec<(Outpoint, u64)> { todo!() }
+    /// # Panics
+    ///
+    /// If data are corrupted and contract schema doesn't match interface
+    /// implementations.
+    pub fn global(&self, name: impl Into<TypeName>) -> Result<SmallVec<StrictVal>, ContractError> {
+        let name = name.into();
+        let type_system = &self.state.schema.type_system;
+        let type_id = self
+            .iface
+            .global_type(name.clone())
+            .ok_or(ContractError::TypeNameUnknown(name))?;
+        let type_schema = self
+            .state
+            .schema
+            .global_types
+            .get(&type_id)
+            .expect("schema doesn't match interface");
+        // TODO: Use checked method
+        let state = unsafe { self.state.global_unchecked(type_id) };
+        let state = state
+            .into_iter()
+            .map(|revealed| {
+                type_system
+                    .reify(type_schema.sem_id, revealed.as_ref())
+                    .map(TypedVal::unbox)
+            })
+            .take(type_schema.max_items as usize)
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(SmallVec::try_from_iter(state).expect("same or smaller collection size"))
+    }
+
+    pub fn rights(&self, name: TypeName) -> LargeVec<Outpoint> { todo!() }
+
+    pub fn fungible(&self, name: TypeName) -> LargeVec<(Outpoint, u64)> { todo!() }
+
     // TODO: Add attachments and structured data APIs
     pub fn outpoint(
         &self,

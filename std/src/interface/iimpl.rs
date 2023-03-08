@@ -146,6 +146,14 @@ impl StrictDeserialize for IfaceImpl {}
 impl IfaceImpl {
     #[inline]
     pub fn impl_id(&self) -> ImplId { self.commitment_id() }
+
+    pub fn global_type(&self, name: impl Into<TypeName>) -> Option<GlobalStateType> {
+        let name = name.into();
+        self.global_state
+            .iter()
+            .find(|nt| nt.name == name)
+            .map(|nt| nt.id)
+    }
 }
 
 // TODO: Implement validation of implementation against interface requirements
