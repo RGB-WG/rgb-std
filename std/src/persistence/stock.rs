@@ -26,7 +26,7 @@ use rgb::{validation, ContractHistory, ContractId, ContractState, SchemaId, SubS
 use crate::containers::{Bindle, Cert, ContentId, ContentSigs, Contract};
 use crate::interface::{ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, SchemaIfaces};
 use crate::persistence::Inventory;
-use crate::resolvers::HeightResolver;
+use crate::resolvers::ResolveHeight;
 use crate::LIB_NAME_RGB_STD;
 
 #[derive(Clone, Debug, Display, Error, From)]
@@ -202,7 +202,7 @@ impl Inventory for Stock {
         Ok(status)
     }
 
-    fn import_contract<R: HeightResolver>(
+    fn import_contract<R: ResolveHeight>(
         &mut self,
         contract: Contract,
         resolver: &mut R,
@@ -213,7 +213,7 @@ impl Inventory for Stock {
         self._import_contract(contract, resolver, false)
     }
 
-    unsafe fn import_contract_force<R: HeightResolver>(
+    unsafe fn import_contract_force<R: ResolveHeight>(
         &mut self,
         contract: Contract,
         resolver: &mut R,
@@ -263,7 +263,7 @@ impl Inventory for Stock {
 }
 
 impl Stock {
-    fn _import_contract<R: HeightResolver>(
+    fn _import_contract<R: ResolveHeight>(
         &mut self,
         mut contract: Contract,
         resolver: &mut R,

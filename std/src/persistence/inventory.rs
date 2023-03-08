@@ -23,7 +23,7 @@ use rgb::{validation, ContractId, SubSchema};
 
 use crate::containers::{Bindle, Cert, ContentId, Contract};
 use crate::interface::{ContractIface, Iface, IfaceId, IfaceImpl};
-use crate::resolvers::HeightResolver;
+use crate::resolvers::ResolveHeight;
 
 pub trait Inventory {
     type ImportError: std::error::Error;
@@ -50,7 +50,7 @@ pub trait Inventory {
         iimpl: impl Into<Bindle<IfaceImpl>>,
     ) -> Result<validation::Status, Self::ImportError>;
 
-    fn import_contract<R: HeightResolver>(
+    fn import_contract<R: ResolveHeight>(
         &mut self,
         contract: Contract,
         resolver: &mut R,
@@ -58,7 +58,7 @@ pub trait Inventory {
     where
         R::Error: 'static;
 
-    unsafe fn import_contract_force<R: HeightResolver>(
+    unsafe fn import_contract_force<R: ResolveHeight>(
         &mut self,
         contract: Contract,
         resolver: &mut R,

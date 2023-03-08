@@ -21,7 +21,7 @@
 
 use bp::Txid;
 
-pub trait HeightResolver {
+pub trait ResolveHeight {
     type Error: std::error::Error;
 
     fn resolve_height(&mut self, txid: Txid) -> Result<u32, Self::Error>;

@@ -33,7 +33,7 @@ use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 
 use super::{ContainerVer, ContentId, ContentSigs, Terminal};
 use crate::interface::{IfaceId, IfacePair};
-use crate::resolvers::HeightResolver;
+use crate::resolvers::ResolveHeight;
 use crate::LIB_NAME_RGB_STD;
 
 pub type Transfer = Consignment<true>;
@@ -123,7 +123,7 @@ impl<const TYPE: bool> Consignment<TYPE> {
         self.validation_status.as_ref()
     }
 
-    pub fn build_history<R: HeightResolver>(
+    pub fn build_history<R: ResolveHeight>(
         &self,
         resolver: &mut R,
     ) -> Result<ContractHistory, R::Error> {
