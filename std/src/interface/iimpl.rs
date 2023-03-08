@@ -147,11 +147,17 @@ impl IfaceImpl {
     #[inline]
     pub fn impl_id(&self) -> ImplId { self.commitment_id() }
 
-    pub fn global_type(&self, name: impl Into<TypeName>) -> Option<GlobalStateType> {
-        let name = name.into();
+    pub fn global_type(&self, name: &TypeName) -> Option<GlobalStateType> {
         self.global_state
             .iter()
-            .find(|nt| nt.name == name)
+            .find(|nt| &nt.name == name)
+            .map(|nt| nt.id)
+    }
+
+    pub fn assignments_type(&self, name: &TypeName) -> Option<AssignmentsType> {
+        self.owned_state
+            .iter()
+            .find(|nt| &nt.name == name)
             .map(|nt| nt.id)
     }
 }

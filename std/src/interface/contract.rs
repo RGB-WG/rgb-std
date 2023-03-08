@@ -79,7 +79,7 @@ impl ContractIface {
         let type_system = &self.state.schema.type_system;
         let type_id = self
             .iface
-            .global_type(name.clone())
+            .global_type(&name)
             .ok_or(ContractError::TypeNameUnknown(name))?;
         let type_schema = self
             .state
@@ -87,7 +87,6 @@ impl ContractIface {
             .global_types
             .get(&type_id)
             .expect("schema doesn't match interface");
-        // TODO: Use checked method
         let state = unsafe { self.state.global_unchecked(type_id) };
         let state = state
             .into_iter()
@@ -101,11 +100,25 @@ impl ContractIface {
         Ok(SmallVec::try_from_iter(state).expect("same or smaller collection size"))
     }
 
-    pub fn rights(&self, name: TypeName) -> LargeVec<Outpoint> { todo!() }
+    pub fn fungible(
+        &self,
+        name: impl Into<TypeName>,
+    ) -> Result<LargeVec<(Outpoint, u64)>, ContractError> {
+        let name = name.into();
+        let type_id = self
+            .iface
+            .assignments_type(&name)
+            .ok_or(ContractError::TypeNameUnknown(name))?;
+        let state = self
+            .state
+            .fungibles()
+            .iter()
+            .filter(|outp| outp.opout.ty == type_id)
+            .map(|outp| (outp.seal, outp.state.value.as_u64()));
+        Ok(LargeVec::try_from_iter(state).expect("same or smaller collection size"))
+    }
 
-    pub fn fungible(&self, name: TypeName) -> LargeVec<(Outpoint, u64)> { todo!() }
-
-    // TODO: Add attachments and structured data APIs
+    // TODO: Add rights, attachments and structured data APIs
     pub fn outpoint(
         &self,
         outpoint: Outpoint,
