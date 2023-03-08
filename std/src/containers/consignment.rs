@@ -19,18 +19,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::BTreeMap;
-use std::iter;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ops::{Deref, DerefMut};
+use std::{iter, slice};
 
-use amplify::confinement::{LargeVec, MediumBlob, SmallOrdMap, SmallVec, TinyOrdMap};
+use amplify::confinement::{LargeVec, MediumBlob, SmallOrdMap, SmallOrdSet, TinyOrdMap};
+use commit_verify::Conceal;
+use rgb::validation::{AnchoredBundle, ConsignmentApi, ResolveTx, Validator, Validity};
 use rgb::{
-    AttachId, ContractHistory, ContractId, Extension, Genesis, Operation, OrderedTxid, Schema,
-    SchemaId, SubSchema,
+    validation, AttachId, BundleId, ContractHistory, ContractId, Extension, Genesis, OpId, OpRef,
+    Operation, OrderedTxid, Schema, SchemaId, SecretSeal, SubSchema, Transition, TransitionBundle,
 };
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 
-use super::{AnchoredBundle, ContainerVer, ContentId, ContentSigs, Terminal};
+use super::{ContainerVer, ContentId, ContentSigs, Terminal};
 use crate::interface::{IfaceId, IfacePair};
 use crate::resolvers::HeightResolver;
 use crate::LIB_NAME_RGB_STD;
@@ -99,7 +101,7 @@ pub struct Consignment<const TYPE: bool> {
     pub genesis: Genesis,
 
     /// Set of seals which are history terminals.
-    pub terminals: SmallVec<Terminal>,
+    pub terminals: SmallOrdSet<Terminal>,
 
     /// Data on all anchored state transitions contained in the consignments.
     pub bundles: LargeVec<AnchoredBundle>,
@@ -131,6 +133,17 @@ impl<const TYPE: bool> Consignment<TYPE> {
 
     #[inline]
     pub fn contract_id(&self) -> ContractId { self.genesis.contract_id() }
+
+    pub fn verify<R: ResolveTx>(
+        self,
+        resolver: &mut R,
+    ) -> Result<VerifiedConsignment<TYPE>, validation::Status> {
+        let status = Validator::validate(&self, resolver);
+        if status.validity() != Validity::Valid {
+            return Err(status);
+        }
+        Ok(VerifiedConsignment(self))
+    }
 
     pub fn build_history<R: HeightResolver>(
         &self,
@@ -184,5 +197,86 @@ impl<const TYPE: bool> Consignment<TYPE> {
         }
 
         Ok(history)
+    }
+}
+
+impl<const TYPE: bool> ConsignmentApi for Consignment<TYPE> {
+    type BundleIter<'container>
+    = slice::Iter<'container, AnchoredBundle> where Self: 'container;
+
+    fn schema(&self) -> &SubSchema { &self.schema }
+
+    fn operation(&self, opid: OpId) -> Option<OpRef> {
+        if opid == self.genesis.id() {
+            return Some(OpRef::Genesis(&self.genesis));
+        }
+        self.transition(opid)
+            .map(OpRef::from)
+            .or_else(|| self.extension(opid).map(OpRef::from))
+    }
+
+    fn genesis(&self) -> &Genesis { &self.genesis }
+
+    fn transition(&self, opid: OpId) -> Option<&Transition> {
+        for anchored_bundle in &self.bundles {
+            for (id, item) in anchored_bundle.bundle.iter() {
+                if *id == opid {
+                    return item.transition.as_ref();
+                }
+            }
+        }
+        None
+    }
+
+    fn extension(&self, opid: OpId) -> Option<&Extension> {
+        for extension in &self.extensions {
+            if extension.id() == opid {
+                return Some(extension);
+            }
+        }
+        None
+    }
+
+    fn terminals(&self) -> BTreeSet<(BundleId, SecretSeal)> {
+        self.terminals
+            .iter()
+            .map(|terminal| (terminal.bundle_id, terminal.seal.conceal()))
+            .collect()
+    }
+
+    fn anchored_bundles(&self) -> Self::BundleIter<'_> { self.bundles.iter() }
+
+    fn bundle_by_id(&self, bundle_id: BundleId) -> Option<&TransitionBundle> {
+        for anchored_bundle in &self.bundles {
+            if anchored_bundle.bundle.bundle_id() == bundle_id {
+                return Some(&anchored_bundle.bundle);
+            }
+        }
+        None
+    }
+
+    fn op_ids_except(&self, ids: &BTreeSet<OpId>) -> BTreeSet<OpId> {
+        let mut exceptions = BTreeSet::new();
+        for anchored_bundle in &self.bundles {
+            for item in anchored_bundle.bundle.values() {
+                if let Some(id) = item.transition.as_ref().map(Transition::id) {
+                    if !ids.contains(&id) {
+                        exceptions.insert(id);
+                    }
+                }
+            }
+        }
+        exceptions
+    }
+
+    fn has_operation(&self, opid: OpId) -> bool { self.operation(opid).is_some() }
+
+    fn known_transitions_by_bundle_id(&self, bundle_id: BundleId) -> Option<Vec<&Transition>> {
+        self.bundle_by_id(bundle_id).map(|bundle| {
+            bundle
+                .values()
+                .filter_map(|item| item.transition.as_ref())
+                .collect()
+        })
     }
 }

@@ -47,4 +47,4 @@ pub use consignment::{
     Consignment, Contract, Transfer, VerifiedConsignment, VerifiedContract, VerifiedTransfer,
 };
 pub use seal::{EndpointSeal, VoutSeal};
-pub use util::{AnchoredBundle, ContainerVer, Terminal};
+pub use util::{ContainerVer, Terminal};
