@@ -207,12 +207,9 @@ impl<const TYPE: bool> ConsignmentApi for Consignment<TYPE> {
     }
 
     fn extension(&self, opid: OpId) -> Option<&Extension> {
-        for extension in &self.extensions {
-            if extension.id() == opid {
-                return Some(extension);
-            }
-        }
-        None
+        self.extensions
+            .iter()
+            .find(|&extension| extension.id() == opid)
     }
 
     fn terminals(&self) -> BTreeSet<(BundleId, SecretSeal)> {

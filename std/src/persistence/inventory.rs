@@ -58,6 +58,10 @@ pub trait Inventory {
     where
         R::Error: 'static;
 
+    /// # Safety
+    ///
+    /// Calling this method may lead to including into the stash asset
+    /// information which may be invalid.
     unsafe fn import_contract_force<R: ResolveHeight>(
         &mut self,
         contract: Contract,

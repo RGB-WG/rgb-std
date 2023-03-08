@@ -121,7 +121,7 @@ impl ContractIface {
     // TODO: Add rights, attachments and structured data APIs
     pub fn outpoint(
         &self,
-        outpoint: Outpoint,
+        _outpoint: Outpoint,
     ) -> LargeOrdMap<AssignmentsType, LargeVec<TypedState>> {
         todo!()
     }

@@ -19,6 +19,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![allow(unused_braces)] // caused by rustc unable to understand strict_dumb
+
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::str::FromStr;
@@ -263,6 +265,7 @@ pub struct ContractText(SmallString);
 impl StrictSerialize for ContractText {}
 impl StrictDeserialize for ContractText {}
 
+#[derive(Default)]
 pub struct StandardTypes(TypeSystem);
 
 impl StandardTypes {

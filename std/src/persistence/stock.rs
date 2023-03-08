@@ -226,7 +226,7 @@ impl Inventory for Stock {
 
     fn export_contract(
         &mut self,
-        contract_id: ContractId,
+        _contract_id: ContractId,
     ) -> Result<Bindle<Contract>, InternalError> {
         todo!()
     }

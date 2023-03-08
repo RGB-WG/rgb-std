@@ -202,7 +202,7 @@ impl ContractBuilder {
 
         Ok(Contract::new(
             self.schema.clone(),
-            IfacePair::with(self.iface.clone(), self.iimpl.clone()),
+            IfacePair::with(self.iface.clone(), self.iimpl),
             genesis,
         ))
     }
