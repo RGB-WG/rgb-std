@@ -20,10 +20,10 @@
 // limitations under the License.
 
 use amplify::confinement::{self, Confined, SmallOrdMap, TinyOrdMap};
-use rgb::validation::Warning;
+use rgb::validation::{Status, Validity, Warning};
 use rgb::{validation, ContractHistory, ContractId, ContractState, SchemaId, SubSchema};
 
-use crate::containers::{Bindle, Cert, ContentId, ContentSigs, Contract, VerifiedContract};
+use crate::containers::{Bindle, Cert, ContentId, ContentSigs, Contract};
 use crate::interface::{ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, SchemaIfaces};
 use crate::persistence::Inventory;
 use crate::resolvers::HeightResolver;
@@ -42,8 +42,22 @@ pub enum IfaceImplError {
 #[derive(Debug, Display, Error, From)]
 #[display(inner)]
 pub enum Error {
+    /// the consignment was not validated by the local host and thus can't be
+    /// imported.
+    NotValidated,
+
+    /// consignment is invalid and can't be imported.
     #[from]
     Invalid(validation::Status),
+
+    /// consignment has transactions which are not known and thus the contract
+    /// can't be imported. If you are sure that you'd like to take the risc,
+    /// call `import_contract_force`.
+    UnresolvedTransactions,
+
+    /// consignment final transactions are not yet mined. If you are sure that
+    /// you'd like to take the risc, call `import_contract_force`.
+    TerminalsUnmined,
 
     #[from]
     Confinement(confinement::Error),
@@ -190,41 +204,24 @@ impl Inventory for Stock {
 
     fn import_contract<R: HeightResolver>(
         &mut self,
-        contract: VerifiedContract,
+        contract: Contract,
         resolver: &mut R,
-    ) -> Result<validation::Status, Error>
+    ) -> Result<Status, Self::ImportError>
     where
         R::Error: 'static,
     {
-        let mut contract = contract.unbox();
-        let id = contract.contract_id();
+        self._import_contract(contract, resolver, false)
+    }
 
-        let mut status = validation::Status::new();
-        self.import_schema(contract.schema.clone())?;
-        for IfacePair { iface, iimpl } in contract.ifaces.values() {
-            self.import_iface(iface.clone())?;
-            self.import_iface_impl(iimpl.clone())?;
-        }
-        for (content_id, sigs) in contract.signatures {
-            // Do not bother if we can't import all the sigs
-            self.import_sigs_internal(content_id, sigs).ok();
-        }
-        contract.signatures = none!();
-
-        // TODO: Update existing contract state
-        let history = contract
-            .build_history(resolver)
-            .map_err(|err| Error::HeightResolver(Box::new(err)))?;
-        self.history.insert(id, history)?;
-
-        // TODO: Merge contracts
-        if self.contracts.insert(id, contract)?.is_some() {
-            status.add_warning(Warning::Custom(format!(
-                "contract {id::<0} has replaced previously known contract version",
-            )));
-        }
-
-        Ok(status)
+    unsafe fn import_contract_force<R: HeightResolver>(
+        &mut self,
+        contract: Contract,
+        resolver: &mut R,
+    ) -> Result<Status, Self::ImportError>
+    where
+        R::Error: 'static,
+    {
+        self._import_contract(contract, resolver, true)
     }
 
     fn export_contract(
@@ -262,6 +259,70 @@ impl Inventory for Stock {
             state,
             iface: iimpl,
         })
+    }
+}
+
+impl Stock {
+    fn _import_contract<R: HeightResolver>(
+        &mut self,
+        mut contract: Contract,
+        resolver: &mut R,
+        force: bool,
+    ) -> Result<validation::Status, Error>
+    where
+        R::Error: 'static,
+    {
+        let mut status = validation::Status::new();
+        match contract.validation_status() {
+            None => return Err(Error::NotValidated),
+            Some(status) if status.validity() == Validity::Invalid => {
+                return Err(Error::Invalid(status.clone()));
+            }
+            Some(status) if status.validity() == Validity::UnresolvedTransactions && !force => {
+                return Err(Error::UnresolvedTransactions);
+            }
+            Some(status) if status.validity() == Validity::ValidExceptEndpoints && !force => {
+                return Err(Error::TerminalsUnmined);
+            }
+            Some(s) if s.validity() == Validity::UnresolvedTransactions && !force => {
+                status.add_warning(Warning::Custom(s!(
+                    "contract contains unknown transactions and was forcefully imported"
+                )));
+            }
+            Some(s) if s.validity() == Validity::ValidExceptEndpoints && !force => {
+                status.add_warning(Warning::Custom(s!("contract contains not yet mined final \
+                                                       transactions and was forcefully imported")));
+            }
+            _ => {}
+        }
+
+        let id = contract.contract_id();
+
+        self.import_schema(contract.schema.clone())?;
+        for IfacePair { iface, iimpl } in contract.ifaces.values() {
+            self.import_iface(iface.clone())?;
+            self.import_iface_impl(iimpl.clone())?;
+        }
+        for (content_id, sigs) in contract.signatures {
+            // Do not bother if we can't import all the sigs
+            self.import_sigs_internal(content_id, sigs).ok();
+        }
+        contract.signatures = none!();
+
+        // TODO: Update existing contract state
+        let history = contract
+            .build_history(resolver)
+            .map_err(|err| Error::HeightResolver(Box::new(err)))?;
+        self.history.insert(id, history)?;
+
+        // TODO: Merge contracts
+        if self.contracts.insert(id, contract)?.is_some() {
+            status.add_warning(Warning::Custom(format!(
+                "contract {id::<0} has replaced previously known contract version",
+            )));
+        }
+
+        Ok(status)
     }
 }
 

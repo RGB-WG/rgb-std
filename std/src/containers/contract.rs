@@ -27,6 +27,7 @@ use crate::interface::IfacePair;
 impl Contract {
     pub fn new(schema: SubSchema, iface: IfacePair, genesis: Genesis) -> Self {
         Contract {
+            validation_status: None,
             version: ContainerVer::V1,
             transfer: false,
             schema,

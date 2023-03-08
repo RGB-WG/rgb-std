@@ -20,7 +20,6 @@
 // limitations under the License.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::ops::{Deref, DerefMut};
 use std::{iter, slice};
 
 use amplify::confinement::{LargeVec, MediumBlob, SmallOrdMap, SmallOrdSet, TinyOrdMap};
@@ -37,29 +36,6 @@ use crate::interface::{IfaceId, IfacePair};
 use crate::resolvers::HeightResolver;
 use crate::LIB_NAME_RGB_STD;
 
-pub type VerifiedTransfer = VerifiedConsignment<true>;
-pub type VerifiedContract = VerifiedConsignment<false>;
-
-/// Wrapper around consignments providing type safety.
-///
-/// The type is an in-memory only, such that consignments read from a disk or a
-/// network are always treated as non-verified.
-// TODO: Instead of a dedicated type use a verification status field in Consignment which will not
-//       be serialized/deserialized. Requires support for skipped fields in strict encoding derives.
-#[derive(Clone, PartialEq, Eq, Debug, From)]
-pub struct VerifiedConsignment<const TYPE: bool>(Consignment<TYPE>);
-
-impl<const TYPE: bool> VerifiedConsignment<TYPE> {
-    pub fn unbox(self) -> Consignment<TYPE> { self.0 }
-}
-impl<const TYPE: bool> Deref for VerifiedConsignment<TYPE> {
-    type Target = Consignment<TYPE>;
-    fn deref(&self) -> &Self::Target { &self.0 }
-}
-impl<const TYPE: bool> DerefMut for VerifiedConsignment<TYPE> {
-    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
-}
-
 pub type Transfer = Consignment<true>;
 pub type Contract = Consignment<false>;
 
@@ -73,8 +49,8 @@ pub type Contract = Consignment<false>;
 /// with `endpoints` and process up to the genesis. If any of the nodes within
 /// the consignments are not part of the paths connecting endpoints with the
 /// genesis, consignments validation will return
-/// [`crate::validation::Warning::ExcessiveNode`] warning.
-#[derive(Clone, PartialEq, Eq, Debug)]
+/// [`validation::Warning::ExcessiveNode`] warning.
+#[derive(Clone, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(
@@ -83,6 +59,15 @@ pub type Contract = Consignment<false>;
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct Consignment<const TYPE: bool> {
+    /// Status of the latest validation.
+    ///
+    /// The value is not saved and when the structure is read from a disk or
+    /// network is left uninitialized. Thus, only locally-run verification by
+    /// this library is trusted.
+    #[strict_type(skip, dumb = None)]
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub(super) validation_status: Option<validation::Status>,
+
     /// Version.
     pub version: ContainerVer,
 
@@ -134,15 +119,22 @@ impl<const TYPE: bool> Consignment<TYPE> {
     #[inline]
     pub fn contract_id(&self) -> ContractId { self.genesis.contract_id() }
 
-    pub fn verify<R: ResolveTx>(
-        self,
+    pub fn validate<R: ResolveTx>(
+        mut self,
         resolver: &mut R,
-    ) -> Result<VerifiedConsignment<TYPE>, validation::Status> {
+    ) -> Result<Consignment<TYPE>, Consignment<TYPE>> {
         let status = Validator::validate(&self, resolver);
-        if status.validity() != Validity::Valid {
-            return Err(status);
+        let validity = status.validity();
+        self.validation_status = Some(status);
+        if validity != Validity::Valid {
+            Err(self)
+        } else {
+            Ok(self)
         }
-        Ok(VerifiedConsignment(self))
+    }
+
+    pub fn validation_status(&self) -> Option<&validation::Status> {
+        self.validation_status.as_ref()
     }
 
     pub fn build_history<R: HeightResolver>(

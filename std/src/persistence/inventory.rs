@@ -21,7 +21,7 @@
 
 use rgb::{validation, ContractId, SubSchema};
 
-use crate::containers::{Bindle, Cert, ContentId, Contract, VerifiedContract};
+use crate::containers::{Bindle, Cert, ContentId, Contract};
 use crate::interface::{ContractIface, Iface, IfaceId, IfaceImpl};
 use crate::resolvers::HeightResolver;
 
@@ -52,7 +52,15 @@ pub trait Inventory {
 
     fn import_contract<R: HeightResolver>(
         &mut self,
-        iimpl: VerifiedContract,
+        contract: Contract,
+        resolver: &mut R,
+    ) -> Result<validation::Status, Self::ImportError>
+    where
+        R::Error: 'static;
+
+    unsafe fn import_contract_force<R: HeightResolver>(
+        &mut self,
+        contract: Contract,
         resolver: &mut R,
     ) -> Result<validation::Status, Self::ImportError>
     where
