@@ -27,7 +27,7 @@ use rgb::{validation, ContractHistory, ContractId, ContractState, SchemaId, SubS
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 
 use crate::containers::{Bindle, Cert, ContentId, ContentSigs, Contract};
-use crate::interface::{ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, SchemaIfaces};
+use crate::interface::{rgb20, ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, SchemaIfaces};
 use crate::persistence::Inventory;
 use crate::resolvers::ResolveHeight;
 use crate::LIB_NAME_RGB_STD;
@@ -74,7 +74,7 @@ pub enum Error {
 
 /// Stock is an in-memory inventory (stash, index, contract state) usefult for
 /// WASM implementations.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 pub struct Stock {
@@ -91,6 +91,22 @@ pub struct Stock {
 
 impl StrictSerialize for Stock {}
 impl StrictDeserialize for Stock {}
+
+impl Default for Stock {
+    fn default() -> Self {
+        let rgb20 = rgb20();
+        let rgb20_id = rgb20.iface_id();
+        Stock {
+            schemata: Default::default(),
+            ifaces: tiny_bmap! {
+                rgb20_id => rgb20,
+            },
+            contracts: Default::default(),
+            sigs: Default::default(),
+            history: Default::default(),
+        }
+    }
+}
 
 impl Stock {
     pub fn schemata(&self) -> btree_map::Iter<SchemaId, SchemaIfaces> { self.schemata.iter() }
