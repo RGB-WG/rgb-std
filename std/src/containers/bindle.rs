@@ -223,13 +223,15 @@ mod _fs {
             }
             let mut reader = StrictReader::with(usize::MAX, file);
             Ok(match magic {
-                x if x == Iface::MAGIC => Iface::strict_decode(&mut reader)?.bindle().into(),
-                x if x == SubSchema::MAGIC => Schema::strict_decode(&mut reader)?.bindle().into(),
-                x if x == IfaceImpl::MAGIC => {
-                    IfaceImpl::strict_decode(&mut reader)?.bindle().into()
+                x if x == Iface::MAGIC => Bindle::<Iface>::strict_decode(&mut reader)?.into(),
+                x if x == SubSchema::MAGIC => {
+                    Bindle::<SubSchema>::strict_decode(&mut reader)?.into()
                 }
-                x if x == Contract::MAGIC => Contract::strict_decode(&mut reader)?.bindle().into(),
-                x if x == Transfer::MAGIC => Transfer::strict_decode(&mut reader)?.bindle().into(),
+                x if x == IfaceImpl::MAGIC => {
+                    Bindle::<IfaceImpl>::strict_decode(&mut reader)?.into()
+                }
+                x if x == Contract::MAGIC => Bindle::<Contract>::strict_decode(&mut reader)?.into(),
+                x if x == Transfer::MAGIC => Bindle::<Transfer>::strict_decode(&mut reader)?.into(),
                 _ => return Err(LoadError::InvalidMagic),
             })
         }
