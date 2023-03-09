@@ -84,4 +84,6 @@ pub mod containers;
 pub mod persistence;
 pub mod resolvers;
 
+pub use bp::{Chain, Outpoint, Txid};
+
 pub const LIB_NAME_RGB_STD: &str = "RGBStd";
