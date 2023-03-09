@@ -115,11 +115,12 @@ impl Stock {
     pub fn sigs(&self) -> btree_map::Iter<ContentId, ContentSigs> { self.sigs.iter() }
 
     pub fn schema(&self, id: SchemaId) -> Option<&SchemaIfaces> { self.schemata.get(&id) }
-    pub fn iface(&self, name: &str) -> Option<&Iface> {
+    pub fn iface_by_name(&self, name: &str) -> Option<&Iface> {
         self.ifaces
             .values()
             .find(|iface| iface.name.as_str() == name)
     }
+    pub fn iface_by_id(&self, id: IfaceId) -> Option<&Iface> { self.ifaces.get(&id) }
     pub fn contract(&self, id: ContractId) -> Option<&Contract> { self.contracts.get(&id) }
 
     fn import_sigs_internal<I>(
