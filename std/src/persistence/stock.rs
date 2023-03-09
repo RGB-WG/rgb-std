@@ -19,6 +19,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::btree_map;
+
 use amplify::confinement::{self, Confined, SmallOrdMap, TinyOrdMap};
 use rgb::validation::{Validity, Warning};
 use rgb::{validation, ContractHistory, ContractId, ContractState, SchemaId, SubSchema};
@@ -91,6 +93,11 @@ impl StrictSerialize for Stock {}
 impl StrictDeserialize for Stock {}
 
 impl Stock {
+    pub fn schemata(&self) -> btree_map::Iter<SchemaId, SchemaIfaces> { self.schemata.iter() }
+    pub fn ifaces(&self) -> btree_map::Iter<IfaceId, Iface> { self.ifaces.iter() }
+    pub fn contracts(&self) -> btree_map::Iter<ContractId, Contract> { self.contracts.iter() }
+    pub fn sigs(&self) -> btree_map::Iter<ContentId, ContentSigs> { self.sigs.iter() }
+
     fn import_sigs_internal<I>(
         &mut self,
         content_id: ContentId,
