@@ -39,3 +39,4 @@ mod inventory;
 
 pub use inventory::Inventory;
 pub use stash::Stash;
+pub use stock::Stock;
