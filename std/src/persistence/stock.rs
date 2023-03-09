@@ -22,6 +22,7 @@
 use amplify::confinement::{self, Confined, SmallOrdMap, TinyOrdMap};
 use rgb::validation::{Validity, Warning};
 use rgb::{validation, ContractHistory, ContractId, ContractState, SchemaId, SubSchema};
+use strict_encoding::{StrictDeserialize, StrictSerialize};
 
 use crate::containers::{Bindle, Cert, ContentId, ContentSigs, Contract};
 use crate::interface::{ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, SchemaIfaces};
@@ -85,6 +86,9 @@ pub struct Stock {
     history: TinyOrdMap<ContractId, ContractHistory>,
     // index
 }
+
+impl StrictSerialize for Stock {}
+impl StrictDeserialize for Stock {}
 
 impl Stock {
     fn import_sigs_internal<I>(
