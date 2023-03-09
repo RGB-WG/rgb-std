@@ -25,6 +25,8 @@
 
 use std::fmt::Display;
 
+#[cfg(feature = "fs")]
+pub use _fs::*;
 use amplify::confinement::TinyVec;
 use baid58::ToBaid58;
 use rgb::{ContractId, Schema, SchemaId, SchemaRoot};
@@ -149,6 +151,7 @@ mod _fs {
     use std::path::Path;
     use std::{fs, io};
 
+    use rgb::SubSchema;
     use strict_encoding::{DecodeError, StrictEncode, StrictReader, StrictWriter};
 
     use super::*;
@@ -163,6 +166,24 @@ mod _fs {
         #[from]
         #[from(io::Error)]
         Decode(DecodeError),
+    }
+
+    #[derive(Debug, From)]
+    pub enum UniversalBindle {
+        #[from]
+        Iface(Bindle<Iface>),
+
+        #[from]
+        Schema(Bindle<SubSchema>),
+
+        #[from]
+        Impl(Bindle<IfaceImpl>),
+
+        #[from]
+        Contract(Bindle<Contract>),
+
+        #[from]
+        Transfer(Bindle<Transfer>),
     }
 
     impl<C: BindleContent> Bindle<C> {
@@ -187,6 +208,30 @@ mod _fs {
             let writer = StrictWriter::with(usize::MAX, file);
             self.strict_encode(writer)?;
             Ok(())
+        }
+    }
+
+    impl UniversalBindle {
+        pub fn load(&self, path: impl AsRef<Path>) -> Result<Self, LoadError> {
+            let mut rgb = [0u8; 3];
+            let mut magic = [0u8; 4];
+            let mut file = fs::File::open(path)?;
+            file.read_exact(&mut rgb)?;
+            file.read_exact(&mut magic)?;
+            if rgb != *b"RGB" {
+                return Err(LoadError::InvalidMagic);
+            }
+            let mut reader = StrictReader::with(usize::MAX, file);
+            Ok(match magic {
+                x if x == Iface::MAGIC => Iface::strict_decode(&mut reader)?.bindle().into(),
+                x if x == SubSchema::MAGIC => Schema::strict_decode(&mut reader)?.bindle().into(),
+                x if x == IfaceImpl::MAGIC => {
+                    IfaceImpl::strict_decode(&mut reader)?.bindle().into()
+                }
+                x if x == Contract::MAGIC => Contract::strict_decode(&mut reader)?.bindle().into(),
+                x if x == Transfer::MAGIC => Transfer::strict_decode(&mut reader)?.bindle().into(),
+                _ => return Err(LoadError::InvalidMagic),
+            })
         }
     }
 }

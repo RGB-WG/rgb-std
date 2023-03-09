@@ -40,6 +40,8 @@ mod validate;
 mod certs;
 
 pub use bindle::{Bindle, BindleContent};
+#[cfg(feature = "fs")]
+pub use bindle::{LoadError, UniversalBindle};
 pub use builder::{ContractBuilder, ForgeError, IssueError};
 pub use certs::{Cert, ContentId, ContentSigs, Identity};
 pub use consignment::{Consignment, Contract, Transfer};
