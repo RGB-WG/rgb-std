@@ -187,7 +187,7 @@ mod _fs {
     }
 
     impl<C: BindleContent> Bindle<C> {
-        pub fn load(&self, path: impl AsRef<Path>) -> Result<Self, LoadError> {
+        pub fn load(path: impl AsRef<Path>) -> Result<Self, LoadError> {
             let mut rgb = [0u8; 3];
             let mut magic = [0u8; 4];
             let mut file = fs::File::open(path)?;
@@ -212,7 +212,7 @@ mod _fs {
     }
 
     impl UniversalBindle {
-        pub fn load(&self, path: impl AsRef<Path>) -> Result<Self, LoadError> {
+        pub fn load(path: impl AsRef<Path>) -> Result<Self, LoadError> {
             let mut rgb = [0u8; 3];
             let mut magic = [0u8; 4];
             let mut file = fs::File::open(path)?;
