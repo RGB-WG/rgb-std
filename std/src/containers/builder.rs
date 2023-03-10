@@ -30,7 +30,7 @@ use rgb::{
     StateSchema, SubSchema, TypedAssigns,
 };
 use strict_encoding::{SerializeError, StrictSerialize, TypeName};
-use strict_types::reify;
+use strict_types::decode;
 
 use crate::containers::Contract;
 use crate::interface::{Iface, IfaceImpl, IfacePair};
@@ -62,7 +62,7 @@ pub enum BuilderError {
 
     #[from]
     #[display(inner)]
-    Reify(reify::Error),
+    Reify(decode::Error),
 
     #[from]
     #[display(inner)]
@@ -135,7 +135,9 @@ impl ContractBuilder {
             .get(&id)
             .expect("schema should match interface: must be checked by the constructor")
             .sem_id;
-        self.schema.type_system.reify(ty_id, &serialized)?;
+        self.schema
+            .type_system
+            .strict_deserialize_type(ty_id, &serialized)?;
 
         self.global.add_state(id, serialized.into())?;
 

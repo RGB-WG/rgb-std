@@ -24,7 +24,7 @@ use bp::Outpoint;
 use rgb::{attachment, AssignmentsType, ContractState};
 use strict_encoding::TypeName;
 use strict_types::typify::TypedVal;
-use strict_types::{reify, StrictVal};
+use strict_types::{decode, StrictVal};
 
 use crate::interface::IfaceImpl;
 use crate::LIB_NAME_RGB_STD;
@@ -37,7 +37,7 @@ pub enum ContractError {
 
     #[from]
     #[display(inner)]
-    Reify(reify::Error),
+    Reify(decode::Error),
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -92,7 +92,7 @@ impl ContractIface {
             .into_iter()
             .map(|revealed| {
                 type_system
-                    .reify(type_schema.sem_id, revealed.as_ref())
+                    .strict_deserialize_type(type_schema.sem_id, revealed.as_ref())
                     .map(TypedVal::unbox)
             })
             .take(type_schema.max_items as usize)
