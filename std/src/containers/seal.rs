@@ -19,7 +19,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![doc = include_str!("../../../doc/seals.md")]
+#![doc = include_str!("seals.md")]
 
 use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
