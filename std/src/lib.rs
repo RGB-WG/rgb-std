@@ -83,6 +83,7 @@ pub mod interface;
 pub mod containers;
 pub mod persistence;
 pub mod resolvers;
+pub mod accessors;
 
 pub use bp::{Chain, Outpoint, Txid};
 

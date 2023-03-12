@@ -19,25 +19,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use rgb::{Genesis, SubSchema};
+mod assignments;
+mod bundle;
 
-use crate::containers::{ContainerVer, Contract};
-use crate::interface::IfacePair;
-
-impl Contract {
-    pub fn new(schema: SubSchema, iface: IfacePair, genesis: Genesis) -> Self {
-        Contract {
-            validation_status: None,
-            version: ContainerVer::V1,
-            transfer: false,
-            schema,
-            ifaces: tiny_bmap! { iface.iface_id() => iface },
-            genesis,
-            terminals: none!(),
-            bundles: none!(),
-            extensions: none!(),
-            attachments: none!(),
-            signatures: none!(),
-        }
-    }
-}
+pub use assignments::TypedAssignsExt;
+pub use bundle::{BundleExt, RevealError};
