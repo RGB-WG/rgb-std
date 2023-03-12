@@ -19,71 +19,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::btree_map;
+use std::convert::Infallible;
+use std::ops::{Deref, DerefMut};
 
-use amplify::confinement::{self, Confined, SmallOrdMap, TinyOrdMap};
+use amplify::confinement::{self, Confined, TinyOrdMap};
 use rgb::validation::{Validity, Warning};
-use rgb::{validation, ContractHistory, ContractId, ContractState, SchemaId, SubSchema};
+use rgb::{validation, ContractHistory, ContractId, ContractState, SubSchema};
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 
 use crate::containers::{Bindle, Cert, ContentId, ContentSigs, Contract};
-use crate::interface::{rgb20, ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, SchemaIfaces};
-use crate::persistence::Inventory;
+use crate::interface::{ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, SchemaIfaces};
+use crate::persistence::inventory::{DataError, IfaceImplError, InventoryInconsistency};
+use crate::persistence::{
+    Hoard, Inventory, InventoryDataError, InventoryError, StashInconsistency,
+};
 use crate::resolvers::ResolveHeight;
 use crate::LIB_NAME_RGB_STD;
 
-#[derive(Clone, Debug, Display, Error, From)]
-#[display(doc_comments)]
-pub enum IfaceImplError {
-    /// interface implementation references unknown schema {0::<0}
-    UnknownSchema(SchemaId),
-
-    /// interface implementation references unknown interface {0::<0}
-    UnknownIface(IfaceId),
-}
-
-#[derive(Debug, Display, Error, From)]
-#[display(inner)]
-pub enum Error {
-    /// the consignment was not validated by the local host and thus can't be
-    /// imported.
-    NotValidated,
-
-    /// consignment is invalid and can't be imported.
-    #[from]
-    Invalid(validation::Status),
-
-    /// consignment has transactions which are not known and thus the contract
-    /// can't be imported. If you are sure that you'd like to take the risc,
-    /// call `import_contract_force`.
-    UnresolvedTransactions,
-
-    /// consignment final transactions are not yet mined. If you are sure that
-    /// you'd like to take the risc, call `import_contract_force`.
-    TerminalsUnmined,
-
-    #[from]
-    Confinement(confinement::Error),
-
-    #[from]
-    IfaceImpl(IfaceImplError),
-
-    #[from]
-    HeightResolver(Box<dyn std::error::Error>),
-}
-
-/// Stock is an in-memory inventory (stash, index, contract state) usefult for
+/// Stock is an in-memory inventory (stash, index, contract state) useful for
 /// WASM implementations.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 pub struct Stock {
     // stash
-    schemata: TinyOrdMap<SchemaId, SchemaIfaces>,
-    ifaces: TinyOrdMap<IfaceId, Iface>,
-    contracts: TinyOrdMap<ContractId, Contract>,
-    sigs: SmallOrdMap<ContentId, ContentSigs>,
-
+    hoard: Hoard,
     // state
     history: TinyOrdMap<ContractId, ContractHistory>,
     // index
@@ -92,37 +52,17 @@ pub struct Stock {
 impl StrictSerialize for Stock {}
 impl StrictDeserialize for Stock {}
 
-impl Default for Stock {
-    fn default() -> Self {
-        let rgb20 = rgb20();
-        let rgb20_id = rgb20.iface_id();
-        Stock {
-            schemata: Default::default(),
-            ifaces: tiny_bmap! {
-                rgb20_id => rgb20,
-            },
-            contracts: Default::default(),
-            sigs: Default::default(),
-            history: Default::default(),
-        }
-    }
+impl Deref for Stock {
+    type Target = Hoard;
+
+    fn deref(&self) -> &Self::Target { &self.hoard }
+}
+
+impl DerefMut for Stock {
+    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.hoard }
 }
 
 impl Stock {
-    pub fn schemata(&self) -> btree_map::Iter<SchemaId, SchemaIfaces> { self.schemata.iter() }
-    pub fn ifaces(&self) -> btree_map::Iter<IfaceId, Iface> { self.ifaces.iter() }
-    pub fn contracts(&self) -> btree_map::Iter<ContractId, Contract> { self.contracts.iter() }
-    pub fn sigs(&self) -> btree_map::Iter<ContentId, ContentSigs> { self.sigs.iter() }
-
-    pub fn schema(&self, id: SchemaId) -> Option<&SchemaIfaces> { self.schemata.get(&id) }
-    pub fn iface_by_name(&self, name: &str) -> Option<&Iface> {
-        self.ifaces
-            .values()
-            .find(|iface| iface.name.as_str() == name)
-    }
-    pub fn iface_by_id(&self, id: IfaceId) -> Option<&Iface> { self.ifaces.get(&id) }
-    pub fn contract(&self, id: ContractId) -> Option<&Contract> { self.contracts.get(&id) }
-
     fn import_sigs_internal<I>(
         &mut self,
         content_id: ContentId,
@@ -143,26 +83,94 @@ impl Stock {
         }
         Ok(())
     }
+
+    fn _import_contract<R: ResolveHeight>(
+        &mut self,
+        mut contract: Contract,
+        resolver: &mut R,
+        force: bool,
+    ) -> Result<validation::Status, InventoryDataError<Infallible>>
+    where
+        R::Error: 'static,
+    {
+        let mut status = validation::Status::new();
+        match contract.validation_status() {
+            None => return Err(DataError::NotValidated.into()),
+            Some(status) if status.validity() == Validity::Invalid => {
+                return Err(DataError::Invalid(status.clone()).into());
+            }
+            Some(status) if status.validity() == Validity::UnresolvedTransactions && !force => {
+                return Err(DataError::UnresolvedTransactions.into());
+            }
+            Some(status) if status.validity() == Validity::ValidExceptEndpoints && !force => {
+                return Err(DataError::TerminalsUnmined.into());
+            }
+            Some(s) if s.validity() == Validity::UnresolvedTransactions && !force => {
+                status.add_warning(Warning::Custom(s!(
+                    "contract contains unknown transactions and was forcefully imported"
+                )));
+            }
+            Some(s) if s.validity() == Validity::ValidExceptEndpoints && !force => {
+                status.add_warning(Warning::Custom(s!("contract contains not yet mined final \
+                                                       transactions and was forcefully imported")));
+            }
+            _ => {}
+        }
+
+        let id = contract.contract_id();
+
+        self.import_schema(contract.schema.clone())?;
+        for IfacePair { iface, iimpl } in contract.ifaces.values() {
+            self.import_iface(iface.clone())?;
+            self.import_iface_impl(iimpl.clone())?;
+        }
+        for (content_id, sigs) in contract.signatures {
+            // Do not bother if we can't import all the sigs
+            self.import_sigs_internal(content_id, sigs).ok();
+        }
+        contract.signatures = none!();
+
+        // TODO: Update existing contract state
+        let history = contract
+            .build_history(resolver)
+            .map_err(|err| DataError::HeightResolver(Box::new(err)))?;
+        self.history.insert(id, history)?;
+
+        // TODO: Merge contracts
+        if self.contracts.insert(id, contract)?.is_some() {
+            status.add_warning(Warning::Custom(format!(
+                "contract {id::<0} has replaced previously known contract version",
+            )));
+        }
+
+        Ok(status)
+    }
 }
 
 impl Inventory for Stock {
-    type ImportError = Error;
-    type ConsignError = Error;
-    type InternalError = InternalError;
+    type Stash = Hoard;
+    // In-memory representation doesn't have connectivity errors
+    type Error = Infallible;
 
-    fn import_sigs<I>(&mut self, content_id: ContentId, sigs: I) -> Result<(), Self::ImportError>
+    fn stash(&self) -> &Self::Stash { self }
+
+    fn import_sigs<I>(
+        &mut self,
+        content_id: ContentId,
+        sigs: I,
+    ) -> Result<(), InventoryDataError<Self::Error>>
     where
         I: IntoIterator<Item = Cert>,
         I::IntoIter: ExactSizeIterator<Item = Cert>,
     {
-        self.import_sigs_internal(content_id, sigs)
-            .map_err(Error::from)
+        self.import_sigs_internal(content_id, sigs)?;
+        Ok(())
     }
 
     fn import_schema(
         &mut self,
         schema: impl Into<Bindle<SubSchema>>,
-    ) -> Result<validation::Status, Error> {
+    ) -> Result<validation::Status, InventoryDataError<Self::Error>> {
         let bindle = schema.into();
         let (schema, sigs) = bindle.into_split();
         let id = schema.schema_id();
@@ -188,7 +196,7 @@ impl Inventory for Stock {
     fn import_iface(
         &mut self,
         iface: impl Into<Bindle<Iface>>,
-    ) -> Result<validation::Status, Error> {
+    ) -> Result<validation::Status, InventoryDataError<Self::Error>> {
         let bindle = iface.into();
         let (iface, sigs) = bindle.into_split();
         let id = iface.iface_id();
@@ -210,7 +218,7 @@ impl Inventory for Stock {
     fn import_iface_impl(
         &mut self,
         iimpl: impl Into<Bindle<IfaceImpl>>,
-    ) -> Result<validation::Status, Error> {
+    ) -> Result<validation::Status, InventoryDataError<Self::Error>> {
         let bindle = iimpl.into();
         let (iimpl, sigs) = bindle.into_split();
         let iface_id = iimpl.iface_id;
@@ -242,28 +250,30 @@ impl Inventory for Stock {
         &mut self,
         contract: Contract,
         resolver: &mut R,
-    ) -> Result<validation::Status, Self::ImportError>
+    ) -> Result<validation::Status, InventoryDataError<Self::Error>>
     where
         R::Error: 'static,
     {
         self._import_contract(contract, resolver, false)
+            .map_err(InventoryDataError::from)
     }
 
     unsafe fn import_contract_force<R: ResolveHeight>(
         &mut self,
         contract: Contract,
         resolver: &mut R,
-    ) -> Result<validation::Status, Self::ImportError>
+    ) -> Result<validation::Status, InventoryDataError<Self::Error>>
     where
         R::Error: 'static,
     {
         self._import_contract(contract, resolver, true)
+            .map_err(InventoryDataError::from)
     }
 
     fn export_contract(
         &mut self,
         _contract_id: ContractId,
-    ) -> Result<Bindle<Contract>, InternalError> {
+    ) -> Result<Bindle<Contract>, InventoryError<Self::Error>> {
         todo!()
     }
 
@@ -271,17 +281,17 @@ impl Inventory for Stock {
         &mut self,
         contract_id: ContractId,
         iface_id: IfaceId,
-    ) -> Result<ContractIface, InternalError> {
+    ) -> Result<ContractIface, InventoryError<Self::Error>> {
         let history = self
             .history
             .get(&contract_id)
-            .ok_or(InternalError::NoContract(contract_id))?
+            .ok_or(InventoryInconsistency::StateAbsent(contract_id))?
             .clone();
         let schema_id = history.schema_id();
         let schema_ifaces = self
             .schemata
             .get(&schema_id)
-            .ok_or(InternalError::NoSchema(schema_id))?;
+            .ok_or(StashInconsistency::SchemaAbsent(schema_id))?;
         let state = ContractState {
             schema: schema_ifaces.schema.clone(),
             history,
@@ -289,91 +299,11 @@ impl Inventory for Stock {
         let iimpl = schema_ifaces
             .iimpls
             .get(&iface_id)
-            .ok_or(InternalError::NoIfaceImpl(iface_id, schema_id))?
+            .ok_or(StashInconsistency::IfaceImplAbsent(iface_id, schema_id))?
             .clone();
         Ok(ContractIface {
             state,
             iface: iimpl,
         })
     }
-}
-
-impl Stock {
-    fn _import_contract<R: ResolveHeight>(
-        &mut self,
-        mut contract: Contract,
-        resolver: &mut R,
-        force: bool,
-    ) -> Result<validation::Status, Error>
-    where
-        R::Error: 'static,
-    {
-        let mut status = validation::Status::new();
-        match contract.validation_status() {
-            None => return Err(Error::NotValidated),
-            Some(status) if status.validity() == Validity::Invalid => {
-                return Err(Error::Invalid(status.clone()));
-            }
-            Some(status) if status.validity() == Validity::UnresolvedTransactions && !force => {
-                return Err(Error::UnresolvedTransactions);
-            }
-            Some(status) if status.validity() == Validity::ValidExceptEndpoints && !force => {
-                return Err(Error::TerminalsUnmined);
-            }
-            Some(s) if s.validity() == Validity::UnresolvedTransactions && !force => {
-                status.add_warning(Warning::Custom(s!(
-                    "contract contains unknown transactions and was forcefully imported"
-                )));
-            }
-            Some(s) if s.validity() == Validity::ValidExceptEndpoints && !force => {
-                status.add_warning(Warning::Custom(s!("contract contains not yet mined final \
-                                                       transactions and was forcefully imported")));
-            }
-            _ => {}
-        }
-
-        let id = contract.contract_id();
-
-        self.import_schema(contract.schema.clone())?;
-        for IfacePair { iface, iimpl } in contract.ifaces.values() {
-            self.import_iface(iface.clone())?;
-            self.import_iface_impl(iimpl.clone())?;
-        }
-        for (content_id, sigs) in contract.signatures {
-            // Do not bother if we can't import all the sigs
-            self.import_sigs_internal(content_id, sigs).ok();
-        }
-        contract.signatures = none!();
-
-        // TODO: Update existing contract state
-        let history = contract
-            .build_history(resolver)
-            .map_err(|err| Error::HeightResolver(Box::new(err)))?;
-        self.history.insert(id, history)?;
-
-        // TODO: Merge contracts
-        if self.contracts.insert(id, contract)?.is_some() {
-            status.add_warning(Warning::Custom(format!(
-                "contract {id::<0} has replaced previously known contract version",
-            )));
-        }
-
-        Ok(status)
-    }
-}
-
-/// Errors caused by internal inconsistency of the Stock object data. This is
-/// possible due to the modification of the stored data from outside of this
-/// library.
-#[derive(Clone, Debug, Display, Error, From)]
-#[display(doc_comments)]
-pub enum InternalError {
-    /// contract is absent - {0::<0}.
-    NoContract(ContractId),
-
-    /// schema is absent - {0::<0}.
-    NoSchema(SchemaId),
-
-    /// interface {0::<0} is not implemented for the schema {1::<0}.
-    NoIfaceImpl(IfaceId, SchemaId),
 }

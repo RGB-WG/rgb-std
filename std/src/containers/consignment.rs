@@ -108,6 +108,26 @@ impl<const TYPE: bool> StrictSerialize for Consignment<TYPE> {}
 impl<const TYPE: bool> StrictDeserialize for Consignment<TYPE> {}
 
 impl<const TYPE: bool> Consignment<TYPE> {
+    /// # Panics
+    ///
+    /// If the provided schema is not the one which is used by genesis.
+    pub fn new(schema: SubSchema, genesis: Genesis) -> Self {
+        assert_eq!(schema.schema_id(), genesis.schema_id);
+        Consignment {
+            validation_status: None,
+            version: ContainerVer::V1,
+            transfer: TYPE,
+            schema,
+            ifaces: none!(),
+            genesis,
+            terminals: none!(),
+            bundles: none!(),
+            extensions: none!(),
+            attachments: none!(),
+            signatures: none!(),
+        }
+    }
+
     #[inline]
     pub fn schema_id(&self) -> SchemaId { self.schema.schema_id() }
 

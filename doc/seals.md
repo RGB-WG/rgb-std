@@ -21,7 +21,7 @@ closing previous seal in RGB state evolution graph.
 | [`SecretSeal`]   | BP Core | Unknown   | Implicit     | Yes         | `txob:<baid58>#<checksum>`              | Ext. payments |
 | [`ExplicitSeal`] | BP Core | Optional  | Yes          | No          | `<method>:<<txid>/~>:<vout>`            | Internal      |
 | [`VoutSeal`]     | RGB Std | Absent    | Yes          | No          | `<method>:~:<vout>#<blinding>`          | SealEndpoint  |
-| [`EndpointSeal`] | RGB Std | Optional  | Varies       | Can be      | `<ConcealedSeal>/<VoutSeal>`            | Consignments  |
+| [`TerminalSeal`] | RGB Std | Optional  | Varies       | Can be      | `<ConcealedSeal>/<VoutSeal>`            | Consignments  |
 
 [`Outpoint`]: bp::Outpoint
 [`BlindSeal`]: bp::seals::txout::blind::BlindSeal

@@ -34,9 +34,11 @@
 //! 2-4 data can be re-computed from the stash in case of loss or corruption.
 
 mod stash;
-pub mod stock;
 mod inventory;
+pub mod stock;
+pub mod hoard;
 
-pub use inventory::Inventory;
-pub use stash::Stash;
+pub use hoard::Hoard;
+pub use inventory::{Inventory, InventoryDataError, InventoryError, InventoryInconsistency};
+pub use stash::{Stash, StashError, StashInconsistency};
 pub use stock::Stock;

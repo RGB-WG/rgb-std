@@ -21,7 +21,7 @@
 
 use rgb::BundleId;
 
-use super::EndpointSeal;
+use super::TerminalSeal;
 use crate::LIB_NAME_RGB_STD;
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
@@ -34,7 +34,11 @@ use crate::LIB_NAME_RGB_STD;
 )]
 pub struct Terminal {
     pub bundle_id: BundleId,
-    pub seal: EndpointSeal,
+    pub seal: TerminalSeal,
+}
+
+impl Terminal {
+    pub fn with(bundle_id: BundleId, seal: TerminalSeal) -> Self { Terminal { bundle_id, seal } }
 }
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default)]

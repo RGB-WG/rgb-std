@@ -31,9 +31,7 @@
 mod consignment;
 mod disclosure;
 mod bindle;
-mod contract;
 mod transfer;
-mod builder;
 mod seal;
 mod util;
 mod validate;
@@ -42,9 +40,8 @@ mod certs;
 pub use bindle::{Bindle, BindleContent};
 #[cfg(feature = "fs")]
 pub use bindle::{LoadError, UniversalBindle};
-pub use builder::{ContractBuilder, ForgeError, IssueError};
 pub use certs::{Cert, ContentId, ContentSigs, Identity};
 pub use consignment::{Consignment, Contract, Transfer};
 pub use disclosure::Disclosure;
-pub use seal::{EndpointSeal, VoutSeal};
+pub use seal::{TerminalSeal, VoutSeal};
 pub use util::{ContainerVer, Terminal};
