@@ -82,6 +82,7 @@ pub mod stl;
 pub mod interface;
 pub mod containers;
 pub mod persistence;
+pub mod builders;
 pub mod resolvers;
 pub mod accessors;
 

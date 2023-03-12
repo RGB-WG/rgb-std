@@ -202,10 +202,10 @@ impl ContractBuilder {
 
         // TODO: Validate against schema
 
-        Ok(Contract::new(
-            self.schema.clone(),
-            IfacePair::with(self.iface.clone(), self.iimpl),
-            genesis,
-        ))
+        let mut contract = Contract::new(self.schema.clone(), genesis);
+        let iface_pair = IfacePair::with(self.iface.clone(), self.iimpl);
+        contract.ifaces = tiny_bmap! { iface_pair.iface_id() => iface_pair };
+
+        Ok(contract)
     }
 }
