@@ -90,7 +90,10 @@ impl Stash for Hoard {
     }
 
     fn genesis(&self, contract_id: ContractId) -> Result<&Genesis, StashError<Self::Error>> {
-        todo!()
+        self.contracts
+            .get(&contract_id)
+            .map(|contract| &contract.genesis)
+            .ok_or_else(|| StashInconsistency::ContractAbsent(contract_id).into())
     }
 
     fn transition(&self, id: OpId) -> Result<&Transition, StashError<Self::Error>> { todo!() }

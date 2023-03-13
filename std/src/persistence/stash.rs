@@ -54,7 +54,7 @@ pub enum StashInconsistency {
     IfaceAbsent(IfaceId),
 
     /// contract is unknown. Probably you haven't imported the contract yet.
-    GenesisAbsent(ContractId),
+    ContractAbsent(ContractId),
 
     /// schema {0} is unknown.
     ///

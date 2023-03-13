@@ -23,7 +23,7 @@ use std::collections::BTreeSet;
 use std::convert::Infallible;
 use std::ops::{Deref, DerefMut};
 
-use amplify::confinement::{self, Confined, TinyOrdMap};
+use amplify::confinement::{self, Confined, LargeOrdSet, TinyOrdMap};
 use rgb::validation::{Validity, Warning};
 use rgb::{
     validation, ContractHistory, ContractId, ContractState, OpId, SubSchema, TransitionType,
@@ -41,6 +41,8 @@ use crate::LIB_NAME_RGB_STD;
 
 /// Stock is an in-memory inventory (stash, index, contract state) useful for
 /// WASM implementations.
+///
+/// Can hold data about up to 256 contracts.
 #[derive(Clone, Debug, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
@@ -50,6 +52,7 @@ pub struct Stock {
     // state
     history: TinyOrdMap<ContractId, ContractHistory>,
     // index
+    contract_ts: TinyOrdMap<ContractId, TinyOrdMap<TransitionType, LargeOrdSet<OpId>>>,
 }
 
 impl StrictSerialize for Stock {}
@@ -308,6 +311,12 @@ impl Inventory for Stock {
         contract_id: ContractId,
         transition_type: TransitionType,
     ) -> Result<BTreeSet<OpId>, InventoryError<Self::Error>> {
-        todo!()
+        Ok(self
+            .contract_ts
+            .get(&contract_id)
+            .ok_or(StashInconsistency::ContractAbsent(contract_id))?
+            .get(&transition_type)
+            .map(LargeOrdSet::to_inner)
+            .unwrap_or_default())
     }
 }
