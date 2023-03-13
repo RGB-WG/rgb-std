@@ -19,12 +19,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::BTreeSet;
 use std::convert::Infallible;
 use std::ops::{Deref, DerefMut};
 
 use amplify::confinement::{self, Confined, TinyOrdMap};
 use rgb::validation::{Validity, Warning};
-use rgb::{validation, ContractHistory, ContractId, ContractState, SubSchema};
+use rgb::{
+    validation, ContractHistory, ContractId, ContractState, OpId, SubSchema, TransitionType,
+};
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 
 use crate::containers::{Bindle, Cert, ContentId, ContentSigs, Contract};
@@ -270,13 +273,6 @@ impl Inventory for Stock {
             .map_err(InventoryDataError::from)
     }
 
-    fn export_contract(
-        &mut self,
-        _contract_id: ContractId,
-    ) -> Result<Bindle<Contract>, InventoryError<Self::Error>> {
-        todo!()
-    }
-
     fn contract_iface(
         &mut self,
         contract_id: ContractId,
@@ -305,5 +301,13 @@ impl Inventory for Stock {
             state,
             iface: iimpl,
         })
+    }
+
+    fn contract_transition_ids(
+        &mut self,
+        contract_id: ContractId,
+        transition_type: TransitionType,
+    ) -> Result<BTreeSet<OpId>, InventoryError<Self::Error>> {
+        todo!()
     }
 }

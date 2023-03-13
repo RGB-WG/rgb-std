@@ -179,6 +179,7 @@ pub struct ExtensionIface {
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct TransitionIface {
+    pub always_include: bool,
     pub metadata: Option<SemId>,
     pub globals: TypeReqMap,
     pub inputs: TypeReqMap,

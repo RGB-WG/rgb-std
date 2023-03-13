@@ -160,6 +160,13 @@ impl IfaceImpl {
             .find(|nt| &nt.name == name)
             .map(|nt| nt.id)
     }
+
+    pub fn transition_type(&self, name: &TypeName) -> Option<TransitionType> {
+        self.transitions
+            .iter()
+            .find(|nt| &nt.name == name)
+            .map(|nt| nt.id)
+    }
 }
 
 // TODO: Implement validation of implementation against interface requirements

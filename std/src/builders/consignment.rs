@@ -36,7 +36,7 @@ use crate::Txid;
 
 #[derive(Debug, Display, Error, From)]
 #[display(doc_comments)]
-pub enum BuilderError<E: Error> {
+pub enum ConsignerError<E: Error> {
     /// unable to construct consignment: too many terminals provided.
     TooManyTerminals,
 
@@ -54,7 +54,7 @@ pub enum BuilderError<E: Error> {
     InventoryError(InventoryError<E>),
 }
 
-impl<E1: Error, E2: Error> From<StashError<E1>> for BuilderError<E2>
+impl<E1: Error, E2: Error> From<StashError<E1>> for ConsignerError<E2>
 where InventoryError<E2>: From<StashError<E1>>
 {
     fn from(err: StashError<E1>) -> Self { Self::InventoryError(err.into()) }
@@ -64,6 +64,7 @@ where InventoryError<E2>: From<StashError<E1>>
 pub enum OutpointFilter {
     All,
     Only(BTreeSet<Outpoint>),
+    None,
 }
 
 impl OutpointFilter {
@@ -71,36 +72,76 @@ impl OutpointFilter {
         match self {
             OutpointFilter::All => true,
             OutpointFilter::Only(set) => set.contains(&outpoint),
+            OutpointFilter::None => false,
         }
     }
 }
 
 #[derive(Debug)]
-pub struct ConsignmentBuilder<'inventory, I: Inventory> {
-    inventory: &'inventory mut I,
+pub struct ConsignmentBuilder {
     contract_id: ContractId,
     anchored_bundles: BTreeMap<Txid, AnchoredBundle>,
     terminal: Vec<Terminal>,
     terminal_inputs: Vec<OpId>,
 }
 
-impl<'inventory, I: Inventory> ConsignmentBuilder<'inventory, I> {
-    pub fn new(contract_id: ContractId, inventory: &'inventory mut I) -> Self {
-        ConsignmentBuilder {
-            inventory,
+impl ConsignmentBuilder {
+    pub fn build<const TYPE: bool, I: Inventory + ?Sized>(
+        inventory: &mut I,
+        contract_id: ContractId,
+        outpoint_filter: &OutpointFilter,
+    ) -> Result<Consignment<TYPE>, ConsignerError<I::Error>> {
+        let genesis = inventory.genesis(contract_id)?.clone();
+        let schema_ifaces = inventory.schema(genesis.schema_id)?.clone();
+        let schema = &schema_ifaces.schema;
+        let always_include = inventory.always_include_transitions(genesis.schema_id)?;
+
+        let mut builder = ConsignmentBuilder {
             contract_id,
             anchored_bundles: empty![],
             terminal: vec![],
             terminal_inputs: vec![],
+        };
+
+        let outpoints_all = OutpointFilter::All;
+        for transition_type in schema.transitions.keys() {
+            let op_ids = inventory.contract_transition_ids(contract_id, *transition_type)?;
+            let filter = if always_include.contains(transition_type) {
+                &outpoints_all
+            } else {
+                &outpoint_filter
+            };
+            builder = builder.process(inventory, op_ids, filter)?;
         }
+
+        // Collect all transitions between endpoints and genesis independently from
+        // their type
+        loop {
+            let op_ids = builder.terminal_inputs;
+            builder.terminal_inputs = vec![];
+            builder = builder.process(inventory, op_ids, &OutpointFilter::All)?;
+            if builder.terminal_inputs.is_empty() {
+                break;
+            }
+        }
+
+        let mut consignment =
+            Consignment::<TYPE>::new(schema_ifaces.schema.clone(), genesis.clone());
+        consignment.terminals = Confined::try_from_iter(builder.terminal)
+            .map_err(|_| ConsignerError::TooManyTerminals)?;
+        consignment.bundles = Confined::try_from_iter(builder.anchored_bundles.into_values())
+            .map_err(|_| ConsignerError::TooManyBundles)?;
+
+        Ok(consignment)
     }
 
     // TODO: Support state extensions
-    pub fn process(
+    fn process<I: Inventory + ?Sized>(
         mut self,
+        inventory: &mut I,
         op_ids: impl IntoIterator<Item = OpId>,
         outpoint_filter: &OutpointFilter,
-    ) -> Result<Self, BuilderError<I::Error>> {
+    ) -> Result<Self, ConsignerError<I::Error>> {
         let contract_id = self.contract_id;
 
         for transition_id in op_ids {
@@ -109,15 +150,15 @@ impl<'inventory, I: Inventory> ConsignmentBuilder<'inventory, I> {
                 continue;
             }
 
-            let transition = self.inventory.transition(transition_id)?;
-            let witness_txid = self.inventory.witness_txid(transition_id)?;
+            let transition = inventory.transition(transition_id)?;
+            let witness_txid = inventory.witness_txid(transition_id)?;
 
             let bundle = if let Some(anchored_bundle) = self.anchored_bundles.get_mut(&witness_txid)
             {
                 &mut anchored_bundle.bundle
             } else {
-                let anchor = self.inventory.anchor(witness_txid)?;
-                let bundle = self.inventory.bundle(contract_id, witness_txid)?.clone();
+                let anchor = inventory.anchor(witness_txid)?;
+                let bundle = inventory.bundle(contract_id, witness_txid)?.clone();
                 let anchor = anchor.to_merkle_proof(contract_id)?;
                 let anchored_bundle = AnchoredBundle { anchor, bundle };
                 self.anchored_bundles.insert(witness_txid, anchored_bundle);
@@ -147,31 +188,5 @@ impl<'inventory, I: Inventory> ConsignmentBuilder<'inventory, I> {
         }
 
         Ok(self)
-    }
-
-    pub fn build(mut self) -> Result<Self, BuilderError<I::Error>> {
-        // Collect all transitions between endpoints and genesis independently from
-        // their type
-        loop {
-            let op_ids = self.terminal_inputs;
-            self.terminal_inputs = vec![];
-            self = self.process(op_ids, &OutpointFilter::All)?;
-            if self.terminal_inputs.is_empty() {
-                break;
-            }
-        }
-        Ok(self)
-    }
-
-    pub fn finish<const TYPE: bool>(self) -> Result<Consignment<TYPE>, BuilderError<I::Error>> {
-        let genesis = self.inventory.genesis(self.contract_id)?.clone();
-        let schema_ifaces = self.inventory.schema(genesis.schema_id)?.clone();
-        let mut consignment = Consignment::<TYPE>::new(schema_ifaces.schema, genesis);
-        consignment.terminals =
-            Confined::try_from_iter(self.terminal).map_err(|_| BuilderError::TooManyTerminals)?;
-        consignment.bundles = Confined::try_from_iter(self.anchored_bundles.into_values())
-            .map_err(|_| BuilderError::TooManyBundles)?;
-
-        Ok(consignment)
     }
 }

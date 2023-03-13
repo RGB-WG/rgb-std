@@ -50,6 +50,7 @@ pub fn rgb20() -> Iface {
         },
         transitions: tiny_bmap! {
             tn!("Transfer") => TransitionIface {
+                always_include: false,
                 metadata: None,
                 globals: none!(),
                 inputs: tiny_bmap! {

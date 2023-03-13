@@ -19,16 +19,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::BTreeSet;
 use std::error::Error;
 use std::ops::Deref;
 
 use amplify::confinement;
 use bp::Txid;
 use commit_verify::mpc;
-use rgb::{validation, ContractId, OpId, SchemaId, SubSchema};
+use rgb::{validation, ContractId, OpId, SchemaId, SubSchema, TransitionType};
 
 use crate::accessors::RevealError;
-use crate::containers::{Bindle, Cert, ContentId, Contract};
+use crate::builders::{ConsignerError, ConsignmentBuilder, OutpointFilter};
+use crate::containers::{Bindle, Cert, Consignment, ContentId, Contract, Transfer};
 use crate::interface::{ContractIface, Iface, IfaceId, IfaceImpl};
 use crate::persistence::stash::StashInconsistency;
 use crate::persistence::{Stash, StashError};
@@ -214,20 +216,45 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     where
         R::Error: 'static;
 
-    fn export_contract(
-        &mut self,
-        contract_id: ContractId,
-    ) -> Result<Bindle<Contract>, InventoryError<Self::Error>>;
-
     fn contract_iface(
         &mut self,
         contract_id: ContractId,
         iface_id: IfaceId,
     ) -> Result<ContractIface, InventoryError<Self::Error>>;
 
-    /*
-    fn consign(&mut self) -> Result<Transfer, Self::ConsignError>;
+    fn contract_transition_ids(
+        &mut self,
+        contract_id: ContractId,
+        transition_type: TransitionType,
+    ) -> Result<BTreeSet<OpId>, InventoryError<Self::Error>>;
 
+    fn export_contract(
+        &mut self,
+        contract_id: ContractId,
+    ) -> Result<Bindle<Contract>, ConsignerError<Self::Error>> {
+        // TODO: Add known sigs to the bindle
+        self.consign(contract_id, &OutpointFilter::None)
+            .map(Bindle::from)
+    }
+
+    fn transfer(
+        &mut self,
+        contract_id: ContractId,
+        outpoint_filter: &OutpointFilter,
+    ) -> Result<Bindle<Transfer>, ConsignerError<Self::Error>> {
+        // TODO: Add known sigs to the bindle
+        self.consign(contract_id, outpoint_filter).map(Bindle::from)
+    }
+
+    fn consign<const TYPE: bool>(
+        &mut self,
+        contract_id: ContractId,
+        outpoint_filter: &OutpointFilter,
+    ) -> Result<Consignment<TYPE>, ConsignerError<Self::Error>> {
+        ConsignmentBuilder::build(self, contract_id, outpoint_filter)
+    }
+
+    /*
     fn accept<const TYPE: bool>(
         &mut self,
         consignment: Consignment<TYPE>,

@@ -22,5 +22,5 @@
 mod issue;
 mod consignment;
 
-pub use consignment::{ConsignmentBuilder, OutpointFilter};
-pub use issue::{BuilderError, ContractBuilder, ForgeError, IssueError};
+pub use consignment::{ConsignerError, ConsignmentBuilder, OutpointFilter};
+pub use issue::{ContractBuilder, IssuerError};
