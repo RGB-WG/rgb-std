@@ -27,8 +27,7 @@ use amplify::confinement::{self, Confined};
 use bp::Txid;
 use commit_verify::mpc;
 use rgb::{
-    validation, AnchoredBundle, ContractId, OpId, Operation, Opout, SchemaId, SubSchema,
-    Transition, TransitionType,
+    validation, AnchoredBundle, ContractId, OpId, Operation, Opout, SchemaId, SubSchema, Transition,
 };
 
 use crate::accessors::{BundleExt, RevealError};
@@ -251,11 +250,16 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         iface_id: IfaceId,
     ) -> Result<ContractIface, InventoryError<Self::Error>>;
 
-    fn contract_transition_ids(
-        &mut self,
-        contract_id: ContractId,
-        transition_type: TransitionType,
-    ) -> Result<BTreeSet<OpId>, InventoryError<Self::Error>>;
+    fn anchored_bundle(&self, opid: OpId) -> Result<&AnchoredBundle, InventoryError<Self::Error>>;
+
+    fn transition(&self, opid: OpId) -> Result<&Transition, InventoryError<Self::Error>> {
+        Ok(self
+            .anchored_bundle(opid)?
+            .bundle
+            .get(&opid)
+            .and_then(|item| item.transition.as_ref())
+            .expect("Stash::anchored_bundle should guarantee returning revealed transition"))
+    }
 
     fn public_opouts(
         &mut self,

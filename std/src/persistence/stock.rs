@@ -23,10 +23,11 @@ use std::collections::BTreeSet;
 use std::convert::Infallible;
 use std::ops::{Deref, DerefMut};
 
-use amplify::confinement::{self, Confined, LargeOrdSet, TinyOrdMap};
+use amplify::confinement::{self, Confined, MediumOrdMap, TinyOrdMap};
 use rgb::validation::{Validity, Warning};
 use rgb::{
-    validation, ContractHistory, ContractId, ContractState, OpId, Opout, SubSchema, TransitionType,
+    validation, AnchoredBundle, BundleId, ContractHistory, ContractId, ContractState, OpId, Opout,
+    SubSchema,
 };
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 
@@ -38,6 +39,11 @@ use crate::persistence::{
 };
 use crate::resolvers::ResolveHeight;
 use crate::{Outpoint, LIB_NAME_RGB_STD};
+
+#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
+pub(super) struct IndexedBundle(ContractId, BundleId);
 
 /// Stock is an in-memory inventory (stash, index, contract state) useful for
 /// WASM implementations.
@@ -52,7 +58,7 @@ pub struct Stock {
     // state
     history: TinyOrdMap<ContractId, ContractHistory>,
     // index
-    contract_ts: TinyOrdMap<ContractId, TinyOrdMap<TransitionType, LargeOrdSet<OpId>>>,
+    bundle_op_index: MediumOrdMap<OpId, IndexedBundle>,
 }
 
 impl Default for Stock {
@@ -60,7 +66,7 @@ impl Default for Stock {
         Stock {
             hoard: Hoard::preset(),
             history: empty!(),
-            contract_ts: none!(),
+            bundle_op_index: empty!(),
         }
     }
 }
@@ -316,18 +322,17 @@ impl Inventory for Stock {
         })
     }
 
-    fn contract_transition_ids(
-        &mut self,
-        contract_id: ContractId,
-        transition_type: TransitionType,
-    ) -> Result<BTreeSet<OpId>, InventoryError<Self::Error>> {
-        Ok(self
-            .contract_ts
-            .get(&contract_id)
-            .ok_or(StashInconsistency::ContractAbsent(contract_id))?
-            .get(&transition_type)
-            .map(LargeOrdSet::to_inner)
-            .unwrap_or_default())
+    // TODO: Should return anchored bundle with the transition revealed
+    fn anchored_bundle(&self, opid: OpId) -> Result<&AnchoredBundle, InventoryError<Self::Error>> {
+        let IndexedBundle(contract_id, bundle_id) = self
+            .bundle_op_index
+            .get(&opid)
+            .ok_or(StashInconsistency::TransitionAbsent(opid))?;
+        let anchored_bundle = self
+            .contract(*contract_id)?
+            .anchored_bundle(*bundle_id)
+            .ok_or(StashInconsistency::BundleAbsent(*contract_id, *bundle_id))?;
+        Ok(anchored_bundle)
     }
 
     fn public_opouts(

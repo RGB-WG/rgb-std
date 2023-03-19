@@ -21,18 +21,13 @@
 
 use std::convert::Infallible;
 
-use amplify::confinement::{MediumOrdMap, SmallOrdMap, TinyOrdMap};
-use rgb::{AnchoredBundle, BundleId, ContractId, Genesis, OpId, SchemaId};
+use amplify::confinement::{SmallOrdMap, TinyOrdMap};
+use rgb::{ContractId, Genesis, SchemaId};
 
 use crate::containers::{ContentId, ContentSigs, Contract};
 use crate::interface::{rgb20, Iface, IfaceId, SchemaIfaces};
 use crate::persistence::{Stash, StashError, StashInconsistency};
 use crate::LIB_NAME_RGB_STD;
-
-#[derive(Clone, Eq, PartialEq, Debug)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD)]
-pub(super) struct IndexedBundle(ContractId, BundleId);
 
 /// Hoard is an in-memory stash useful for WASM implementations.
 #[derive(Clone, Debug)]
@@ -42,7 +37,6 @@ pub struct Hoard {
     pub(super) schemata: TinyOrdMap<SchemaId, SchemaIfaces>,
     pub(super) ifaces: TinyOrdMap<IfaceId, Iface>,
     pub(super) contracts: TinyOrdMap<ContractId, Contract>,
-    pub(super) bundle_op_index: MediumOrdMap<OpId, IndexedBundle>,
     pub(super) sigs: SmallOrdMap<ContentId, ContentSigs>,
 }
 
@@ -56,7 +50,6 @@ impl Hoard {
                 rgb20_id => rgb20,
             },
             contracts: Default::default(),
-            bundle_op_index: Default::default(),
             sigs: Default::default(),
         }
     }
@@ -92,19 +85,6 @@ impl Stash for Hoard {
 
     fn genesis(&self, contract_id: ContractId) -> Result<&Genesis, StashError<Self::Error>> {
         Ok(&self.contract(contract_id)?.genesis)
-    }
-
-    // TODO: Should return anchored bundle with the transition revealed
-    fn anchored_bundle(&self, opid: OpId) -> Result<&AnchoredBundle, StashError<Self::Error>> {
-        let IndexedBundle(contract_id, bundle_id) = self
-            .bundle_op_index
-            .get(&opid)
-            .ok_or(StashInconsistency::TransitionAbsent(opid))?;
-        let anchored_bundle = self
-            .contract(*contract_id)?
-            .anchored_bundle(*bundle_id)
-            .ok_or(StashInconsistency::BundleAbsent(*contract_id, *bundle_id))?;
-        Ok(anchored_bundle)
     }
 
     /*

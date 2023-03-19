@@ -24,7 +24,7 @@
 use std::error::Error;
 
 use bp::Txid;
-use rgb::{AnchoredBundle, BundleId, ContractId, Genesis, OpId, SchemaId, Transition};
+use rgb::{BundleId, ContractId, Genesis, OpId, SchemaId};
 
 use crate::interface::{Iface, IfaceId, SchemaIfaces};
 
@@ -97,17 +97,6 @@ pub trait Stash {
     fn schema(&self, schema_id: SchemaId) -> Result<&SchemaIfaces, StashError<Self::Error>>;
 
     fn genesis(&self, contract_id: ContractId) -> Result<&Genesis, StashError<Self::Error>>;
-
-    fn anchored_bundle(&self, opid: OpId) -> Result<&AnchoredBundle, StashError<Self::Error>>;
-
-    fn transition(&self, opid: OpId) -> Result<&Transition, StashError<Self::Error>> {
-        Ok(self
-            .anchored_bundle(opid)?
-            .bundle
-            .get(&opid)
-            .and_then(|item| item.transition.as_ref())
-            .expect("Stash::anchored_bundle should guarantee returning revealed transition"))
-    }
 
     /*
     fn anchor_by_bundle(
