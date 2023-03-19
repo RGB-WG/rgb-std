@@ -27,9 +27,9 @@ use amplify::Wrapper;
 use bp::Outpoint;
 use commit_verify::mpc::LeafNotKnown;
 use rgb::validation::AnchoredBundle;
-use rgb::{ContractId, OpId, Operation, TxoSeal};
+use rgb::{ContractId, OpId};
 
-use crate::accessors::{BundleExt, TypedAssignsExt};
+use crate::accessors::BundleExt;
 use crate::containers::{Consignment, Terminal, TerminalSeal};
 use crate::persistence::{Inventory, InventoryError, InventoryInconsistency, Stash, StashError};
 use crate::Txid;

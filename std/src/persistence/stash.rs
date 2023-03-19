@@ -21,16 +21,12 @@
 
 //use crate::containers::{Consignment, Contract, Transfer};
 
-use std::collections::BTreeSet;
 use std::error::Error;
 
 use bp::Txid;
 use commit_verify::mpc;
 use rgb::validation::AnchoredBundle;
-use rgb::{
-    Anchor, BundleId, ContractId, Genesis, OpId, SchemaId, Transition, TransitionBundle,
-    TransitionType,
-};
+use rgb::{Anchor, BundleId, ContractId, Genesis, OpId, SchemaId, Transition, TransitionBundle};
 
 use crate::interface::{Iface, IfaceId, SchemaIfaces};
 

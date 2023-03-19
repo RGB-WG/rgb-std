@@ -21,6 +21,7 @@
 
 use rgb::Occurrences;
 
+use crate::interface::iface::AssignIface;
 use crate::interface::{GenesisIface, Iface, OwnedIface, Req, TransitionIface};
 use crate::stl::StandardTypes;
 
@@ -34,7 +35,7 @@ pub fn rgb20() -> Iface {
             tn!("ContractText") => Req::require(types.get("RGBContract.ContractText")),
         },
         assignments: tiny_bmap! {
-            tn!("Assets") => OwnedIface::Amount,
+            tn!("Assets") => AssignIface::private(OwnedIface::Amount),
         },
         valencies: none!(),
         genesis: GenesisIface {
@@ -50,7 +51,6 @@ pub fn rgb20() -> Iface {
         },
         transitions: tiny_bmap! {
             tn!("Transfer") => TransitionIface {
-                always_include: false,
                 metadata: None,
                 globals: none!(),
                 inputs: tiny_bmap! {

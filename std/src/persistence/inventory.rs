@@ -29,8 +29,8 @@ use commit_verify::mpc;
 use rgb::{validation, ContractId, OpId, SchemaId, SubSchema, TransitionType};
 
 use crate::accessors::RevealError;
-use crate::builders::{ConsignerError, ConsignmentBuilder, OutpointFilter};
-use crate::containers::{Bindle, Cert, Consignment, ContentId, Contract, Transfer};
+//use crate::builders::{ConsignerError, ConsignmentBuilder, OutpointFilter};
+use crate::containers::{Bindle, Cert, ContentId, Contract};
 use crate::interface::{ContractIface, Iface, IfaceId, IfaceImpl};
 use crate::persistence::stash::StashInconsistency;
 use crate::persistence::{Stash, StashError};
@@ -228,6 +228,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         transition_type: TransitionType,
     ) -> Result<BTreeSet<OpId>, InventoryError<Self::Error>>;
 
+    /*
     fn export_contract(
         &mut self,
         contract_id: ContractId,
@@ -253,6 +254,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     ) -> Result<Consignment<TYPE>, ConsignerError<Self::Error>> {
         ConsignmentBuilder::build(self, contract_id, outpoint_filter)
     }
+     */
 
     /*
     fn accept<const TYPE: bool>(

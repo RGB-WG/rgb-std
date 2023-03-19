@@ -132,6 +132,22 @@ pub struct AssignIface {
     pub owned_state: OwnedIface,
 }
 
+impl AssignIface {
+    pub fn public(owned_state: OwnedIface) -> Self {
+        AssignIface {
+            public: true,
+            owned_state,
+        }
+    }
+
+    pub fn private(owned_state: OwnedIface) -> Self {
+        AssignIface {
+            public: false,
+            owned_state,
+        }
+    }
+}
+
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD, tags = order)]

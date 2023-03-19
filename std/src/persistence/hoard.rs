@@ -23,8 +23,8 @@ use std::convert::Infallible;
 
 use amplify::confinement::{SmallOrdMap, TinyOrdMap};
 use commit_verify::mpc::MerkleProof;
-use rgb::validation::ConsignmentApi;
-use rgb::{Anchor, BundleId, ContractId, Genesis, SchemaId, TransitionBundle};
+use rgb::validation::{AnchoredBundle, ConsignmentApi};
+use rgb::{Anchor, BundleId, ContractId, Genesis, OpId, SchemaId, TransitionBundle};
 
 use crate::containers::{ContentId, ContentSigs, Contract};
 use crate::interface::{rgb20, Iface, IfaceId, SchemaIfaces};
@@ -96,6 +96,10 @@ impl Stash for Hoard {
 
     fn genesis(&self, contract_id: ContractId) -> Result<&Genesis, StashError<Self::Error>> {
         Ok(&self.contract(contract_id)?.genesis)
+    }
+
+    fn anchored_bundle(&mut self, opid: OpId) -> Result<&AnchoredBundle, StashError<Self::Error>> {
+        todo!()
     }
 
     fn anchor_by_bundle(

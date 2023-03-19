@@ -20,7 +20,7 @@
 // limitations under the License.
 
 mod issue;
-mod consignment;
+//mod consignment;
 
-pub use consignment::{ConsignerError, ConsignmentBuilder, OutpointFilter};
+//pub use consignment::{ConsignerError, ConsignmentBuilder, OutpointFilter};
 pub use issue::{ContractBuilder, IssuerError};
