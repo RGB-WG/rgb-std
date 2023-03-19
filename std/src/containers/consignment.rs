@@ -139,6 +139,15 @@ impl<const TYPE: bool> Consignment<TYPE> {
     #[inline]
     pub fn contract_id(&self) -> ContractId { self.genesis.contract_id() }
 
+    pub fn anchored_bundle(&self, bundle_id: BundleId) -> Option<&AnchoredBundle> {
+        for anchored_bundle in &self.bundles {
+            if anchored_bundle.bundle.bundle_id() == bundle_id {
+                return Some(anchored_bundle);
+            }
+        }
+        None
+    }
+
     pub fn validation_status(&self) -> Option<&validation::Status> {
         self.validation_status.as_ref()
     }
@@ -242,12 +251,7 @@ impl<const TYPE: bool> ConsignmentApi for Consignment<TYPE> {
     fn anchored_bundles(&self) -> Self::BundleIter<'_> { self.bundles.iter() }
 
     fn bundle_by_id(&self, bundle_id: BundleId) -> Option<&TransitionBundle> {
-        for anchored_bundle in &self.bundles {
-            if anchored_bundle.bundle.bundle_id() == bundle_id {
-                return Some(&anchored_bundle.bundle);
-            }
-        }
-        None
+        self.anchored_bundle(bundle_id).map(|ab| &ab.bundle)
     }
 
     fn op_ids_except(&self, ids: &BTreeSet<OpId>) -> BTreeSet<OpId> {
