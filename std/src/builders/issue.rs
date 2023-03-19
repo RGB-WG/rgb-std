@@ -26,8 +26,8 @@ use amplify::{confinement, Wrapper};
 use bp::secp256k1::rand::thread_rng;
 use bp::{Chain, Outpoint};
 use rgb::{
-    fungible, Assign, Assignments, AssignmentsType, FungibleType, Genesis, GlobalState,
-    StateSchema, SubSchema, TypedAssigns,
+    fungible, Assign, AssignmentType, Assignments, FungibleType, Genesis, GlobalState, StateSchema,
+    SubSchema, TypedAssigns,
 };
 use strict_encoding::{SerializeError, StrictSerialize, TypeName};
 use strict_types::decode;
@@ -73,9 +73,9 @@ pub struct ContractBuilder {
 
     chain: Chain,
     global: GlobalState,
-    // rights: TinyOrdMap<AssignmentsType, Confined<BTreeSet<Outpoint>, 1, U8>>,
-    fungible: TinyOrdMap<AssignmentsType, Confined<BTreeMap<Outpoint, fungible::Revealed>, 1, U8>>,
-    // data: TinyOrdMap<AssignmentsType, Confined<BTreeMap<Outpoint, SmallBlob>, 1, U8>>,
+    // rights: TinyOrdMap<AssignmentType, Confined<BTreeSet<Outpoint>, 1, U8>>,
+    fungible: TinyOrdMap<AssignmentType, Confined<BTreeMap<Outpoint, fungible::Revealed>, 1, U8>>,
+    // data: TinyOrdMap<AssignmentType, Confined<BTreeMap<Outpoint, SmallBlob>, 1, U8>>,
     // TODO: add attachments
     // TODO: add valencies
 }
@@ -186,7 +186,7 @@ impl ContractBuilder {
             ffv: none!(),
             schema_id: self.schema.schema_id(),
             chain: self.chain,
-            metadata: None,
+            metadata: empty!(),
             globals: self.global,
             assignments,
             valencies: none!(),
