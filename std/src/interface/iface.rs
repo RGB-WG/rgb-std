@@ -127,6 +127,35 @@ pub enum GlobalIface {
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
+pub struct AssignIface {
+    pub public: bool,
+    pub owned_state: OwnedIface,
+}
+
+impl AssignIface {
+    pub fn public(owned_state: OwnedIface) -> Self {
+        AssignIface {
+            public: true,
+            owned_state,
+        }
+    }
+
+    pub fn private(owned_state: OwnedIface) -> Self {
+        AssignIface {
+            public: false,
+            owned_state,
+        }
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD, tags = order)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
 pub enum OwnedIface {
     #[strict_type(dumb)]
     Any,
@@ -198,7 +227,7 @@ pub struct TransitionIface {
 pub struct Iface {
     pub name: TypeName,
     pub global_state: TinyOrdMap<TypeName, Req<GlobalIface>>,
-    pub owned_state: TinyOrdMap<TypeName, OwnedIface>,
+    pub assignments: TinyOrdMap<TypeName, AssignIface>,
     pub valencies: TinyOrdMap<TypeName, Req<()>>,
     pub genesis: GenesisIface,
     pub transitions: TinyOrdMap<TypeName, TransitionIface>,

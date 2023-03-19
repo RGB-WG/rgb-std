@@ -108,6 +108,26 @@ impl<const TYPE: bool> StrictSerialize for Consignment<TYPE> {}
 impl<const TYPE: bool> StrictDeserialize for Consignment<TYPE> {}
 
 impl<const TYPE: bool> Consignment<TYPE> {
+    /// # Panics
+    ///
+    /// If the provided schema is not the one which is used by genesis.
+    pub fn new(schema: SubSchema, genesis: Genesis) -> Self {
+        assert_eq!(schema.schema_id(), genesis.schema_id);
+        Consignment {
+            validation_status: None,
+            version: ContainerVer::V1,
+            transfer: TYPE,
+            schema,
+            ifaces: none!(),
+            genesis,
+            terminals: none!(),
+            bundles: none!(),
+            extensions: none!(),
+            attachments: none!(),
+            signatures: none!(),
+        }
+    }
+
     #[inline]
     pub fn schema_id(&self) -> SchemaId { self.schema.schema_id() }
 
@@ -118,6 +138,15 @@ impl<const TYPE: bool> Consignment<TYPE> {
 
     #[inline]
     pub fn contract_id(&self) -> ContractId { self.genesis.contract_id() }
+
+    pub fn anchored_bundle(&self, bundle_id: BundleId) -> Option<&AnchoredBundle> {
+        for anchored_bundle in &self.bundles {
+            if anchored_bundle.bundle.bundle_id() == bundle_id {
+                return Some(anchored_bundle);
+            }
+        }
+        None
+    }
 
     pub fn validation_status(&self) -> Option<&validation::Status> {
         self.validation_status.as_ref()
@@ -152,8 +181,8 @@ impl<const TYPE: bool> Consignment<TYPE> {
                         if *used {
                             continue;
                         }
-                        for inp_id in transition.inputs.keys() {
-                            if inp_id == id {
+                        for opout in &transition.inputs {
+                            if opout.op == *id {
                                 *used = true;
                                 if let Some(ord) = ordered_extensions.get_mut(id) {
                                     if *ord > ord_txid {
@@ -222,12 +251,7 @@ impl<const TYPE: bool> ConsignmentApi for Consignment<TYPE> {
     fn anchored_bundles(&self) -> Self::BundleIter<'_> { self.bundles.iter() }
 
     fn bundle_by_id(&self, bundle_id: BundleId) -> Option<&TransitionBundle> {
-        for anchored_bundle in &self.bundles {
-            if anchored_bundle.bundle.bundle_id() == bundle_id {
-                return Some(&anchored_bundle.bundle);
-            }
-        }
-        None
+        self.anchored_bundle(bundle_id).map(|ab| &ab.bundle)
     }
 
     fn op_ids_except(&self, ids: &BTreeSet<OpId>) -> BTreeSet<OpId> {

@@ -26,7 +26,7 @@ use amplify::{Bytes32, RawArray};
 use baid58::{Baid58ParseError, FromBaid58, ToBaid58};
 use commit_verify::{CommitStrategy, CommitmentId};
 use rgb::{
-    AssignmentsType, ExtensionType, GlobalStateType, SchemaId, SchemaTypeIndex, SubSchema,
+    AssignmentType, ExtensionType, GlobalStateType, SchemaId, SchemaTypeIndex, SubSchema,
     TransitionType, ValencyType,
 };
 use strict_types::encoding::{
@@ -125,7 +125,7 @@ pub struct IfaceImpl {
     pub schema_id: SchemaId,
     pub iface_id: IfaceId,
     pub global_state: TinyOrdSet<NamedType<GlobalStateType>>,
-    pub owned_state: TinyOrdSet<NamedType<AssignmentsType>>,
+    pub owned_state: TinyOrdSet<NamedType<AssignmentType>>,
     pub valencies: TinyOrdSet<NamedType<ValencyType>>,
     pub transitions: TinyOrdSet<NamedType<TransitionType>>,
     pub extensions: TinyOrdSet<NamedType<ExtensionType>>,
@@ -154,8 +154,15 @@ impl IfaceImpl {
             .map(|nt| nt.id)
     }
 
-    pub fn assignments_type(&self, name: &TypeName) -> Option<AssignmentsType> {
+    pub fn assignments_type(&self, name: &TypeName) -> Option<AssignmentType> {
         self.owned_state
+            .iter()
+            .find(|nt| &nt.name == name)
+            .map(|nt| nt.id)
+    }
+
+    pub fn transition_type(&self, name: &TypeName) -> Option<TransitionType> {
+        self.transitions
             .iter()
             .find(|nt| &nt.name == name)
             .map(|nt| nt.id)

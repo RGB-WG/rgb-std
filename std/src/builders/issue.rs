@@ -26,8 +26,8 @@ use amplify::{confinement, Wrapper};
 use bp::secp256k1::rand::thread_rng;
 use bp::{Chain, Outpoint};
 use rgb::{
-    fungible, Assign, Assignments, AssignmentsType, FungibleType, Genesis, GlobalState,
-    StateSchema, SubSchema, TypedAssigns,
+    fungible, Assign, AssignmentType, Assignments, FungibleType, Genesis, GlobalState, StateSchema,
+    SubSchema, TypedAssigns,
 };
 use strict_encoding::{SerializeError, StrictSerialize, TypeName};
 use strict_types::decode;
@@ -37,7 +37,7 @@ use crate::interface::{Iface, IfaceImpl, IfacePair};
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
-pub enum ForgeError {
+pub enum IssuerError {
     /// interface implementation references different interface that the one
     /// provided to the forge.
     InterfaceMismatch,
@@ -45,11 +45,7 @@ pub enum ForgeError {
     /// interface implementation references different schema that the one
     /// provided to the forge.
     SchemaMismatch,
-}
 
-#[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
-#[display(doc_comments)]
-pub enum BuilderError {
     /// type `{0}` is not known to the schema.
     TypeNotFound(TypeName),
 
@@ -69,10 +65,6 @@ pub enum BuilderError {
     Confinement(confinement::Error),
 }
 
-#[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
-#[display(doc_comments)]
-pub enum IssueError {}
-
 #[derive(Clone, Debug)]
 pub struct ContractBuilder {
     schema: SubSchema,
@@ -81,20 +73,20 @@ pub struct ContractBuilder {
 
     chain: Chain,
     global: GlobalState,
-    // rights: TinyOrdMap<AssignmentsType, Confined<BTreeSet<Outpoint>, 1, U8>>,
-    fungible: TinyOrdMap<AssignmentsType, Confined<BTreeMap<Outpoint, fungible::Revealed>, 1, U8>>,
-    // data: TinyOrdMap<AssignmentsType, Confined<BTreeMap<Outpoint, SmallBlob>, 1, U8>>,
+    // rights: TinyOrdMap<AssignmentType, Confined<BTreeSet<Outpoint>, 1, U8>>,
+    fungible: TinyOrdMap<AssignmentType, Confined<BTreeMap<Outpoint, fungible::Revealed>, 1, U8>>,
+    // data: TinyOrdMap<AssignmentType, Confined<BTreeMap<Outpoint, SmallBlob>, 1, U8>>,
     // TODO: add attachments
     // TODO: add valencies
 }
 
 impl ContractBuilder {
-    pub fn with(iface: Iface, schema: SubSchema, iimpl: IfaceImpl) -> Result<Self, ForgeError> {
+    pub fn with(iface: Iface, schema: SubSchema, iimpl: IfaceImpl) -> Result<Self, IssuerError> {
         if iimpl.iface_id != iface.iface_id() {
-            return Err(ForgeError::InterfaceMismatch);
+            return Err(IssuerError::InterfaceMismatch);
         }
         if iimpl.schema_id != schema.schema_id() {
-            return Err(ForgeError::SchemaMismatch);
+            return Err(IssuerError::SchemaMismatch);
         }
 
         // TODO: check schema internal consistency
@@ -121,13 +113,13 @@ impl ContractBuilder {
         mut self,
         name: impl Into<TypeName>,
         value: impl StrictSerialize,
-    ) -> Result<Self, BuilderError> {
+    ) -> Result<Self, IssuerError> {
         let name = name.into();
         let serialized = value.to_strict_serialized::<{ u16::MAX as usize }>()?;
 
         // Check value matches type requirements
         let Some(id) = self.iimpl.global_state.iter().find(|t| t.name == name).map(|t| t.id) else {
-            return Err(BuilderError::TypeNotFound(name));
+            return Err(IssuerError::TypeNotFound(name));
         };
         let ty_id = self
             .schema
@@ -149,11 +141,11 @@ impl ContractBuilder {
         name: impl Into<TypeName>,
         seal: impl Into<Outpoint>,
         value: u64,
-    ) -> Result<Self, BuilderError> {
+    ) -> Result<Self, IssuerError> {
         let name = name.into();
 
         let Some(id) = self.iimpl.owned_state.iter().find(|t| t.name == name).map(|t| t.id) else {
-            return Err(BuilderError::TypeNotFound(name));
+            return Err(IssuerError::TypeNotFound(name));
         };
         let ty = self
             .schema
@@ -161,7 +153,7 @@ impl ContractBuilder {
             .get(&id)
             .expect("schema should match interface: must be checked by the constructor");
         if *ty != StateSchema::Fungible(FungibleType::Unsigned64Bit) {
-            return Err(BuilderError::InvalidStateType(name));
+            return Err(IssuerError::InvalidStateType(name));
         }
 
         let state = fungible::Revealed::new(value, &mut thread_rng());
@@ -177,7 +169,7 @@ impl ContractBuilder {
         Ok(self)
     }
 
-    pub fn issue_contract(self) -> Result<Contract, IssueError> {
+    pub fn issue_contract(self) -> Contract {
         let owned_state = self.fungible.into_iter().map(|(id, vec)| {
             let vec = vec.into_iter().map(|(seal, value)| Assign::Revealed {
                 seal: seal.into(),
@@ -194,7 +186,7 @@ impl ContractBuilder {
             ffv: none!(),
             schema_id: self.schema.schema_id(),
             chain: self.chain,
-            metadata: None,
+            metadata: empty!(),
             globals: self.global,
             assignments,
             valencies: none!(),
@@ -202,10 +194,10 @@ impl ContractBuilder {
 
         // TODO: Validate against schema
 
-        Ok(Contract::new(
-            self.schema.clone(),
-            IfacePair::with(self.iface.clone(), self.iimpl),
-            genesis,
-        ))
+        let mut contract = Contract::new(self.schema.clone(), genesis);
+        let iface_pair = IfacePair::with(self.iface.clone(), self.iimpl);
+        contract.ifaces = tiny_bmap! { iface_pair.iface_id() => iface_pair };
+
+        contract
     }
 }

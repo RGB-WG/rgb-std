@@ -21,4 +21,105 @@
 
 //use crate::containers::{Consignment, Contract, Transfer};
 
-pub trait Stash {}
+use std::error::Error;
+
+use bp::Txid;
+use rgb::{AnchoredBundle, BundleId, ContractId, Genesis, OpId, SchemaId, Transition};
+
+use crate::interface::{Iface, IfaceId, SchemaIfaces};
+
+#[derive(Debug, Display, Error, From)]
+#[display(inner)]
+pub enum StashError<E: Error> {
+    /// Connectivity errors which may be recoverable and temporary.
+    Connectivity(E),
+
+    /// Permanent errors caused by bugs in the business logic of this library.
+    /// Must be reported to LNP/BP Standards Association.
+    #[from]
+    InternalInconsistency(StashInconsistency),
+}
+
+#[derive(Debug, Display, Error, From)]
+#[display(doc_comments)]
+pub enum StashInconsistency {
+    /// interfae {0} is unknown; you need to import it first.
+    IfaceNameAbsent(String),
+
+    /// interfae {0} is unknown; you need to import it first.
+    IfaceAbsent(IfaceId),
+
+    /// contract is unknown. Probably you haven't imported the contract yet.
+    ContractAbsent(ContractId),
+
+    /// schema {0} is unknown.
+    ///
+    /// It may happen due to RGB standard library bug, or indicate internal
+    /// stash inconsistency and compromised stash data storage.
+    SchemaAbsent(SchemaId),
+
+    /// interface {0::<0} is not implemented for the schema {1::<0}.
+    IfaceImplAbsent(IfaceId, SchemaId),
+
+    /// transition {0} is absent.
+    ///
+    /// It may happen due to RGB standard library bug, or indicate internal
+    /// stash inconsistency and compromised stash data storage.
+    TransitionAbsent(OpId),
+
+    /// witness Txid is not known for transition {0}.
+    ///
+    /// It may happen due to RGB standard library bug, or indicate internal
+    /// stash inconsistency and compromised stash data storage.
+    TransitionTxidAbsent(OpId),
+
+    /// anchor for txid {0} is absent.
+    ///
+    /// It may happen due to RGB standard library bug, or indicate internal
+    /// stash inconsistency and compromised stash data storage.
+    AnchorAbsent(Txid),
+
+    /// bundle data {1} for contract {0} is absent.
+    ///
+    /// It may happen due to RGB standard library bug, or indicate internal
+    /// stash inconsistency and compromised stash data storage.
+    BundleAbsent(ContractId, BundleId),
+}
+
+pub trait Stash {
+    /// Error type which must indicate problems on data retrieval.
+    type Error: Error;
+
+    fn iface_by_name(&self, name: &str) -> Result<&Iface, StashError<Self::Error>>;
+
+    fn iface_by_id(&self, id: IfaceId) -> Result<&Iface, StashError<Self::Error>>;
+
+    fn schema(&self, schema_id: SchemaId) -> Result<&SchemaIfaces, StashError<Self::Error>>;
+
+    fn genesis(&self, contract_id: ContractId) -> Result<&Genesis, StashError<Self::Error>>;
+
+    fn anchored_bundle(&self, opid: OpId) -> Result<&AnchoredBundle, StashError<Self::Error>>;
+
+    fn transition(&self, opid: OpId) -> Result<&Transition, StashError<Self::Error>> {
+        Ok(self
+            .anchored_bundle(opid)?
+            .bundle
+            .get(&opid)
+            .and_then(|item| item.transition.as_ref())
+            .expect("Stash::anchored_bundle should guarantee returning revealed transition"))
+    }
+
+    /*
+    fn anchor_by_bundle(
+        &self,
+        contract_id: ContractId,
+        bundle_id: BundleId,
+    ) -> Result<&Anchor<mpc::MerkleProof>, StashError<Self::Error>>;
+
+    fn bundle_by_id(
+        &self,
+        contract_id: ContractId,
+        bundle_id: BundleId,
+    ) -> Result<&TransitionBundle, StashError<Self::Error>>;
+     */
+}

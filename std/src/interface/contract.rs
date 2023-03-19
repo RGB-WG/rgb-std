@@ -21,7 +21,7 @@
 
 use amplify::confinement::{LargeOrdMap, LargeVec, SmallVec};
 use bp::Outpoint;
-use rgb::{attachment, AssignmentsType, ContractState};
+use rgb::{attachment, AssignmentType, ContractState};
 use strict_encoding::TypeName;
 use strict_types::typify::TypedVal;
 use strict_types::{decode, StrictVal};
@@ -122,7 +122,7 @@ impl ContractIface {
     pub fn outpoint(
         &self,
         _outpoint: Outpoint,
-    ) -> LargeOrdMap<AssignmentsType, LargeVec<TypedState>> {
+    ) -> LargeOrdMap<AssignmentType, LargeVec<TypedState>> {
         todo!()
     }
 }
