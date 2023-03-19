@@ -26,7 +26,7 @@ use std::ops::{Deref, DerefMut};
 use amplify::confinement::{self, Confined, LargeOrdSet, TinyOrdMap};
 use rgb::validation::{Validity, Warning};
 use rgb::{
-    validation, ContractHistory, ContractId, ContractState, OpId, SubSchema, TransitionType,
+    validation, ContractHistory, ContractId, ContractState, OpId, Opout, SubSchema, TransitionType,
 };
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 
@@ -37,13 +37,13 @@ use crate::persistence::{
     Hoard, Inventory, InventoryDataError, InventoryError, StashInconsistency,
 };
 use crate::resolvers::ResolveHeight;
-use crate::LIB_NAME_RGB_STD;
+use crate::{Outpoint, LIB_NAME_RGB_STD};
 
 /// Stock is an in-memory inventory (stash, index, contract state) useful for
 /// WASM implementations.
 ///
 /// Can hold data about up to 256 contracts.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 pub struct Stock {
@@ -53,6 +53,16 @@ pub struct Stock {
     history: TinyOrdMap<ContractId, ContractHistory>,
     // index
     contract_ts: TinyOrdMap<ContractId, TinyOrdMap<TransitionType, LargeOrdSet<OpId>>>,
+}
+
+impl Default for Stock {
+    fn default() -> Self {
+        Stock {
+            hoard: Hoard::preset(),
+            history: empty!(),
+            contract_ts: none!(),
+        }
+    }
 }
 
 impl StrictSerialize for Stock {}
@@ -318,5 +328,20 @@ impl Inventory for Stock {
             .get(&transition_type)
             .map(LargeOrdSet::to_inner)
             .unwrap_or_default())
+    }
+
+    fn public_opouts(
+        &mut self,
+        contract_id: ContractId,
+    ) -> Result<BTreeSet<Opout>, InventoryError<Self::Error>> {
+        todo!()
+    }
+
+    fn outpoint_opouts(
+        &mut self,
+        contract_id: ContractId,
+        outpoints: impl IntoIterator<Item = impl Into<Outpoint>>,
+    ) -> Result<BTreeSet<Opout>, InventoryError<Self::Error>> {
+        todo!()
     }
 }

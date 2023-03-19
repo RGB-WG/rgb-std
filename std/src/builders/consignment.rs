@@ -89,12 +89,25 @@ impl ConsignmentBuilder {
     pub fn build<const TYPE: bool, I: Inventory + ?Sized>(
         inventory: &mut I,
         contract_id: ContractId,
-        outpoint_filter: &OutpointFilter,
+        outpoints: impl IntoIterator<Item = impl Into<Outpoint>>,
     ) -> Result<Consignment<TYPE>, ConsignerError<I::Error>> {
+        let outpoints = outpoints.into_iter().map(|o| o.into());
+
         let genesis = inventory.genesis(contract_id)?.clone();
+
+        // collecting terminals
+        let mut opids = inventory.opids_with_public_state(contract_id)?;
+        // 1. those which are a part of a public state
+        // 2. those we are requested
+        for outpoint in outpoints {
+            let bundle_ids = inventory.opids_by_outpoint(contract_id, outpoint)?;
+            opids.extend(bundle_ids);
+        }
+
+        let mut bundle_opids = opids.clone();
+
         let schema_ifaces = inventory.schema(genesis.schema_id)?.clone();
         let schema = &schema_ifaces.schema;
-        let always_include = inventory.always_include_transitions(genesis.schema_id)?;
 
         let mut builder = ConsignmentBuilder {
             contract_id,
@@ -151,16 +164,14 @@ impl ConsignmentBuilder {
             }
 
             let transition = inventory.transition(transition_id)?;
+            let anchored_bundle = inventory.anchored_bundle(transition_id)?;
             let witness_txid = inventory.witness_txid(transition_id)?;
 
             let bundle = if let Some(anchored_bundle) = self.anchored_bundles.get_mut(&witness_txid)
             {
                 &mut anchored_bundle.bundle
             } else {
-                let anchor = inventory.anchor(witness_txid)?;
-                let bundle = inventory.bundle(contract_id, witness_txid)?.clone();
-                let anchor = anchor.to_merkle_proof(contract_id)?;
-                let anchored_bundle = AnchoredBundle { anchor, bundle };
+                let anchored_bundle = inventory.anchored_bundle(contract_id, witness_txid)?;
                 self.anchored_bundles.insert(witness_txid, anchored_bundle);
                 &mut self
                     .anchored_bundles

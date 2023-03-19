@@ -24,9 +24,7 @@
 use std::error::Error;
 
 use bp::Txid;
-use commit_verify::mpc;
-use rgb::validation::AnchoredBundle;
-use rgb::{Anchor, BundleId, ContractId, Genesis, OpId, SchemaId, Transition, TransitionBundle};
+use rgb::{AnchoredBundle, BundleId, ContractId, Genesis, OpId, SchemaId, Transition};
 
 use crate::interface::{Iface, IfaceId, SchemaIfaces};
 
@@ -100,20 +98,18 @@ pub trait Stash {
 
     fn genesis(&self, contract_id: ContractId) -> Result<&Genesis, StashError<Self::Error>>;
 
-    fn anchored_bundle(&mut self, opid: OpId) -> Result<&AnchoredBundle, StashError<Self::Error>>;
+    fn anchored_bundle(&self, opid: OpId) -> Result<&AnchoredBundle, StashError<Self::Error>>;
 
-    fn transition_by_bundle(
-        &self,
-        contract_id: ContractId,
-        bundle_id: BundleId,
-        id: OpId,
-    ) -> Result<Option<&Transition>, StashError<Self::Error>> {
-        self.bundle_by_id(contract_id, bundle_id)?
-            .get(&id)
-            .map(|item| item.transition.as_ref())
-            .ok_or_else(|| StashInconsistency::TransitionAbsent(id).into())
+    fn transition(&self, opid: OpId) -> Result<&Transition, StashError<Self::Error>> {
+        Ok(self
+            .anchored_bundle(opid)?
+            .bundle
+            .get(&opid)
+            .and_then(|item| item.transition.as_ref())
+            .expect("Stash::anchored_bundle should guarantee returning revealed transition"))
     }
 
+    /*
     fn anchor_by_bundle(
         &self,
         contract_id: ContractId,
@@ -125,4 +121,5 @@ pub trait Stash {
         contract_id: ContractId,
         bundle_id: BundleId,
     ) -> Result<&TransitionBundle, StashError<Self::Error>>;
+     */
 }

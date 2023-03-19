@@ -21,29 +21,33 @@
 
 use std::convert::Infallible;
 
-use amplify::confinement::{SmallOrdMap, TinyOrdMap};
-use commit_verify::mpc::MerkleProof;
-use rgb::validation::{AnchoredBundle, ConsignmentApi};
-use rgb::{Anchor, BundleId, ContractId, Genesis, OpId, SchemaId, TransitionBundle};
+use amplify::confinement::{MediumOrdMap, SmallOrdMap, TinyOrdMap};
+use rgb::{AnchoredBundle, BundleId, ContractId, Genesis, OpId, SchemaId};
 
 use crate::containers::{ContentId, ContentSigs, Contract};
 use crate::interface::{rgb20, Iface, IfaceId, SchemaIfaces};
 use crate::persistence::{Stash, StashError, StashInconsistency};
 use crate::LIB_NAME_RGB_STD;
 
+#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
+pub(super) struct IndexedBundle(ContractId, BundleId);
+
 /// Hoard is an in-memory stash useful for WASM implementations.
 #[derive(Clone, Debug)]
-#[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD, dumb = Hoard::preset())]
 pub struct Hoard {
     pub(super) schemata: TinyOrdMap<SchemaId, SchemaIfaces>,
     pub(super) ifaces: TinyOrdMap<IfaceId, Iface>,
     pub(super) contracts: TinyOrdMap<ContractId, Contract>,
+    pub(super) bundle_op_index: MediumOrdMap<OpId, IndexedBundle>,
     pub(super) sigs: SmallOrdMap<ContentId, ContentSigs>,
 }
 
-impl Default for Hoard {
-    fn default() -> Self {
+impl Hoard {
+    pub fn preset() -> Self {
         let rgb20 = rgb20();
         let rgb20_id = rgb20.iface_id();
         Hoard {
@@ -52,18 +56,10 @@ impl Default for Hoard {
                 rgb20_id => rgb20,
             },
             contracts: Default::default(),
+            bundle_op_index: Default::default(),
             sigs: Default::default(),
         }
     }
-}
-
-impl Hoard {
-    /*
-    pub fn schemata(&self) -> btree_map::Iter<SchemaId, SchemaIfaces> { self.schemata.iter() }
-    pub fn ifaces(&self) -> btree_map::Iter<IfaceId, Iface> { self.ifaces.iter() }
-    pub fn contracts(&self) -> btree_map::Iter<ContractId, Contract> { self.contracts.iter() }
-    pub fn sigs(&self) -> btree_map::Iter<ContentId, ContentSigs> { self.sigs.iter() }
-     */
 
     pub fn contract(&self, id: ContractId) -> Result<&Contract, StashInconsistency> {
         self.contracts
@@ -98,10 +94,20 @@ impl Stash for Hoard {
         Ok(&self.contract(contract_id)?.genesis)
     }
 
-    fn anchored_bundle(&mut self, opid: OpId) -> Result<&AnchoredBundle, StashError<Self::Error>> {
-        todo!()
+    // TODO: Should return anchored bundle with the transition revealed
+    fn anchored_bundle(&self, opid: OpId) -> Result<&AnchoredBundle, StashError<Self::Error>> {
+        let IndexedBundle(contract_id, bundle_id) = self
+            .bundle_op_index
+            .get(&opid)
+            .ok_or(StashInconsistency::TransitionAbsent(opid))?;
+        let anchored_bundle = self
+            .contract(*contract_id)?
+            .anchored_bundle(*bundle_id)
+            .ok_or(StashInconsistency::BundleAbsent(*contract_id, *bundle_id))?;
+        Ok(anchored_bundle)
     }
 
+    /*
     fn anchor_by_bundle(
         &self,
         contract_id: ContractId,
@@ -123,4 +129,5 @@ impl Stash for Hoard {
             .bundle_by_id(bundle_id)
             .ok_or_else(|| StashInconsistency::BundleAbsent(contract_id, bundle_id).into())
     }
+     */
 }

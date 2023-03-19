@@ -19,22 +19,51 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::ops::Deref;
 
-use amplify::confinement;
+use amplify::confinement::{self, Confined};
 use bp::Txid;
 use commit_verify::mpc;
-use rgb::{validation, ContractId, OpId, SchemaId, SubSchema, TransitionType};
+use rgb::{
+    validation, AnchoredBundle, ContractId, OpId, Operation, Opout, SchemaId, SubSchema,
+    Transition, TransitionType,
+};
 
-use crate::accessors::RevealError;
+use crate::accessors::{BundleExt, RevealError};
 //use crate::builders::{ConsignerError, ConsignmentBuilder, OutpointFilter};
-use crate::containers::{Bindle, Cert, ContentId, Contract};
-use crate::interface::{ContractIface, Iface, IfaceId, IfaceImpl};
+use crate::containers::{Bindle, Cert, Consignment, ContentId, Contract, Terminal, Transfer};
+use crate::interface::{ContractIface, Iface, IfaceId, IfaceImpl, IfacePair};
 use crate::persistence::stash::StashInconsistency;
 use crate::persistence::{Stash, StashError};
 use crate::resolvers::ResolveHeight;
+use crate::Outpoint;
+
+#[derive(Debug, Display, Error, From)]
+#[display(doc_comments)]
+pub enum ConsignerError<E1: Error, E2: Error> {
+    /// unable to construct consignment: too many terminals provided.
+    TooManyTerminals,
+
+    /// unable to construct consignment: history size too large, resulting in
+    /// too many transitions.
+    TooManyBundles,
+
+    #[display(inner)]
+    #[from]
+    Reveal(RevealError),
+
+    #[display(inner)]
+    #[from]
+    #[from(InventoryInconsistency)]
+    InventoryError(InventoryError<E1>),
+
+    #[display(inner)]
+    #[from]
+    #[from(StashInconsistency)]
+    StashError(StashError<E2>),
+}
 
 #[derive(Debug, Display, Error, From)]
 #[display(inner)]
@@ -168,7 +197,7 @@ pub enum InventoryInconsistency {
 pub trait Inventory: Deref<Target = Self::Stash> {
     type Stash: Stash;
     /// Error type which must indicate problems on data retrieval.
-    type Error: Error + From<<Self::Stash as Stash>::Error>;
+    type Error: Error;
 
     fn stash(&self) -> &Self::Stash;
 
@@ -228,33 +257,120 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         transition_type: TransitionType,
     ) -> Result<BTreeSet<OpId>, InventoryError<Self::Error>>;
 
-    /*
+    fn public_opouts(
+        &mut self,
+        contract_id: ContractId,
+    ) -> Result<BTreeSet<Opout>, InventoryError<Self::Error>>;
+
+    fn outpoint_opouts(
+        &mut self,
+        contract_id: ContractId,
+        outpoints: impl IntoIterator<Item = impl Into<Outpoint>>,
+    ) -> Result<BTreeSet<Opout>, InventoryError<Self::Error>>;
+
     fn export_contract(
         &mut self,
         contract_id: ContractId,
-    ) -> Result<Bindle<Contract>, ConsignerError<Self::Error>> {
+    ) -> Result<
+        Bindle<Contract>,
+        ConsignerError<Self::Error, <<Self as Deref>::Target as Stash>::Error>,
+    > {
+        let mut consignment = self.consign(contract_id, [] as [Outpoint; 0])?;
+        consignment.transfer = false;
+        Ok(consignment.into())
         // TODO: Add known sigs to the bindle
-        self.consign(contract_id, &OutpointFilter::None)
-            .map(Bindle::from)
     }
 
     fn transfer(
         &mut self,
         contract_id: ContractId,
-        outpoint_filter: &OutpointFilter,
-    ) -> Result<Bindle<Transfer>, ConsignerError<Self::Error>> {
+        outpoints: impl IntoIterator<Item = impl Into<Outpoint>>,
+    ) -> Result<
+        Bindle<Transfer>,
+        ConsignerError<Self::Error, <<Self as Deref>::Target as Stash>::Error>,
+    > {
+        let mut consignment = self.consign(contract_id, outpoints)?;
+        consignment.transfer = true;
+        Ok(consignment.into())
         // TODO: Add known sigs to the bindle
-        self.consign(contract_id, outpoint_filter).map(Bindle::from)
     }
 
     fn consign<const TYPE: bool>(
         &mut self,
         contract_id: ContractId,
-        outpoint_filter: &OutpointFilter,
-    ) -> Result<Consignment<TYPE>, ConsignerError<Self::Error>> {
-        ConsignmentBuilder::build(self, contract_id, outpoint_filter)
+        outpoints: impl IntoIterator<Item = impl Into<Outpoint>>,
+    ) -> Result<
+        Consignment<TYPE>,
+        ConsignerError<Self::Error, <<Self as Deref>::Target as Stash>::Error>,
+    > {
+        // 1. Collect initial set of anchored bundles
+        let outpoints = outpoints.into_iter().map(|o| o.into());
+        let mut opouts = self.public_opouts(contract_id)?;
+        opouts.extend(self.outpoint_opouts(contract_id, outpoints)?);
+
+        // 1.1. Get all public transitions
+        // 1.2. Collect all state transitions assigning state to the provided
+        // outpoints
+        let mut anchored_bundles = BTreeMap::<OpId, AnchoredBundle>::new();
+        let mut transitions = BTreeMap::<OpId, Transition>::new();
+        let mut terminals = BTreeSet::<Terminal>::new();
+        for opout in opouts {
+            let transition = self.transition(opout.op)?;
+            transitions.insert(opout.op, transition.clone());
+            let anchored_bundle = self.anchored_bundle(opout.op)?;
+
+            // 2. Collect seals from terminal transitions to add to the consignment
+            // terminals
+            let bundle_id = anchored_bundle.bundle.bundle_id();
+            for typed_assignments in transition.assignments.values() {
+                for index in 0..typed_assignments.len_u16() {
+                    if let Some(seal) = typed_assignments
+                        .revealed_seal_at(index)
+                        .expect("index exists")
+                    {
+                        terminals.insert(Terminal::with(bundle_id, seal.into()));
+                    }
+                }
+            }
+
+            anchored_bundles.insert(opout.op, anchored_bundle.clone());
+        }
+
+        // 3. Collect all state transitions between terminals and genesis
+        let mut ids = vec![];
+        for transition in transitions.values() {
+            ids.extend(transition.prev_outs().iter().map(|opout| opout.op));
+        }
+        while let Some(id) = ids.pop() {
+            let transition = self.transition(id)?;
+            ids.extend(transition.prev_outs().iter().map(|opout| opout.op));
+            transitions.insert(id, transition.clone());
+            anchored_bundles
+                .entry(id)
+                .or_insert(self.anchored_bundle(id)?.clone())
+                .bundle
+                .reveal_transition(transition)?;
+        }
+
+        let genesis = self.genesis(contract_id)?;
+        let schema_ifaces = self.schema(genesis.schema_id)?;
+        let mut consignment = Consignment::new(schema_ifaces.schema.clone(), genesis.clone());
+        for (iface_id, iimpl) in &schema_ifaces.iimpls {
+            let iface = self.iface_by_id(*iface_id)?;
+            consignment
+                .ifaces
+                .insert(*iface_id, IfacePair::with(iface.clone(), iimpl.clone()))
+                .expect("same collection size");
+        }
+        consignment.bundles = Confined::try_from_iter(anchored_bundles.into_values())
+            .map_err(|_| ConsignerError::TooManyBundles)?;
+        consignment.terminals =
+            Confined::try_from(terminals).map_err(|_| ConsignerError::TooManyTerminals)?;
+
+        // TODO: Add known sigs to the consignment
+
+        Ok(consignment)
     }
-     */
 
     /*
     fn accept<const TYPE: bool>(
