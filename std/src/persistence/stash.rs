@@ -116,23 +116,4 @@ pub trait Stash {
         contract_id: ContractId,
         witness_txid: Txid,
     ) -> Result<&TransitionBundle, StashError<Self::Error>>;
-
-    fn always_include_transitions(
-        &self,
-        schema_id: SchemaId,
-    ) -> Result<BTreeSet<TransitionType>, StashError<Self::Error>> {
-        let schema_ifaces = self.schema(schema_id)?;
-        let mut set = BTreeSet::new();
-        for (id, iimpl) in &schema_ifaces.iimpls {
-            let iface = self.iface_by_id(*id)?;
-            set.extend(
-                iface
-                    .transitions
-                    .iter()
-                    .filter(|(_, t)| t.always_include)
-                    .filter_map(|(name, _)| iimpl.transition_type(name)),
-            );
-        }
-        Ok(set)
-    }
 }

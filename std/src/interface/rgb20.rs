@@ -33,7 +33,7 @@ pub fn rgb20() -> Iface {
             tn!("Nominal") => Req::require(types.get("RGBContract.Nominal")),
             tn!("ContractText") => Req::require(types.get("RGBContract.ContractText")),
         },
-        owned_state: tiny_bmap! {
+        assignments: tiny_bmap! {
             tn!("Assets") => OwnedIface::Amount,
         },
         valencies: none!(),
