@@ -19,13 +19,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::btree_map;
 use std::convert::Infallible;
 
 use amplify::confinement::{SmallOrdMap, TinyOrdMap};
-use bp::Txid;
-use commit_verify::mpc::MerkleBlock;
-use rgb::{Anchor, ContractId, Genesis, OpId, SchemaId, Transition, TransitionBundle};
+use commit_verify::mpc::MerkleProof;
+use rgb::validation::ConsignmentApi;
+use rgb::{Anchor, BundleId, ContractId, Genesis, SchemaId, TransitionBundle};
 
 use crate::containers::{ContentId, ContentSigs, Contract};
 use crate::interface::{rgb20, Iface, IfaceId, SchemaIfaces};
@@ -59,12 +58,18 @@ impl Default for Hoard {
 }
 
 impl Hoard {
+    /*
     pub fn schemata(&self) -> btree_map::Iter<SchemaId, SchemaIfaces> { self.schemata.iter() }
     pub fn ifaces(&self) -> btree_map::Iter<IfaceId, Iface> { self.ifaces.iter() }
     pub fn contracts(&self) -> btree_map::Iter<ContractId, Contract> { self.contracts.iter() }
     pub fn sigs(&self) -> btree_map::Iter<ContentId, ContentSigs> { self.sigs.iter() }
+     */
 
-    pub fn contract(&self, id: ContractId) -> Option<&Contract> { self.contracts.get(&id) }
+    pub fn contract(&self, id: ContractId) -> Result<&Contract, StashInconsistency> {
+        self.contracts
+            .get(&id)
+            .ok_or(StashInconsistency::ContractAbsent(id))
+    }
 }
 
 impl Stash for Hoard {
@@ -90,25 +95,28 @@ impl Stash for Hoard {
     }
 
     fn genesis(&self, contract_id: ContractId) -> Result<&Genesis, StashError<Self::Error>> {
-        self.contracts
-            .get(&contract_id)
-            .map(|contract| &contract.genesis)
-            .ok_or_else(|| StashInconsistency::ContractAbsent(contract_id).into())
+        Ok(&self.contract(contract_id)?.genesis)
     }
 
-    fn transition(&self, id: OpId) -> Result<&Transition, StashError<Self::Error>> { todo!() }
-
-    fn witness_txid(&self, id: OpId) -> Result<Txid, StashError<Self::Error>> { todo!() }
-
-    fn anchor(&self, witness_txid: Txid) -> Result<&Anchor<MerkleBlock>, StashError<Self::Error>> {
-        todo!()
-    }
-
-    fn bundle(
+    fn anchor_by_bundle(
         &self,
         contract_id: ContractId,
-        witness_txid: Txid,
+        bundle_id: BundleId,
+    ) -> Result<&Anchor<MerkleProof>, StashError<Self::Error>> {
+        Ok(&self
+            .contract(contract_id)?
+            .anchored_bundle(bundle_id)
+            .ok_or(StashInconsistency::BundleAbsent(contract_id, bundle_id))?
+            .anchor)
+    }
+
+    fn bundle_by_id(
+        &self,
+        contract_id: ContractId,
+        bundle_id: BundleId,
     ) -> Result<&TransitionBundle, StashError<Self::Error>> {
-        todo!()
+        self.contract(contract_id)?
+            .bundle_by_id(bundle_id)
+            .ok_or_else(|| StashInconsistency::BundleAbsent(contract_id, bundle_id).into())
     }
 }
