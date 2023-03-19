@@ -126,6 +126,9 @@ pub enum DataError {
     /// you'd like to take the risc, call `import_contract_force`.
     TerminalsUnmined,
 
+    /// outpoint {0} is not part of the contract {1}
+    OutpointUnknown(Outpoint, ContractId),
+
     #[from]
     Confinement(confinement::Error),
 

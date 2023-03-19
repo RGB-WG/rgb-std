@@ -23,7 +23,7 @@ use std::collections::BTreeSet;
 use std::convert::Infallible;
 use std::ops::{Deref, DerefMut};
 
-use amplify::confinement::{self, Confined, MediumOrdMap, TinyOrdMap};
+use amplify::confinement::{self, Confined, MediumOrdMap, MediumOrdSet, TinyOrdMap};
 use rgb::validation::{Validity, Warning};
 use rgb::{
     validation, AnchoredBundle, BundleId, ContractHistory, ContractId, ContractState, OpId, Opout,
@@ -45,6 +45,14 @@ use crate::{Outpoint, LIB_NAME_RGB_STD};
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 pub(super) struct IndexedBundle(ContractId, BundleId);
 
+#[derive(Clone, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
+pub struct ContractIndex {
+    public_opouts: MediumOrdSet<Opout>,
+    outpoint_opouts: MediumOrdMap<Outpoint, MediumOrdSet<Opout>>,
+}
+
 /// Stock is an in-memory inventory (stash, index, contract state) useful for
 /// WASM implementations.
 ///
@@ -59,6 +67,7 @@ pub struct Stock {
     history: TinyOrdMap<ContractId, ContractHistory>,
     // index
     bundle_op_index: MediumOrdMap<OpId, IndexedBundle>,
+    contract_index: TinyOrdMap<ContractId, ContractIndex>,
 }
 
 impl Default for Stock {
@@ -67,6 +76,7 @@ impl Default for Stock {
             hoard: Hoard::preset(),
             history: empty!(),
             bundle_op_index: empty!(),
+            contract_index: empty!(),
         }
     }
 }
@@ -339,7 +349,11 @@ impl Inventory for Stock {
         &mut self,
         contract_id: ContractId,
     ) -> Result<BTreeSet<Opout>, InventoryError<Self::Error>> {
-        todo!()
+        let index = self
+            .contract_index
+            .get(&contract_id)
+            .ok_or(StashInconsistency::ContractAbsent(contract_id))?;
+        Ok(index.public_opouts.to_inner())
     }
 
     fn outpoint_opouts(
@@ -347,6 +361,18 @@ impl Inventory for Stock {
         contract_id: ContractId,
         outpoints: impl IntoIterator<Item = impl Into<Outpoint>>,
     ) -> Result<BTreeSet<Opout>, InventoryError<Self::Error>> {
-        todo!()
+        let index = self
+            .contract_index
+            .get(&contract_id)
+            .ok_or(StashInconsistency::ContractAbsent(contract_id))?;
+        let mut opouts = BTreeSet::new();
+        for outpoint in outpoints.into_iter().map(|o| o.into()) {
+            let set = index
+                .outpoint_opouts
+                .get(&outpoint)
+                .ok_or(DataError::OutpointUnknown(outpoint, contract_id))?;
+            opouts.extend(set)
+        }
+        Ok(opouts)
     }
 }
