@@ -26,8 +26,10 @@ use std::error::Error;
 
 use bp::Txid;
 use commit_verify::mpc;
+use rgb::validation::AnchoredBundle;
 use rgb::{
-    Anchor, ContractId, Genesis, OpId, SchemaId, Transition, TransitionBundle, TransitionType,
+    Anchor, BundleId, ContractId, Genesis, OpId, SchemaId, Transition, TransitionBundle,
+    TransitionType,
 };
 
 use crate::interface::{Iface, IfaceId, SchemaIfaces};
@@ -71,23 +73,23 @@ pub enum StashInconsistency {
     /// stash inconsistency and compromised stash data storage.
     TransitionAbsent(OpId),
 
-    /// witness Txid is not known for transition {0}
+    /// witness Txid is not known for transition {0}.
     ///
     /// It may happen due to RGB standard library bug, or indicate internal
     /// stash inconsistency and compromised stash data storage.
     TransitionTxidAbsent(OpId),
 
-    /// anchor for txid {0} is absent
+    /// anchor for txid {0} is absent.
     ///
     /// It may happen due to RGB standard library bug, or indicate internal
     /// stash inconsistency and compromised stash data storage.
     AnchorAbsent(Txid),
 
-    /// bundle data for contract {0} txid {1} is absent
+    /// bundle data {1} for contract {0} is absent.
     ///
     /// It may happen due to RGB standard library bug, or indicate internal
     /// stash inconsistency and compromised stash data storage.
-    BundleAbsent(ContractId, Txid),
+    BundleAbsent(ContractId, BundleId),
 }
 
 pub trait Stash {
@@ -102,18 +104,29 @@ pub trait Stash {
 
     fn genesis(&self, contract_id: ContractId) -> Result<&Genesis, StashError<Self::Error>>;
 
-    fn transition(&self, id: OpId) -> Result<&Transition, StashError<Self::Error>>;
+    fn anchored_bundle(&mut self, opid: OpId) -> Result<&AnchoredBundle, StashError<Self::Error>>;
 
-    fn witness_txid(&self, id: OpId) -> Result<Txid, StashError<Self::Error>>;
-
-    fn anchor(
-        &self,
-        witness_txid: Txid,
-    ) -> Result<&Anchor<mpc::MerkleBlock>, StashError<Self::Error>>;
-
-    fn bundle(
+    fn transition_by_bundle(
         &self,
         contract_id: ContractId,
-        witness_txid: Txid,
+        bundle_id: BundleId,
+        id: OpId,
+    ) -> Result<Option<&Transition>, StashError<Self::Error>> {
+        self.bundle_by_id(contract_id, bundle_id)?
+            .get(&id)
+            .map(|item| item.transition.as_ref())
+            .ok_or_else(|| StashInconsistency::TransitionAbsent(id).into())
+    }
+
+    fn anchor_by_bundle(
+        &self,
+        contract_id: ContractId,
+        bundle_id: BundleId,
+    ) -> Result<&Anchor<mpc::MerkleProof>, StashError<Self::Error>>;
+
+    fn bundle_by_id(
+        &self,
+        contract_id: ContractId,
+        bundle_id: BundleId,
     ) -> Result<&TransitionBundle, StashError<Self::Error>>;
 }
