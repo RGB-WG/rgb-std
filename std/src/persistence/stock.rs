@@ -24,14 +24,14 @@ use std::convert::Infallible;
 use std::ops::{Deref, DerefMut};
 
 use amplify::confinement::{self, Confined, MediumOrdMap, MediumOrdSet, TinyOrdMap};
-use rgb::validation::{Validity, Warning};
+use rgb::validation::{Status, Validity, Warning};
 use rgb::{
     validation, AnchoredBundle, BundleId, ContractHistory, ContractId, ContractState, OpId, Opout,
     SubSchema,
 };
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 
-use crate::containers::{Bindle, Cert, ContentId, ContentSigs, Contract};
+use crate::containers::{Bindle, Cert, Consignment, ContentId, ContentSigs, Contract, Transfer};
 use crate::interface::{ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, SchemaIfaces};
 use crate::persistence::inventory::{DataError, IfaceImplError, InventoryInconsistency};
 use crate::persistence::{
@@ -116,9 +116,9 @@ impl Stock {
         Ok(())
     }
 
-    fn _import_contract<R: ResolveHeight>(
+    fn _import_contract<R: ResolveHeight, const TYPE: bool>(
         &mut self,
-        mut contract: Contract,
+        mut consignment: Consignment<TYPE>,
         resolver: &mut R,
         force: bool,
     ) -> Result<validation::Status, InventoryDataError<Infallible>>
@@ -126,7 +126,7 @@ impl Stock {
         R::Error: 'static,
     {
         let mut status = validation::Status::new();
-        match contract.validation_status() {
+        match consignment.validation_status() {
             None => return Err(DataError::NotValidated.into()),
             Some(status) if status.validity() == Validity::Invalid => {
                 return Err(DataError::Invalid(status.clone()).into());
@@ -149,27 +149,34 @@ impl Stock {
             _ => {}
         }
 
-        let id = contract.contract_id();
+        let id = consignment.contract_id();
 
-        self.import_schema(contract.schema.clone())?;
-        for IfacePair { iface, iimpl } in contract.ifaces.values() {
+        self.import_schema(consignment.schema.clone())?;
+        for IfacePair { iface, iimpl } in consignment.ifaces.values() {
             self.import_iface(iface.clone())?;
             self.import_iface_impl(iimpl.clone())?;
         }
-        for (content_id, sigs) in contract.signatures {
+        for (content_id, sigs) in consignment.signatures {
             // Do not bother if we can't import all the sigs
             self.import_sigs_internal(content_id, sigs).ok();
         }
-        contract.signatures = none!();
+        consignment.signatures = none!();
 
         // TODO: Update existing contract state
-        let history = contract
-            .build_history(resolver)
+
+        let history = consignment
+            .update_history(self.history.get(&id), resolver)
             .map_err(|err| DataError::HeightResolver(Box::new(err)))?;
         self.history.insert(id, history)?;
 
         // TODO: Merge contracts
-        if self.contracts.insert(id, contract)?.is_some() {
+        if let Some(contract) = self.contracts.get_mut(&id) {
+            contract.merge(consignment)?;
+        } else if self
+            .contracts
+            .insert(id, consignment.into_contract())?
+            .is_some()
+        {
             status.add_warning(Warning::Custom(format!(
                 "contract {id::<0} has replaced previously known contract version",
             )));
@@ -287,6 +294,18 @@ impl Inventory for Stock {
         R::Error: 'static,
     {
         self._import_contract(contract, resolver, false)
+            .map_err(InventoryDataError::from)
+    }
+
+    fn accept_transfer<R: ResolveHeight>(
+        &mut self,
+        transfer: Transfer,
+        resolver: &mut R,
+    ) -> Result<Status, InventoryDataError<Self::Error>>
+    where
+        R::Error: 'static,
+    {
+        self._import_contract(transfer, resolver, false)
             .map_err(InventoryDataError::from)
     }
 

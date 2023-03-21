@@ -30,7 +30,7 @@ use rgb::{
     validation, AnchoredBundle, ContractId, OpId, Operation, Opout, SchemaId, SubSchema, Transition,
 };
 
-use crate::accessors::{BundleExt, RevealError};
+use crate::accessors::{BundleExt, MergeRevealError, RevealError};
 //use crate::builders::{ConsignerError, ConsignmentBuilder, OutpointFilter};
 use crate::containers::{Bindle, Cert, Consignment, ContentId, Contract, Terminal, Transfer};
 use crate::interface::{ContractIface, Iface, IfaceId, IfaceImpl, IfacePair};
@@ -103,6 +103,7 @@ pub enum InventoryDataError<E: Error> {
     #[from(validation::Status)]
     #[from(confinement::Error)]
     #[from(IfaceImplError)]
+    #[from(MergeRevealError)]
     DataError(DataError),
 }
 
@@ -125,6 +126,10 @@ pub enum DataError {
     /// consignment final transactions are not yet mined. If you are sure that
     /// you'd like to take the risc, call `import_contract_force`.
     TerminalsUnmined,
+
+    #[from]
+    #[display(inner)]
+    Merge(MergeRevealError),
 
     /// outpoint {0} is not part of the contract {1}
     OutpointUnknown(Outpoint, ContractId),
@@ -230,6 +235,14 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     fn import_contract<R: ResolveHeight>(
         &mut self,
         contract: Contract,
+        resolver: &mut R,
+    ) -> Result<validation::Status, InventoryDataError<Self::Error>>
+    where
+        R::Error: 'static;
+
+    fn accept_transfer<R: ResolveHeight>(
+        &mut self,
+        transfer: Transfer,
         resolver: &mut R,
     ) -> Result<validation::Status, InventoryDataError<Self::Error>>
     where
@@ -378,11 +391,4 @@ pub trait Inventory: Deref<Target = Self::Stash> {
 
         Ok(consignment)
     }
-
-    /*
-    fn accept<const TYPE: bool>(
-        &mut self,
-        consignment: Consignment<TYPE>,
-    ) -> Result<(), Self::ImportError>;
-     */
 }

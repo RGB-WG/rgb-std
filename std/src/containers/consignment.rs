@@ -152,16 +152,19 @@ impl<const TYPE: bool> Consignment<TYPE> {
         self.validation_status.as_ref()
     }
 
-    pub fn build_history<R: ResolveHeight>(
+    pub fn update_history<R: ResolveHeight>(
         &self,
+        history: Option<&ContractHistory>,
         resolver: &mut R,
     ) -> Result<ContractHistory, R::Error> {
-        let mut history = ContractHistory::with(
-            self.schema_id(),
-            self.root_schema_id(),
-            self.contract_id(),
-            &self.genesis,
-        );
+        let mut history = history.cloned().unwrap_or_else(|| {
+            ContractHistory::with(
+                self.schema_id(),
+                self.root_schema_id(),
+                self.contract_id(),
+                &self.genesis,
+            )
+        });
 
         let mut extension_idx = self
             .extensions
@@ -204,6 +207,22 @@ impl<const TYPE: bool> Consignment<TYPE> {
         }
 
         Ok(history)
+    }
+
+    pub fn into_contract(self) -> Contract {
+        Contract {
+            validation_status: self.validation_status,
+            version: self.version,
+            transfer: false,
+            schema: self.schema,
+            ifaces: self.ifaces,
+            genesis: self.genesis,
+            terminals: self.terminals,
+            bundles: self.bundles,
+            extensions: self.extensions,
+            attachments: self.attachments,
+            signatures: self.signatures,
+        }
     }
 }
 
