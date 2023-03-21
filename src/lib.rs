@@ -58,3 +58,13 @@
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 mod psbt;
+
+// 1. Construct main state transition with transition builder
+// -- shortcut using invoice to do that construction (like .with_invoice())
+// -- have a construction for the "remaining state" assigned to a seal
+//    prototype.
+// 2. Add that state transition to PSBT
+// -- add change by checking change PSBT flag and assigning remaining state to
+//    that output
+// 3. Extract from PSBT all spent prevouts and construct blank state transitions
+//    for each one of them; embed them into PSBT
