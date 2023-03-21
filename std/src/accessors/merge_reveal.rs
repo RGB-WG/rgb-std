@@ -19,9 +19,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use amplify::confinement::Confined;
 use bp::dbc::anchor::MergeError;
 use commit_verify::{mpc, CommitmentId};
-use rgb::Anchor;
+use rgb::{Anchor, Assign, ExposedSeal, ExposedState, TypedAssigns};
 
 use crate::containers::{Consignment, Contract};
 
@@ -54,26 +55,100 @@ pub enum MergeRevealError {
 /// merge(ConfidentialSeal, ConfidentialAmount) => Revealed
 /// merge(ConfidentialAmount, ConfidentialSeal) => Revealed
 /// merge(Confidential, Anything) => Anything
-pub trait MergeReveal: Sized + CommitmentId
-where Self::Id: Eq
-{
+pub trait MergeReveal: Sized {
+    fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError>;
+}
+
+impl MergeReveal for Anchor<mpc::MerkleBlock> {
+    fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {
+        self.merge_reveal(other).map_err(MergeRevealError::from)
+    }
+}
+
+impl<State: ExposedState, Seal: ExposedSeal> MergeReveal for Assign<State, Seal> {
     fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {
         let self_id = self.commitment_id();
         let other_id = other.commitment_id();
         if self_id != other_id {
-            Err(MergeRevealError::CommitmentMismatch)
-        } else {
-            unsafe { self.merge_reveal_internal(other) }
+            return Err(MergeRevealError::CommitmentMismatch);
+        }
+        match (self, other) {
+            // Anything + Revealed = Revealed
+            (_, state @ Assign::Revealed { .. }) | (state @ Assign::Revealed { .. }, _) => {
+                Ok(state)
+            }
+
+            // ConfidentialAmount + ConfidentialSeal = Revealed
+            (Assign::ConfidentialSeal { state, .. }, Assign::ConfidentialState { seal, .. }) => {
+                Ok(Assign::Revealed { seal, state })
+            }
+
+            // ConfidentialSeal + ConfidentialAmount = Revealed
+            (Assign::ConfidentialState { seal, .. }, Assign::ConfidentialSeal { state, .. }) => {
+                Ok(Assign::Revealed { seal, state })
+            }
+
+            // if self and other is of same variant return self
+            (state @ Assign::ConfidentialState { .. }, Assign::ConfidentialState { .. }) => {
+                Ok(state)
+            }
+            (state @ Assign::ConfidentialSeal { .. }, Assign::ConfidentialSeal { .. }) => Ok(state),
+
+            // Anything + Confidential = Anything
+            (state, Assign::Confidential { .. }) | (Assign::Confidential { .. }, state) => {
+                Ok(state)
+            }
         }
     }
-
-    #[doc = hidden]
-    unsafe fn merge_reveal_internal(self, other: Self) -> Result<Self, MergeRevealError>;
 }
 
-impl MergeReveal for Anchor<mpc::MerkleBlock> {
-    unsafe fn merge_reveal_internal(self, other: Self) -> Result<Self, MergeRevealError> {
-        self.merge_reveal(other).map_err(MergeRevealError::from)
+impl<Seal: ExposedSeal> MergeReveal for TypedAssigns<Seal> {
+    fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {
+        match (self, other) {
+            (TypedAssigns::Declarative(first_vec), TypedAssigns::Declarative(second_vec)) => {
+                let mut result = Vec::with_capacity(first_vec.len());
+                for (first, second) in first_vec.into_iter().zip(second_vec.into_iter()) {
+                    result.push(first.merge_reveal(second)?);
+                }
+                Ok(TypedAssigns::Declarative(
+                    Confined::try_from(result).expect("collection of the same size"),
+                ))
+            }
+
+            (TypedAssigns::Fungible(first_vec), TypedAssigns::Fungible(second_vec)) => {
+                let mut result = Vec::with_capacity(first_vec.len());
+                for (first, second) in first_vec.into_iter().zip(second_vec.into_iter()) {
+                    result.push(first.merge_reveal(second)?);
+                }
+                Ok(TypedAssigns::Fungible(
+                    Confined::try_from(result).expect("collection of the same size"),
+                ))
+            }
+
+            (TypedAssigns::Structured(first_vec), TypedAssigns::Structured(second_vec)) => {
+                let mut result = Vec::with_capacity(first_vec.len());
+                for (first, second) in first_vec.into_iter().zip(second_vec.into_iter()) {
+                    result.push(first.merge_reveal(second)?);
+                }
+                Ok(TypedAssigns::Structured(
+                    Confined::try_from(result).expect("collection of the same size"),
+                ))
+            }
+
+            (TypedAssigns::Attachment(first_vec), TypedAssigns::Attachment(second_vec)) => {
+                let mut result = Vec::with_capacity(first_vec.len());
+                for (first, second) in first_vec.into_iter().zip(second_vec.into_iter()) {
+                    result.push(first.merge_reveal(second)?);
+                }
+                Ok(TypedAssigns::Attachment(
+                    Confined::try_from(result).expect("collection of the same size"),
+                ))
+            }
+            // No other patterns possible, should not reach here
+            _ => {
+                unreachable!("Assignments::consensus_commitments is broken")
+            }
+        }
     }
 }
 
