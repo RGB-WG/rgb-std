@@ -26,8 +26,8 @@ use amplify::Wrapper;
 use bp::dbc::anchor::MergeError;
 use commit_verify::{mpc, CommitmentId};
 use rgb::{
-    Anchor, Assign, Assignments, ExposedSeal, ExposedState, Extension, Genesis, OpId, Transition,
-    TypedAssigns,
+    Anchor, AnchoredBundle, Assign, Assignments, BundleItem, ExposedSeal, ExposedState, Extension,
+    Genesis, OpId, Transition, TransitionBundle, TypedAssigns,
 };
 
 use crate::containers::{Consignment, Contract};
@@ -72,6 +72,7 @@ impl MergeReveal for Anchor<mpc::MerkleBlock> {
 
 impl<State: ExposedState, Seal: ExposedSeal> MergeReveal for Assign<State, Seal> {
     fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {
+        debug_assert_eq!(self.commitment_id(), other.commitment_id());
         match (self, other) {
             // Anything + Revealed = Revealed
             (_, state @ Assign::Revealed { .. }) | (state @ Assign::Revealed { .. }, _) => {
@@ -160,11 +161,50 @@ impl<Seal: ExposedSeal> MergeReveal for Assignments<Seal> {
             .into_iter()
             .zip(other.into_inner().into_iter())
         {
+            debug_assert_eq!(first.0, second.0);
             result.insert(first.0, first.1.merge_reveal(second.1)?);
         }
         Ok(Assignments::from_inner(
             Confined::try_from(result).expect("collection of the same size"),
         ))
+    }
+}
+
+impl MergeReveal for BundleItem {
+    fn merge_reveal(mut self, other: Self) -> Result<Self, MergeRevealError> {
+        debug_assert_eq!(self.inputs, other.inputs);
+        if self.transition.is_none() {
+            self.transition = other.transition
+        }
+        Ok(self)
+    }
+}
+
+impl MergeReveal for TransitionBundle {
+    fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {
+        debug_assert_eq!(self.commitment_id(), other.commitment_id());
+        let mut result = BTreeMap::new();
+        for (first, second) in self
+            .into_inner()
+            .into_iter()
+            .zip(other.into_inner().into_iter())
+        {
+            debug_assert_eq!(first.0, second.0);
+            result.insert(first.0, first.1.merge_reveal(second.1)?);
+        }
+        Ok(TransitionBundle::from_inner(
+            Confined::try_from(result).expect("collection of the same size"),
+        ))
+    }
+}
+
+impl MergeReveal for AnchoredBundle {
+    fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {
+        Ok(AnchoredBundle {
+            // TODO: uncomment
+            anchor: self.anchor, //.merge_reveal(other.anchor)?,
+            bundle: self.bundle.merge_reveal(other.bundle)?,
+        })
     }
 }
 
