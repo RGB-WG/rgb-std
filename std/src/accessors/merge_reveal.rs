@@ -19,21 +19,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::BTreeMap;
+
 use amplify::confinement::Confined;
+use amplify::Wrapper;
 use bp::dbc::anchor::MergeError;
 use commit_verify::{mpc, CommitmentId};
-use rgb::{Anchor, Assign, ExposedSeal, ExposedState, TypedAssigns};
+use rgb::{
+    Anchor, Assign, Assignments, ExposedSeal, ExposedState, Extension, Genesis, OpId, Transition,
+    TypedAssigns,
+};
 
 use crate::containers::{Consignment, Contract};
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum MergeRevealError {
-    /// two data structure which are merged with `merge_reveal` procedure have
-    /// different commitment ids ({0}, {1}), meaning internal application
-    /// business logic error (merging unrelated data structures). Please report
-    /// this issue to your software vendor.
-    CommitmentMismatch,
+    /// operations {0} and {1} has different commitment ids and can't be
+    /// merge-revealed. This usually means internal application business logic
+    /// error which should be reported to the software vendor.
+    OperationMismatch(OpId, OpId),
 
     #[from]
     #[display(inner)]
@@ -67,11 +72,6 @@ impl MergeReveal for Anchor<mpc::MerkleBlock> {
 
 impl<State: ExposedState, Seal: ExposedSeal> MergeReveal for Assign<State, Seal> {
     fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {
-        let self_id = self.commitment_id();
-        let other_id = other.commitment_id();
-        if self_id != other_id {
-            return Err(MergeRevealError::CommitmentMismatch);
-        }
         match (self, other) {
             // Anything + Revealed = Revealed
             (_, state @ Assign::Revealed { .. }) | (state @ Assign::Revealed { .. }, _) => {
@@ -149,6 +149,61 @@ impl<Seal: ExposedSeal> MergeReveal for TypedAssigns<Seal> {
                 unreachable!("Assignments::consensus_commitments is broken")
             }
         }
+    }
+}
+
+impl<Seal: ExposedSeal> MergeReveal for Assignments<Seal> {
+    fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {
+        let mut result = BTreeMap::new();
+        for (first, second) in self
+            .into_inner()
+            .into_iter()
+            .zip(other.into_inner().into_iter())
+        {
+            result.insert(first.0, first.1.merge_reveal(second.1)?);
+        }
+        Ok(Assignments::from_inner(
+            Confined::try_from(result).expect("collection of the same size"),
+        ))
+    }
+}
+
+impl MergeReveal for Genesis {
+    fn merge_reveal(mut self, other: Self) -> Result<Self, MergeRevealError> {
+        let self_id = self.commitment_id();
+        let other_id = other.commitment_id();
+        if self_id != other_id {
+            return Err(MergeRevealError::OperationMismatch(
+                OpId::from_inner(self_id.into_inner()),
+                OpId::from_inner(other_id.into_inner()),
+            ));
+        }
+        self.assignments = self.assignments.merge_reveal(other.assignments)?;
+        Ok(self)
+    }
+}
+
+impl MergeReveal for Transition {
+    fn merge_reveal(mut self, other: Self) -> Result<Self, MergeRevealError> {
+        let self_id = self.commitment_id();
+        let other_id = other.commitment_id();
+        if self_id != other_id {
+            return Err(MergeRevealError::OperationMismatch(self_id, other_id));
+        }
+        self.assignments = self.assignments.merge_reveal(other.assignments)?;
+        Ok(self)
+    }
+}
+
+impl MergeReveal for Extension {
+    fn merge_reveal(mut self, other: Self) -> Result<Self, MergeRevealError> {
+        let self_id = self.commitment_id();
+        let other_id = other.commitment_id();
+        if self_id != other_id {
+            return Err(MergeRevealError::OperationMismatch(self_id, other_id));
+        }
+        self.assignments = self.assignments.merge_reveal(other.assignments)?;
+        Ok(self)
     }
 }
 
