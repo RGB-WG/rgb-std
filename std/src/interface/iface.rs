@@ -213,6 +213,7 @@ pub struct TransitionIface {
     pub inputs: TypeReqMap,
     pub assignments: TypeReqMap,
     pub valencies: TypeReqMap,
+    pub default_assignment: Option<TypeName>,
 }
 
 /// Interface definition.
@@ -232,6 +233,7 @@ pub struct Iface {
     pub genesis: GenesisIface,
     pub transitions: TinyOrdMap<TypeName, TransitionIface>,
     pub extensions: TinyOrdMap<TypeName, ExtensionIface>,
+    pub default_operation: Option<TypeName>,
 }
 
 impl PartialEq for Iface {
