@@ -60,9 +60,11 @@ pub fn rgb20() -> Iface {
                     tn!("Assets") => Occurrences::OnceOrMore,
                 },
                 valencies: none!(),
+                default_assignment: Some(tn!("Assets")),
             }
         },
         extensions: none!(),
+        default_operation: Some(tn!("Transfer")),
     }
 }
 

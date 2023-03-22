@@ -26,8 +26,8 @@ use amplify::{confinement, Wrapper};
 use bp::secp256k1::rand::thread_rng;
 use bp::{Chain, Outpoint};
 use rgb::{
-    fungible, Assign, AssignmentType, Assignments, FungibleType, Genesis, GlobalState, StateSchema,
-    SubSchema, TypedAssigns,
+    fungible, Assign, AssignmentType, Assignments, ExposedSeal, FungibleType, Genesis, GlobalState,
+    Opout, PrevOuts, StateSchema, SubSchema, Transition, TransitionType, TypedAssigns,
 };
 use strict_encoding::{SerializeError, StrictSerialize, TypeName};
 use strict_types::decode;
@@ -37,7 +37,7 @@ use crate::interface::{Iface, IfaceImpl, IfacePair};
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
-pub enum IssuerError {
+pub enum BuilderError {
     /// interface implementation references different interface that the one
     /// provided to the forge.
     InterfaceMismatch,
@@ -51,6 +51,10 @@ pub enum IssuerError {
 
     /// state `{0}` provided to the builder has invalid type
     InvalidStateType(TypeName),
+
+    /// interface doesn't specifies default operation name, thus an explicit
+    /// operation type must be provided with `set_operation_type` method.
+    NoOperationSubtype,
 
     #[from]
     #[display(inner)]
@@ -67,40 +71,15 @@ pub enum IssuerError {
 
 #[derive(Clone, Debug)]
 pub struct ContractBuilder {
-    schema: SubSchema,
-    iface: Iface,
-    iimpl: IfaceImpl,
-
+    builder: OperationBuilder,
     chain: Chain,
-    global: GlobalState,
-    // rights: TinyOrdMap<AssignmentType, Confined<BTreeSet<Outpoint>, 1, U8>>,
-    fungible: TinyOrdMap<AssignmentType, Confined<BTreeMap<Outpoint, fungible::Revealed>, 1, U8>>,
-    // data: TinyOrdMap<AssignmentType, Confined<BTreeMap<Outpoint, SmallBlob>, 1, U8>>,
-    // TODO: add attachments
-    // TODO: add valencies
 }
 
 impl ContractBuilder {
-    pub fn with(iface: Iface, schema: SubSchema, iimpl: IfaceImpl) -> Result<Self, IssuerError> {
-        if iimpl.iface_id != iface.iface_id() {
-            return Err(IssuerError::InterfaceMismatch);
-        }
-        if iimpl.schema_id != schema.schema_id() {
-            return Err(IssuerError::SchemaMismatch);
-        }
-
-        // TODO: check schema internal consistency
-        // TODO: check interface internal consistency
-        // TODO: check implmenetation internal consistency
-
-        Ok(ContractBuilder {
-            schema,
-            iface,
-            iimpl,
-
+    pub fn with(iface: Iface, schema: SubSchema, iimpl: IfaceImpl) -> Result<Self, BuilderError> {
+        Ok(Self {
+            builder: OperationBuilder::with(iface, schema, iimpl)?,
             chain: default!(),
-            global: none!(),
-            fungible: none!(),
         })
     }
 
@@ -113,13 +92,171 @@ impl ContractBuilder {
         mut self,
         name: impl Into<TypeName>,
         value: impl StrictSerialize,
-    ) -> Result<Self, IssuerError> {
+    ) -> Result<Self, BuilderError> {
+        self.builder = self.builder.add_global_state(name, value)?;
+        Ok(self)
+    }
+
+    pub fn add_fungible_state(
+        mut self,
+        name: impl Into<TypeName>,
+        seal: impl Into<Outpoint>,
+        value: u64,
+    ) -> Result<Self, BuilderError> {
+        self.builder = self.builder.add_fungible_state(name, seal, value)?;
+        Ok(self)
+    }
+
+    pub fn issue_contract(self) -> Result<Contract, BuilderError> {
+        let (schema, iface_pair, global, assignments) = self.builder.complete();
+
+        let genesis = Genesis {
+            ffv: none!(),
+            schema_id: schema.schema_id(),
+            chain: self.chain,
+            metadata: empty!(),
+            globals: global,
+            assignments,
+            valencies: none!(),
+        };
+
+        // TODO: Validate against schema
+
+        let mut contract = Contract::new(schema, genesis);
+        contract.ifaces = tiny_bmap! { iface_pair.iface_id() => iface_pair };
+
+        Ok(contract)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct TransitionBuilder {
+    builder: OperationBuilder,
+    transition_type: Option<TransitionType>,
+    inputs: PrevOuts,
+}
+
+impl TransitionBuilder {
+    pub fn with(iface: Iface, schema: SubSchema, iimpl: IfaceImpl) -> Result<Self, BuilderError> {
+        Ok(Self {
+            builder: OperationBuilder::with(iface, schema, iimpl)?,
+            transition_type: None,
+            inputs: none!(),
+        })
+    }
+
+    pub fn add_input(mut self, opout: Opout) -> Result<Self, BuilderError> {
+        self.inputs.push(opout)?;
+        Ok(self)
+    }
+
+    pub fn set_transition_type(mut self, name: impl Into<TypeName>) -> Result<Self, BuilderError> {
+        let name = name.into();
+        let transition_type = self
+            .builder
+            .iimpl
+            .transition_type(&name)
+            .ok_or(BuilderError::TypeNotFound(name))?;
+        self.transition_type = Some(transition_type);
+        Ok(self)
+    }
+
+    pub fn add_global_state(
+        mut self,
+        name: impl Into<TypeName>,
+        value: impl StrictSerialize,
+    ) -> Result<Self, BuilderError> {
+        self.builder = self.builder.add_global_state(name, value)?;
+        Ok(self)
+    }
+
+    pub fn add_fungible_state(
+        mut self,
+        name: impl Into<TypeName>,
+        seal: impl Into<Outpoint>,
+        value: u64,
+    ) -> Result<Self, BuilderError> {
+        self.builder = self.builder.add_fungible_state(name, seal, value)?;
+        Ok(self)
+    }
+
+    pub fn complete_transition(self) -> Result<Transition, BuilderError> {
+        let (_, pair, global, assignments) = self.builder.complete();
+
+        let transition_type = self
+            .transition_type
+            .or_else(|| {
+                pair.iface
+                    .default_operation
+                    .as_ref()
+                    .and_then(|name| pair.transition_type(name))
+            })
+            .ok_or(BuilderError::NoOperationSubtype)?;
+
+        let transition = Transition {
+            ffv: none!(),
+            transition_type,
+            metadata: empty!(),
+            globals: global,
+            inputs: self.inputs,
+            assignments,
+            valencies: none!(),
+        };
+
+        // TODO: Validate against schema
+
+        Ok(transition)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct OperationBuilder {
+    schema: SubSchema,
+    iface: Iface,
+    iimpl: IfaceImpl,
+
+    global: GlobalState,
+    // rights: TinyOrdMap<AssignmentType, Confined<BTreeSet<Outpoint>, 1, U8>>,
+    fungible: TinyOrdMap<AssignmentType, Confined<BTreeMap<Outpoint, fungible::Revealed>, 1, U8>>,
+    // data: TinyOrdMap<AssignmentType, Confined<BTreeMap<Outpoint, SmallBlob>, 1, U8>>,
+    // TODO: add attachments
+    // TODO: add valencies
+}
+
+impl OperationBuilder {
+    pub fn with(iface: Iface, schema: SubSchema, iimpl: IfaceImpl) -> Result<Self, BuilderError> {
+        if iimpl.iface_id != iface.iface_id() {
+            return Err(BuilderError::InterfaceMismatch);
+        }
+        if iimpl.schema_id != schema.schema_id() {
+            return Err(BuilderError::SchemaMismatch);
+        }
+
+        // TODO: check schema internal consistency
+        // TODO: check interface internal consistency
+        // TODO: check implmenetation internal consistency
+
+        Ok(OperationBuilder {
+            schema,
+            iface,
+            iimpl,
+
+            global: none!(),
+            fungible: none!(),
+        })
+    }
+
+    pub fn add_global_state(
+        mut self,
+        name: impl Into<TypeName>,
+        value: impl StrictSerialize,
+    ) -> Result<Self, BuilderError> {
         let name = name.into();
         let serialized = value.to_strict_serialized::<{ u16::MAX as usize }>()?;
 
         // Check value matches type requirements
         let Some(id) = self.iimpl.global_state.iter().find(|t| t.name == name).map(|t| t.id) else {
-            return Err(IssuerError::TypeNotFound(name));
+            return Err(BuilderError::TypeNotFound(name));
         };
         let ty_id = self
             .schema
@@ -141,11 +278,11 @@ impl ContractBuilder {
         name: impl Into<TypeName>,
         seal: impl Into<Outpoint>,
         value: u64,
-    ) -> Result<Self, IssuerError> {
+    ) -> Result<Self, BuilderError> {
         let name = name.into();
 
         let Some(id) = self.iimpl.owned_state.iter().find(|t| t.name == name).map(|t| t.id) else {
-            return Err(IssuerError::TypeNotFound(name));
+            return Err(BuilderError::TypeNotFound(name));
         };
         let ty = self
             .schema
@@ -153,7 +290,7 @@ impl ContractBuilder {
             .get(&id)
             .expect("schema should match interface: must be checked by the constructor");
         if *ty != StateSchema::Fungible(FungibleType::Unsigned64Bit) {
-            return Err(IssuerError::InvalidStateType(name));
+            return Err(BuilderError::InvalidStateType(name));
         }
 
         let state = fungible::Revealed::new(value, &mut thread_rng());
@@ -169,7 +306,7 @@ impl ContractBuilder {
         Ok(self)
     }
 
-    pub fn issue_contract(self) -> Contract {
+    fn complete<Seal: ExposedSeal>(self) -> (SubSchema, IfacePair, GlobalState, Assignments<Seal>) {
         let owned_state = self.fungible.into_iter().map(|(id, vec)| {
             let vec = vec.into_iter().map(|(seal, value)| Assign::Revealed {
                 seal: seal.into(),
@@ -182,22 +319,8 @@ impl ContractBuilder {
         let owned_state = Confined::try_from_iter(owned_state).expect("same size");
         let assignments = Assignments::from_inner(owned_state);
 
-        let genesis = Genesis {
-            ffv: none!(),
-            schema_id: self.schema.schema_id(),
-            chain: self.chain,
-            metadata: empty!(),
-            globals: self.global,
-            assignments,
-            valencies: none!(),
-        };
-
-        // TODO: Validate against schema
-
-        let mut contract = Contract::new(self.schema.clone(), genesis);
         let iface_pair = IfacePair::with(self.iface.clone(), self.iimpl);
-        contract.ifaces = tiny_bmap! { iface_pair.iface_id() => iface_pair };
 
-        contract
+        (self.schema, iface_pair, self.global, assignments)
     }
 }

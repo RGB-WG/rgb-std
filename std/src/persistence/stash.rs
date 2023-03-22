@@ -21,10 +21,14 @@
 
 //use crate::containers::{Consignment, Contract, Transfer};
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 
-use bp::Txid;
-use rgb::{AnchoredBundle, BundleId, ContractId, Genesis, OpId, SchemaId, Transition};
+use commit_verify::mpc;
+use rgb::{
+    Anchor, AnchorId, BundleId, ContractId, Extension, Genesis, OpId, SchemaId, TransitionBundle,
+};
+use strict_encoding::TypeName;
 
 use crate::interface::{Iface, IfaceId, SchemaIfaces};
 
@@ -65,30 +69,28 @@ pub enum StashInconsistency {
     ///
     /// It may happen due to RGB standard library bug, or indicate internal
     /// stash inconsistency and compromised stash data storage.
-    TransitionAbsent(OpId),
-
-    /// witness Txid is not known for transition {0}.
-    ///
-    /// It may happen due to RGB standard library bug, or indicate internal
-    /// stash inconsistency and compromised stash data storage.
-    TransitionTxidAbsent(OpId),
+    OperationAbsent(OpId),
 
     /// anchor for txid {0} is absent.
     ///
     /// It may happen due to RGB standard library bug, or indicate internal
     /// stash inconsistency and compromised stash data storage.
-    AnchorAbsent(Txid),
+    AnchorAbsent(AnchorId),
 
-    /// bundle data {1} for contract {0} is absent.
+    /// bundle {0} is absent.
     ///
     /// It may happen due to RGB standard library bug, or indicate internal
     /// stash inconsistency and compromised stash data storage.
-    BundleAbsent(ContractId, BundleId),
+    BundleAbsent(BundleId),
 }
 
 pub trait Stash {
     /// Error type which must indicate problems on data retrieval.
     type Error: Error;
+
+    fn schema_ids(&self) -> Result<BTreeSet<SchemaId>, Self::Error>;
+    fn ifaces(&self) -> Result<BTreeMap<IfaceId, TypeName>, Self::Error>;
+    fn contract_ids(&self) -> Result<BTreeSet<ContractId>, Self::Error>;
 
     fn iface_by_name(&self, name: &str) -> Result<&Iface, StashError<Self::Error>>;
 
@@ -98,28 +100,12 @@ pub trait Stash {
 
     fn genesis(&self, contract_id: ContractId) -> Result<&Genesis, StashError<Self::Error>>;
 
-    fn anchored_bundle(&self, opid: OpId) -> Result<&AnchoredBundle, StashError<Self::Error>>;
+    fn bundle(&self, bundle_id: BundleId) -> Result<&TransitionBundle, StashError<Self::Error>>;
 
-    fn transition(&self, opid: OpId) -> Result<&Transition, StashError<Self::Error>> {
-        Ok(self
-            .anchored_bundle(opid)?
-            .bundle
-            .get(&opid)
-            .and_then(|item| item.transition.as_ref())
-            .expect("Stash::anchored_bundle should guarantee returning revealed transition"))
-    }
+    fn extension(&self, op_id: OpId) -> Result<&Extension, StashError<Self::Error>>;
 
-    /*
-    fn anchor_by_bundle(
+    fn anchor(
         &self,
-        contract_id: ContractId,
-        bundle_id: BundleId,
-    ) -> Result<&Anchor<mpc::MerkleProof>, StashError<Self::Error>>;
-
-    fn bundle_by_id(
-        &self,
-        contract_id: ContractId,
-        bundle_id: BundleId,
-    ) -> Result<&TransitionBundle, StashError<Self::Error>>;
-     */
+        anchor_id: AnchorId,
+    ) -> Result<&Anchor<mpc::MerkleBlock>, StashError<Self::Error>>;
 }

@@ -26,8 +26,10 @@
 mod iface;
 mod iimpl;
 mod contract;
+mod builder;
 mod rgb20;
 
+pub use builder::{BuilderError, ContractBuilder, OperationBuilder, TransitionBuilder};
 pub use contract::{ContractIface, OwnedState, TypedState};
 pub use iface::{
     ExtensionIface, GenesisIface, GlobalIface, Iface, IfaceId, OwnedIface, Req, TransitionIface,
