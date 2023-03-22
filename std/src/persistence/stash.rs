@@ -21,12 +21,14 @@
 
 //use crate::containers::{Consignment, Contract, Transfer};
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 
 use commit_verify::mpc;
 use rgb::{
     Anchor, AnchorId, BundleId, ContractId, Extension, Genesis, OpId, SchemaId, TransitionBundle,
 };
+use strict_encoding::TypeName;
 
 use crate::interface::{Iface, IfaceId, SchemaIfaces};
 
@@ -85,6 +87,10 @@ pub enum StashInconsistency {
 pub trait Stash {
     /// Error type which must indicate problems on data retrieval.
     type Error: Error;
+
+    fn schema_ids(&self) -> Result<BTreeSet<SchemaId>, Self::Error>;
+    fn ifaces(&self) -> Result<BTreeMap<IfaceId, TypeName>, Self::Error>;
+    fn contract_ids(&self) -> Result<BTreeSet<ContractId>, Self::Error>;
 
     fn iface_by_name(&self, name: &str) -> Result<&Iface, StashError<Self::Error>>;
 

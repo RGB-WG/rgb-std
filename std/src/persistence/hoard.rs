@@ -19,6 +19,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::convert::Infallible;
 
 use amplify::confinement;
@@ -30,6 +31,7 @@ use rgb::{
     Anchor, AnchorId, AnchoredBundle, BundleId, ContractId, Extension, Genesis, OpId, Operation,
     SchemaId, TransitionBundle,
 };
+use strict_encoding::TypeName;
 
 use crate::accessors::{MergeReveal, MergeRevealError};
 use crate::containers::{Cert, Consignment, ContentId, ContentSigs};
@@ -183,6 +185,22 @@ impl Hoard {
 impl Stash for Hoard {
     // With in-memory data we have no connectivity or I/O errors
     type Error = Infallible;
+
+    fn schema_ids(&self) -> Result<BTreeSet<SchemaId>, Self::Error> {
+        Ok(self.schemata.keys().copied().collect())
+    }
+
+    fn ifaces(&self) -> Result<BTreeMap<IfaceId, TypeName>, Self::Error> {
+        Ok(self
+            .ifaces
+            .iter()
+            .map(|(id, iface)| (*id, iface.name.clone()))
+            .collect())
+    }
+
+    fn contract_ids(&self) -> Result<BTreeSet<ContractId>, Self::Error> {
+        Ok(self.geneses.keys().copied().collect())
+    }
 
     fn iface_by_name(&self, name: &str) -> Result<&Iface, StashError<Self::Error>> {
         self.ifaces
