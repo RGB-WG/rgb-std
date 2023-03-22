@@ -20,14 +20,15 @@
 // limitations under the License.
 
 use std::collections::BTreeMap;
+use std::ops::{Deref, DerefMut};
 
 use amplify::confinement::{Confined, TinyOrdMap, U8};
 use amplify::{confinement, Wrapper};
 use bp::secp256k1::rand::thread_rng;
 use bp::{Chain, Outpoint};
 use rgb::{
-    fungible, Assign, AssignmentType, Assignments, FungibleType, Genesis, GlobalState, StateSchema,
-    SubSchema, TypedAssigns,
+    fungible, Assign, AssignmentType, Assignments, ExposedSeal, FungibleType, Genesis, GlobalState,
+    StateSchema, SubSchema, TypedAssigns,
 };
 use strict_encoding::{SerializeError, StrictSerialize, TypeName};
 use strict_types::decode;
@@ -67,11 +68,60 @@ pub enum IssuerError {
 
 #[derive(Clone, Debug)]
 pub struct ContractBuilder {
+    builder: OperationBuilder,
+    chain: Chain,
+}
+
+impl Deref for ContractBuilder {
+    type Target = OperationBuilder;
+    fn deref(&self) -> &Self::Target { &self.builder }
+}
+
+impl DerefMut for ContractBuilder {
+    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.builder }
+}
+
+impl ContractBuilder {
+    pub fn with(iface: Iface, schema: SubSchema, iimpl: IfaceImpl) -> Result<Self, IssuerError> {
+        Ok(Self {
+            builder: OperationBuilder::with(iface, schema, iimpl)?,
+            chain: default!(),
+        })
+    }
+
+    pub fn set_chain(mut self, chain: Chain) -> Self {
+        self.chain = chain;
+        self
+    }
+
+    pub fn issue_contract(self) -> Contract {
+        let (schema, iface_pair, global, assignments) = self.builder.complete();
+
+        let genesis = Genesis {
+            ffv: none!(),
+            schema_id: schema.schema_id(),
+            chain: self.chain,
+            metadata: empty!(),
+            globals: global,
+            assignments,
+            valencies: none!(),
+        };
+
+        // TODO: Validate against schema
+
+        let mut contract = Contract::new(schema, genesis);
+        contract.ifaces = tiny_bmap! { iface_pair.iface_id() => iface_pair };
+
+        contract
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct OperationBuilder {
     schema: SubSchema,
     iface: Iface,
     iimpl: IfaceImpl,
 
-    chain: Chain,
     global: GlobalState,
     // rights: TinyOrdMap<AssignmentType, Confined<BTreeSet<Outpoint>, 1, U8>>,
     fungible: TinyOrdMap<AssignmentType, Confined<BTreeMap<Outpoint, fungible::Revealed>, 1, U8>>,
@@ -80,7 +130,7 @@ pub struct ContractBuilder {
     // TODO: add valencies
 }
 
-impl ContractBuilder {
+impl OperationBuilder {
     pub fn with(iface: Iface, schema: SubSchema, iimpl: IfaceImpl) -> Result<Self, IssuerError> {
         if iimpl.iface_id != iface.iface_id() {
             return Err(IssuerError::InterfaceMismatch);
@@ -93,20 +143,14 @@ impl ContractBuilder {
         // TODO: check interface internal consistency
         // TODO: check implmenetation internal consistency
 
-        Ok(ContractBuilder {
+        Ok(OperationBuilder {
             schema,
             iface,
             iimpl,
 
-            chain: default!(),
             global: none!(),
             fungible: none!(),
         })
-    }
-
-    pub fn set_chain(mut self, chain: Chain) -> Self {
-        self.chain = chain;
-        self
     }
 
     pub fn add_global_state(
@@ -169,7 +213,7 @@ impl ContractBuilder {
         Ok(self)
     }
 
-    pub fn issue_contract(self) -> Contract {
+    fn complete<Seal: ExposedSeal>(self) -> (SubSchema, IfacePair, GlobalState, Assignments<Seal>) {
         let owned_state = self.fungible.into_iter().map(|(id, vec)| {
             let vec = vec.into_iter().map(|(seal, value)| Assign::Revealed {
                 seal: seal.into(),
@@ -182,22 +226,8 @@ impl ContractBuilder {
         let owned_state = Confined::try_from_iter(owned_state).expect("same size");
         let assignments = Assignments::from_inner(owned_state);
 
-        let genesis = Genesis {
-            ffv: none!(),
-            schema_id: self.schema.schema_id(),
-            chain: self.chain,
-            metadata: empty!(),
-            globals: self.global,
-            assignments,
-            valencies: none!(),
-        };
-
-        // TODO: Validate against schema
-
-        let mut contract = Contract::new(self.schema.clone(), genesis);
         let iface_pair = IfacePair::with(self.iface.clone(), self.iimpl);
-        contract.ifaces = tiny_bmap! { iface_pair.iface_id() => iface_pair };
 
-        contract
+        (self.schema, iface_pair, self.global, assignments)
     }
 }
