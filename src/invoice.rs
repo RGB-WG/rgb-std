@@ -19,9 +19,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::num::ParseIntError;
+use std::str::FromStr;
+
+use fluent_uri::Uri;
 use indexmap::IndexMap;
 use rgb::{AttachId, ContractId, SecretSeal};
-use strict_encoding::TypeName;
+use strict_encoding::{InvalidIdent, TypeName};
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
 pub enum RgbTransport {
@@ -58,8 +62,61 @@ pub struct RgbInvoice {
     pub iface: TypeName,
     pub operation: Option<TypeName>,
     pub assignment: Option<TypeName>,
-    pub owned_state: Option<String>,
+    // pub owned_state: Option<String>,
     pub seal: SecretSeal,
     pub value: u64, // TODO: Change to TypedState
     pub unknown_query: IndexMap<String, String>,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
+#[display(inner)]
+pub enum InvoiceParseError {
+    #[from]
+    Uri(fluent_uri::ParseError),
+
+    #[display(doc_comments)]
+    /// invalid invoice.
+    Invalid,
+
+    #[from]
+    Id(baid58::Baid58ParseError),
+
+    #[from]
+    Num(ParseIntError),
+
+    #[from]
+    #[display(doc_comments)]
+    /// invalid interface name.
+    IfaceName(InvalidIdent),
+}
+
+impl FromStr for RgbInvoice {
+    type Err = InvoiceParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let uri = Uri::parse(s)?;
+
+        let path = uri
+            .path()
+            .segments()
+            .map(|e| e.to_string())
+            .collect::<Vec<String>>();
+
+        let mut assignment = path[2].split('@');
+        let (seal, value) = match (assignment.next(), assignment.next()) {
+            (Some(a), Some(b)) => (SecretSeal::from_str(a)?, u64::from_str_radix(b, 10)?),
+            _ => return Err(InvoiceParseError::Invalid),
+        };
+
+        Ok(RgbInvoice {
+            transport: RgbTransport::UnspecifiedMeans,
+            contract: ContractId::from_str(&path[0])?,
+            iface: TypeName::try_from(path[1].clone())?,
+            operation: None,
+            assignment: None,
+            seal,
+            value,
+            unknown_query: Default::default(),
+        })
+    }
 }

@@ -63,7 +63,7 @@ extern crate amplify;
 mod invoice;
 pub mod psbt;
 
-pub use invoice::{InvoiceState, RgbInvoice, RgbTransport};
+pub use invoice::{InvoiceParseError, InvoiceState, RgbInvoice, RgbTransport};
 use rgbstd::interface::TransitionBuilder;
 use rgbstd::persistence::Stash;
 

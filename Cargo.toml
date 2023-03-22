@@ -18,6 +18,7 @@ license = "Apache-2.0"
 
 [workspace.dependencies]
 amplify = "4.0.0-beta.20"
+baid58 = "0.2.0"
 strict_encoding = "2.0.0-rc.3"
 strict_types = "1.0.0-beta.6"
 commit_verify = "0.10.0-rc.2"
@@ -45,6 +46,7 @@ crate-type = ["cdylib", "rlib"] # We need this for WASM
 
 [dependencies]
 amplify = { workspace = true }
+baid58 = { workspace = true }
 commit_verify = { workspace = true }
 strict_encoding = { workspace = true }
 bp-core = { workspace = true }

@@ -763,6 +763,7 @@ name = "rgb-wallet"
 version = "0.10.0-alpha.2"
 dependencies = [
  "amplify",
+ "baid58",
  "bitcoin",
  "bp-core",
  "commit_verify",

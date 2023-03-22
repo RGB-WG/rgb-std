@@ -23,7 +23,7 @@ strict_types = { workspace = true }
 commit_verify = { workspace = true }
 bp-core = { workspace = true }
 rgb-core = { workspace = true }
-baid58 = "0.2.0"
+baid58 = { workspace = true }
 base64 = "0.21.0"
 serde_crate = { package = "serde", version = "1", features = ["derive"] }
 
