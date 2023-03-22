@@ -55,7 +55,7 @@ pub enum InvoiceState {
 
 #[derive(Clone, Eq, PartialEq, Debug, Display)]
 // TODO: Change to custom display impl providing support for optionals & query
-#[display("{transport}{contract:0}/{iface}/{value}@{seal:^0}")]
+#[display("{transport}{contract}/{iface}/{value}@{seal}")]
 pub struct RgbInvoice {
     pub transport: RgbTransport,
     pub contract: ContractId,
@@ -104,7 +104,7 @@ impl FromStr for RgbInvoice {
 
         let mut assignment = path[2].split('@');
         let (seal, value) = match (assignment.next(), assignment.next()) {
-            (Some(a), Some(b)) => (SecretSeal::from_str(a)?, u64::from_str_radix(b, 10)?),
+            (Some(a), Some(b)) => (SecretSeal::from_str(b)?, u64::from_str_radix(a, 10)?),
             _ => return Err(InvoiceParseError::Invalid),
         };
 
@@ -118,5 +118,19 @@ impl FromStr for RgbInvoice {
             value,
             unknown_query: Default::default(),
         })
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn parse() {
+        RgbInvoice::from_str(
+            "rgb:EKkb7TMfbPxzn7UhvXqhoCutzdZkSZCNYxVAVjsA67fW/RGB20/100@\
+             6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve",
+        )
+        .unwrap();
     }
 }
