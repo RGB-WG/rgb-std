@@ -24,7 +24,6 @@
 use std::error::Error;
 
 use commit_verify::mpc;
-use rgb::validation::ConsignmentApi;
 use rgb::{
     Anchor, AnchorId, BundleId, ContractId, Extension, Genesis, OpId, SchemaId, TransitionBundle,
 };
@@ -103,6 +102,4 @@ pub trait Stash {
         &self,
         anchor_id: AnchorId,
     ) -> Result<&Anchor<mpc::MerkleBlock>, StashError<Self::Error>>;
-
-    fn consume(&mut self, consignment: impl ConsignmentApi) -> Result<(), StashError<Self::Error>>;
 }

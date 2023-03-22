@@ -35,6 +35,7 @@ use crate::accessors::{BundleExt, MergeRevealError, RevealError};
 //use crate::builders::{ConsignerError, ConsignmentBuilder, OutpointFilter};
 use crate::containers::{Bindle, Cert, Consignment, ContentId, Contract, Terminal, Transfer};
 use crate::interface::{ContractIface, Iface, IfaceId, IfaceImpl, IfacePair};
+use crate::persistence::hoard::ConsumeError;
 use crate::persistence::stash::StashInconsistency;
 use crate::persistence::{Stash, StashError};
 use crate::resolvers::ResolveHeight;
@@ -70,6 +71,11 @@ pub enum ConsignerError<E1: Error, E2: Error> {
 pub enum InventoryError<E: Error> {
     /// I/O or connectivity error.
     Connectivity(E),
+
+    /// errors during consume operation.
+    // TODO: Make part of connectivity error
+    #[from]
+    Consume(ConsumeError),
 
     /// error in input data.
     #[from]

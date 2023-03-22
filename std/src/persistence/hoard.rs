@@ -21,18 +21,37 @@
 
 use std::convert::Infallible;
 
+use amplify::confinement;
 use amplify::confinement::{LargeOrdMap, SmallOrdMap, TinyOrdMap};
+use bp::dbc::anchor::MergeError;
 use commit_verify::mpc;
-use commit_verify::mpc::MerkleBlock;
-use rgb::validation::ConsignmentApi;
+use commit_verify::mpc::{MerkleBlock, UnrelatedProof};
 use rgb::{
-    Anchor, AnchorId, BundleId, ContractId, Extension, Genesis, OpId, SchemaId, TransitionBundle,
+    Anchor, AnchorId, AnchoredBundle, BundleId, ContractId, Extension, Genesis, OpId, Operation,
+    SchemaId, TransitionBundle,
 };
 
-use crate::containers::{ContentId, ContentSigs};
+use crate::accessors::{MergeReveal, MergeRevealError};
+use crate::containers::{Consignment, ContentId, ContentSigs};
 use crate::interface::{rgb20, Iface, IfaceId, IfacePair, SchemaIfaces};
 use crate::persistence::{Stash, StashError, StashInconsistency};
 use crate::LIB_NAME_RGB_STD;
+
+#[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
+#[display(inner)]
+pub enum ConsumeError {
+    #[from]
+    Confinement(confinement::Error),
+
+    #[from]
+    Anchor(UnrelatedProof),
+
+    #[from]
+    Merge(MergeError),
+
+    #[from]
+    MergeReveal(MergeRevealError),
+}
 
 /// Hoard is an in-memory stash useful for WASM implementations.
 #[derive(Clone, Debug)]
@@ -41,7 +60,6 @@ use crate::LIB_NAME_RGB_STD;
 pub struct Hoard {
     pub(super) schemata: TinyOrdMap<SchemaId, SchemaIfaces>,
     pub(super) ifaces: TinyOrdMap<IfaceId, Iface>,
-    pub(super) iimpls: TinyOrdMap<ContractId, IfacePair>,
     pub(super) geneses: TinyOrdMap<ContractId, Genesis>,
     pub(super) bundles: LargeOrdMap<BundleId, TransitionBundle>,
     pub(super) extensions: LargeOrdMap<OpId, Extension>,
@@ -58,13 +76,83 @@ impl Hoard {
             ifaces: tiny_bmap! {
                 rgb20_id => rgb20,
             },
-            iimpls: none!(),
             geneses: none!(),
             bundles: none!(),
             extensions: none!(),
             anchors: none!(),
             sigs: none!(),
         }
+    }
+
+    // TODO: Move into Stash trait and re-implement using trait accessor methods
+    pub fn consume<const TYPE: bool>(
+        &mut self,
+        consignment: Consignment<TYPE>,
+    ) -> Result<(), ConsumeError> {
+        let contract_id = consignment.contract_id();
+        let schema_id = consignment.schema_id();
+
+        let iimpls = match self.schemata.get_mut(&schema_id) {
+            Some(si) => &mut si.iimpls,
+            None => {
+                self.schemata
+                    .insert(schema_id, SchemaIfaces::new(consignment.schema))?;
+                &mut self
+                    .schemata
+                    .get_mut(&schema_id)
+                    .expect("just inserted")
+                    .iimpls
+            }
+        };
+
+        for (iface_id, IfacePair { iface, iimpl }) in consignment.ifaces {
+            if !self.ifaces.contains_key(&iface_id) {
+                self.ifaces.insert(iface_id, iface)?;
+            };
+            // TODO: Update for newer implementations
+            if !iimpls.contains_key(&iface_id) {
+                iimpls.insert(iface_id, iimpl)?;
+            };
+        }
+
+        match self.geneses.get_mut(&contract_id) {
+            Some(genesis) => *genesis = genesis.clone().merge_reveal(consignment.genesis)?,
+            None => {
+                self.geneses.insert(contract_id, consignment.genesis)?;
+            }
+        }
+
+        for extension in consignment.extensions {
+            let opid = extension.id();
+            match self.extensions.get_mut(&opid) {
+                Some(e) => *e = e.clone().merge_reveal(extension)?,
+                None => {
+                    self.extensions.insert(opid, extension)?;
+                }
+            }
+        }
+
+        for AnchoredBundle { anchor, bundle } in consignment.bundles {
+            let bundle_id = bundle.bundle_id();
+            let anchor = anchor.into_merkle_block(contract_id, bundle_id.into())?;
+            let anchor_id = anchor.anchor_id();
+            match self.anchors.get_mut(&anchor_id) {
+                Some(a) => *a = a.clone().merge_reveal(anchor)?,
+                None => {
+                    self.anchors.insert(anchor_id, anchor)?;
+                }
+            }
+            match self.bundles.get_mut(&bundle_id) {
+                Some(b) => *b = b.clone().merge_reveal(bundle)?,
+                None => {
+                    self.bundles.insert(bundle_id, bundle)?;
+                }
+            }
+        }
+
+        // TODO: Import content signatures
+
+        Ok(())
     }
 }
 
@@ -112,10 +200,5 @@ impl Stash for Hoard {
         self.anchors
             .get(&anchor_id)
             .ok_or(StashInconsistency::AnchorAbsent(anchor_id).into())
-    }
-
-    fn consume(&mut self, consignment: impl ConsignmentApi) -> Result<(), StashError<Self::Error>> {
-        // TODO: Merge-reveal with existing data
-        todo!()
     }
 }

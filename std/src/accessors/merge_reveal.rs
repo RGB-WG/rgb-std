@@ -59,6 +59,8 @@ pub enum MergeRevealError {
 /// merge(ConfidentialAmount, ConfidentialSeal) => Revealed
 /// merge(Confidential, Anything) => Anything
 pub trait MergeReveal: Sized {
+    // TODO: Take self by mut ref instead of consuming (will remove clones in
+    //       Stash::consume operation).
     fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError>;
 }
 
