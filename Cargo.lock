@@ -455,6 +455,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "fluent-uri"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "17c704e9dbe1ddd863da1e6ff3567795087b1eb201ce80d8fa81162e1516500d"
+dependencies = [
+ "bitflags",
+]
+
+[[package]]
 name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -757,7 +766,9 @@ dependencies = [
  "bitcoin",
  "bp-core",
  "commit_verify",
+ "fluent-uri",
  "getrandom",
+ "indexmap",
  "rand",
  "rgb-core",
  "rgb-std",
