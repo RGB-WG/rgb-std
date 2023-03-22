@@ -32,7 +32,6 @@ use rgb::{
 };
 
 use crate::accessors::{BundleExt, MergeRevealError, RevealError};
-//use crate::builders::{ConsignerError, ConsignmentBuilder, OutpointFilter};
 use crate::containers::{Bindle, Cert, Consignment, ContentId, Contract, Terminal, Transfer};
 use crate::interface::{ContractIface, Iface, IfaceId, IfaceImpl, IfacePair};
 use crate::persistence::hoard::ConsumeError;
@@ -86,6 +85,7 @@ pub enum InventoryError<E: Error> {
     /// Must be reported to LNP/BP Standards Association.
     #[from]
     #[from(mpc::LeafNotKnown)]
+    #[from(mpc::UnrelatedProof)]
     #[from(RevealError)]
     #[from(StashInconsistency)]
     InternalInconsistency(InventoryInconsistency),
@@ -210,6 +210,7 @@ pub enum InventoryInconsistency {
     /// It may happen due to RGB Node bug, or indicate internal inventory
     /// inconsistency and compromised inventory data storage.
     #[from(mpc::LeafNotKnown)]
+    #[from(mpc::UnrelatedProof)]
     UnrelatedAnchor,
 
     /// bundle reveal error. Details: {0}

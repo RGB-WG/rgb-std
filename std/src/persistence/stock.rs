@@ -23,7 +23,7 @@ use std::collections::BTreeSet;
 use std::convert::Infallible;
 use std::ops::{Deref, DerefMut};
 
-use amplify::confinement::{self, Confined, MediumOrdMap, MediumOrdSet, TinyOrdMap};
+use amplify::confinement::{MediumOrdMap, MediumOrdSet, TinyOrdMap};
 use rgb::validation::{Status, Validity, Warning};
 use rgb::{
     validation, AnchorId, AnchoredBundle, BundleId, ContractHistory, ContractId, ContractState,
@@ -32,7 +32,7 @@ use rgb::{
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 
 use crate::accessors::BundleExt;
-use crate::containers::{Bindle, Cert, Consignment, ContentId, ContentSigs, Contract, Transfer};
+use crate::containers::{Bindle, Cert, Consignment, ContentId, Contract, Transfer};
 use crate::interface::{ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, SchemaIfaces};
 use crate::persistence::inventory::{DataError, IfaceImplError, InventoryInconsistency};
 use crate::persistence::{
@@ -98,27 +98,6 @@ impl DerefMut for Stock {
 }
 
 impl Stock {
-    fn import_sigs_internal<I>(
-        &mut self,
-        content_id: ContentId,
-        sigs: I,
-    ) -> Result<(), confinement::Error>
-    where
-        I: IntoIterator<Item = Cert>,
-        I::IntoIter: ExactSizeIterator<Item = Cert>,
-    {
-        let sigs = sigs.into_iter();
-        if sigs.len() > 0 {
-            if let Some(prev_sigs) = self.sigs.get_mut(&content_id) {
-                prev_sigs.extend(sigs)?;
-            } else {
-                let sigs = Confined::try_from_iter(sigs)?;
-                self.sigs.insert(content_id, ContentSigs::from(sigs)).ok();
-            }
-        }
-        Ok(())
-    }
-
     fn consume_consignment<R: ResolveHeight, const TYPE: bool>(
         &mut self,
         mut consignment: Consignment<TYPE>,
@@ -159,11 +138,6 @@ impl Stock {
             self.import_iface(iface.clone())?;
             self.import_iface_impl(iimpl.clone())?;
         }
-        for (content_id, sigs) in consignment.signatures {
-            // Do not bother if we can't import all the sigs
-            self.import_sigs_internal(content_id, sigs).ok();
-        }
-        consignment.signatures = none!();
 
         // Update existing contract state
         let history = consignment
@@ -171,8 +145,21 @@ impl Stock {
             .map_err(|err| DataError::HeightResolver(Box::new(err)))?;
         self.history.insert(id, history)?;
 
+        let contract_id = consignment.contract_id();
+        for AnchoredBundle { anchor, bundle } in &mut consignment.bundles {
+            let bundle_id = bundle.bundle_id();
+            let anchor_id = anchor.anchor_id(contract_id, bundle_id.into())?;
+            self.anchor_bundle_index.insert(bundle_id, anchor_id)?;
+            for (opid, item) in bundle.iter() {
+                if let Some(transition) = &item.transition {
+                    self.bundle_op_index
+                        .insert(*opid, IndexedBundle(contract_id, bundle_id))?;
+                    // TODO: index opouts for self.contract_index
+                }
+            }
+        }
+
         self.hoard.consume(consignment)?;
-        // TODO: Index
 
         Ok(status)
     }

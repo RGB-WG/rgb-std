@@ -22,7 +22,7 @@
 use std::convert::Infallible;
 
 use amplify::confinement;
-use amplify::confinement::{LargeOrdMap, SmallOrdMap, TinyOrdMap};
+use amplify::confinement::{Confined, LargeOrdMap, SmallOrdMap, TinyOrdMap};
 use bp::dbc::anchor::MergeError;
 use commit_verify::mpc;
 use commit_verify::mpc::{MerkleBlock, UnrelatedProof};
@@ -32,7 +32,7 @@ use rgb::{
 };
 
 use crate::accessors::{MergeReveal, MergeRevealError};
-use crate::containers::{Consignment, ContentId, ContentSigs};
+use crate::containers::{Cert, Consignment, ContentId, ContentSigs};
 use crate::interface::{rgb20, Iface, IfaceId, IfacePair, SchemaIfaces};
 use crate::persistence::{Stash, StashError, StashInconsistency};
 use crate::LIB_NAME_RGB_STD;
@@ -82,6 +82,27 @@ impl Hoard {
             anchors: none!(),
             sigs: none!(),
         }
+    }
+
+    pub(super) fn import_sigs_internal<I>(
+        &mut self,
+        content_id: ContentId,
+        sigs: I,
+    ) -> Result<(), confinement::Error>
+    where
+        I: IntoIterator<Item = Cert>,
+        I::IntoIter: ExactSizeIterator<Item = Cert>,
+    {
+        let sigs = sigs.into_iter();
+        if sigs.len() > 0 {
+            if let Some(prev_sigs) = self.sigs.get_mut(&content_id) {
+                prev_sigs.extend(sigs)?;
+            } else {
+                let sigs = Confined::try_from_iter(sigs)?;
+                self.sigs.insert(content_id, ContentSigs::from(sigs)).ok();
+            }
+        }
+        Ok(())
     }
 
     // TODO: Move into Stash trait and re-implement using trait accessor methods
@@ -150,7 +171,10 @@ impl Hoard {
             }
         }
 
-        // TODO: Import content signatures
+        for (content_id, sigs) in consignment.signatures {
+            // Do not bother if we can't import all the sigs
+            self.import_sigs_internal(content_id, sigs).ok();
+        }
 
         Ok(())
     }
