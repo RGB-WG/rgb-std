@@ -20,7 +20,6 @@
 // limitations under the License.
 
 use std::collections::BTreeMap;
-use std::ops::{Deref, DerefMut};
 
 use amplify::confinement::{Confined, TinyOrdMap, U8};
 use amplify::{confinement, Wrapper};
@@ -76,15 +75,6 @@ pub struct ContractBuilder {
     chain: Chain,
 }
 
-impl Deref for ContractBuilder {
-    type Target = OperationBuilder;
-    fn deref(&self) -> &Self::Target { &self.builder }
-}
-
-impl DerefMut for ContractBuilder {
-    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.builder }
-}
-
 impl ContractBuilder {
     pub fn with(iface: Iface, schema: SubSchema, iimpl: IfaceImpl) -> Result<Self, BuilderError> {
         Ok(Self {
@@ -96,6 +86,25 @@ impl ContractBuilder {
     pub fn set_chain(mut self, chain: Chain) -> Self {
         self.chain = chain;
         self
+    }
+
+    pub fn add_global_state(
+        mut self,
+        name: impl Into<TypeName>,
+        value: impl StrictSerialize,
+    ) -> Result<Self, BuilderError> {
+        self.builder = self.builder.add_global_state(name, value)?;
+        Ok(self)
+    }
+
+    pub fn add_fungible_state(
+        mut self,
+        name: impl Into<TypeName>,
+        seal: impl Into<Outpoint>,
+        value: u64,
+    ) -> Result<Self, BuilderError> {
+        self.builder = self.builder.add_fungible_state(name, seal, value)?;
+        Ok(self)
     }
 
     pub fn issue_contract(self) -> Result<Contract, BuilderError> {
@@ -127,15 +136,6 @@ pub struct TransitionBuilder {
     inputs: PrevOuts,
 }
 
-impl Deref for TransitionBuilder {
-    type Target = OperationBuilder;
-    fn deref(&self) -> &Self::Target { &self.builder }
-}
-
-impl DerefMut for TransitionBuilder {
-    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.builder }
-}
-
 impl TransitionBuilder {
     pub fn with(iface: Iface, schema: SubSchema, iimpl: IfaceImpl) -> Result<Self, BuilderError> {
         Ok(Self {
@@ -158,6 +158,25 @@ impl TransitionBuilder {
             .transition_type(&name)
             .ok_or(BuilderError::TypeNotFound(name))?;
         self.transition_type = Some(transition_type);
+        Ok(self)
+    }
+
+    pub fn add_global_state(
+        mut self,
+        name: impl Into<TypeName>,
+        value: impl StrictSerialize,
+    ) -> Result<Self, BuilderError> {
+        self.builder = self.builder.add_global_state(name, value)?;
+        Ok(self)
+    }
+
+    pub fn add_fungible_state(
+        mut self,
+        name: impl Into<TypeName>,
+        seal: impl Into<Outpoint>,
+        value: u64,
+    ) -> Result<Self, BuilderError> {
+        self.builder = self.builder.add_fungible_state(name, seal, value)?;
         Ok(self)
     }
 
