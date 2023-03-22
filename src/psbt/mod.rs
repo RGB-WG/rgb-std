@@ -18,3 +18,28 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+//! Managing RGB-related proprietary keys inside PSBT.
+//!
+//! Supports Tapret, Opret, P2C and S2C commitments and LNPBP4 structures used
+//! by all of them.
+
+// TODO: Move to BP wallet
+mod lnpbp4;
+// TODO: Move to BP wallet
+mod opret;
+// TODO: Move to BP wallet
+mod tapret;
+
+pub use lnpbp4::{
+    Lnpbp4PsbtError, ProprietaryKeyLnpbp4, PSBT_LNPBP4_PREFIX, PSBT_OUT_LNPBP4_ENTROPY,
+    PSBT_OUT_LNPBP4_MESSAGE, PSBT_OUT_LNPBP4_MIN_TREE_DEPTH,
+};
+pub use opret::{
+    OpretKeyError, ProprietaryKeyOpret, PSBT_OPRET_PREFIX, PSBT_OUT_OPRET_COMMITMENT,
+    PSBT_OUT_OPRET_HOST,
+};
+pub use tapret::{
+    ProprietaryKeyTapret, TapretKeyError, PSBT_IN_TAPRET_TWEAK, PSBT_OUT_TAPRET_COMMITMENT,
+    PSBT_OUT_TAPRET_HOST, PSBT_OUT_TAPRET_PROOF, PSBT_TAPRET_PREFIX,
+};

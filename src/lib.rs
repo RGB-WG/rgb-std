@@ -57,7 +57,10 @@
 )]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
-mod psbt;
+#[macro_use]
+extern crate amplify;
+
+pub mod psbt;
 
 // 1. Construct main state transition with transition builder
 // -- shortcut using invoice to do that construction (like .with_invoice())
