@@ -80,6 +80,7 @@ pub enum InventoryError<E: Error> {
     /// Must be reported to LNP/BP Standards Association.
     #[from]
     #[from(mpc::LeafNotKnown)]
+    #[from(RevealError)]
     #[from(StashInconsistency)]
     InternalInconsistency(InventoryInconsistency),
 }
@@ -106,6 +107,7 @@ pub enum InventoryDataError<E: Error> {
     #[from(validation::Status)]
     #[from(confinement::Error)]
     #[from(IfaceImplError)]
+    #[from(RevealError)]
     #[from(MergeRevealError)]
     DataError(DataError),
 }
@@ -138,6 +140,10 @@ pub enum DataError {
     /// consignment final transactions are not yet mined. If you are sure that
     /// you'd like to take the risc, call `import_contract_force`.
     TerminalsUnmined,
+
+    #[display(inner)]
+    #[from]
+    Reveal(RevealError),
 
     #[from]
     #[display(inner)]

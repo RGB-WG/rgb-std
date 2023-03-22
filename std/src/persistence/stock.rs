@@ -31,6 +31,7 @@ use rgb::{
 };
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 
+use crate::accessors::BundleExt;
 use crate::containers::{Bindle, Cert, Consignment, ContentId, ContentSigs, Contract, Transfer};
 use crate::interface::{ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, SchemaIfaces};
 use crate::persistence::inventory::{DataError, IfaceImplError, InventoryInconsistency};
@@ -339,7 +340,6 @@ impl Inventory for Stock {
         })
     }
 
-    // TODO: Should return anchored bundle with the transition revealed
     fn anchored_bundle(&self, opid: OpId) -> Result<AnchoredBundle, InventoryError<Self::Error>> {
         let IndexedBundle(contract_id, bundle_id) = self
             .bundle_op_index
@@ -351,9 +351,11 @@ impl Inventory for Stock {
             .get(bundle_id)
             .ok_or(InventoryInconsistency::NoBundleAnchor(*bundle_id))?;
 
-        let bundle = self.bundle(*bundle_id)?.clone();
+        let mut bundle = self.bundle(*bundle_id)?.clone();
         let anchor = self.anchor(*anchor_id)?;
         let anchor = anchor.to_merkle_proof(*contract_id)?;
+        let transition = self.transition(opid)?;
+        bundle.reveal_transition(&transition)?;
 
         Ok(AnchoredBundle { anchor, bundle })
     }
