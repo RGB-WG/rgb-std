@@ -26,8 +26,8 @@ use std::ops::{Deref, DerefMut};
 use amplify::confinement::{self, Confined, MediumOrdMap, MediumOrdSet, TinyOrdMap};
 use rgb::validation::{Status, Validity, Warning};
 use rgb::{
-    validation, AnchoredBundle, BundleId, ContractHistory, ContractId, ContractState, OpId, Opout,
-    SubSchema,
+    validation, AnchorId, AnchoredBundle, BundleId, ContractHistory, ContractId, ContractState,
+    OpId, Opout, SubSchema,
 };
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 
@@ -35,7 +35,7 @@ use crate::containers::{Bindle, Cert, Consignment, ContentId, ContentSigs, Contr
 use crate::interface::{ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, SchemaIfaces};
 use crate::persistence::inventory::{DataError, IfaceImplError, InventoryInconsistency};
 use crate::persistence::{
-    Hoard, Inventory, InventoryDataError, InventoryError, StashInconsistency,
+    Hoard, Inventory, InventoryDataError, InventoryError, Stash, StashInconsistency,
 };
 use crate::resolvers::ResolveHeight;
 use crate::{Outpoint, LIB_NAME_RGB_STD};
@@ -67,6 +67,7 @@ pub struct Stock {
     history: TinyOrdMap<ContractId, ContractHistory>,
     // index
     bundle_op_index: MediumOrdMap<OpId, IndexedBundle>,
+    anchor_bundle_index: MediumOrdMap<BundleId, AnchorId>,
     contract_index: TinyOrdMap<ContractId, ContractIndex>,
 }
 
@@ -76,6 +77,7 @@ impl Default for Stock {
             hoard: Hoard::preset(),
             history: empty!(),
             bundle_op_index: empty!(),
+            anchor_bundle_index: empty!(),
             contract_index: empty!(),
         }
     }
@@ -116,12 +118,12 @@ impl Stock {
         Ok(())
     }
 
-    fn _import_contract<R: ResolveHeight, const TYPE: bool>(
+    fn consume_consignment<R: ResolveHeight, const TYPE: bool>(
         &mut self,
         mut consignment: Consignment<TYPE>,
         resolver: &mut R,
         force: bool,
-    ) -> Result<validation::Status, InventoryDataError<Infallible>>
+    ) -> Result<validation::Status, InventoryError<Infallible>>
     where
         R::Error: 'static,
     {
@@ -162,25 +164,14 @@ impl Stock {
         }
         consignment.signatures = none!();
 
-        // TODO: Update existing contract state
-
+        // Update existing contract state
         let history = consignment
             .update_history(self.history.get(&id), resolver)
             .map_err(|err| DataError::HeightResolver(Box::new(err)))?;
         self.history.insert(id, history)?;
 
-        // TODO: Merge contracts
-        if let Some(contract) = self.contracts.get_mut(&id) {
-            contract.merge(consignment)?;
-        } else if self
-            .contracts
-            .insert(id, consignment.into_contract())?
-            .is_some()
-        {
-            status.add_warning(Warning::Custom(format!(
-                "contract {id::<0} has replaced previously known contract version",
-            )));
-        }
+        self.hoard.consume(consignment)?;
+        // TODO: Index
 
         Ok(status)
     }
@@ -289,36 +280,33 @@ impl Inventory for Stock {
         &mut self,
         contract: Contract,
         resolver: &mut R,
-    ) -> Result<validation::Status, InventoryDataError<Self::Error>>
+    ) -> Result<validation::Status, InventoryError<Self::Error>>
     where
         R::Error: 'static,
     {
-        self._import_contract(contract, resolver, false)
-            .map_err(InventoryDataError::from)
+        self.consume_consignment(contract, resolver, false)
     }
 
     fn accept_transfer<R: ResolveHeight>(
         &mut self,
         transfer: Transfer,
         resolver: &mut R,
-    ) -> Result<Status, InventoryDataError<Self::Error>>
+    ) -> Result<Status, InventoryError<Self::Error>>
     where
         R::Error: 'static,
     {
-        self._import_contract(transfer, resolver, false)
-            .map_err(InventoryDataError::from)
+        self.consume_consignment(transfer, resolver, false)
     }
 
     unsafe fn import_contract_force<R: ResolveHeight>(
         &mut self,
         contract: Contract,
         resolver: &mut R,
-    ) -> Result<validation::Status, InventoryDataError<Self::Error>>
+    ) -> Result<validation::Status, InventoryError<Self::Error>>
     where
         R::Error: 'static,
     {
-        self._import_contract(contract, resolver, true)
-            .map_err(InventoryDataError::from)
+        self.consume_consignment(contract, resolver, true)
     }
 
     fn contract_iface(
@@ -352,16 +340,22 @@ impl Inventory for Stock {
     }
 
     // TODO: Should return anchored bundle with the transition revealed
-    fn anchored_bundle(&self, opid: OpId) -> Result<&AnchoredBundle, InventoryError<Self::Error>> {
+    fn anchored_bundle(&self, opid: OpId) -> Result<AnchoredBundle, InventoryError<Self::Error>> {
         let IndexedBundle(contract_id, bundle_id) = self
             .bundle_op_index
             .get(&opid)
-            .ok_or(StashInconsistency::TransitionAbsent(opid))?;
-        let anchored_bundle = self
-            .contract(*contract_id)?
-            .anchored_bundle(*bundle_id)
-            .ok_or(StashInconsistency::BundleAbsent(*contract_id, *bundle_id))?;
-        Ok(anchored_bundle)
+            .ok_or(InventoryInconsistency::BundleAbsent(opid))?;
+
+        let anchor_id = self
+            .anchor_bundle_index
+            .get(bundle_id)
+            .ok_or(InventoryInconsistency::NoBundleAnchor(*bundle_id))?;
+
+        let bundle = self.bundle(*bundle_id)?.clone();
+        let anchor = self.anchor(*anchor_id)?;
+        let anchor = anchor.to_merkle_proof(*contract_id)?;
+
+        Ok(AnchoredBundle { anchor, bundle })
     }
 
     fn public_opouts(

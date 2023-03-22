@@ -27,7 +27,8 @@ use amplify::confinement::{self, Confined};
 use bp::Txid;
 use commit_verify::mpc;
 use rgb::{
-    validation, AnchoredBundle, ContractId, OpId, Operation, Opout, SchemaId, SubSchema, Transition,
+    validation, AnchoredBundle, BundleId, ContractId, OpId, Operation, Opout, SchemaId, SubSchema,
+    Transition,
 };
 
 use crate::accessors::{BundleExt, MergeRevealError, RevealError};
@@ -72,11 +73,13 @@ pub enum InventoryError<E: Error> {
 
     /// error in input data.
     #[from]
+    #[from(confinement::Error)]
     DataError(DataError),
 
     /// Permanent errors caused by bugs in the business logic of this library.
     /// Must be reported to LNP/BP Standards Association.
     #[from]
+    #[from(mpc::LeafNotKnown)]
     #[from(StashInconsistency)]
     InternalInconsistency(InventoryInconsistency),
 }
@@ -105,6 +108,15 @@ pub enum InventoryDataError<E: Error> {
     #[from(IfaceImplError)]
     #[from(MergeRevealError)]
     DataError(DataError),
+}
+
+impl<E: Error> From<InventoryDataError<E>> for InventoryError<E> {
+    fn from(err: InventoryDataError<E>) -> Self {
+        match err {
+            InventoryDataError::Connectivity(e) => InventoryError::Connectivity(e),
+            InventoryDataError::DataError(e) => InventoryError::DataError(e),
+        }
+    }
 }
 
 #[derive(Debug, Display, Error, From)]
@@ -163,20 +175,25 @@ pub enum InventoryInconsistency {
     /// state for contract {0} is not known or absent in the database.
     StateAbsent(ContractId),
 
-    /// disclosure for txid {0} is absent
+    /// disclosure for txid {0} is absent.
     ///
     /// It may happen due to RGB standard library bug, or indicate internal
     /// inventory inconsistency and compromised inventory data storage.
     DisclosureAbsent(Txid),
 
-    /// operation {0} is not related to any contract - or at least not present
-    /// in operation-to-contract index.
+    /// absent information about bundle for operation {0}.
     ///
     /// It may happen due to RGB Node bug, or indicate internal inventory
     /// inconsistency and compromised inventory data storage.
-    OpContractAbsent(OpId),
+    BundleAbsent(OpId),
 
-    /// the anchor is not related to the contract
+    /// absent information about anchor for bundle {0}.
+    ///
+    /// It may happen due to RGB Node bug, or indicate internal inventory
+    /// inconsistency and compromised inventory data storage.
+    NoBundleAnchor(BundleId),
+
+    /// the anchor is not related to the contract.
     ///
     /// It may happen due to RGB Node bug, or indicate internal inventory
     /// inconsistency and compromised inventory data storage.
@@ -190,7 +207,7 @@ pub enum InventoryInconsistency {
     #[from]
     BundleReveal(RevealError),
 
-    /// the resulting bundle size exceeds consensus restrictions
+    /// the resulting bundle size exceeds consensus restrictions.
     ///
     /// It may happen due to RGB Node bug, or indicate internal inventory
     /// inconsistency and compromised inventory data storage.
@@ -236,7 +253,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         &mut self,
         contract: Contract,
         resolver: &mut R,
-    ) -> Result<validation::Status, InventoryDataError<Self::Error>>
+    ) -> Result<validation::Status, InventoryError<Self::Error>>
     where
         R::Error: 'static;
 
@@ -244,7 +261,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         &mut self,
         transfer: Transfer,
         resolver: &mut R,
-    ) -> Result<validation::Status, InventoryDataError<Self::Error>>
+    ) -> Result<validation::Status, InventoryError<Self::Error>>
     where
         R::Error: 'static;
 
@@ -256,7 +273,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         &mut self,
         contract: Contract,
         resolver: &mut R,
-    ) -> Result<validation::Status, InventoryDataError<Self::Error>>
+    ) -> Result<validation::Status, InventoryError<Self::Error>>
     where
         R::Error: 'static;
 
@@ -266,14 +283,15 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         iface_id: IfaceId,
     ) -> Result<ContractIface, InventoryError<Self::Error>>;
 
-    fn anchored_bundle(&self, opid: OpId) -> Result<&AnchoredBundle, InventoryError<Self::Error>>;
+    fn anchored_bundle(&self, opid: OpId) -> Result<AnchoredBundle, InventoryError<Self::Error>>;
 
-    fn transition(&self, opid: OpId) -> Result<&Transition, InventoryError<Self::Error>> {
+    fn transition(&self, opid: OpId) -> Result<Transition, InventoryError<Self::Error>> {
         Ok(self
             .anchored_bundle(opid)?
             .bundle
-            .get(&opid)
-            .and_then(|item| item.transition.as_ref())
+            .remove(&opid)
+            .expect("anchored bundle returned by opid doesn't contain that opid")
+            .and_then(|item| item.transition)
             .expect("Stash::anchored_bundle should guarantee returning revealed transition"))
     }
 
@@ -369,7 +387,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
                 .entry(id)
                 .or_insert(self.anchored_bundle(id)?.clone())
                 .bundle
-                .reveal_transition(transition)?;
+                .reveal_transition(&transition)?;
         }
 
         let genesis = self.genesis(contract_id)?;

@@ -23,8 +23,11 @@
 
 use std::error::Error;
 
-use bp::Txid;
-use rgb::{BundleId, ContractId, Genesis, OpId, SchemaId};
+use commit_verify::mpc;
+use rgb::validation::ConsignmentApi;
+use rgb::{
+    Anchor, AnchorId, BundleId, ContractId, Extension, Genesis, OpId, SchemaId, TransitionBundle,
+};
 
 use crate::interface::{Iface, IfaceId, SchemaIfaces};
 
@@ -65,25 +68,19 @@ pub enum StashInconsistency {
     ///
     /// It may happen due to RGB standard library bug, or indicate internal
     /// stash inconsistency and compromised stash data storage.
-    TransitionAbsent(OpId),
-
-    /// witness Txid is not known for transition {0}.
-    ///
-    /// It may happen due to RGB standard library bug, or indicate internal
-    /// stash inconsistency and compromised stash data storage.
-    TransitionTxidAbsent(OpId),
+    OperationAbsent(OpId),
 
     /// anchor for txid {0} is absent.
     ///
     /// It may happen due to RGB standard library bug, or indicate internal
     /// stash inconsistency and compromised stash data storage.
-    AnchorAbsent(Txid),
+    AnchorAbsent(AnchorId),
 
-    /// bundle data {1} for contract {0} is absent.
+    /// bundle {0} is absent.
     ///
     /// It may happen due to RGB standard library bug, or indicate internal
     /// stash inconsistency and compromised stash data storage.
-    BundleAbsent(ContractId, BundleId),
+    BundleAbsent(BundleId),
 }
 
 pub trait Stash {
@@ -98,17 +95,14 @@ pub trait Stash {
 
     fn genesis(&self, contract_id: ContractId) -> Result<&Genesis, StashError<Self::Error>>;
 
-    /*
-    fn anchor_by_bundle(
-        &self,
-        contract_id: ContractId,
-        bundle_id: BundleId,
-    ) -> Result<&Anchor<mpc::MerkleProof>, StashError<Self::Error>>;
+    fn bundle(&self, bundle_id: BundleId) -> Result<&TransitionBundle, StashError<Self::Error>>;
 
-    fn bundle_by_id(
+    fn extension(&self, op_id: OpId) -> Result<&Extension, StashError<Self::Error>>;
+
+    fn anchor(
         &self,
-        contract_id: ContractId,
-        bundle_id: BundleId,
-    ) -> Result<&TransitionBundle, StashError<Self::Error>>;
-     */
+        anchor_id: AnchorId,
+    ) -> Result<&Anchor<mpc::MerkleBlock>, StashError<Self::Error>>;
+
+    fn consume(&mut self, consignment: impl ConsignmentApi) -> Result<(), StashError<Self::Error>>;
 }

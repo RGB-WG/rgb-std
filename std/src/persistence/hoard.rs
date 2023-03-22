@@ -21,11 +21,16 @@
 
 use std::convert::Infallible;
 
-use amplify::confinement::{SmallOrdMap, TinyOrdMap};
-use rgb::{ContractId, Genesis, SchemaId};
+use amplify::confinement::{LargeOrdMap, SmallOrdMap, TinyOrdMap};
+use commit_verify::mpc;
+use commit_verify::mpc::MerkleBlock;
+use rgb::validation::ConsignmentApi;
+use rgb::{
+    Anchor, AnchorId, BundleId, ContractId, Extension, Genesis, OpId, SchemaId, TransitionBundle,
+};
 
-use crate::containers::{ContentId, ContentSigs, Contract};
-use crate::interface::{rgb20, Iface, IfaceId, SchemaIfaces};
+use crate::containers::{ContentId, ContentSigs};
+use crate::interface::{rgb20, Iface, IfaceId, IfacePair, SchemaIfaces};
 use crate::persistence::{Stash, StashError, StashInconsistency};
 use crate::LIB_NAME_RGB_STD;
 
@@ -36,7 +41,11 @@ use crate::LIB_NAME_RGB_STD;
 pub struct Hoard {
     pub(super) schemata: TinyOrdMap<SchemaId, SchemaIfaces>,
     pub(super) ifaces: TinyOrdMap<IfaceId, Iface>,
-    pub(super) contracts: TinyOrdMap<ContractId, Contract>,
+    pub(super) iimpls: TinyOrdMap<ContractId, IfacePair>,
+    pub(super) geneses: TinyOrdMap<ContractId, Genesis>,
+    pub(super) bundles: LargeOrdMap<BundleId, TransitionBundle>,
+    pub(super) extensions: LargeOrdMap<OpId, Extension>,
+    pub(super) anchors: LargeOrdMap<AnchorId, Anchor<mpc::MerkleBlock>>,
     pub(super) sigs: SmallOrdMap<ContentId, ContentSigs>,
 }
 
@@ -45,19 +54,17 @@ impl Hoard {
         let rgb20 = rgb20();
         let rgb20_id = rgb20.iface_id();
         Hoard {
-            schemata: Default::default(),
+            schemata: none!(),
             ifaces: tiny_bmap! {
                 rgb20_id => rgb20,
             },
-            contracts: Default::default(),
-            sigs: Default::default(),
+            iimpls: none!(),
+            geneses: none!(),
+            bundles: none!(),
+            extensions: none!(),
+            anchors: none!(),
+            sigs: none!(),
         }
-    }
-
-    pub fn contract(&self, id: ContractId) -> Result<&Contract, StashInconsistency> {
-        self.contracts
-            .get(&id)
-            .ok_or(StashInconsistency::ContractAbsent(id))
     }
 }
 
@@ -84,30 +91,31 @@ impl Stash for Hoard {
     }
 
     fn genesis(&self, contract_id: ContractId) -> Result<&Genesis, StashError<Self::Error>> {
-        Ok(&self.contract(contract_id)?.genesis)
+        self.geneses
+            .get(&contract_id)
+            .ok_or(StashInconsistency::ContractAbsent(contract_id).into())
     }
 
-    /*
-    fn anchor_by_bundle(
-        &self,
-        contract_id: ContractId,
-        bundle_id: BundleId,
-    ) -> Result<&Anchor<MerkleProof>, StashError<Self::Error>> {
-        Ok(&self
-            .contract(contract_id)?
-            .anchored_bundle(bundle_id)
-            .ok_or(StashInconsistency::BundleAbsent(contract_id, bundle_id))?
-            .anchor)
+    fn bundle(&self, bundle_id: BundleId) -> Result<&TransitionBundle, StashError<Self::Error>> {
+        self.bundles
+            .get(&bundle_id)
+            .ok_or(StashInconsistency::BundleAbsent(bundle_id).into())
     }
 
-    fn bundle_by_id(
-        &self,
-        contract_id: ContractId,
-        bundle_id: BundleId,
-    ) -> Result<&TransitionBundle, StashError<Self::Error>> {
-        self.contract(contract_id)?
-            .bundle_by_id(bundle_id)
-            .ok_or_else(|| StashInconsistency::BundleAbsent(contract_id, bundle_id).into())
+    fn extension(&self, op_id: OpId) -> Result<&Extension, StashError<Self::Error>> {
+        self.extensions
+            .get(&op_id)
+            .ok_or(StashInconsistency::OperationAbsent(op_id).into())
     }
-     */
+
+    fn anchor(&self, anchor_id: AnchorId) -> Result<&Anchor<MerkleBlock>, StashError<Self::Error>> {
+        self.anchors
+            .get(&anchor_id)
+            .ok_or(StashInconsistency::AnchorAbsent(anchor_id).into())
+    }
+
+    fn consume(&mut self, consignment: impl ConsignmentApi) -> Result<(), StashError<Self::Error>> {
+        // TODO: Merge-reveal with existing data
+        todo!()
+    }
 }

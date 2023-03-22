@@ -30,8 +30,6 @@ use rgb::{
     Genesis, OpId, Transition, TransitionBundle, TypedAssigns,
 };
 
-use crate::containers::{Consignment, Contract};
-
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum MergeRevealError {
@@ -244,14 +242,5 @@ impl MergeReveal for Extension {
         }
         self.assignments = self.assignments.merge_reveal(other.assignments)?;
         Ok(self)
-    }
-}
-
-impl Contract {
-    pub fn merge<const TYPE: bool>(
-        &mut self,
-        consignment: Consignment<TYPE>,
-    ) -> Result<(), MergeRevealError> {
-        todo!()
     }
 }
