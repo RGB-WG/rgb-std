@@ -70,6 +70,8 @@ pub struct Stock {
     bundle_op_index: MediumOrdMap<OpId, IndexedBundle>,
     anchor_bundle_index: MediumOrdMap<BundleId, AnchorId>,
     contract_index: TinyOrdMap<ContractId, ContractIndex>,
+    // secrets
+    seal_secrets: MediumOrdSet<u64>,
 }
 
 impl Default for Stock {
@@ -80,6 +82,7 @@ impl Default for Stock {
             bundle_op_index: empty!(),
             anchor_bundle_index: empty!(),
             contract_index: empty!(),
+            seal_secrets: empty!(),
         }
     }
 }
@@ -376,5 +379,10 @@ impl Inventory for Stock {
             opouts.extend(set)
         }
         Ok(opouts)
+    }
+
+    fn store_seal_secret(&mut self, secret: u64) -> Result<(), InventoryError<Self::Error>> {
+        self.seal_secrets.push(secret)?;
+        Ok(())
     }
 }

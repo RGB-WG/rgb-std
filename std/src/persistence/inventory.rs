@@ -332,6 +332,8 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         // TODO: Add known sigs to the bindle
     }
 
+    fn store_seal_secret(&mut self, secret: u64) -> Result<(), InventoryError<Self::Error>>;
+
     fn transfer(
         &mut self,
         contract_id: ContractId,
