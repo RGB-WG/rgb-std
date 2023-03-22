@@ -55,7 +55,7 @@ pub enum InvoiceState {
 
 #[derive(Clone, Eq, PartialEq, Debug, Display)]
 // TODO: Change to custom display impl providing support for optionals & query
-#[display("{transport}{contract}/{iface}/{value}@{seal}")]
+#[display("{transport}{contract:0}/{iface}/{value}@{seal:^0}")]
 pub struct RgbInvoice {
     pub transport: RgbTransport,
     pub contract: ContractId,
