@@ -188,4 +188,14 @@ impl IfacePair {
     pub fn with(iface: Iface, iimpl: IfaceImpl) -> IfacePair { IfacePair { iface, iimpl } }
 
     pub fn iface_id(&self) -> IfaceId { self.iface.iface_id() }
+    pub fn impl_id(&self) -> ImplId { self.iimpl.impl_id() }
+    pub fn global_type(&self, name: &TypeName) -> Option<GlobalStateType> {
+        self.iimpl.global_type(name)
+    }
+    pub fn assignments_type(&self, name: &TypeName) -> Option<AssignmentType> {
+        self.iimpl.assignments_type(name)
+    }
+    pub fn transition_type(&self, name: &TypeName) -> Option<TransitionType> {
+        self.iimpl.transition_type(name)
+    }
 }

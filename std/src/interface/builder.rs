@@ -28,7 +28,7 @@ use bp::secp256k1::rand::thread_rng;
 use bp::{Chain, Outpoint};
 use rgb::{
     fungible, Assign, AssignmentType, Assignments, ExposedSeal, FungibleType, Genesis, GlobalState,
-    StateSchema, SubSchema, TypedAssigns,
+    PrevOuts, StateSchema, SubSchema, Transition, TransitionType, TypedAssigns,
 };
 use strict_encoding::{SerializeError, StrictSerialize, TypeName};
 use strict_types::decode;
@@ -38,7 +38,7 @@ use crate::interface::{Iface, IfaceImpl, IfacePair};
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
-pub enum IssuerError {
+pub enum BuilderError {
     /// interface implementation references different interface that the one
     /// provided to the forge.
     InterfaceMismatch,
@@ -52,6 +52,10 @@ pub enum IssuerError {
 
     /// state `{0}` provided to the builder has invalid type
     InvalidStateType(TypeName),
+
+    /// interface doesn't specifies default operation name, thus an explicit
+    /// operation type must be provided with `set_operation_type` method.
+    NoOperationSubtype,
 
     #[from]
     #[display(inner)]
@@ -82,7 +86,7 @@ impl DerefMut for ContractBuilder {
 }
 
 impl ContractBuilder {
-    pub fn with(iface: Iface, schema: SubSchema, iimpl: IfaceImpl) -> Result<Self, IssuerError> {
+    pub fn with(iface: Iface, schema: SubSchema, iimpl: IfaceImpl) -> Result<Self, BuilderError> {
         Ok(Self {
             builder: OperationBuilder::with(iface, schema, iimpl)?,
             chain: default!(),
@@ -94,7 +98,7 @@ impl ContractBuilder {
         self
     }
 
-    pub fn issue_contract(self) -> Contract {
+    pub fn issue_contract(self) -> Result<Contract, BuilderError> {
         let (schema, iface_pair, global, assignments) = self.builder.complete();
 
         let genesis = Genesis {
@@ -112,7 +116,61 @@ impl ContractBuilder {
         let mut contract = Contract::new(schema, genesis);
         contract.ifaces = tiny_bmap! { iface_pair.iface_id() => iface_pair };
 
-        contract
+        Ok(contract)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct TransitionBuilder {
+    builder: OperationBuilder,
+    transition_type: Option<TransitionType>,
+    inputs: PrevOuts,
+}
+
+impl Deref for TransitionBuilder {
+    type Target = OperationBuilder;
+    fn deref(&self) -> &Self::Target { &self.builder }
+}
+
+impl DerefMut for TransitionBuilder {
+    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.builder }
+}
+
+impl TransitionBuilder {
+    pub fn with(iface: Iface, schema: SubSchema, iimpl: IfaceImpl) -> Result<Self, BuilderError> {
+        Ok(Self {
+            builder: OperationBuilder::with(iface, schema, iimpl)?,
+            transition_type: None,
+            inputs: none!(),
+        })
+    }
+
+    pub fn complete_transition(self) -> Result<Transition, BuilderError> {
+        let (_, pair, global, assignments) = self.builder.complete();
+
+        let transition_type = self
+            .transition_type
+            .or_else(|| {
+                pair.iface
+                    .default_operation
+                    .as_ref()
+                    .and_then(|name| pair.transition_type(name))
+            })
+            .ok_or(BuilderError::NoOperationSubtype)?;
+
+        let transition = Transition {
+            ffv: none!(),
+            transition_type,
+            metadata: empty!(),
+            globals: global,
+            inputs: self.inputs,
+            assignments,
+            valencies: none!(),
+        };
+
+        // TODO: Validate against schema
+
+        Ok(transition)
     }
 }
 
@@ -131,12 +189,12 @@ pub struct OperationBuilder {
 }
 
 impl OperationBuilder {
-    pub fn with(iface: Iface, schema: SubSchema, iimpl: IfaceImpl) -> Result<Self, IssuerError> {
+    pub fn with(iface: Iface, schema: SubSchema, iimpl: IfaceImpl) -> Result<Self, BuilderError> {
         if iimpl.iface_id != iface.iface_id() {
-            return Err(IssuerError::InterfaceMismatch);
+            return Err(BuilderError::InterfaceMismatch);
         }
         if iimpl.schema_id != schema.schema_id() {
-            return Err(IssuerError::SchemaMismatch);
+            return Err(BuilderError::SchemaMismatch);
         }
 
         // TODO: check schema internal consistency
@@ -157,13 +215,13 @@ impl OperationBuilder {
         mut self,
         name: impl Into<TypeName>,
         value: impl StrictSerialize,
-    ) -> Result<Self, IssuerError> {
+    ) -> Result<Self, BuilderError> {
         let name = name.into();
         let serialized = value.to_strict_serialized::<{ u16::MAX as usize }>()?;
 
         // Check value matches type requirements
         let Some(id) = self.iimpl.global_state.iter().find(|t| t.name == name).map(|t| t.id) else {
-            return Err(IssuerError::TypeNotFound(name));
+            return Err(BuilderError::TypeNotFound(name));
         };
         let ty_id = self
             .schema
@@ -185,11 +243,11 @@ impl OperationBuilder {
         name: impl Into<TypeName>,
         seal: impl Into<Outpoint>,
         value: u64,
-    ) -> Result<Self, IssuerError> {
+    ) -> Result<Self, BuilderError> {
         let name = name.into();
 
         let Some(id) = self.iimpl.owned_state.iter().find(|t| t.name == name).map(|t| t.id) else {
-            return Err(IssuerError::TypeNotFound(name));
+            return Err(BuilderError::TypeNotFound(name));
         };
         let ty = self
             .schema
@@ -197,7 +255,7 @@ impl OperationBuilder {
             .get(&id)
             .expect("schema should match interface: must be checked by the constructor");
         if *ty != StateSchema::Fungible(FungibleType::Unsigned64Bit) {
-            return Err(IssuerError::InvalidStateType(name));
+            return Err(BuilderError::InvalidStateType(name));
         }
 
         let state = fungible::Revealed::new(value, &mut thread_rng());
