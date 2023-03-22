@@ -28,7 +28,7 @@ use bp::secp256k1::rand::thread_rng;
 use bp::{Chain, Outpoint};
 use rgb::{
     fungible, Assign, AssignmentType, Assignments, ExposedSeal, FungibleType, Genesis, GlobalState,
-    PrevOuts, StateSchema, SubSchema, Transition, TransitionType, TypedAssigns,
+    Opout, PrevOuts, StateSchema, SubSchema, Transition, TransitionType, TypedAssigns,
 };
 use strict_encoding::{SerializeError, StrictSerialize, TypeName};
 use strict_types::decode;
@@ -143,6 +143,22 @@ impl TransitionBuilder {
             transition_type: None,
             inputs: none!(),
         })
+    }
+
+    pub fn add_input(mut self, opout: Opout) -> Result<Self, BuilderError> {
+        self.inputs.push(opout)?;
+        Ok(self)
+    }
+
+    pub fn set_transition_type(mut self, name: impl Into<TypeName>) -> Result<Self, BuilderError> {
+        let name = name.into();
+        let transition_type = self
+            .builder
+            .iimpl
+            .transition_type(&name)
+            .ok_or(BuilderError::TypeNotFound(name))?;
+        self.transition_type = Some(transition_type);
+        Ok(self)
     }
 
     pub fn complete_transition(self) -> Result<Transition, BuilderError> {
