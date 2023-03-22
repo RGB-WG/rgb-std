@@ -30,6 +30,7 @@ mod lnpbp4;
 mod opret;
 // TODO: Move to BP wallet
 mod tapret;
+mod rgb;
 
 pub use lnpbp4::{
     Lnpbp4PsbtError, ProprietaryKeyLnpbp4, PSBT_LNPBP4_PREFIX, PSBT_OUT_LNPBP4_ENTROPY,
@@ -42,4 +43,9 @@ pub use opret::{
 pub use tapret::{
     ProprietaryKeyTapret, TapretKeyError, PSBT_IN_TAPRET_TWEAK, PSBT_OUT_TAPRET_COMMITMENT,
     PSBT_OUT_TAPRET_HOST, PSBT_OUT_TAPRET_PROOF, PSBT_TAPRET_PREFIX,
+};
+
+pub use self::rgb::{
+    ProprietaryKeyRgb, RgbExt, RgbInExt, RgbPsbtError, PSBT_GLOBAL_RGB_TRANSITION,
+    PSBT_IN_RGB_CONSUMED_BY, PSBT_RGB_PREFIX,
 };
