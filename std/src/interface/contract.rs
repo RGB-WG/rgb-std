@@ -21,7 +21,7 @@
 
 use amplify::confinement::{LargeOrdMap, LargeVec, SmallVec};
 use bp::Outpoint;
-use rgb::{attachment, AssignmentType, ContractState};
+use rgb::{attachment, AssignmentType, ContractState, FungibleOutput, SealWitness};
 use strict_encoding::TypeName;
 use strict_types::typify::TypedVal;
 use strict_types::{decode, StrictVal};
@@ -48,10 +48,25 @@ pub enum TypedState {
     Attachment(attachment::Revealed),
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
-pub struct OwnedState {
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub struct FungibleAssignment {
     pub owner: Outpoint,
-    pub state: TypedState,
+    pub witness: SealWitness,
+    pub value: u64,
+}
+
+impl From<FungibleOutput> for FungibleAssignment {
+    fn from(out: FungibleOutput) -> Self { Self::from(&out) }
+}
+
+impl From<&FungibleOutput> for FungibleAssignment {
+    fn from(out: &FungibleOutput) -> Self {
+        FungibleAssignment {
+            owner: out.seal,
+            witness: out.witness,
+            value: out.state.value.as_u64(),
+        }
+    }
 }
 
 /// Contract state is an in-memory structure providing API to read structured
@@ -103,7 +118,7 @@ impl ContractIface {
     pub fn fungible(
         &self,
         name: impl Into<TypeName>,
-    ) -> Result<LargeVec<(Outpoint, u64)>, ContractError> {
+    ) -> Result<LargeVec<FungibleAssignment>, ContractError> {
         let name = name.into();
         let type_id = self
             .iface
@@ -114,7 +129,7 @@ impl ContractIface {
             .fungibles()
             .iter()
             .filter(|outp| outp.opout.ty == type_id)
-            .map(|outp| (outp.seal, outp.state.value.as_u64()));
+            .map(FungibleAssignment::from);
         Ok(LargeVec::try_from_iter(state).expect("same or smaller collection size"))
     }
 

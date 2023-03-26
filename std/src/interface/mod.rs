@@ -28,6 +28,7 @@ mod iimpl;
 mod contract;
 mod builder;
 mod rgb20;
+mod suppl;
 
 pub use builder::{BuilderError, ContractBuilder, OperationBuilder, TransitionBuilder};
 pub use contract::{ContractIface, OwnedState, TypedState};
@@ -37,3 +38,4 @@ pub use iface::{
 };
 pub use iimpl::{IfaceImpl, IfacePair, ImplId, NamedType, SchemaIfaces};
 pub use rgb20::rgb20;
+pub use suppl::{ContractSuppl, OwnedStateSuppl, SupplId, TickerSuppl, VelocityClass};
