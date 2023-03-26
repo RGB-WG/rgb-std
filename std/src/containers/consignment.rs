@@ -22,7 +22,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::{iter, slice};
 
-use amplify::confinement::{LargeVec, MediumBlob, SmallOrdMap, SmallOrdSet, TinyOrdMap};
+use amplify::confinement::{
+    LargeVec, MediumBlob, SmallOrdMap, SmallOrdSet, TinyOrdMap, TinyOrdSet,
+};
 use commit_verify::Conceal;
 use rgb::validation::{AnchoredBundle, ConsignmentApi};
 use rgb::{
@@ -32,7 +34,7 @@ use rgb::{
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 
 use super::{ContainerVer, ContentId, ContentSigs, Terminal};
-use crate::interface::{IfaceId, IfacePair};
+use crate::interface::{ContractSuppl, IfaceId, IfacePair};
 use crate::resolvers::ResolveHeight;
 use crate::LIB_NAME_RGB_STD;
 
@@ -82,6 +84,9 @@ pub struct Consignment<const TYPE: bool> {
     /// Interfaces supported by the contract.
     pub ifaces: TinyOrdMap<IfaceId, IfacePair>,
 
+    /// Known supplements.
+    pub supplements: TinyOrdSet<ContractSuppl>,
+
     /// Genesis data.
     pub genesis: Genesis,
 
@@ -119,6 +124,7 @@ impl<const TYPE: bool> Consignment<TYPE> {
             transfer: TYPE,
             schema,
             ifaces: none!(),
+            supplements: none!(),
             genesis,
             terminals: none!(),
             bundles: none!(),
@@ -216,6 +222,7 @@ impl<const TYPE: bool> Consignment<TYPE> {
             transfer: false,
             schema: self.schema,
             ifaces: self.ifaces,
+            supplements: self.supplements,
             genesis: self.genesis,
             terminals: self.terminals,
             bundles: self.bundles,

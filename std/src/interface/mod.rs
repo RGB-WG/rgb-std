@@ -31,7 +31,7 @@ mod rgb20;
 mod suppl;
 
 pub use builder::{BuilderError, ContractBuilder, OperationBuilder, TransitionBuilder};
-pub use contract::{ContractIface, OwnedState, TypedState};
+pub use contract::{ContractIface, FungibleAssignment, TypedState};
 pub use iface::{
     ExtensionIface, GenesisIface, GlobalIface, Iface, IfaceId, OwnedIface, Req, TransitionIface,
     TypeReqMap,

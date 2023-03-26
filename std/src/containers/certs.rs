@@ -24,7 +24,7 @@ use std::collections::{btree_set, BTreeSet};
 use amplify::confinement::{Confined, TinyAscii, TinyBlob, TinyString};
 use rgb::{ContractId, SchemaId};
 
-use crate::interface::{IfaceId, ImplId};
+use crate::interface::{IfaceId, ImplId, SupplId};
 use crate::LIB_NAME_RGB_STD;
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
@@ -40,6 +40,7 @@ pub enum ContentId {
     Genesis(ContractId),
     Iface(IfaceId),
     IfaceImpl(ImplId),
+    Suppl(SupplId),
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Display)]
