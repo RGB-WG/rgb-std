@@ -49,19 +49,19 @@ pub enum TypedState {
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub struct FungibleAssignment {
+pub struct FungibleAllocation {
     pub owner: Outpoint,
     pub witness: SealWitness,
     pub value: u64,
 }
 
-impl From<FungibleOutput> for FungibleAssignment {
+impl From<FungibleOutput> for FungibleAllocation {
     fn from(out: FungibleOutput) -> Self { Self::from(&out) }
 }
 
-impl From<&FungibleOutput> for FungibleAssignment {
+impl From<&FungibleOutput> for FungibleAllocation {
     fn from(out: &FungibleOutput) -> Self {
-        FungibleAssignment {
+        FungibleAllocation {
             owner: out.seal,
             witness: out.witness,
             value: out.state.value.as_u64(),
@@ -118,7 +118,7 @@ impl ContractIface {
     pub fn fungible(
         &self,
         name: impl Into<TypeName>,
-    ) -> Result<LargeVec<FungibleAssignment>, ContractError> {
+    ) -> Result<LargeVec<FungibleAllocation>, ContractError> {
         let name = name.into();
         let type_id = self
             .iface
@@ -129,7 +129,7 @@ impl ContractIface {
             .fungibles()
             .iter()
             .filter(|outp| outp.opout.ty == type_id)
-            .map(FungibleAssignment::from);
+            .map(FungibleAllocation::from);
         Ok(LargeVec::try_from_iter(state).expect("same or smaller collection size"))
     }
 
