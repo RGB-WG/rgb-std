@@ -49,6 +49,7 @@ amplify = { workspace = true }
 baid58 = { workspace = true }
 commit_verify = { workspace = true }
 strict_encoding = { workspace = true }
+# descriptor-wallet = "0.10.0-alpha.1"
 bp-core = { workspace = true }
 rgb-core = { workspace = true }
 rgb-std = { version = "0.10.0-alpha.1", path = "std" }
