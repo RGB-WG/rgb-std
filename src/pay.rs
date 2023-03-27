@@ -235,11 +235,12 @@ pub trait InventoryWallet: Inventory {
         // TODO: Make it two-staged, such that PSBT editing will be allowed by other
         //       participants as required for multiparty protocols like coinjoin.
         psbt.rgb_bundle_to_lnpbp4()?;
-        psbt.dbc_conclude(method)?;
+        let anchor = psbt.dbc_conclude(method)?;
         // TODO: Ensure that with PSBTv2 we remove flag allowing PSBT modification.
 
         // 4. Prepare transfer
         let witness_txid = psbt.unsigned_tx.txid();
+        // TODO: Save anchors from DBC proofs with bundles
         for (id, bundle) in bundles {
             self.consume_transition_bundle(id, &bundle, witness_txid.to_byte_array().into())?;
         }
