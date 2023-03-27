@@ -24,6 +24,7 @@ use std::convert::Infallible;
 use std::ops::{Deref, DerefMut};
 
 use amplify::confinement::{MediumOrdMap, MediumOrdSet, TinyOrdMap};
+use amplify::Wrapper;
 use rgb::validation::{Status, Validity, Warning};
 use rgb::{
     validation, AnchorId, AnchoredBundle, BundleId, ContractHistory, ContractId, ContractState,
@@ -415,7 +416,43 @@ impl Inventory for Stock {
         contract_id: ContractId,
         outpoints: impl IntoIterator<Item = impl Into<Outpoint>>,
     ) -> Result<BTreeMap<Opout, TypedState>, InventoryError<Self::Error>> {
-        todo!()
+        let outpoints = outpoints
+            .into_iter()
+            .map(|o| o.into())
+            .collect::<BTreeSet<_>>();
+
+        let history = self
+            .history
+            .get(&contract_id)
+            .ok_or(StashInconsistency::ContractAbsent(contract_id))?;
+
+        let mut res = BTreeMap::new();
+
+        for output in history.fungibles() {
+            if outpoints.contains(&output.seal) {
+                res.insert(output.opout, TypedState::Amount(output.state.value.as_u64()));
+            }
+        }
+
+        for output in history.data() {
+            if outpoints.contains(&output.seal) {
+                res.insert(output.opout, TypedState::Data(output.state.to_inner()));
+            }
+        }
+
+        for output in history.rights() {
+            if outpoints.contains(&output.seal) {
+                res.insert(output.opout, TypedState::Void);
+            }
+        }
+
+        for output in history.attach() {
+            if outpoints.contains(&output.seal) {
+                res.insert(output.opout, TypedState::Attachment(output.state.clone()));
+            }
+        }
+
+        Ok(res)
     }
 
     fn store_seal_secret(&mut self, secret: u64) -> Result<(), InventoryError<Self::Error>> {
