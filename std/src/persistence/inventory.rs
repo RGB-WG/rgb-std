@@ -27,8 +27,8 @@ use amplify::confinement::{self, Confined};
 use bp::Txid;
 use commit_verify::mpc;
 use rgb::{
-    validation, AnchoredBundle, BundleId, ContractId, ExposedSeal, GraphSeal, OpId, Operation,
-    Opout, SchemaId, SecretSeal, SubSchema, Transition, TransitionBundle,
+    validation, Anchor, AnchoredBundle, BundleId, ContractId, ExposedSeal, GraphSeal, OpId,
+    Operation, Opout, SchemaId, SecretSeal, SubSchema, Transition, TransitionBundle,
 };
 use strict_encoding::TypeName;
 
@@ -288,10 +288,15 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     where
         R::Error: 'static;
 
-    fn consume_transition_bundle(
+    fn consume_anchor(
+        &mut self,
+        anchor: Anchor<mpc::MerkleBlock>,
+    ) -> Result<(), InventoryError<Self::Error>>;
+
+    fn consume_bundle(
         &mut self,
         contract_id: ContractId,
-        bundle: &TransitionBundle,
+        bundle: TransitionBundle,
         witness_txid: Txid,
     ) -> Result<(), InventoryError<Self::Error>>;
 

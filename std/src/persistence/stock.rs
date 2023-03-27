@@ -24,8 +24,10 @@ use std::convert::Infallible;
 use std::ops::{Deref, DerefMut};
 
 use amplify::confinement::{Confined, MediumOrdMap, MediumOrdSet, TinyOrdMap};
-use amplify::Wrapper;
+use amplify::{RawArray, Wrapper};
+use bp::dbc::Anchor;
 use bp::Txid;
+use commit_verify::mpc::MerkleBlock;
 use rgb::validation::{Status, Validity, Warning};
 use rgb::{
     validation, AnchorId, AnchoredBundle, Assign, AssignmentType, BundleId, ContractHistory,
@@ -160,12 +162,45 @@ impl Stock {
             let bundle_id = bundle.bundle_id();
             let anchor_id = anchor.anchor_id(contract_id, bundle_id.into())?;
             self.anchor_bundle_index.insert(bundle_id, anchor_id)?;
-            self.consume_transition_bundle(contract_id, bundle, anchor.txid)?;
+            self.index_bundle(contract_id, bundle, anchor.txid)?;
         }
 
-        self.hoard.consume(consignment)?;
+        self.hoard.consume_consignment(consignment)?;
 
         Ok(status)
+    }
+
+    fn index_bundle(
+        &mut self,
+        id: ContractId,
+        bundle: &TransitionBundle,
+        witness_txid: Txid,
+    ) -> Result<(), InventoryError<<Self as Inventory>::Error>> {
+        let bundle_id = bundle.bundle_id();
+        for (opid, item) in bundle.iter() {
+            if let Some(transition) = &item.transition {
+                self.bundle_op_index
+                    .insert(*opid, IndexedBundle(id, bundle_id))?;
+                for (type_id, assign) in transition.assignments.iter() {
+                    match assign {
+                        TypedAssigns::Declarative(vec) => {
+                            self.index_assignments(id, vec, *opid, *type_id, witness_txid)?;
+                        }
+                        TypedAssigns::Fungible(vec) => {
+                            self.index_assignments(id, vec, *opid, *type_id, witness_txid)?;
+                        }
+                        TypedAssigns::Structured(vec) => {
+                            self.index_assignments(id, vec, *opid, *type_id, witness_txid)?;
+                        }
+                        TypedAssigns::Attachment(vec) => {
+                            self.index_assignments(id, vec, *opid, *type_id, witness_txid)?;
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 
     fn index_assignments<State: ExposedState>(
@@ -314,17 +349,6 @@ impl Inventory for Stock {
         self.consume_consignment(contract, resolver, false)
     }
 
-    unsafe fn import_contract_force<R: ResolveHeight>(
-        &mut self,
-        contract: Contract,
-        resolver: &mut R,
-    ) -> Result<validation::Status, InventoryError<Self::Error>>
-    where
-        R::Error: 'static,
-    {
-        self.consume_consignment(contract, resolver, true)
-    }
-
     fn accept_transfer<R: ResolveHeight>(
         &mut self,
         transfer: Transfer,
@@ -336,36 +360,39 @@ impl Inventory for Stock {
         self.consume_consignment(transfer, resolver, false)
     }
 
-    fn consume_transition_bundle(
+    fn consume_anchor(
         &mut self,
-        id: ContractId,
-        bundle: &TransitionBundle,
+        anchor: Anchor<MerkleBlock>,
+    ) -> Result<(), InventoryError<Self::Error>> {
+        let anchor_id = anchor.anchor_id();
+        for (_, bundle_id) in anchor.mpc_proof.to_known_message_map() {
+            self.anchor_bundle_index
+                .insert(bundle_id.to_raw_array().into(), anchor_id)?;
+        }
+        self.hoard.consume_anchor(anchor)?;
+        Ok(())
+    }
+
+    fn consume_bundle(
+        &mut self,
+        contract_id: ContractId,
+        bundle: TransitionBundle,
         witness_txid: Txid,
     ) -> Result<(), InventoryError<<Self as Inventory>::Error>> {
-        let bundle_id = bundle.bundle_id();
-        for (opid, item) in bundle.iter() {
-            if let Some(transition) = &item.transition {
-                self.bundle_op_index
-                    .insert(*opid, IndexedBundle(id, bundle_id))?;
-                for (type_id, assign) in transition.assignments.iter() {
-                    match assign {
-                        TypedAssigns::Declarative(vec) => {
-                            self.index_assignments(id, vec, *opid, *type_id, witness_txid)?;
-                        }
-                        TypedAssigns::Fungible(vec) => {
-                            self.index_assignments(id, vec, *opid, *type_id, witness_txid)?;
-                        }
-                        TypedAssigns::Structured(vec) => {
-                            self.index_assignments(id, vec, *opid, *type_id, witness_txid)?;
-                        }
-                        TypedAssigns::Attachment(vec) => {
-                            self.index_assignments(id, vec, *opid, *type_id, witness_txid)?;
-                        }
-                    }
-                }
-            }
-        }
+        self.index_bundle(contract_id, &bundle, witness_txid)?;
+        self.hoard.consume_bundle(bundle)?;
         Ok(())
+    }
+
+    unsafe fn import_contract_force<R: ResolveHeight>(
+        &mut self,
+        contract: Contract,
+        resolver: &mut R,
+    ) -> Result<validation::Status, InventoryError<Self::Error>>
+    where
+        R::Error: 'static,
+    {
+        self.consume_consignment(contract, resolver, true)
     }
 
     fn contract_iface(
@@ -418,17 +445,6 @@ impl Inventory for Stock {
         Ok(AnchoredBundle { anchor, bundle })
     }
 
-    fn public_opouts(
-        &mut self,
-        contract_id: ContractId,
-    ) -> Result<BTreeSet<Opout>, InventoryError<Self::Error>> {
-        let index = self
-            .contract_index
-            .get(&contract_id)
-            .ok_or(StashInconsistency::ContractAbsent(contract_id))?;
-        Ok(index.public_opouts.to_inner())
-    }
-
     fn contracts_by_outpoints(
         &mut self,
         outpoints: impl IntoIterator<Item = impl Into<Outpoint>>,
@@ -446,6 +462,17 @@ impl Inventory for Stock {
             }
         }
         Ok(selected)
+    }
+
+    fn public_opouts(
+        &mut self,
+        contract_id: ContractId,
+    ) -> Result<BTreeSet<Opout>, InventoryError<Self::Error>> {
+        let index = self
+            .contract_index
+            .get(&contract_id)
+            .ok_or(StashInconsistency::ContractAbsent(contract_id))?;
+        Ok(index.public_opouts.to_inner())
     }
 
     fn opouts_by_outpoints(
@@ -466,6 +493,19 @@ impl Inventory for Stock {
             opouts.extend(set)
         }
         Ok(opouts)
+    }
+
+    fn opouts_by_terminals(
+        &mut self,
+        terminals: impl IntoIterator<Item = SecretSeal>,
+    ) -> Result<BTreeSet<Opout>, InventoryError<Self::Error>> {
+        let terminals = terminals.into_iter().collect::<BTreeSet<_>>();
+        Ok(self
+            .terminal_index
+            .iter()
+            .filter(|(seal, _)| terminals.contains(*seal))
+            .map(|(_, opout)| *opout)
+            .collect())
     }
 
     fn state_for_outpoints(
@@ -515,18 +555,5 @@ impl Inventory for Stock {
     fn store_seal_secret(&mut self, secret: u64) -> Result<(), InventoryError<Self::Error>> {
         self.seal_secrets.push(secret)?;
         Ok(())
-    }
-
-    fn opouts_by_terminals(
-        &mut self,
-        terminals: impl IntoIterator<Item = SecretSeal>,
-    ) -> Result<BTreeSet<Opout>, InventoryError<Self::Error>> {
-        let terminals = terminals.into_iter().collect::<BTreeSet<_>>();
-        Ok(self
-            .terminal_index
-            .iter()
-            .filter(|(seal, _)| terminals.contains(*seal))
-            .map(|(_, opout)| *opout)
-            .collect())
     }
 }

@@ -81,14 +81,14 @@ pub trait PsbtDbc {
     fn dbc_conclude(
         &mut self,
         method: CloseMethod,
-    ) -> Result<Anchor<mpc::MerkleTree>, DbcPsbtError>;
+    ) -> Result<Anchor<mpc::MerkleBlock>, DbcPsbtError>;
 }
 
 impl PsbtDbc for Psbt {
     fn dbc_conclude(
         &mut self,
         method: CloseMethod,
-    ) -> Result<Anchor<mpc::MerkleTree>, DbcPsbtError> {
+    ) -> Result<Anchor<mpc::MerkleBlock>, DbcPsbtError> {
         if self
             .outputs
             .iter()
@@ -160,7 +160,7 @@ impl PsbtDbc for Psbt {
 
         let anchor = Anchor {
             txid: self.unsigned_tx.txid().to_byte_array().into(),
-            mpc_proof: merkle_tree,
+            mpc_proof: mpc::MerkleBlock::from(merkle_tree),
             dbc_proof: proof,
         };
 

@@ -110,7 +110,7 @@ impl Hoard {
     }
 
     // TODO: Move into Stash trait and re-implement using trait accessor methods
-    pub fn consume<const TYPE: bool>(
+    pub fn consume_consignment<const TYPE: bool>(
         &mut self,
         consignment: Consignment<TYPE>,
     ) -> Result<(), ConsumeError> {
@@ -170,19 +170,8 @@ impl Hoard {
         for AnchoredBundle { anchor, bundle } in consignment.bundles {
             let bundle_id = bundle.bundle_id();
             let anchor = anchor.into_merkle_block(contract_id, bundle_id.into())?;
-            let anchor_id = anchor.anchor_id();
-            match self.anchors.get_mut(&anchor_id) {
-                Some(a) => *a = a.clone().merge_reveal(anchor)?,
-                None => {
-                    self.anchors.insert(anchor_id, anchor)?;
-                }
-            }
-            match self.bundles.get_mut(&bundle_id) {
-                Some(b) => *b = b.clone().merge_reveal(bundle)?,
-                None => {
-                    self.bundles.insert(bundle_id, bundle)?;
-                }
-            }
+            self.consume_anchor(anchor)?;
+            self.consume_bundle(bundle)?;
         }
 
         for (content_id, sigs) in consignment.signatures {
@@ -190,6 +179,30 @@ impl Hoard {
             self.import_sigs_internal(content_id, sigs).ok();
         }
 
+        Ok(())
+    }
+
+    // TODO: Move into Stash trait and re-implement using trait accessor methods
+    pub fn consume_bundle(&mut self, bundle: TransitionBundle) -> Result<(), ConsumeError> {
+        let bundle_id = bundle.bundle_id();
+        match self.bundles.get_mut(&bundle_id) {
+            Some(b) => *b = b.clone().merge_reveal(bundle)?,
+            None => {
+                self.bundles.insert(bundle_id, bundle)?;
+            }
+        }
+        Ok(())
+    }
+
+    // TODO: Move into Stash trait and re-implement using trait accessor methods
+    pub fn consume_anchor(&mut self, anchor: Anchor<MerkleBlock>) -> Result<(), ConsumeError> {
+        let anchor_id = anchor.anchor_id();
+        match self.anchors.get_mut(&anchor_id) {
+            Some(a) => *a = a.clone().merge_reveal(anchor)?,
+            None => {
+                self.anchors.insert(anchor_id, anchor)?;
+            }
+        }
         Ok(())
     }
 }

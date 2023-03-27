@@ -240,9 +240,9 @@ pub trait InventoryWallet: Inventory {
 
         // 4. Prepare transfer
         let witness_txid = psbt.unsigned_tx.txid();
-        // TODO: Save anchors from DBC proofs with bundles
+        self.consume_anchor(anchor)?;
         for (id, bundle) in bundles {
-            self.consume_transition_bundle(id, &bundle, witness_txid.to_byte_array().into())?;
+            self.consume_bundle(id, bundle, witness_txid.to_byte_array().into())?;
         }
         let transfer = self.transfer(contract_id, [beneficiary])?;
 

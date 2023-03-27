@@ -313,7 +313,7 @@ dependencies = [
 [[package]]
 name = "commit_verify"
 version = "0.10.0-rc.2"
-source = "git+https://github.com/LNP-BP/client_side_validation#9e369b3ef7b49e7f362cda647b940d999c387884"
+source = "git+https://github.com/LNP-BP/client_side_validation#4d0b97d0a307e4d7751bdf09d0af6105da84e440"
 dependencies = [
  "amplify",
  "rand",
