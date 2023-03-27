@@ -151,6 +151,10 @@ impl TransitionBuilder {
         })
     }
 
+    pub fn assignments_type(&self, name: &TypeName) -> Option<AssignmentType> {
+        self.builder.iimpl.assignments_type(name)
+    }
+
     pub fn add_input(mut self, opout: Opout) -> Result<Self, BuilderError> {
         self.inputs.push(opout)?;
         Ok(self)
@@ -172,6 +176,25 @@ impl TransitionBuilder {
         Ok(self)
     }
 
+    pub fn default_assignment(&self) -> Result<&TypeName, BuilderError> {
+        let transition_type = self.transition_type()?;
+        let transition_name = self
+            .builder
+            .iimpl
+            .transition_name(transition_type)
+            .expect("reverse type");
+        let tiface = self
+            .builder
+            .iface
+            .transitions
+            .get(transition_name)
+            .expect("internal inconsistency");
+        tiface
+            .default_assignment
+            .as_ref()
+            .ok_or(BuilderError::NoDefaultAssignment)
+    }
+
     pub fn add_global_state(
         mut self,
         name: impl Into<TypeName>,
@@ -186,22 +209,7 @@ impl TransitionBuilder {
         seal: impl Into<BuilderSeal<GraphSeal>>,
         value: u64,
     ) -> Result<Self, BuilderError> {
-        let transition_type = self.transition_type()?;
-        let transition_name = self
-            .builder
-            .iimpl
-            .transition_name(transition_type)
-            .expect("reverse type");
-        let tiface = self
-            .builder
-            .iface
-            .transitions
-            .get(transition_name)
-            .expect("internal inconsistency");
-        let assignment_name = tiface
-            .default_assignment
-            .as_ref()
-            .ok_or(BuilderError::NoDefaultAssignment)?;
+        let assignment_name = self.default_assignment()?;
         let id = self
             .builder
             .iimpl

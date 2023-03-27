@@ -28,7 +28,7 @@ use bp::seals::txout::CloseMethod;
 use bp::Outpoint;
 use rgb::{AssignmentType, ContractId, GraphSeal, Opout};
 use rgbstd::containers::{Bindle, BuilderSeal, Transfer};
-use rgbstd::interface::{BuilderError, TypedState, VelocityClass};
+use rgbstd::interface::{BuilderError, ContractSuppl, TypedState, VelocityClass};
 use rgbstd::persistence::{ConsignerError, Inventory, InventoryError, Stash};
 
 use crate::invoice::Beneficiary;
@@ -48,6 +48,10 @@ where E1: From<E2>
     /// PSBT lacks beneficiary output matching the invoice.
     #[display(doc_comments)]
     NoBeneficiaryOutput,
+
+    /// state provided via PSBT inputs is not sufficient to cover invoice state
+    /// requirements.
+    InsufficientState,
 
     #[from]
     Inventory(InventoryError<E1>),
@@ -79,7 +83,9 @@ pub trait InventoryWallet: Inventory {
     where
         Self::Error: From<<Self::Stash as Stash>::Error>,
     {
+        // 1. Prepare the data
         let contract_id = invoice.contract;
+        let mut main_builder = self.transition_builder(contract_id, invoice.iface.clone())?;
 
         let (beneficiary_output, beneficiary) = match invoice.beneficiary {
             Beneficiary::BlindedSeal(seal) => {
@@ -99,6 +105,13 @@ pub trait InventoryWallet: Inventory {
                 (Some(vout), seal)
             }
         };
+        let prev_outputs = psbt
+            .unsigned_tx
+            .input
+            .iter()
+            .map(|txin| txin.previous_output)
+            .map(|outpoint| Outpoint::new(outpoint.txid.to_byte_array().into(), outpoint.vout))
+            .collect::<Vec<_>>();
 
         // Classify PSBT outputs which can be used for assignments
         let mut out_classes = HashMap::<VelocityClass, Vec<u32>>::new();
@@ -123,27 +136,68 @@ pub trait InventoryWallet: Inventory {
             .into_iter()
             .map(|(class, indexes)| (class, indexes.into_iter().cycle()))
             .collect::<HashMap<_, _>>();
+        let mut output_for_assignment = |suppl: Option<&ContractSuppl>,
+                                         assignment_type: AssignmentType|
+         -> Result<BuilderSeal<GraphSeal>, PayError<_, _>> {
+            let velocity = suppl
+                .and_then(|suppl| suppl.owned_state.get(&assignment_type))
+                .map(|s| s.velocity_class)
+                .unwrap_or_default();
+            let vout = out_classes
+                .get_mut(&velocity)
+                .and_then(|iter| iter.next())
+                .ok_or(PayError::NoBlankChange(velocity, assignment_type))?;
+            let seal = GraphSeal::new_vout(method, vout);
+            Ok(BuilderSeal::Revealed(seal))
+        };
 
-        // 1. Prepare and self-consume transition
-        let mut builder = self.transition_builder(contract_id, invoice.iface.clone())?;
+        // 2. Prepare and self-consume transition
         if let Some(op_name) = invoice.operation {
-            builder = builder.set_transition_type(op_name)?;
+            main_builder = main_builder.set_transition_type(op_name)?;
         }
-        let transition = builder
-            .add_fungible_state_default(beneficiary, invoice.value)?
-            // TODO: Do "change"
+        let assignment_name = invoice
+            .assignment
+            .as_ref()
+            .or_else(|| main_builder.default_assignment().ok())
+            .ok_or(BuilderError::NoDefaultAssignment)?;
+        let assignment_id = main_builder
+            .assignments_type(assignment_name)
+            .ok_or(BuilderError::InvalidStateType(assignment_name.clone()))?;
+        let suppl = self
+            .contract_suppl(contract_id)
+            .and_then(|set| set.first())
+            .cloned();
+        let mut sum_inputs = 0u64;
+        for (opout, state) in self.state_for_outpoints(contract_id, prev_outputs.iter().copied())? {
+            main_builder = main_builder.add_input(opout)?;
+            if opout.ty != assignment_id {
+                let seal = output_for_assignment(suppl.as_ref(), opout.ty)?;
+                main_builder = main_builder
+                    .add_input(opout)?
+                    .add_raw_state(opout.ty, seal, state)?;
+            } else if let TypedState::Amount(value) = state {
+                sum_inputs += value;
+            }
+        }
+        // Add change
+        if sum_inputs > invoice.value {
+            let seal = output_for_assignment(suppl.as_ref(), assignment_id)?;
+            let change = TypedState::Amount(sum_inputs - invoice.value);
+            main_builder = main_builder.add_raw_state(assignment_id, seal, change)?;
+        } else if sum_inputs < invoice.value {
+            return Err(PayError::InsufficientState);
+        }
+        let transition = main_builder
+            .add_raw_state(assignment_id, beneficiary, TypedState::Amount(invoice.value))?
             .complete_transition()?;
 
-        // 2. Prepare and self-consume other transitions
+        // 3. Prepare and self-consume other transitions
         let mut spent_state = HashMap::<ContractId, BTreeMap<Opout, TypedState>>::new();
-        for outpoint in psbt
-            .unsigned_tx
-            .input
-            .iter()
-            .map(|txin| txin.previous_output)
-        {
-            let outpoint = Outpoint::new(outpoint.txid.to_byte_array().into(), outpoint.vout);
+        for outpoint in prev_outputs {
             for id in self.contracts_by_outpoints([outpoint])? {
+                if id == contract_id {
+                    continue;
+                }
                 spent_state
                     .entry(id)
                     .or_default()
@@ -153,33 +207,23 @@ pub trait InventoryWallet: Inventory {
         // Construct blank transitions, self-consume them
         let mut other_transitions = Vec::with_capacity(spent_state.len());
         for (id, opouts) in spent_state {
-            let mut builder = self
+            let mut blank_builder = self
                 .transition_builder(id, invoice.iface.clone())?
                 .do_blank_transition()?;
             // TODO: select supplement basing on the signer trust level
             let suppl = self.contract_suppl(id).and_then(|set| set.first());
 
             for (opout, state) in opouts {
-                let velocity = suppl
-                    .and_then(|suppl| suppl.owned_state.get(&opout.ty))
-                    .map(|s| s.velocity_class)
-                    .unwrap_or_default();
-                let vout = out_classes
-                    .get_mut(&velocity)
-                    .and_then(|iter| iter.next())
-                    .ok_or(PayError::NoBlankChange(velocity, opout.ty))?;
-                let seal = GraphSeal::new_vout(method, vout);
-                builder = builder.add_input(opout)?.add_raw_state(
-                    opout.ty,
-                    BuilderSeal::Revealed(seal),
-                    state,
-                )?;
+                let seal = output_for_assignment(suppl, opout.ty)?;
+                blank_builder = blank_builder
+                    .add_input(opout)?
+                    .add_raw_state(opout.ty, seal, state)?;
             }
 
-            other_transitions.push(builder.complete_transition()?);
+            other_transitions.push(blank_builder.complete_transition()?);
         }
 
-        // 3. Add transitions to PSBT
+        // 4. Add transitions to PSBT
         psbt.push_rgb_transition(transition)?;
         for transition in other_transitions {
             psbt.push_rgb_transition(transition)?;
