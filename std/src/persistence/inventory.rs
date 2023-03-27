@@ -288,10 +288,10 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     where
         R::Error: 'static;
 
-    fn consume_bundle(
+    fn consume_terminal_bundle(
         &mut self,
         contract_id: ContractId,
-        bundle: TransitionBundle,
+        bundle: &TransitionBundle,
     ) -> Result<(), InventoryError<Self::Error>>;
 
     /// # Safety

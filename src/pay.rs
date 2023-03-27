@@ -240,7 +240,7 @@ pub trait InventoryWallet: Inventory {
 
         // 4. Prepare transfer
         for (id, bundle) in bundles {
-            self.consume_bundle(id, bundle)?;
+            self.consume_terminal_bundle(id, &bundle)?;
         }
         let transfer = self.transfer(contract_id, [beneficiary])?;
 
