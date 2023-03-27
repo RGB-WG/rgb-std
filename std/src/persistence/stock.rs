@@ -128,7 +128,7 @@ impl Stock {
             Some(status) if status.validity() == Validity::UnresolvedTransactions && !force => {
                 return Err(DataError::UnresolvedTransactions.into());
             }
-            Some(status) if status.validity() == Validity::ValidExceptEndpoints && !force => {
+            Some(status) if status.validity() == Validity::UnminedTerminals && !force => {
                 return Err(DataError::TerminalsUnmined.into());
             }
             Some(s) if s.validity() == Validity::UnresolvedTransactions && !force => {
@@ -136,7 +136,7 @@ impl Stock {
                     "contract contains unknown transactions and was forcefully imported"
                 )));
             }
-            Some(s) if s.validity() == Validity::ValidExceptEndpoints && !force => {
+            Some(s) if s.validity() == Validity::UnminedTerminals && !force => {
                 status.add_warning(Warning::Custom(s!("contract contains not yet mined final \
                                                        transactions and was forcefully imported")));
             }
