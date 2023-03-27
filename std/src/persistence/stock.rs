@@ -375,7 +375,19 @@ impl Inventory for Stock {
         &mut self,
         outpoints: impl IntoIterator<Item = impl Into<Outpoint>>,
     ) -> Result<BTreeSet<ContractId>, InventoryError<Self::Error>> {
-        todo!()
+        let outpoints = outpoints
+            .into_iter()
+            .map(|o| o.into())
+            .collect::<BTreeSet<_>>();
+        let mut selected = BTreeSet::new();
+        for (contract_id, index) in &self.contract_index {
+            for outpoint in &outpoints {
+                if index.outpoint_opouts.contains_key(outpoint) {
+                    selected.insert(*contract_id);
+                }
+            }
+        }
+        Ok(selected)
     }
 
     fn opouts_by_outpoints(

@@ -163,6 +163,7 @@ pub trait InventoryWallet: Inventory {
         let assignment_id = main_builder
             .assignments_type(assignment_name)
             .ok_or(BuilderError::InvalidStateType(assignment_name.clone()))?;
+        // TODO: select supplement basing on the signer trust level
         let suppl = self
             .contract_suppl(contract_id)
             .and_then(|set| set.first())
