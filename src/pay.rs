@@ -239,8 +239,9 @@ pub trait InventoryWallet: Inventory {
         // TODO: Ensure that with PSBTv2 we remove flag allowing PSBT modification.
 
         // 4. Prepare transfer
+        let witness_txid = psbt.unsigned_tx.txid();
         for (id, bundle) in bundles {
-            self.consume_terminal_bundle(id, &bundle)?;
+            self.consume_transition_bundle(id, &bundle, witness_txid.to_byte_array().into())?;
         }
         let transfer = self.transfer(contract_id, [beneficiary])?;
 

@@ -29,17 +29,16 @@ use bp::Txid;
 use rgb::validation::{Status, Validity, Warning};
 use rgb::{
     validation, AnchorId, AnchoredBundle, Assign, AssignmentType, BundleId, ContractHistory,
-    ContractId, ContractState, ExposedState, GraphSeal, OpId, Opout, SubSchema, TransitionBundle,
-    TxoSeal, TypedAssigns,
+    ContractId, ContractState, ExposedState, GraphSeal, OpId, Opout, SecretSeal, SubSchema,
+    TransitionBundle, TxoSeal, TypedAssigns,
 };
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 
 use crate::accessors::BundleExt;
-use crate::containers::{Bindle, Cert, Consignment, ContentId, Contract, TerminalSeal, Transfer};
+use crate::containers::{Bindle, Cert, Consignment, ContentId, Contract, Transfer};
 use crate::interface::{
     ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, SchemaIfaces, TypedState,
 };
-use crate::persistence::hoard::ConsumeError;
 use crate::persistence::inventory::{DataError, IfaceImplError, InventoryInconsistency};
 use crate::persistence::{
     Hoard, Inventory, InventoryDataError, InventoryError, Stash, StashInconsistency,
@@ -76,7 +75,7 @@ pub struct Stock {
     bundle_op_index: MediumOrdMap<OpId, IndexedBundle>,
     anchor_bundle_index: MediumOrdMap<BundleId, AnchorId>,
     contract_index: TinyOrdMap<ContractId, ContractIndex>,
-    terminal_index: MediumOrdMap<TerminalSeal, Opout>,
+    terminal_index: MediumOrdMap<SecretSeal, Opout>,
     // secrets
     seal_secrets: MediumOrdSet<u64>,
 }
@@ -169,67 +168,36 @@ impl Stock {
         Ok(status)
     }
 
-    fn consume_transition_bundle(
+    fn index_assignments<State: ExposedState>(
         &mut self,
         contract_id: ContractId,
-        bundle: &TransitionBundle,
+        vec: &[Assign<State, GraphSeal>],
+        opid: OpId,
+        type_id: AssignmentType,
         witness_txid: Txid,
     ) -> Result<(), InventoryError<<Self as Inventory>::Error>> {
-        fn index_assignments<State: ExposedState>(
-            index: &mut ContractIndex,
-            vec: &[Assign<State, GraphSeal>],
-            opid: OpId,
-            type_id: AssignmentType,
-            witness_txid: Txid,
-        ) -> Result<(), ConsumeError> {
-            for (no, a) in vec.iter().enumerate() {
-                match a {
-                    Assign::ConfidentialState { seal, .. } | Assign::Revealed { seal, .. } => {
-                        let outpoint = seal.outpoint_or(witness_txid);
-                        let opout = Opout::new(opid, type_id, no as u16);
-                        match index.outpoint_opouts.get_mut(&outpoint) {
-                            Some(opouts) => {
-                                opouts.push(opout)?;
-                            }
-                            None => {
-                                index
-                                    .outpoint_opouts
-                                    .insert(outpoint, confined_bset!(opout))?;
-                            }
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            Ok(())
-        }
-
         let index = self
             .contract_index
             .get_mut(&contract_id)
             .ok_or(StashInconsistency::ContractAbsent(contract_id))?;
 
-        let bundle_id = bundle.bundle_id();
-        for (opid, item) in bundle.iter() {
-            if let Some(transition) = &item.transition {
-                self.bundle_op_index
-                    .insert(*opid, IndexedBundle(contract_id, bundle_id))?;
-                for (type_id, assign) in transition.assignments.iter() {
-                    match assign {
-                        TypedAssigns::Declarative(vec) => {
-                            index_assignments(index, vec, *opid, *type_id, witness_txid)?;
-                        }
-                        TypedAssigns::Fungible(vec) => {
-                            index_assignments(index, vec, *opid, *type_id, witness_txid)?;
-                        }
-                        TypedAssigns::Structured(vec) => {
-                            index_assignments(index, vec, *opid, *type_id, witness_txid)?;
-                        }
-                        TypedAssigns::Attachment(vec) => {
-                            index_assignments(index, vec, *opid, *type_id, witness_txid)?;
-                        }
+        for (no, a) in vec.iter().enumerate() {
+            let opout = Opout::new(opid, type_id, no as u16);
+            if let Assign::ConfidentialState { seal, .. } | Assign::Revealed { seal, .. } = a {
+                let outpoint = seal.outpoint_or(witness_txid);
+                match index.outpoint_opouts.get_mut(&outpoint) {
+                    Some(opouts) => {
+                        opouts.push(opout)?;
+                    }
+                    None => {
+                        index
+                            .outpoint_opouts
+                            .insert(outpoint, confined_bset!(opout))?;
                     }
                 }
+            }
+            if let Assign::Confidential { seal, .. } | Assign::ConfidentialSeal { seal, .. } = a {
+                self.terminal_index.insert(*seal, opout)?;
             }
         }
         Ok(())
@@ -368,12 +336,36 @@ impl Inventory for Stock {
         self.consume_consignment(transfer, resolver, false)
     }
 
-    fn consume_terminal_bundle(
+    fn consume_transition_bundle(
         &mut self,
-        contract_id: ContractId,
+        id: ContractId,
         bundle: &TransitionBundle,
-    ) -> Result<(), InventoryError<Self::Error>> {
-        todo!()
+        witness_txid: Txid,
+    ) -> Result<(), InventoryError<<Self as Inventory>::Error>> {
+        let bundle_id = bundle.bundle_id();
+        for (opid, item) in bundle.iter() {
+            if let Some(transition) = &item.transition {
+                self.bundle_op_index
+                    .insert(*opid, IndexedBundle(id, bundle_id))?;
+                for (type_id, assign) in transition.assignments.iter() {
+                    match assign {
+                        TypedAssigns::Declarative(vec) => {
+                            self.index_assignments(id, vec, *opid, *type_id, witness_txid)?;
+                        }
+                        TypedAssigns::Fungible(vec) => {
+                            self.index_assignments(id, vec, *opid, *type_id, witness_txid)?;
+                        }
+                        TypedAssigns::Structured(vec) => {
+                            self.index_assignments(id, vec, *opid, *type_id, witness_txid)?;
+                        }
+                        TypedAssigns::Attachment(vec) => {
+                            self.index_assignments(id, vec, *opid, *type_id, witness_txid)?;
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     fn contract_iface(
@@ -527,8 +519,14 @@ impl Inventory for Stock {
 
     fn opouts_by_terminals(
         &mut self,
-        terminals: impl IntoIterator<Item = impl Into<TerminalSeal>>,
+        terminals: impl IntoIterator<Item = SecretSeal>,
     ) -> Result<BTreeSet<Opout>, InventoryError<Self::Error>> {
-        todo!()
+        let terminals = terminals.into_iter().collect::<BTreeSet<_>>();
+        Ok(self
+            .terminal_index
+            .iter()
+            .filter(|(seal, _)| terminals.contains(*seal))
+            .map(|(_, opout)| *opout)
+            .collect())
     }
 }

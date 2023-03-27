@@ -28,13 +28,13 @@ use bp::Txid;
 use commit_verify::mpc;
 use rgb::{
     validation, AnchoredBundle, BundleId, ContractId, ExposedSeal, GraphSeal, OpId, Operation,
-    Opout, SchemaId, SubSchema, Transition, TransitionBundle,
+    Opout, SchemaId, SecretSeal, SubSchema, Transition, TransitionBundle,
 };
 use strict_encoding::TypeName;
 
 use crate::accessors::{BundleExt, MergeRevealError, RevealError};
 use crate::containers::{
-    Bindle, BuilderSeal, Cert, Consignment, ContentId, Contract, Terminal, TerminalSeal, Transfer,
+    Bindle, BuilderSeal, Cert, Consignment, ContentId, Contract, Terminal, Transfer,
 };
 use crate::interface::{
     ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, TransitionBuilder, TypedState,
@@ -288,10 +288,11 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     where
         R::Error: 'static;
 
-    fn consume_terminal_bundle(
+    fn consume_transition_bundle(
         &mut self,
         contract_id: ContractId,
         bundle: &TransitionBundle,
+        witness_txid: Txid,
     ) -> Result<(), InventoryError<Self::Error>>;
 
     /// # Safety
@@ -362,7 +363,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
 
     fn opouts_by_terminals(
         &mut self,
-        terminals: impl IntoIterator<Item = impl Into<TerminalSeal>>,
+        terminals: impl IntoIterator<Item = SecretSeal>,
     ) -> Result<BTreeSet<Opout>, InventoryError<Self::Error>>;
 
     fn state_for_outpoints(
@@ -416,7 +417,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
                 .into_iter()
                 .map(|seal| match seal.into() {
                     BuilderSeal::Revealed(seal) => (seal.outpoint(), None),
-                    BuilderSeal::Concealed(seal) => (None, Some(TerminalSeal::ConcealedUtxo(seal))),
+                    BuilderSeal::Concealed(seal) => (None, Some(seal)),
                 })
                 .unzip::<_, _, Vec<_>, Vec<_>>();
             opouts.extend(
