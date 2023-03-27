@@ -310,13 +310,6 @@ impl Inventory for Stock {
         self.consume_consignment(contract, resolver, true)
     }
 
-    fn contract_schema(
-        &mut self,
-        contract_id: ContractId,
-    ) -> Result<SchemaIfaces, InventoryError<Self::Error>> {
-        todo!()
-    }
-
     fn contract_iface(
         &mut self,
         contract_id: ContractId,

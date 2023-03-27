@@ -37,8 +37,7 @@ use crate::containers::{
     Bindle, BuilderSeal, Cert, Consignment, ContentId, Contract, Terminal, TerminalSeal, Transfer,
 };
 use crate::interface::{
-    ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, SchemaIfaces, TransitionBuilder,
-    TypedState,
+    ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, TransitionBuilder, TypedState,
 };
 use crate::persistence::hoard::ConsumeError;
 use crate::persistence::stash::StashInconsistency;
@@ -307,11 +306,6 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     where
         R::Error: 'static;
 
-    fn contract_schema(
-        &mut self,
-        contract_id: ContractId,
-    ) -> Result<SchemaIfaces, InventoryError<Self::Error>>;
-
     fn contract_iface(
         &mut self,
         contract_id: ContractId,
@@ -330,12 +324,12 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     {
         let schema_ifaces = self.contract_schema(contract_id)?;
         let iface = self.iface_by_name(iface)?;
-        let schema = schema_ifaces.schema;
+        let schema = &schema_ifaces.schema;
         let iimpl = schema_ifaces
             .iimpls
             .get(&iface.iface_id())
             .ok_or(DataError::NoIfaceImpl(schema.schema_id(), iface.iface_id()))?;
-        let builder = TransitionBuilder::with(iface.clone(), schema, iimpl.clone())
+        let builder = TransitionBuilder::with(iface.clone(), schema.clone(), iimpl.clone())
             .expect("internal inconsistency");
         Ok(builder)
     }

@@ -101,6 +101,14 @@ pub trait Stash {
 
     fn contract_ids(&self) -> Result<BTreeSet<ContractId>, Self::Error>;
 
+    fn contract_schema(
+        &self,
+        contract_id: ContractId,
+    ) -> Result<&SchemaIfaces, StashError<Self::Error>> {
+        let genesis = self.genesis(contract_id)?;
+        self.schema(genesis.schema_id)
+    }
+
     fn contract_suppl(&self, contract_id: ContractId) -> Option<&TinyOrdSet<ContractSuppl>>;
 
     fn genesis(&self, contract_id: ContractId) -> Result<&Genesis, StashError<Self::Error>>;
