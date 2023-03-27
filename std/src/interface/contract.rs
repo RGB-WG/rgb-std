@@ -19,7 +19,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use amplify::confinement::{LargeOrdMap, LargeVec, SmallVec};
+use amplify::confinement::{LargeOrdMap, LargeVec, SmallBlob, SmallVec};
 use bp::Outpoint;
 use rgb::{attachment, AssignmentType, ContractState, FungibleOutput, SealWitness};
 use strict_encoding::TypeName;
@@ -44,7 +44,7 @@ pub enum ContractError {
 pub enum TypedState {
     Void,
     Amount(u64),
-    Data(StrictVal),
+    Data(SmallBlob),
     Attachment(attachment::Revealed),
 }
 

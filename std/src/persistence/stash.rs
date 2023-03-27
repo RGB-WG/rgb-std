@@ -24,13 +24,14 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 
+use amplify::confinement::TinyOrdSet;
 use commit_verify::mpc;
 use rgb::{
     Anchor, AnchorId, BundleId, ContractId, Extension, Genesis, OpId, SchemaId, TransitionBundle,
 };
 use strict_encoding::TypeName;
 
-use crate::interface::{Iface, IfaceId, SchemaIfaces};
+use crate::interface::{ContractSuppl, Iface, IfaceId, SchemaIfaces};
 
 #[derive(Debug, Display, Error, From)]
 #[display(inner)]
@@ -48,7 +49,7 @@ pub enum StashError<E: Error> {
 #[display(doc_comments)]
 pub enum StashInconsistency {
     /// interfae {0} is unknown; you need to import it first.
-    IfaceNameAbsent(String),
+    IfaceNameAbsent(TypeName),
 
     /// interfae {0} is unknown; you need to import it first.
     IfaceAbsent(IfaceId),
@@ -89,14 +90,26 @@ pub trait Stash {
     type Error: Error;
 
     fn schema_ids(&self) -> Result<BTreeSet<SchemaId>, Self::Error>;
-    fn ifaces(&self) -> Result<BTreeMap<IfaceId, TypeName>, Self::Error>;
-    fn contract_ids(&self) -> Result<BTreeSet<ContractId>, Self::Error>;
 
-    fn iface_by_name(&self, name: &str) -> Result<&Iface, StashError<Self::Error>>;
+    fn ifaces(&self) -> Result<BTreeMap<IfaceId, TypeName>, Self::Error>;
+
+    fn iface_by_name(&self, name: impl Into<TypeName>) -> Result<&Iface, StashError<Self::Error>>;
 
     fn iface_by_id(&self, id: IfaceId) -> Result<&Iface, StashError<Self::Error>>;
 
     fn schema(&self, schema_id: SchemaId) -> Result<&SchemaIfaces, StashError<Self::Error>>;
+
+    fn contract_ids(&self) -> Result<BTreeSet<ContractId>, Self::Error>;
+
+    fn contract_schema(
+        &self,
+        contract_id: ContractId,
+    ) -> Result<&SchemaIfaces, StashError<Self::Error>> {
+        let genesis = self.genesis(contract_id)?;
+        self.schema(genesis.schema_id)
+    }
+
+    fn contract_suppl(&self, contract_id: ContractId) -> Option<&TinyOrdSet<ContractSuppl>>;
 
     fn genesis(&self, contract_id: ContractId) -> Result<&Genesis, StashError<Self::Error>>;
 

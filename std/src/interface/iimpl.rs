@@ -125,7 +125,7 @@ pub struct IfaceImpl {
     pub schema_id: SchemaId,
     pub iface_id: IfaceId,
     pub global_state: TinyOrdSet<NamedType<GlobalStateType>>,
-    pub owned_state: TinyOrdSet<NamedType<AssignmentType>>,
+    pub assignments: TinyOrdSet<NamedType<AssignmentType>>,
     pub valencies: TinyOrdSet<NamedType<ValencyType>>,
     pub transitions: TinyOrdSet<NamedType<TransitionType>>,
     pub extensions: TinyOrdSet<NamedType<ExtensionType>>,
@@ -155,7 +155,7 @@ impl IfaceImpl {
     }
 
     pub fn assignments_type(&self, name: &TypeName) -> Option<AssignmentType> {
-        self.owned_state
+        self.assignments
             .iter()
             .find(|nt| &nt.name == name)
             .map(|nt| nt.id)
@@ -166,6 +166,27 @@ impl IfaceImpl {
             .iter()
             .find(|nt| &nt.name == name)
             .map(|nt| nt.id)
+    }
+
+    pub fn global_name(&self, id: GlobalStateType) -> Option<&TypeName> {
+        self.global_state
+            .iter()
+            .find(|nt| nt.id == id)
+            .map(|nt| &nt.name)
+    }
+
+    pub fn assignment_name(&self, id: AssignmentType) -> Option<&TypeName> {
+        self.assignments
+            .iter()
+            .find(|nt| nt.id == id)
+            .map(|nt| &nt.name)
+    }
+
+    pub fn transition_name(&self, id: TransitionType) -> Option<&TypeName> {
+        self.transitions
+            .iter()
+            .find(|nt| nt.id == id)
+            .map(|nt| &nt.name)
     }
 }
 

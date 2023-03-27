@@ -43,5 +43,5 @@ pub use bindle::{LoadError, UniversalBindle};
 pub use certs::{Cert, ContentId, ContentSigs, Identity};
 pub use consignment::{Consignment, Contract, Transfer};
 pub use disclosure::Disclosure;
-pub use seal::{TerminalSeal, VoutSeal};
+pub use seal::{BuilderSeal, TerminalSeal, VoutSeal};
 pub use util::{ContainerVer, Terminal};

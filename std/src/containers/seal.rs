@@ -29,9 +29,9 @@ use bp::seals::txout::{CloseMethod, TxPtr};
 use bp::secp256k1::rand::{thread_rng, RngCore};
 use bp::Vout;
 use commit_verify::Conceal;
-use rgb::{GraphSeal, SecretSeal};
+use rgb::{ExposedSeal, GenesisSeal, GraphSeal, SecretSeal};
 
-use crate::LIB_NAME_RGB_STD;
+use crate::{Outpoint, LIB_NAME_RGB_STD};
 
 /// Seal definition which re-uses witness transaction id of some other seal,
 /// which is not known at the moment of seal construction. Thus, the definition
@@ -186,4 +186,30 @@ impl FromStr for TerminalSeal {
             .map(TerminalSeal::from)
             .or_else(|_| GraphSeal::from_str(s).map(TerminalSeal::from))
     }
+}
+
+/// Seal used by operation builder which can be either revealed or concealed.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, From)]
+pub enum BuilderSeal<Seal: ExposedSeal> {
+    Revealed(Seal),
+    #[from]
+    Concealed(SecretSeal),
+}
+
+impl<Seal: ExposedSeal> From<Outpoint> for BuilderSeal<Seal>
+where Seal: From<Outpoint>
+{
+    fn from(seal: Outpoint) -> Self { BuilderSeal::Revealed(seal.into()) }
+}
+
+impl<Seal: ExposedSeal> From<GraphSeal> for BuilderSeal<Seal>
+where Seal: From<GraphSeal>
+{
+    fn from(seal: GraphSeal) -> Self { BuilderSeal::Revealed(seal.into()) }
+}
+
+impl<Seal: ExposedSeal> From<GenesisSeal> for BuilderSeal<Seal>
+where Seal: From<GenesisSeal>
+{
+    fn from(seal: GenesisSeal) -> Self { BuilderSeal::Revealed(seal.into()) }
 }

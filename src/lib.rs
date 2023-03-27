@@ -61,11 +61,10 @@
 extern crate amplify;
 
 mod invoice;
+mod pay;
 pub mod psbt;
 
 pub use invoice::{InvoiceParseError, InvoiceState, RgbInvoice, RgbTransport};
-use rgbstd::interface::TransitionBuilder;
-use rgbstd::persistence::Stash;
 
 // 1. Construct main state transition with transition builder
 // -- shortcut using invoice to do that construction (like .with_invoice())
@@ -76,14 +75,3 @@ use rgbstd::persistence::Stash;
 //    that output
 // 3. Extract from PSBT all spent prevouts and construct blank state transitions
 //    for each one of them; embed them into PSBT
-
-pub enum InvoiceInconsistency {}
-
-impl RgbInvoice {
-    pub fn to_builder(
-        &self,
-        stash: &impl Stash,
-    ) -> Result<TransitionBuilder, InvoiceInconsistency> {
-        todo!()
-    }
-}

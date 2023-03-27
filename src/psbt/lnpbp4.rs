@@ -37,7 +37,7 @@ pub const PSBT_OUT_LNPBP4_MESSAGE: u8 = 0x00;
 pub const PSBT_OUT_LNPBP4_ENTROPY: u8 = 0x01;
 /// Proprietary key subtype for storing LNPBP4 requirement for a minimal tree
 /// size.
-pub const PSBT_OUT_LNPBP4_MIN_TREE_DEPTH: u8 = 0x02;
+pub const PSBT_OUT_LNPBP4_MIN_TREE_DEPTH: u8 = 0x04;
 
 /// Extension trait for static functions returning LNPBP4-related proprietary
 /// keys.

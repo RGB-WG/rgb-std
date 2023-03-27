@@ -22,6 +22,8 @@
 use std::num::ParseIntError;
 use std::str::FromStr;
 
+use bitcoin::{Address, Network};
+use bp::Chain;
 use fluent_uri::Uri;
 use indexmap::IndexMap;
 use rgb::{AttachId, ContractId, SecretSeal};
@@ -53,9 +55,17 @@ pub enum InvoiceState {
     Attach(AttachId),
 }
 
+#[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
+#[display(inner)]
+pub enum Beneficiary {
+    BlindedSeal(SecretSeal),
+    WitnessUtxo(Address),
+    // TODO: add BifrostNode(),
+}
+
 #[derive(Clone, Eq, PartialEq, Debug, Display)]
 // TODO: Change to custom display impl providing support for optionals & query
-#[display("{transport}{contract}/{iface}/{value}@{seal}")]
+#[display("{transport}{contract}/{iface}/{value}+{beneficiary}")]
 pub struct RgbInvoice {
     pub transport: RgbTransport,
     pub contract: ContractId,
@@ -63,8 +73,9 @@ pub struct RgbInvoice {
     pub operation: Option<TypeName>,
     pub assignment: Option<TypeName>,
     // pub owned_state: Option<String>,
-    pub seal: SecretSeal,
+    pub beneficiary: Beneficiary,
     pub value: u64, // TODO: Change to TypedState
+    pub chain: Option<Chain>,
     pub unknown_query: IndexMap<String, String>,
 }
 
@@ -80,6 +91,15 @@ pub enum InvoiceParseError {
 
     #[from]
     Id(baid58::Baid58ParseError),
+
+    #[display(doc_comments)]
+    /// can't recognize beneficiary "": it should be either a bitcoin address or
+    /// a blinded UTXO seal.
+    Beneficiary(String),
+
+    #[display(doc_comments)]
+    /// network {0} is not supported.
+    UnsupportedNetwork(Network),
 
     #[from]
     Num(ParseIntError),
@@ -102,9 +122,31 @@ impl FromStr for RgbInvoice {
             .map(|e| e.to_string())
             .collect::<Vec<String>>();
 
+        let mut chain = None;
+
         let mut assignment = path[2].split('@');
         let (seal, value) = match (assignment.next(), assignment.next()) {
-            (Some(a), Some(b)) => (SecretSeal::from_str(b)?, u64::from_str_radix(a, 10)?),
+            (Some(a), Some(b)) => {
+                let value = u64::from_str_radix(a, 10)?;
+                let benefactor = match (SecretSeal::from_str(b), Address::from_str(b)) {
+                    (Ok(seal), Err(_)) => Beneficiary::BlindedSeal(seal),
+                    (Err(_), Ok(addr)) => {
+                        chain = Some(match addr.network {
+                            Network::Bitcoin => Chain::Bitcoin,
+                            Network::Testnet => Chain::Testnet3,
+                            Network::Signet => Chain::Signet,
+                            Network::Regtest => Chain::Regtest,
+                            unknown => return Err(InvoiceParseError::UnsupportedNetwork(unknown)),
+                        });
+                        Beneficiary::WitnessUtxo(addr.assume_checked())
+                    }
+                    (Err(_), Err(_)) => return Err(InvoiceParseError::Beneficiary(a.to_owned())),
+                    (Ok(_), Ok(_)) => panic!(
+                        "found a string which is both valid bitcoin address and UTXO blind seal"
+                    ),
+                };
+                (benefactor, value)
+            }
             _ => return Err(InvoiceParseError::Invalid),
         };
 
@@ -114,8 +156,9 @@ impl FromStr for RgbInvoice {
             iface: TypeName::try_from(path[1].clone())?,
             operation: None,
             assignment: None,
-            seal,
+            beneficiary: seal,
             value,
+            chain,
             unknown_query: Default::default(),
         })
     }

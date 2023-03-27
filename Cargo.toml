@@ -77,3 +77,6 @@ features = [ "all" ]
 
 [patch.crates-io]
 strict_types = { git = "https://github.com/strict-types/strict-types" }
+commit_verify = { git = "https://github.com/LNP-BP/client_side_validation" }
+bp-core = { git = "https://github.com/BP-WG/bp-core" }
+rgb-core = { git = "https://github.com/RGB-WG/rgb-core" }
