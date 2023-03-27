@@ -55,10 +55,12 @@ pub enum InvoiceState {
     Attach(AttachId),
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
+#[derive(Clone, Eq, PartialEq, Hash, Debug, Display, From)]
 #[display(inner)]
 pub enum Beneficiary {
+    #[from]
     BlindedSeal(SecretSeal),
+    #[from]
     WitnessUtxo(Address),
     // TODO: add BifrostNode(),
 }
