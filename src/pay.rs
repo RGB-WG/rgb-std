@@ -31,6 +31,7 @@ use rgbstd::containers::{Bindle, BuilderSeal, Transfer};
 use rgbstd::interface::{BuilderError, TypedState, VelocityClass};
 use rgbstd::persistence::{ConsignerError, Inventory, InventoryError, Stash};
 
+use crate::invoice::Beneficiary;
 use crate::psbt::{DbcPsbtError, PsbtDbc, RgbExt, RgbPsbtError};
 use crate::RgbInvoice;
 
@@ -39,7 +40,14 @@ use crate::RgbInvoice;
 pub enum PayError<E1: Error, E2: Error>
 where E1: From<E2>
 {
+    /// not enough PSBT output found to put all required state (can't add
+    /// assignment {1} for {0}-velocity state).
+    #[display(doc_comments)]
     NoBlankChange(VelocityClass, AssignmentType),
+
+    /// PSBT lacks beneficiary output matching the invoice.
+    #[display(doc_comments)]
+    NoBeneficiaryOutput,
 
     #[from]
     Inventory(InventoryError<E1>),
@@ -58,6 +66,10 @@ where E1: From<E2>
 }
 
 pub trait InventoryWallet: Inventory {
+    /// # Assumptions
+    ///
+    /// 1. If PSBT output has BIP32 derivation information it belongs to our
+    /// wallet - except when it matches address from the invoice.
     fn pay(
         &mut self,
         invoice: RgbInvoice,
@@ -69,10 +81,33 @@ pub trait InventoryWallet: Inventory {
     {
         let contract_id = invoice.contract;
 
+        let (beneficiary_output, beneficiary) = match invoice.beneficiary {
+            Beneficiary::BlindedSeal(seal) => {
+                let seal = BuilderSeal::Concealed(seal);
+                (None, seal)
+            }
+            Beneficiary::WitnessUtxo(addr) => {
+                let vout = psbt
+                    .unsigned_tx
+                    .output
+                    .iter()
+                    .enumerate()
+                    .find(|(_, txout)| txout.script_pubkey == addr.script_pubkey())
+                    .map(|(no, _)| no as u32)
+                    .ok_or(PayError::NoBeneficiaryOutput)?;
+                let seal = BuilderSeal::Revealed(GraphSeal::new_vout(method, vout));
+                (Some(vout), seal)
+            }
+        };
+
         // Classify PSBT outputs which can be used for assignments
         let mut out_classes = HashMap::<VelocityClass, Vec<u32>>::new();
         for (no, outp) in psbt.outputs.iter().enumerate() {
+            if beneficiary_output == Some(no as u32) {
+                continue;
+            }
             if let Some(class) = outp
+                // NB: Here we assume that if output has derivation information it belongs to our wallet.
                 .bip32_derivation
                 .first_key_value()
                 .and_then(|(_, src)| src.1.into_iter().rev().skip(1).next())
@@ -95,7 +130,7 @@ pub trait InventoryWallet: Inventory {
             builder = builder.set_transition_type(op_name)?;
         }
         let transition = builder
-            .add_fungible_state_default(invoice.seal, invoice.value)?
+            .add_fungible_state_default(beneficiary, invoice.value)?
             // TODO: Do "change"
             .complete_transition()?;
 
@@ -162,7 +197,7 @@ pub trait InventoryWallet: Inventory {
         for (id, bundle) in bundles {
             self.consume_bundle(id, bundle)?;
         }
-        let transfer = self.transfer(contract_id, [invoice.seal])?;
+        let transfer = self.transfer(contract_id, [beneficiary])?;
 
         Ok(transfer)
     }
