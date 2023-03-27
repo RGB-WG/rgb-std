@@ -27,11 +27,14 @@
 // TODO: Move to BP wallet
 mod lnpbp4;
 // TODO: Move to BP wallet
+mod dbc;
+// TODO: Move to BP wallet
 mod opret;
 // TODO: Move to BP wallet
 mod tapret;
 mod rgb;
 
+pub use dbc::{DbcPsbtError, PsbtDbc};
 pub use lnpbp4::{
     Lnpbp4PsbtError, ProprietaryKeyLnpbp4, PSBT_LNPBP4_PREFIX, PSBT_OUT_LNPBP4_ENTROPY,
     PSBT_OUT_LNPBP4_MESSAGE, PSBT_OUT_LNPBP4_MIN_TREE_DEPTH,

@@ -23,7 +23,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::convert::Infallible;
 
 use amplify::confinement;
-use amplify::confinement::{Confined, LargeOrdMap, SmallOrdMap, TinyOrdMap};
+use amplify::confinement::{Confined, LargeOrdMap, SmallOrdMap, TinyOrdMap, TinyOrdSet};
 use bp::dbc::anchor::MergeError;
 use commit_verify::mpc;
 use commit_verify::mpc::{MerkleBlock, UnrelatedProof};
@@ -35,7 +35,7 @@ use strict_encoding::TypeName;
 
 use crate::accessors::{MergeReveal, MergeRevealError};
 use crate::containers::{Cert, Consignment, ContentId, ContentSigs};
-use crate::interface::{rgb20, Iface, IfaceId, IfacePair, SchemaIfaces};
+use crate::interface::{rgb20, ContractSuppl, Iface, IfaceId, IfacePair, SchemaIfaces};
 use crate::persistence::{Stash, StashError, StashInconsistency};
 use crate::LIB_NAME_RGB_STD;
 
@@ -63,6 +63,7 @@ pub struct Hoard {
     pub(super) schemata: TinyOrdMap<SchemaId, SchemaIfaces>,
     pub(super) ifaces: TinyOrdMap<IfaceId, Iface>,
     pub(super) geneses: TinyOrdMap<ContractId, Genesis>,
+    pub(super) suppl: TinyOrdMap<ContractId, TinyOrdSet<ContractSuppl>>,
     pub(super) bundles: LargeOrdMap<BundleId, TransitionBundle>,
     pub(super) extensions: LargeOrdMap<OpId, Extension>,
     pub(super) anchors: LargeOrdMap<AnchorId, Anchor<mpc::MerkleBlock>>,
@@ -79,6 +80,7 @@ impl Hoard {
                 rgb20_id => rgb20,
             },
             geneses: none!(),
+            suppl: none!(),
             bundles: none!(),
             extensions: none!(),
             anchors: none!(),
@@ -138,6 +140,16 @@ impl Hoard {
             };
         }
 
+        // TODO: filter most trusted signers
+        match self.suppl.get_mut(&contract_id) {
+            Some(entry) => {
+                entry.extend(consignment.supplements).ok();
+            }
+            None => {
+                self.suppl.insert(contract_id, consignment.supplements).ok();
+            }
+        }
+
         match self.geneses.get_mut(&contract_id) {
             Some(genesis) => *genesis = genesis.clone().merge_reveal(consignment.genesis)?,
             None => {
@@ -186,10 +198,6 @@ impl Stash for Hoard {
     // With in-memory data we have no connectivity or I/O errors
     type Error = Infallible;
 
-    fn schema_ids(&self) -> Result<BTreeSet<SchemaId>, Self::Error> {
-        Ok(self.schemata.keys().copied().collect())
-    }
-
     fn ifaces(&self) -> Result<BTreeMap<IfaceId, TypeName>, Self::Error> {
         Ok(self
             .ifaces
@@ -198,15 +206,12 @@ impl Stash for Hoard {
             .collect())
     }
 
-    fn contract_ids(&self) -> Result<BTreeSet<ContractId>, Self::Error> {
-        Ok(self.geneses.keys().copied().collect())
-    }
-
-    fn iface_by_name(&self, name: &str) -> Result<&Iface, StashError<Self::Error>> {
+    fn iface_by_name(&self, name: impl Into<TypeName>) -> Result<&Iface, StashError<Self::Error>> {
+        let name = name.into();
         self.ifaces
             .values()
-            .find(|iface| iface.name.as_str() == name)
-            .ok_or_else(|| StashInconsistency::IfaceNameAbsent(name.to_owned()).into())
+            .find(|iface| iface.name == name)
+            .ok_or_else(|| StashInconsistency::IfaceNameAbsent(name).into())
     }
     fn iface_by_id(&self, id: IfaceId) -> Result<&Iface, StashError<Self::Error>> {
         self.ifaces
@@ -214,10 +219,22 @@ impl Stash for Hoard {
             .ok_or_else(|| StashInconsistency::IfaceAbsent(id).into())
     }
 
+    fn schema_ids(&self) -> Result<BTreeSet<SchemaId>, Self::Error> {
+        Ok(self.schemata.keys().copied().collect())
+    }
+
     fn schema(&self, schema_id: SchemaId) -> Result<&SchemaIfaces, StashError<Self::Error>> {
         self.schemata
             .get(&schema_id)
             .ok_or_else(|| StashInconsistency::SchemaAbsent(schema_id).into())
+    }
+
+    fn contract_ids(&self) -> Result<BTreeSet<ContractId>, Self::Error> {
+        Ok(self.geneses.keys().copied().collect())
+    }
+
+    fn contract_suppl(&self, contract_id: ContractId) -> Option<&TinyOrdSet<ContractSuppl>> {
+        self.suppl.get(&contract_id)
     }
 
     fn genesis(&self, contract_id: ContractId) -> Result<&Genesis, StashError<Self::Error>> {

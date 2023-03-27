@@ -19,7 +19,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::convert::Infallible;
 use std::ops::{Deref, DerefMut};
 
@@ -27,13 +27,15 @@ use amplify::confinement::{MediumOrdMap, MediumOrdSet, TinyOrdMap};
 use rgb::validation::{Status, Validity, Warning};
 use rgb::{
     validation, AnchorId, AnchoredBundle, BundleId, ContractHistory, ContractId, ContractState,
-    OpId, Opout, SubSchema,
+    OpId, Opout, SubSchema, TransitionBundle,
 };
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 
 use crate::accessors::BundleExt;
-use crate::containers::{Bindle, Cert, Consignment, ContentId, Contract, Transfer};
-use crate::interface::{ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, SchemaIfaces};
+use crate::containers::{Bindle, Cert, Consignment, ContentId, Contract, TerminalSeal, Transfer};
+use crate::interface::{
+    ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, SchemaIfaces, TypedState,
+};
 use crate::persistence::inventory::{DataError, IfaceImplError, InventoryInconsistency};
 use crate::persistence::{
     Hoard, Inventory, InventoryDataError, InventoryError, Stash, StashInconsistency,
@@ -289,6 +291,14 @@ impl Inventory for Stock {
         self.consume_consignment(transfer, resolver, false)
     }
 
+    fn consume_bundle(
+        &mut self,
+        contract_id: ContractId,
+        bundle: TransitionBundle,
+    ) -> Result<(), InventoryError<Self::Error>> {
+        todo!()
+    }
+
     unsafe fn import_contract_force<R: ResolveHeight>(
         &mut self,
         contract: Contract,
@@ -298,6 +308,13 @@ impl Inventory for Stock {
         R::Error: 'static,
     {
         self.consume_consignment(contract, resolver, true)
+    }
+
+    fn contract_schema(
+        &mut self,
+        contract_id: ContractId,
+    ) -> Result<SchemaIfaces, InventoryError<Self::Error>> {
+        todo!()
     }
 
     fn contract_iface(
@@ -361,7 +378,14 @@ impl Inventory for Stock {
         Ok(index.public_opouts.to_inner())
     }
 
-    fn outpoint_opouts(
+    fn contracts_by_outpoints(
+        &mut self,
+        outpoints: impl IntoIterator<Item = impl Into<Outpoint>>,
+    ) -> Result<BTreeSet<ContractId>, InventoryError<Self::Error>> {
+        todo!()
+    }
+
+    fn opouts_by_outpoints(
         &mut self,
         contract_id: ContractId,
         outpoints: impl IntoIterator<Item = impl Into<Outpoint>>,
@@ -381,8 +405,23 @@ impl Inventory for Stock {
         Ok(opouts)
     }
 
+    fn state_for_outpoints(
+        &mut self,
+        contract_id: ContractId,
+        outpoints: impl IntoIterator<Item = impl Into<Outpoint>>,
+    ) -> Result<BTreeMap<Opout, TypedState>, InventoryError<Self::Error>> {
+        todo!()
+    }
+
     fn store_seal_secret(&mut self, secret: u64) -> Result<(), InventoryError<Self::Error>> {
         self.seal_secrets.push(secret)?;
         Ok(())
+    }
+
+    fn opouts_by_terminals(
+        &mut self,
+        terminals: impl IntoIterator<Item = impl Into<TerminalSeal>>,
+    ) -> Result<BTreeSet<Opout>, InventoryError<Self::Error>> {
+        todo!()
     }
 }

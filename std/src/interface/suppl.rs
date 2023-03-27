@@ -93,18 +93,20 @@ pub struct OwnedStateSuppl {
     pub velocity_class: VelocityClass,
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display, Default)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD, tags = repr, try_from_u8, into_u8)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
+#[display(lowercase)]
 pub enum VelocityClass {
-    #[strict_type(dumb)]
     HighFrequency = 10,
+    #[display("20")]
     Frequent = 20,
+    #[default]
     Regular = 30,
     Episodic = 40,
     Seldom = 50,

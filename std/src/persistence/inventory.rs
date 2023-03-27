@@ -27,13 +27,19 @@ use amplify::confinement::{self, Confined};
 use bp::Txid;
 use commit_verify::mpc;
 use rgb::{
-    validation, AnchoredBundle, BundleId, ContractId, OpId, Operation, Opout, SchemaId, SubSchema,
-    Transition,
+    validation, AnchoredBundle, BundleId, ContractId, ExposedSeal, GraphSeal, OpId, Operation,
+    Opout, SchemaId, SubSchema, Transition, TransitionBundle,
 };
+use strict_encoding::TypeName;
 
 use crate::accessors::{BundleExt, MergeRevealError, RevealError};
-use crate::containers::{Bindle, Cert, Consignment, ContentId, Contract, Terminal, Transfer};
-use crate::interface::{ContractIface, Iface, IfaceId, IfaceImpl, IfacePair};
+use crate::containers::{
+    Bindle, BuilderSeal, Cert, Consignment, ContentId, Contract, Terminal, TerminalSeal, Transfer,
+};
+use crate::interface::{
+    ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, SchemaIfaces, TransitionBuilder,
+    TypedState,
+};
 use crate::persistence::hoard::ConsumeError;
 use crate::persistence::stash::StashInconsistency;
 use crate::persistence::{Stash, StashError};
@@ -97,7 +103,9 @@ where E2: From<E1>
     fn from(err: StashError<E1>) -> Self {
         match err {
             StashError::Connectivity(err) => Self::Connectivity(err.into()),
-            StashError::InternalInconsistency(e) => Self::InternalInconsistency(e.into()),
+            StashError::InternalInconsistency(e) => {
+                Self::InternalInconsistency(InventoryInconsistency::Stash(e))
+            }
         }
     }
 }
@@ -155,7 +163,7 @@ pub enum DataError {
     #[display(inner)]
     Merge(MergeRevealError),
 
-    /// outpoint {0} is not part of the contract {1}
+    /// outpoint {0} is not part of the contract {1}.
     OutpointUnknown(Outpoint, ContractId),
 
     #[from]
@@ -163,6 +171,9 @@ pub enum DataError {
 
     #[from]
     IfaceImpl(IfaceImplError),
+
+    /// schema {0} doesn't implement interface {1}.
+    NoIfaceImpl(SchemaId, IfaceId),
 
     #[from]
     HeightResolver(Box<dyn Error>),
@@ -278,6 +289,12 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     where
         R::Error: 'static;
 
+    fn consume_bundle(
+        &mut self,
+        contract_id: ContractId,
+        bundle: TransitionBundle,
+    ) -> Result<(), InventoryError<Self::Error>>;
+
     /// # Safety
     ///
     /// Calling this method may lead to including into the stash asset
@@ -290,6 +307,11 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     where
         R::Error: 'static;
 
+    fn contract_schema(
+        &mut self,
+        contract_id: ContractId,
+    ) -> Result<SchemaIfaces, InventoryError<Self::Error>>;
+
     fn contract_iface(
         &mut self,
         contract_id: ContractId,
@@ -297,6 +319,26 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     ) -> Result<ContractIface, InventoryError<Self::Error>>;
 
     fn anchored_bundle(&self, opid: OpId) -> Result<AnchoredBundle, InventoryError<Self::Error>>;
+
+    fn transition_builder(
+        &mut self,
+        contract_id: ContractId,
+        iface: impl Into<TypeName>,
+    ) -> Result<TransitionBuilder, InventoryError<Self::Error>>
+    where
+        Self::Error: From<<Self::Stash as Stash>::Error>,
+    {
+        let schema_ifaces = self.contract_schema(contract_id)?;
+        let iface = self.iface_by_name(iface)?;
+        let schema = schema_ifaces.schema;
+        let iimpl = schema_ifaces
+            .iimpls
+            .get(&iface.iface_id())
+            .ok_or(DataError::NoIfaceImpl(schema.schema_id(), iface.iface_id()))?;
+        let builder = TransitionBuilder::with(iface.clone(), schema, iimpl.clone())
+            .expect("internal inconsistency");
+        Ok(builder)
+    }
 
     fn transition(&self, opid: OpId) -> Result<Transition, InventoryError<Self::Error>> {
         Ok(self
@@ -308,16 +350,34 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             .expect("Stash::anchored_bundle should guarantee returning revealed transition"))
     }
 
+    fn contracts_by_outpoints(
+        &mut self,
+        outpoints: impl IntoIterator<Item = impl Into<Outpoint>>,
+    ) -> Result<BTreeSet<ContractId>, InventoryError<Self::Error>>;
+
     fn public_opouts(
         &mut self,
         contract_id: ContractId,
     ) -> Result<BTreeSet<Opout>, InventoryError<Self::Error>>;
 
-    fn outpoint_opouts(
+    fn opouts_by_outpoints(
         &mut self,
         contract_id: ContractId,
         outpoints: impl IntoIterator<Item = impl Into<Outpoint>>,
     ) -> Result<BTreeSet<Opout>, InventoryError<Self::Error>>;
+
+    fn opouts_by_terminals(
+        &mut self,
+        terminals: impl IntoIterator<Item = impl Into<TerminalSeal>>,
+    ) -> Result<BTreeSet<Opout>, InventoryError<Self::Error>>;
+
+    fn state_for_outpoints(
+        &mut self,
+        contract_id: ContractId,
+        outpoints: impl IntoIterator<Item = impl Into<Outpoint>>,
+    ) -> Result<BTreeMap<Opout, TypedState>, InventoryError<Self::Error>>;
+
+    fn store_seal_secret(&mut self, secret: u64) -> Result<(), InventoryError<Self::Error>>;
 
     fn export_contract(
         &mut self,
@@ -326,40 +386,53 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         Bindle<Contract>,
         ConsignerError<Self::Error, <<Self as Deref>::Target as Stash>::Error>,
     > {
-        let mut consignment = self.consign(contract_id, [] as [Outpoint; 0])?;
+        let mut consignment =
+            self.consign::<GraphSeal, false>(contract_id, [] as [GraphSeal; 0])?;
         consignment.transfer = false;
         Ok(consignment.into())
         // TODO: Add known sigs to the bindle
     }
 
-    fn store_seal_secret(&mut self, secret: u64) -> Result<(), InventoryError<Self::Error>>;
-
     fn transfer(
         &mut self,
         contract_id: ContractId,
-        outpoints: impl IntoIterator<Item = impl Into<Outpoint>>,
+        seals: impl IntoIterator<Item = impl Into<BuilderSeal<GraphSeal>>>,
     ) -> Result<
         Bindle<Transfer>,
         ConsignerError<Self::Error, <<Self as Deref>::Target as Stash>::Error>,
     > {
-        let mut consignment = self.consign(contract_id, outpoints)?;
+        let mut consignment = self.consign(contract_id, seals)?;
         consignment.transfer = true;
         Ok(consignment.into())
         // TODO: Add known sigs to the bindle
     }
 
-    fn consign<const TYPE: bool>(
+    fn consign<Seal: ExposedSeal, const TYPE: bool>(
         &mut self,
         contract_id: ContractId,
-        outpoints: impl IntoIterator<Item = impl Into<Outpoint>>,
+        seals: impl IntoIterator<Item = impl Into<BuilderSeal<Seal>>>,
     ) -> Result<
         Consignment<TYPE>,
         ConsignerError<Self::Error, <<Self as Deref>::Target as Stash>::Error>,
     > {
         // 1. Collect initial set of anchored bundles
-        let outpoints = outpoints.into_iter().map(|o| o.into());
         let mut opouts = self.public_opouts(contract_id)?;
-        opouts.extend(self.outpoint_opouts(contract_id, outpoints)?);
+        {
+            let (outpoints, terminals) = seals
+                .into_iter()
+                .map(|seal| match seal.into() {
+                    BuilderSeal::Revealed(seal) => (seal.outpoint(), None),
+                    BuilderSeal::Concealed(seal) => (None, Some(TerminalSeal::ConcealedUtxo(seal))),
+                })
+                .unzip::<_, _, Vec<_>, Vec<_>>();
+            opouts.extend(
+                self.opouts_by_outpoints(
+                    contract_id,
+                    outpoints.into_iter().filter_map(|seal| seal),
+                )?,
+            );
+            opouts.extend(self.opouts_by_terminals(terminals.into_iter().filter_map(|seal| seal))?);
+        }
 
         // 1.1. Get all public transitions
         // 1.2. Collect all state transitions assigning state to the provided
@@ -420,6 +493,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         consignment.terminals =
             Confined::try_from(terminals).map_err(|_| ConsignerError::TooManyTerminals)?;
 
+        // TODO: Conceal everything we do not need
         // TODO: Add known sigs to the consignment
 
         Ok(consignment)
