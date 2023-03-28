@@ -19,15 +19,15 @@ license = "Apache-2.0"
 [workspace.dependencies]
 amplify = "4.0.0-beta.20"
 baid58 = "0.2.0"
-strict_encoding = "2.0.0-rc.3"
-strict_types = "1.0.0-beta.6"
-commit_verify = "0.10.0-rc.2"
-bp-core = "0.10.0-rc.1"
-rgb-core = "0.10.0-beta.3"
+strict_encoding = "2.0.0"
+strict_types = "1.0.0-rc.1"
+commit_verify = "0.10.0-rc.3"
+bp-core = "0.10.0-rc.2"
+rgb-core = "0.10.0-rc.1"
 
 [package]
 name = "rgb-wallet"
-version = "0.10.0-alpha.2"
+version = "0.10.0-beta.1"
 description = "RGB wallet library for smart contracts on Bitcoin & Lightning network"
 keywords = ["bitcoin", "lightning", "rgb", "smart-contracts", "lnp-bp"]
 categories = ["cryptography::cryptocurrencies"]
@@ -74,9 +74,3 @@ wasm-bindgen-test = "0.3"
 
 [package.metadata.docs.rs]
 features = [ "all" ]
-
-[patch.crates-io]
-strict_types = { git = "https://github.com/strict-types/strict-types" }
-commit_verify = { git = "https://github.com/LNP-BP/client_side_validation" }
-bp-core = { git = "https://github.com/BP-WG/bp-core" }
-rgb-core = { git = "https://github.com/RGB-WG/rgb-core" }

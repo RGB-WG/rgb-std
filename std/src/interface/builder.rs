@@ -26,9 +26,9 @@ use amplify::{confinement, Wrapper};
 use bp::secp256k1::rand::thread_rng;
 use bp::Chain;
 use rgb::{
-    fungible, Assign, AssignmentType, Assignments, ExposedSeal, FungibleType, Genesis, GenesisSeal,
-    GlobalState, GraphSeal, Opout, PrevOuts, StateSchema, SubSchema, Transition, TransitionType,
-    TypedAssigns, BLANK_TRANSITION_ID,
+    Assign, AssignmentType, Assignments, ExposedSeal, FungibleType, Genesis, GenesisSeal,
+    GlobalState, GraphSeal, Opout, PrevOuts, RevealedValue, StateSchema, SubSchema, Transition,
+    TransitionType, TypedAssigns, BLANK_TRANSITION_ID,
 };
 use strict_encoding::{SerializeError, StrictSerialize, TypeName};
 use strict_types::decode;
@@ -282,7 +282,7 @@ pub struct OperationBuilder<Seal: ExposedSeal> {
     global: GlobalState,
     // rights: TinyOrdMap<AssignmentType, Confined<HashSet<BuilderSeal<Seal>>, 1, U8>>,
     fungible:
-        TinyOrdMap<AssignmentType, Confined<HashMap<BuilderSeal<Seal>, fungible::Revealed>, 1, U8>>,
+        TinyOrdMap<AssignmentType, Confined<HashMap<BuilderSeal<Seal>, RevealedValue>, 1, U8>>,
     // data: TinyOrdMap<AssignmentType, Confined<HashSet<BuilderSeal<Seal>, SmallBlob>, 1, U8>>,
     // TODO: add attachments
     // TODO: add valencies
@@ -359,7 +359,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             return Err(BuilderError::InvalidStateType(name));
         }
 
-        let state = fungible::Revealed::new(value, &mut thread_rng());
+        let state = RevealedValue::new(value, &mut thread_rng());
         match self.fungible.get_mut(&type_id) {
             Some(assignments) => {
                 assignments.insert(seal.into(), state)?;
@@ -383,7 +383,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
                 todo!()
             }
             TypedState::Amount(value) => {
-                let state = fungible::Revealed::new(value, &mut thread_rng());
+                let state = RevealedValue::new(value, &mut thread_rng());
                 match self.fungible.get_mut(&type_id) {
                     Some(assignments) => {
                         assignments.insert(seal.into(), state.into())?;

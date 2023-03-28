@@ -21,7 +21,7 @@
 
 use amplify::confinement::{LargeOrdMap, LargeVec, SmallBlob, SmallVec};
 use bp::Outpoint;
-use rgb::{attachment, AssignmentType, ContractState, FungibleOutput, SealWitness};
+use rgb::{AssignmentType, ContractState, FungibleOutput, RevealedAttach, SealWitness};
 use strict_encoding::TypeName;
 use strict_types::typify::TypedVal;
 use strict_types::{decode, StrictVal};
@@ -45,7 +45,7 @@ pub enum TypedState {
     Void,
     Amount(u64),
     Data(SmallBlob),
-    Attachment(attachment::Revealed),
+    Attachment(RevealedAttach),
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
