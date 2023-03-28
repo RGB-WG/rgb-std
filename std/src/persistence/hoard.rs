@@ -219,12 +219,11 @@ impl Stash for Hoard {
             .collect())
     }
 
-    fn iface_by_name(&self, name: impl Into<TypeName>) -> Result<&Iface, StashError<Self::Error>> {
-        let name = name.into();
+    fn iface_by_name(&self, name: &TypeName) -> Result<&Iface, StashError<Self::Error>> {
         self.ifaces
             .values()
-            .find(|iface| iface.name == name)
-            .ok_or_else(|| StashInconsistency::IfaceNameAbsent(name).into())
+            .find(|iface| &iface.name == name)
+            .ok_or_else(|| StashInconsistency::IfaceNameAbsent(name.clone()).into())
     }
     fn iface_by_id(&self, id: IfaceId) -> Result<&Iface, StashError<Self::Error>> {
         self.ifaces

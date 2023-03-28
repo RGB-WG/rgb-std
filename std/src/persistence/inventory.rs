@@ -329,7 +329,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         Self::Error: From<<Self::Stash as Stash>::Error>,
     {
         let schema_ifaces = self.contract_schema(contract_id)?;
-        let iface = self.iface_by_name(iface)?;
+        let iface = self.iface_by_name(&iface.into())?;
         let schema = &schema_ifaces.schema;
         let iimpl = schema_ifaces
             .iimpls

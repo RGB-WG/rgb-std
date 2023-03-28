@@ -93,7 +93,7 @@ pub trait Stash {
 
     fn ifaces(&self) -> Result<BTreeMap<IfaceId, TypeName>, Self::Error>;
 
-    fn iface_by_name(&self, name: impl Into<TypeName>) -> Result<&Iface, StashError<Self::Error>>;
+    fn iface_by_name(&self, name: &TypeName) -> Result<&Iface, StashError<Self::Error>>;
 
     fn iface_by_id(&self, id: IfaceId) -> Result<&Iface, StashError<Self::Error>>;
 
