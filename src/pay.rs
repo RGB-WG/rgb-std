@@ -21,7 +21,9 @@
 
 use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
+use std::str::FromStr;
 
+use amplify::hex::ToHex;
 use bitcoin::hashes::Hash;
 use bitcoin::psbt::Psbt;
 use bp::seals::txout::CloseMethod;
@@ -110,7 +112,11 @@ pub trait InventoryWallet: Inventory {
             .input
             .iter()
             .map(|txin| txin.previous_output)
-            .map(|outpoint| Outpoint::new(outpoint.txid.to_byte_array().into(), outpoint.vout))
+            .map(|outpoint| {
+                let txid = bp::Txid::from_str(&outpoint.txid.to_hex())
+                    .expect("should be a valid Transaction Id");
+                Outpoint::new(txid, outpoint.vout)
+            })
             .collect::<Vec<_>>();
 
         // Classify PSBT outputs which can be used for assignments
