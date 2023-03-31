@@ -126,7 +126,7 @@ impl FromStr for RgbInvoice {
 
         let mut chain = None;
 
-        let mut assignment = path[2].split('@');
+        let mut assignment = path[2].split('+');
         let (seal, value) = match (assignment.next(), assignment.next()) {
             (Some(a), Some(b)) => {
                 let value = u64::from_str_radix(a, 10)?;
@@ -173,8 +173,8 @@ mod test {
     #[test]
     fn parse() {
         RgbInvoice::from_str(
-            "rgb:EKkb7TMfbPxzn7UhvXqhoCutzdZkSZCNYxVAVjsA67fW/RGB20/100@\
-             6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve",
+            "rgb:EKkb7TMfbPxzn7UhvXqhoCutzdZkSZCNYxVAVjsA67fW/RGB20/\
+             100+6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve",
         )
         .unwrap();
     }
