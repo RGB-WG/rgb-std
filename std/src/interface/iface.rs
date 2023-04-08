@@ -60,13 +60,13 @@ impl ToBaid58<32> for IfaceId {
 }
 impl FromBaid58<32> for IfaceId {}
 
+impl IfaceId {
+    fn to_baid58_string(&self) -> String { format!("{}", self.to_baid58()) }
+}
+
 impl FromStr for IfaceId {
     type Err = Baid58ParseError;
     fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_baid58_str(s) }
-}
-
-impl IfaceId {
-    fn to_baid58_string(&self) -> String { format!("{}", self.to_baid58()) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
