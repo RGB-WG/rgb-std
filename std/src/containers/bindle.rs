@@ -87,9 +87,14 @@ impl BindleContent for IfaceImpl {
     fn bindle_id(&self) -> Self::Id { self.impl_id() }
 }
 
-#[derive(Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
 pub struct Bindle<C: BindleContent> {
     id: C::Id,
     data: C,
@@ -168,15 +173,22 @@ mod _fs {
         Decode(DecodeError),
     }
 
-    #[derive(Debug, From)]
+    #[derive(Clone, Debug, From)]
+    #[cfg_attr(
+        feature = "serde",
+        derive(Serialize, Deserialize),
+        serde(crate = "serde_crate", rename_all = "camelCase", tag = "type")
+    )]
     pub enum UniversalBindle {
         #[from]
+        #[cfg_attr(feature = "serde", serde(rename = "interface"))]
         Iface(Bindle<Iface>),
 
         #[from]
         Schema(Bindle<SubSchema>),
 
         #[from]
+        #[cfg_attr(feature = "serde", serde(rename = "implementation"))]
         Impl(Bindle<IfaceImpl>),
 
         #[from]
