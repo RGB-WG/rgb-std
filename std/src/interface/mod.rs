@@ -38,4 +38,4 @@ pub use iface::{
 };
 pub use iimpl::{IfaceImpl, IfacePair, ImplId, NamedType, SchemaIfaces};
 pub use rgb20::rgb20;
-pub use suppl::{ContractSuppl, OwnedStateSuppl, SupplId, TickerSuppl, VelocityClass};
+pub use suppl::{AppDeriveIndex, ContractSuppl, OwnedStateSuppl, SupplId, TickerSuppl};

@@ -28,7 +28,7 @@ use bp::seals::txout::CloseMethod;
 use bp::Outpoint;
 use rgb::{AssignmentType, ContractId, GraphSeal, Opout};
 use rgbstd::containers::{Bindle, BuilderSeal, Transfer};
-use rgbstd::interface::{BuilderError, ContractSuppl, TypedState, VelocityClass};
+use rgbstd::interface::{AppDeriveIndex, BuilderError, ContractSuppl, TypedState};
 use rgbstd::persistence::{ConsignerError, Inventory, InventoryError, Stash};
 
 use crate::invoice::Beneficiary;
@@ -43,7 +43,7 @@ where E1: From<E2>
     /// not enough PSBT output found to put all required state (can't add
     /// assignment {1} for {0}-velocity state).
     #[display(doc_comments)]
-    NoBlankChange(VelocityClass, AssignmentType),
+    NoBlankOrChange(AppDeriveIndex, AssignmentType),
 
     /// PSBT lacks beneficiary output matching the invoice.
     #[display(doc_comments)]
@@ -114,7 +114,7 @@ pub trait InventoryWallet: Inventory {
             .collect::<Vec<_>>();
 
         // Classify PSBT outputs which can be used for assignments
-        let mut out_classes = HashMap::<VelocityClass, Vec<u32>>::new();
+        let mut out_classes = HashMap::<AppDeriveIndex, Vec<u32>>::new();
         for (no, outp) in psbt.outputs.iter().enumerate() {
             if beneficiary_output == Some(no as u32) {
                 continue;
@@ -127,7 +127,7 @@ pub trait InventoryWallet: Inventory {
                 .copied()
                 .map(u32::from)
                 .and_then(|index| u8::try_from(index).ok())
-                .and_then(|index| VelocityClass::try_from(index).ok())
+                .and_then(|index| AppDeriveIndex::try_from(index).ok())
             {
                 out_classes.entry(class).or_default().push(no as u32);
             }
@@ -141,12 +141,12 @@ pub trait InventoryWallet: Inventory {
          -> Result<BuilderSeal<GraphSeal>, PayError<_, _>> {
             let velocity = suppl
                 .and_then(|suppl| suppl.owned_state.get(&assignment_type))
-                .map(|s| s.velocity_class)
+                .map(|s| s.app_index)
                 .unwrap_or_default();
             let vout = out_classes
                 .get_mut(&velocity)
                 .and_then(|iter| iter.next())
-                .ok_or(PayError::NoBlankChange(velocity, assignment_type))?;
+                .ok_or(PayError::NoBlankOrChange(velocity, assignment_type))?;
             let seal = GraphSeal::new_vout(method, vout);
             Ok(BuilderSeal::Revealed(seal))
         };
