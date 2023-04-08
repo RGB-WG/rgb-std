@@ -24,7 +24,7 @@ use std::convert::Infallible;
 use std::ops::{Deref, DerefMut};
 
 use amplify::confinement::{Confined, MediumOrdMap, MediumOrdSet, TinyOrdMap};
-use amplify::{RawArray, Wrapper};
+use amplify::RawArray;
 use bp::dbc::Anchor;
 use bp::Txid;
 use commit_verify::mpc::MerkleBlock;
@@ -533,7 +533,7 @@ impl Inventory for Stock {
 
         for output in history.data() {
             if outpoints.contains(&output.seal) {
-                res.insert(output.opout, TypedState::Data(output.state.to_inner()));
+                res.insert(output.opout, TypedState::Data(output.state.clone()));
             }
         }
 
@@ -545,7 +545,7 @@ impl Inventory for Stock {
 
         for output in history.attach() {
             if outpoints.contains(&output.seal) {
-                res.insert(output.opout, TypedState::Attachment(output.state.clone()));
+                res.insert(output.opout, TypedState::Attachment(output.state.clone().into()));
             }
         }
 

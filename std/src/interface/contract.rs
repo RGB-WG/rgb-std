@@ -19,9 +19,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use amplify::confinement::{LargeOrdMap, LargeVec, SmallBlob, SmallVec};
+use amplify::confinement::{LargeOrdMap, LargeVec, SmallVec};
 use bp::Outpoint;
-use rgb::{AssignmentType, ContractState, FungibleOutput, RevealedAttach, SealWitness};
+use rgb::{
+    AssignmentType, AttachId, ContractState, FungibleOutput, MediaType, RevealedAttach,
+    RevealedData, SealWitness,
+};
 use strict_encoding::TypeName;
 use strict_types::typify::TypedVal;
 use strict_types::{decode, StrictVal};
@@ -40,12 +43,33 @@ pub enum ContractError {
     Reify(decode::Error),
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug, Display, From)]
+#[display(inner)]
 pub enum TypedState {
+    #[display("")]
     Void,
+    #[from]
     Amount(u64),
-    Data(SmallBlob),
-    Attachment(RevealedAttach),
+    #[from]
+    Data(RevealedData),
+    #[from]
+    Attachment(AttachedState),
+}
+
+#[derive(Clone, Eq, PartialEq, Debug, Display)]
+#[display("{id}:{media_type}")]
+pub struct AttachedState {
+    pub id: AttachId,
+    pub media_type: MediaType,
+}
+
+impl From<RevealedAttach> for AttachedState {
+    fn from(attach: RevealedAttach) -> Self {
+        AttachedState {
+            id: attach.id,
+            media_type: attach.media_type,
+        }
+    }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
