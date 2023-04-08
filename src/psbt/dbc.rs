@@ -138,7 +138,7 @@ impl PsbtDbc for Psbt {
             let tap_tree = TapTree::try_from(builder.clone()).expect("builder is complete");
             let internal_pk = output.tap_internal_key.ok_or(DbcPsbtError::NoInternalKey)?;
             let tapret_proof = TapretProof {
-                path_proof: TapretPathProof::root(),
+                path_proof: TapretPathProof::root(tapret_commitment.nonce),
                 internal_pk: internal_pk.into(),
             };
             output.tap_tree = Some(tap_tree);
