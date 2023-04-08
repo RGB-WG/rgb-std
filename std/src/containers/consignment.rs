@@ -158,6 +158,8 @@ impl<const TYPE: bool> Consignment<TYPE> {
         self.validation_status.as_ref()
     }
 
+    pub fn into_validation_status(self) -> Option<validation::Status> { self.validation_status }
+
     pub fn update_history<R: ResolveHeight>(
         &self,
         history: Option<&ContractHistory>,
