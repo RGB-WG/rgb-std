@@ -55,7 +55,7 @@ pub struct IfaceId(
 );
 
 impl ToBaid58<32> for IfaceId {
-    const HRI: &'static str = "rgb-iface";
+    const HRI: &'static str = "rgb-ifc";
     fn to_baid58_payload(&self) -> [u8; 32] { self.to_raw_array() }
 }
 impl FromBaid58<32> for IfaceId {}

@@ -9,7 +9,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8c8b31faf1f2667ba122c49112d3c643588d11e7a999585192c2d492d697bb46"
 dependencies = [
  "amplify",
- "baid58",
+ "baid58 0.2.0",
  "bitcoin_hashes",
  "blake3",
  "half",
@@ -120,6 +120,17 @@ name = "baid58"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2a05192bd44b6cced6d9f89b98d82fba5d1df844332e34d4888ec6ba5b28a487"
+dependencies = [
+ "base58",
+ "blake3",
+ "mnemonic",
+]
+
+[[package]]
+name = "baid58"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe675ca8398044a1076a8237e60540182931807beec840ddfa89f9df9f8c4d9f"
 dependencies = [
  "base58",
  "blake3",
@@ -257,7 +268,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "24f0598dcb7c3c8c8b983eca9ef0dbfdc86503e5b258918122ac90d88030dcea"
 dependencies = [
  "amplify",
- "baid58",
+ "baid58 0.2.0",
  "bp-dbc",
  "bp-primitives",
  "commit_verify",
@@ -720,13 +731,12 @@ dependencies = [
 
 [[package]]
 name = "rgb-core"
-version = "0.10.0-rc.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "925b22d1e40fb16248e5ad5b75a4e00e81c62aa58e1b7cc362dcd58e00df983d"
+version = "0.10.0-rc.2"
+source = "git+https://github.com/RGB-WG/rgb-core?branch=v0.10.0-release#0eef1bf8271504d863c3b3c5835000928f2fde49"
 dependencies = [
  "aluvm",
  "amplify",
- "baid58",
+ "baid58 0.3.0",
  "bp-core",
  "commit_verify",
  "getrandom",
@@ -744,7 +754,7 @@ name = "rgb-std"
 version = "0.10.0-rc.1"
 dependencies = [
  "amplify",
- "baid58",
+ "baid58 0.3.0",
  "base64 0.21.0",
  "bp-core",
  "commit_verify",
@@ -763,7 +773,7 @@ name = "rgb-wallet"
 version = "0.10.0-beta.1"
 dependencies = [
  "amplify",
- "baid58",
+ "baid58 0.3.0",
  "bitcoin",
  "bp-core",
  "commit_verify",
@@ -961,9 +971,9 @@ dependencies = [
 
 [[package]]
 name = "strict_encoding"
-version = "2.0.0"
+version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ff63df75d779e9005d7790b8e5d9d46d38a6c0ea74a8850f3d3a6b0145a05d9"
+checksum = "10ae02601ebb2537cd9f8d7b7a1e3a2f8f56b73da34ddb03f02a5d99ad80a2e4"
 dependencies = [
  "amplify",
  "half",
@@ -991,7 +1001,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "371701e525f77661673ef2dca749793000162c28eb9745e69499653f61f6a9e2"
 dependencies = [
  "amplify",
- "baid58",
+ "baid58 0.2.0",
  "blake3",
  "half",
  "indexmap",

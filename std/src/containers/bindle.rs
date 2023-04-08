@@ -28,7 +28,6 @@ use std::fmt::Display;
 #[cfg(feature = "fs")]
 pub use _fs::*;
 use amplify::confinement::TinyVec;
-use baid58::ToBaid58;
 use rgb::{ContractId, Schema, SchemaId, SchemaRoot};
 use strict_encoding::{
     StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, StrictType,
@@ -46,7 +45,7 @@ pub trait BindleContent: StrictSerialize + StrictDeserialize + StrictDumb {
     /// String used in ASCII armored blocks
     const PLATE_TITLE: &'static str;
 
-    type Id: ToBaid58<32> + Display + StrictType + StrictDumb + StrictEncode + StrictDecode;
+    type Id: Display + StrictType + StrictDumb + StrictEncode + StrictDecode;
 
     fn bindle_id(&self) -> Self::Id;
     fn bindle(self) -> Bindle<Self> { Bindle::new(self) }
@@ -124,7 +123,6 @@ impl<C: BindleContent> Display for Bindle<C> {
 
         writeln!(f, "----- BEGIN {} -----", C::PLATE_TITLE)?;
         writeln!(f, "Id: {}", self.id)?;
-        writeln!(f, "Checksum: {}", self.id.to_baid58().mnemonic())?;
         for cert in &self.sigs {
             writeln!(f, "Signed-By: {}", cert.signer)?;
         }

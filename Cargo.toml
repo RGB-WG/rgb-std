@@ -18,12 +18,12 @@ license = "Apache-2.0"
 
 [workspace.dependencies]
 amplify = "4.0.0-beta.20"
-baid58 = "0.2.0"
+baid58 = "0.3.0"
 strict_encoding = "2.0.0"
 strict_types = "1.0.0-rc.1"
 commit_verify = "0.10.0-rc.3"
 bp-core = "0.10.0-rc.2"
-rgb-core = "0.10.0-rc.1"
+rgb-core = "0.10.0-rc.2"
 
 [package]
 name = "rgb-wallet"
@@ -74,3 +74,6 @@ wasm-bindgen-test = "0.3"
 
 [package.metadata.docs.rs]
 features = [ "all" ]
+
+[patch.crates-io]
+rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "v0.10.0-release" }
