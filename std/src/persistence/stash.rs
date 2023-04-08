@@ -54,7 +54,7 @@ pub enum StashInconsistency {
     /// interfae {0} is unknown; you need to import it first.
     IfaceAbsent(IfaceId),
 
-    /// contract is unknown. Probably you haven't imported the contract yet.
+    /// contract {0} is unknown. Probably you haven't imported the contract yet.
     ContractAbsent(ContractId),
 
     /// schema {0} is unknown.
