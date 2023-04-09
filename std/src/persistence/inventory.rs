@@ -287,6 +287,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         &mut self,
         transfer: Transfer,
         resolver: &mut R,
+        force: bool,
     ) -> Result<validation::Status, InventoryError<Self::Error>>
     where
         R::Error: 'static;

@@ -469,11 +469,12 @@ impl Inventory for Stock {
         &mut self,
         transfer: Transfer,
         resolver: &mut R,
+        force: bool,
     ) -> Result<Status, InventoryError<Self::Error>>
     where
         R::Error: 'static,
     {
-        self.consume_consignment(transfer, resolver, false)
+        self.consume_consignment(transfer, resolver, force)
     }
 
     fn consume_anchor(
