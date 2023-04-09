@@ -413,17 +413,16 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     > {
         // 1. Collect initial set of anchored bundles
         let mut opouts = self.public_opouts(contract_id)?;
-        {
-            let (outpoints, terminals) = seals
-                .into_iter()
-                .map(|seal| match seal.into() {
-                    BuilderSeal::Revealed(seal) => (seal.outpoint(), None),
-                    BuilderSeal::Concealed(seal) => (None, Some(seal)),
-                })
-                .unzip::<_, _, Vec<_>, Vec<_>>();
-            opouts.extend(self.opouts_by_outpoints(contract_id, outpoints.into_iter().flatten())?);
-            opouts.extend(self.opouts_by_terminals(terminals.into_iter().flatten())?);
-        }
+        let (outpoint_seals, terminal_seals) = seals
+            .into_iter()
+            .map(|seal| match seal.into() {
+                BuilderSeal::Revealed(seal) => (seal.outpoint(), None),
+                BuilderSeal::Concealed(seal) => (None, Some(seal)),
+            })
+            .unzip::<_, _, Vec<_>, Vec<_>>();
+        let terminal_seals = terminal_seals.into_iter().flatten().collect::<Vec<_>>();
+        opouts.extend(self.opouts_by_outpoints(contract_id, outpoint_seals.into_iter().flatten())?);
+        opouts.extend(self.opouts_by_terminals(terminal_seals.iter().copied())?);
 
         // 1.1. Get all public transitions
         // 1.2. Collect all state transitions assigning state to the provided
@@ -449,6 +448,11 @@ pub trait Inventory: Deref<Target = Self::Stash> {
                         .expect("index exists")
                     {
                         terminals.insert(Terminal::with(bundle_id, seal.into()));
+                    } else {
+                        let seal = typed_assignments.to_confidential_seals()[index as usize];
+                        if terminal_seals.contains(&seal) {
+                            terminals.insert(Terminal::with(bundle_id, seal.into()));
+                        }
                     }
                 }
             }
