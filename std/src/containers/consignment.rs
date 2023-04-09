@@ -28,12 +28,14 @@ use amplify::confinement::{
 use commit_verify::Conceal;
 use rgb::validation::{AnchoredBundle, ConsignmentApi};
 use rgb::{
-    validation, AttachId, BundleId, ContractHistory, ContractId, Extension, Genesis, OpId, OpRef,
-    Operation, OrderedTxid, Schema, SchemaId, SecretSeal, SubSchema, Transition, TransitionBundle,
+    validation, AttachId, BundleId, ContractHistory, ContractId, Extension, Genesis, GraphSeal,
+    OpId, OpRef, Operation, OrderedTxid, Schema, SchemaId, SecretSeal, SubSchema, Transition,
+    TransitionBundle,
 };
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 
 use super::{ContainerVer, ContentId, ContentSigs, Terminal};
+use crate::accessors::BundleExt;
 use crate::interface::{ContractSuppl, IfaceId, IfacePair};
 use crate::resolvers::ResolveHeight;
 use crate::LIB_NAME_RGB_STD;
@@ -215,6 +217,14 @@ impl<const TYPE: bool> Consignment<TYPE> {
         }
 
         Ok(history)
+    }
+
+    pub fn reveal_bundle_seal(&mut self, bundle_id: BundleId, revealed: GraphSeal) {
+        for anchored_bundle in &mut self.bundles {
+            if anchored_bundle.bundle.bundle_id() == bundle_id {
+                anchored_bundle.bundle.reveal_seal(revealed);
+            }
+        }
     }
 
     pub fn into_contract(self) -> Contract {

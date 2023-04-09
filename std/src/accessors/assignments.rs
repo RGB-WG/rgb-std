@@ -19,13 +19,51 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use rgb::{AssignAttach, AssignData, AssignFungible, AssignRights, ExposedSeal, TypedAssigns};
+use amplify::confinement::SmallVec;
+use rgb::{
+    Assign, AssignAttach, AssignData, AssignFungible, AssignRights, ExposedSeal, ExposedState,
+    TypedAssigns,
+};
 
 pub trait TypedAssignsExt<Seal: ExposedSeal> {
+    fn reveal_seal(&mut self, seal: Seal);
+
     fn filter_revealed_seals(&self) -> Vec<Seal>;
 }
 
 impl<Seal: ExposedSeal> TypedAssignsExt<Seal> for TypedAssigns<Seal> {
+    fn reveal_seal(&mut self, seal: Seal) {
+        fn reveal<State: ExposedState, Seal: ExposedSeal>(
+            vec: &mut SmallVec<Assign<State, Seal>>,
+            revealed: Seal,
+        ) {
+            for assign in vec.iter_mut() {
+                match assign {
+                    Assign::ConfidentialSeal { seal, state } if *seal == revealed.conceal() => {
+                        *assign = Assign::Revealed {
+                            seal: revealed,
+                            state: state.clone(),
+                        }
+                    }
+                    Assign::Confidential { seal, state } if *seal == revealed.conceal() => {
+                        *assign = Assign::ConfidentialState {
+                            seal: revealed,
+                            state: *state,
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        match self {
+            TypedAssigns::Declarative(v) => reveal(v, seal),
+            TypedAssigns::Fungible(v) => reveal(v, seal),
+            TypedAssigns::Structured(v) => reveal(v, seal),
+            TypedAssigns::Attachment(v) => reveal(v, seal),
+        }
+    }
+
     fn filter_revealed_seals(&self) -> Vec<Seal> {
         match self {
             TypedAssigns::Declarative(s) => {

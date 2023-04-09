@@ -23,7 +23,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::convert::Infallible;
 use std::ops::{Deref, DerefMut};
 
-use amplify::confinement::{Confined, MediumOrdMap, MediumOrdSet, TinyOrdMap};
+use amplify::confinement::{MediumOrdMap, MediumOrdSet, TinyOrdMap};
 use amplify::RawArray;
 use bp::dbc::Anchor;
 use bp::Txid;
@@ -36,7 +36,7 @@ use rgb::{
 };
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 
-use crate::containers::{Bindle, Cert, Consignment, ContentId, Contract, Transfer};
+use crate::containers::{Bindle, Cert, Consignment, ContentId, Contract, TerminalSeal, Transfer};
 use crate::interface::{
     ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, SchemaIfaces, TypedState,
 };
@@ -79,7 +79,7 @@ pub struct Stock {
     contract_index: TinyOrdMap<ContractId, ContractIndex>,
     terminal_index: MediumOrdMap<SecretSeal, Opout>,
     // secrets
-    seal_secrets: MediumOrdSet<u64>,
+    seal_secrets: MediumOrdSet<GraphSeal>,
 }
 
 impl Default for Stock {
@@ -149,6 +149,19 @@ impl Stock {
         for IfacePair { iface, iimpl } in consignment.ifaces.values() {
             self.import_iface(iface.clone())?;
             self.import_iface_impl(iimpl.clone())?;
+        }
+
+        // clone needed due to borrow checker
+        for terminal in consignment.terminals.clone() {
+            if let TerminalSeal::ConcealedUtxo(secret) = terminal.seal {
+                if let Some(seal) = self
+                    .seal_secrets
+                    .iter()
+                    .find(|s| s.to_concealed_seal() == secret)
+                {
+                    consignment.reveal_bundle_seal(terminal.bundle_id, *seal);
+                }
+            }
         }
 
         // Update existing contract state
@@ -679,8 +692,8 @@ impl Inventory for Stock {
         Ok(res)
     }
 
-    fn store_seal_secret(&mut self, secret: u64) -> Result<(), InventoryError<Self::Error>> {
-        self.seal_secrets.push(secret)?;
+    fn store_seal_secret(&mut self, seal: GraphSeal) -> Result<(), InventoryError<Self::Error>> {
+        self.seal_secrets.push(seal)?;
         Ok(())
     }
 }
