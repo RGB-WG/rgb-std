@@ -173,9 +173,7 @@ pub trait InventoryWallet: Inventory {
             main_builder = main_builder.add_input(opout)?;
             if opout.ty != assignment_id {
                 let seal = output_for_assignment(suppl.as_ref(), opout.ty)?;
-                main_builder = main_builder
-                    .add_input(opout)?
-                    .add_raw_state(opout.ty, seal, state)?;
+                main_builder = main_builder.add_raw_state(opout.ty, seal, state)?;
             } else if let TypedState::Amount(value) = state {
                 sum_inputs += value;
             }
