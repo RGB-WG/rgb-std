@@ -113,9 +113,15 @@ pub trait Stash {
 
     fn genesis(&self, contract_id: ContractId) -> Result<&Genesis, StashError<Self::Error>>;
 
+    fn bundle_ids(&self) -> Result<BTreeSet<BundleId>, Self::Error>;
+
     fn bundle(&self, bundle_id: BundleId) -> Result<&TransitionBundle, StashError<Self::Error>>;
 
+    fn extension_ids(&self) -> Result<BTreeSet<OpId>, Self::Error>;
+
     fn extension(&self, op_id: OpId) -> Result<&Extension, StashError<Self::Error>>;
+
+    fn anchor_ids(&self) -> Result<BTreeSet<AnchorId>, Self::Error>;
 
     fn anchor(
         &self,

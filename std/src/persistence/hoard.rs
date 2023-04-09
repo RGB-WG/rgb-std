@@ -255,16 +255,28 @@ impl Stash for Hoard {
             .ok_or(StashInconsistency::ContractAbsent(contract_id).into())
     }
 
+    fn bundle_ids(&self) -> Result<BTreeSet<BundleId>, Self::Error> {
+        Ok(self.bundles.keys().copied().collect())
+    }
+
     fn bundle(&self, bundle_id: BundleId) -> Result<&TransitionBundle, StashError<Self::Error>> {
         self.bundles
             .get(&bundle_id)
             .ok_or(StashInconsistency::BundleAbsent(bundle_id).into())
     }
 
+    fn extension_ids(&self) -> Result<BTreeSet<OpId>, Self::Error> {
+        Ok(self.extensions.keys().copied().collect())
+    }
+
     fn extension(&self, op_id: OpId) -> Result<&Extension, StashError<Self::Error>> {
         self.extensions
             .get(&op_id)
             .ok_or(StashInconsistency::OperationAbsent(op_id).into())
+    }
+
+    fn anchor_ids(&self) -> Result<BTreeSet<AnchorId>, Self::Error> {
+        Ok(self.anchors.keys().copied().collect())
     }
 
     fn anchor(&self, anchor_id: AnchorId) -> Result<&Anchor<MerkleBlock>, StashError<Self::Error>> {
