@@ -26,9 +26,9 @@ use amplify::{confinement, Wrapper};
 use bp::secp256k1::rand::thread_rng;
 use bp::Chain;
 use rgb::{
-    Assign, AssignmentType, Assignments, ExposedSeal, FungibleType, Genesis, GenesisSeal,
-    GlobalState, GraphSeal, Opout, PrevOuts, RevealedValue, StateSchema, SubSchema, Transition,
-    TransitionType, TypedAssigns, BLANK_TRANSITION_ID,
+    Assign, AssignmentType, Assignments, ContractId, ExposedSeal, FungibleType, Genesis,
+    GenesisSeal, GlobalState, GraphSeal, Input, Inputs, Opout, RevealedValue, StateSchema,
+    SubSchema, Transition, TransitionType, TypedAssigns, BLANK_TRANSITION_ID,
 };
 use strict_encoding::{SerializeError, StrictSerialize, TypeName};
 use strict_types::decode;
@@ -139,7 +139,7 @@ impl ContractBuilder {
 pub struct TransitionBuilder {
     builder: OperationBuilder<GraphSeal>,
     transition_type: Option<TransitionType>,
-    inputs: PrevOuts,
+    inputs: Inputs,
 }
 
 impl TransitionBuilder {
@@ -156,7 +156,7 @@ impl TransitionBuilder {
     }
 
     pub fn add_input(mut self, opout: Opout) -> Result<Self, BuilderError> {
-        self.inputs.push(opout)?;
+        self.inputs.push(Input::with(opout))?;
         Ok(self)
     }
 
@@ -251,13 +251,14 @@ impl TransitionBuilder {
             .ok_or(BuilderError::NoOperationSubtype)
     }
 
-    pub fn complete_transition(self) -> Result<Transition, BuilderError> {
+    pub fn complete_transition(self, contract_id: ContractId) -> Result<Transition, BuilderError> {
         let transition_type = self.transition_type()?;
 
         let (_, _, global, assignments) = self.builder.complete();
 
         let transition = Transition {
             ffv: none!(),
+            contract_id,
             transition_type,
             metadata: empty!(),
             globals: global,

@@ -194,8 +194,8 @@ impl<const TYPE: bool> Consignment<TYPE> {
                         if *used {
                             continue;
                         }
-                        for opout in &transition.inputs {
-                            if opout.op == *id {
+                        for input in &transition.inputs {
+                            if input.prev_out.op == *id {
                                 *used = true;
                                 if let Some(ord) = ordered_extensions.get_mut(id) {
                                     if *ord > ord_txid {

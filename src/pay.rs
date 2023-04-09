@@ -188,7 +188,7 @@ pub trait InventoryWallet: Inventory {
         }
         let transition = main_builder
             .add_raw_state(assignment_id, beneficiary, TypedState::Amount(invoice.value))?
-            .complete_transition()?;
+            .complete_transition(contract_id)?;
 
         // 3. Prepare and self-consume other transitions
         let mut contract_inputs = HashMap::<ContractId, Vec<Outpoint>>::new();
@@ -221,7 +221,7 @@ pub trait InventoryWallet: Inventory {
                     .add_raw_state(opout.ty, seal, state)?;
             }
 
-            other_transitions.insert(id, blank_builder.complete_transition()?);
+            other_transitions.insert(id, blank_builder.complete_transition(contract_id)?);
         }
 
         // 4. Add transitions to PSBT

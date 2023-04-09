@@ -463,14 +463,14 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         // 3. Collect all state transitions between terminals and genesis
         let mut ids = vec![];
         for transition in transitions.values() {
-            ids.extend(transition.prev_outs().iter().map(|opout| opout.op));
+            ids.extend(transition.inputs().iter().map(|input| input.prev_out.op));
         }
         while let Some(id) = ids.pop() {
             if id == contract_id {
                 continue; // we skip genesis since it will be present anywhere
             }
             let transition = self.transition(id)?;
-            ids.extend(transition.prev_outs().iter().map(|opout| opout.op));
+            ids.extend(transition.inputs().iter().map(|input| input.prev_out.op));
             transitions.insert(id, transition.clone());
             anchored_bundles
                 .entry(id)

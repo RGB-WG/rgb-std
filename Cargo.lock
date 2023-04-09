@@ -729,7 +729,7 @@ dependencies = [
 [[package]]
 name = "rgb-core"
 version = "0.10.0-rc.2"
-source = "git+https://github.com/RGB-WG/rgb-core?branch=v0.10.0-release#9c9afc5262596ebe6f25c404cde99c55b63a2b6d"
+source = "git+https://github.com/RGB-WG/rgb-core?branch=v0.10.0-release#40d4af5ecde086ed6eb6e6f1ca1c28d2599b48de"
 dependencies = [
  "aluvm",
  "amplify",
