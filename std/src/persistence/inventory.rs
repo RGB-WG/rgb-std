@@ -176,6 +176,9 @@ pub enum DataError {
 
     #[from]
     HeightResolver(Box<dyn Error>),
+
+    /// Information is concealed.
+    Concealed,
 }
 
 #[derive(Clone, Debug, Display, Error, From)]
@@ -340,15 +343,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         Ok(builder)
     }
 
-    fn transition(&self, opid: OpId) -> Result<Transition, InventoryError<Self::Error>> {
-        Ok(self
-            .anchored_bundle(opid)?
-            .bundle
-            .remove(&opid)
-            .expect("anchored bundle returned by opid doesn't contain that opid")
-            .and_then(|item| item.transition)
-            .expect("Stash::anchored_bundle should guarantee returning revealed transition"))
-    }
+    fn transition(&self, opid: OpId) -> Result<&Transition, InventoryError<Self::Error>>;
 
     fn contracts_by_outpoints(
         &mut self,

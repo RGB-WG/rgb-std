@@ -32,7 +32,7 @@ use rgb::validation::{Status, Validity, Warning};
 use rgb::{
     validation, AnchorId, AnchoredBundle, Assign, AssignmentType, BundleId, ContractHistory,
     ContractId, ContractState, ExposedState, Extension, Genesis, GenesisSeal, GraphSeal, OpId,
-    Operation, Opout, SecretSeal, SubSchema, TransitionBundle, TxoSeal, TypedAssigns,
+    Operation, Opout, SecretSeal, SubSchema, Transition, TransitionBundle, TxoSeal, TypedAssigns,
 };
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 
@@ -539,6 +539,17 @@ impl Inventory for Stock {
             state,
             iface: iimpl,
         })
+    }
+
+    fn transition(&self, opid: OpId) -> Result<&Transition, InventoryError<Self::Error>> {
+        let IndexedBundle(_, bundle_id) = self
+            .bundle_op_index
+            .get(&opid)
+            .ok_or(InventoryInconsistency::BundleAbsent(opid))?;
+        let bundle = self.bundle(*bundle_id)?;
+        let item = bundle.get(&opid).ok_or(DataError::Concealed)?;
+        let transition = item.transition.as_ref().ok_or(DataError::Concealed)?;
+        Ok(transition)
     }
 
     fn anchored_bundle(&self, opid: OpId) -> Result<AnchoredBundle, InventoryError<Self::Error>> {
