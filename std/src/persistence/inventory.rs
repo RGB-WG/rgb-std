@@ -208,19 +208,19 @@ pub enum InventoryInconsistency {
 
     /// absent information about bundle for operation {0}.
     ///
-    /// It may happen due to RGB Node bug, or indicate internal inventory
+    /// It may happen due to RGB library bug, or indicate internal inventory
     /// inconsistency and compromised inventory data storage.
     BundleAbsent(OpId),
 
     /// absent information about anchor for bundle {0}.
     ///
-    /// It may happen due to RGB Node bug, or indicate internal inventory
+    /// It may happen due to RGB library bug, or indicate internal inventory
     /// inconsistency and compromised inventory data storage.
     NoBundleAnchor(BundleId),
 
     /// the anchor is not related to the contract.
     ///
-    /// It may happen due to RGB Node bug, or indicate internal inventory
+    /// It may happen due to RGB library bug, or indicate internal inventory
     /// inconsistency and compromised inventory data storage.
     #[from(mpc::LeafNotKnown)]
     #[from(mpc::UnrelatedProof)]
@@ -228,14 +228,14 @@ pub enum InventoryInconsistency {
 
     /// bundle reveal error. Details: {0}
     ///
-    /// It may happen due to RGB Node bug, or indicate internal inventory
+    /// It may happen due to RGB library bug, or indicate internal inventory
     /// inconsistency and compromised inventory data storage.
     #[from]
     BundleReveal(RevealError),
 
     /// the resulting bundle size exceeds consensus restrictions.
     ///
-    /// It may happen due to RGB Node bug, or indicate internal inventory
+    /// It may happen due to RGB library bug, or indicate internal inventory
     /// inconsistency and compromised inventory data storage.
     OutsizedBundle,
 
@@ -461,6 +461,9 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             ids.extend(transition.prev_outs().iter().map(|opout| opout.op));
         }
         while let Some(id) = ids.pop() {
+            if id == contract_id {
+                continue; // we skip genesis since it will be present anywhere
+            }
             let transition = self.transition(id)?;
             ids.extend(transition.prev_outs().iter().map(|opout| opout.op));
             transitions.insert(id, transition.clone());
