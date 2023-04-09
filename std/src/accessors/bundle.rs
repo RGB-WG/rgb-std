@@ -19,7 +19,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use rgb::{OpId, Operation, Transition, TransitionBundle};
+use rgb::{GraphSeal, OpId, Operation, Transition, TransitionBundle};
+
+use crate::accessors::TypedAssignsExt;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error)]
 #[display(doc_comments)]
@@ -29,6 +31,9 @@ pub enum RevealError {
 }
 
 pub trait BundleExt {
+    /// Ensures that the seal is revealed inside the bundle.
+    fn reveal_seal(&mut self, seal: GraphSeal);
+
     /// Ensures that the transition is revealed inside the bundle.
     ///
     /// # Returns
@@ -39,12 +44,16 @@ pub trait BundleExt {
 }
 
 impl BundleExt for TransitionBundle {
-    /// Ensures that the transition is revealed inside the bundle.
-    ///
-    /// # Returns
-    ///
-    /// `true` if the transition was previously concealed; `false` if it was
-    /// already revealed; error if the transition is unrelated to the bundle.
+    fn reveal_seal(&mut self, seal: GraphSeal) {
+        for (_, item) in self.keyed_values_mut() {
+            if let Some(transition) = &mut item.transition {
+                for (_, assign) in transition.assignments.keyed_values_mut() {
+                    assign.reveal_seal(seal)
+                }
+            }
+        }
+    }
+
     fn reveal_transition(&mut self, transition: &Transition) -> Result<bool, RevealError> {
         let id = transition.id();
         let item = self

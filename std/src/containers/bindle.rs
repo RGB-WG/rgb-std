@@ -24,11 +24,11 @@
 //! remote party.
 
 use std::fmt::Display;
+use std::ops::Deref;
 
 #[cfg(feature = "fs")]
 pub use _fs::*;
 use amplify::confinement::TinyVec;
-use baid58::ToBaid58;
 use rgb::{ContractId, Schema, SchemaId, SchemaRoot};
 use strict_encoding::{
     StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, StrictType,
@@ -46,7 +46,7 @@ pub trait BindleContent: StrictSerialize + StrictDeserialize + StrictDumb {
     /// String used in ASCII armored blocks
     const PLATE_TITLE: &'static str;
 
-    type Id: ToBaid58<32> + Display + StrictType + StrictDumb + StrictEncode + StrictDecode;
+    type Id: Copy + Eq + Display + StrictType + StrictDumb + StrictEncode + StrictDecode;
 
     fn bindle_id(&self) -> Self::Id;
     fn bindle(self) -> Bindle<Self> { Bindle::new(self) }
@@ -87,13 +87,23 @@ impl BindleContent for IfaceImpl {
     fn bindle_id(&self) -> Self::Id { self.impl_id() }
 }
 
-#[derive(Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
 pub struct Bindle<C: BindleContent> {
     id: C::Id,
     data: C,
     sigs: TinyVec<Cert>,
+}
+
+impl<C: BindleContent> Deref for Bindle<C> {
+    type Target = C;
+    fn deref(&self) -> &Self::Target { &self.data }
 }
 
 impl<C: BindleContent> From<C> for Bindle<C> {
@@ -109,6 +119,8 @@ impl<C: BindleContent> Bindle<C> {
         }
     }
 
+    pub fn id(&self) -> C::Id { self.id }
+
     pub fn into_split(self) -> (C, TinyVec<Cert>) { (self.data, self.sigs) }
     pub fn unbindle(self) -> C { self.data }
 }
@@ -119,7 +131,6 @@ impl<C: BindleContent> Display for Bindle<C> {
 
         writeln!(f, "----- BEGIN {} -----", C::PLATE_TITLE)?;
         writeln!(f, "Id: {}", self.id)?;
-        writeln!(f, "Checksum: {}", self.id.to_baid58().mnemonic())?;
         for cert in &self.sigs {
             writeln!(f, "Signed-By: {}", cert.signer)?;
         }
@@ -168,15 +179,22 @@ mod _fs {
         Decode(DecodeError),
     }
 
-    #[derive(Debug, From)]
+    #[derive(Clone, Debug, From)]
+    #[cfg_attr(
+        feature = "serde",
+        derive(Serialize, Deserialize),
+        serde(crate = "serde_crate", rename_all = "camelCase", tag = "type")
+    )]
     pub enum UniversalBindle {
         #[from]
+        #[cfg_attr(feature = "serde", serde(rename = "interface"))]
         Iface(Bindle<Iface>),
 
         #[from]
         Schema(Bindle<SubSchema>),
 
         #[from]
+        #[cfg_attr(feature = "serde", serde(rename = "implementation"))]
         Impl(Bindle<IfaceImpl>),
 
         #[from]

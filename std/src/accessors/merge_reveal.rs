@@ -72,7 +72,8 @@ impl MergeReveal for Anchor<mpc::MerkleBlock> {
 
 impl<State: ExposedState, Seal: ExposedSeal> MergeReveal for Assign<State, Seal> {
     fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {
-        debug_assert_eq!(self.commitment_id(), other.commitment_id());
+        // TODO: Uncomment once bulletproofs will be there
+        // debug_assert_eq!(self.commitment_id(), other.commitment_id());
         match (self, other) {
             // Anything + Revealed = Revealed
             (_, state @ Assign::Revealed { .. }) | (state @ Assign::Revealed { .. }, _) => {

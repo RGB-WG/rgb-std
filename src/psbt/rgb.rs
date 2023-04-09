@@ -80,7 +80,7 @@ impl ProprietaryKeyRgb for ProprietaryKey {}
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum RgbPsbtError {
-    /// The key is already present, but has a different value
+    /// the key is already present in PSBT, but has a different value
     AlreadySet,
 
     /// state transition {0} already present in PSBT is not related to the state
@@ -91,7 +91,7 @@ pub enum RgbPsbtError {
     /// commitment.
     NoHostOutput,
 
-    /// too many state transitions for a bundle.
+    /// PSBT contains too many state transitions for a bundle.
     #[from(confinement::Error)]
     TooManyTransitionsInBundle,
 

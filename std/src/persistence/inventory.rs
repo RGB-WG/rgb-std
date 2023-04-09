@@ -176,6 +176,9 @@ pub enum DataError {
 
     #[from]
     HeightResolver(Box<dyn Error>),
+
+    /// Information is concealed.
+    Concealed,
 }
 
 #[derive(Clone, Debug, Display, Error, From)]
@@ -205,19 +208,19 @@ pub enum InventoryInconsistency {
 
     /// absent information about bundle for operation {0}.
     ///
-    /// It may happen due to RGB Node bug, or indicate internal inventory
+    /// It may happen due to RGB library bug, or indicate internal inventory
     /// inconsistency and compromised inventory data storage.
     BundleAbsent(OpId),
 
     /// absent information about anchor for bundle {0}.
     ///
-    /// It may happen due to RGB Node bug, or indicate internal inventory
+    /// It may happen due to RGB library bug, or indicate internal inventory
     /// inconsistency and compromised inventory data storage.
     NoBundleAnchor(BundleId),
 
     /// the anchor is not related to the contract.
     ///
-    /// It may happen due to RGB Node bug, or indicate internal inventory
+    /// It may happen due to RGB library bug, or indicate internal inventory
     /// inconsistency and compromised inventory data storage.
     #[from(mpc::LeafNotKnown)]
     #[from(mpc::UnrelatedProof)]
@@ -225,14 +228,14 @@ pub enum InventoryInconsistency {
 
     /// bundle reveal error. Details: {0}
     ///
-    /// It may happen due to RGB Node bug, or indicate internal inventory
+    /// It may happen due to RGB library bug, or indicate internal inventory
     /// inconsistency and compromised inventory data storage.
     #[from]
     BundleReveal(RevealError),
 
     /// the resulting bundle size exceeds consensus restrictions.
     ///
-    /// It may happen due to RGB Node bug, or indicate internal inventory
+    /// It may happen due to RGB library bug, or indicate internal inventory
     /// inconsistency and compromised inventory data storage.
     OutsizedBundle,
 
@@ -284,6 +287,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         &mut self,
         transfer: Transfer,
         resolver: &mut R,
+        force: bool,
     ) -> Result<validation::Status, InventoryError<Self::Error>>
     where
         R::Error: 'static;
@@ -340,15 +344,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         Ok(builder)
     }
 
-    fn transition(&self, opid: OpId) -> Result<Transition, InventoryError<Self::Error>> {
-        Ok(self
-            .anchored_bundle(opid)?
-            .bundle
-            .remove(&opid)
-            .expect("anchored bundle returned by opid doesn't contain that opid")
-            .and_then(|item| item.transition)
-            .expect("Stash::anchored_bundle should guarantee returning revealed transition"))
-    }
+    fn transition(&self, opid: OpId) -> Result<&Transition, InventoryError<Self::Error>>;
 
     fn contracts_by_outpoints(
         &mut self,
@@ -377,7 +373,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         outpoints: impl IntoIterator<Item = impl Into<Outpoint>>,
     ) -> Result<BTreeMap<Opout, TypedState>, InventoryError<Self::Error>>;
 
-    fn store_seal_secret(&mut self, secret: u64) -> Result<(), InventoryError<Self::Error>>;
+    fn store_seal_secret(&mut self, seal: GraphSeal) -> Result<(), InventoryError<Self::Error>>;
 
     fn export_contract(
         &mut self,
@@ -417,22 +413,16 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     > {
         // 1. Collect initial set of anchored bundles
         let mut opouts = self.public_opouts(contract_id)?;
-        {
-            let (outpoints, terminals) = seals
-                .into_iter()
-                .map(|seal| match seal.into() {
-                    BuilderSeal::Revealed(seal) => (seal.outpoint(), None),
-                    BuilderSeal::Concealed(seal) => (None, Some(seal)),
-                })
-                .unzip::<_, _, Vec<_>, Vec<_>>();
-            opouts.extend(
-                self.opouts_by_outpoints(
-                    contract_id,
-                    outpoints.into_iter().filter_map(|seal| seal),
-                )?,
-            );
-            opouts.extend(self.opouts_by_terminals(terminals.into_iter().filter_map(|seal| seal))?);
-        }
+        let (outpoint_seals, terminal_seals) = seals
+            .into_iter()
+            .map(|seal| match seal.into() {
+                BuilderSeal::Revealed(seal) => (seal.outpoint(), None),
+                BuilderSeal::Concealed(seal) => (None, Some(seal)),
+            })
+            .unzip::<_, _, Vec<_>, Vec<_>>();
+        let terminal_seals = terminal_seals.into_iter().flatten().collect::<Vec<_>>();
+        opouts.extend(self.opouts_by_outpoints(contract_id, outpoint_seals.into_iter().flatten())?);
+        opouts.extend(self.opouts_by_terminals(terminal_seals.iter().copied())?);
 
         // 1.1. Get all public transitions
         // 1.2. Collect all state transitions assigning state to the provided
@@ -441,6 +431,9 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         let mut transitions = BTreeMap::<OpId, Transition>::new();
         let mut terminals = BTreeSet::<Terminal>::new();
         for opout in opouts {
+            if opout.op == contract_id {
+                continue; // we skip genesis since it will be present anywhere
+            }
             let transition = self.transition(opout.op)?;
             transitions.insert(opout.op, transition.clone());
             let anchored_bundle = self.anchored_bundle(opout.op)?;
@@ -455,6 +448,11 @@ pub trait Inventory: Deref<Target = Self::Stash> {
                         .expect("index exists")
                     {
                         terminals.insert(Terminal::with(bundle_id, seal.into()));
+                    } else {
+                        let seal = typed_assignments.to_confidential_seals()[index as usize];
+                        if terminal_seals.contains(&seal) {
+                            terminals.insert(Terminal::with(bundle_id, seal.into()));
+                        }
                     }
                 }
             }
@@ -465,11 +463,14 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         // 3. Collect all state transitions between terminals and genesis
         let mut ids = vec![];
         for transition in transitions.values() {
-            ids.extend(transition.prev_outs().iter().map(|opout| opout.op));
+            ids.extend(transition.inputs().iter().map(|input| input.prev_out.op));
         }
         while let Some(id) = ids.pop() {
+            if id == contract_id {
+                continue; // we skip genesis since it will be present anywhere
+            }
             let transition = self.transition(id)?;
-            ids.extend(transition.prev_outs().iter().map(|opout| opout.op));
+            ids.extend(transition.inputs().iter().map(|input| input.prev_out.op));
             transitions.insert(id, transition.clone());
             anchored_bundles
                 .entry(id)

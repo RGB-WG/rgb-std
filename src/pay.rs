@@ -26,13 +26,13 @@ use bitcoin::hashes::Hash;
 use bitcoin::psbt::Psbt;
 use bp::seals::txout::CloseMethod;
 use bp::Outpoint;
-use rgb::{AssignmentType, ContractId, GraphSeal, Opout};
+use rgb::{AssignmentType, ContractId, GraphSeal, Operation, Opout};
 use rgbstd::containers::{Bindle, BuilderSeal, Transfer};
-use rgbstd::interface::{BuilderError, ContractSuppl, TypedState, VelocityClass};
+use rgbstd::interface::{AppDeriveIndex, BuilderError, ContractSuppl, TypedState};
 use rgbstd::persistence::{ConsignerError, Inventory, InventoryError, Stash};
 
 use crate::invoice::Beneficiary;
-use crate::psbt::{DbcPsbtError, PsbtDbc, RgbExt, RgbPsbtError};
+use crate::psbt::{DbcPsbtError, PsbtDbc, RgbExt, RgbInExt, RgbPsbtError};
 use crate::RgbInvoice;
 
 #[derive(Debug, Display, Error, From)]
@@ -43,7 +43,7 @@ where E1: From<E2>
     /// not enough PSBT output found to put all required state (can't add
     /// assignment {1} for {0}-velocity state).
     #[display(doc_comments)]
-    NoBlankChange(VelocityClass, AssignmentType),
+    NoBlankOrChange(AppDeriveIndex, AssignmentType),
 
     /// PSBT lacks beneficiary output matching the invoice.
     #[display(doc_comments)]
@@ -114,7 +114,7 @@ pub trait InventoryWallet: Inventory {
             .collect::<Vec<_>>();
 
         // Classify PSBT outputs which can be used for assignments
-        let mut out_classes = HashMap::<VelocityClass, Vec<u32>>::new();
+        let mut out_classes = HashMap::<AppDeriveIndex, Vec<u32>>::new();
         for (no, outp) in psbt.outputs.iter().enumerate() {
             if beneficiary_output == Some(no as u32) {
                 continue;
@@ -127,7 +127,7 @@ pub trait InventoryWallet: Inventory {
                 .copied()
                 .map(u32::from)
                 .and_then(|index| u8::try_from(index).ok())
-                .and_then(|index| VelocityClass::try_from(index).ok())
+                .and_then(|index| AppDeriveIndex::try_from(index).ok())
             {
                 out_classes.entry(class).or_default().push(no as u32);
             }
@@ -141,12 +141,12 @@ pub trait InventoryWallet: Inventory {
          -> Result<BuilderSeal<GraphSeal>, PayError<_, _>> {
             let velocity = suppl
                 .and_then(|suppl| suppl.owned_state.get(&assignment_type))
-                .map(|s| s.velocity_class)
+                .map(|s| s.app_index)
                 .unwrap_or_default();
             let vout = out_classes
                 .get_mut(&velocity)
                 .and_then(|iter| iter.next())
-                .ok_or(PayError::NoBlankChange(velocity, assignment_type))?;
+                .ok_or(PayError::NoBlankOrChange(velocity, assignment_type))?;
             let seal = GraphSeal::new_vout(method, vout);
             Ok(BuilderSeal::Revealed(seal))
         };
@@ -173,9 +173,7 @@ pub trait InventoryWallet: Inventory {
             main_builder = main_builder.add_input(opout)?;
             if opout.ty != assignment_id {
                 let seal = output_for_assignment(suppl.as_ref(), opout.ty)?;
-                main_builder = main_builder
-                    .add_input(opout)?
-                    .add_raw_state(opout.ty, seal, state)?;
+                main_builder = main_builder.add_raw_state(opout.ty, seal, state)?;
             } else if let TypedState::Amount(value) = state {
                 sum_inputs += value;
             }
@@ -190,12 +188,14 @@ pub trait InventoryWallet: Inventory {
         }
         let transition = main_builder
             .add_raw_state(assignment_id, beneficiary, TypedState::Amount(invoice.value))?
-            .complete_transition()?;
+            .complete_transition(contract_id)?;
 
         // 3. Prepare and self-consume other transitions
+        let mut contract_inputs = HashMap::<ContractId, Vec<Outpoint>>::new();
         let mut spent_state = HashMap::<ContractId, BTreeMap<Opout, TypedState>>::new();
         for outpoint in prev_outputs {
             for id in self.contracts_by_outpoints([outpoint])? {
+                contract_inputs.entry(id).or_default().push(outpoint);
                 if id == contract_id {
                     continue;
                 }
@@ -206,7 +206,7 @@ pub trait InventoryWallet: Inventory {
             }
         }
         // Construct blank transitions, self-consume them
-        let mut other_transitions = Vec::with_capacity(spent_state.len());
+        let mut other_transitions = HashMap::with_capacity(spent_state.len());
         for (id, opouts) in spent_state {
             let mut blank_builder = self
                 .transition_builder(id, invoice.iface.clone())?
@@ -221,12 +221,20 @@ pub trait InventoryWallet: Inventory {
                     .add_raw_state(opout.ty, seal, state)?;
             }
 
-            other_transitions.push(blank_builder.complete_transition()?);
+            other_transitions.insert(id, blank_builder.complete_transition(contract_id)?);
         }
 
         // 4. Add transitions to PSBT
-        psbt.push_rgb_transition(transition)?;
-        for transition in other_transitions {
+        other_transitions.insert(contract_id, transition);
+        for (id, transition) in other_transitions {
+            let inputs = contract_inputs.remove(&id).unwrap_or_default();
+            for (input, txin) in psbt.inputs.iter_mut().zip(&psbt.unsigned_tx.input) {
+                let prevout = txin.previous_output;
+                let outpoint = Outpoint::new(prevout.txid.to_byte_array().into(), prevout.vout);
+                if inputs.contains(&outpoint) {
+                    input.set_rgb_consumer(id, transition.id())?;
+                }
+            }
             psbt.push_rgb_transition(transition)?;
         }
         // Here we assume the provided PSBT is final: its inputs and outputs will not be

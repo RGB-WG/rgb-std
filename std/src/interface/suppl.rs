@@ -90,7 +90,7 @@ pub enum TickerSuppl {
 )]
 pub struct OwnedStateSuppl {
     pub meaning: TinyString,
-    pub velocity_class: VelocityClass,
+    pub app_index: AppDeriveIndex,
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display, Default)]
@@ -102,11 +102,13 @@ pub struct OwnedStateSuppl {
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 #[display(lowercase)]
-pub enum VelocityClass {
-    HighFrequency = 10,
-    #[display("20")]
-    Frequent = 20,
+#[repr(u8)]
+pub enum AppDeriveIndex {
+    // TODO: Use non-change output
     #[default]
+    Any = 1,
+    HighFrequency = 10,
+    Frequent = 20,
     Regular = 30,
     Episodic = 40,
     Seldom = 50,

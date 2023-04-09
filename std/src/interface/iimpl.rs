@@ -42,7 +42,7 @@ use crate::LIB_NAME_RGB_STD;
 /// Interface identifier commits to all of the interface data.
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, From)]
 #[wrapper(Deref, BorrowSlice, Hex, Index, RangeOps)]
-#[display(Self::to_baid58)]
+#[display(Self::to_baid58_string)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(
@@ -61,6 +61,10 @@ impl ToBaid58<32> for ImplId {
     fn to_baid58_payload(&self) -> [u8; 32] { self.to_raw_array() }
 }
 impl FromBaid58<32> for ImplId {}
+
+impl ImplId {
+    fn to_baid58_string(&self) -> String { format!("{}", self.to_baid58()) }
+}
 
 impl FromStr for ImplId {
     type Err = Baid58ParseError;
