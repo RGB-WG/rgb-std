@@ -24,6 +24,7 @@
 //! remote party.
 
 use std::fmt::Display;
+use std::ops::Deref;
 
 #[cfg(feature = "fs")]
 pub use _fs::*;
@@ -45,7 +46,7 @@ pub trait BindleContent: StrictSerialize + StrictDeserialize + StrictDumb {
     /// String used in ASCII armored blocks
     const PLATE_TITLE: &'static str;
 
-    type Id: Display + StrictType + StrictDumb + StrictEncode + StrictDecode;
+    type Id: Copy + Eq + Display + StrictType + StrictDumb + StrictEncode + StrictDecode;
 
     fn bindle_id(&self) -> Self::Id;
     fn bindle(self) -> Bindle<Self> { Bindle::new(self) }
@@ -100,6 +101,11 @@ pub struct Bindle<C: BindleContent> {
     sigs: TinyVec<Cert>,
 }
 
+impl<C: BindleContent> Deref for Bindle<C> {
+    type Target = C;
+    fn deref(&self) -> &Self::Target { &self.data }
+}
+
 impl<C: BindleContent> From<C> for Bindle<C> {
     fn from(data: C) -> Self { Bindle::new(data) }
 }
@@ -112,6 +118,8 @@ impl<C: BindleContent> Bindle<C> {
             sigs: empty!(),
         }
     }
+
+    pub fn id(&self) -> C::Id { self.id }
 
     pub fn into_split(self) -> (C, TinyVec<Cert>) { (self.data, self.sigs) }
     pub fn unbindle(self) -> C { self.data }
