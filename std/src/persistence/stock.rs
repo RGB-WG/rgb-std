@@ -51,7 +51,7 @@ use crate::{Outpoint, LIB_NAME_RGB_STD};
 #[derive(Clone, Eq, PartialEq, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
-pub(super) struct IndexedBundle(ContractId, BundleId);
+pub struct IndexedBundle(ContractId, BundleId);
 
 #[derive(Clone, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
@@ -65,7 +65,8 @@ pub struct ContractIndex {
 /// WASM implementations.
 ///
 /// Can hold data about up to 256 contracts.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Getters)]
+#[getter(prefix = "debug_")]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 pub struct Stock {
