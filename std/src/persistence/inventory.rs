@@ -425,13 +425,8 @@ pub trait Inventory: Deref<Target = Self::Stash> {
                     BuilderSeal::Concealed(seal) => (None, Some(seal)),
                 })
                 .unzip::<_, _, Vec<_>, Vec<_>>();
-            opouts.extend(
-                self.opouts_by_outpoints(
-                    contract_id,
-                    outpoints.into_iter().filter_map(|seal| seal),
-                )?,
-            );
-            opouts.extend(self.opouts_by_terminals(terminals.into_iter().filter_map(|seal| seal))?);
+            opouts.extend(self.opouts_by_outpoints(contract_id, outpoints.into_iter().flatten())?);
+            opouts.extend(self.opouts_by_terminals(terminals.into_iter().flatten())?);
         }
 
         // 1.1. Get all public transitions
