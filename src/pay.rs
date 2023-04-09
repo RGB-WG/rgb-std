@@ -26,13 +26,13 @@ use bitcoin::hashes::Hash;
 use bitcoin::psbt::Psbt;
 use bp::seals::txout::CloseMethod;
 use bp::Outpoint;
-use rgb::{AssignmentType, ContractId, GraphSeal, Opout};
+use rgb::{AssignmentType, ContractId, GraphSeal, Operation, Opout};
 use rgbstd::containers::{Bindle, BuilderSeal, Transfer};
 use rgbstd::interface::{AppDeriveIndex, BuilderError, ContractSuppl, TypedState};
 use rgbstd::persistence::{ConsignerError, Inventory, InventoryError, Stash};
 
 use crate::invoice::Beneficiary;
-use crate::psbt::{DbcPsbtError, PsbtDbc, RgbExt, RgbPsbtError};
+use crate::psbt::{DbcPsbtError, PsbtDbc, RgbExt, RgbInExt, RgbPsbtError};
 use crate::RgbInvoice;
 
 #[derive(Debug, Display, Error, From)]
@@ -191,9 +191,11 @@ pub trait InventoryWallet: Inventory {
             .complete_transition()?;
 
         // 3. Prepare and self-consume other transitions
+        let mut contract_inputs = HashMap::<ContractId, Vec<Outpoint>>::new();
         let mut spent_state = HashMap::<ContractId, BTreeMap<Opout, TypedState>>::new();
         for outpoint in prev_outputs {
             for id in self.contracts_by_outpoints([outpoint])? {
+                contract_inputs.entry(id).or_default().push(outpoint);
                 if id == contract_id {
                     continue;
                 }
@@ -204,7 +206,7 @@ pub trait InventoryWallet: Inventory {
             }
         }
         // Construct blank transitions, self-consume them
-        let mut other_transitions = Vec::with_capacity(spent_state.len());
+        let mut other_transitions = HashMap::with_capacity(spent_state.len());
         for (id, opouts) in spent_state {
             let mut blank_builder = self
                 .transition_builder(id, invoice.iface.clone())?
@@ -219,12 +221,20 @@ pub trait InventoryWallet: Inventory {
                     .add_raw_state(opout.ty, seal, state)?;
             }
 
-            other_transitions.push(blank_builder.complete_transition()?);
+            other_transitions.insert(id, blank_builder.complete_transition()?);
         }
 
         // 4. Add transitions to PSBT
-        psbt.push_rgb_transition(transition)?;
-        for transition in other_transitions {
+        other_transitions.insert(contract_id, transition);
+        for (id, transition) in other_transitions {
+            let inputs = contract_inputs.remove(&id).unwrap_or_default();
+            for (input, txin) in psbt.inputs.iter_mut().zip(&psbt.unsigned_tx.input) {
+                let prevout = txin.previous_output;
+                let outpoint = Outpoint::new(prevout.txid.to_byte_array().into(), prevout.vout);
+                if inputs.contains(&outpoint) {
+                    input.set_rgb_consumer(id, transition.id())?;
+                }
+            }
             psbt.push_rgb_transition(transition)?;
         }
         // Here we assume the provided PSBT is final: its inputs and outputs will not be
