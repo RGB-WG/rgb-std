@@ -431,6 +431,9 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         let mut transitions = BTreeMap::<OpId, Transition>::new();
         let mut terminals = BTreeSet::<Terminal>::new();
         for opout in opouts {
+            if opout.op == contract_id {
+                continue; // we skip genesis since it will be present anywhere
+            }
             let transition = self.transition(opout.op)?;
             transitions.insert(opout.op, transition.clone());
             let anchored_bundle = self.anchored_bundle(opout.op)?;
