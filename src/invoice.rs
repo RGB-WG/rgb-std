@@ -116,19 +116,11 @@ impl std::fmt::Display for RgbInvoice {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         // TODO: Provide support for optionals & query
         let amt = self.value.to_string();
-        write!(
-            f,
-            "{}{}/{}/{}{}",
-            self.transport,
-            self.contract.to_baid58(),
-            self.iface,
-            if amt.is_empty() {
-                String::new()
-            } else {
-                format!("{amt}+")
-            },
-            self.beneficiary
-        )
+        write!(f, "{}{}/{}/", self.transport, self.contract.to_baid58(), self.iface)?;
+        if !amt.is_empty() {
+            write!(f, "{amt}+")?;
+        }
+        write!(f, "{}", self.beneficiary)
     }
 }
 
