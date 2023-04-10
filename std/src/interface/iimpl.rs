@@ -34,7 +34,7 @@ use strict_types::encoding::{
 };
 
 use crate::interface::iface::IfaceId;
-use crate::interface::Iface;
+use crate::interface::{Iface, VerNo};
 use crate::LIB_NAME_RGB_STD;
 
 /// Interface identifier.
@@ -126,6 +126,7 @@ impl SchemaIfaces {
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct IfaceImpl {
+    pub version: VerNo,
     pub schema_id: SchemaId,
     pub iface_id: IfaceId,
     pub global_state: TinyOrdSet<NamedType<GlobalStateType>>,

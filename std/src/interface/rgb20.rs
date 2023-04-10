@@ -22,13 +22,14 @@
 use rgb::Occurrences;
 
 use crate::interface::iface::AssignIface;
-use crate::interface::{GenesisIface, Iface, OwnedIface, Req, TransitionIface};
+use crate::interface::{GenesisIface, Iface, OwnedIface, Req, TransitionIface, VerNo};
 use crate::stl::StandardTypes;
 
 pub fn rgb20() -> Iface {
     let types = StandardTypes::new();
 
     Iface {
+        version: VerNo::V1,
         name: tn!("RGB20"),
         global_state: tiny_bmap! {
             tn!("Nominal") => Req::require(types.get("RGBContract.Nominal")),

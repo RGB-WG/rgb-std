@@ -39,3 +39,19 @@ pub use iface::{
 pub use iimpl::{IfaceImpl, IfacePair, ImplId, NamedType, SchemaIfaces};
 pub use rgb20::rgb20;
 pub use suppl::{AppDeriveIndex, ContractSuppl, OwnedStateSuppl, SupplId, TickerSuppl};
+
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, Default)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = crate::LIB_NAME_RGB_STD, tags = repr, into_u8, try_from_u8)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+#[repr(u8)]
+#[non_exhaustive]
+pub enum VerNo {
+    #[default]
+    #[display("v1")]
+    V1 = 0,
+}

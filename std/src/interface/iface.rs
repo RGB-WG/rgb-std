@@ -33,6 +33,7 @@ use strict_encoding::{
 };
 use strict_types::SemId;
 
+use crate::interface::VerNo;
 use crate::LIB_NAME_RGB_STD;
 
 /// Interface identifier.
@@ -230,6 +231,7 @@ pub struct TransitionIface {
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct Iface {
+    pub version: VerNo,
     pub name: TypeName,
     pub global_state: TinyOrdMap<TypeName, Req<GlobalIface>>,
     pub assignments: TinyOrdMap<TypeName, AssignIface>,
