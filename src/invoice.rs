@@ -22,11 +22,13 @@
 use std::num::ParseIntError;
 use std::str::FromStr;
 
+use baid58::ToBaid58;
 use bitcoin::{Address, Network};
 use bp::Chain;
 use fluent_uri::Uri;
 use indexmap::IndexMap;
 use rgb::{AttachId, ContractId, SecretSeal};
+use rgbstd::interface::TypedState;
 use strict_encoding::{InvalidIdent, TypeName};
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
@@ -65,9 +67,7 @@ pub enum Beneficiary {
     // TODO: add BifrostNode(),
 }
 
-#[derive(Clone, Eq, PartialEq, Debug, Display)]
-// TODO: Change to custom display impl providing support for optionals & query
-#[display("{transport}{contract}/{iface}/{value}+{beneficiary}")]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct RgbInvoice {
     pub transport: RgbTransport,
     pub contract: ContractId,
@@ -76,7 +76,7 @@ pub struct RgbInvoice {
     pub assignment: Option<TypeName>,
     // pub owned_state: Option<String>,
     pub beneficiary: Beneficiary,
-    pub value: u64, // TODO: Change to TypedState
+    pub value: TypedState,
     pub chain: Option<Chain>,
     pub unknown_query: IndexMap<String, String>,
 }
@@ -112,6 +112,18 @@ pub enum InvoiceParseError {
     IfaceName(InvalidIdent),
 }
 
+impl std::fmt::Display for RgbInvoice {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        // TODO: Provide support for optionals & query
+        let amt = self.value.to_string();
+        write!(f, "{}{}/{}/", self.transport, self.contract.to_baid58(), self.iface)?;
+        if !amt.is_empty() {
+            write!(f, "{amt}+")?;
+        }
+        write!(f, "{}", self.beneficiary)
+    }
+}
+
 impl FromStr for RgbInvoice {
     type Err = InvoiceParseError;
 
@@ -127,30 +139,33 @@ impl FromStr for RgbInvoice {
         let mut chain = None;
 
         let mut assignment = path[2].split('+');
-        let (seal, value) = match (assignment.next(), assignment.next()) {
-            (Some(a), Some(b)) => {
-                let value = u64::from_str_radix(a, 10)?;
-                let benefactor = match (SecretSeal::from_str(b), Address::from_str(b)) {
-                    (Ok(seal), Err(_)) => Beneficiary::BlindedSeal(seal),
-                    (Err(_), Ok(addr)) => {
-                        chain = Some(match addr.network {
-                            Network::Bitcoin => Chain::Bitcoin,
-                            Network::Testnet => Chain::Testnet3,
-                            Network::Signet => Chain::Signet,
-                            Network::Regtest => Chain::Regtest,
-                            unknown => return Err(InvoiceParseError::UnsupportedNetwork(unknown)),
-                        });
-                        Beneficiary::WitnessUtxo(addr.assume_checked())
-                    }
-                    (Err(_), Err(_)) => return Err(InvoiceParseError::Beneficiary(a.to_owned())),
-                    (Ok(_), Ok(_)) => panic!(
-                        "found a string which is both valid bitcoin address and UTXO blind seal"
-                    ),
-                };
-                (benefactor, value)
-            }
+        // TODO: support other state types
+        let (beneficiary_str, value) = match (assignment.next(), assignment.next()) {
+            (Some(a), Some(b)) => (b, TypedState::Amount(a.parse::<u64>()?)),
+            (Some(b), None) => (b, TypedState::Void),
             _ => return Err(InvoiceParseError::Invalid),
         };
+
+        let beneficiary =
+            match (SecretSeal::from_str(beneficiary_str), Address::from_str(beneficiary_str)) {
+                (Ok(seal), Err(_)) => Beneficiary::BlindedSeal(seal),
+                (Err(_), Ok(addr)) => {
+                    chain = Some(match addr.network {
+                        Network::Bitcoin => Chain::Bitcoin,
+                        Network::Testnet => Chain::Testnet3,
+                        Network::Signet => Chain::Signet,
+                        Network::Regtest => Chain::Regtest,
+                        unknown => return Err(InvoiceParseError::UnsupportedNetwork(unknown)),
+                    });
+                    Beneficiary::WitnessUtxo(addr.assume_checked())
+                }
+                (Err(_), Err(_)) => {
+                    return Err(InvoiceParseError::Beneficiary(beneficiary_str.to_owned()));
+                }
+                (Ok(_), Ok(_)) => {
+                    panic!("found a string which is both valid bitcoin address and UTXO blind seal")
+                }
+            };
 
         Ok(RgbInvoice {
             transport: RgbTransport::UnspecifiedMeans,
@@ -158,7 +173,7 @@ impl FromStr for RgbInvoice {
             iface: TypeName::try_from(path[1].clone())?,
             operation: None,
             assignment: None,
-            beneficiary: seal,
+            beneficiary,
             value,
             chain,
             unknown_query: Default::default(),
@@ -172,10 +187,14 @@ mod test {
 
     #[test]
     fn parse() {
-        RgbInvoice::from_str(
-            "rgb:EKkb7TMfbPxzn7UhvXqhoCutzdZkSZCNYxVAVjsA67fW/RGB20/\
-             100+6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve",
-        )
-        .unwrap();
+        let invoice_str = "rgb:EKkb7TMfbPxzn7UhvXqhoCutzdZkSZCNYxVAVjsA67fW/RGB20/\
+                           100+6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve";
+        let invoice = RgbInvoice::from_str(invoice_str).unwrap();
+        assert_eq!(invoice.to_string(), invoice_str);
+
+        let invoice_str = "rgb:EKkb7TMfbPxzn7UhvXqhoCutzdZkSZCNYxVAVjsA67fW/RGB20/\
+                           6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve";
+        let invoice = RgbInvoice::from_str(invoice_str).unwrap();
+        assert_eq!(invoice.to_string(), invoice_str);
     }
 }

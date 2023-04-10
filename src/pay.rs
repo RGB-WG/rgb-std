@@ -19,6 +19,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 
@@ -179,16 +180,25 @@ pub trait InventoryWallet: Inventory {
             }
         }
         // Add change
-        if sum_inputs > invoice.value {
-            let seal = output_for_assignment(suppl.as_ref(), assignment_id)?;
-            let change = TypedState::Amount(sum_inputs - invoice.value);
-            main_builder = main_builder.add_raw_state(assignment_id, seal, change)?;
-        } else if sum_inputs < invoice.value {
-            return Err(PayError::InsufficientState);
-        }
-        let transition = main_builder
-            .add_raw_state(assignment_id, beneficiary, TypedState::Amount(invoice.value))?
-            .complete_transition(contract_id)?;
+        let transition = match invoice.value {
+            TypedState::Amount(amt) => {
+                match sum_inputs.cmp(&amt) {
+                    Ordering::Greater => {
+                        let seal = output_for_assignment(suppl.as_ref(), assignment_id)?;
+                        let change = TypedState::Amount(sum_inputs - amt);
+                        main_builder = main_builder.add_raw_state(assignment_id, seal, change)?;
+                    }
+                    Ordering::Less => return Err(PayError::InsufficientState),
+                    Ordering::Equal => {}
+                }
+                main_builder
+                    .add_raw_state(assignment_id, beneficiary, TypedState::Amount(amt))?
+                    .complete_transition(contract_id)?
+            }
+            _ => {
+                todo!("only TypedState::Amount is currently supported")
+            }
+        };
 
         // 3. Prepare and self-consume other transitions
         let mut contract_inputs = HashMap::<ContractId, Vec<Outpoint>>::new();
