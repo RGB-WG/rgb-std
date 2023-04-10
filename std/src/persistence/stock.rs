@@ -696,4 +696,8 @@ impl Inventory for Stock {
         self.seal_secrets.push(seal)?;
         Ok(())
     }
+
+    fn seal_secrets(&mut self) -> Result<BTreeSet<GraphSeal>, InventoryError<Self::Error>> {
+        Ok(self.seal_secrets.to_inner())
+    }
 }

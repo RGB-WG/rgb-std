@@ -374,6 +374,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     ) -> Result<BTreeMap<Opout, TypedState>, InventoryError<Self::Error>>;
 
     fn store_seal_secret(&mut self, seal: GraphSeal) -> Result<(), InventoryError<Self::Error>>;
+    fn seal_secrets(&mut self) -> Result<BTreeSet<GraphSeal>, InventoryError<Self::Error>>;
 
     fn export_contract(
         &mut self,
