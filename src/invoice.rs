@@ -74,9 +74,8 @@ pub struct RgbInvoice {
     pub iface: TypeName,
     pub operation: Option<TypeName>,
     pub assignment: Option<TypeName>,
-    // pub owned_state: Option<String>,
     pub beneficiary: Beneficiary,
-    pub value: TypedState,
+    pub owned_state: TypedState,
     pub chain: Option<Chain>,
     pub unknown_query: IndexMap<String, String>,
 }
@@ -114,13 +113,30 @@ pub enum InvoiceParseError {
 
 impl std::fmt::Display for RgbInvoice {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        // TODO: Provide support for optionals & query
-        let amt = self.value.to_string();
+        let amt = self.owned_state.to_string();
         write!(f, "{}{}/{}/", self.transport, self.contract.to_baid58(), self.iface)?;
+        if let Some(ref op) = self.operation {
+            write!(f, "{op}/")?;
+        }
+        if let Some(ref assignment_name) = self.assignment {
+            write!(f, "{assignment_name}/")?;
+        }
         if !amt.is_empty() {
             write!(f, "{amt}+")?;
         }
-        write!(f, "{}", self.beneficiary)
+        write!(f, "{}", self.beneficiary)?;
+        if !self.unknown_query.is_empty() {
+            f.write_str("?")?;
+        }
+        for (key, val) in self.unknown_query.iter().take(1) {
+            // TODO: URLEncode
+            write!(f, "{key}={val}")?;
+        }
+        for (key, val) in self.unknown_query.iter().skip(1) {
+            // TODO: URLEncode
+            write!(f, "&{key}={val}")?;
+        }
+        Ok(())
     }
 }
 
@@ -174,7 +190,7 @@ impl FromStr for RgbInvoice {
             operation: None,
             assignment: None,
             beneficiary,
-            value,
+            owned_state: value,
             chain,
             unknown_query: Default::default(),
         })

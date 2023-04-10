@@ -180,7 +180,7 @@ pub trait InventoryWallet: Inventory {
             }
         }
         // Add change
-        let transition = match invoice.value {
+        let transition = match invoice.owned_state {
             TypedState::Amount(amt) => {
                 match sum_inputs.cmp(&amt) {
                     Ordering::Greater => {
