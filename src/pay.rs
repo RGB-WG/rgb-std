@@ -50,6 +50,10 @@ where E1: From<E2>
     #[display(doc_comments)]
     NoBeneficiaryOutput,
 
+    /// unspecified contract
+    #[display(doc_comments)]
+    NoContract,
+
     /// state provided via PSBT inputs is not sufficient to cover invoice state
     /// requirements.
     InsufficientState,
@@ -85,7 +89,7 @@ pub trait InventoryWallet: Inventory {
         Self::Error: From<<Self::Stash as Stash>::Error>,
     {
         // 1. Prepare the data
-        let contract_id = invoice.contract;
+        let contract_id = invoice.contract.ok_or(PayError::NoContract)?;
         let mut main_builder = self.transition_builder(contract_id, invoice.iface.clone())?;
 
         let (beneficiary_output, beneficiary) = match invoice.beneficiary {

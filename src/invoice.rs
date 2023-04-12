@@ -70,7 +70,7 @@ pub enum Beneficiary {
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct RgbInvoice {
     pub transport: RgbTransport,
-    pub contract: ContractId,
+    pub contract: Option<ContractId>,
     pub iface: TypeName,
     pub operation: Option<TypeName>,
     pub assignment: Option<TypeName>,
@@ -114,7 +114,11 @@ pub enum InvoiceParseError {
 impl std::fmt::Display for RgbInvoice {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let amt = self.owned_state.to_string();
-        write!(f, "{}{}/{}/", self.transport, self.contract.to_baid58(), self.iface)?;
+        write!(f, "{}", self.transport)?;
+        if let Some(contract) = self.contract {
+            write!(f, "{}/", contract.to_baid58())?;
+        }
+        write!(f, "{}/", self.iface)?;
         if let Some(ref op) = self.operation {
             write!(f, "{op}/")?;
         }
@@ -154,7 +158,20 @@ impl FromStr for RgbInvoice {
 
         let mut chain = None;
 
-        let mut assignment = path[2].split('+');
+        let mut next_path_index = 0;
+
+        let contract = match ContractId::from_str(&path[next_path_index]) {
+            Ok(cid) => {
+                next_path_index += 1;
+                Some(cid)
+            }
+            Err(_e) => None,
+        };
+
+        let iface = TypeName::try_from(path[next_path_index].clone())?;
+        next_path_index += 1;
+
+        let mut assignment = path[next_path_index].split('+');
         // TODO: support other state types
         let (beneficiary_str, value) = match (assignment.next(), assignment.next()) {
             (Some(a), Some(b)) => (b, TypedState::Amount(a.parse::<u64>()?)),
@@ -185,8 +202,8 @@ impl FromStr for RgbInvoice {
 
         Ok(RgbInvoice {
             transport: RgbTransport::UnspecifiedMeans,
-            contract: ContractId::from_str(&path[0])?,
-            iface: TypeName::try_from(path[1].clone())?,
+            contract,
+            iface,
             operation: None,
             assignment: None,
             beneficiary,
@@ -210,6 +227,10 @@ mod test {
 
         let invoice_str = "rgb:EKkb7TMfbPxzn7UhvXqhoCutzdZkSZCNYxVAVjsA67fW/RGB20/\
                            6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve";
+        let invoice = RgbInvoice::from_str(invoice_str).unwrap();
+        assert_eq!(invoice.to_string(), invoice_str);
+
+        let invoice_str = "rgb:RGB20/6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve";
         let invoice = RgbInvoice::from_str(invoice_str).unwrap();
         assert_eq!(invoice.to_string(), invoice_str);
     }
