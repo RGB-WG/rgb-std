@@ -92,7 +92,7 @@ impl PsbtDbc for Psbt {
         if self
             .outputs
             .iter()
-            .map(|output| output.is_tapret_host() | output.is_opret_host())
+            .filter(|output| output.is_tapret_host() | output.is_opret_host())
             .count() >
             1
         {
