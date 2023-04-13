@@ -29,9 +29,9 @@ mod lnpbp4;
 // TODO: Move to BP wallet
 mod dbc;
 // TODO: Move to BP wallet
-mod opret;
+pub mod opret;
 // TODO: Move to BP wallet
-mod tapret;
+pub mod tapret;
 mod rgb;
 
 pub use dbc::{DbcPsbtError, PsbtDbc};
