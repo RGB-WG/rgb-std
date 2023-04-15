@@ -90,6 +90,10 @@ pub enum InvoiceParseError {
     /// invalid invoice.
     Invalid,
 
+    #[display(doc_comments)]
+    /// invalid contract ID.
+    InvalidContractId(String),
+
     #[from]
     Id(baid58::Baid58ParseError),
 
@@ -116,9 +120,9 @@ impl std::fmt::Display for RgbInvoice {
         let amt = self.owned_state.to_string();
         write!(f, "{}", self.transport)?;
         if let Some(contract) = self.contract {
-            write!(f, "{}/", contract.to_baid58())?;
+            write!(f, "{}", contract.to_baid58())?;
         }
-        write!(f, "{}/", self.iface)?;
+        write!(f, "/{}/", self.iface)?;
         if let Some(ref op) = self.operation {
             write!(f, "{op}/")?;
         }
@@ -160,12 +164,18 @@ impl FromStr for RgbInvoice {
 
         let mut next_path_index = 0;
 
-        let contract = match ContractId::from_str(&path[next_path_index]) {
+        let contract_id_str = &path[next_path_index];
+        let contract = match ContractId::from_str(contract_id_str) {
             Ok(cid) => {
                 next_path_index += 1;
                 Some(cid)
             }
-            Err(_e) => None,
+            Err(_e) => {
+                if !uri.path().to_string().starts_with('/') {
+                    return Err(InvoiceParseError::InvalidContractId(contract_id_str.clone()));
+                }
+                None
+            }
         };
 
         let iface = TypeName::try_from(path[next_path_index].clone())?;
@@ -230,8 +240,16 @@ mod test {
         let invoice = RgbInvoice::from_str(invoice_str).unwrap();
         assert_eq!(invoice.to_string(), invoice_str);
 
-        let invoice_str = "rgb:RGB20/6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve";
+        let invoice_str = "rgb:/RGB20/6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve";
         let invoice = RgbInvoice::from_str(invoice_str).unwrap();
         assert_eq!(invoice.to_string(), invoice_str);
+
+        let invalid_contract_id = "invalid";
+        let invoice_str =
+            format!("rgb:{invalid_contract_id}/RGB20/6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve");
+        let result = RgbInvoice::from_str(&invoice_str);
+        assert!(
+            matches!(result, Err(InvoiceParseError::InvalidContractId(c)) if c == invalid_contract_id)
+        );
     }
 }
