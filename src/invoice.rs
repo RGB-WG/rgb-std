@@ -170,7 +170,7 @@ impl FromStr for RgbInvoice {
                 next_path_index += 1;
                 Some(cid)
             }
-            Err(_) if !uri.path().as_str().starts_with('/') =>  {
+            Err(_) if !uri.path().as_str().starts_with('/') => {
                 return Err(InvoiceParseError::InvalidContractId(contract_id_str.clone()));
             }
             Err(_) => None,
