@@ -70,7 +70,7 @@ pub enum Beneficiary {
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct RgbInvoice {
     pub transport: RgbTransport,
-    pub contract: ContractId,
+    pub contract: Option<ContractId>,
     pub iface: TypeName,
     pub operation: Option<TypeName>,
     pub assignment: Option<TypeName>,
@@ -89,6 +89,10 @@ pub enum InvoiceParseError {
     #[display(doc_comments)]
     /// invalid invoice.
     Invalid,
+
+    #[display(doc_comments)]
+    /// invalid contract ID.
+    InvalidContractId(String),
 
     #[from]
     Id(baid58::Baid58ParseError),
@@ -114,7 +118,11 @@ pub enum InvoiceParseError {
 impl std::fmt::Display for RgbInvoice {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let amt = self.owned_state.to_string();
-        write!(f, "{}{}/{}/", self.transport, self.contract.to_baid58(), self.iface)?;
+        write!(f, "{}", self.transport)?;
+        if let Some(contract) = self.contract {
+            write!(f, "{}", contract.to_baid58())?;
+        }
+        write!(f, "/{}/", self.iface)?;
         if let Some(ref op) = self.operation {
             write!(f, "{op}/")?;
         }
@@ -154,7 +162,24 @@ impl FromStr for RgbInvoice {
 
         let mut chain = None;
 
-        let mut assignment = path[2].split('+');
+        let mut next_path_index = 0;
+
+        let contract_id_str = &path[next_path_index];
+        let contract = match ContractId::from_str(contract_id_str) {
+            Ok(cid) => {
+                next_path_index += 1;
+                Some(cid)
+            }
+            Err(_) if !uri.path().as_str().starts_with('/') => {
+                return Err(InvoiceParseError::InvalidContractId(contract_id_str.clone()));
+            }
+            Err(_) => None,
+        };
+
+        let iface = TypeName::try_from(path[next_path_index].clone())?;
+        next_path_index += 1;
+
+        let mut assignment = path[next_path_index].split('+');
         // TODO: support other state types
         let (beneficiary_str, value) = match (assignment.next(), assignment.next()) {
             (Some(a), Some(b)) => (b, TypedState::Amount(a.parse::<u64>()?)),
@@ -185,8 +210,8 @@ impl FromStr for RgbInvoice {
 
         Ok(RgbInvoice {
             transport: RgbTransport::UnspecifiedMeans,
-            contract: ContractId::from_str(&path[0])?,
-            iface: TypeName::try_from(path[1].clone())?,
+            contract,
+            iface,
             operation: None,
             assignment: None,
             beneficiary,
@@ -212,5 +237,17 @@ mod test {
                            6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve";
         let invoice = RgbInvoice::from_str(invoice_str).unwrap();
         assert_eq!(invoice.to_string(), invoice_str);
+
+        let invoice_str = "rgb:/RGB20/6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve";
+        let invoice = RgbInvoice::from_str(invoice_str).unwrap();
+        assert_eq!(invoice.to_string(), invoice_str);
+
+        let invalid_contract_id = "invalid";
+        let invoice_str =
+            format!("rgb:{invalid_contract_id}/RGB20/6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve");
+        let result = RgbInvoice::from_str(&invoice_str);
+        assert!(
+            matches!(result, Err(InvoiceParseError::InvalidContractId(c)) if c == invalid_contract_id)
+        );
     }
 }
