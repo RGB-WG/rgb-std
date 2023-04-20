@@ -52,6 +52,8 @@ pub enum Precision {
     Deci = 1,
     Centi = 2,
     Milli = 3,
+    DeciMilli = 4,
+    CentiMilli = 5,
     Micro = 6,
     DeciMicro = 7,
     #[default]

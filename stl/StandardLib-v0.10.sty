@@ -1,5 +1,5 @@
 {-
-  Id: moment_shirt_uranium_E2hfuv3Za3kVo7MSCvSxC6uhYJEvkmZJ1NPz4g4oZWNw
+  Id: august_plasma_info_5Dvn6nftvkfGSNavzjHwqgGnJgM1dgtbLNbyMGU8aoMx
   Name: RGBCore
   Description: Consensus layer for RGB smart contracts
   Author: Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
@@ -7,7 +7,7 @@
   License: Apache-2.0
 -}
 
-typelib RGBContract -- moment_shirt_uranium_E2hfuv3Za3kVo7MSCvSxC6uhYJEvkmZJ1NPz4g4oZWNw
+typelib RGBContract -- august_plasma_info_5Dvn6nftvkfGSNavzjHwqgGnJgM1dgtbLNbyMGU8aoMx
 
 -- no dependencies
 
@@ -18,6 +18,6 @@ data Nominal          :: ticker Ticker
                        , name ContractName
                        , details ContractDetails?
                        , precision Precision
-data Precision        :: indivisible:0 | deci:1 | centi:2 | milli:3 | micro:6 | deciMicro:7 | centiMicro:8 | nano:9 | deciNano:10 | centiNano:11 | pico:12 | deciPico:13 | centiPico:14 | femto:15 | deciFemto:16 | centiFemto:17 | atto:18
+data Precision        :: indivisible:0 | deci:1 | centi:2 | milli:3 | deciMilli:4 | centiMilli:5 | micro:6 | deciMicro:7 | centiMicro:8 | nano:9 | deciNano:10 | centiNano:11 | pico:12 | deciPico:13 | centiPico:14 | femto:15 | deciFemto:16 | centiFemto:17 | atto:18
 data Ticker           :: [Ascii ^ 1..0x8]
 
