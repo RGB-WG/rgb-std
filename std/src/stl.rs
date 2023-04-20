@@ -28,10 +28,13 @@ use std::str::FromStr;
 use amplify::ascii::AsciiString;
 use amplify::confinement::{Confined, SmallString};
 use amplify::IoError;
+use baid58::Baid58ParseError;
+use bp::dbc::LIB_NAME_BPCORE;
+use bp::LIB_NAME_BITCOIN;
 use strict_encoding::{InvalidIdent, StrictDeserialize, StrictDumb, StrictSerialize};
 use strict_types::typelib::{LibBuilder, TranslateError};
 use strict_types::typesys::SystemBuilder;
-use strict_types::{typesys, SemId, TypeSystem};
+use strict_types::{typesys, Dependency, SemId, TypeLib, TypeLibId, TypeSystem};
 
 pub const LIB_NAME_RGB_CONTRACT: &str = "RGBContract";
 
@@ -265,33 +268,63 @@ pub struct ContractText(SmallString);
 impl StrictSerialize for ContractText {}
 impl StrictDeserialize for ContractText {}
 
-#[derive(Default)]
+#[derive(Debug, From)]
+enum Error {
+    #[from(std::io::Error)]
+    Io(IoError),
+    #[from]
+    Baid58(Baid58ParseError),
+    #[from]
+    Translate(TranslateError),
+    #[from]
+    Compile(typesys::Error),
+    #[from]
+    Link(Vec<typesys::Error>),
+}
+
+#[derive(Debug)]
+pub struct StandardLib(TypeLib);
+
+impl StandardLib {
+    pub fn new() -> Self {
+        fn builder() -> Result<TypeLib, Error> {
+            let bitcoin_id = TypeLibId::from_str(
+                "salsa_peace_patron_26G1K9hm6R2BkzGJwHjLC9cB1JFJiAPCDWrJAoRCrkCg",
+            )?;
+            let bpcore_id = TypeLibId::from_str(
+                "human_alarm_video_Hzm5L9FnBnXfocDtyc1i1PmKs1SYXsBQzL4vtd4BVA4S",
+            )?;
+
+            let imports = bset! {
+                Dependency::with(bitcoin_id, libname!(LIB_NAME_BITCOIN)),
+                Dependency::with(bpcore_id, libname!(LIB_NAME_BPCORE)),
+            };
+
+            LibBuilder::new(libname!(LIB_NAME_RGB_CONTRACT))
+                .process::<Nominal>()?
+                .process::<ContractText>()?
+                .compile(imports)
+                .map_err(Error::from)
+        }
+
+        Self(builder().expect("error in standard RGBContract type library"))
+    }
+
+    pub fn type_lib(&self) -> TypeLib { self.0.clone() }
+}
+
+#[derive(Debug)]
 pub struct StandardTypes(TypeSystem);
 
 impl StandardTypes {
     pub fn new() -> Self {
-        #[derive(Debug, From)]
-        enum Error {
-            #[from(std::io::Error)]
-            Io(IoError),
-            #[from]
-            Translate(TranslateError),
-            #[from]
-            Compile(typesys::Error),
-            #[from]
-            Link(Vec<typesys::Error>),
-        }
-
         fn builder() -> Result<TypeSystem, Error> {
-            let lib = LibBuilder::new(libname!(LIB_NAME_RGB_CONTRACT))
-                .process::<Nominal>()?
-                .process::<ContractText>()?
-                .compile(none!())?;
+            let lib = StandardLib::new().type_lib();
             let sys = SystemBuilder::new().import(lib)?.finalize()?;
             Ok(sys)
         }
 
-        Self(builder().expect("error in standard RGBContract type library"))
+        Self(builder().expect("error in standard RGBContract type system"))
     }
 
     pub fn type_system(&self) -> TypeSystem { self.0.clone() }

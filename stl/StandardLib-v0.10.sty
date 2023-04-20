@@ -1,0 +1,23 @@
+{-
+  Id: moment_shirt_uranium_E2hfuv3Za3kVo7MSCvSxC6uhYJEvkmZJ1NPz4g4oZWNw
+  Name: RGBCore
+  Description: Consensus layer for RGB smart contracts
+  Author: Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
+  Copyright (C) 2023 LNP/BP Standards Association. All rights reserved.
+  License: Apache-2.0
+-}
+
+typelib RGBContract -- moment_shirt_uranium_E2hfuv3Za3kVo7MSCvSxC6uhYJEvkmZJ1NPz4g4oZWNw
+
+-- no dependencies
+
+data ContractDetails  :: [Unicode ^ 40..0xff]
+data ContractName     :: [Unicode ^ 1..0x28]
+data ContractText     :: [Unicode]
+data Nominal          :: ticker Ticker
+                       , name ContractName
+                       , details ContractDetails?
+                       , precision Precision
+data Precision        :: indivisible:0 | deci:1 | centi:2 | milli:3 | micro:6 | deciMicro:7 | centiMicro:8 | nano:9 | deciNano:10 | centiNano:11 | pico:12 | deciPico:13 | centiPico:14 | femto:15 | deciFemto:16 | centiFemto:17 | atto:18
+data Ticker           :: [Ascii ^ 1..0x8]
+
