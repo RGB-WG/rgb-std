@@ -135,7 +135,7 @@ impl Debug for Ticker {
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", transparent)
 )]
-pub struct ContractName(Confined<String, 5, 40>);
+pub struct ContractName(Confined<String, 1, 40>);
 
 impl StrictDumb for ContractName {
     fn strict_dumb() -> Self { Self(Confined::try_from(s!("Dumb contract name")).unwrap()) }
