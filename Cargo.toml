@@ -57,6 +57,7 @@ fluent-uri = "0.1.4"
 indexmap = "1.9.2"
 # TODO: This dependencies should be replaced with psbt package
 bitcoin = "0.30.0"
+chrono = "0.4.24"
 
 [features]
 default = []

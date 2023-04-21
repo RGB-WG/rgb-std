@@ -27,6 +27,7 @@ use bitcoin::hashes::Hash;
 use bitcoin::psbt::Psbt;
 use bp::seals::txout::CloseMethod;
 use bp::Outpoint;
+use chrono::Utc;
 use rgb::{AssignmentType, ContractId, GraphSeal, Operation, Opout};
 use rgbstd::containers::{Bindle, BuilderSeal, Transfer};
 use rgbstd::interface::{AppDeriveIndex, BuilderError, ContractSuppl, TypedState};
@@ -62,6 +63,9 @@ where E1: From<E2>
     /// requirements.
     InsufficientState,
 
+    /// the invoice has expired
+    InvoiceExpired,
+
     #[from]
     Inventory(InventoryError<E1>),
 
@@ -93,6 +97,11 @@ pub trait InventoryWallet: Inventory {
         Self::Error: From<<Self::Stash as Stash>::Error>,
     {
         // 1. Prepare the data
+        if let Some(expiry) = invoice.expiry {
+            if expiry < Utc::now().timestamp() {
+                return Err(PayError::InvoiceExpired);
+            }
+        }
         let contract_id = invoice.contract.ok_or(PayError::NoContract)?;
         let iface = invoice.iface.ok_or(PayError::NoIface)?;
         let mut main_builder = self.transition_builder(contract_id, iface.clone())?;
