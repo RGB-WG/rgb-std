@@ -54,6 +54,10 @@ where E1: From<E2>
     #[display(doc_comments)]
     NoContract,
 
+    /// unspecified interface
+    #[display(doc_comments)]
+    NoIface,
+
     /// state provided via PSBT inputs is not sufficient to cover invoice state
     /// requirements.
     InsufficientState,
@@ -90,7 +94,8 @@ pub trait InventoryWallet: Inventory {
     {
         // 1. Prepare the data
         let contract_id = invoice.contract.ok_or(PayError::NoContract)?;
-        let mut main_builder = self.transition_builder(contract_id, invoice.iface.clone())?;
+        let iface = invoice.iface.ok_or(PayError::NoIface)?;
+        let mut main_builder = self.transition_builder(contract_id, iface.clone())?;
 
         let (beneficiary_output, beneficiary) = match invoice.beneficiary {
             Beneficiary::BlindedSeal(seal) => {
@@ -223,7 +228,7 @@ pub trait InventoryWallet: Inventory {
         let mut other_transitions = HashMap::with_capacity(spent_state.len());
         for (id, opouts) in spent_state {
             let mut blank_builder = self
-                .transition_builder(id, invoice.iface.clone())?
+                .transition_builder(id, iface.clone())?
                 .do_blank_transition()?;
             // TODO: select supplement basing on the signer trust level
             let suppl = self.contract_suppl(id).and_then(|set| set.first());

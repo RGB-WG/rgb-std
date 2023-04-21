@@ -31,6 +31,8 @@ use rgb::{AttachId, ContractId, SecretSeal};
 use rgbstd::interface::TypedState;
 use strict_encoding::{InvalidIdent, TypeName};
 
+const ANY: char = '~';
+
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
 pub enum RgbTransport {
     #[display("rgb-rpc{tls}://host/")]
@@ -71,7 +73,7 @@ pub enum Beneficiary {
 pub struct RgbInvoice {
     pub transport: RgbTransport,
     pub contract: Option<ContractId>,
-    pub iface: TypeName,
+    pub iface: Option<TypeName>,
     pub operation: Option<TypeName>,
     pub assignment: Option<TypeName>,
     pub beneficiary: Beneficiary,
@@ -91,8 +93,16 @@ pub enum InvoiceParseError {
     Invalid,
 
     #[display(doc_comments)]
+    /// invalid invoice: contract ID with but no iface
+    ContractIdNoIface,
+
+    #[display(doc_comments)]
     /// invalid contract ID.
     InvalidContractId(String),
+
+    #[display(doc_comments)]
+    /// invalid interface
+    InvalidIface(String),
 
     #[from]
     Id(baid58::Baid58ParseError),
@@ -120,9 +130,15 @@ impl std::fmt::Display for RgbInvoice {
         let amt = self.owned_state.to_string();
         write!(f, "{}", self.transport)?;
         if let Some(contract) = self.contract {
-            write!(f, "{}", contract.to_baid58())?;
+            write!(f, "{}/", contract.to_baid58())?;
+        } else {
+            write!(f, "{ANY}/")?;
         }
-        write!(f, "/{}/", self.iface)?;
+        if let Some(iface) = self.iface.clone() {
+            write!(f, "{}/", iface)?;
+        } else {
+            write!(f, "{ANY}/")?;
+        }
         if let Some(ref op) = self.operation {
             write!(f, "{op}/")?;
         }
@@ -166,18 +182,22 @@ impl FromStr for RgbInvoice {
 
         let contract_id_str = &path[next_path_index];
         let contract = match ContractId::from_str(contract_id_str) {
-            Ok(cid) => {
-                next_path_index += 1;
-                Some(cid)
-            }
-            Err(_) if !uri.path().as_str().starts_with('/') => {
-                return Err(InvoiceParseError::InvalidContractId(contract_id_str.clone()));
-            }
-            Err(_) => None,
+            Ok(cid) => Some(cid),
+            Err(_) if contract_id_str == &ANY.to_string() => None,
+            Err(_) => return Err(InvoiceParseError::InvalidContractId(contract_id_str.clone())),
         };
-
-        let iface = TypeName::try_from(path[next_path_index].clone())?;
         next_path_index += 1;
+
+        let iface_str = &path[next_path_index];
+        let iface = match TypeName::try_from(iface_str.clone()) {
+            Ok(i) => Some(i),
+            Err(_) if iface_str == &ANY.to_string() => None,
+            Err(_) => return Err(InvoiceParseError::InvalidIface(iface_str.clone())),
+        };
+        next_path_index += 1;
+        if contract.is_some() && iface.is_none() {
+            return Err(InvoiceParseError::ContractIdNoIface);
+        }
 
         let mut assignment = path[next_path_index].split('+');
         // TODO: support other state types
@@ -238,9 +258,18 @@ mod test {
         let invoice = RgbInvoice::from_str(invoice_str).unwrap();
         assert_eq!(invoice.to_string(), invoice_str);
 
-        let invoice_str = "rgb:/RGB20/6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve";
+        let invoice_str = "rgb:~/RGB20/6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve";
         let invoice = RgbInvoice::from_str(invoice_str).unwrap();
         assert_eq!(invoice.to_string(), invoice_str);
+
+        let invoice_str = "rgb:~/~/6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve";
+        let invoice = RgbInvoice::from_str(invoice_str).unwrap();
+        assert_eq!(invoice.to_string(), invoice_str);
+
+        let invoice_str = "rgb:EKkb7TMfbPxzn7UhvXqhoCutzdZkSZCNYxVAVjsA67fW/~/\
+                           6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve";
+        let result = RgbInvoice::from_str(invoice_str);
+        assert!(matches!(result, Err(InvoiceParseError::ContractIdNoIface)));
 
         let invalid_contract_id = "invalid";
         let invoice_str =
