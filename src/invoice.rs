@@ -35,19 +35,52 @@ use urlencoding::encode;
 
 const OMITTED: char = '~';
 const EXPIRY: &str = "expiry";
+const TRANSPORT_HOST_SEP: char = '-';
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
 pub enum RgbTransport {
-    #[display("rgb-rpc{tls}://host/")]
+    #[display("rgbrpc{tls}://{host}/")]
     JsonRpc { tls: bool, host: String },
-    #[display("rgb+http{tls}://host/")]
-    RestHttp { tls: bool, host: String },
-    #[display("rgb+ws{tls}://host/")]
-    WebSockets { tls: bool, host: String },
-    #[display("rgb+storm://_/")]
-    Storm {/* todo */},
+    // TODO: implement other transport types as they become supported
+    //#[display("rgbhttp{tls}://{host}/")]
+    //RestHttp { tls: bool, host: String },
+    //#[display("rgbws{tls}://{host}/")]
+    //WebSockets { tls: bool, host: String },
+    //#[display("rgbstorm://_/")]
+    //Storm {[> todo <]},
     #[display("rgb:")]
     UnspecifiedMeans,
+}
+
+impl FromStr for RgbTransport {
+    type Err = InvoiceParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s == "rgb" {
+            return Ok(RgbTransport::UnspecifiedMeans);
+        }
+        // other transport types require an endpoint
+        let tokens = s.split_once(TRANSPORT_HOST_SEP);
+        if tokens.is_none() {
+            return Err(InvoiceParseError::InvalidTransport(s.to_string()));
+        }
+        let (trans_type, host) = tokens.unwrap();
+        if host.is_empty() {
+            return Err(InvoiceParseError::InvalidTransportHost(host.to_string()));
+        }
+        let transport = match trans_type {
+            "rgbrpc0" => RgbTransport::JsonRpc {
+                tls: false,
+                host: host.to_string(),
+            },
+            "rgbrpc1" => RgbTransport::JsonRpc {
+                tls: true,
+                host: host.to_string(),
+            },
+            _ => return Err(InvoiceParseError::InvalidTransport(s.to_string())),
+        };
+        Ok(transport)
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
@@ -98,7 +131,19 @@ pub enum InvoiceParseError {
     Invalid,
 
     #[display(doc_comments)]
-    /// invalid invoice: contract ID present but no contract interface provided
+    /// no invoice transport has been provided.
+    NoTransport,
+
+    #[display(doc_comments)]
+    /// invalid invoice transport {0}.
+    InvalidTransport(String),
+
+    #[display(doc_comments)]
+    /// invalid invoice transport host {0}.
+    InvalidTransportHost(String),
+
+    #[display(doc_comments)]
+    /// invalid invoice: contract ID present but no contract interface provided.
     ContractIdNoIface,
 
     #[display(doc_comments)]
@@ -106,15 +151,15 @@ pub enum InvoiceParseError {
     InvalidContractId(String),
 
     #[display(doc_comments)]
-    /// invalid interface {0}
+    /// invalid interface {0}.
     InvalidIface(String),
 
     #[display(doc_comments)]
-    /// invalid expiration timestamp {0}
+    /// invalid expiration timestamp {0}.
     InvalidExpiration(String),
 
     #[display(doc_comments)]
-    /// invalid query parameter {0}
+    /// invalid query parameter {0}.
     InvalidQueryParam(String),
 
     #[from]
@@ -218,6 +263,9 @@ impl FromStr for RgbInvoice {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let uri = Uri::parse(s)?;
 
+        let scheme = uri.scheme().ok_or(InvoiceParseError::NoTransport)?;
+        let transport = RgbTransport::from_str(scheme.as_str())?;
+
         let path = uri
             .path()
             .segments()
@@ -287,7 +335,7 @@ impl FromStr for RgbInvoice {
         }
 
         Ok(RgbInvoice {
-            transport: RgbTransport::UnspecifiedMeans,
+            transport,
             contract,
             iface,
             operation: None,
@@ -398,5 +446,66 @@ mod test {
             invoice.to_string(),
             format!("{invoice_base}{query_key_encoded}={query_val_encoded}")
         );
+
+        // invalid transport
+        let invoice_str = "rgbbad:EKkb7TMfbPxzn7UhvXqhoCutzdZkSZCNYxVAVjsA67fW/RGB20/\
+                           100+6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve";
+        let result = RgbInvoice::from_str(invoice_str);
+        assert!(matches!(result, Err(InvoiceParseError::InvalidTransport(_))));
+
+        // invalid transport, using the "-" character
+        let invoice_str = "rgb-bad:EKkb7TMfbPxzn7UhvXqhoCutzdZkSZCNYxVAVjsA67fW/RGB20/\
+                           100+6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve";
+        let result = RgbInvoice::from_str(invoice_str);
+        assert!(matches!(result, Err(InvoiceParseError::InvalidTransport(_))));
+
+        // rgbrpc scheme
+        let invoice_str = "rgbrpc1-host.example.com:EKkb7TMfbPxzn7UhvXqhoCutzdZkSZCNYxVAVjsA67fW/\
+                           RGB20/100+6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve";
+        let invoice = RgbInvoice::from_str(invoice_str).unwrap();
+        assert_eq!(invoice.transport, RgbTransport::JsonRpc {
+            tls: true,
+            host: "host.example.com".to_string()
+        });
+
+        // rgbrpc scheme, host containing "-" characters
+        let invoice_str = "rgbrpc0-host-1.ex-ample.com:\
+                           EKkb7TMfbPxzn7UhvXqhoCutzdZkSZCNYxVAVjsA67fW/RGB20/\
+                           100+6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve";
+        let invoice = RgbInvoice::from_str(invoice_str).unwrap();
+        assert_eq!(invoice.transport, RgbTransport::JsonRpc {
+            tls: false,
+            host: "host-1.ex-ample.com".to_string()
+        });
+
+        // rgbrpc scheme with invalid tls specification
+        let invoice_str = "rgbrpca-host.example.com:EKkb7TMfbPxzn7UhvXqhoCutzdZkSZCNYxVAVjsA67fW/\
+                           RGB20/100+6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve";
+        let result = RgbInvoice::from_str(invoice_str);
+        assert!(matches!(result, Err(InvoiceParseError::InvalidTransport(_))));
+
+        // rgbrpc scheme with missing separator and host
+        let invoice_str = "rgbrpc1:EKkb7TMfbPxzn7UhvXqhoCutzdZkSZCNYxVAVjsA67fW/RGB20/\
+                           100+6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve";
+        let result = RgbInvoice::from_str(invoice_str);
+        assert!(matches!(result, Err(InvoiceParseError::InvalidTransport(_))));
+
+        // rgbrpc scheme with missing host
+        let invoice_str = "rgbrpc1-:EKkb7TMfbPxzn7UhvXqhoCutzdZkSZCNYxVAVjsA67fW/RGB20/\
+                           100+6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve";
+        let result = RgbInvoice::from_str(invoice_str);
+        assert!(matches!(result, Err(InvoiceParseError::InvalidTransportHost(_))));
+
+        // rgbrpc scheme with invalid separator
+        let invoice_str = "rgbrpc1+host.example.com:EKkb7TMfbPxzn7UhvXqhoCutzdZkSZCNYxVAVjsA67fW/\
+                           RGB20/100+6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve";
+        let result = RgbInvoice::from_str(invoice_str);
+        assert!(matches!(result, Err(InvoiceParseError::InvalidTransport(_))));
+
+        // rgbrpc scheme with invalid transport host specification
+        let invoice_str = "rgbrpc1-ho$t:EKkb7TMfbPxzn7UhvXqhoCutzdZkSZCNYxVAVjsA67fW/RGB20/\
+                           100+6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve";
+        let result = RgbInvoice::from_str(invoice_str);
+        assert!(matches!(result, Err(InvoiceParseError::Uri(_))));
     }
 }
