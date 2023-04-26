@@ -146,22 +146,22 @@ fn percent_decode(estr: &EStr) -> Result<String, InvoiceParseError> {
         .to_string())
 }
 
-impl RgbInvoice {
-    fn map_query_params(uri: &Uri<&str>) -> Result<IndexMap<String, String>, InvoiceParseError> {
-        let mut map: IndexMap<String, String> = IndexMap::new();
-        if let Some(q) = uri.query() {
-            let params = q.split('&');
-            for p in params {
-                if let Some((k, v)) = p.split_once('=') {
-                    map.insert(percent_decode(k)?, percent_decode(v)?);
-                } else {
-                    return Err(InvoiceParseError::InvalidQueryParam(p.to_string()));
-                }
+fn map_query_params(uri: &Uri<&str>) -> Result<IndexMap<String, String>, InvoiceParseError> {
+    let mut map: IndexMap<String, String> = IndexMap::new();
+    if let Some(q) = uri.query() {
+        let params = q.split('&');
+        for p in params {
+            if let Some((k, v)) = p.split_once('=') {
+                map.insert(percent_decode(k)?, percent_decode(v)?);
+            } else {
+                return Err(InvoiceParseError::InvalidQueryParam(p.to_string()));
             }
         }
-        Ok(map)
     }
+    Ok(map)
+}
 
+impl RgbInvoice {
     fn has_params(&self) -> bool { self.expiry.is_some() || !self.unknown_query.is_empty() }
 
     fn query_params(&self) -> IndexMap<String, String> {
@@ -276,7 +276,7 @@ impl FromStr for RgbInvoice {
                 }
             };
 
-        let mut query_params = RgbInvoice::map_query_params(&uri)?;
+        let mut query_params = map_query_params(&uri)?;
 
         let mut expiry = None;
         if let Some(exp) = query_params.remove(EXPIRY) {
