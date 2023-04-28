@@ -41,7 +41,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let filename = args
         .get(2)
         .cloned()
-        .unwrap_or_else(|| format!("stl/StandardLib-v0.10.{ext}"));
+        .unwrap_or_else(|| format!("stl/RGBContracts-v0.10.1.C.{ext}"));
     let mut file = match args.len() {
         1 => Box::new(stdout()) as Box<dyn io::Write>,
         2 | 3 => Box::new(fs::File::create(filename)?) as Box<dyn io::Write>,
