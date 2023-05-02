@@ -25,7 +25,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f26966af46e0d200e8bf2b7f16230997c1c3f2d141bc27ccc091c012ed527b58"
 dependencies = [
  "amplify_apfloat",
- "amplify_derive 3.0.0",
+ "amplify_derive 3.0.1",
  "amplify_num",
  "amplify_syn",
  "ascii",
@@ -49,9 +49,9 @@ dependencies = [
 
 [[package]]
 name = "amplify_derive"
-version = "3.0.0"
+version = "3.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "580f12b79a9e10cfa8d2515128d83a53f387e290096a75904c92b8a2a4d542a6"
+checksum = "c87df0f28e6eb1f2d355f29ba6793fa9ca643967528609608d5cbd70bd68f9d1"
 dependencies = [
  "amplify_syn",
  "proc-macro2",
@@ -82,9 +82,9 @@ dependencies = [
 
 [[package]]
 name = "amplify_syn"
-version = "2.0.0"
+version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "29b08d74fda406d5a94abfdcdb91ba13bb06562ccf0a4581867fa924ca242b01"
+checksum = "7736fb8d473c0d83098b5bac44df6a561e20470375cd8bcae30516dc889fd62a"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -222,8 +222,7 @@ dependencies = [
 [[package]]
 name = "bp-core"
 version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f410514e60dacfb6deba8629db1d267878174281bee45e459b09adaed38e4769"
+source = "git+https://github.com/BP-WG/bp-core?branch=commit_derive#fb7405417fd2aef5a953097cf056e90b2af5e296"
 dependencies = [
  "amplify",
  "bp-dbc",
@@ -238,8 +237,7 @@ dependencies = [
 [[package]]
 name = "bp-dbc"
 version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74e0814e4d2c560767853bba914749bb571ea074caddade66fe15db16b4a1e17"
+source = "git+https://github.com/BP-WG/bp-core?branch=commit_derive#fb7405417fd2aef5a953097cf056e90b2af5e296"
 dependencies = [
  "amplify",
  "baid58",
@@ -253,8 +251,7 @@ dependencies = [
 [[package]]
 name = "bp-primitives"
 version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0daf04647d5ea2465de0a1ab27b8bb6abb01bd7c84e99c65a5ca50440cca30be"
+source = "git+https://github.com/BP-WG/bp-core?branch=commit_derive#fb7405417fd2aef5a953097cf056e90b2af5e296"
 dependencies = [
  "amplify",
  "commit_verify",
@@ -266,8 +263,7 @@ dependencies = [
 [[package]]
 name = "bp-seals"
 version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e99c62130e9b9e8422f69c84a492494b637247b0c13ba463b78fdfd34bbe887"
+source = "git+https://github.com/BP-WG/bp-core?branch=commit_derive#fb7405417fd2aef5a953097cf056e90b2af5e296"
 dependencies = [
  "amplify",
  "baid58",
@@ -328,12 +324,24 @@ dependencies = [
 ]
 
 [[package]]
-name = "commit_verify"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a517ba2f2008e980c6cefe0553a7b56541b0a129e9e809d36770c9b1c6429c1b"
+name = "commit_encoding_derive"
+version = "0.10.0-beta.1"
+source = "git+https://github.com/LNP-BP/client_side_validation?branch=commit_encode_derive#bb1567daff74fbc243638256434a322562989fd1"
 dependencies = [
  "amplify",
+ "amplify_syn",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "commit_verify"
+version = "0.10.1"
+source = "git+https://github.com/LNP-BP/client_side_validation?branch=commit_encode_derive#bb1567daff74fbc243638256434a322562989fd1"
+dependencies = [
+ "amplify",
+ "commit_encoding_derive",
  "rand",
  "serde",
  "strict_encoding",
@@ -734,8 +742,7 @@ dependencies = [
 [[package]]
 name = "rgb-core"
 version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6fa845ea3806a32fb2c4c8e8232aff3d6f9a67e3c27fea4c5b595441bbd87724"
+source = "git+https://github.com/RGB-WG/rgb-core?branch=fix/op-conceal#0f87c632e47232c26de78a5d49076685fda779dc"
 dependencies = [
  "aluvm",
  "amplify",
@@ -1374,9 +1381,9 @@ checksum = "1a515f5799fe4961cb532f983ce2b23082366b898e52ffbce459c86f67c8378a"
 
 [[package]]
 name = "winnow"
-version = "0.4.1"
+version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae8970b36c66498d8ff1d66685dc86b91b29db0c7739899012f63a63814b4b28"
+checksum = "69af645a61644c6dd379ade8b77cc87efb5393c988707bad12d3c8e00c50f669"
 dependencies = [
  "memchr",
 ]
