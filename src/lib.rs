@@ -64,7 +64,9 @@ mod invoice;
 mod pay;
 pub mod psbt;
 
-pub use invoice::{Beneficiary, InvoiceParseError, InvoiceState, RgbInvoice, RgbTransport};
+pub use invoice::{
+    Beneficiary, InvoiceParseError, InvoiceState, RgbInvoice, RgbTransport, TransportParseError,
+};
 pub use pay::{InventoryWallet, PayError};
 
 // 1. Construct main state transition with transition builder
