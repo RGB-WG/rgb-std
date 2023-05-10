@@ -58,7 +58,7 @@ indexmap = "1.9.2"
 # TODO: This dependencies should be replaced with psbt package
 bitcoin = "0.30.0"
 chrono = "0.4.24"
-urlencoding = "2.1.2"
+percent-encoding = "2.2.0"
 
 [features]
 default = []

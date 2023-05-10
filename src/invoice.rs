@@ -28,26 +28,85 @@ use bp::Chain;
 use fluent_uri::enc::EStr;
 use fluent_uri::Uri;
 use indexmap::IndexMap;
+use percent_encoding::{utf8_percent_encode, AsciiSet, CONTROLS};
 use rgb::{AttachId, ContractId, SecretSeal};
 use rgbstd::interface::TypedState;
 use strict_encoding::{InvalidIdent, TypeName};
-use urlencoding::encode;
 
 const OMITTED: char = '~';
 const EXPIRY: &str = "expiry";
+const ENDPOINTS: &str = "endpoints";
+const TRANSPORT_SEP: char = ',';
+const TRANSPORT_HOST_SEP: &str = "://";
+const QUERY_ENCODE: &AsciiSet = &CONTROLS
+    .add(b' ')
+    .add(b'"')
+    .add(b'#')
+    .add(b'<')
+    .add(b'>')
+    .add(b'[')
+    .add(b']')
+    .add(b'&')
+    .add(b'=');
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub enum RgbTransport {
-    #[display("rgb-rpc{tls}://host/")]
     JsonRpc { tls: bool, host: String },
-    #[display("rgb+http{tls}://host/")]
     RestHttp { tls: bool, host: String },
-    #[display("rgb+ws{tls}://host/")]
     WebSockets { tls: bool, host: String },
-    #[display("rgb+storm://_/")]
     Storm {/* todo */},
-    #[display("rgb:")]
     UnspecifiedMeans,
+}
+
+impl std::fmt::Display for RgbTransport {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RgbTransport::JsonRpc { tls, host } => {
+                let s = if *tls { "s" } else { "" };
+                write!(f, "rpc{s}{TRANSPORT_HOST_SEP}{}", host)?;
+            }
+            RgbTransport::RestHttp { tls, host } => {
+                let s = if *tls { "s" } else { "" };
+                write!(f, "http{s}{TRANSPORT_HOST_SEP}{}", host)?;
+            }
+            RgbTransport::WebSockets { tls, host } => {
+                let s = if *tls { "s" } else { "" };
+                write!(f, "ws{s}{TRANSPORT_HOST_SEP}{}", host)?;
+            }
+            RgbTransport::Storm {} => {
+                write!(f, "storm{TRANSPORT_HOST_SEP}_/")?;
+            }
+            RgbTransport::UnspecifiedMeans => {}
+        };
+        Ok(())
+    }
+}
+
+impl FromStr for RgbTransport {
+    type Err = TransportParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let tokens = s.split_once(TRANSPORT_HOST_SEP);
+        if tokens.is_none() {
+            return Err(TransportParseError::InvalidTransport(s.to_string()));
+        }
+        let (trans_type, host) = tokens.unwrap();
+        if host.is_empty() {
+            return Err(TransportParseError::InvalidTransportHost(host.to_string()));
+        }
+        let host = host.to_string();
+        let transport = match trans_type {
+            "rpc" => RgbTransport::JsonRpc { tls: false, host },
+            "rpcs" => RgbTransport::JsonRpc { tls: true, host },
+            "http" => RgbTransport::RestHttp { tls: false, host },
+            "https" => RgbTransport::RestHttp { tls: true, host },
+            "ws" => RgbTransport::WebSockets { tls: false, host },
+            "wss" => RgbTransport::WebSockets { tls: true, host },
+            "storm" => RgbTransport::Storm {},
+            _ => return Err(TransportParseError::InvalidTransport(s.to_string())),
+        };
+        Ok(transport)
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
@@ -74,7 +133,7 @@ pub enum Beneficiary {
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct RgbInvoice {
-    pub transport: RgbTransport,
+    pub transports: Vec<RgbTransport>,
     pub contract: Option<ContractId>,
     pub iface: Option<TypeName>,
     pub operation: Option<TypeName>,
@@ -89,6 +148,18 @@ pub struct RgbInvoice {
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(inner)]
+pub enum TransportParseError {
+    #[display(doc_comments)]
+    /// invalid transport {0}.
+    InvalidTransport(String),
+
+    #[display(doc_comments)]
+    /// invalid transport host {0}.
+    InvalidTransportHost(String),
+}
+
+#[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
+#[display(inner)]
 pub enum InvoiceParseError {
     #[from]
     Uri(fluent_uri::ParseError),
@@ -98,7 +169,15 @@ pub enum InvoiceParseError {
     Invalid,
 
     #[display(doc_comments)]
-    /// invalid invoice: contract ID present but no contract interface provided
+    /// invalid invoice scheme {0}.
+    InvalidScheme(String),
+
+    #[display(doc_comments)]
+    /// no invoice transport has been provided.
+    NoTransport,
+
+    #[display(doc_comments)]
+    /// invalid invoice: contract ID present but no contract interface provided.
     ContractIdNoIface,
 
     #[display(doc_comments)]
@@ -106,15 +185,15 @@ pub enum InvoiceParseError {
     InvalidContractId(String),
 
     #[display(doc_comments)]
-    /// invalid interface {0}
+    /// invalid interface {0}.
     InvalidIface(String),
 
     #[display(doc_comments)]
-    /// invalid expiration timestamp {0}
+    /// invalid expiration timestamp {0}.
     InvalidExpiration(String),
 
     #[display(doc_comments)]
-    /// invalid query parameter {0}
+    /// invalid query parameter {0}.
     InvalidQueryParam(String),
 
     #[from]
@@ -146,28 +225,39 @@ fn percent_decode(estr: &EStr) -> Result<String, InvoiceParseError> {
         .to_string())
 }
 
-impl RgbInvoice {
-    fn map_query_params(uri: &Uri<&str>) -> Result<IndexMap<String, String>, InvoiceParseError> {
-        let mut map: IndexMap<String, String> = IndexMap::new();
-        if let Some(q) = uri.query() {
-            let params = q.split('&');
-            for p in params {
-                if let Some((k, v)) = p.split_once('=') {
-                    map.insert(percent_decode(k)?, percent_decode(v)?);
-                } else {
-                    return Err(InvoiceParseError::InvalidQueryParam(p.to_string()));
-                }
+fn map_query_params(uri: &Uri<&str>) -> Result<IndexMap<String, String>, InvoiceParseError> {
+    let mut map: IndexMap<String, String> = IndexMap::new();
+    if let Some(q) = uri.query() {
+        let params = q.split('&');
+        for p in params {
+            if let Some((k, v)) = p.split_once('=') {
+                map.insert(percent_decode(k)?, percent_decode(v)?);
+            } else {
+                return Err(InvoiceParseError::InvalidQueryParam(p.to_string()));
             }
         }
-        Ok(map)
     }
+    Ok(map)
+}
 
-    fn has_params(&self) -> bool { self.expiry.is_some() || !self.unknown_query.is_empty() }
+impl RgbInvoice {
+    fn has_params(&self) -> bool {
+        self.expiry.is_some() ||
+            self.transports != vec![RgbTransport::UnspecifiedMeans] ||
+            !self.unknown_query.is_empty()
+    }
 
     fn query_params(&self) -> IndexMap<String, String> {
         let mut query_params: IndexMap<String, String> = IndexMap::new();
         if let Some(expiry) = self.expiry {
             query_params.insert(EXPIRY.to_string(), expiry.to_string());
+        }
+        if self.transports != vec![RgbTransport::UnspecifiedMeans] {
+            let mut transports: Vec<String> = vec![];
+            for transport in self.transports.clone() {
+                transports.push(transport.to_string());
+            }
+            query_params.insert(ENDPOINTS.to_string(), transports.join(&TRANSPORT_SEP.to_string()));
         }
         query_params.extend(self.unknown_query.clone());
         query_params
@@ -177,7 +267,7 @@ impl RgbInvoice {
 impl std::fmt::Display for RgbInvoice {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let amt = self.owned_state.to_string();
-        write!(f, "{}", self.transport)?;
+        write!(f, "rgb:")?;
         if let Some(contract) = self.contract {
             write!(f, "{}/", contract.to_baid58())?;
         } else {
@@ -203,10 +293,20 @@ impl std::fmt::Display for RgbInvoice {
         }
         let query_params = self.query_params();
         for (key, val) in query_params.iter().take(1) {
-            write!(f, "{}={}", encode(key), encode(val))?;
+            write!(
+                f,
+                "{}={}",
+                utf8_percent_encode(key, QUERY_ENCODE),
+                utf8_percent_encode(val, QUERY_ENCODE)
+            )?;
         }
         for (key, val) in query_params.iter().skip(1) {
-            write!(f, "&{}={}", encode(key), encode(val))?;
+            write!(
+                f,
+                "&{}={}",
+                utf8_percent_encode(key, QUERY_ENCODE),
+                utf8_percent_encode(val, QUERY_ENCODE)
+            )?;
         }
         Ok(())
     }
@@ -217,6 +317,11 @@ impl FromStr for RgbInvoice {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let uri = Uri::parse(s)?;
+
+        let scheme = uri.scheme().ok_or(InvoiceParseError::Invalid)?.to_string();
+        if scheme != "rgb" {
+            return Err(InvoiceParseError::InvalidScheme(scheme));
+        }
 
         let path = uri
             .path()
@@ -276,7 +381,21 @@ impl FromStr for RgbInvoice {
                 }
             };
 
-        let mut query_params = RgbInvoice::map_query_params(&uri)?;
+        let mut query_params = map_query_params(&uri)?;
+
+        let transports = if let Some(endpoints) = query_params.remove(ENDPOINTS) {
+            let tokens: Vec<&str> = endpoints.split(TRANSPORT_SEP).collect();
+            let mut transport_vec: Vec<RgbTransport> = vec![];
+            for token in tokens {
+                transport_vec.push(
+                    RgbTransport::from_str(token)
+                        .map_err(|e| InvoiceParseError::InvalidQueryParam(e.to_string()))?,
+                );
+            }
+            transport_vec
+        } else {
+            vec![RgbTransport::UnspecifiedMeans]
+        };
 
         let mut expiry = None;
         if let Some(exp) = query_params.remove(EXPIRY) {
@@ -287,7 +406,7 @@ impl FromStr for RgbInvoice {
         }
 
         Ok(RgbInvoice {
-            transport: RgbTransport::UnspecifiedMeans,
+            transports,
             contract,
             iface,
             operation: None,
@@ -340,9 +459,8 @@ mod test {
         let invoice_str =
             format!("rgb:{invalid_contract_id}/RGB20/6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve");
         let result = RgbInvoice::from_str(&invoice_str);
-        assert!(
-            matches!(result, Err(InvoiceParseError::InvalidContractId(c)) if c == invalid_contract_id)
-        );
+        assert!(matches!(result,
+                Err(InvoiceParseError::InvalidContractId(c)) if c == invalid_contract_id));
 
         // with expiration
         let invoice_str = "rgb:EKkb7TMfbPxzn7UhvXqhoCutzdZkSZCNYxVAVjsA67fW/RGB20/\
@@ -385,10 +503,10 @@ mod test {
         // with an unknown query parameter containing percent-encoded text
         let invoice_base = "rgb:EKkb7TMfbPxzn7UhvXqhoCutzdZkSZCNYxVAVjsA67fW/RGB20/\
                             100+6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve?";
-        let query_key_encoded = "%21%24";
-        let query_key_decoded = "!$";
-        let query_val_encoded = "%3F%2F%26%3D";
-        let query_val_decoded = "?/&=";
+        let query_key_encoded = ":@-%20%23";
+        let query_key_decoded = ":@- #";
+        let query_val_encoded = "?/.%26%3D";
+        let query_val_decoded = "?/.&=";
         let invoice =
             RgbInvoice::from_str(&format!("{invoice_base}{query_key_encoded}={query_val_encoded}"))
                 .unwrap();
@@ -398,5 +516,158 @@ mod test {
             invoice.to_string(),
             format!("{invoice_base}{query_key_encoded}={query_val_encoded}")
         );
+
+        // no scheme
+        let invoice_str = "EKkb7TMfbPxzn7UhvXqhoCutzdZkSZCNYxVAVjsA67fW/~/\
+                           6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve";
+        let result = RgbInvoice::from_str(invoice_str);
+        assert!(matches!(result, Err(InvoiceParseError::Invalid)));
+
+        // invalid scheme
+        let invoice_str = "bad:EKkb7TMfbPxzn7UhvXqhoCutzdZkSZCNYxVAVjsA67fW/~/\
+                           6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve";
+        let result = RgbInvoice::from_str(invoice_str);
+        assert!(matches!(result, Err(InvoiceParseError::InvalidScheme(_))));
+
+        // empty transport endpoint specification
+        let invoice_str = "rgb:EKkb7TMfbPxzn7UhvXqhoCutzdZkSZCNYxVAVjsA67fW/RGB20/\
+                           100+6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve?endpoints=";
+        let result = RgbInvoice::from_str(invoice_str);
+        assert!(matches!(result, Err(InvoiceParseError::InvalidQueryParam(_))));
+
+        // invalid transport endpoint specification
+        let invoice_str = "rgb:EKkb7TMfbPxzn7UhvXqhoCutzdZkSZCNYxVAVjsA67fW/RGB20/\
+                           100+6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve?endpoints=bad";
+        let result = RgbInvoice::from_str(invoice_str);
+        assert!(matches!(result, Err(InvoiceParseError::InvalidQueryParam(_))));
+
+        // invalid transport variant
+        let invoice_str = "rgb:EKkb7TMfbPxzn7UhvXqhoCutzdZkSZCNYxVAVjsA67fW/RGB20/\
+                           100+6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve?endpoints=rpca://host.\
+                           example.com";
+        let result = RgbInvoice::from_str(invoice_str);
+        assert!(matches!(result, Err(InvoiceParseError::InvalidQueryParam(_))));
+
+        // rgb-rpc variant
+        let invoice_str = "rgb:EKkb7TMfbPxzn7UhvXqhoCutzdZkSZCNYxVAVjsA67fW/RGB20/\
+                           100+6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve?endpoints=rpc://host.\
+                           example.com";
+        let invoice = RgbInvoice::from_str(invoice_str).unwrap();
+        assert_eq!(invoice.transports, vec![RgbTransport::JsonRpc {
+            tls: false,
+            host: "host.example.com".to_string()
+        }]);
+        assert_eq!(invoice.to_string(), invoice_str);
+
+        // rgb-rpc variant, host containing authentication, "-" characters and port
+        let invoice_str = "rgb:EKkb7TMfbPxzn7UhvXqhoCutzdZkSZCNYxVAVjsA67fW/RGB20/\
+                           100+6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve?endpoints=rpcs://user:\
+                           pass@host-1.ex-ample.com:1234";
+        let invoice = RgbInvoice::from_str(invoice_str).unwrap();
+        assert_eq!(invoice.transports, vec![RgbTransport::JsonRpc {
+            tls: true,
+            host: "user:pass@host-1.ex-ample.com:1234".to_string()
+        }]);
+        assert_eq!(invoice.to_string(), invoice_str);
+
+        // rgb-rpc variant, IPv6 host
+        let invoice_str = "rgb:EKkb7TMfbPxzn7UhvXqhoCutzdZkSZCNYxVAVjsA67fW/RGB20/\
+                           100+6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve?endpoints=rpcs://%\
+                           5B2001:db8::1%5D:1234";
+        let invoice = RgbInvoice::from_str(invoice_str).unwrap();
+        assert_eq!(invoice.transports, vec![RgbTransport::JsonRpc {
+            tls: true,
+            host: "[2001:db8::1]:1234".to_string()
+        }]);
+        assert_eq!(invoice.to_string(), invoice_str);
+
+        // rgb-rpc variant with missing host
+        let invoice_str = "rgb:EKkb7TMfbPxzn7UhvXqhoCutzdZkSZCNYxVAVjsA67fW/RGB20/\
+                           100+6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve?endpoints=rpc://";
+        let result = RgbInvoice::from_str(invoice_str);
+        assert!(matches!(result, Err(InvoiceParseError::InvalidQueryParam(_))));
+
+        // rgb-rpc variant with invalid separator
+        let invoice_str = "rgb:EKkb7TMfbPxzn7UhvXqhoCutzdZkSZCNYxVAVjsA67fW/RGB20/\
+                           100+6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve?endpoints=rpc/host.\
+                           example.com";
+        let result = RgbInvoice::from_str(invoice_str);
+        assert!(matches!(result, Err(InvoiceParseError::InvalidQueryParam(_))));
+
+        // rgb-rpc variant with invalid transport host specification
+        let invoice_str = "rgb:EKkb7TMfbPxzn7UhvXqhoCutzdZkSZCNYxVAVjsA67fW/RGB20/\
+                           100+6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve?endpoints=rpc://ho]t";
+        let result = RgbInvoice::from_str(invoice_str);
+        assert!(matches!(result, Err(InvoiceParseError::Uri(_))));
+
+        // rgb+http variant
+        let invoice_str = "rgb:\
+                           EKkb7TMfbPxzn7UhvXqhoCutzdZkSZCNYxVAVjsA67fW/RGB20/\
+                           100+6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve?endpoints=https://\
+                           host.example.com";
+        let invoice = RgbInvoice::from_str(invoice_str).unwrap();
+        let transports = vec![RgbTransport::RestHttp {
+            tls: true,
+            host: "host.example.com".to_string(),
+        }];
+        assert_eq!(invoice.transports, transports);
+        assert_eq!(invoice.to_string(), invoice_str);
+
+        // rgb+ws variant
+        let invoice_str = "rgb:EKkb7TMfbPxzn7UhvXqhoCutzdZkSZCNYxVAVjsA67fW/RGB20/\
+                           100+6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve?endpoints=wss://host.\
+                           example.com";
+        let invoice = RgbInvoice::from_str(invoice_str).unwrap();
+        let transports = vec![RgbTransport::WebSockets {
+            tls: true,
+            host: "host.example.com".to_string(),
+        }];
+        assert_eq!(invoice.transports, transports);
+        assert_eq!(invoice.to_string(), invoice_str);
+
+        // TODO: rgb+storm variant
+
+        // multiple transports
+        let invoice_str = "rgb:\
+                           EKkb7TMfbPxzn7UhvXqhoCutzdZkSZCNYxVAVjsA67fW/RGB20/\
+                           100+6kzbKKffP6xftkxn9UP8gWqiC41W16wYKE5CYaVhmEve?endpoints=rpcs://\
+                           host1.example.com,http://host2.example.com,ws://host3.example.com";
+        let invoice = RgbInvoice::from_str(invoice_str).unwrap();
+        let transports = vec![
+            RgbTransport::JsonRpc {
+                tls: true,
+                host: "host1.example.com".to_string(),
+            },
+            RgbTransport::RestHttp {
+                tls: false,
+                host: "host2.example.com".to_string(),
+            },
+            RgbTransport::WebSockets {
+                tls: false,
+                host: "host3.example.com".to_string(),
+            },
+        ];
+        assert_eq!(invoice.transports, transports);
+        assert_eq!(invoice.to_string(), invoice_str);
+
+        // empty transport parse error
+        let result = RgbTransport::from_str("");
+        assert!(matches!(result, Err(TransportParseError::InvalidTransport(_))));
+
+        // invalid transport parse error
+        let result = RgbTransport::from_str("bad");
+        assert!(matches!(result, Err(TransportParseError::InvalidTransport(_))));
+
+        // invalid transport variant parse error
+        let result = RgbTransport::from_str("rpca://host.example.com");
+        assert!(matches!(result, Err(TransportParseError::InvalidTransport(_))));
+
+        // rgb-rpc variant with missing host parse error
+        let result = RgbTransport::from_str("rpc://");
+        assert!(matches!(result, Err(TransportParseError::InvalidTransportHost(_))));
+
+        // rgb-rpc variant with invalid separator parse error
+        let result = RgbTransport::from_str("rpc/host.example.com");
+        assert!(matches!(result, Err(TransportParseError::InvalidTransport(_))));
     }
 }
