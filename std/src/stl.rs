@@ -38,6 +38,18 @@ use strict_types::{typesys, Dependency, SemId, TypeLib, TypeLibId, TypeSystem};
 
 pub const LIB_NAME_RGB_CONTRACT: &str = "RGBContract";
 
+#[derive(Wrapper, WrapperMut, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Debug, Default, From)]
+#[wrapper(Deref, Display, FromStr, MathOps)]
+#[wrapper_mut(DerefMut, MathAssign)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_CONTRACT)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", transparent)
+)]
+pub struct Timestamp(i32);
+
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Debug, Default)]
 #[repr(u8)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
@@ -291,10 +303,10 @@ impl StandardLib {
     pub fn new() -> Self {
         fn builder() -> Result<TypeLib, Error> {
             let bitcoin_id = TypeLibId::from_str(
-                "salsa_peace_patron_26G1K9hm6R2BkzGJwHjLC9cB1JFJiAPCDWrJAoRCrkCg",
+                "circus_report_jeep_2bj6eDer24ZBSVq6JgQW2BrARt6vx56vMWzF35J45gzY",
             )?;
             let bpcore_id = TypeLibId::from_str(
-                "human_alarm_video_Hzm5L9FnBnXfocDtyc1i1PmKs1SYXsBQzL4vtd4BVA4S",
+                "harlem_null_puma_DxuLX8d9UiMyEJMRJivMFviK1B8t1QWyjywXuDC13iKR",
             )?;
 
             let imports = bset! {
@@ -303,6 +315,7 @@ impl StandardLib {
             };
 
             LibBuilder::new(libname!(LIB_NAME_RGB_CONTRACT))
+                .process::<Timestamp>()?
                 .process::<Nominal>()?
                 .process::<ContractText>()?
                 .compile(imports)
