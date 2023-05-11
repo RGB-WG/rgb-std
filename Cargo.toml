@@ -19,11 +19,11 @@ license = "Apache-2.0"
 [workspace.dependencies]
 amplify = "4.0.0"
 baid58 = "0.3.1"
-strict_encoding = "2.0.0"
-strict_types = "1.0.0"
+strict_encoding = "2.1.1"
+strict_types = "1.1.0"
 commit_verify = "0.10.0"
-bp-core = "0.10.0"
-rgb-core = "0.10.0"
+bp-core = "0.10.1"
+rgb-core = "0.10.1"
 
 [package]
 name = "rgb-wallet"
@@ -76,3 +76,11 @@ wasm-bindgen-test = "0.3"
 
 [package.metadata.docs.rs]
 features = [ "all" ]
+
+[patch.crates-io]
+commit_verify = { git = "https://github.com/LNP-BP/client_side_validation", branch = "commit_encode_derive" }
+bp-core = { git = "https://github.com/BP-WG/bp-core", branch = "commit_derive" }
+bp-primitives = { git = "https://github.com/BP-WG/bp-core", branch = "commit_derive" }
+bp-dbc = { git = "https://github.com/BP-WG/bp-core", branch = "commit_derive" }
+bp-seals = { git = "https://github.com/BP-WG/bp-core", branch = "commit_derive" }
+rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "fix/op-conceal" }
