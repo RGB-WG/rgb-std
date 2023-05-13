@@ -27,7 +27,9 @@ use strict_types::typelib::LibBuilder;
 use strict_types::typesys::SystemBuilder;
 use strict_types::{Dependency, SemId, TypeLib, TypeLibId, TypeSystem};
 
-use super::{DivisibleAssetSpec, Error, RicardianContract, Timestamp, LIB_NAME_RGB_CONTRACT};
+use super::{
+    DivisibleAssetSpec, Error, MediaType, RicardianContract, Timestamp, LIB_NAME_RGB_CONTRACT,
+};
 
 #[derive(Debug)]
 pub struct StandardLib(TypeLib);
@@ -51,6 +53,7 @@ impl StandardLib {
                 .process::<Timestamp>()?
                 .process::<DivisibleAssetSpec>()?
                 .process::<RicardianContract>()?
+                .process::<MediaType>()?
                 .compile(imports)
                 .map_err(Error::from)
         }

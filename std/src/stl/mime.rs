@@ -19,7 +19,99 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::fmt::{self, Debug, Formatter};
+use std::str::FromStr;
+
+use amplify::ascii::AsciiString;
+use amplify::confinement::{Confined, NonEmptyVec};
+use strict_encoding::{
+    InvalidIdent, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, TypedWrite,
+};
+
 use super::LIB_NAME_RGB_CONTRACT;
+
+#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_CONTRACT)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
+pub struct MediaType {
+    pub r#type: MediaRegName,
+    pub subtype: MediaRegName,
+    pub charset: Option<MediaRegName>,
+}
+impl StrictDumb for MediaType {
+    fn strict_dumb() -> Self { MediaType::with("text/plain") }
+}
+impl StrictSerialize for MediaType {}
+impl StrictDeserialize for MediaType {}
+
+impl MediaType {
+    /// # Safety
+    ///
+    /// Panics is the provided string is an invalid type specifier.
+    pub fn with(s: &'static str) -> Self {
+        let (ty, subty) = s.split_once("/").expect("invalid static media type string");
+        MediaType {
+            r#type: MediaRegName::from(ty),
+            subtype: MediaRegName::from(subty),
+            charset: None,
+        }
+    }
+}
+
+#[derive(Wrapper, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, From)]
+#[wrapper(Deref, Display)]
+#[derive(StrictType, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_CONTRACT)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", transparent)
+)]
+pub struct MediaRegName(Confined<AsciiString, 1, 64>);
+impl StrictEncode for MediaRegName {
+    fn strict_encode<W: TypedWrite>(&self, writer: W) -> std::io::Result<W> {
+        writer.write_newtype::<Self>(
+            &NonEmptyVec::<MimeChar, 64>::try_from_iter([MimeChar::try_from(b'D').unwrap()])
+                .unwrap(),
+        )
+    }
+}
+
+impl StrictDumb for MediaRegName {
+    fn strict_dumb() -> Self { MediaRegName::from("dumb") }
+}
+
+// TODO: Ensure all constructors filter invalid characters
+impl FromStr for MediaRegName {
+    type Err = InvalidIdent;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = AsciiString::from_ascii(s.as_bytes())?;
+        let s = Confined::try_from_iter(s.chars())?;
+        Ok(Self(s))
+    }
+}
+
+impl From<&'static str> for MediaRegName {
+    fn from(s: &'static str) -> Self { Self::from_str(s).expect("invalid ticker name") }
+}
+
+impl TryFrom<String> for MediaRegName {
+    type Error = InvalidIdent;
+
+    fn try_from(name: String) -> Result<Self, InvalidIdent> {
+        let name = AsciiString::from_ascii(name.as_bytes())?;
+        let s = Confined::try_from(name)?;
+        Ok(Self(s))
+    }
+}
+
+impl Debug for MediaRegName {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("ContractName").field(&self.as_str()).finish()
+    }
+}
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
 #[derive(StrictDumb, StrictType, StrictEncode, StrictDecode)]
