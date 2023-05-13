@@ -22,6 +22,7 @@
 mod specs;
 mod stl;
 mod error;
+mod mime;
 
 pub(self) use error::Error;
 pub use specs::{
