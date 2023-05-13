@@ -23,6 +23,7 @@ use std::str::FromStr;
 
 use bp::dbc::LIB_NAME_BPCORE;
 use bp::LIB_NAME_BITCOIN;
+use strict_encoding::STD_LIB;
 use strict_types::typelib::LibBuilder;
 use strict_types::typesys::SystemBuilder;
 use strict_types::{Dependency, SemId, TypeLib, TypeLibId, TypeSystem};
@@ -44,10 +45,14 @@ impl StandardLib {
             let bpcore_id = TypeLibId::from_str(
                 "harlem_null_puma_DxuLX8d9UiMyEJMRJivMFviK1B8t1QWyjywXuDC13iKR",
             )?;
+            let stdlib_id = TypeLibId::from_str(
+                "alabama_speed_polo_J2wwnFdkbUQt2sg5EZndccZdPZgFUGmLcK3Uw5TbzjRh",
+            )?;
 
             let imports = bset! {
                 Dependency::with(bitcoin_id, libname!(LIB_NAME_BITCOIN)),
                 Dependency::with(bpcore_id, libname!(LIB_NAME_BPCORE)),
+                Dependency::with(stdlib_id, libname!(STD_LIB)),
             };
 
             LibBuilder::new(libname!(LIB_NAME_RGB_CONTRACT))
