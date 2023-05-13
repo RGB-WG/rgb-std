@@ -35,7 +35,9 @@ use super::LIB_NAME_RGB_CONTRACT;
 #[strict_type(lib = LIB_NAME_RGB_CONTRACT)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
 pub struct MediaType {
-    pub r#type: MediaRegName,
+    #[strict_type(rename = "type")]
+    #[cfg_attr(feature = "serde", serde(rename = "type"))]
+    pub ty: MediaRegName,
     pub subtype: MediaRegName,
     pub charset: Option<MediaRegName>,
 }
@@ -52,7 +54,7 @@ impl MediaType {
     pub fn with(s: &'static str) -> Self {
         let (ty, subty) = s.split_once("/").expect("invalid static media type string");
         MediaType {
-            r#type: MediaRegName::from(ty),
+            ty: MediaRegName::from(ty),
             subtype: MediaRegName::from(subty),
             charset: None,
         }
