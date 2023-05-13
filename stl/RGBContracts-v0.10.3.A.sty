@@ -1,0 +1,24 @@
+{-
+  Id: solid_bonus_easy_5Fs6HH4hnxvUKPhoXLFWAtjmrgWkhMFALuDLfF7izxLN
+  Name: RGBCore
+  Description: Consensus layer for RGB smart contracts
+  Author: Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
+  Copyright (C) 2023 LNP/BP Standards Association. All rights reserved.
+  License: Apache-2.0
+-}
+
+typelib RGBContract -- solid_bonus_easy_5Fs6HH4hnxvUKPhoXLFWAtjmrgWkhMFALuDLfF7izxLN
+
+-- no dependencies
+
+data AssetNaming      :: ticker Ticker
+                       , name Name
+                       , details Details?
+data Details          :: [Unicode ^ 1..0xff]
+data DivisibleAssetSpec :: naming AssetNaming, precision Precision
+data Name             :: [StdLib.AsciiPrintable ^ 1..0x28]
+data Precision        :: indivisible:0 | deci:1 | centi:2 | milli:3 | deciMilli:4 | centiMilli:5 | micro:6 | deciMicro:7 | centiMicro:8 | nano:9 | deciNano:10 | centiNano:11 | pico:12 | deciPico:13 | centiPico:14 | femto:15 | deciFemto:16 | centiFemto:17 | atto:18
+data RicardianContract :: [Unicode]
+data Ticker           :: [StdLib.AlphaCapsNum ^ 1..0x8]
+data Timestamp        :: I32
+

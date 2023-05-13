@@ -26,8 +26,12 @@ use std::fmt::{Debug, Formatter};
 use std::str::FromStr;
 
 use amplify::ascii::AsciiString;
-use amplify::confinement::{Confined, NonEmptyString, SmallString, U8};
-use strict_encoding::{InvalidIdent, StrictDeserialize, StrictDumb, StrictSerialize, StrictType};
+use amplify::confinement::{Confined, NonEmptyString, NonEmptyVec, SmallString, U8};
+use strict_encoding::ascii::{AlphaCapsNum, AsciiPrintable};
+use strict_encoding::{
+    InvalidIdent, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, StrictType,
+    TypedWrite,
+};
 
 use super::LIB_NAME_RGB_CONTRACT;
 
@@ -81,7 +85,7 @@ impl StrictDeserialize for Precision {}
 
 #[derive(Wrapper, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, From)]
 #[wrapper(Deref, Display)]
-#[derive(StrictDumb, StrictType, StrictEncode, StrictDecode)]
+#[derive(StrictDumb, StrictType, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_CONTRACT, dumb = { Ticker::from("DUMB") })]
 #[cfg_attr(
     feature = "serde",
@@ -89,9 +93,17 @@ impl StrictDeserialize for Precision {}
     serde(crate = "serde_crate", transparent)
 )]
 pub struct Ticker(Confined<AsciiString, 1, 8>);
+impl StrictEncode for Ticker {
+    fn strict_encode<W: TypedWrite>(&self, writer: W) -> std::io::Result<W> {
+        writer.write_newtype::<Self>(
+            &NonEmptyVec::<AlphaCapsNum, 8>::try_from_iter([AlphaCapsNum::D]).unwrap(),
+        )
+    }
+}
 impl StrictSerialize for Ticker {}
 impl StrictDeserialize for Ticker {}
 
+// TODO: Ensure all constructors filter invalid characters
 impl FromStr for Ticker {
     type Err = InvalidIdent;
 
@@ -142,7 +154,7 @@ impl Debug for Ticker {
 
 #[derive(Wrapper, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, From)]
 #[wrapper(Deref, Display)]
-#[derive(StrictType, StrictEncode, StrictDecode)]
+#[derive(StrictType, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_CONTRACT)]
 #[cfg_attr(
     feature = "serde",
@@ -150,6 +162,16 @@ impl Debug for Ticker {
     serde(crate = "serde_crate", transparent)
 )]
 pub struct Name(Confined<AsciiString, 1, 40>);
+impl StrictEncode for Name {
+    fn strict_encode<W: TypedWrite>(&self, writer: W) -> std::io::Result<W> {
+        writer.write_newtype::<Self>(
+            &NonEmptyVec::<AsciiPrintable, 40>::try_from_iter([
+                AsciiPrintable::try_from(b'D').unwrap()
+            ])
+            .unwrap(),
+        )
+    }
+}
 impl StrictSerialize for Name {}
 impl StrictDeserialize for Name {}
 
@@ -157,6 +179,7 @@ impl StrictDumb for Name {
     fn strict_dumb() -> Self { Name::from("Dumb contract name") }
 }
 
+// TODO: Ensure all constructors filter invalid characters
 impl FromStr for Name {
     type Err = InvalidIdent;
 
