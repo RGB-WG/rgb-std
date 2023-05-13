@@ -32,8 +32,9 @@ pub fn rgb20() -> Iface {
         version: VerNo::V1,
         name: tn!("RGB20"),
         global_state: tiny_bmap! {
-            tn!("Nominal") => Req::require(types.get("RGBContract.Nominal")),
-            tn!("ContractText") => Req::require(types.get("RGBContract.ContractText")),
+            tn!("spec") => Req::require(types.get("RGBContract.DivisibleAssetSpec")),
+            tn!("ContractText") => Req::require(types.get("RGBContract.RicardianContract")),
+
         },
         assignments: tiny_bmap! {
             tn!("Assets") => AssignIface::private(OwnedIface::Amount),

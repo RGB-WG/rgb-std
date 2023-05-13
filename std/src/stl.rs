@@ -26,12 +26,12 @@ use std::fmt::{Debug, Formatter};
 use std::str::FromStr;
 
 use amplify::ascii::AsciiString;
-use amplify::confinement::{Confined, SmallString};
+use amplify::confinement::{Confined, NonEmptyString, SmallString, U8};
 use amplify::IoError;
 use baid58::Baid58ParseError;
 use bp::dbc::LIB_NAME_BPCORE;
 use bp::LIB_NAME_BITCOIN;
-use strict_encoding::{InvalidIdent, StrictDeserialize, StrictDumb, StrictSerialize};
+use strict_encoding::{InvalidIdent, StrictDeserialize, StrictDumb, StrictSerialize, StrictType};
 use strict_types::typelib::{LibBuilder, TranslateError};
 use strict_types::typesys::SystemBuilder;
 use strict_types::{typesys, Dependency, SemId, TypeLib, TypeLibId, TypeSystem};
@@ -49,6 +49,8 @@ pub const LIB_NAME_RGB_CONTRACT: &str = "RGBContract";
     serde(crate = "serde_crate", transparent)
 )]
 pub struct Timestamp(i32);
+impl StrictSerialize for Timestamp {}
+impl StrictDeserialize for Timestamp {}
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Debug, Default)]
 #[repr(u8)]
@@ -94,6 +96,8 @@ impl StrictDeserialize for Precision {}
     serde(crate = "serde_crate", transparent)
 )]
 pub struct Ticker(Confined<AsciiString, 1, 8>);
+impl StrictSerialize for Ticker {}
+impl StrictDeserialize for Ticker {}
 
 impl FromStr for Ticker {
     type Err = InvalidIdent;
@@ -152,35 +156,39 @@ impl Debug for Ticker {
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", transparent)
 )]
-pub struct ContractName(Confined<String, 1, 40>);
+pub struct Name(Confined<AsciiString, 1, 40>);
+impl StrictSerialize for Name {}
+impl StrictDeserialize for Name {}
 
-impl StrictDumb for ContractName {
-    fn strict_dumb() -> Self { Self(Confined::try_from(s!("Dumb contract name")).unwrap()) }
+impl StrictDumb for Name {
+    fn strict_dumb() -> Self { Name::from("Dumb contract name") }
 }
 
-impl FromStr for ContractName {
+impl FromStr for Name {
     type Err = InvalidIdent;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = AsciiString::from_ascii(s.as_bytes())?;
         let s = Confined::try_from_iter(s.chars())?;
         Ok(Self(s))
     }
 }
 
-impl From<&'static str> for ContractName {
+impl From<&'static str> for Name {
     fn from(s: &'static str) -> Self { Self::from_str(s).expect("invalid ticker name") }
 }
 
-impl TryFrom<String> for ContractName {
+impl TryFrom<String> for Name {
     type Error = InvalidIdent;
 
     fn try_from(name: String) -> Result<Self, InvalidIdent> {
+        let name = AsciiString::from_ascii(name.as_bytes())?;
         let s = Confined::try_from(name)?;
         Ok(Self(s))
     }
 }
 
-impl Debug for ContractName {
+impl Debug for Name {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_tuple("ContractName").field(&self.as_str()).finish()
     }
@@ -195,15 +203,17 @@ impl Debug for ContractName {
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", transparent)
 )]
-pub struct ContractDetails(Confined<String, 40, 255>);
+pub struct Details(NonEmptyString<U8>);
+impl StrictSerialize for Details {}
+impl StrictDeserialize for Details {}
 
-impl StrictDumb for ContractDetails {
+impl StrictDumb for Details {
     fn strict_dumb() -> Self {
         Self(Confined::try_from(s!("Dumb long description which is stupid and so on...")).unwrap())
     }
 }
 
-impl FromStr for ContractDetails {
+impl FromStr for Details {
     type Err = InvalidIdent;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -212,11 +222,11 @@ impl FromStr for ContractDetails {
     }
 }
 
-impl From<&'static str> for ContractDetails {
+impl From<&'static str> for Details {
     fn from(s: &'static str) -> Self { Self::from_str(s).expect("invalid ticker name") }
 }
 
-impl TryFrom<String> for ContractDetails {
+impl TryFrom<String> for Details {
     type Error = InvalidIdent;
 
     fn try_from(name: String) -> Result<Self, InvalidIdent> {
@@ -225,7 +235,7 @@ impl TryFrom<String> for ContractDetails {
     }
 }
 
-impl Debug for ContractDetails {
+impl Debug for Details {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_tuple("ContractDetails")
             .field(&self.as_str())
@@ -241,30 +251,71 @@ impl Debug for ContractDetails {
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-pub struct Nominal {
-    ticker: Ticker,
-    name: ContractName,
-    details: Option<ContractDetails>,
-    precision: Precision,
+pub struct AssetNaming {
+    pub ticker: Ticker,
+    pub name: Name,
+    pub details: Option<Details>,
 }
-impl StrictSerialize for Nominal {}
-impl StrictDeserialize for Nominal {}
+impl StrictSerialize for AssetNaming {}
+impl StrictDeserialize for AssetNaming {}
 
-impl Nominal {
-    pub fn new(ticker: &'static str, name: &'static str, precision: Precision) -> Nominal {
-        Nominal {
+impl AssetNaming {
+    pub fn new(ticker: &'static str, name: &'static str) -> AssetNaming {
+        AssetNaming {
             ticker: Ticker::from(ticker),
-            name: ContractName::from(name),
+            name: Name::from(name),
             details: None,
+        }
+    }
+
+    pub fn with(
+        ticker: &str,
+        name: &str,
+        details: Option<&str>,
+    ) -> Result<AssetNaming, InvalidIdent> {
+        Ok(AssetNaming {
+            ticker: Ticker::try_from(ticker.to_owned())?,
+            name: Name::try_from(name.to_owned())?,
+            details: details.map(Details::from_str).transpose()?,
+        })
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(StrictDumb, StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_CONTRACT)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct DivisibleAssetSpec {
+    pub naming: AssetNaming,
+    pub precision: Precision,
+}
+impl StrictSerialize for DivisibleAssetSpec {}
+impl StrictDeserialize for DivisibleAssetSpec {}
+
+impl DivisibleAssetSpec {
+    pub fn new(
+        ticker: &'static str,
+        name: &'static str,
+        precision: Precision,
+    ) -> DivisibleAssetSpec {
+        DivisibleAssetSpec {
+            naming: AssetNaming::new(ticker, name),
             precision,
         }
     }
 
-    pub fn with(ticker: &str, name: &str, precision: Precision) -> Result<Nominal, InvalidIdent> {
-        Ok(Nominal {
-            ticker: Ticker::try_from(ticker.to_owned())?,
-            name: ContractName::try_from(name.to_owned())?,
-            details: None,
+    pub fn with(
+        ticker: &str,
+        name: &str,
+        precision: Precision,
+        details: Option<&str>,
+    ) -> Result<DivisibleAssetSpec, InvalidIdent> {
+        Ok(DivisibleAssetSpec {
+            naming: AssetNaming::with(ticker, name, details)?,
             precision,
         })
     }
@@ -278,9 +329,9 @@ impl Nominal {
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", transparent)
 )]
-pub struct ContractText(SmallString);
-impl StrictSerialize for ContractText {}
-impl StrictDeserialize for ContractText {}
+pub struct RicardianContract(SmallString);
+impl StrictSerialize for RicardianContract {}
+impl StrictDeserialize for RicardianContract {}
 
 #[derive(Debug, From)]
 enum Error {
@@ -316,8 +367,8 @@ impl StandardLib {
 
             LibBuilder::new(libname!(LIB_NAME_RGB_CONTRACT))
                 .process::<Timestamp>()?
-                .process::<Nominal>()?
-                .process::<ContractText>()?
+                .process::<DivisibleAssetSpec>()?
+                .process::<RicardianContract>()?
                 .compile(imports)
                 .map_err(Error::from)
         }
