@@ -74,8 +74,7 @@ pub struct MediaRegName(Confined<AsciiString, 1, 64>);
 impl StrictEncode for MediaRegName {
     fn strict_encode<W: TypedWrite>(&self, writer: W) -> std::io::Result<W> {
         writer.write_newtype::<Self>(
-            &NonEmptyVec::<MimeChar, 64>::try_from_iter([MimeChar::try_from(b'D').unwrap()])
-                .unwrap(),
+            &NonEmptyVec::<MimeChar, 64>::try_from_iter([MimeChar::strict_dumb()]).unwrap(),
         )
     }
 }
@@ -122,7 +121,6 @@ impl Debug for MediaRegName {
 #[repr(u8)]
 #[allow(non_camel_case_types)]
 pub enum MimeChar {
-    #[strict_type(dumb)]
     #[display("!")]
     Excl = b'!',
     #[display("#")]
@@ -157,62 +155,11 @@ pub enum MimeChar {
     Eight = b'8',
     #[display("9")]
     Nine = b'9',
-    #[strict_type(dumb, rename = "A")]
-    A = b'A',
-    #[strict_type(rename = "B")]
-    B = b'B',
-    #[strict_type(rename = "C")]
-    C = b'C',
-    #[strict_type(rename = "D")]
-    D = b'D',
-    #[strict_type(rename = "E")]
-    E = b'E',
-    #[strict_type(rename = "F")]
-    F = b'F',
-    #[strict_type(rename = "G")]
-    G = b'G',
-    #[strict_type(rename = "H")]
-    H = b'H',
-    #[strict_type(rename = "I")]
-    I = b'I',
-    #[strict_type(rename = "J")]
-    J = b'J',
-    #[strict_type(rename = "K")]
-    K = b'K',
-    #[strict_type(rename = "L")]
-    L = b'L',
-    #[strict_type(rename = "M")]
-    M = b'M',
-    #[strict_type(rename = "N")]
-    N = b'N',
-    #[strict_type(rename = "O")]
-    O = b'O',
-    #[strict_type(rename = "P")]
-    P = b'P',
-    #[strict_type(rename = "Q")]
-    Q = b'Q',
-    #[strict_type(rename = "R")]
-    R = b'R',
-    #[strict_type(rename = "S")]
-    S = b'S',
-    #[strict_type(rename = "T")]
-    T = b'T',
-    #[strict_type(rename = "U")]
-    U = b'U',
-    #[strict_type(rename = "V")]
-    V = b'V',
-    #[strict_type(rename = "W")]
-    W = b'W',
-    #[strict_type(rename = "X")]
-    X = b'X',
-    #[strict_type(rename = "Y")]
-    Y = b'Y',
-    #[strict_type(rename = "Z")]
-    Z = b'Z',
     #[display("^")]
     Caret = b'^',
     #[display("_")]
     Lodash = b'_',
+    #[strict_type(dumb)]
     #[display("a")]
     a = b'a',
     #[display("b")]
