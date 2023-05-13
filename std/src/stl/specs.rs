@@ -27,16 +27,9 @@ use std::str::FromStr;
 
 use amplify::ascii::AsciiString;
 use amplify::confinement::{Confined, NonEmptyString, SmallString, U8};
-use amplify::IoError;
-use baid58::Baid58ParseError;
-use bp::dbc::LIB_NAME_BPCORE;
-use bp::LIB_NAME_BITCOIN;
 use strict_encoding::{InvalidIdent, StrictDeserialize, StrictDumb, StrictSerialize, StrictType};
-use strict_types::typelib::{LibBuilder, TranslateError};
-use strict_types::typesys::SystemBuilder;
-use strict_types::{typesys, Dependency, SemId, TypeLib, TypeLibId, TypeSystem};
 
-pub const LIB_NAME_RGB_CONTRACT: &str = "RGBContract";
+use super::LIB_NAME_RGB_CONTRACT;
 
 #[derive(Wrapper, WrapperMut, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Debug, Default, From)]
 #[wrapper(Deref, Display, FromStr, MathOps)]
@@ -332,72 +325,3 @@ impl DivisibleAssetSpec {
 pub struct RicardianContract(SmallString);
 impl StrictSerialize for RicardianContract {}
 impl StrictDeserialize for RicardianContract {}
-
-#[derive(Debug, From)]
-enum Error {
-    #[from(std::io::Error)]
-    Io(IoError),
-    #[from]
-    Baid58(Baid58ParseError),
-    #[from]
-    Translate(TranslateError),
-    #[from]
-    Compile(typesys::Error),
-    #[from]
-    Link(Vec<typesys::Error>),
-}
-
-#[derive(Debug)]
-pub struct StandardLib(TypeLib);
-
-impl StandardLib {
-    pub fn new() -> Self {
-        fn builder() -> Result<TypeLib, Error> {
-            let bitcoin_id = TypeLibId::from_str(
-                "circus_report_jeep_2bj6eDer24ZBSVq6JgQW2BrARt6vx56vMWzF35J45gzY",
-            )?;
-            let bpcore_id = TypeLibId::from_str(
-                "harlem_null_puma_DxuLX8d9UiMyEJMRJivMFviK1B8t1QWyjywXuDC13iKR",
-            )?;
-
-            let imports = bset! {
-                Dependency::with(bitcoin_id, libname!(LIB_NAME_BITCOIN)),
-                Dependency::with(bpcore_id, libname!(LIB_NAME_BPCORE)),
-            };
-
-            LibBuilder::new(libname!(LIB_NAME_RGB_CONTRACT))
-                .process::<Timestamp>()?
-                .process::<DivisibleAssetSpec>()?
-                .process::<RicardianContract>()?
-                .compile(imports)
-                .map_err(Error::from)
-        }
-
-        Self(builder().expect("error in standard RGBContract type library"))
-    }
-
-    pub fn type_lib(&self) -> TypeLib { self.0.clone() }
-}
-
-#[derive(Debug)]
-pub struct StandardTypes(TypeSystem);
-
-impl StandardTypes {
-    pub fn new() -> Self {
-        fn builder() -> Result<TypeSystem, Error> {
-            let lib = StandardLib::new().type_lib();
-            let sys = SystemBuilder::new().import(lib)?.finalize()?;
-            Ok(sys)
-        }
-
-        Self(builder().expect("error in standard RGBContract type system"))
-    }
-
-    pub fn type_system(&self) -> TypeSystem { self.0.clone() }
-
-    pub fn get(&self, name: &'static str) -> SemId {
-        self.0
-            .id_by_name(name)
-            .expect("type is absent in standard RGBContract type library")
-    }
-}
