@@ -30,6 +30,7 @@ use strict_types::{Dependency, SemId, TypeLib, TypeLibId, TypeSystem};
 use super::{
     DivisibleAssetSpec, Error, MediaType, RicardianContract, Timestamp, LIB_NAME_RGB_CONTRACT,
 };
+use crate::stl::ProofOfReserves;
 
 #[derive(Debug)]
 pub struct StandardLib(TypeLib);
@@ -54,6 +55,7 @@ impl StandardLib {
                 .process::<DivisibleAssetSpec>()?
                 .process::<RicardianContract>()?
                 .process::<MediaType>()?
+                .process::<ProofOfReserves>()?
                 .compile(imports)
                 .map_err(Error::from)
         }

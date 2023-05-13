@@ -19,18 +19,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-mod specs;
-mod stl;
-mod error;
-mod mime;
-mod chain;
+use amplify::confinement::SmallBlob;
+use bp::Outpoint;
+use strict_encoding::{StrictDeserialize, StrictSerialize};
 
-pub use chain::ProofOfReserves;
-pub(self) use error::Error;
-pub use mime::MediaType;
-pub use specs::{
-    AssetNaming, Details, DivisibleAssetSpec, Name, Precision, RicardianContract, Ticker, Timestamp,
-};
-pub use stl::{StandardLib, StandardTypes};
+use super::LIB_NAME_RGB_CONTRACT;
 
-pub const LIB_NAME_RGB_CONTRACT: &str = "RGBContract";
+#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash, From)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_CONTRACT, dumb = ProofOfReserves::new(strict_dumb!(), strict_dumb!()))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
+pub struct ProofOfReserves {
+    pub utxo: Outpoint,
+    pub proof: SmallBlob,
+}
+impl StrictSerialize for ProofOfReserves {}
+impl StrictDeserialize for ProofOfReserves {}
+
+impl ProofOfReserves {
+    pub fn new(utxo: Outpoint, proof: SmallBlob) -> ProofOfReserves {
+        ProofOfReserves { utxo, proof }
+    }
+}
