@@ -18,3 +18,378 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+#![allow(unused_braces)]
+
+use std::collections::BTreeMap;
+use std::fmt::{self, Debug, Formatter};
+use std::str::FromStr;
+
+use amplify::ascii::AsciiString;
+use amplify::confinement::{Confined, NonEmptyVec, SmallBlob, SmallOrdSet};
+use bp::bc::stl::bitcoin_stl;
+use strict_encoding::stl::AsciiPrintable;
+use strict_encoding::{
+    InvalidIdent, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, TypedWrite,
+};
+use strict_types::stl::std_stl;
+use strict_types::typelib::{LibBuilder, TranslateError};
+use strict_types::TypeLib;
+
+use super::{
+    AssignIface, GenesisIface, GlobalIface, Iface, OwnedIface, Req, TransitionIface, VerNo,
+};
+use crate::interface::ArgSpec;
+use crate::stl::{
+    rgb_contract_stl, Details, MediaType, Name, ProofOfReserves, StandardTypes, Ticker,
+};
+
+pub const LIB_NAME_RGB21: &str = "RGB21";
+/// Strict types id for the library providing data types for RGB21 interface.
+pub const LIB_ID_RGB21: &str =
+    "express_lexicon_penguin_CwXVUoq1fEobWoRsfwdWqEBXRTdWK7BxFpR5dtJtBJrg";
+
+#[derive(
+    Wrapper, WrapperMut, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default, From
+)]
+#[wrapper(Display, FromStr, Add, Sub, Mul, Div, Rem)]
+#[wrapper_mut(AddAssign, SubAssign, MulAssign, DivAssign, RemAssign)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB21)]
+struct ItemsCount(u32);
+
+#[derive(
+    Wrapper, WrapperMut, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default, From
+)]
+#[wrapper(Display, FromStr, Add, Sub, Mul, Div, Rem)]
+#[wrapper_mut(AddAssign, SubAssign, MulAssign, DivAssign, RemAssign)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB21)]
+struct TokenIndex(u32);
+
+#[derive(
+    Wrapper, WrapperMut, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default, From
+)]
+#[wrapper(Display, FromStr, Add, Sub, Mul, Div, Rem)]
+#[wrapper_mut(AddAssign, SubAssign, MulAssign, DivAssign, RemAssign)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB21)]
+struct OwnedFraction(u64);
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug, Default)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB21)]
+struct IssueMeta {
+    pub reserves: SmallOrdSet<ProofOfReserves>,
+}
+impl StrictSerialize for IssueMeta {}
+impl StrictDeserialize for IssueMeta {}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug, Default)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB21)]
+struct Allocation(TokenIndex, OwnedFraction);
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB21)]
+struct EngravingData {
+    pub applied_to: TokenIndex,
+    pub content: EmbeddedMedia,
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB21)]
+struct EmbeddedMedia {
+    pub ty: MediaType,
+    pub data: SmallBlob,
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB21)]
+struct Attachment {
+    #[strict_type(rename = "type")]
+    pub ty: MediaType,
+    pub digest: [u8; 32],
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB21, dumb = { AttachmentType::with(0, "dumb") })]
+struct AttachmentType {
+    pub id: u8,
+    pub name: AttachmentName,
+}
+
+impl AttachmentType {
+    pub fn with(id: u8, name: &'static str) -> AttachmentType {
+        AttachmentType {
+            id,
+            name: AttachmentName::from(name),
+        }
+    }
+}
+
+#[derive(Wrapper, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, From)]
+#[wrapper(Deref, Display)]
+#[derive(StrictType, StrictDumb, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB21, dumb = { AttachmentName::from("dumb") })]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", transparent)
+)]
+struct AttachmentName(Confined<AsciiString, 1, 20>);
+impl StrictEncode for AttachmentName {
+    fn strict_encode<W: TypedWrite>(&self, writer: W) -> std::io::Result<W> {
+        writer.write_newtype::<Self>(
+            &NonEmptyVec::<AsciiPrintable, 20>::try_from_iter([AsciiPrintable::strict_dumb()])
+                .unwrap(),
+        )
+    }
+}
+
+// TODO: Ensure all constructors filter invalid characters
+impl FromStr for AttachmentName {
+    type Err = InvalidIdent;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = AsciiString::from_ascii(s.as_bytes())?;
+        let s = Confined::try_from_iter(s.chars())?;
+        Ok(Self(s))
+    }
+}
+
+impl From<&'static str> for AttachmentName {
+    fn from(s: &'static str) -> Self { Self::from_str(s).expect("invalid attachment name") }
+}
+
+impl TryFrom<String> for AttachmentName {
+    type Error = InvalidIdent;
+
+    fn try_from(name: String) -> Result<Self, InvalidIdent> {
+        let name = AsciiString::from_ascii(name.as_bytes())?;
+        let s = Confined::try_from(name)?;
+        Ok(Self(s))
+    }
+}
+
+impl Debug for AttachmentName {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("AttachmentName")
+            .field(&self.as_str())
+            .finish()
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug, Default)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB21)]
+struct TokenData {
+    pub index: TokenIndex,
+    pub ticker: Option<Ticker>,
+    pub name: Option<Name>,
+    pub details: Option<Details>,
+    pub preview: Option<EmbeddedMedia>,
+    pub media: Option<Attachment>,
+    pub attachments: Confined<BTreeMap<u8, Attachment>, 0, 20>,
+    pub reserves: Option<ProofOfReserves>,
+}
+
+const FRACTION_OVERFLOW: u8 = 1;
+const NON_EQUAL_VALUES: u8 = 2;
+const INVALID_PROOF: u8 = 3;
+const INSUFFICIENT_RESERVES: u8 = 4;
+const ISSUE_EXCEEDS_ALLOWANCE: u8 = 6;
+const NON_FRACTIONAL_TOKEN: u8 = 7;
+const NON_ENGRAVABLE_TOKEN: u8 = 8;
+const INVALID_ATTACHMENT_TYPE: u8 = 9;
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB21, tags = repr, into_u8, try_from_u8)]
+#[repr(u8)]
+pub enum Error {
+    #[strict_type(dumb)]
+    /// amount of token > 1
+    FractionOverflow = FRACTION_OVERFLOW,
+    NonEqualValues = NON_EQUAL_VALUES,
+    InvalidProof = INVALID_PROOF,
+    InsufficientReserves = INSUFFICIENT_RESERVES,
+    IssueExceedsAllowance = ISSUE_EXCEEDS_ALLOWANCE,
+    NonFractionalToken = NON_FRACTIONAL_TOKEN,
+    NonEngravableToken = NON_ENGRAVABLE_TOKEN,
+    InvalidAttachmentType = INVALID_ATTACHMENT_TYPE,
+}
+
+fn _rgb21_stl() -> Result<TypeLib, TranslateError> {
+    LibBuilder::new(libname!(LIB_NAME_RGB21))
+        .transpile::<IssueMeta>()
+        .transpile::<TokenData>()
+        .transpile::<EngravingData>()
+        .transpile::<ItemsCount>()
+        .transpile::<Allocation>()
+        .transpile::<AttachmentType>()
+        .transpile::<Error>()
+        .compile(bset! {
+            std_stl().to_dependency(),
+            bitcoin_stl().to_dependency(),
+            rgb_contract_stl().to_dependency()
+        })
+}
+
+/// Generates strict type library providing data types for RGB21 interface.
+pub fn rgb21_stl() -> TypeLib { _rgb21_stl().expect("invalid strict type RGB21 library") }
+
+pub fn rgb21() -> Iface {
+    let types = StandardTypes::with(rgb21_stl());
+
+    Iface {
+        version: VerNo::V1,
+        name: tn!("RGB21"),
+        global_state: tiny_bmap! {
+            fname!("spec") => GlobalIface::required(types.get("RGBContract.DivisibleAssetSpec")),
+            fname!("terms") => GlobalIface::required(types.get("RGBContract.RicardianContract")),
+            fname!("created") => GlobalIface::required(types.get("RGBContract.Timestamp")),
+            fname!("tokens") => GlobalIface::none_or_many(types.get("RGB21.TokenData")),
+            fname!("engravings") => GlobalIface::none_or_many(types.get("RGB21.EngravingData")),
+            fname!("attachmentTypes") => GlobalIface::none_or_many(types.get("RGB21.AttachmentType")),
+        },
+        assignments: tiny_bmap! {
+            fname!("inflationAllowance") => AssignIface::public(OwnedIface::Data(types.get("RGB21.ItemsCount")), Req::NoneOrMore),
+            fname!("updateRight") => AssignIface::public(OwnedIface::Rights, Req::Optional),
+            fname!("assetOwner") => AssignIface::private(OwnedIface::Data(types.get("RGB21.Allocation")), Req::NoneOrMore),
+        },
+        valencies: none!(),
+        genesis: GenesisIface {
+            metadata: Some(types.get("RGB21.IssueMeta")),
+            global: tiny_bmap! {
+                fname!("spec") => ArgSpec::required(),
+                fname!("terms") => ArgSpec::required(),
+                fname!("created") => ArgSpec::required(),
+                fname!("tokens") => ArgSpec::many(),
+                fname!("attachmentTypes") => ArgSpec::many(),
+            },
+            assignments: tiny_bmap! {
+                fname!("assetOwner") => ArgSpec::many(),
+                fname!("inflationAllowance") => ArgSpec::many(),
+                fname!("updateRight") => ArgSpec::optional(),
+            },
+            valencies: none!(),
+            errors: tiny_bset! {
+                FRACTION_OVERFLOW,
+                INVALID_PROOF,
+                INSUFFICIENT_RESERVES,
+                INVALID_ATTACHMENT_TYPE
+            },
+        },
+        transitions: tiny_bmap! {
+            tn!("Transfer") => TransitionIface {
+                optional: false,
+                metadata: None,
+                globals: none!(),
+                inputs: tiny_bmap! {
+                    fname!("previous") => ArgSpec::from_non_empty("assetOwner"),
+                },
+                assignments: tiny_bmap! {
+                    fname!("beneficiary") => ArgSpec::from_non_empty("assetOwner"),
+                },
+                valencies: none!(),
+                errors: tiny_bset! {
+                    NON_EQUAL_VALUES,
+                    FRACTION_OVERFLOW,
+                    NON_FRACTIONAL_TOKEN
+                },
+                default_assignment: Some(fname!("beneficiary")),
+            },
+            tn!("Engrave") => TransitionIface {
+                optional: true,
+                metadata: None,
+                globals: tiny_bmap! {
+                    fname!("engravings") => ArgSpec::required(),
+                },
+                inputs: tiny_bmap! {
+                    fname!("previous") => ArgSpec::from_non_empty("assetOwner"),
+                },
+                assignments: tiny_bmap! {
+                    fname!("beneficiary") => ArgSpec::from_non_empty("assetOwner"),
+                },
+                valencies: none!(),
+                errors: tiny_bset! {
+                    NON_EQUAL_VALUES,
+                    FRACTION_OVERFLOW,
+                    NON_FRACTIONAL_TOKEN,
+                    NON_ENGRAVABLE_TOKEN
+                },
+                default_assignment: Some(fname!("beneficiary")),
+            },
+            tn!("Issue") => TransitionIface {
+                optional: true,
+                metadata: Some(types.get("RGB21.IssueMeta")),
+                globals: tiny_bmap! {
+                    fname!("newTokens") => ArgSpec::from_many("tokens"),
+                    fname!("newAttachmentTypes") => ArgSpec::from_many("attachmentTypes"),
+                },
+                inputs: tiny_bmap! {
+                    fname!("used") => ArgSpec::from_non_empty("inflationAllowance"),
+                },
+                assignments: tiny_bmap! {
+                    fname!("beneficiary") => ArgSpec::from_many("assetOwner"),
+                    fname!("future") => ArgSpec::from_many("inflationAllowance"),
+                },
+                valencies: none!(),
+                errors: tiny_bset! {
+                    FRACTION_OVERFLOW,
+                    INVALID_PROOF,
+                    INSUFFICIENT_RESERVES,
+                    INVALID_ATTACHMENT_TYPE,
+                    ISSUE_EXCEEDS_ALLOWANCE,
+                },
+                default_assignment: Some(fname!("beneficiary")),
+            },
+            tn!("Rename") => TransitionIface {
+                optional: true,
+                metadata: None,
+                globals: tiny_bmap! {
+                    fname!("new") => ArgSpec::from_required("spec"),
+                },
+                inputs: tiny_bmap! {
+                    fname!("used") => ArgSpec::from_required("updateRight"),
+                },
+                assignments: tiny_bmap! {
+                    fname!("future") => ArgSpec::from_optional("updateRight"),
+                },
+                valencies: none!(),
+                errors: none!(),
+                default_assignment: Some(fname!("future")),
+            },
+        },
+        extensions: none!(),
+        error_type: types.get("RGB21.Error"),
+        default_operation: Some(tn!("Transfer")),
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::containers::BindleContent;
+
+    const RGB21: &str = include_str!("../../tests/data/rgb21.rgba");
+
+    #[test]
+    fn lib_id() {
+        let lib = rgb21_stl();
+        assert_eq!(lib.id().to_string(), LIB_ID_RGB21);
+    }
+
+    #[test]
+    fn iface_creation() { rgb21(); }
+
+    #[test]
+    fn iface_bindle() {
+        assert_eq!(format!("{}", rgb21().bindle()), RGB21);
+    }
+}
