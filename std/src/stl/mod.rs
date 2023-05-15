@@ -34,3 +34,4 @@ pub use specs::{
 pub use stl::{rgb_contract_stl, StandardTypes, LIB_ID_RGB_CONTRACT};
 
 pub const LIB_NAME_RGB_CONTRACT: &str = "RGBContract";
+pub const LIB_NAME_RGB_STD: &str = "RGBStd";

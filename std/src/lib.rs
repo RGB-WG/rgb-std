@@ -78,7 +78,6 @@ extern crate serde_crate as serde;
 
 pub use rgb::{contract, schema, validation, vm};
 
-#[cfg(feature = "stl")]
 pub mod stl;
 pub mod interface;
 pub mod containers;
@@ -87,5 +86,4 @@ pub mod resolvers;
 pub mod accessors;
 
 pub use bp::{Chain, Outpoint, Txid};
-
-pub const LIB_NAME_RGB_STD: &str = "RGBStd";
+pub use stl::{LIB_NAME_RGB_CONTRACT, LIB_NAME_RGB_STD};

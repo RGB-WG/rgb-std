@@ -21,9 +21,9 @@ amplify = "4.0.0"
 baid58 = "0.3.1"
 strict_encoding = "2.2.0"
 strict_types = "1.2.0"
-commit_verify = "0.10.2"
-bp-core = "0.10.3"
-rgb-core = "0.10.3"
+commit_verify = { version = "0.10.2", features = ["stl"] }
+bp-core = { version = "0.10.3", features = ["stl"] }
+rgb-core = { version = "0.10.3", features = ["stl"] }
 
 [package]
 name = "rgb-wallet"
@@ -62,8 +62,7 @@ percent-encoding = "2.2.0"
 
 [features]
 default = []
-all = ["fs", "serde", "stl"]
-stl = ["rgb-std/stl"]
+all = ["fs", "serde"]
 serde = ["rgb-std/serde", "rgb-core/serde"]
 fs = ["rgb-std/fs"]
 

@@ -30,7 +30,6 @@ jobs:
       fail-fast: false
       matrix:
         feature:
-          - stl
           - fs
           - serde
     steps:
