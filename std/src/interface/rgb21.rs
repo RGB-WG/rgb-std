@@ -56,7 +56,7 @@ pub const LIB_ID_RGB21: &str =
 #[wrapper_mut(AddAssign, SubAssign, MulAssign, DivAssign, RemAssign)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB21)]
-struct ItemsCount(u32);
+pub struct ItemsCount(u32);
 
 #[derive(
     Wrapper, WrapperMut, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default, From
@@ -65,7 +65,7 @@ struct ItemsCount(u32);
 #[wrapper_mut(AddAssign, SubAssign, MulAssign, DivAssign, RemAssign)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB21)]
-struct TokenIndex(u32);
+pub struct TokenIndex(u32);
 
 #[derive(
     Wrapper, WrapperMut, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default, From
@@ -74,12 +74,12 @@ struct TokenIndex(u32);
 #[wrapper_mut(AddAssign, SubAssign, MulAssign, DivAssign, RemAssign)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB21)]
-struct OwnedFraction(u64);
+pub struct OwnedFraction(u64);
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB21)]
-struct IssueMeta {
+pub struct IssueMeta {
     pub reserves: SmallOrdSet<ProofOfReserves>,
 }
 impl StrictSerialize for IssueMeta {}
@@ -88,12 +88,12 @@ impl StrictDeserialize for IssueMeta {}
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB21)]
-struct Allocation(TokenIndex, OwnedFraction);
+pub struct Allocation(TokenIndex, OwnedFraction);
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB21)]
-struct EngravingData {
+pub struct EngravingData {
     pub applied_to: TokenIndex,
     pub content: EmbeddedMedia,
 }
@@ -101,7 +101,7 @@ struct EngravingData {
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB21)]
-struct EmbeddedMedia {
+pub struct EmbeddedMedia {
     pub ty: MediaType,
     pub data: SmallBlob,
 }
@@ -109,7 +109,7 @@ struct EmbeddedMedia {
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB21)]
-struct Attachment {
+pub struct Attachment {
     #[strict_type(rename = "type")]
     pub ty: MediaType,
     pub digest: [u8; 32],
@@ -118,7 +118,7 @@ struct Attachment {
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB21, dumb = { AttachmentType::with(0, "dumb") })]
-struct AttachmentType {
+pub struct AttachmentType {
     pub id: u8,
     pub name: AttachmentName,
 }
@@ -141,7 +141,7 @@ impl AttachmentType {
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", transparent)
 )]
-struct AttachmentName(Confined<AsciiString, 1, 20>);
+pub struct AttachmentName(Confined<AsciiString, 1, 20>);
 impl StrictEncode for AttachmentName {
     fn strict_encode<W: TypedWrite>(&self, writer: W) -> std::io::Result<W> {
         writer.write_newtype::<Self>(
@@ -187,7 +187,7 @@ impl Debug for AttachmentName {
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB21)]
-struct TokenData {
+pub struct TokenData {
     pub index: TokenIndex,
     pub ticker: Option<Ticker>,
     pub name: Option<Name>,

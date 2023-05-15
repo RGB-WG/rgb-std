@@ -42,12 +42,12 @@ pub const LIB_ID_RGB20: &str = "giant_eagle_capsule_9QCXsi6d26jqNQVszMAYUDffRjwU
 #[wrapper_mut(AddAssign, SubAssign, MulAssign, DivAssign, RemAssign)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB20)]
-struct Amount(u64);
+pub struct Amount(u64);
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB20)]
-struct IssueMeta {
+pub struct IssueMeta {
     pub reserves: SmallOrdSet<ProofOfReserves>,
 }
 impl StrictSerialize for IssueMeta {}
@@ -56,7 +56,7 @@ impl StrictDeserialize for IssueMeta {}
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB20)]
-struct BurnMeta {
+pub struct BurnMeta {
     pub burn_proofs: SmallOrdSet<ProofOfReserves>,
 }
 impl StrictSerialize for BurnMeta {}

@@ -27,8 +27,8 @@ mod iface;
 mod iimpl;
 mod contract;
 mod builder;
-mod rgb20;
-mod rgb21;
+pub mod rgb20;
+pub mod rgb21;
 mod suppl;
 
 pub use builder::{BuilderError, ContractBuilder, OperationBuilder, TransitionBuilder};
