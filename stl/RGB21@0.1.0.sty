@@ -1,5 +1,5 @@
 {-
-  Id: express_lexicon_penguin_CwXVUoq1fEobWoRsfwdWqEBXRTdWK7BxFpR5dtJtBJrg
+  Id: logic_radius_anita_HgevHFfoBcfqUMHjouxvGMtgGyvs2UrPwr6PNbyteSNb
   Name: RGB21
   Version: 0.1.0
   Description: Types for RGB21 interface
@@ -8,7 +8,7 @@
   License: Apache-2.0
 -}
 
-typelib RGB21 -- express_lexicon_penguin_CwXVUoq1fEobWoRsfwdWqEBXRTdWK7BxFpR5dtJtBJrg
+typelib RGB21 -- logic_radius_anita_HgevHFfoBcfqUMHjouxvGMtgGyvs2UrPwr6PNbyteSNb
 
 import quota_conan_fashion_3TZmAPf8EkQZnbGS1g8uMGes6jEWPqNkFB6pLUKeoefg as Std
 import level_decide_percent_6z2gZQEJsnP4xoNUC94vqYEE9V7gKQbeJhb5521xta5u as RGBContract
@@ -19,7 +19,7 @@ data Allocation       :: TokenIndex, OwnedFraction
 data Attachment       :: type RGBContract.MediaType, digest [Byte ^ 32]
 data AttachmentName   :: [Std.AsciiPrintable ^ 1..0x14]
 data AttachmentType   :: id U8, name AttachmentName
-data EmbeddedMedia    :: ty RGBContract.MediaType, data [Byte]
+data EmbeddedMedia    :: type RGBContract.MediaType, data [Byte]
 data EngravingData    :: appliedTo TokenIndex, content EmbeddedMedia
 data Error            :: fractionOverflow:1 | nonEqualValues:2 | invalidProof:3 | insufficientReserves:4
                        | issueExceedsAllowance:6 | nonFractionalToken:7 | nonEngravableToken:8 | invalidAttachmentType:9

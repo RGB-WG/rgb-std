@@ -46,8 +46,7 @@ use crate::stl::{
 
 pub const LIB_NAME_RGB21: &str = "RGB21";
 /// Strict types id for the library providing data types for RGB21 interface.
-pub const LIB_ID_RGB21: &str =
-    "express_lexicon_penguin_CwXVUoq1fEobWoRsfwdWqEBXRTdWK7BxFpR5dtJtBJrg";
+pub const LIB_ID_RGB21: &str = "logic_radius_anita_HgevHFfoBcfqUMHjouxvGMtgGyvs2UrPwr6PNbyteSNb";
 
 #[derive(
     Wrapper, WrapperMut, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default, From
@@ -102,6 +101,7 @@ pub struct EngravingData {
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB21)]
 pub struct EmbeddedMedia {
+    #[strict_type(rename = "type")]
     pub ty: MediaType,
     pub data: SmallBlob,
 }
