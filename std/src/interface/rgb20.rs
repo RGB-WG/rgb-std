@@ -33,7 +33,7 @@ use crate::stl::{rgb_contract_stl, ProofOfReserves, StandardTypes};
 
 pub const LIB_NAME_RGB20: &str = "RGB20";
 /// Strict types id for the library providing data types for RGB20 interface.
-pub const LIB_ID_RGB20: &str = "phone_nickel_picasso_HxpamGfYpEBUS944ozetQsnS7YHmw3k3Ny2rpY9Eyp2G";
+pub const LIB_ID_RGB20: &str = "giant_eagle_capsule_9QCXsi6d26jqNQVszMAYUDffRjwUkGRWeDCM84ZwPafA";
 
 #[derive(
     Wrapper, WrapperMut, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default, From
@@ -49,11 +49,20 @@ impl StrictDeserialize for Amount {}
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB20)]
-struct Meta {
+struct IssueMeta {
     pub reserves: SmallOrdSet<ProofOfReserves>,
 }
-impl StrictSerialize for Meta {}
-impl StrictDeserialize for Meta {}
+impl StrictSerialize for IssueMeta {}
+impl StrictDeserialize for IssueMeta {}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug, Default)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB20)]
+struct BurnMeta {
+    pub burn_proofs: SmallOrdSet<ProofOfReserves>,
+}
+impl StrictSerialize for BurnMeta {}
+impl StrictDeserialize for BurnMeta {}
 
 const SUPPLY_MISMATCH: u8 = 1;
 const NON_EQUAL_AMOUNTS: u8 = 2;
@@ -78,7 +87,8 @@ pub enum Error {
 
 fn _rgb20_stl() -> Result<TypeLib, TranslateError> {
     LibBuilder::new(libname!(LIB_NAME_RGB20))
-        .transpile::<Meta>()
+        .transpile::<IssueMeta>()
+        .transpile::<BurnMeta>()
         .transpile::<Amount>()
         .transpile::<Error>()
         .compile(bset! {
@@ -112,7 +122,7 @@ pub fn rgb20() -> Iface {
         },
         valencies: none!(),
         genesis: GenesisIface {
-            metadata: Some(types.get("RGB20.Meta")),
+            metadata: Some(types.get("RGB20.IssueMeta")),
             global: tiny_bmap! {
                 fname!("spec") => ArgSpec::required(),
                 fname!("terms") => ArgSpec::required(),
@@ -150,7 +160,7 @@ pub fn rgb20() -> Iface {
             },
             tn!("Issue") => TransitionIface {
                 optional: true,
-                metadata: Some(types.get("RGB20.Meta")),
+                metadata: Some(types.get("RGB20.IssueMeta")),
                 globals: tiny_bmap! {
                     fname!("issuedSupply") => ArgSpec::required(),
                 },
@@ -169,7 +179,49 @@ pub fn rgb20() -> Iface {
                     INSUFFICIENT_RESERVES
                 },
                 default_assignment: None,
-            }
+            },
+            tn!("Burn") => TransitionIface {
+                optional: true,
+                metadata: Some(types.get("RGB20.BurnMeta")),
+                globals: tiny_bmap! {
+                    fname!("burnedSupply") => ArgSpec::required(),
+                },
+                inputs: tiny_bmap! {
+                    fname!("used") => ArgSpec::from_required("burnRight"),
+                },
+                assignments: tiny_bmap! {
+                    fname!("future") => ArgSpec::from_optional("burnRight"),
+                },
+                valencies: none!(),
+                errors: tiny_bset! {
+                    SUPPLY_MISMATCH,
+                    INVALID_PROOF,
+                    INSUFFICIENT_COVERAGE
+                },
+                default_assignment: None,
+            },
+            tn!("Replace") => TransitionIface {
+                optional: true,
+                metadata: Some(types.get("RGB20.BurnMeta")),
+                globals: tiny_bmap! {
+                    fname!("replacedSupply") => ArgSpec::required(),
+                },
+                inputs: tiny_bmap! {
+                    fname!("used") => ArgSpec::from_required("burnRight"),
+                },
+                assignments: tiny_bmap! {
+                    fname!("beneficiary") => ArgSpec::from_many("assetOwner"),
+                    fname!("future") => ArgSpec::from_optional("burnRight"),
+                },
+                valencies: none!(),
+                errors: tiny_bset! {
+                    NON_EQUAL_AMOUNTS,
+                    SUPPLY_MISMATCH,
+                    INVALID_PROOF,
+                    INSUFFICIENT_COVERAGE
+                },
+                default_assignment: None,
+            },
         },
         extensions: none!(),
         error_type: types.get("RGB20.Error"),
