@@ -75,23 +75,32 @@ pub fn rgb20() -> Iface {
         version: VerNo::V1,
         name: tn!("RGB20"),
         global_state: tiny_bmap! {
-            tn!("spec") => Req::require(types.get("RGBContract.DivisibleAssetSpec")),
-            tn!("ContractText") => Req::require(types.get("RGBContract.RicardianContract")),
-
+            tn!("spec") => GlobalIface::required(types.get("RGBContract.DivisibleAssetSpec")),
+            tn!("terms") => GlobalIface::required(types.get("RGBContract.RicardianContract")),
+            tn!("created") => GlobalIface::required(types.get("RGBContract.Timestamp")),
+            tn!("issuedSupply") => GlobalIface::none_or_many(types.get("RGB20.Amount")),
+            tn!("burnedSupply") => GlobalIface::none_or_many(types.get("RGB20.Amount")),
+            tn!("replacedSupply") => GlobalIface::none_or_many(types.get("RGB20.Amount")),
         },
         assignments: tiny_bmap! {
-            tn!("Assets") => AssignIface::private(OwnedIface::Amount),
+            tn!("inflationAllowance") => AssignIface::public(OwnedIface::Amount, Req::NoneOrMore),
+            tn!("updateRight") => AssignIface::public(OwnedIface::Amount, Req::Optional),
+            tn!("burnRight") => AssignIface::public(OwnedIface::Amount, Req::Optional),
             tn!("assetOwner") => AssignIface::private(OwnedIface::Amount, Req::NoneOrMore),
         },
         valencies: none!(),
         genesis: GenesisIface {
-            metadata: None,
+            metadata: Some(types.get("RGB20.Meta")),
             global: tiny_bmap! {
-                tn!("Nominal") => Occurrences::Once,
-                tn!("ContractText") => Occurrences::Once,
+                tn!("spec") => Occurrences::Once,
+                tn!("terms") => Occurrences::Once,
+                tn!("issuedSupply") => Occurrences::Once,
             },
             assignments: tiny_bmap! {
-                tn!("Assets") => Occurrences::OnceOrMore
+                tn!("assetOwner") => Occurrences::NoneOrMore,
+                tn!("inflationAllowance") => Occurrences::NoneOrMore,
+                tn!("updateRight") => Occurrences::NoneOrOnce,
+                tn!("burnRight") => Occurrences::NoneOrOnce,
             },
             valencies: none!(),
         },
