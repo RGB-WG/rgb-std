@@ -70,6 +70,19 @@ impl FromStr for IfaceId {
     fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_baid58_str(s) }
 }
 
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
+pub enum Req {
+    Optional,
+    Required,
+    NoneOrMore,
+    OneOrMore,
+}
+
+impl Req {
+    pub fn is_required(self) -> bool { self == Req::Required || self == Req::OneOrMore }
+    pub fn is_multiple(self) -> bool { self == Req::NoneOrMore || self == Req::OneOrMore }
+}
+
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
@@ -78,50 +91,61 @@ impl FromStr for IfaceId {
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-pub struct Req<Info: StrictType + StrictEncode + StrictDecode + StrictDumb> {
-    pub info: Info,
+pub struct ValencyIface {
     pub required: bool,
+    pub multiple: bool,
 }
 
-impl Req<GlobalIface> {
-    pub fn some() -> Self {
-        Req {
-            info: GlobalIface::Any,
-            required: false,
-        }
-    }
-    pub fn require_any() -> Self {
-        Req {
-            info: GlobalIface::Any,
-            required: true,
-        }
-    }
-    pub fn optional(sem_id: SemId) -> Self {
-        Req {
-            info: GlobalIface::Typed(sem_id),
-            required: false,
-        }
-    }
-    pub fn require(sem_id: SemId) -> Self {
-        Req {
-            info: GlobalIface::Typed(sem_id),
-            required: true,
-        }
-    }
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD, tags = order)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-pub enum GlobalIface {
-    #[strict_type(dumb)]
-    Any,
-    Typed(SemId),
+pub struct GlobalIface {
+    pub sem_id: Option<SemId>,
+    pub required: bool,
+    pub multiple: bool,
+}
+
+impl GlobalIface {
+    pub fn any(req: Req) -> Self {
+        GlobalIface {
+            sem_id: None,
+            required: req.is_required(),
+            multiple: req.is_multiple(),
+        }
+    }
+    pub fn optional(sem_id: SemId) -> Self {
+        GlobalIface {
+            sem_id: Some(sem_id),
+            required: false,
+            multiple: false,
+        }
+    }
+    pub fn required(sem_id: SemId) -> Self {
+        GlobalIface {
+            sem_id: Some(sem_id),
+            required: true,
+            multiple: false,
+        }
+    }
+    pub fn none_or_many(sem_id: SemId) -> Self {
+        GlobalIface {
+            sem_id: Some(sem_id),
+            required: false,
+            multiple: true,
+        }
+    }
+    pub fn one_or_many(sem_id: SemId) -> Self {
+        GlobalIface {
+            sem_id: Some(sem_id),
+            required: true,
+            multiple: true,
+        }
+    }
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
@@ -133,22 +157,28 @@ pub enum GlobalIface {
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct AssignIface {
-    pub public: bool,
     pub owned_state: OwnedIface,
+    pub public: bool,
+    pub required: bool,
+    pub multiple: bool,
 }
 
 impl AssignIface {
-    pub fn public(owned_state: OwnedIface) -> Self {
+    pub fn public(owned_state: OwnedIface, req: Req) -> Self {
         AssignIface {
-            public: true,
             owned_state,
+            public: true,
+            required: req.is_required(),
+            multiple: req.is_multiple(),
         }
     }
 
-    pub fn private(owned_state: OwnedIface) -> Self {
+    pub fn private(owned_state: OwnedIface, req: Req) -> Self {
         AssignIface {
-            public: false,
             owned_state,
+            public: false,
+            required: req.is_required(),
+            multiple: req.is_multiple(),
         }
     }
 }
@@ -233,9 +263,9 @@ pub struct TransitionIface {
 pub struct Iface {
     pub version: VerNo,
     pub name: TypeName,
-    pub global_state: TinyOrdMap<TypeName, Req<GlobalIface>>,
+    pub global_state: TinyOrdMap<TypeName, GlobalIface>,
     pub assignments: TinyOrdMap<TypeName, AssignIface>,
-    pub valencies: TinyOrdMap<TypeName, Req<()>>,
+    pub valencies: TinyOrdMap<TypeName, ValencyIface>,
     pub genesis: GenesisIface,
     pub transitions: TinyOrdMap<TypeName, TransitionIface>,
     pub extensions: TinyOrdMap<TypeName, ExtensionIface>,

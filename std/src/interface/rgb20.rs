@@ -38,6 +38,7 @@ pub fn rgb20() -> Iface {
         },
         assignments: tiny_bmap! {
             tn!("Assets") => AssignIface::private(OwnedIface::Amount),
+            tn!("assetOwner") => AssignIface::private(OwnedIface::Amount, Req::NoneOrMore),
         },
         valencies: none!(),
         genesis: GenesisIface {
