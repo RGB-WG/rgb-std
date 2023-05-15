@@ -19,6 +19,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![allow(unused_braces)]
+
 use std::fmt::{self, Debug, Formatter};
 use std::str::FromStr;
 
@@ -30,7 +32,7 @@ use strict_encoding::{
 
 use super::LIB_NAME_RGB_CONTRACT;
 
-#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Debug, Hash)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_CONTRACT)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
@@ -63,8 +65,8 @@ impl MediaType {
 
 #[derive(Wrapper, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, From)]
 #[wrapper(Deref, Display)]
-#[derive(StrictType, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_CONTRACT)]
+#[derive(StrictType, StrictDumb, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_CONTRACT, dumb = { MediaRegName::from("dumb") })]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
@@ -79,10 +81,6 @@ impl StrictEncode for MediaRegName {
     }
 }
 
-impl StrictDumb for MediaRegName {
-    fn strict_dumb() -> Self { MediaRegName::from("dumb") }
-}
-
 // TODO: Ensure all constructors filter invalid characters
 impl FromStr for MediaRegName {
     type Err = InvalidIdent;
@@ -95,7 +93,7 @@ impl FromStr for MediaRegName {
 }
 
 impl From<&'static str> for MediaRegName {
-    fn from(s: &'static str) -> Self { Self::from_str(s).expect("invalid ticker name") }
+    fn from(s: &'static str) -> Self { Self::from_str(s).expect("invalid media-reg name") }
 }
 
 impl TryFrom<String> for MediaRegName {
@@ -110,7 +108,7 @@ impl TryFrom<String> for MediaRegName {
 
 impl Debug for MediaRegName {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("ContractName").field(&self.as_str()).finish()
+        f.debug_tuple("MediaRegName").field(&self.as_str()).finish()
     }
 }
 
