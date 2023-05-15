@@ -19,11 +19,11 @@ license = "Apache-2.0"
 [workspace.dependencies]
 amplify = "4.0.0"
 baid58 = "0.3.1"
-strict_encoding = "2.1.2"
-strict_types = "1.1.1"
-commit_verify = "0.10.1"
-bp-core = "0.10.2"
-rgb-core = "0.10.2"
+strict_encoding = "2.2.0"
+strict_types = "1.2.0"
+commit_verify = "0.10.2"
+bp-core = "0.10.3"
+rgb-core = "0.10.3"
 
 [package]
 name = "rgb-wallet"
@@ -77,11 +77,3 @@ wasm-bindgen-test = "0.3"
 
 [package.metadata.docs.rs]
 features = [ "all" ]
-
-[patch.crates-io]
-strict_encoding = { git = "https://github.com/strict-types/strict-encoding", branch = "stl" }
-strict_types = { git = "https://github.com/strict-types/strict-types", branch = "fix/typesys-builder" }
-commit_verify = { git = "https://github.com/LNP-BP/client_side_validation", branch = "stl" }
-bp-core = { git = "https://github.com/BP-WG/bp-core", branch = "stl" }
-aluvm = { git = "https://github.com/AluVM/rust-aluvm" }
-rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "stl" }
