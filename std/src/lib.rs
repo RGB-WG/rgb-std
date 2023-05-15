@@ -78,6 +78,7 @@ extern crate serde_crate as serde;
 
 pub use rgb::{contract, schema, validation, vm};
 
+#[cfg(feature = "stl")]
 pub mod stl;
 pub mod interface;
 pub mod containers;

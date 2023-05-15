@@ -16,6 +16,10 @@ readme = "../README.md"
 name = "rgbstd"
 crate-type = ["cdylib", "rlib"] # We need this for WASM
 
+[[bin]]
+name = "rgb-stl"
+required-features = ["stl"]
+
 [dependencies]
 amplify = { workspace = true }
 strict_encoding = { workspace = true }
@@ -29,7 +33,8 @@ serde_crate = { package = "serde", version = "1", features = ["derive"] }
 
 [features]
 default = []
-all = ["fs", "serde"]
+all = ["fs", "serde", "stl"]
+stl = ["commit_verify/stl", "bp-core/stl", "rgb-core/stl"]
 serde = [
     "amplify/serde",
     "strict_encoding/serde", "strict_types/serde",

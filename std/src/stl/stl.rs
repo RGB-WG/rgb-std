@@ -19,56 +19,39 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::str::FromStr;
-
-use bp::dbc::LIB_NAME_BPCORE;
-use bp::LIB_NAME_BITCOIN;
-use strict_encoding::STD_LIB;
-use strict_types::typelib::LibBuilder;
+use bp::bc::stl::bitcoin_stl;
+use strict_types::stl::std_stl;
+use strict_types::typelib::{LibBuilder, TranslateError};
 use strict_types::typesys::SystemBuilder;
-use strict_types::{Dependency, SemId, TypeLib, TypeLibId, TypeSystem};
+use strict_types::{SemId, TypeLib, TypeSystem};
 
 use super::{
     DivisibleAssetSpec, Error, MediaType, RicardianContract, Timestamp, LIB_NAME_RGB_CONTRACT,
 };
 use crate::stl::ProofOfReserves;
 
-#[derive(Debug)]
-pub struct StandardLib(TypeLib);
+/// Strict types id for the library providing data types from [`dbc`] and
+/// [`seals`] crates.
+pub const LIB_ID_RGB_CONTRACT: &str =
+    "level_decide_percent_6z2gZQEJsnP4xoNUC94vqYEE9V7gKQbeJhb5521xta5u";
 
-impl StandardLib {
-    pub fn new() -> Self {
-        fn builder() -> Result<TypeLib, Error> {
-            let bitcoin_id = TypeLibId::from_str(
-                "circus_report_jeep_2bj6eDer24ZBSVq6JgQW2BrARt6vx56vMWzF35J45gzY",
-            )?;
-            let bpcore_id = TypeLibId::from_str(
-                "harlem_null_puma_DxuLX8d9UiMyEJMRJivMFviK1B8t1QWyjywXuDC13iKR",
-            )?;
-            let stdlib_id = TypeLibId::from_str(
-                "alabama_speed_polo_J2wwnFdkbUQt2sg5EZndccZdPZgFUGmLcK3Uw5TbzjRh",
-            )?;
+fn _rgb_contract_stl() -> Result<TypeLib, TranslateError> {
+    LibBuilder::new(libname!(LIB_NAME_RGB_CONTRACT))
+        .transpile::<Timestamp>()
+        .transpile::<DivisibleAssetSpec>()
+        .transpile::<RicardianContract>()
+        .transpile::<MediaType>()
+        .transpile::<ProofOfReserves>()
+        .compile(bset! {
+            std_stl().to_dependency(),
+            bitcoin_stl().to_dependency()
+        })
+}
 
-            let imports = bset! {
-                Dependency::with(bitcoin_id, libname!(LIB_NAME_BITCOIN)),
-                Dependency::with(bpcore_id, libname!(LIB_NAME_BPCORE)),
-                Dependency::with(stdlib_id, libname!(STD_LIB)),
-            };
-
-            LibBuilder::new(libname!(LIB_NAME_RGB_CONTRACT))
-                .process::<Timestamp>()?
-                .process::<DivisibleAssetSpec>()?
-                .process::<RicardianContract>()?
-                .process::<MediaType>()?
-                .process::<ProofOfReserves>()?
-                .compile(imports)
-                .map_err(Error::from)
-        }
-
-        Self(builder().expect("error in standard RGBContract type library"))
-    }
-
-    pub fn type_lib(&self) -> TypeLib { self.0.clone() }
+/// Generates strict type library providing data types from [`dbc`] and
+/// [`seals`] crates.
+pub fn rgb_contract_stl() -> TypeLib {
+    _rgb_contract_stl().expect("invalid strict type RGBContract library")
 }
 
 #[derive(Debug)]
@@ -77,9 +60,12 @@ pub struct StandardTypes(TypeSystem);
 impl StandardTypes {
     pub fn new() -> Self {
         fn builder() -> Result<TypeSystem, Error> {
-            let lib = StandardLib::new().type_lib();
-            let sys = SystemBuilder::new().import(lib)?.finalize()?;
-            Ok(sys)
+            SystemBuilder::new()
+                .import(std_stl())?
+                .import(bitcoin_stl())?
+                .import(rgb_contract_stl())?
+                .finalize()
+                .map_err(Error::from)
         }
 
         Self(builder().expect("error in standard RGBContract type system"))
@@ -88,8 +74,19 @@ impl StandardTypes {
     pub fn type_system(&self) -> TypeSystem { self.0.clone() }
 
     pub fn get(&self, name: &'static str) -> SemId {
-        self.0
-            .id_by_name(name)
-            .expect("type is absent in standard RGBContract type library")
+        self.0.id_by_name(name).unwrap_or_else(|| {
+            panic!("type '{name}' is absent in standard RGBContract type library")
+        })
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn lib_id() {
+        let lib = rgb_contract_stl();
+        assert_eq!(lib.id().to_string(), LIB_ID_RGB_CONTRACT);
     }
 }

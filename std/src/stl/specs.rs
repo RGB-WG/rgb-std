@@ -27,7 +27,7 @@ use std::str::FromStr;
 
 use amplify::ascii::AsciiString;
 use amplify::confinement::{Confined, NonEmptyString, NonEmptyVec, SmallString, U8};
-use strict_encoding::ascii::{AlphaCapsNum, AsciiPrintable};
+use strict_encoding::stl::{AlphaCapsNum, AsciiPrintable};
 use strict_encoding::{
     InvalidIdent, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, StrictType,
     TypedWrite,
@@ -139,7 +139,7 @@ impl TryFrom<AsciiString> for Ticker {
             .copied()
             .find(|ch| !ch.is_ascii_uppercase())
         {
-            return Err(InvalidIdent::InvalidChar(ch));
+            return Err(InvalidIdent::InvalidChar(ascii, ch));
         }
         let s = Confined::try_from(ascii)?;
         Ok(Self(s))

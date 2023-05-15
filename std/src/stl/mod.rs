@@ -31,6 +31,6 @@ pub use mime::MediaType;
 pub use specs::{
     AssetNaming, Details, DivisibleAssetSpec, Name, Precision, RicardianContract, Ticker, Timestamp,
 };
-pub use stl::{StandardLib, StandardTypes};
+pub use stl::{rgb_contract_stl, StandardTypes, LIB_ID_RGB_CONTRACT};
 
 pub const LIB_NAME_RGB_CONTRACT: &str = "RGBContract";
