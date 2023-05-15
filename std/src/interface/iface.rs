@@ -293,6 +293,8 @@ pub struct ExtensionIface {
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct TransitionIface {
+    /// Defines whence schema may omit providing this operation.
+    pub optional: bool,
     pub metadata: Option<SemId>,
     pub globals: ArgMap,
     pub inputs: ArgMap,
