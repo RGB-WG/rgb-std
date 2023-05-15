@@ -33,8 +33,8 @@ mod suppl;
 pub use builder::{BuilderError, ContractBuilder, OperationBuilder, TransitionBuilder};
 pub use contract::{ContractIface, FungibleAllocation, TypedState};
 pub use iface::{
-    AssignIface, ExtensionIface, GenesisIface, GlobalIface, Iface, IfaceId, OwnedIface, Req,
-    TransitionIface, TypeReqMap, ValencyIface,
+    ArgMap, ArgSpec, AssignIface, ExtensionIface, GenesisIface, GlobalIface, Iface, IfaceId,
+    OwnedIface, Req, TransitionIface, ValencyIface,
 };
 pub use iimpl::{IfaceImpl, IfacePair, ImplId, NamedField, NamedType, SchemaIfaces};
 pub use rgb20::{rgb20, rgb20_stl, LIB_ID_RGB20, LIB_NAME_RGB20};

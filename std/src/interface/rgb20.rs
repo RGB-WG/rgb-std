@@ -21,7 +21,6 @@
 
 use amplify::confinement::SmallOrdSet;
 use bp::bc::stl::bitcoin_stl;
-use rgb::Occurrences;
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 use strict_types::typelib::{LibBuilder, TranslateError};
 use strict_types::TypeLib;
@@ -29,6 +28,7 @@ use strict_types::TypeLib;
 use super::{
     AssignIface, GenesisIface, GlobalIface, Iface, OwnedIface, Req, TransitionIface, VerNo,
 };
+use crate::interface::ArgSpec;
 use crate::stl::{rgb_contract_stl, ProofOfReserves, StandardTypes};
 
 pub const LIB_NAME_RGB20: &str = "RGB20";
@@ -92,15 +92,15 @@ pub fn rgb20() -> Iface {
         genesis: GenesisIface {
             metadata: Some(types.get("RGB20.Meta")),
             global: tiny_bmap! {
-                fname!("spec") => Occurrences::Once,
-                fname!("terms") => Occurrences::Once,
-                fname!("issuedSupply") => Occurrences::Once,
+                fname!("spec") => ArgSpec::required(),
+                fname!("terms") => ArgSpec::required(),
+                fname!("issuedSupply") => ArgSpec::required(),
             },
             assignments: tiny_bmap! {
-                fname!("assetOwner") => Occurrences::NoneOrMore,
-                fname!("inflationAllowance") => Occurrences::NoneOrMore,
-                fname!("updateRight") => Occurrences::NoneOrOnce,
-                fname!("burnRight") => Occurrences::NoneOrOnce,
+                fname!("assetOwner") => ArgSpec::many(),
+                fname!("inflationAllowance") => ArgSpec::many(),
+                fname!("updateRight") => ArgSpec::optional(),
+                fname!("burnRight") => ArgSpec::optional(),
             },
             valencies: none!(),
         },
@@ -109,10 +109,10 @@ pub fn rgb20() -> Iface {
                 metadata: None,
                 globals: none!(),
                 inputs: tiny_bmap! {
-                    fname!("assetOwner") => Occurrences::OnceOrMore,
+                    fname!("previous") => ArgSpec::from_non_empty("assetOwner"),
                 },
                 assignments: tiny_bmap! {
-                    fname!("assetOwner") => Occurrences::OnceOrMore,
+                    fname!("beneficiary") => ArgSpec::from_non_empty("assetOwner"),
                 },
                 valencies: none!(),
                 default_assignment: Some(fname!("assetOwner")),
@@ -128,7 +128,7 @@ mod test {
     use super::*;
     use crate::containers::BindleContent;
 
-    const RGB20: &str = include_str!("../../tests/data/rgb20.asc.rgb");
+    const RGB20: &str = include_str!("../../tests/data/rgb20.rgba");
 
     #[test]
     fn lib_id() {

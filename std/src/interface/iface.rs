@@ -201,7 +201,57 @@ pub enum OwnedIface {
     Data(SemId),
 }
 
-pub type TypeReqMap = TinyOrdMap<FieldName, Occurrences>;
+pub type ArgMap = TinyOrdMap<FieldName, ArgSpec>;
+
+/// Structure providing information about state inputs and outputs for an RGB
+/// operation.
+#[derive(Clone, PartialEq, Eq, Debug, Default)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct ArgSpec {
+    /// The name of the state field from the owned or global state fields
+    /// defined in the interface. Used only if this name is different from the
+    /// alias provided as [`ArgMap`] key.
+    pub name: Option<FieldName>,
+    /// Maximal number of occurrences of the input or output of this type.
+    pub req: Occurrences,
+}
+
+impl ArgSpec {
+    pub fn new(req: Occurrences) -> Self { ArgSpec { name: None, req } }
+
+    pub fn required() -> Self { ArgSpec::new(Occurrences::Once) }
+
+    pub fn optional() -> Self { ArgSpec::new(Occurrences::NoneOrOnce) }
+
+    pub fn non_empty() -> Self { ArgSpec::new(Occurrences::OnceOrMore) }
+
+    pub fn many() -> Self { ArgSpec::new(Occurrences::NoneOrMore) }
+
+    pub fn with(name: &'static str, req: Occurrences) -> Self {
+        ArgSpec {
+            name: Some(FieldName::from(name)),
+            req,
+        }
+    }
+
+    pub fn from_required(name: &'static str) -> Self { ArgSpec::with(name, Occurrences::Once) }
+
+    pub fn from_optional(name: &'static str) -> Self {
+        ArgSpec::with(name, Occurrences::NoneOrOnce)
+    }
+
+    pub fn from_non_empty(name: &'static str) -> Self {
+        ArgSpec::with(name, Occurrences::OnceOrMore)
+    }
+
+    pub fn from_many(name: &'static str) -> Self { ArgSpec::with(name, Occurrences::NoneOrMore) }
+}
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
@@ -213,9 +263,9 @@ pub type TypeReqMap = TinyOrdMap<FieldName, Occurrences>;
 )]
 pub struct GenesisIface {
     pub metadata: Option<SemId>,
-    pub global: TypeReqMap,
-    pub assignments: TypeReqMap,
-    pub valencies: TypeReqMap,
+    pub global: ArgMap,
+    pub assignments: ArgMap,
+    pub valencies: ArgMap,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -228,10 +278,10 @@ pub struct GenesisIface {
 )]
 pub struct ExtensionIface {
     pub metadata: Option<SemId>,
-    pub globals: TypeReqMap,
-    pub redeems: TypeReqMap,
-    pub assignments: TypeReqMap,
-    pub valencies: TypeReqMap,
+    pub globals: ArgMap,
+    pub redeems: ArgMap,
+    pub assignments: ArgMap,
+    pub valencies: ArgMap,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -244,10 +294,10 @@ pub struct ExtensionIface {
 )]
 pub struct TransitionIface {
     pub metadata: Option<SemId>,
-    pub globals: TypeReqMap,
-    pub inputs: TypeReqMap,
-    pub assignments: TypeReqMap,
-    pub valencies: TypeReqMap,
+    pub globals: ArgMap,
+    pub inputs: ArgMap,
+    pub assignments: ArgMap,
+    pub valencies: ArgMap,
     pub default_assignment: Option<FieldName>,
 }
 
