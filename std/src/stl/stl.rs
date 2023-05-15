@@ -30,8 +30,8 @@ use super::{
 };
 use crate::stl::ProofOfReserves;
 
-/// Strict types id for the library providing data types from [`dbc`] and
-/// [`seals`] crates.
+/// Strict types id for the library providing standard data types which may be
+/// used in RGB smart contracts.
 pub const LIB_ID_RGB_CONTRACT: &str =
     "level_decide_percent_6z2gZQEJsnP4xoNUC94vqYEE9V7gKQbeJhb5521xta5u";
 
@@ -48,8 +48,8 @@ fn _rgb_contract_stl() -> Result<TypeLib, TranslateError> {
         })
 }
 
-/// Generates strict type library providing data types from [`dbc`] and
-/// [`seals`] crates.
+/// Generates strict type library providing standard data types which may be
+/// used in RGB smart contracts.
 pub fn rgb_contract_stl() -> TypeLib {
     _rgb_contract_stl().expect("invalid strict type RGBContract library")
 }
@@ -59,16 +59,22 @@ pub struct StandardTypes(TypeSystem);
 
 impl StandardTypes {
     pub fn new() -> Self {
-        fn builder() -> Result<TypeSystem, Error> {
-            SystemBuilder::new()
-                .import(std_stl())?
-                .import(bitcoin_stl())?
-                .import(rgb_contract_stl())?
-                .finalize()
-                .map_err(Error::from)
-        }
+        Self::try_with([std_stl(), bitcoin_stl(), rgb_contract_stl()])
+            .expect("error in standard RGBContract type system")
+    }
 
-        Self(builder().expect("error in standard RGBContract type system"))
+    pub fn with(lib: TypeLib) -> Self {
+        Self::try_with([std_stl(), bitcoin_stl(), rgb_contract_stl(), lib])
+            .expect("error in standard RGBContract type system")
+    }
+
+    fn try_with(libs: impl IntoIterator<Item = TypeLib>) -> Result<Self, Error> {
+        let mut builder = SystemBuilder::new();
+        for lib in libs.into_iter() {
+            builder = builder.import(lib)?;
+        }
+        let sys = builder.finalize()?;
+        Ok(Self(sys))
     }
 
     pub fn type_system(&self) -> TypeSystem { self.0.clone() }

@@ -20,6 +20,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use rgbstd::interface::rgb20_stl;
 use rgbstd::stl::rgb_contract_stl;
 use strict_types::typelib::parse_args;
 
@@ -41,15 +42,30 @@ fn main() {
         )
         .expect("unable to write to the file");
 
+    rgb20_stl()
+        .serialize(
+            format,
+            dir.as_ref(),
+            "0.1.0",
+            Some(
+                "
+  Description: Types for RGB20 interface
+  Author: Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
+  Copyright (C) 2023 LNP/BP Standards Association. All rights reserved.
+  License: Apache-2.0",
+            ),
+        )
+        .expect("unable to write to the file");
+
     /*
-    bp::stl::bp_core_stl()
+    bp::stl::rgb_std_stl()
         .serialize(
             format,
             dir,
             "0.1.0",
             Some(
                 "
-  Description: Bitcoin client-side-validation library
+  Description: RGB standard library
   Author: Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
   Copyright (C) 2023 LNP/BP Standards Association. All rights reserved.
   License: Apache-2.0",

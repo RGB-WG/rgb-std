@@ -19,14 +19,57 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use amplify::confinement::SmallOrdSet;
+use bp::bc::stl::bitcoin_stl;
 use rgb::Occurrences;
+use strict_encoding::{StrictDeserialize, StrictSerialize};
+use strict_types::typelib::{LibBuilder, TranslateError};
+use strict_types::TypeLib;
 
-use crate::interface::iface::AssignIface;
-use crate::interface::{GenesisIface, Iface, OwnedIface, Req, TransitionIface, VerNo};
-use crate::stl::StandardTypes;
+use super::{
+    AssignIface, GenesisIface, GlobalIface, Iface, OwnedIface, Req, TransitionIface, VerNo,
+};
+use crate::stl::{rgb_contract_stl, ProofOfReserves, StandardTypes};
+
+pub const LIB_NAME_RGB20: &str = "RGB20";
+/// Strict types id for the library providing data types for RGB20 interface.
+pub const LIB_ID_RGB20: &str = "escort_chamber_clone_8g3y7GatrZYywXA38YKq1vCWmtrTYSMEBNgPqDy8NBDF";
+
+#[derive(
+    Wrapper, WrapperMut, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default, From
+)]
+#[wrapper(Display, FromStr, Add, Sub, Mul, Div, Rem)]
+#[wrapper_mut(AddAssign, SubAssign, MulAssign, DivAssign, RemAssign)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB20)]
+struct Amount(u64);
+impl StrictSerialize for Amount {}
+impl StrictDeserialize for Amount {}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug, Default)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB20)]
+struct Meta {
+    pub reserves: SmallOrdSet<ProofOfReserves>,
+}
+impl StrictSerialize for Meta {}
+impl StrictDeserialize for Meta {}
+
+fn _rgb20_stl() -> Result<TypeLib, TranslateError> {
+    LibBuilder::new(libname!(LIB_NAME_RGB20))
+        .transpile::<Meta>()
+        .transpile::<Amount>()
+        .compile(bset! {
+            bitcoin_stl().to_dependency(),
+            rgb_contract_stl().to_dependency()
+        })
+}
+
+/// Generates strict type library providing data types for RGB20 interface.
+pub fn rgb20_stl() -> TypeLib { _rgb20_stl().expect("invalid strict type RGB20 library") }
 
 pub fn rgb20() -> Iface {
-    let types = StandardTypes::new();
+    let types = StandardTypes::with(rgb20_stl());
 
     Iface {
         version: VerNo::V1,
@@ -77,6 +120,12 @@ mod test {
     use crate::containers::BindleContent;
 
     const RGB20: &str = include_str!("../../tests/data/rgb20.asc.rgb");
+
+    #[test]
+    fn lib_id() {
+        let lib = rgb20_stl();
+        assert_eq!(lib.id().to_string(), LIB_ID_RGB20);
+    }
 
     #[test]
     fn iface_creation() { rgb20(); }
