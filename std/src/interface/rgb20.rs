@@ -43,8 +43,6 @@ pub const LIB_ID_RGB20: &str = "giant_eagle_capsule_9QCXsi6d26jqNQVszMAYUDffRjwU
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB20)]
 struct Amount(u64);
-impl StrictSerialize for Amount {}
-impl StrictDeserialize for Amount {}
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
@@ -116,7 +114,7 @@ pub fn rgb20() -> Iface {
         },
         assignments: tiny_bmap! {
             fname!("inflationAllowance") => AssignIface::public(OwnedIface::Amount, Req::NoneOrMore),
-            fname!("updateRight") => AssignIface::public(OwnedIface::Amount, Req::Optional),
+            fname!("updateRight") => AssignIface::public(OwnedIface::Rights, Req::Optional),
             fname!("burnEpoch") => AssignIface::public(OwnedIface::Rights, Req::Optional),
             fname!("burnRight") => AssignIface::public(OwnedIface::Rights, Req::NoneOrMore),
             fname!("assetOwner") => AssignIface::private(OwnedIface::Amount, Req::NoneOrMore),
@@ -127,6 +125,7 @@ pub fn rgb20() -> Iface {
             global: tiny_bmap! {
                 fname!("spec") => ArgSpec::required(),
                 fname!("terms") => ArgSpec::required(),
+                fname!("created") => ArgSpec::required(),
                 fname!("issuedSupply") => ArgSpec::required(),
             },
             assignments: tiny_bmap! {
@@ -242,7 +241,7 @@ pub fn rgb20() -> Iface {
                 optional: true,
                 metadata: None,
                 globals: tiny_bmap! {
-                    fname!("spec") => ArgSpec::required(),
+                    fname!("new") => ArgSpec::from_required("spec"),
                 },
                 inputs: tiny_bmap! {
                     fname!("used") => ArgSpec::from_required("updateRight"),
