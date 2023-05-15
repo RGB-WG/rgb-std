@@ -33,7 +33,7 @@ use crate::stl::{rgb_contract_stl, ProofOfReserves, StandardTypes};
 
 pub const LIB_NAME_RGB20: &str = "RGB20";
 /// Strict types id for the library providing data types for RGB20 interface.
-pub const LIB_ID_RGB20: &str = "escort_chamber_clone_8g3y7GatrZYywXA38YKq1vCWmtrTYSMEBNgPqDy8NBDF";
+pub const LIB_ID_RGB20: &str = "phone_nickel_picasso_HxpamGfYpEBUS944ozetQsnS7YHmw3k3Ny2rpY9Eyp2G";
 
 #[derive(
     Wrapper, WrapperMut, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default, From
@@ -55,10 +55,32 @@ struct Meta {
 impl StrictSerialize for Meta {}
 impl StrictDeserialize for Meta {}
 
+const SUPPLY_MISMATCH: u8 = 1;
+const NON_EQUAL_AMOUNTS: u8 = 2;
+const INVALID_PROOF: u8 = 3;
+const INSUFFICIENT_RESERVES: u8 = 4;
+const INSUFFICIENT_COVERAGE: u8 = 5;
+const ISSUE_EXCEEDS_ALLOWANCE: u8 = 6;
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB20, tags = repr, into_u8, try_from_u8)]
+#[repr(u8)]
+pub enum Error {
+    #[strict_type(dumb)]
+    SupplyMismatch = SUPPLY_MISMATCH,
+    NonEqualAmounts = NON_EQUAL_AMOUNTS,
+    InvalidProof = INVALID_PROOF,
+    InsufficientReserves = INSUFFICIENT_RESERVES,
+    InsufficientCoverage = INSUFFICIENT_COVERAGE,
+    IssueExceedsAllowance = ISSUE_EXCEEDS_ALLOWANCE,
+}
+
 fn _rgb20_stl() -> Result<TypeLib, TranslateError> {
     LibBuilder::new(libname!(LIB_NAME_RGB20))
         .transpile::<Meta>()
         .transpile::<Amount>()
+        .transpile::<Error>()
         .compile(bset! {
             bitcoin_stl().to_dependency(),
             rgb_contract_stl().to_dependency()
@@ -103,6 +125,11 @@ pub fn rgb20() -> Iface {
                 fname!("burnRight") => ArgSpec::optional(),
             },
             valencies: none!(),
+            errors: small_bset! {
+                SUPPLY_MISMATCH,
+                INVALID_PROOF,
+                INSUFFICIENT_RESERVES
+            },
         },
         transitions: tiny_bmap! {
             tn!("Transfer") => TransitionIface {
@@ -116,10 +143,14 @@ pub fn rgb20() -> Iface {
                     fname!("beneficiary") => ArgSpec::from_non_empty("assetOwner"),
                 },
                 valencies: none!(),
+                errors: small_bset! {
+                    NON_EQUAL_AMOUNTS
+                },
                 default_assignment: Some(fname!("assetOwner")),
             }
         },
         extensions: none!(),
+        error_type: types.get("RGB20.Error"),
         default_operation: Some(tn!("Transfer")),
     }
 }
