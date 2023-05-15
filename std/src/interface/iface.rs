@@ -28,8 +28,8 @@ use baid58::{Baid58ParseError, FromBaid58, ToBaid58};
 use commit_verify::{CommitStrategy, CommitmentId};
 use rgb::Occurrences;
 use strict_encoding::{
-    StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, StrictType,
-    TypeName,
+    FieldName, StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize,
+    StrictType, TypeName,
 };
 use strict_types::SemId;
 
@@ -201,7 +201,7 @@ pub enum OwnedIface {
     Data(SemId),
 }
 
-pub type TypeReqMap = TinyOrdMap<TypeName, Occurrences>;
+pub type TypeReqMap = TinyOrdMap<FieldName, Occurrences>;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
@@ -248,7 +248,7 @@ pub struct TransitionIface {
     pub inputs: TypeReqMap,
     pub assignments: TypeReqMap,
     pub valencies: TypeReqMap,
-    pub default_assignment: Option<TypeName>,
+    pub default_assignment: Option<FieldName>,
 }
 
 /// Interface definition.
@@ -263,9 +263,9 @@ pub struct TransitionIface {
 pub struct Iface {
     pub version: VerNo,
     pub name: TypeName,
-    pub global_state: TinyOrdMap<TypeName, GlobalIface>,
-    pub assignments: TinyOrdMap<TypeName, AssignIface>,
-    pub valencies: TinyOrdMap<TypeName, ValencyIface>,
+    pub global_state: TinyOrdMap<FieldName, GlobalIface>,
+    pub assignments: TinyOrdMap<FieldName, AssignIface>,
+    pub valencies: TinyOrdMap<FieldName, ValencyIface>,
     pub genesis: GenesisIface,
     pub transitions: TinyOrdMap<TypeName, TransitionIface>,
     pub extensions: TinyOrdMap<TypeName, ExtensionIface>,

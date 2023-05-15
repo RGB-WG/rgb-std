@@ -36,7 +36,7 @@ pub use iface::{
     AssignIface, ExtensionIface, GenesisIface, GlobalIface, Iface, IfaceId, OwnedIface, Req,
     TransitionIface, TypeReqMap, ValencyIface,
 };
-pub use iimpl::{IfaceImpl, IfacePair, ImplId, NamedType, SchemaIfaces};
+pub use iimpl::{IfaceImpl, IfacePair, ImplId, NamedField, NamedType, SchemaIfaces};
 pub use rgb20::{rgb20, rgb20_stl, LIB_ID_RGB20, LIB_NAME_RGB20};
 pub use suppl::{AppDeriveIndex, ContractSuppl, OwnedStateSuppl, SupplId, TickerSuppl};
 

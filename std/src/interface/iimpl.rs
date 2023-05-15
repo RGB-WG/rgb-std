@@ -29,8 +29,9 @@ use rgb::{
     AssignmentType, ExtensionType, GlobalStateType, SchemaId, SchemaTypeIndex, SubSchema,
     TransitionType, ValencyType,
 };
+use strict_encoding::{FieldName, TypeName};
 use strict_types::encoding::{
-    StrictDecode, StrictDeserialize, StrictEncode, StrictSerialize, StrictType, TypeName,
+    StrictDecode, StrictDeserialize, StrictEncode, StrictSerialize, StrictType,
 };
 
 use crate::interface::iface::IfaceId;
@@ -71,11 +72,38 @@ impl FromStr for ImplId {
     fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_baid58_str(s) }
 }
 
-/// Maps certain form of type id (global or owned state or a specific operation
-/// type) to a human-readable name.
+/// Maps certain form of type id (global or owned state or a valency) to a
+/// human-readable name.
 ///
-/// Two distinct [`NamedType`] objects must always have both different state ids
-/// and names.   
+/// Two distinct [`NamedField`] objects must always have both different state
+/// ids and names.   
+#[derive(Clone, Eq, PartialOrd, Ord, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct NamedField<T: SchemaTypeIndex> {
+    pub id: T,
+    pub name: FieldName,
+}
+
+impl<T> PartialEq for NamedField<T>
+where T: SchemaTypeIndex
+{
+    fn eq(&self, other: &Self) -> bool { self.id == other.id || self.name == other.name }
+}
+
+impl<T: SchemaTypeIndex> NamedField<T> {
+    pub fn with(id: T, name: FieldName) -> NamedField<T> { NamedField { id, name } }
+}
+
+/// Maps operation numeric type id to a human-readable name.
+///
+/// Two distinct [`NamedType`] objects must always have both different state
+/// ids and names.   
 #[derive(Clone, Eq, PartialOrd, Ord, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
@@ -129,11 +157,11 @@ pub struct IfaceImpl {
     pub version: VerNo,
     pub schema_id: SchemaId,
     pub iface_id: IfaceId,
-    pub global_state: TinyOrdSet<NamedType<GlobalStateType>>,
-    pub assignments: TinyOrdSet<NamedType<AssignmentType>>,
-    pub valencies: TinyOrdSet<NamedType<ValencyType>>,
+    pub global_state: TinyOrdSet<NamedField<GlobalStateType>>,
+    pub assignments: TinyOrdSet<NamedField<AssignmentType>>,
+    pub valencies: TinyOrdSet<NamedField<ValencyType>>,
     pub transitions: TinyOrdSet<NamedType<TransitionType>>,
-    pub extensions: TinyOrdSet<NamedType<ExtensionType>>,
+    pub extensions: TinyOrdSet<NamedField<ExtensionType>>,
 }
 
 impl CommitStrategy for IfaceImpl {
@@ -152,14 +180,14 @@ impl IfaceImpl {
     #[inline]
     pub fn impl_id(&self) -> ImplId { self.commitment_id() }
 
-    pub fn global_type(&self, name: &TypeName) -> Option<GlobalStateType> {
+    pub fn global_type(&self, name: &FieldName) -> Option<GlobalStateType> {
         self.global_state
             .iter()
             .find(|nt| &nt.name == name)
             .map(|nt| nt.id)
     }
 
-    pub fn assignments_type(&self, name: &TypeName) -> Option<AssignmentType> {
+    pub fn assignments_type(&self, name: &FieldName) -> Option<AssignmentType> {
         self.assignments
             .iter()
             .find(|nt| &nt.name == name)
@@ -173,14 +201,14 @@ impl IfaceImpl {
             .map(|nt| nt.id)
     }
 
-    pub fn global_name(&self, id: GlobalStateType) -> Option<&TypeName> {
+    pub fn global_name(&self, id: GlobalStateType) -> Option<&FieldName> {
         self.global_state
             .iter()
             .find(|nt| nt.id == id)
             .map(|nt| &nt.name)
     }
 
-    pub fn assignment_name(&self, id: AssignmentType) -> Option<&TypeName> {
+    pub fn assignment_name(&self, id: AssignmentType) -> Option<&FieldName> {
         self.assignments
             .iter()
             .find(|nt| nt.id == id)
@@ -215,10 +243,10 @@ impl IfacePair {
 
     pub fn iface_id(&self) -> IfaceId { self.iface.iface_id() }
     pub fn impl_id(&self) -> ImplId { self.iimpl.impl_id() }
-    pub fn global_type(&self, name: &TypeName) -> Option<GlobalStateType> {
+    pub fn global_type(&self, name: &FieldName) -> Option<GlobalStateType> {
         self.iimpl.global_type(name)
     }
-    pub fn assignments_type(&self, name: &TypeName) -> Option<AssignmentType> {
+    pub fn assignments_type(&self, name: &FieldName) -> Option<AssignmentType> {
         self.iimpl.assignments_type(name)
     }
     pub fn transition_type(&self, name: &TypeName) -> Option<TransitionType> {
