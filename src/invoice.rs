@@ -31,7 +31,7 @@ use indexmap::IndexMap;
 use percent_encoding::{utf8_percent_encode, AsciiSet, CONTROLS};
 use rgb::{AttachId, ContractId, SecretSeal};
 use rgbstd::interface::TypedState;
-use strict_encoding::{InvalidIdent, TypeName};
+use strict_encoding::{FieldName, InvalidIdent, TypeName};
 
 const OMITTED: char = '~';
 const EXPIRY: &str = "expiry";
@@ -137,7 +137,7 @@ pub struct RgbInvoice {
     pub contract: Option<ContractId>,
     pub iface: Option<TypeName>,
     pub operation: Option<TypeName>,
-    pub assignment: Option<TypeName>,
+    pub assignment: Option<FieldName>,
     pub beneficiary: Beneficiary,
     pub owned_state: TypedState,
     pub chain: Option<Chain>,

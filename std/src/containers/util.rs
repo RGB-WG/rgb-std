@@ -41,7 +41,7 @@ impl Terminal {
     pub fn with(bundle_id: BundleId, seal: TerminalSeal) -> Self { Terminal { bundle_id, seal } }
 }
 
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default)]
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD, tags = repr, into_u8, try_from_u8)]
 #[cfg_attr(
@@ -49,6 +49,7 @@ impl Terminal {
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
+#[display(lowercase)]
 #[non_exhaustive]
 #[repr(u8)]
 pub enum ContainerVer {

@@ -25,7 +25,7 @@ use rgb::{
     AssignmentType, AttachId, ContractState, FungibleOutput, MediaType, RevealedAttach,
     RevealedData, SealWitness,
 };
-use strict_encoding::TypeName;
+use strict_encoding::FieldName;
 use strict_types::typify::TypedVal;
 use strict_types::{decode, StrictVal};
 
@@ -35,8 +35,8 @@ use crate::LIB_NAME_RGB_STD;
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum ContractError {
-    /// type name {0} is unknown to the contract interface
-    TypeNameUnknown(TypeName),
+    /// field name {0} is unknown to the contract interface
+    FieldNameUnknown(FieldName),
 
     #[from]
     #[display(inner)]
@@ -113,13 +113,13 @@ impl ContractIface {
     ///
     /// If data are corrupted and contract schema doesn't match interface
     /// implementations.
-    pub fn global(&self, name: impl Into<TypeName>) -> Result<SmallVec<StrictVal>, ContractError> {
+    pub fn global(&self, name: impl Into<FieldName>) -> Result<SmallVec<StrictVal>, ContractError> {
         let name = name.into();
         let type_system = &self.state.schema.type_system;
         let type_id = self
             .iface
             .global_type(&name)
-            .ok_or(ContractError::TypeNameUnknown(name))?;
+            .ok_or(ContractError::FieldNameUnknown(name))?;
         let type_schema = self
             .state
             .schema
@@ -141,13 +141,13 @@ impl ContractIface {
 
     pub fn fungible(
         &self,
-        name: impl Into<TypeName>,
+        name: impl Into<FieldName>,
     ) -> Result<LargeVec<FungibleAllocation>, ContractError> {
         let name = name.into();
         let type_id = self
             .iface
             .assignments_type(&name)
-            .ok_or(ContractError::TypeNameUnknown(name))?;
+            .ok_or(ContractError::FieldNameUnknown(name))?;
         let state = self
             .state
             .fungibles()

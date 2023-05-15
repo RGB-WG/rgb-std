@@ -1,0 +1,23 @@
+{-
+  Id: giant_eagle_capsule_9QCXsi6d26jqNQVszMAYUDffRjwUkGRWeDCM84ZwPafA
+  Name: RGB20
+  Version: 0.1.0
+  Description: Types for RGB20 interface
+  Author: Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
+  Copyright (C) 2023 LNP/BP Standards Association. All rights reserved.
+  License: Apache-2.0
+-}
+
+typelib RGB20 -- giant_eagle_capsule_9QCXsi6d26jqNQVszMAYUDffRjwUkGRWeDCM84ZwPafA
+
+import level_decide_percent_6z2gZQEJsnP4xoNUC94vqYEE9V7gKQbeJhb5521xta5u as RGBContract
+import cubic_filter_vampire_AqBBP1ZeTXrdAePf6SBcUGbttpvxpHKG7uJLKFkVxtGi as Bitcoin
+
+
+data Amount           :: U64
+data BurnMeta         :: burnProofs {RGBContract.ProofOfReserves}
+data Error            :: supplyMismatch:1 | nonEqualAmounts:2 | invalidProof:3 | insufficientReserves:4
+                       | insufficientCoverage:5 | issueExceedsAllowance:6
+
+data IssueMeta        :: reserves {RGBContract.ProofOfReserves}
+

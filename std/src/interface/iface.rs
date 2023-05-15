@@ -22,14 +22,14 @@
 use std::cmp::Ordering;
 use std::str::FromStr;
 
-use amplify::confinement::TinyOrdMap;
+use amplify::confinement::{TinyOrdMap, TinyOrdSet};
 use amplify::{Bytes32, RawArray};
 use baid58::{Baid58ParseError, FromBaid58, ToBaid58};
 use commit_verify::{CommitStrategy, CommitmentId};
 use rgb::Occurrences;
 use strict_encoding::{
-    StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, StrictType,
-    TypeName,
+    FieldName, StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize,
+    StrictType, TypeName,
 };
 use strict_types::SemId;
 
@@ -70,6 +70,19 @@ impl FromStr for IfaceId {
     fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_baid58_str(s) }
 }
 
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
+pub enum Req {
+    Optional,
+    Required,
+    NoneOrMore,
+    OneOrMore,
+}
+
+impl Req {
+    pub fn is_required(self) -> bool { self == Req::Required || self == Req::OneOrMore }
+    pub fn is_multiple(self) -> bool { self == Req::NoneOrMore || self == Req::OneOrMore }
+}
+
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
@@ -78,50 +91,61 @@ impl FromStr for IfaceId {
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-pub struct Req<Info: StrictType + StrictEncode + StrictDecode + StrictDumb> {
-    pub info: Info,
+pub struct ValencyIface {
     pub required: bool,
+    pub multiple: bool,
 }
 
-impl Req<GlobalIface> {
-    pub fn some() -> Self {
-        Req {
-            info: GlobalIface::Any,
-            required: false,
-        }
-    }
-    pub fn require_any() -> Self {
-        Req {
-            info: GlobalIface::Any,
-            required: true,
-        }
-    }
-    pub fn optional(sem_id: SemId) -> Self {
-        Req {
-            info: GlobalIface::Typed(sem_id),
-            required: false,
-        }
-    }
-    pub fn require(sem_id: SemId) -> Self {
-        Req {
-            info: GlobalIface::Typed(sem_id),
-            required: true,
-        }
-    }
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD, tags = order)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-pub enum GlobalIface {
-    #[strict_type(dumb)]
-    Any,
-    Typed(SemId),
+pub struct GlobalIface {
+    pub sem_id: Option<SemId>,
+    pub required: bool,
+    pub multiple: bool,
+}
+
+impl GlobalIface {
+    pub fn any(req: Req) -> Self {
+        GlobalIface {
+            sem_id: None,
+            required: req.is_required(),
+            multiple: req.is_multiple(),
+        }
+    }
+    pub fn optional(sem_id: SemId) -> Self {
+        GlobalIface {
+            sem_id: Some(sem_id),
+            required: false,
+            multiple: false,
+        }
+    }
+    pub fn required(sem_id: SemId) -> Self {
+        GlobalIface {
+            sem_id: Some(sem_id),
+            required: true,
+            multiple: false,
+        }
+    }
+    pub fn none_or_many(sem_id: SemId) -> Self {
+        GlobalIface {
+            sem_id: Some(sem_id),
+            required: false,
+            multiple: true,
+        }
+    }
+    pub fn one_or_many(sem_id: SemId) -> Self {
+        GlobalIface {
+            sem_id: Some(sem_id),
+            required: true,
+            multiple: true,
+        }
+    }
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
@@ -133,22 +157,28 @@ pub enum GlobalIface {
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct AssignIface {
-    pub public: bool,
     pub owned_state: OwnedIface,
+    pub public: bool,
+    pub required: bool,
+    pub multiple: bool,
 }
 
 impl AssignIface {
-    pub fn public(owned_state: OwnedIface) -> Self {
+    pub fn public(owned_state: OwnedIface, req: Req) -> Self {
         AssignIface {
-            public: true,
             owned_state,
+            public: true,
+            required: req.is_required(),
+            multiple: req.is_multiple(),
         }
     }
 
-    pub fn private(owned_state: OwnedIface) -> Self {
+    pub fn private(owned_state: OwnedIface, req: Req) -> Self {
         AssignIface {
-            public: false,
             owned_state,
+            public: false,
+            required: req.is_required(),
+            multiple: req.is_multiple(),
         }
     }
 }
@@ -171,7 +201,57 @@ pub enum OwnedIface {
     Data(SemId),
 }
 
-pub type TypeReqMap = TinyOrdMap<TypeName, Occurrences>;
+pub type ArgMap = TinyOrdMap<FieldName, ArgSpec>;
+
+/// Structure providing information about state inputs and outputs for an RGB
+/// operation.
+#[derive(Clone, PartialEq, Eq, Debug, Default)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct ArgSpec {
+    /// The name of the state field from the owned or global state fields
+    /// defined in the interface. Used only if this name is different from the
+    /// alias provided as [`ArgMap`] key.
+    pub name: Option<FieldName>,
+    /// Maximal number of occurrences of the input or output of this type.
+    pub req: Occurrences,
+}
+
+impl ArgSpec {
+    pub fn new(req: Occurrences) -> Self { ArgSpec { name: None, req } }
+
+    pub fn required() -> Self { ArgSpec::new(Occurrences::Once) }
+
+    pub fn optional() -> Self { ArgSpec::new(Occurrences::NoneOrOnce) }
+
+    pub fn non_empty() -> Self { ArgSpec::new(Occurrences::OnceOrMore) }
+
+    pub fn many() -> Self { ArgSpec::new(Occurrences::NoneOrMore) }
+
+    pub fn with(name: &'static str, req: Occurrences) -> Self {
+        ArgSpec {
+            name: Some(FieldName::from(name)),
+            req,
+        }
+    }
+
+    pub fn from_required(name: &'static str) -> Self { ArgSpec::with(name, Occurrences::Once) }
+
+    pub fn from_optional(name: &'static str) -> Self {
+        ArgSpec::with(name, Occurrences::NoneOrOnce)
+    }
+
+    pub fn from_non_empty(name: &'static str) -> Self {
+        ArgSpec::with(name, Occurrences::OnceOrMore)
+    }
+
+    pub fn from_many(name: &'static str) -> Self { ArgSpec::with(name, Occurrences::NoneOrMore) }
+}
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
@@ -183,9 +263,10 @@ pub type TypeReqMap = TinyOrdMap<TypeName, Occurrences>;
 )]
 pub struct GenesisIface {
     pub metadata: Option<SemId>,
-    pub global: TypeReqMap,
-    pub assignments: TypeReqMap,
-    pub valencies: TypeReqMap,
+    pub global: ArgMap,
+    pub assignments: ArgMap,
+    pub valencies: ArgMap,
+    pub errors: TinyOrdSet<u8>,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -198,10 +279,11 @@ pub struct GenesisIface {
 )]
 pub struct ExtensionIface {
     pub metadata: Option<SemId>,
-    pub globals: TypeReqMap,
-    pub redeems: TypeReqMap,
-    pub assignments: TypeReqMap,
-    pub valencies: TypeReqMap,
+    pub globals: ArgMap,
+    pub redeems: ArgMap,
+    pub assignments: ArgMap,
+    pub valencies: ArgMap,
+    pub errors: TinyOrdSet<u8>,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -213,12 +295,15 @@ pub struct ExtensionIface {
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct TransitionIface {
+    /// Defines whence schema may omit providing this operation.
+    pub optional: bool,
     pub metadata: Option<SemId>,
-    pub globals: TypeReqMap,
-    pub inputs: TypeReqMap,
-    pub assignments: TypeReqMap,
-    pub valencies: TypeReqMap,
-    pub default_assignment: Option<TypeName>,
+    pub globals: ArgMap,
+    pub inputs: ArgMap,
+    pub assignments: ArgMap,
+    pub valencies: ArgMap,
+    pub errors: TinyOrdSet<u8>,
+    pub default_assignment: Option<FieldName>,
 }
 
 /// Interface definition.
@@ -233,12 +318,13 @@ pub struct TransitionIface {
 pub struct Iface {
     pub version: VerNo,
     pub name: TypeName,
-    pub global_state: TinyOrdMap<TypeName, Req<GlobalIface>>,
-    pub assignments: TinyOrdMap<TypeName, AssignIface>,
-    pub valencies: TinyOrdMap<TypeName, Req<()>>,
+    pub global_state: TinyOrdMap<FieldName, GlobalIface>,
+    pub assignments: TinyOrdMap<FieldName, AssignIface>,
+    pub valencies: TinyOrdMap<FieldName, ValencyIface>,
     pub genesis: GenesisIface,
     pub transitions: TinyOrdMap<TypeName, TransitionIface>,
     pub extensions: TinyOrdMap<TypeName, ExtensionIface>,
+    pub error_type: SemId,
     pub default_operation: Option<TypeName>,
 }
 

@@ -30,7 +30,7 @@ use rgb::{
     GenesisSeal, GlobalState, GraphSeal, Input, Inputs, Opout, RevealedValue, StateSchema,
     SubSchema, Transition, TransitionType, TypedAssigns, BLANK_TRANSITION_ID,
 };
-use strict_encoding::{SerializeError, StrictSerialize, TypeName};
+use strict_encoding::{FieldName, SerializeError, StrictSerialize, TypeName};
 use strict_types::decode;
 
 use crate::containers::{BuilderSeal, Contract};
@@ -47,11 +47,17 @@ pub enum BuilderError {
     /// provided to the forge.
     SchemaMismatch,
 
-    /// type `{0}` is not known to the schema.
-    TypeNotFound(TypeName),
+    /// Global state `{0}` is not known to the schema.
+    GlobalNotFound(FieldName),
 
-    /// state `{0}` provided to the builder has invalid type
-    InvalidStateType(TypeName),
+    /// Assignment `{0}` is not known to the schema.
+    AssignmentNotFound(FieldName),
+
+    /// transition `{0}` is not known to the schema.
+    TransitionNotFound(TypeName),
+
+    /// state `{0}` provided to the builder has invalid name
+    InvalidStateField(FieldName),
 
     /// interface doesn't specifies default operation name, thus an explicit
     /// operation type must be provided with `set_operation_type` method.
@@ -94,7 +100,7 @@ impl ContractBuilder {
 
     pub fn add_global_state(
         mut self,
-        name: impl Into<TypeName>,
+        name: impl Into<FieldName>,
         value: impl StrictSerialize,
     ) -> Result<Self, BuilderError> {
         self.builder = self.builder.add_global_state(name, value)?;
@@ -103,7 +109,7 @@ impl ContractBuilder {
 
     pub fn add_fungible_state(
         mut self,
-        name: impl Into<TypeName>,
+        name: impl Into<FieldName>,
         seal: impl Into<GenesisSeal>,
         value: u64,
     ) -> Result<Self, BuilderError> {
@@ -151,7 +157,7 @@ impl TransitionBuilder {
         })
     }
 
-    pub fn assignments_type(&self, name: &TypeName) -> Option<AssignmentType> {
+    pub fn assignments_type(&self, name: &FieldName) -> Option<AssignmentType> {
         self.builder.iimpl.assignments_type(name)
     }
 
@@ -171,12 +177,12 @@ impl TransitionBuilder {
             .builder
             .iimpl
             .transition_type(&name)
-            .ok_or(BuilderError::TypeNotFound(name))?;
+            .ok_or(BuilderError::TransitionNotFound(name))?;
         self.transition_type = Some(transition_type);
         Ok(self)
     }
 
-    pub fn default_assignment(&self) -> Result<&TypeName, BuilderError> {
+    pub fn default_assignment(&self) -> Result<&FieldName, BuilderError> {
         let transition_type = self.transition_type()?;
         let transition_name = self
             .builder
@@ -197,7 +203,7 @@ impl TransitionBuilder {
 
     pub fn add_global_state(
         mut self,
-        name: impl Into<TypeName>,
+        name: impl Into<FieldName>,
         value: impl StrictSerialize,
     ) -> Result<Self, BuilderError> {
         self.builder = self.builder.add_global_state(name, value)?;
@@ -214,14 +220,14 @@ impl TransitionBuilder {
             .builder
             .iimpl
             .assignments_type(assignment_name)
-            .ok_or(BuilderError::InvalidStateType(assignment_name.clone()))?;
+            .ok_or(BuilderError::InvalidStateField(assignment_name.clone()))?;
 
         self.add_raw_state(id, seal, TypedState::Amount(value))
     }
 
     pub fn add_fungible_state(
         mut self,
-        name: impl Into<TypeName>,
+        name: impl Into<FieldName>,
         seal: impl Into<BuilderSeal<GraphSeal>>,
         value: u64,
     ) -> Result<Self, BuilderError> {
@@ -314,7 +320,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
 
     pub fn add_global_state(
         mut self,
-        name: impl Into<TypeName>,
+        name: impl Into<FieldName>,
         value: impl StrictSerialize,
     ) -> Result<Self, BuilderError> {
         let name = name.into();
@@ -322,7 +328,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
 
         // Check value matches type requirements
         let Some(type_id) = self.iimpl.global_state.iter().find(|t| t.name == name).map(|t| t.id) else {
-            return Err(BuilderError::TypeNotFound(name));
+            return Err(BuilderError::GlobalNotFound(name));
         };
         let sem_id = self
             .schema
@@ -341,14 +347,14 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
 
     pub fn add_fungible_state(
         mut self,
-        name: impl Into<TypeName>,
+        name: impl Into<FieldName>,
         seal: impl Into<BuilderSeal<Seal>>,
         value: u64,
     ) -> Result<Self, BuilderError> {
         let name = name.into();
 
         let Some(type_id) = self.iimpl.assignments.iter().find(|t| t.name == name).map(|t| t.id) else {
-            return Err(BuilderError::TypeNotFound(name));
+            return Err(BuilderError::AssignmentNotFound(name));
         };
 
         let state_schema = self
@@ -357,7 +363,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             .get(&type_id)
             .expect("schema should match interface: must be checked by the constructor");
         if *state_schema != StateSchema::Fungible(FungibleType::Unsigned64Bit) {
-            return Err(BuilderError::InvalidStateType(name));
+            return Err(BuilderError::InvalidStateField(name));
         }
 
         let state = RevealedValue::new(value, &mut thread_rng());

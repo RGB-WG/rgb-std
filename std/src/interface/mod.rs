@@ -27,17 +27,19 @@ mod iface;
 mod iimpl;
 mod contract;
 mod builder;
-mod rgb20;
+pub mod rgb20;
+pub mod rgb21;
 mod suppl;
 
 pub use builder::{BuilderError, ContractBuilder, OperationBuilder, TransitionBuilder};
 pub use contract::{ContractIface, FungibleAllocation, TypedState};
 pub use iface::{
-    ExtensionIface, GenesisIface, GlobalIface, Iface, IfaceId, OwnedIface, Req, TransitionIface,
-    TypeReqMap,
+    ArgMap, ArgSpec, AssignIface, ExtensionIface, GenesisIface, GlobalIface, Iface, IfaceId,
+    OwnedIface, Req, TransitionIface, ValencyIface,
 };
-pub use iimpl::{IfaceImpl, IfacePair, ImplId, NamedType, SchemaIfaces};
-pub use rgb20::rgb20;
+pub use iimpl::{IfaceImpl, IfacePair, ImplId, NamedField, NamedType, SchemaIfaces};
+pub use rgb20::{rgb20, rgb20_stl, LIB_ID_RGB20, LIB_NAME_RGB20};
+pub use rgb21::{rgb21, rgb21_stl, LIB_ID_RGB21, LIB_NAME_RGB21};
 pub use suppl::{AppDeriveIndex, ContractSuppl, OwnedStateSuppl, SupplId, TickerSuppl};
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, Default)]

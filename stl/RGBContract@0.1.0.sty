@@ -1,0 +1,50 @@
+{-
+  Id: level_decide_percent_6z2gZQEJsnP4xoNUC94vqYEE9V7gKQbeJhb5521xta5u
+  Name: RGBContract
+  Version: 0.1.0
+  Description: Types for writing RGB contracts and interfaces
+  Author: Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
+  Copyright (C) 2023 LNP/BP Standards Association. All rights reserved.
+  License: Apache-2.0
+-}
+
+typelib RGBContract -- level_decide_percent_6z2gZQEJsnP4xoNUC94vqYEE9V7gKQbeJhb5521xta5u
+
+import quota_conan_fashion_3TZmAPf8EkQZnbGS1g8uMGes6jEWPqNkFB6pLUKeoefg as Std
+import cubic_filter_vampire_AqBBP1ZeTXrdAePf6SBcUGbttpvxpHKG7uJLKFkVxtGi as Bitcoin
+
+
+data AssetNaming      :: ticker Ticker
+                       , name Name
+                       , details Details?
+data Details          :: [Unicode ^ 1..0xff]
+data DivisibleAssetSpec :: naming AssetNaming, precision Precision
+data MediaRegName     :: [MimeChar ^ 1..0x40]
+data MediaType        :: type MediaRegName
+                       , subtype MediaRegName
+                       , charset MediaRegName?
+data MimeChar         :: excl:33 | hash:35 | dollar:36 | amp:38
+                       | plus:43 | dash:45 | dot:46 | zero:48
+                       | one:49 | two:50 | three:51 | four:52
+                       | five:53 | six:54 | seven:55 | eight:56
+                       | nine:57 | caret:94 | lodash:95 | a:97
+                       | b:98 | c:99 | d:100 | e:101
+                       | f:102 | g:103 | h:104 | i:105
+                       | j:106 | k:107 | l:108 | m:109
+                       | n:110 | o:111 | p:112 | q:113
+                       | r:114 | s:115 | t:116 | u:117
+                       | v:118 | w:119 | x:120 | y:121
+                       | z:122
+
+data Name             :: [Std.AsciiPrintable ^ 1..0x28]
+data Precision        :: indivisible:0 | deci:1 | centi:2 | milli:3
+                       | deciMilli:4 | centiMilli:5 | micro:6 | deciMicro:7
+                       | centiMicro:8 | nano:9 | deciNano:10 | centiNano:11
+                       | pico:12 | deciPico:13 | centiPico:14 | femto:15
+                       | deciFemto:16 | centiFemto:17 | atto:18
+
+data ProofOfReserves  :: utxo Bitcoin.Outpoint, proof [Byte]
+data RicardianContract :: [Unicode]
+data Ticker           :: [Std.AlphaCapsNum ^ 1..0x8]
+data Timestamp        :: I32
+

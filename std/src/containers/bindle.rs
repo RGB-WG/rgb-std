@@ -23,6 +23,7 @@
 //! and optionally signed by the creator with certain id and send over to a
 //! remote party.
 
+use std::collections::BTreeMap;
 use std::fmt::Display;
 use std::ops::Deref;
 
@@ -49,6 +50,7 @@ pub trait BindleContent: StrictSerialize + StrictDeserialize + StrictDumb {
     type Id: Copy + Eq + Display + StrictType + StrictDumb + StrictEncode + StrictDecode;
 
     fn bindle_id(&self) -> Self::Id;
+    fn bindle_headers(&self) -> BTreeMap<&'static str, String> { none!() }
     fn bindle(self) -> Bindle<Self> { Bindle::new(self) }
 }
 
@@ -64,6 +66,16 @@ impl BindleContent for Contract {
     const PLATE_TITLE: &'static str = "RGB CONTRACT";
     type Id = ContractId;
     fn bindle_id(&self) -> Self::Id { self.contract_id() }
+    fn bindle_headers(&self) -> BTreeMap<&'static str, String> {
+        bmap! {
+            "Version" => self.version.to_string(),
+            "Terminals" => self.terminals
+                .iter()
+                .map(|t| t.seal.to_string())
+                .collect::<Vec<_>>()
+                .join(",\n  "),
+        }
+    }
 }
 
 impl BindleContent for Transfer {
@@ -71,6 +83,17 @@ impl BindleContent for Transfer {
     const PLATE_TITLE: &'static str = "RGB STATE TRANSFER";
     type Id = TransferId;
     fn bindle_id(&self) -> Self::Id { self.transfer_id() }
+    fn bindle_headers(&self) -> BTreeMap<&'static str, String> {
+        bmap! {
+            "Version" => self.version.to_string(),
+            "ContractId" => self.contract_id().to_string(),
+            "Terminals" => self.terminals
+                .iter()
+                .map(|t| t.seal.to_string())
+                .collect::<Vec<_>>()
+                .join(",\n  "),
+        }
+    }
 }
 
 impl BindleContent for Iface {
@@ -78,6 +101,11 @@ impl BindleContent for Iface {
     const PLATE_TITLE: &'static str = "RGB INTERFACE";
     type Id = IfaceId;
     fn bindle_id(&self) -> Self::Id { self.iface_id() }
+    fn bindle_headers(&self) -> BTreeMap<&'static str, String> {
+        bmap! {
+            "Name" => self.name.to_string()
+        }
+    }
 }
 
 impl BindleContent for IfaceImpl {
@@ -85,6 +113,12 @@ impl BindleContent for IfaceImpl {
     const PLATE_TITLE: &'static str = "RGB INTERFACE IMPLEMENTATION";
     type Id = ImplId;
     fn bindle_id(&self) -> Self::Id { self.impl_id() }
+    fn bindle_headers(&self) -> BTreeMap<&'static str, String> {
+        bmap! {
+            "IfaceId" => self.iface_id.to_string(),
+            "SchemaId" => self.schema_id.to_string(),
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
@@ -129,8 +163,11 @@ impl<C: BindleContent> Display for Bindle<C> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         use base64::Engine;
 
-        writeln!(f, "----- BEGIN {} -----", C::PLATE_TITLE)?;
+        writeln!(f, "-----BEGIN {}-----", C::PLATE_TITLE)?;
         writeln!(f, "Id: {}", self.id)?;
+        for (header, value) in self.bindle_headers() {
+            writeln!(f, "{header}: {value}")?;
+        }
         for cert in &self.sigs {
             writeln!(f, "Signed-By: {}", cert.signer)?;
         }
@@ -144,14 +181,14 @@ impl<C: BindleContent> Display for Bindle<C> {
         let engine = base64::engine::general_purpose::STANDARD;
         let data = engine.encode(data);
         let mut data = data.as_str();
-        while data.len() >= 76 {
-            let (line, rest) = data.split_at(76);
+        while data.len() >= 64 {
+            let (line, rest) = data.split_at(64);
             writeln!(f, "{}", line)?;
             data = rest;
         }
         writeln!(f, "{}", data)?;
 
-        writeln!(f, "\n----- END {} -----", C::PLATE_TITLE)?;
+        writeln!(f, "\n-----END {}-----", C::PLATE_TITLE)?;
         Ok(())
     }
 }

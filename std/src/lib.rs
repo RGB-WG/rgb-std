@@ -86,5 +86,4 @@ pub mod resolvers;
 pub mod accessors;
 
 pub use bp::{Chain, Outpoint, Txid};
-
-pub const LIB_NAME_RGB_STD: &str = "RGBStd";
+pub use stl::{LIB_NAME_RGB_CONTRACT, LIB_NAME_RGB_STD};
