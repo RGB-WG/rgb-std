@@ -156,7 +156,7 @@ pub fn rgb20() -> Iface {
                 errors: tiny_bset! {
                     NON_EQUAL_AMOUNTS
                 },
-                default_assignment: Some(fname!("assetOwner")),
+                default_assignment: Some(fname!("beneficiary")),
             },
             tn!("Issue") => TransitionIface {
                 optional: true,
@@ -178,7 +178,7 @@ pub fn rgb20() -> Iface {
                     ISSUE_EXCEEDS_ALLOWANCE,
                     INSUFFICIENT_RESERVES
                 },
-                default_assignment: None,
+                default_assignment: Some(fname!("beneficiary")),
             },
             tn!("Burn") => TransitionIface {
                 optional: true,
@@ -220,7 +220,23 @@ pub fn rgb20() -> Iface {
                     INVALID_PROOF,
                     INSUFFICIENT_COVERAGE
                 },
-                default_assignment: None,
+                default_assignment: Some(fname!("beneficiary")),
+            },
+            tn!("Rename") => TransitionIface {
+                optional: true,
+                metadata: None,
+                globals: tiny_bmap! {
+                    fname!("spec") => ArgSpec::required(),
+                },
+                inputs: tiny_bmap! {
+                    fname!("used") => ArgSpec::from_required("updateRight"),
+                },
+                assignments: tiny_bmap! {
+                    fname!("future") => ArgSpec::from_optional("updateRight"),
+                },
+                valencies: none!(),
+                errors: none!(),
+                default_assignment: Some(fname!("future")),
             },
         },
         extensions: none!(),
