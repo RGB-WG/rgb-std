@@ -117,7 +117,8 @@ pub fn rgb20() -> Iface {
         assignments: tiny_bmap! {
             fname!("inflationAllowance") => AssignIface::public(OwnedIface::Amount, Req::NoneOrMore),
             fname!("updateRight") => AssignIface::public(OwnedIface::Amount, Req::Optional),
-            fname!("burnRight") => AssignIface::public(OwnedIface::Amount, Req::Optional),
+            fname!("burnEpoch") => AssignIface::public(OwnedIface::Rights, Req::Optional),
+            fname!("burnRight") => AssignIface::public(OwnedIface::Rights, Req::NoneOrMore),
             fname!("assetOwner") => AssignIface::private(OwnedIface::Amount, Req::NoneOrMore),
         },
         valencies: none!(),
@@ -132,7 +133,7 @@ pub fn rgb20() -> Iface {
                 fname!("assetOwner") => ArgSpec::many(),
                 fname!("inflationAllowance") => ArgSpec::many(),
                 fname!("updateRight") => ArgSpec::optional(),
-                fname!("burnRight") => ArgSpec::optional(),
+                fname!("burnEpoch") => ArgSpec::optional(),
             },
             valencies: none!(),
             errors: tiny_bset! {
@@ -179,6 +180,21 @@ pub fn rgb20() -> Iface {
                     INSUFFICIENT_RESERVES
                 },
                 default_assignment: Some(fname!("beneficiary")),
+            },
+            tn!("OpenEpoch") => TransitionIface {
+                optional: true,
+                metadata: None,
+                globals: none!(),
+                inputs: tiny_bmap! {
+                    fname!("used") => ArgSpec::from_required("burnEpoch"),
+                },
+                assignments: tiny_bmap! {
+                    fname!("next") => ArgSpec::from_optional("burnEpoch"),
+                    fname!("burnRight") => ArgSpec::required()
+                },
+                valencies: none!(),
+                errors: none!(),
+                default_assignment: Some(fname!("burnRight")),
             },
             tn!("Burn") => TransitionIface {
                 optional: true,
