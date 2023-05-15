@@ -25,7 +25,7 @@ use strict_encoding::{StrictDeserialize, StrictSerialize};
 
 use super::LIB_NAME_RGB_CONTRACT;
 
-#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash, From)]
+#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_CONTRACT, dumb = ProofOfReserves::new(strict_dumb!(), strict_dumb!()))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
