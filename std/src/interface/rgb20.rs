@@ -125,7 +125,7 @@ pub fn rgb20() -> Iface {
                 fname!("burnRight") => ArgSpec::optional(),
             },
             valencies: none!(),
-            errors: small_bset! {
+            errors: tiny_bset! {
                 SUPPLY_MISMATCH,
                 INVALID_PROOF,
                 INSUFFICIENT_RESERVES
@@ -143,10 +143,32 @@ pub fn rgb20() -> Iface {
                     fname!("beneficiary") => ArgSpec::from_non_empty("assetOwner"),
                 },
                 valencies: none!(),
-                errors: small_bset! {
+                errors: tiny_bset! {
                     NON_EQUAL_AMOUNTS
                 },
                 default_assignment: Some(fname!("assetOwner")),
+            },
+            tn!("Issue") => TransitionIface {
+                optional: true,
+                metadata: Some(types.get("RGB20.Meta")),
+                globals: tiny_bmap! {
+                    fname!("issuedSupply") => ArgSpec::required(),
+                },
+                inputs: tiny_bmap! {
+                    fname!("used") => ArgSpec::from_non_empty("inflationAllowance"),
+                },
+                assignments: tiny_bmap! {
+                    fname!("beneficiary") => ArgSpec::from_many("assetOwner"),
+                    fname!("future") => ArgSpec::from_many("inflationAllowance"),
+                },
+                valencies: none!(),
+                errors: tiny_bset! {
+                    SUPPLY_MISMATCH,
+                    INVALID_PROOF,
+                    ISSUE_EXCEEDS_ALLOWANCE,
+                    INSUFFICIENT_RESERVES
+                },
+                default_assignment: None,
             }
         },
         extensions: none!(),

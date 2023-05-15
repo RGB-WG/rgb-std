@@ -22,7 +22,7 @@
 use std::cmp::Ordering;
 use std::str::FromStr;
 
-use amplify::confinement::{SmallOrdSet, TinyOrdMap};
+use amplify::confinement::{TinyOrdMap, TinyOrdSet};
 use amplify::{Bytes32, RawArray};
 use baid58::{Baid58ParseError, FromBaid58, ToBaid58};
 use commit_verify::{CommitStrategy, CommitmentId};
@@ -266,7 +266,7 @@ pub struct GenesisIface {
     pub global: ArgMap,
     pub assignments: ArgMap,
     pub valencies: ArgMap,
-    pub errors: SmallOrdSet<u8>,
+    pub errors: TinyOrdSet<u8>,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -283,7 +283,7 @@ pub struct ExtensionIface {
     pub redeems: ArgMap,
     pub assignments: ArgMap,
     pub valencies: ArgMap,
-    pub errors: SmallOrdSet<u8>,
+    pub errors: TinyOrdSet<u8>,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -302,7 +302,7 @@ pub struct TransitionIface {
     pub inputs: ArgMap,
     pub assignments: ArgMap,
     pub valencies: ArgMap,
-    pub errors: SmallOrdSet<u8>,
+    pub errors: TinyOrdSet<u8>,
     pub default_assignment: Option<FieldName>,
 }
 
