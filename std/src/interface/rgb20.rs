@@ -33,7 +33,7 @@ use crate::stl::{rgb_contract_stl, ProofOfReserves, StandardTypes};
 
 pub const LIB_NAME_RGB20: &str = "RGB20";
 /// Strict types id for the library providing data types for RGB20 interface.
-pub const LIB_ID_RGB20: &str = "giant_eagle_capsule_9QCXsi6d26jqNQVszMAYUDffRjwUkGRWeDCM84ZwPafA";
+pub const LIB_ID_RGB20: &str = "jacob_chamber_blitz_6LkTC4cSUxbmyefZj6cQDZSq1kM9NU3BeBctQnahG7F4";
 
 #[derive(
     Wrapper, WrapperMut, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default, From

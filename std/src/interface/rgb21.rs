@@ -46,7 +46,7 @@ use crate::stl::{
 
 pub const LIB_NAME_RGB21: &str = "RGB21";
 /// Strict types id for the library providing data types for RGB21 interface.
-pub const LIB_ID_RGB21: &str = "logic_radius_anita_HgevHFfoBcfqUMHjouxvGMtgGyvs2UrPwr6PNbyteSNb";
+pub const LIB_ID_RGB21: &str = "moses_perform_tractor_6Ag1jgZQvyxNLhcunP4U8o8nMHfPDf5tLLzU8RisJJv2";
 
 #[derive(
     Wrapper, WrapperMut, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default, From
