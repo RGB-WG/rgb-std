@@ -110,6 +110,15 @@ impl StrictDeserialize for IssueMeta {}
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
 pub struct Allocation(TokenIndex, OwnedFraction);
 
+impl Allocation {
+    pub fn with(index: TokenIndex, fraction: OwnedFraction)-> Allocation{
+        Allocation(index, fraction)
+    }
+}
+
+impl StrictSerialize for Allocation {}
+impl StrictDeserialize for Allocation {}
+
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB21)]
@@ -245,6 +254,9 @@ pub struct TokenData {
     pub attachments: Confined<BTreeMap<u8, Attachment>, 0, 20>,
     pub reserves: Option<ProofOfReserves>,
 }
+
+impl StrictSerialize for TokenData {}
+impl StrictDeserialize for TokenData {}
 
 const FRACTION_OVERFLOW: u8 = 1;
 const NON_EQUAL_VALUES: u8 = 2;
