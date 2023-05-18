@@ -40,7 +40,7 @@ pub struct MediaType {
     #[strict_type(rename = "type")]
     #[cfg_attr(feature = "serde", serde(rename = "type"))]
     pub ty: MediaRegName,
-    pub subtype: MediaRegName,
+    pub subtype: Option<MediaRegName>,
     pub charset: Option<MediaRegName>,
 }
 impl StrictDumb for MediaType {
@@ -57,7 +57,11 @@ impl MediaType {
         let (ty, subty) = s.split_once("/").expect("invalid static media type string");
         MediaType {
             ty: MediaRegName::from(ty),
-            subtype: MediaRegName::from(subty),
+            subtype: if subty == "*" {
+                None
+            } else {
+                Some(MediaRegName::from(subty))
+            },
             charset: None,
         }
     }
