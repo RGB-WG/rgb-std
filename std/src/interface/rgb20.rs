@@ -33,7 +33,7 @@ use crate::stl::{rgb_contract_stl, ProofOfReserves, StandardTypes};
 
 pub const LIB_NAME_RGB20: &str = "RGB20";
 /// Strict types id for the library providing data types for RGB20 interface.
-pub const LIB_ID_RGB20: &str = "jacob_chamber_blitz_6LkTC4cSUxbmyefZj6cQDZSq1kM9NU3BeBctQnahG7F4";
+pub const LIB_ID_RGB20: &str = "signal_horse_lava_4GePhjGZk9pqPT5MH9w8xvopCNFFaYYN2VDoYLDu89wR";
 
 #[derive(
     Wrapper, WrapperMut, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default, From
@@ -99,15 +99,15 @@ pub enum Error {
 }
 
 fn _rgb20_stl() -> Result<TypeLib, TranslateError> {
-    LibBuilder::new(libname!(LIB_NAME_RGB20))
-        .transpile::<IssueMeta>()
-        .transpile::<BurnMeta>()
-        .transpile::<Amount>()
-        .transpile::<Error>()
-        .compile(bset! {
-            bitcoin_stl().to_dependency(),
-            rgb_contract_stl().to_dependency()
-        })
+    LibBuilder::new(libname!(LIB_NAME_RGB20), tiny_bset! {
+        bitcoin_stl().to_dependency(),
+        rgb_contract_stl().to_dependency()
+    })
+    .transpile::<IssueMeta>()
+    .transpile::<BurnMeta>()
+    .transpile::<Amount>()
+    .transpile::<Error>()
+    .compile()
 }
 
 /// Generates strict type library providing data types for RGB20 interface.

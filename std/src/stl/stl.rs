@@ -22,7 +22,7 @@
 use bp::bc::stl::bitcoin_stl;
 use strict_types::stl::std_stl;
 use strict_types::typelib::{LibBuilder, TranslateError};
-use strict_types::typesys::SystemBuilder;
+use strict_types::typesys::{SymbolicTypes, SystemBuilder};
 use strict_types::{SemId, TypeLib, TypeSystem};
 
 use super::{
@@ -33,19 +33,19 @@ use crate::stl::ProofOfReserves;
 /// Strict types id for the library providing standard data types which may be
 /// used in RGB smart contracts.
 pub const LIB_ID_RGB_CONTRACT: &str =
-    "ricardo_cherry_protein_EcdesrJ9woezrhLGfgG6rnaJots2R9Acz5k38HDdDn2t";
+    "yellow_people_edison_4LjJk4vR2NTcwpFB2ECeUtK4oHJXsdTZgRJAggmbL3y2";
 
 fn _rgb_contract_stl() -> Result<TypeLib, TranslateError> {
-    LibBuilder::new(libname!(LIB_NAME_RGB_CONTRACT))
-        .transpile::<Timestamp>()
-        .transpile::<DivisibleAssetSpec>()
-        .transpile::<RicardianContract>()
-        .transpile::<MediaType>()
-        .transpile::<ProofOfReserves>()
-        .compile(bset! {
-            std_stl().to_dependency(),
-            bitcoin_stl().to_dependency()
-        })
+    LibBuilder::new(libname!(LIB_NAME_RGB_CONTRACT), tiny_bset! {
+        std_stl().to_dependency(),
+        bitcoin_stl().to_dependency()
+    })
+    .transpile::<Timestamp>()
+    .transpile::<DivisibleAssetSpec>()
+    .transpile::<RicardianContract>()
+    .transpile::<MediaType>()
+    .transpile::<ProofOfReserves>()
+    .compile()
 }
 
 /// Generates strict type library providing standard data types which may be
@@ -55,7 +55,7 @@ pub fn rgb_contract_stl() -> TypeLib {
 }
 
 #[derive(Debug)]
-pub struct StandardTypes(TypeSystem);
+pub struct StandardTypes(SymbolicTypes);
 
 impl StandardTypes {
     pub fn new() -> Self {
@@ -77,10 +77,10 @@ impl StandardTypes {
         Ok(Self(sys))
     }
 
-    pub fn type_system(&self) -> TypeSystem { self.0.clone() }
+    pub fn type_system(&self) -> TypeSystem { self.0.as_types().clone() }
 
     pub fn get(&self, name: &'static str) -> SemId {
-        self.0.id_by_name(name).unwrap_or_else(|| {
+        *self.0.resolve(name).unwrap_or_else(|| {
             panic!("type '{name}' is absent in standard RGBContract type library")
         })
     }

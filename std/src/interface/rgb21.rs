@@ -46,7 +46,8 @@ use crate::stl::{
 
 pub const LIB_NAME_RGB21: &str = "RGB21";
 /// Strict types id for the library providing data types for RGB21 interface.
-pub const LIB_ID_RGB21: &str = "moses_perform_tractor_6Ag1jgZQvyxNLhcunP4U8o8nMHfPDf5tLLzU8RisJJv2";
+pub const LIB_ID_RGB21: &str =
+    "collect_active_richard_EGpbCwaD7MG6LHK7FqK5d8iVLqrA1qaXMnuDmwFYars9";
 
 #[derive(
     Wrapper, WrapperMut, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default, From
@@ -111,7 +112,7 @@ impl StrictDeserialize for IssueMeta {}
 pub struct Allocation(TokenIndex, OwnedFraction);
 
 impl Allocation {
-    pub fn with(index: TokenIndex, fraction: OwnedFraction)-> Allocation{
+    pub fn with(index: TokenIndex, fraction: OwnedFraction) -> Allocation {
         Allocation(index, fraction)
     }
 }
@@ -285,19 +286,19 @@ pub enum Error {
 }
 
 fn _rgb21_stl() -> Result<TypeLib, TranslateError> {
-    LibBuilder::new(libname!(LIB_NAME_RGB21))
-        .transpile::<IssueMeta>()
-        .transpile::<TokenData>()
-        .transpile::<EngravingData>()
-        .transpile::<ItemsCount>()
-        .transpile::<Allocation>()
-        .transpile::<AttachmentType>()
-        .transpile::<Error>()
-        .compile(bset! {
-            std_stl().to_dependency(),
-            bitcoin_stl().to_dependency(),
-            rgb_contract_stl().to_dependency()
-        })
+    LibBuilder::new(libname!(LIB_NAME_RGB21), tiny_bset! {
+        std_stl().to_dependency(),
+        bitcoin_stl().to_dependency(),
+        rgb_contract_stl().to_dependency()
+    })
+    .transpile::<IssueMeta>()
+    .transpile::<TokenData>()
+    .transpile::<EngravingData>()
+    .transpile::<ItemsCount>()
+    .transpile::<Allocation>()
+    .transpile::<AttachmentType>()
+    .transpile::<Error>()
+    .compile()
 }
 
 /// Generates strict type library providing data types for RGB21 interface.
