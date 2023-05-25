@@ -95,9 +95,12 @@ impl StrictDeserialize for Precision {}
 pub struct Ticker(Confined<AsciiString, 1, 8>);
 impl StrictEncode for Ticker {
     fn strict_encode<W: TypedWrite>(&self, writer: W) -> std::io::Result<W> {
-        writer.write_newtype::<Self>(
-            &NonEmptyVec::<AlphaCapsNum, 8>::try_from_iter([AlphaCapsNum::D]).unwrap(),
-        )
+        let iter = self
+            .0
+            .as_bytes()
+            .iter()
+            .map(|c| AlphaCapsNum::try_from(*c).unwrap());
+        writer.write_newtype::<Self>(&NonEmptyVec::<AlphaCapsNum, 8>::try_from_iter(iter).unwrap())
     }
 }
 impl StrictSerialize for Ticker {}
@@ -164,12 +167,13 @@ impl Debug for Ticker {
 pub struct Name(Confined<AsciiString, 1, 40>);
 impl StrictEncode for Name {
     fn strict_encode<W: TypedWrite>(&self, writer: W) -> std::io::Result<W> {
-        writer.write_newtype::<Self>(
-            &NonEmptyVec::<AsciiPrintable, 40>::try_from_iter([
-                AsciiPrintable::try_from(b'D').unwrap()
-            ])
-            .unwrap(),
-        )
+        let iter = self
+            .0
+            .as_bytes()
+            .iter()
+            .map(|c| AsciiPrintable::try_from(*c).unwrap());
+        writer
+            .write_newtype::<Self>(&NonEmptyVec::<AsciiPrintable, 40>::try_from_iter(iter).unwrap())
     }
 }
 impl StrictSerialize for Name {}
