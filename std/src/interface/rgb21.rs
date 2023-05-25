@@ -33,8 +33,7 @@ use strict_encoding::{
     InvalidIdent, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, TypedWrite,
 };
 use strict_types::stl::std_stl;
-use strict_types::typelib::{LibBuilder, TranslateError};
-use strict_types::TypeLib;
+use strict_types::{CompileError, LibBuilder, TypeLib};
 
 use super::{
     AssignIface, GenesisIface, GlobalIface, Iface, OwnedIface, Req, TransitionIface, VerNo,
@@ -46,8 +45,7 @@ use crate::stl::{
 
 pub const LIB_NAME_RGB21: &str = "RGB21";
 /// Strict types id for the library providing data types for RGB21 interface.
-pub const LIB_ID_RGB21: &str =
-    "collect_active_richard_EGpbCwaD7MG6LHK7FqK5d8iVLqrA1qaXMnuDmwFYars9";
+pub const LIB_ID_RGB21: &str = "marco_report_inca_B4iuGKXYGDUXVP5jiwV8Yvgoaje6MQUGEgd2vPCBip41";
 
 #[derive(
     Wrapper, WrapperMut, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default, From
@@ -285,7 +283,7 @@ pub enum Error {
     InvalidAttachmentType = INVALID_ATTACHMENT_TYPE,
 }
 
-fn _rgb21_stl() -> Result<TypeLib, TranslateError> {
+fn _rgb21_stl() -> Result<TypeLib, CompileError> {
     LibBuilder::new(libname!(LIB_NAME_RGB21), tiny_bset! {
         std_stl().to_dependency(),
         bitcoin_stl().to_dependency(),

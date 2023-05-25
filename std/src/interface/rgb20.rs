@@ -22,8 +22,7 @@
 use amplify::confinement::SmallOrdSet;
 use bp::bc::stl::bitcoin_stl;
 use strict_encoding::{StrictDeserialize, StrictSerialize};
-use strict_types::typelib::{LibBuilder, TranslateError};
-use strict_types::TypeLib;
+use strict_types::{CompileError, LibBuilder, TypeLib};
 
 use super::{
     AssignIface, GenesisIface, GlobalIface, Iface, OwnedIface, Req, TransitionIface, VerNo,
@@ -33,7 +32,7 @@ use crate::stl::{rgb_contract_stl, ProofOfReserves, StandardTypes};
 
 pub const LIB_NAME_RGB20: &str = "RGB20";
 /// Strict types id for the library providing data types for RGB20 interface.
-pub const LIB_ID_RGB20: &str = "signal_horse_lava_4GePhjGZk9pqPT5MH9w8xvopCNFFaYYN2VDoYLDu89wR";
+pub const LIB_ID_RGB20: &str = "ethnic_raja_gloria_9tSQiAn1aGijb2F892JxTqcHDgmriV8rgN1aDxUREpv5";
 
 #[derive(
     Wrapper, WrapperMut, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default, From
@@ -98,7 +97,7 @@ pub enum Error {
     IssueExceedsAllowance = ISSUE_EXCEEDS_ALLOWANCE,
 }
 
-fn _rgb20_stl() -> Result<TypeLib, TranslateError> {
+fn _rgb20_stl() -> Result<TypeLib, CompileError> {
     LibBuilder::new(libname!(LIB_NAME_RGB20), tiny_bset! {
         bitcoin_stl().to_dependency(),
         rgb_contract_stl().to_dependency()

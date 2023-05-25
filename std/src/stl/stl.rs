@@ -21,9 +21,8 @@
 
 use bp::bc::stl::bitcoin_stl;
 use strict_types::stl::std_stl;
-use strict_types::typelib::{LibBuilder, TranslateError};
-use strict_types::typesys::{SymbolicTypes, SystemBuilder};
-use strict_types::{SemId, TypeLib, TypeSystem};
+use strict_types::typesys::SystemBuilder;
+use strict_types::{CompileError, LibBuilder, SemId, SymbolicSys, TypeLib, TypeSystem};
 
 use super::{
     DivisibleAssetSpec, Error, MediaType, RicardianContract, Timestamp, LIB_NAME_RGB_CONTRACT,
@@ -33,9 +32,9 @@ use crate::stl::ProofOfReserves;
 /// Strict types id for the library providing standard data types which may be
 /// used in RGB smart contracts.
 pub const LIB_ID_RGB_CONTRACT: &str =
-    "yellow_people_edison_4LjJk4vR2NTcwpFB2ECeUtK4oHJXsdTZgRJAggmbL3y2";
+    "protein_heroic_igloo_q5FBB7mQJG2wLHaaLMsBTaQSeE1cgcB6pGhG5i74aNh";
 
-fn _rgb_contract_stl() -> Result<TypeLib, TranslateError> {
+fn _rgb_contract_stl() -> Result<TypeLib, CompileError> {
     LibBuilder::new(libname!(LIB_NAME_RGB_CONTRACT), tiny_bset! {
         std_stl().to_dependency(),
         bitcoin_stl().to_dependency()
@@ -55,7 +54,7 @@ pub fn rgb_contract_stl() -> TypeLib {
 }
 
 #[derive(Debug)]
-pub struct StandardTypes(SymbolicTypes);
+pub struct StandardTypes(SymbolicSys);
 
 impl StandardTypes {
     pub fn new() -> Self {

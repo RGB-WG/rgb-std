@@ -22,7 +22,7 @@
 
 use rgbstd::interface::{rgb20_stl, rgb21_stl};
 use rgbstd::stl::rgb_contract_stl;
-use strict_types::typelib::parse_args;
+use strict_types::parse_args;
 
 fn main() {
     let (format, dir) = parse_args();

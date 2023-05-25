@@ -1,5 +1,5 @@
 {-
-  Id: jacob_chamber_blitz_6LkTC4cSUxbmyefZj6cQDZSq1kM9NU3BeBctQnahG7F4
+  Id: ethnic_raja_gloria_9tSQiAn1aGijb2F892JxTqcHDgmriV8rgN1aDxUREpv5
   Name: RGB20
   Version: 0.1.0
   Description: Types for RGB20 interface
@@ -8,16 +8,28 @@
   License: Apache-2.0
 -}
 
-typelib RGB20 -- jacob_chamber_blitz_6LkTC4cSUxbmyefZj6cQDZSq1kM9NU3BeBctQnahG7F4
+typelib RGB20
 
-import cubic_filter_vampire_AqBBP1ZeTXrdAePf6SBcUGbttpvxpHKG7uJLKFkVxtGi as Bitcoin
-import ricardo_cherry_protein_EcdesrJ9woezrhLGfgG6rnaJots2R9Acz5k38HDdDn2t as RGBContract
+import protein_heroic_igloo_q5FBB7mQJG2wLHaaLMsBTaQSeE1cgcB6pGhG5i74aNh as RGBContract
+-- Imports:
+-- ProofOfReserves := LicenseGermanyWindow0zrXMtzeLgFy1NQd46y3CNb549tnukiuMEGJvqxRkyDW
+
+import extra_rapid_armada_EXDzvefCHMLgk4KXNvsXsDr2QzgPkxFFUCSEkL3S1ZJL as Bitcoin
+-- Imports:
+-- Vout := OpusDecadeExample03HHRtSJW5fnGkdVW1EVDH7B97Y79WhwvKyyfsaBkuQkk
+-- Txid := TaxiLearnMalta0C1GfCrG7AXu2sFhRBspd7KpJK2YgyTkVy6pty5rZynRs
+-- Outpoint := CakeLeftPencil0GeFZHi1RYCrrcH1LG4Fo2SWW5M6KLJ8yvoGkFjRWZaA9
 
 
+
+-- ContextLovePlanet0AC2a15L721Fw1YSudEvyX7vr8XjPVn4bPUrRhmZS4oJj
 data Amount           :: U64
-data BurnMeta         :: burnProofs {RGBContract.ProofOfReserves}
+-- RespectKingGuide04LTGEp3eFDiF7XSjs3XpQ578Cjy5iBHjJf5Xim1WDgqN
+data BurnMeta         :: burnProofs {RGBContract.ProofOfReserves {- LicenseGermanyWindow0zrXMtzeLgFy1NQd46y3CNb549tnukiuMEGJvqxRkyDW -}}
+-- RubberOhioAlaska0BsYakBZMzKBDfgpfhXt1p81Q1WT27V8U7LvHG4NPmGmM
 data Error            :: supplyMismatch:1 | nonEqualAmounts:2 | invalidProof:3 | insufficientReserves:4
                        | insufficientCoverage:5 | issueExceedsAllowance:6
 
-data IssueMeta        :: reserves {RGBContract.ProofOfReserves}
+-- PlazaSleepMiracle05k8vAWdicctkWdPLp3zyUsaxxZzH43ZfsyfwG3S23ksU
+data IssueMeta        :: reserves {RGBContract.ProofOfReserves {- LicenseGermanyWindow0zrXMtzeLgFy1NQd46y3CNb549tnukiuMEGJvqxRkyDW -}}
 

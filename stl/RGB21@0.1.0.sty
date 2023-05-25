@@ -1,5 +1,5 @@
 {-
-  Id: moses_perform_tractor_6Ag1jgZQvyxNLhcunP4U8o8nMHfPDf5tLLzU8RisJJv2
+  Id: marco_report_inca_B4iuGKXYGDUXVP5jiwV8Yvgoaje6MQUGEgd2vPCBip41
   Name: RGB21
   Version: 0.1.0
   Description: Types for RGB21 interface
@@ -8,32 +8,62 @@
   License: Apache-2.0
 -}
 
-typelib RGB21 -- moses_perform_tractor_6Ag1jgZQvyxNLhcunP4U8o8nMHfPDf5tLLzU8RisJJv2
+typelib RGB21
 
-import quota_conan_fashion_3TZmAPf8EkQZnbGS1g8uMGes6jEWPqNkFB6pLUKeoefg as Std
-import cubic_filter_vampire_AqBBP1ZeTXrdAePf6SBcUGbttpvxpHKG7uJLKFkVxtGi as Bitcoin
-import ricardo_cherry_protein_EcdesrJ9woezrhLGfgG6rnaJots2R9Acz5k38HDdDn2t as RGBContract
+import protein_heroic_igloo_q5FBB7mQJG2wLHaaLMsBTaQSeE1cgcB6pGhG5i74aNh as RGBContract
+-- Imports:
+-- ProofOfReserves := LicenseGermanyWindow0zrXMtzeLgFy1NQd46y3CNb549tnukiuMEGJvqxRkyDW
+-- MimeChar := NormalBaliNuclear056Qs8Zfm2GAgewu9s7ffVb9xX6QiJhoDskxMhBoz723U
+-- Details := CamillaBeginLava05Fb7RNdm2jWi7wndRaaU8Lwx76exafTvgQqt9owU9JwM
+-- Name := ClaudiaArchiveAugust06PbMuf2YBk8Ff4J15AZ1MBW8XbcAUsprYiF7QjusVrz7
+-- MediaType := StormMatchFocus07wXHNN1AHZ71G2gBQZyNSqFtVuarKBHctWkmGesdY5Nx
+-- Ticker := NurseTorpedoGiraffe09dzjKz1d9KyoGnEg6WFSAKnWMaCpg1Lh7p66cmFXbH9e
+-- MediaRegName := BrownPrinterSouth0ATMfUVhmYiQqu4AaPTzvatZqYxWHStE2BMJhr4vYa2Vv
+
+import left_pierre_food_5cmoZctpx98FbTzWTArm3G53pMzUXuRPXmMhuCd8zyXb as Std
+-- Imports:
+-- AsciiPrintable := PierreForbidOrganic0mbH4meZSjxky12xHm9pg3rw8VoGxEa6rXtt6dAMZLbt
+-- AlphaCapsNum := CrashLemonNight07U5NvJNf343ZzFXsqW2DBYtTSvrb3YdL6oxYd2BaMsVr
+
+import extra_rapid_armada_EXDzvefCHMLgk4KXNvsXsDr2QzgPkxFFUCSEkL3S1ZJL as Bitcoin
+-- Imports:
+-- Vout := OpusDecadeExample03HHRtSJW5fnGkdVW1EVDH7B97Y79WhwvKyyfsaBkuQkk
+-- Txid := TaxiLearnMalta0C1GfCrG7AXu2sFhRBspd7KpJK2YgyTkVy6pty5rZynRs
+-- Outpoint := CakeLeftPencil0GeFZHi1RYCrrcH1LG4Fo2SWW5M6KLJ8yvoGkFjRWZaA9
 
 
+
+-- ChaosGyroOrange02WhKkjroWkz1aV23HAvvSpMnnCU6XisNvK4nqwmxQMW4
 data Allocation       :: TokenIndex, OwnedFraction
-data Attachment       :: type RGBContract.MediaType, digest [Byte ^ 32]
-data AttachmentName   :: [Std.AsciiPrintable ^ 1..0x14]
+-- HiltonStationDragon0DFwRAzutaWgGPkDzkEvHJoS129xfg4Gnv88Mk9wikpuh
+data Attachment       :: type RGBContract.MediaType {- StormMatchFocus07wXHNN1AHZ71G2gBQZyNSqFtVuarKBHctWkmGesdY5Nx -}, digest [Byte ^ 32]
+-- BalletHobbyProcess0DK3kB8HzGhJfYAHnR7cTRDBaEMoi1KLh4g81iE6xhGT5
+data AttachmentName   :: [Std.AsciiPrintable {- PierreForbidOrganic0mbH4meZSjxky12xHm9pg3rw8VoGxEa6rXtt6dAMZLbt -} ^ 1..0x14]
+-- TelecomValeryGreen08GLH9w6vfFE5vyBQpemUGjG1pyHaR6iXBEdANznnUYwZ
 data AttachmentType   :: id U8, name AttachmentName
-data EmbeddedMedia    :: type RGBContract.MediaType, data [Byte]
+-- WilliamEmotionChance03xBeKrXkHho58WzGavLvKu2wVyWLmUf82VVXb7ewgr2n
+data EmbeddedMedia    :: type RGBContract.MediaType {- StormMatchFocus07wXHNN1AHZ71G2gBQZyNSqFtVuarKBHctWkmGesdY5Nx -}, data [Byte]
+-- FreddieTritonContact0Efm3pLg9ADWDmEuVaEEFFNbnDBnkLuPfWy5Jx68uoKoG
 data EngravingData    :: appliedTo TokenIndex, content EmbeddedMedia
+-- RomanMagnumDevelop08EkixzUac6Fc9TXEDGWXKRie3oR1KdZUN9Nqb9B2pNAy
 data Error            :: fractionOverflow:1 | nonEqualValues:2 | invalidProof:3 | insufficientReserves:4
                        | issueExceedsAllowance:6 | nonFractionalToken:7 | nonEngravableToken:8 | invalidAttachmentType:9
 
-data IssueMeta        :: reserves {RGBContract.ProofOfReserves}
+-- PlazaSleepMiracle05k8vAWdicctkWdPLp3zyUsaxxZzH43ZfsyfwG3S23ksU
+data IssueMeta        :: reserves {RGBContract.ProofOfReserves {- LicenseGermanyWindow0zrXMtzeLgFy1NQd46y3CNb549tnukiuMEGJvqxRkyDW -}}
+-- AvalonGriffinMulti02MGPNB49XX5j9dZYUrjPuCWpmAksgXNUPW7poRjNijFo
 data ItemsCount       :: U32
+-- CharlieDominicShelf02kBpp5BpJXno5JqYPJ6zZvmLxMKbq8vPxynek8pkgQkN
 data OwnedFraction    :: U64
+-- OfficeSpiderMedical07DkPbxgXm7rDCbK1CWsfF5bq75yP6LzBckpy5B2UgjiF
 data TokenData        :: index TokenIndex
-                       , ticker RGBContract.Ticker?
-                       , name RGBContract.Name?
-                       , details RGBContract.Details?
+                       , ticker RGBContract.Ticker {- NurseTorpedoGiraffe09dzjKz1d9KyoGnEg6WFSAKnWMaCpg1Lh7p66cmFXbH9e -}?
+                       , name RGBContract.Name {- ClaudiaArchiveAugust06PbMuf2YBk8Ff4J15AZ1MBW8XbcAUsprYiF7QjusVrz7 -}?
+                       , details RGBContract.Details {- CamillaBeginLava05Fb7RNdm2jWi7wndRaaU8Lwx76exafTvgQqt9owU9JwM -}?
                        , preview EmbeddedMedia?
                        , media Attachment?
                        , attachments {U8 -> ^ ..0x14 Attachment}
-                       , reserves RGBContract.ProofOfReserves?
+                       , reserves RGBContract.ProofOfReserves {- LicenseGermanyWindow0zrXMtzeLgFy1NQd46y3CNb549tnukiuMEGJvqxRkyDW -}?
+-- BinarySugarPierre07oHMshog2F42Wh7hCEse1JZV1sFzV1UgyH3mYVfUqXVW
 data TokenIndex       :: U32
 
