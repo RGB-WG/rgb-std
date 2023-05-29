@@ -316,6 +316,22 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     where
         R::Error: 'static;
 
+    fn contracts_with_iface(
+        &mut self,
+        iface: impl Into<TypeName>,
+    ) -> Result<Vec<ContractIface>, InventoryError<Self::Error>>
+    where
+        Self::Error: From<<Self::Stash as Stash>::Error>,
+        InventoryError<Self::Error>: From<<Self::Stash as Stash>::Error>,
+    {
+        let iface = iface.into();
+        let iface_id = self.iface_by_name(&iface)?.iface_id();
+        self.contract_ids_by_iface(&iface)?
+            .into_iter()
+            .map(|id| self.contract_iface(id, iface_id))
+            .collect()
+    }
+
     fn contract_iface(
         &mut self,
         contract_id: ContractId,
