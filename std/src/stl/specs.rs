@@ -140,7 +140,7 @@ impl TryFrom<AsciiString> for Ticker {
             .as_slice()
             .iter()
             .copied()
-            .find(|ch| !ch.is_ascii_uppercase())
+            .find(|ch| AlphaCapsNum::try_from(ch.as_byte()).is_err())
         {
             return Err(InvalidIdent::InvalidChar(ascii, ch));
         }
@@ -189,7 +189,26 @@ impl FromStr for Name {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = AsciiString::from_ascii(s.as_bytes())?;
-        let s = Confined::try_from_iter(s.chars())?;
+        Self::try_from(s)
+    }
+}
+
+impl TryFrom<AsciiString> for Name {
+    type Error = InvalidIdent;
+
+    fn try_from(ascii: AsciiString) -> Result<Self, InvalidIdent> {
+        if ascii.is_empty() {
+            return Err(InvalidIdent::Empty);
+        }
+        if let Some(ch) = ascii
+            .as_slice()
+            .iter()
+            .copied()
+            .find(|ch| AsciiPrintable::try_from(ch.as_byte()).is_err())
+        {
+            return Err(InvalidIdent::InvalidChar(ascii, ch));
+        }
+        let s = Confined::try_from(ascii)?;
         Ok(Self(s))
     }
 }
@@ -203,8 +222,7 @@ impl TryFrom<String> for Name {
 
     fn try_from(name: String) -> Result<Self, InvalidIdent> {
         let name = AsciiString::from_ascii(name.as_bytes())?;
-        let s = Confined::try_from(name)?;
-        Ok(Self(s))
+        Self::try_from(name)
     }
 }
 
