@@ -22,7 +22,7 @@
 use amplify::confinement::{LargeOrdMap, LargeVec, SmallVec};
 use bp::Outpoint;
 use rgb::{
-    AssignmentType, AttachId, ContractState, FungibleOutput, MediaType, RevealedAttach,
+    AssignmentType, AttachId, ContractId, ContractState, FungibleOutput, MediaType, RevealedAttach,
     RevealedData, SealWitness,
 };
 use strict_encoding::FieldName;
@@ -101,6 +101,8 @@ pub struct ContractIface {
 }
 
 impl ContractIface {
+    pub fn contract_id(&self) -> ContractId { self.state.contract_id() }
+
     /// # Panics
     ///
     /// If data are corrupted and contract schema doesn't match interface
