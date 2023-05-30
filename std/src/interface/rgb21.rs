@@ -38,9 +38,10 @@ use strict_types::{CompileError, LibBuilder, TypeLib};
 use super::{
     AssignIface, GenesisIface, GlobalIface, Iface, OwnedIface, Req, TransitionIface, VerNo,
 };
-use crate::interface::ArgSpec;
+use crate::interface::{ArgSpec, ContractIface};
 use crate::stl::{
-    rgb_contract_stl, Details, MediaType, Name, ProofOfReserves, StandardTypes, Ticker,
+    rgb_contract_stl, Details, DivisibleAssetSpec, MediaType, Name, ProofOfReserves, StandardTypes,
+    Ticker,
 };
 
 pub const LIB_NAME_RGB21: &str = "RGB21";
@@ -428,6 +429,30 @@ pub fn rgb21() -> Iface {
         extensions: none!(),
         error_type: types.get("RGB21.Error"),
         default_operation: Some(tn!("Transfer")),
+    }
+}
+
+#[derive(Wrapper, WrapperMut, Clone, Eq, PartialEq, Debug)]
+#[wrapper(Deref)]
+#[wrapper_mut(DerefMut)]
+pub struct Rgb21(ContractIface);
+
+impl From<ContractIface> for Rgb21 {
+    fn from(iface: ContractIface) -> Self {
+        if iface.iface.iface_id != rgb21().iface_id() {
+            panic!("the provided interface is not RGB20 interface");
+        }
+        Self(iface)
+    }
+}
+
+impl Rgb21 {
+    pub fn spec(&self) -> DivisibleAssetSpec {
+        let strict_val = &self
+            .0
+            .global("spec")
+            .expect("RGB21 interface requires global `spec`")[0];
+        DivisibleAssetSpec::from_strict_val_unchecked(strict_val)
     }
 }
 

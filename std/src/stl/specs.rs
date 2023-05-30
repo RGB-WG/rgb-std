@@ -32,6 +32,7 @@ use strict_encoding::{
     InvalidIdent, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, StrictType,
     TypedWrite,
 };
+use strict_types::StrictVal;
 
 use super::LIB_NAME_RGB_CONTRACT;
 
@@ -317,6 +318,25 @@ impl AssetNaming {
             details: details.map(Details::from_str).transpose()?,
         })
     }
+
+    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
+        let ticker = value.unwrap_struct("ticker").unwrap_string();
+        let name = value.unwrap_struct("name").unwrap_string();
+        let details = value
+            .unwrap_struct("details")
+            .unwrap_option()
+            .map(StrictVal::unwrap_string);
+        AssetNaming {
+            ticker: Ticker::from_str(&ticker).expect("invalid asset ticker"),
+            name: Name::from_str(&name).expect("invalid asset name"),
+            details: details
+                .as_ref()
+                .map(String::as_str)
+                .map(Details::from_str)
+                .transpose()
+                .expect("invalid asset details"),
+        }
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -357,6 +377,18 @@ impl DivisibleAssetSpec {
             precision,
         })
     }
+
+    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
+        let naming = AssetNaming::from_strict_val_unchecked(value.unwrap_struct("naming"));
+        let precision = value.unwrap_enum();
+        Self { naming, precision }
+    }
+
+    pub fn ticker(&self) -> &str { self.naming.name.as_str() }
+
+    pub fn name(&self) -> &str { self.naming.name.as_str() }
+
+    pub fn details(&self) -> Option<&str> { self.naming.details.as_ref().map(|d| d.as_str()) }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Default)]
