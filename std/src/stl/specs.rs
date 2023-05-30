@@ -380,7 +380,7 @@ impl DivisibleAssetSpec {
 
     pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
         let naming = AssetNaming::from_strict_val_unchecked(value.unwrap_struct("naming"));
-        let precision = value.unwrap_enum();
+        let precision = value.unwrap_struct("precision").unwrap_enum();
         Self { naming, precision }
     }
 
