@@ -21,14 +21,14 @@
 
 use std::collections::HashMap;
 
-use amplify::confinement::{Confined, TinyOrdMap, U8, U16};
+use amplify::confinement::{Confined, TinyOrdMap, U16, U8};
 use amplify::{confinement, Wrapper};
 use bp::secp256k1::rand::thread_rng;
 use bp::Chain;
 use rgb::{
     Assign, AssignmentType, Assignments, ContractId, ExposedSeal, FungibleType, Genesis,
-    GenesisSeal, GlobalState, GraphSeal, Input, Inputs, Opout, RevealedValue, StateSchema,
-    SubSchema, Transition, TransitionType, TypedAssigns, BLANK_TRANSITION_ID, RevealedData,
+    GenesisSeal, GlobalState, GraphSeal, Input, Inputs, Opout, RevealedData, RevealedValue,
+    StateSchema, SubSchema, Transition, TransitionType, TypedAssigns, BLANK_TRANSITION_ID,
 };
 use strict_encoding::{FieldName, SerializeError, StrictSerialize, TypeName};
 use strict_types::decode;
@@ -400,7 +400,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
     ) -> Result<Self, BuilderError> {
         let name = name.into();
         let serialized = value.to_strict_serialized::<U16>()?;
-        
+
         let Some(type_id) = self.iimpl.assignments.iter().find(|t| t.name == name).map(|t| t.id) else {
             return Err(BuilderError::AssignmentNotFound(name));
         };
@@ -419,7 +419,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
                 }
                 None => {
                     self.data
-                        .insert(type_id, Confined::with((seal.into(),  state)))?;
+                        .insert(type_id, Confined::with((seal.into(), state)))?;
                 }
             }
         } else {
@@ -473,20 +473,21 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         });
         let owned_state_data = self.data.into_iter().map(|(id, vec)| {
             let vec_data = vec.into_iter().map(|(seal, value)| match seal {
-                BuilderSeal::Revealed(seal) => Assign::Revealed { seal, state: value},
+                BuilderSeal::Revealed(seal) => Assign::Revealed { seal, state: value },
                 BuilderSeal::Concealed(seal) => Assign::ConfidentialSeal { seal, state: value },
             });
             let state_data = Confined::try_from_iter(vec_data).expect("at least one element");
             let state_data = TypedAssigns::Structured(state_data);
             (id, state_data)
         });
-        
-        
+
         let owned_state = Confined::try_from_iter(owned_state).expect("same size");
-        let owned_state_data  = Confined::try_from_iter(owned_state_data).expect("same size");
+        let owned_state_data = Confined::try_from_iter(owned_state_data).expect("same size");
 
         let mut assignments = Assignments::from_inner(owned_state);
-        assignments.extend(Assignments::from_inner(owned_state_data).into_inner()).expect("");
+        assignments
+            .extend(Assignments::from_inner(owned_state_data).into_inner())
+            .expect("");
 
         let iface_pair = IfacePair::with(self.iface, self.iimpl);
 
