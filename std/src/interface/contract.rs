@@ -30,7 +30,6 @@ use strict_types::typify::TypedVal;
 use strict_types::{decode, StrictVal};
 
 use crate::interface::IfaceImpl;
-use crate::LIB_NAME_RGB_STD;
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
@@ -96,13 +95,6 @@ impl From<&FungibleOutput> for FungibleAllocation {
 /// Contract state is an in-memory structure providing API to read structured
 /// data from the [`rgb::ContractHistory`].
 #[derive(Clone, Eq, PartialEq, Debug)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
 pub struct ContractIface {
     pub state: ContractState,
     pub iface: IfaceImpl,
