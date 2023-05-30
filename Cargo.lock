@@ -962,7 +962,7 @@ dependencies = [
 [[package]]
 name = "strict_types"
 version = "1.2.0"
-source = "git+https://github.com/strict-types/strict-types#284b0e62fff273404989845a42af68c1ff640d3d"
+source = "git+https://github.com/strict-types/strict-types?branch=develop#e882e5200903fb60df5401632088c611b24b917e"
 dependencies = [
  "amplify",
  "baid58",
