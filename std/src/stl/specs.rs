@@ -384,7 +384,7 @@ impl DivisibleAssetSpec {
         Self { naming, precision }
     }
 
-    pub fn ticker(&self) -> &str { self.naming.name.as_str() }
+    pub fn ticker(&self) -> &str { self.naming.ticker.as_str() }
 
     pub fn name(&self) -> &str { self.naming.name.as_str() }
 
