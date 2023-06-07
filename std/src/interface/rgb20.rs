@@ -122,7 +122,7 @@ pub fn rgb20() -> Iface {
             fname!("spec") => GlobalIface::required(types.get("RGBContract.DivisibleAssetSpec")),
             fname!("terms") => GlobalIface::required(types.get("RGBContract.RicardianContract")),
             fname!("created") => GlobalIface::required(types.get("RGBContract.Timestamp")),
-            fname!("issuedSupply") => GlobalIface::none_or_many(types.get("RGB20.Amount")),
+            fname!("issuedSupply") => GlobalIface::one_or_many(types.get("RGB20.Amount")),
             fname!("burnedSupply") => GlobalIface::none_or_many(types.get("RGB20.Amount")),
             fname!("replacedSupply") => GlobalIface::none_or_many(types.get("RGB20.Amount")),
         },
