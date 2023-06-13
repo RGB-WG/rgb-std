@@ -29,6 +29,7 @@ mod contract;
 mod builder;
 pub mod rgb20;
 pub mod rgb21;
+pub mod rgb25;
 mod suppl;
 
 pub use builder::{BuilderError, ContractBuilder, OperationBuilder, TransitionBuilder};
@@ -40,6 +41,7 @@ pub use iface::{
 pub use iimpl::{IfaceImpl, IfacePair, ImplId, NamedField, NamedType, SchemaIfaces};
 pub use rgb20::{rgb20, rgb20_stl, Rgb20, LIB_ID_RGB20, LIB_NAME_RGB20};
 pub use rgb21::{rgb21, rgb21_stl, Rgb21, LIB_ID_RGB21, LIB_NAME_RGB21};
+pub use rgb25::{rgb25, rgb25_stl, Rgb25, LIB_ID_RGB25, LIB_NAME_RGB25};
 pub use suppl::{ContractSuppl, OwnedStateSuppl, SupplId, TickerSuppl, VelocityHint};
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, Default)]

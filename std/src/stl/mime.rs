@@ -26,9 +26,11 @@ use std::str::FromStr;
 
 use amplify::ascii::AsciiString;
 use amplify::confinement::{Confined, NonEmptyVec};
+use amplify::s;
 use strict_encoding::{
     InvalidIdent, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, TypedWrite,
 };
+use strict_types::StrictVal;
 
 use super::LIB_NAME_RGB_CONTRACT;
 
@@ -65,6 +67,38 @@ impl MediaType {
             charset: None,
         }
     }
+
+    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
+        let ty = MediaRegName::from_strict_val_unchecked(value.unwrap_struct("type"));
+        let subtype = value
+            .unwrap_struct("subtype")
+            .unwrap_option()
+            .map(MediaRegName::from_strict_val_unchecked);
+        let charset = value
+            .unwrap_struct("charset")
+            .unwrap_option()
+            .map(MediaRegName::from_strict_val_unchecked);
+        Self {
+            ty,
+            subtype,
+            charset,
+        }
+    }
+}
+
+impl std::fmt::Display for MediaType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}/{}",
+            self.ty,
+            if let Some(subty) = &self.subtype {
+                subty.to_string()
+            } else {
+                s!("*")
+            }
+        )
+    }
 }
 
 #[derive(Wrapper, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, From)]
@@ -82,6 +116,12 @@ impl StrictEncode for MediaRegName {
         writer.write_newtype::<Self>(
             &NonEmptyVec::<MimeChar, 64>::try_from_iter([MimeChar::strict_dumb()]).unwrap(),
         )
+    }
+}
+
+impl MediaRegName {
+    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
+        MediaRegName::from_str(&value.unwrap_string()).expect("invalid media reg name")
     }
 }
 

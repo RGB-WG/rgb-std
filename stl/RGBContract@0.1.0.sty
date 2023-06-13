@@ -1,5 +1,5 @@
 {-
-  Id: michael_baby_agenda_Ha1b9aKeSX5QVfo7x4MbUxj6HJkhaGw6aC59ggeGuDcs
+  Id: scoop_ocean_contour_DizxAzKBUaXCUkEZDGQegfJXQeK5Nk4pK142eEkC1EBM
   Name: RGBContract
   Version: 0.1.0
   Description: Types for writing RGB contracts and interfaces
@@ -23,14 +23,24 @@ import extra_rapid_armada_EXDzvefCHMLgk4KXNvsXsDr2QzgPkxFFUCSEkL3S1ZJL as Bitcoi
 
 
 
+-- ContextLovePlanet0AC2a15L721Fw1YSudEvyX7vr8XjPVn4bPUrRhmZS4oJj
+data Amount           :: U64
 -- SharpSecondStorm0Ep3efqbERhgbus3JbSaKn3Lm9gWtya9xoGYbAjoQhXaB
 data AssetNaming      :: ticker Ticker
                        , name Name
                        , details Details?
+-- GrilleJessicaNeptune09t5kYLUwTpWjwh9eHB1NU3obZnj3qeTZzpZdcfYiqAV4
+data Attachment       :: type MediaType, digest [Byte ^ 32]
+-- ThinkDealTrick0HtN246bWqDBKMgUJf7cKxERW9B2ostpVYPnAG2LVCKCX
+data BurnMeta         :: burnProofs {ProofOfReserves}
+-- EdisonWarningShock0tZLspSCzoPWcsyhL3Q9Tks45bGupxp9VRtvLzQfsBYS
+data ContractData     :: terms RicardianContract, media Attachment?
 -- CamillaBeginLava05Fb7RNdm2jWi7wndRaaU8Lwx76exafTvgQqt9owU9JwM
 data Details          :: [Unicode ^ 1..0xff]
 -- HobbySpiderJoel03p1E6oqjmmGPMHh6H4G3BrQU3iuwr7XRmmytiixPp1oh
 data DivisibleAssetSpec :: naming AssetNaming, precision Precision
+-- CandleAuroraScoop05r9sYFUJy7Kd9FEZ1pe5v4BUPiy1Bg344pNPsENbb7X
+data IssueMeta        :: reserves {ProofOfReserves}
 -- GuruCannonBlue0Bn87eabCqLDccdn1qvtnaxtDrofnw1mBexxR8tSjkN7z
 data MediaRegName     :: [MimeChar ^ 1..0x40]
 -- ReunionPromiseCredit0AUJnh2sR5dxk1TQRtXr7vYVTorbG4Tiy4LY14eQp9yV2
