@@ -19,10 +19,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::iter::Sum;
+
 use amplify::confinement::SmallOrdSet;
 use bp::bc::stl::bitcoin_stl;
 use strict_encoding::{StrictDeserialize, StrictSerialize};
-use strict_types::{CompileError, LibBuilder, TypeLib};
+use strict_types::{CompileError, LibBuilder, StrictVal, TypeLib};
 
 use super::{
     AssignIface, GenesisIface, GlobalIface, Iface, OwnedIface, Req, TransitionIface, VerNo,
@@ -47,6 +49,25 @@ pub const LIB_ID_RGB20: &str = "ethnic_raja_gloria_9tSQiAn1aGijb2F892JxTqcHDgmri
     serde(crate = "serde_crate", transparent)
 )]
 pub struct Amount(u64);
+
+impl StrictSerialize for Amount {}
+impl StrictDeserialize for Amount {}
+
+impl Amount {
+    pub fn zero() -> Self { Amount(0) }
+
+    pub fn one() -> Self { Amount(1) }
+
+    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
+        value.unwrap_uint::<u64>().into()
+    }
+}
+
+impl Sum for Amount {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.fold(Amount::zero(), |acc, i| acc + i)
+    }
+}
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
@@ -296,6 +317,35 @@ impl Rgb20 {
             .expect("RGB20 interface requires global `spec`")[0];
         DivisibleAssetSpec::from_strict_val_unchecked(strict_val)
     }
+
+    pub fn total_issued_supply(&self) -> Amount {
+        self.0
+            .global("issuedSupply")
+            .expect("RGB20 interface requires global `issuedSupply`")
+            .iter()
+            .map(Amount::from_strict_val_unchecked)
+            .sum()
+    }
+
+    pub fn total_burned_supply(&self) -> Amount {
+        self.0
+            .global("burnedSupply")
+            .unwrap_or_default()
+            .iter()
+            .map(Amount::from_strict_val_unchecked)
+            .sum()
+    }
+
+    pub fn total_replaced_supply(&self) -> Amount {
+        self.0
+            .global("replacedSupply")
+            .unwrap_or_default()
+            .iter()
+            .map(Amount::from_strict_val_unchecked)
+            .sum()
+    }
+
+    pub fn total_supply(&self) -> Amount { self.total_issued_supply() - self.total_burned_supply() }
 }
 
 #[cfg(test)]
