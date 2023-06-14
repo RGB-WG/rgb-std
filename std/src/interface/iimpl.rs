@@ -64,6 +64,7 @@ impl ToBaid58<32> for ImplId {
 impl FromBaid58<32> for ImplId {}
 
 impl ImplId {
+    #[allow(clippy::wrong_self_convention)]
     fn to_baid58_string(&self) -> String { format!("{}", self.to_baid58()) }
 }
 

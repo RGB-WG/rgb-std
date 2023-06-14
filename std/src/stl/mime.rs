@@ -54,7 +54,7 @@ impl MediaType {
     ///
     /// Panics is the provided string is an invalid type specifier.
     pub fn with(s: &'static str) -> Self {
-        let (ty, subty) = s.split_once("/").expect("invalid static media type string");
+        let (ty, subty) = s.split_once('/').expect("invalid static media type string");
         MediaType {
             ty: MediaRegName::from(ty),
             subtype: if subty == "*" {

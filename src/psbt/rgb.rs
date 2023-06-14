@@ -100,6 +100,7 @@ pub enum RgbPsbtError {
     InvalidTransition(SerializeError),
 }
 
+#[allow(clippy::result_large_err)]
 pub trait RgbExt {
     fn rgb_contract_ids(&self) -> BTreeSet<ContractId>;
 
@@ -165,7 +166,7 @@ impl RgbExt for Psbt {
                             prop_key.subtype == PSBT_IN_RGB_CONSUMED_BY
                     })
                     .map(|prop_key| &prop_key.key)
-                    .filter_map(|key| ContractId::from_slice(key))
+                    .filter_map(ContractId::from_slice)
             })
             .collect()
     }
@@ -255,6 +256,7 @@ pub trait RgbInExt {
     ///
     /// If the input already contains [`PSBT_IN_RGB_NODE_ID`] key with the given
     /// `contract_id` but referencing different [`OpId`].
+    #[allow(clippy::result_large_err)]
     fn set_rgb_consumer(
         &mut self,
         contract_id: ContractId,

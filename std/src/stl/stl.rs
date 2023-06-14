@@ -56,6 +56,10 @@ pub fn rgb_contract_stl() -> TypeLib {
 #[derive(Debug)]
 pub struct StandardTypes(SymbolicSys);
 
+impl Default for StandardTypes {
+    fn default() -> Self { StandardTypes::new() }
+}
+
 impl StandardTypes {
     pub fn new() -> Self {
         Self::try_with([std_stl(), bitcoin_stl(), rgb_contract_stl()])
@@ -67,6 +71,7 @@ impl StandardTypes {
             .expect("error in standard RGBContract type system")
     }
 
+    #[allow(clippy::result_large_err)]
     fn try_with(libs: impl IntoIterator<Item = TypeLib>) -> Result<Self, Error> {
         let mut builder = SystemBuilder::new();
         for lib in libs.into_iter() {

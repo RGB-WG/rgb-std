@@ -240,7 +240,7 @@ impl OutputTapret for Output {
     /// current crate.
     fn tapret_proof(&self) -> Option<TapretPathProof> {
         let data = self.proprietary.get(&ProprietaryKey::tapret_proof())?;
-        let vec = Confined::try_from_iter(data.into_iter().copied()).ok()?;
+        let vec = Confined::try_from_iter(data.iter().copied()).ok()?;
         TapretPathProof::from_strict_serialized::<U16>(vec).ok()
     }
 }

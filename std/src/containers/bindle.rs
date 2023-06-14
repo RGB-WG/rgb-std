@@ -208,7 +208,7 @@ impl<C: BindleContent> FromStr for Bindle<C> {
             return Err(BindleParseError::WrongStructure);
         }
         let mut header_id = None;
-        while let Some(line) = lines.next() {
+        for line in lines.by_ref() {
             if line.is_empty() {
                 break;
             }
