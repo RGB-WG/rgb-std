@@ -174,8 +174,10 @@ impl<Seal: ExposedSeal> MergeReveal for Assignments<Seal> {
 impl MergeReveal for BundleItem {
     fn merge_reveal(mut self, other: Self) -> Result<Self, MergeRevealError> {
         debug_assert_eq!(self.inputs, other.inputs);
-        if self.transition.is_none() {
-            self.transition = other.transition
+        match (self.transition, other.transition) {
+            (Some(op1), Some(op2)) => self.transition = Some(op1.merge_reveal(op2)?),
+            (None, Some(op)) => self.transition = Some(op),
+            (me, None) => self.transition = me,
         }
         Ok(self)
     }
