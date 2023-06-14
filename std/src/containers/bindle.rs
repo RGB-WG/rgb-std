@@ -225,7 +225,7 @@ impl<C: BindleContent> FromStr for Bindle<C> {
         .map_err(BindleParseError::Deserialize)?;
         let id = data.bindle_id();
         if let Some(header_id) = header_id {
-            if id != id {
+            if header_id != id {
                 return Err(BindleParseError::MismatchedId {
                     actual: id,
                     expected: header_id,
