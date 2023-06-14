@@ -19,6 +19,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::{BTreeSet, HashSet};
+
 use amplify::confinement::{LargeOrdMap, LargeVec, SmallVec};
 use bp::Outpoint;
 use rgb::{
@@ -92,6 +94,33 @@ impl From<&FungibleOutput> for FungibleAllocation {
     }
 }
 
+pub trait OutpointFilter {
+    fn include_outpoint(&self, outpoint: Outpoint) -> bool;
+}
+
+impl<T: OutpointFilter> OutpointFilter for Option<&T> {
+    fn include_outpoint(&self, outpoint: Outpoint) -> bool {
+        self.map(|filter| filter.include_outpoint(outpoint))
+            .unwrap_or(true)
+    }
+}
+
+impl OutpointFilter for &[Outpoint] {
+    fn include_outpoint(&self, outpoint: Outpoint) -> bool { self.contains(&outpoint) }
+}
+
+impl OutpointFilter for Vec<Outpoint> {
+    fn include_outpoint(&self, outpoint: Outpoint) -> bool { self.contains(&outpoint) }
+}
+
+impl OutpointFilter for HashSet<Outpoint> {
+    fn include_outpoint(&self, outpoint: Outpoint) -> bool { self.contains(&outpoint) }
+}
+
+impl OutpointFilter for BTreeSet<Outpoint> {
+    fn include_outpoint(&self, outpoint: Outpoint) -> bool { self.contains(&outpoint) }
+}
+
 /// Contract state is an in-memory structure providing API to read structured
 /// data from the [`rgb::ContractHistory`].
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -136,6 +165,7 @@ impl ContractIface {
     pub fn fungible(
         &self,
         name: impl Into<FieldName>,
+        filter: Option<&impl OutpointFilter>,
     ) -> Result<LargeVec<FungibleAllocation>, ContractError> {
         let name = name.into();
         let type_id = self
@@ -147,6 +177,7 @@ impl ContractIface {
             .fungibles()
             .iter()
             .filter(|outp| outp.opout.ty == type_id)
+            .filter(|outp| filter.include_outpoint(outp.seal))
             .map(FungibleAllocation::from);
         Ok(LargeVec::try_from_iter(state).expect("same or smaller collection size"))
     }
