@@ -55,6 +55,9 @@ pub enum ConsignerError<E1: Error, E2: Error> {
     /// too many transitions.
     TooManyBundles,
 
+    /// public state at operation output {0} is concealed.
+    ConcealedPublicState(Opout),
+
     #[display(inner)]
     #[from]
     Reveal(RevealError),
@@ -472,17 +475,19 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             // 2. Collect seals from terminal transitions to add to the consignment
             // terminals
             let bundle_id = anchored_bundle.bundle.bundle_id();
-            for typed_assignments in transition.assignments.values() {
+            for (type_id, typed_assignments) in transition.assignments.iter() {
                 for index in 0..typed_assignments.len_u16() {
-                    if let Some(seal) = typed_assignments
-                        .revealed_seal_at(index)
-                        .expect("index exists")
-                    {
+                    let seal = typed_assignments.to_confidential_seals()[index as usize];
+                    if terminal_seals.contains(&seal) {
                         terminals.insert(Terminal::with(bundle_id, seal.into()));
-                    } else {
-                        let seal = typed_assignments.to_confidential_seals()[index as usize];
-                        if terminal_seals.contains(&seal) {
+                    } else if opout.no == index && opout.ty == *type_id {
+                        if let Some(seal) = typed_assignments
+                            .revealed_seal_at(index)
+                            .expect("index exists")
+                        {
                             terminals.insert(Terminal::with(bundle_id, seal.into()));
+                        } else {
+                            return Err(ConsignerError::ConcealedPublicState(opout));
                         }
                     }
                 }
