@@ -87,6 +87,7 @@ pub trait InventoryWallet: Inventory {
     ///
     /// 1. If PSBT output has BIP32 derivation information it belongs to our
     /// wallet - except when it matches address from the invoice.
+    #[allow(clippy::result_large_err, clippy::type_complexity)]
     fn pay(
         &mut self,
         invoice: RgbInvoice,
@@ -142,7 +143,7 @@ pub trait InventoryWallet: Inventory {
                 // NB: Here we assume that if output has derivation information it belongs to our wallet.
                 .bip32_derivation
                 .first_key_value()
-                .and_then(|(_, src)| src.1.into_iter().rev().skip(1).next())
+                .and_then(|(_, src)| src.1.into_iter().rev().nth(1))
                 .copied()
                 .map(u32::from)
                 .and_then(|index| u8::try_from(index).ok())

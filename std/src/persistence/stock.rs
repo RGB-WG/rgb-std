@@ -109,6 +109,7 @@ impl DerefMut for Stock {
     fn deref_mut(&mut self) -> &mut Self::Target { &mut self.hoard }
 }
 
+#[allow(clippy::result_large_err)]
 impl Stock {
     fn consume_consignment<R: ResolveHeight, const TYPE: bool>(
         &mut self,

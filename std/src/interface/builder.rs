@@ -443,7 +443,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
                 let state = RevealedValue::new(value, &mut thread_rng());
                 match self.fungible.get_mut(&type_id) {
                     Some(assignments) => {
-                        assignments.insert(seal.into(), state.into())?;
+                        assignments.insert(seal.into(), state)?;
                     }
                     None => {
                         self.fungible

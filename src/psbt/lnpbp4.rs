@@ -236,6 +236,6 @@ impl OutputLnpbp4 for Output {
         let key = ProprietaryKey::lnpbp4_min_tree_depth();
         let val = vec![min_depth];
         let prev = self.lnpbp4_min_tree_depth();
-        self.proprietary.insert(key, val).and_then(|_| prev)
+        self.proprietary.insert(key, val).and(prev)
     }
 }

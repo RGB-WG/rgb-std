@@ -20,6 +20,7 @@
 // limitations under the License.
 
 mod specs;
+#[allow(clippy::module_inception)]
 mod stl;
 mod error;
 mod mime;
@@ -27,7 +28,7 @@ mod chain;
 
 pub use chain::ProofOfReserves;
 pub(self) use error::Error;
-pub use mime::{MediaType, MediaRegName};
+pub use mime::{MediaRegName, MediaType};
 pub use specs::{
     AssetNaming, Details, DivisibleAssetSpec, Name, Precision, RicardianContract, Ticker, Timestamp,
 };

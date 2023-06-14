@@ -330,8 +330,7 @@ impl AssetNaming {
             ticker: Ticker::from_str(&ticker).expect("invalid asset ticker"),
             name: Name::from_str(&name).expect("invalid asset name"),
             details: details
-                .as_ref()
-                .map(String::as_str)
+                .as_deref()
                 .map(Details::from_str)
                 .transpose()
                 .expect("invalid asset details"),

@@ -244,6 +244,7 @@ pub enum InventoryInconsistency {
     Stash(StashInconsistency),
 }
 
+#[allow(clippy::result_large_err)]
 pub trait Inventory: Deref<Target = Self::Stash> {
     type Stash: Stash;
     /// Error type which must indicate problems on data retrieval.
@@ -406,6 +407,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     fn store_seal_secret(&mut self, seal: GraphSeal) -> Result<(), InventoryError<Self::Error>>;
     fn seal_secrets(&mut self) -> Result<BTreeSet<GraphSeal>, InventoryError<Self::Error>>;
 
+    #[allow(clippy::type_complexity)]
     fn export_contract(
         &mut self,
         contract_id: ContractId,
@@ -420,6 +422,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         // TODO: Add known sigs to the bindle
     }
 
+    #[allow(clippy::type_complexity)]
     fn transfer(
         &mut self,
         contract_id: ContractId,
@@ -507,7 +510,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
                 .entry(id)
                 .or_insert(self.anchored_bundle(id)?.clone())
                 .bundle
-                .reveal_transition(&transition)?;
+                .reveal_transition(transition)?;
         }
 
         let genesis = self.genesis(contract_id)?;
