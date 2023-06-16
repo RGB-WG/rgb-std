@@ -59,6 +59,9 @@ pub struct SupplId(
 pub struct ContractSuppl {
     pub contract_id: ContractId,
     pub ticker: TickerSuppl,
+    /// Media kit is a URL string which provides JSON information on media files
+    /// and colors that should be used for UI,
+    pub media_kit: TinyString,
     pub global_state: TinyOrdMap<AssignmentType, OwnedStateSuppl>,
     pub owned_state: TinyOrdMap<AssignmentType, OwnedStateSuppl>,
 }
