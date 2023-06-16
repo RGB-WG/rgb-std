@@ -19,7 +19,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use amplify::confinement::{TinyOrdMap, TinyString};
+use amplify::confinement::{SmallBlob, TinyOrdMap, TinyString};
 use amplify::Bytes32;
 use rgb::{AssignmentType, ContractId, GlobalStateType};
 use strict_types::value;
@@ -64,6 +64,8 @@ pub struct ContractSuppl {
     pub media_kit: TinyString,
     pub global_state: TinyOrdMap<AssignmentType, OwnedStateSuppl>,
     pub owned_state: TinyOrdMap<AssignmentType, OwnedStateSuppl>,
+    /// TLV-encoded custom fields.
+    pub extensions: TinyOrdMap<u16, SmallBlob>,
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
