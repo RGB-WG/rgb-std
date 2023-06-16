@@ -90,7 +90,7 @@ pub enum TickerSuppl {
 )]
 pub struct OwnedStateSuppl {
     pub meaning: TinyString,
-    pub app_index: AppDeriveIndex,
+    pub velocity: VelocityHint,
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display, Default)]
@@ -103,13 +103,18 @@ pub struct OwnedStateSuppl {
 )]
 #[display(lowercase)]
 #[repr(u8)]
-pub enum AppDeriveIndex {
-    // TODO: Use non-change output
+pub enum VelocityHint {
     #[default]
-    Any = 1,
-    HighFrequency = 10,
-    Frequent = 20,
-    Regular = 30,
-    Episodic = 40,
-    Seldom = 50,
+    Unspecified = 0,
+    /// Should be used for thinks like secondary issuance for tokens which do
+    /// not inflate very often.
+    Seldom = 10,
+    /// Should be used for digital identity revocations.
+    Episodic = 25,
+    /// Should be used for digital art, shares, bonds etc.
+    Regular = 50,
+    /// Should be used for fungible tokens.
+    Frequent = 75,
+    /// Should be used for stablecoins and money.
+    HighFrequency = 100,
 }
