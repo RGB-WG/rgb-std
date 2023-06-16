@@ -21,7 +21,7 @@
 
 use std::iter::Sum;
 
-use amplify::confinement::SmallOrdSet;
+use amplify::confinement::{LargeVec, SmallOrdSet};
 use bp::bc::stl::bitcoin_stl;
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 use strict_types::{CompileError, LibBuilder, StrictVal, TypeLib};
@@ -29,7 +29,8 @@ use strict_types::{CompileError, LibBuilder, StrictVal, TypeLib};
 use super::{
     AssignIface, GenesisIface, GlobalIface, Iface, OwnedIface, Req, TransitionIface, VerNo,
 };
-use crate::interface::{ArgSpec, ContractIface};
+use crate::interface::contract::OutpointFilter;
+use crate::interface::{ArgSpec, ContractIface, FungibleAllocation};
 use crate::stl::{rgb_contract_stl, DivisibleAssetSpec, ProofOfReserves, StandardTypes};
 
 pub const LIB_NAME_RGB20: &str = "RGB20";
@@ -316,6 +317,12 @@ impl Rgb20 {
             .global("spec")
             .expect("RGB20 interface requires global `spec`")[0];
         DivisibleAssetSpec::from_strict_val_unchecked(strict_val)
+    }
+
+    pub fn allocations(&self, filter: &impl OutpointFilter) -> LargeVec<FungibleAllocation> {
+        self.0
+            .fungible("assetOwner", Some(filter))
+            .expect("RGB20 interface requires `assetOwner` state")
     }
 
     pub fn total_issued_supply(&self) -> Amount {
