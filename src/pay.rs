@@ -61,9 +61,11 @@ where E1: From<E2>
 
     /// state provided via PSBT inputs is not sufficient to cover invoice state
     /// requirements.
+    #[display(doc_comments)]
     InsufficientState,
 
     /// the invoice has expired
+    #[display(doc_comments)]
     InvoiceExpired,
 
     #[from]
