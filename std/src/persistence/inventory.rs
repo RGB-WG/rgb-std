@@ -453,11 +453,10 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         let (outpoint_seals, terminal_seals) = seals
             .into_iter()
             .map(|seal| match seal.into() {
-                BuilderSeal::Revealed(seal) => (seal.outpoint(), None),
-                BuilderSeal::Concealed(seal) => (None, Some(seal)),
+                BuilderSeal::Revealed(seal) => (seal.outpoint(), seal.conceal()),
+                BuilderSeal::Concealed(seal) => (None, seal),
             })
             .unzip::<_, _, Vec<_>, Vec<_>>();
-        let terminal_seals = terminal_seals.into_iter().flatten().collect::<Vec<_>>();
         opouts.extend(self.opouts_by_outpoints(contract_id, outpoint_seals.into_iter().flatten())?);
         opouts.extend(self.opouts_by_terminals(terminal_seals.iter().copied())?);
 
