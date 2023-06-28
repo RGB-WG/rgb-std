@@ -321,7 +321,7 @@ impl Rgb20 {
 
     pub fn allocations(&self, filter: &impl OutpointFilter) -> LargeVec<FungibleAllocation> {
         self.0
-            .fungible("assetOwner", Some(filter))
+            .fungible("assetOwner", filter)
             .expect("RGB20 interface requires `assetOwner` state")
     }
 
