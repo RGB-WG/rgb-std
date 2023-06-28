@@ -21,7 +21,7 @@
 // limitations under the License.
 
 use rgbstd::interface::{rgb20_stl, rgb21_stl};
-use rgbstd::stl::rgb_contract_stl;
+use rgbstd::stl::{rgb_contract_stl, rgb_std_stl};
 use strict_types::parse_args;
 
 fn main() {
@@ -72,8 +72,7 @@ fn main() {
         )
         .expect("unable to write to the file");
 
-    /*
-    bp::stl::rgb_std_stl()
+    rgb_std_stl()
         .serialize(
             format,
             dir,
@@ -87,5 +86,4 @@ fn main() {
             ),
         )
         .expect("unable to write to the file");
-     */
 }

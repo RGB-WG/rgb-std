@@ -1,0 +1,284 @@
+{-
+  Id: camel_product_float_9Y12p3rVHBiJh3TZUgup8kMtKggwNX5zPzWH9TgGRiwD
+  Name: RGBStd
+  Version: 0.1.0
+  Description: RGB standard library
+  Author: Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
+  Copyright (C) 2023 LNP/BP Standards Association. All rights reserved.
+  License: Apache-2.0
+-}
+
+typelib RGBStd
+
+import kiwi_rachel_smart_7JMa1g7puQEw1zGtJK2zshmB7si6wd4sqvwajrw8JDFD as StrictTypes
+-- Imports:
+-- TypeName := RemarkSecondAxis0t47Qbd4ggmas4GmrE6oxCSyKBsosvGNtiXc2B2tuvUo
+-- Primitive := NoisePierreFrance03T3zMmQxuir7TsdjhBLaETJfLH4mr5amAseXDePnzhMT
+-- Variant := SusanOreganoFish03kQKwMdjA637pgAS3nF6SBooJrEbSNemqYtfZUYWinS6
+-- TypeSystem := GregoryAthleteHazard047es12nMYaA5M7zMejQHAydsRPW6juta8ensLigXMBDP
+-- VariantInfoSemId := GuideFantasyPhantom04Lhtbe9Fk5Xi5w1rYmY6VcNHKiPzvbBE9Z7ox8JYLfGF
+-- UnionVariantsSemId := OhioPreludeNissan05B1DxehrbHq1bwC671nskfn2wVqDjMLkuaS7bpC3VxJk
+-- EnumVariants := EricOutsideGenesis06Zt75MUKawbZuckCDFLEtanNvFbsoGZo7hdwdy6TJytE
+-- UnnamedFieldsSemId := SloganSummerAppear07mWKWSN4oLP5RHpJp2ofSR2DmPLnoGWnSdaT7XkLjJDL
+-- NamedFieldsSemId := OrchidRobinBudget07t4xRL7UV1zB1pm8nT6mM7LQTKDXrhJtCpXXeY1DdWTi
+-- FieldSemId := MusicTalentArnold07xPYsYdNDXSyVVY1FFRMkwYzn6ggw8PXV45A8vtdGGrK
+-- SemId := StandMailboxBaboon08Ckj2p3GLKina636pSKJkj7GB6ft8XeoP4jfGkRUNwtp
+-- TySemId := GuitarDenmarkWeather09CmodzHmcjTizoBRGs6QuGgeBugHz1HinSdWyuXiTKea
+-- Ident := AlgebraVisitorUltra09SkVki7nQ7WRGN2ayWjySv7QSh6ftrakdNRbE2sSbUYw
+-- Sizing := CairoEverestScreen09jnMbAs5A91zjK9KDrLuFH42WtinmB8GY6JE6BMY31hw
+-- FieldName := SecureJupiterDemo0CK7zqXpkDGwatYDy1bVHoARAq1xTi85DFueWrZdFE7du
+-- KeyStep := PyramidRogerAugust0EEZoF2pqf4ZmH7BJVhNyMuT5xtAgBbsWuxmfwSGsHpKb
+-- Path := ForwardNepalRose0FiLcRn8DtH8UBS4ByqmSWX6XbCaDShkRU3Wf6i9yzDFV
+-- Step := StrangeRhinoGeneral0Fm1c9Y5SAxBw7jv3Qxwz6AUz3D755y9NxBYM4vAqw1aD
+
+import siren_reward_number_C2hHN1Y5VwxxNrrLBBnuTQBgB19WN4HzKD8tZ2YFkeCr as Std
+-- Imports:
+-- Ascii := SmilePlasticJudge02NFrhqQqGNDA4HujyTW2pmcjtrN5sbtFfpPFXPPYcGER
+-- Bool := FashionSharpRodeo07ZhBHGSJm9ixmm8Z9vCX7i5Ga7j5xrW8t11nsb1Cgpnx
+-- AlphaNumLodash := DriverBarbaraRamirez08iBe2dh8beD1KUairdqCacEcxAr4h55XfUQN2PspWXjz
+
+import atomic_nebula_chrome_CknaDHPeG4JFdfh7P6CPFMoT1ge1YJP1vrsHjwHv2B15 as BPCore
+-- Imports:
+-- BlindSealTxid := ArrowNeedleCubic0q529pAPHhD1aFgueAHy8QtfjUayszR85WgEg7s2a3KE
+-- TapretRightBranch := LocalElementForever04nZtVVw7QJaMDHYffkHBWhxXSkLXLcJ89qTLZH4Z3xck
+-- SecretSeal := VocalWinterMango081NKrdc9pBoBjsKaGBVN9wXLG4tKjkK4f8DLj7TNMZxh
+-- AnchorMerkleProof := LearnHandStore097V7rWU6NDWdkRP3nfMeYYrSczTe1RsqUcd3sUiyzLqD
+-- BlindSealTxPtr := AntonioCoolYoga09XdJg1BFMpMXPfaiw4Te79W2qYgArsEye6XPJUtj31L8
+-- TxPtr := FastIgorStyle0CyRtMpPJkKLX3AdhgY7ZyA7PnYAzCo7yFTeYwwGsUBhn
+-- TapretNodePartner := LunarAlphaCaramel0DwFXyKGGoQ4wNrudao6rVERx36diz7MCgCnHc39atSV4
+-- TapretProof := GraniteHandEnjoy0Eg2pWomf1uhG9jw8xr6Bi5pgezzQhdNXCkjckxispMTC
+-- Proof := SwedenCaravanBogart0F24utdF9EgMnUstQYEz1kzfDAP7PFYzZBph113JKXSvz
+-- CloseMethod := AlertCloudArchive0FA1JhsEFKi2LLpuAjuvLA3qiBuEJrwpKyypB9J2aPicr
+-- TapretPathProof := PicnicRegionMuseum0HCBp1BvtTauKy8ab8yWQscj8vhWoDRbjoz9ujS2PQ6bp
+
+import sultan_banana_henry_DDKh5Jk4DCqxiWZNyHnkCbq68nV8fsfWuA9cPhUAcvgz as RGB
+-- Imports:
+-- BundleId := RocketStockProtect0EbWt9bmnjLpAu1LCN78snx734kHLNVUxyb5YxNr8tjd
+-- AssignVoidStateBlindSealTxid := DiplomaAvalonCactus0KXGLZQcMpsJKMcAghm4urgLPXinQ7WhekrUDaBXdVvy
+-- TypedAssignsBlindSealTxPtr := RomanRiskIndia02RoFp1p4edJd4qPEntk1EbAnr35sYJeMRbhn9YcZ9QLn
+-- NoiseDumb := SweetSalamiLetter033ug4TwTBFQxz7D3YdFmwpKET415dv5zQRh5CkavC5fL
+-- AssignRevealedValueBlindSealTxPtr := TorpedoCraterJason038yKXP6DqCmogDHoePL8FjGhwVCFwTbptn1xg6qCcK5g
+-- RevealedData := GentleLolaMadonna03DcMJ3YRokNwKN8Cce1ZqsYpiTEuto7EY1szCMEDH97A
+-- ExtensionSchema := ForumMaskRace03Q3VJuT6qxjtZGTQHQKZNb8kdPzxxbNA28R8TWpXVAXC
+-- VoidState := SingleVanillaCake049HkbZvGaJE3phHjLBMQCR3NK1sGA462HJr5BkqQ6YQr
+-- Occurrences := TitanicRubberEscape04gjtVBchJQ5f1aAzoyxYWeGp6qZi9dPudJCbWKYKhw1a
+-- StateSchema := VideoNuclearPhoto04pgZ5NMvRK6Jf2ua7H3TCF8bMNHhZR7PuUJawqq1X4uG
+-- Input := PlazaGoodPerfect05CQTDNpVVWAWYnK1V3Re1oWXryWercFoy8fgiekJc1v2
+-- AssignmentsBlindSealTxPtr := GameDerbyPilgrim05FzX2x7QsdQPgKi5jpTUoZ7LpThbUxtdA2thE1GR4aj5
+-- MediaType := BenefitSummerGlass05TNhPhpZzE6iDWXaUpdsTAwVsCZj5e9Z8AqFU1ii6HHa
+-- ReservedByte := JoshuaVanillaPoint05ezr9uJrSdzez89fTCRWvKwGv6coMmQeXizK371oYdZ2
+-- AnchoredBundle := SystemCamelBambino05gCaj9bm4tkX2etwpxgA8sfTeSgeUbtf5AbJi9BZD5WW
+-- TransitionBundle := JuniorLobsterTribal05i1NyrYyHgcahPJ32qjyw52pZvQxY7bzrRoDv9yt5CoS
+-- GlobalValues := ListPartnerAcademy05j3xo5bTKFzcKayBQELdAVzUEnuPPAVd8etsBPG1EgZ3
+-- PedersenCommitment := GravityBagelPump05twbh2U5hyaowidwum1iRNCqebBLxTuZTuNPt3SaRT13
+-- AssignRevealedValueBlindSealTxid := AngelTorsoDublin06nzabEmqGQ65g93jNg3VSSawyzGHkKsozxWR7rCJ2cQL
+-- Inputs := HarborVitaminLexicon075nTxKwkqzLo5AUoH2p4dzpV8vBrsL286DYusdoXRzqh
+-- SchemaSchema := HotelKarlBarbara07EHzDDj8E6STpb7ahNW1NdW7477NKCjmpQvXWJKr14dL
+-- AssignRevealedDataBlindSealTxid := VegaBennySimon07HmJuu1sbzQHHS9CD1MgW93mAAcXDcYkkysr2NNk7R3P
+-- Transition := MotorNovelWarning07tdKckGFmZ4VzZEpw3kf5oJJ9PMURhPa8jjg3FjdzcF6
+-- RevealedAttach := FilterAnswerGolf082EzCoBU6LaGX9bVA6WDXYNHmb2tCRZ8HgvxvNKWSGE7
+-- ConcealedData := DetailPodiumCanvas08YQWVpKJBaYsAwrXvuLDNEDEKRZxfoQJpu1G7X2ZN1tL
+-- TransitionSchema := ForgetHopeBrown08vkpEFDoPs8xj2WP9mtjwBi7HVYEN9k6f7YrtQW6nqyd
+-- Genesis := SidePeoplePrivate09V1wj2QXbzHckbywWoHpmNysNKwU5ZNjAFFAm1wscuvo
+-- Redeemed := CompactMikeCuba09gdyUfvHDC1JjNho3fEStwmRu5tBtJ6Yy6pbjDqL4kc1
+-- AttachId := TobaccoBrendaEdward09uzoSojhudYvNZYgTmJ5sMwwxzLtdLnfUeudT6Ro8i23
+-- BlindingFactor := TrilogyBalloonSheriff09zzp5XyDaLvZSGhCEWtey1Y7xdD1soEYdGaimjyZexyf
+-- AssignRevealedDataBlindSealTxPtr := GermanyArcticKoala0AsJnBrKB372e2bmjcHHWVk5cLoAeqc7GzqUnNfCdkUjz
+-- SchemaId := SalaryPlasterNickel0AyzbMn4ux89LLU8ho1L4pQa5TXsmRdHd79oh6SXdrCmd
+-- OpId := LightMonsterTomato0B5hRc3ekuQsCAgsk8dmPVfytVDbvECJ3g2ANqrwSLE2p
+-- GenesisSchema := BalloonBrazilComedy0BUK8jECrf7CtWBmk91W9Vm6KrYLXykEZDTbPDxhyPB8w
+-- ContractId := PaintTelexJames0Bho42Xw8wPy2nWxgz6H51rNdBBusaPyrVQT8VypvpZ3w
+-- AluScript := FormatGardenFiction0ByCxcZ2hYTTJ8yoUhpUuHaxceQoAjqsxSF9zJkED3JuM
+-- TypedAssignsBlindSealTxid := AdiosSavageMotor0C4o9qxebRc6FutGCzyQPAcHVXPqSiDyqeGyfPMVgWu9E
+-- FungibleState := GolfEnigmaAnalog0CD8fR4UCdn4ZE6Y6bNPFkDpXdMCMH1Y8nVPx7NGqqYHB
+-- Opout := HarborHandRebel0CDgpyRMsXh1svZthjXumup2kYbpFaqB4SnMYATv59N27
+-- RangeProof := FabricShipBalance0CL9hFCwcjTpaybwDxfj2GzdWkapbgjLkm3fjHEErcFju
+-- Extension := PythonCastroEarth0CbL9bmsun7ik6S6scQdeLtBh7XS7oHMqJvV1tt4sUykw
+-- Schema := CelloNinaKermit0CuBAzTcP8HVXXaR6eYL6kLmLMA3o9ZuDecSyi2ArcztC
+-- Valencies := LaserRespectGreek0CuTKkWVTMmWsLXdxt9CZ7T2zeeeJP5PNd5fQF8CqfKVG
+-- AssignmentsBlindSealTxid := NurseLaserSerial0DtXiVJEyFpjUYjgNTpS1yhr1fPcBfHpsziuPHMsZJUZk
+-- ConcealedFungible := WaterTunnelCapitan0E5YL6Uz7gLb8DHtWEZpRxQaAXBF3ETJmqQeygd7j6f72
+-- Script := FiberDollarWelcome0ELHJ2Y2csp6kKFC4wrnfB4izSAqMk8iyTBqrotVJxePu
+-- GlobalStateSchema := StateBorderArmor0ES98zed1FQ1XHZJptvv3ecWF6XFCdQsG1NvtkADYkugP
+-- AssignRevealedAttachBlindSealTxid := TobaccoCandidNorth0EwVi55E5CKKyFE9SDyQxpXmfYxC5Z66TSQJj3cr4pdCt
+-- Ffv := CarbonCommandDeluxe0FiMEyh3t5FKEsUqVTgQFYJ5XfJF9m2RwKMN9NckympSG
+-- BundleItem := BishopRiderVendor0Fy4MenDhYeSRTjgHLVxjMjrDWWtAjTcWLHGJ1gjTiEUJ
+-- AssignVoidStateBlindSealTxPtr := CollegeArsenalJudo0GHgus7kVdhmR25myU9Nmip5dhULH3WTfmWvjzCs7deP2
+-- GlobalState := PabloRomeoAroma0Gr3TV9Roumpjkgwgjwk46Ap3CpFJgCAAe412xSUaZfRW
+-- RevealedFungible := AmbientBlessPlume0GwQiHafneybdj3bnwbbMm5m2Qt63En9yJDYw4pSdfYWp
+-- AssignRevealedAttachBlindSealTxPtr := SuperAlbinoBermuda0HdXbvEKePanqiVg7BFGVaj7vBBBeSZsnztbRwpkwGKqi
+-- FungibleType := RodeoSerialPretty0HpiuYTT7BuhCmoNs2GrwNrHNUx3i3yf6GjDiFphLKeQV
+-- ConcealedAttach := ItalianSongHarvest0HyVyGxhRswAZ3BHJqx6PKmcEGCUSHaL1Rc7qxxi811qE
+
+import degree_boston_heart_DVtm25LRKU4TjbyZmVxPhvCmctZ6vKkPKqfpU2QsDNUo as AluVM
+-- Imports:
+-- LibSite := ContactYellowVision08Q9NNyK2PCcjZ7U7rDGUJBhk8q37hAnWLgSizGLmr56g
+-- LibId := ExhibitBostonArthur0CFdqBJb1FVEwSwuQp47acj2bCFJgJn9J9NKVdoZuG625
+
+import extra_rapid_armada_EXDzvefCHMLgk4KXNvsXsDr2QzgPkxFFUCSEkL3S1ZJL as Bitcoin
+-- Imports:
+-- Vout := OpusDecadeExample03HHRtSJW5fnGkdVW1EVDH7B97Y79WhwvKyyfsaBkuQkk
+-- TapNodeHash := LicenseSnowCorrect04M8xyvABKKKJseN6Pme5eKrAuusMNMXoY5s6ifsEcreC
+-- Chain := ProfitMetalMister06aRP3odHaTGySvSWHjreC8HsbX5ss9LxkQqwcjaoxhpv
+-- ScriptBytes := BaronMaltaHarvest07Bk3nVFjGbpESsetWgLCcJ4Qh7cr4cMwucYYn6f6QUUQ
+-- Txid := TaxiLearnMalta0C1GfCrG7AXu2sFhRBspd7KpJK2YgyTkVy6pty5rZynRs
+-- LeafVer := ChessDisputeStock0DGELfUvcU62GNQRo7HaMbKDzYQwdYRMW3b91JHd4d3WY
+-- LeafScript := LuckyBonanzaYoga0Faa53VyN79gC1P6j5ud5gLSSyJjpzqNsHfbTwobRrLJb
+-- InternalPk := TeacherPearlHello0G5HFVaWwWNYSzqk548JgGZ8WKy6dQ2ftVgkJvHjgRudZ
+
+import spring_havana_tower_H7dvJXtDDV62GQ5M4g8xish8zpzUCnDt7WecG2Mo23FS as CommitVerify
+-- Imports:
+-- MerkleNode := BazaarOrchidJacket06kxYeCatpncbA9UiTdsFbxbxJdU56x6MdmTRkEeGAv6R
+-- MerkleProof := LearnHelloJordan09gX9phaxeLVgMDb7pgjzh5N2KiAPQyYA7eLDzQKStxfd
+
+
+
+-- CitizenViolinDemand0HY3eLsRNY5hopA2PpgYtA3Gx4ZgEjtKGUCnbN8tjDXfY
+data ArgSpec          :: name StrictTypes.FieldName {- SecureJupiterDemo0CK7zqXpkDGwatYDy1bVHoARAq1xTi85DFueWrZdFE7du -}?, req RGB.Occurrences {- TitanicRubberEscape04gjtVBchJQ5f1aAzoyxYWeGp6qZi9dPudJCbWKYKhw1a -}
+-- EdgarMemberClock0DjdTdfhz2z3bEawRNTGFRFyuvmrC8WFnsgBZGfWmYoPM
+data AssignIface      :: ownedState OwnedIface
+                       , public Std.Bool {- FashionSharpRodeo07ZhBHGSJm9ixmm8Z9vCX7i5Ga7j5xrW8t11nsb1Cgpnx -}
+                       , required Std.Bool {- FashionSharpRodeo07ZhBHGSJm9ixmm8Z9vCX7i5Ga7j5xrW8t11nsb1Cgpnx -}
+                       , multiple Std.Bool {- FashionSharpRodeo07ZhBHGSJm9ixmm8Z9vCX7i5Ga7j5xrW8t11nsb1Cgpnx -}
+-- BalsaLicenseArthur086jgudF9LyMs3LUmADKSdsoXJ8XC4EinnwSvaGqZPRCK
+data Cert             :: signer Identity, signature [Byte ^ ..0xff]
+-- ModernScholarCombat0H3SiprkeM6d6Vt314ttKecwNR3SRH2mZtpVusCEpiGvn
+data Consignmentfalse :: version ContainerVer
+                       , transfer Std.Bool {- FashionSharpRodeo07ZhBHGSJm9ixmm8Z9vCX7i5Ga7j5xrW8t11nsb1Cgpnx -}
+                       , schema RGB.SchemaSchema {- HotelKarlBarbara07EHzDDj8E6STpb7ahNW1NdW7477NKCjmpQvXWJKr14dL -}
+                       , ifaces {IfaceId -> ^ ..0xff IfacePair}
+                       , supplements {ContractSuppl ^ ..0xff}
+                       , genesis RGB.Genesis {- SidePeoplePrivate09V1wj2QXbzHckbywWoHpmNysNKwU5ZNjAFFAm1wscuvo -}
+                       , terminals {Terminal}
+                       , bundles [RGB.AnchoredBundle {- SystemCamelBambino05gCaj9bm4tkX2etwpxgA8sfTeSgeUbtf5AbJi9BZD5WW -} ^ ..0xffffffff]
+                       , extensions [RGB.Extension {- PythonCastroEarth0CbL9bmsun7ik6S6scQdeLtBh7XS7oHMqJvV1tt4sUykw -} ^ ..0xffffffff]
+                       , attachments {RGB.AttachId -> [Byte ^ ..0xffffff]}
+                       , signatures {ContentId -> ^ ..0xff ContentSigs}
+-- MexicoDisputeGuide08qU3QtZAcfLEGXX5s3d8GAaDWi9WwoJckHCJmZ3XWpVf
+data Consignmenttrue  :: version ContainerVer
+                       , transfer Std.Bool {- FashionSharpRodeo07ZhBHGSJm9ixmm8Z9vCX7i5Ga7j5xrW8t11nsb1Cgpnx -}
+                       , schema RGB.SchemaSchema {- HotelKarlBarbara07EHzDDj8E6STpb7ahNW1NdW7477NKCjmpQvXWJKr14dL -}
+                       , ifaces {IfaceId -> ^ ..0xff IfacePair}
+                       , supplements {ContractSuppl ^ ..0xff}
+                       , genesis RGB.Genesis {- SidePeoplePrivate09V1wj2QXbzHckbywWoHpmNysNKwU5ZNjAFFAm1wscuvo -}
+                       , terminals {Terminal}
+                       , bundles [RGB.AnchoredBundle {- SystemCamelBambino05gCaj9bm4tkX2etwpxgA8sfTeSgeUbtf5AbJi9BZD5WW -} ^ ..0xffffffff]
+                       , extensions [RGB.Extension {- PythonCastroEarth0CbL9bmsun7ik6S6scQdeLtBh7XS7oHMqJvV1tt4sUykw -} ^ ..0xffffffff]
+                       , attachments {RGB.AttachId -> [Byte ^ ..0xffffff]}
+                       , signatures {ContentId -> ^ ..0xff ContentSigs}
+-- PupilSurviveMustang05eCVpHCA1jD5tyAShYzaqKsjnA9v3MDdSn3BdrYmxT1S
+data ContainerVer     :: v1:1
+
+-- GoodShampooSlow0AqKqKaMnycyrbZChBgashuAKJqSoi8GCkHhdwjpW9g79
+data ContentId        :: schema RGB.SchemaId {- SalaryPlasterNickel0AyzbMn4ux89LLU8ho1L4pQa5TXsmRdHd79oh6SXdrCmd -}
+                       | genesis RGB.ContractId {- PaintTelexJames0Bho42Xw8wPy2nWxgz6H51rNdBBusaPyrVQT8VypvpZ3w -}
+                       | iface IfaceId
+                       | ifaceImpl ImplId
+                       | suppl SupplId
+-- CycloneDiplomaBalance072v5XvfiTB7HJinscrxy5ZTa4PwubG9YCtkK8JQt7F5B
+data ContentSigs      :: {Cert ^ 1..0xa}
+-- OrinocoFlipperChemist0EKtbad4kkThMRxipnLapW6xzsv24wQmQfrZZheTq4ZLG
+data ContractSuppl    :: contractId RGB.ContractId {- PaintTelexJames0Bho42Xw8wPy2nWxgz6H51rNdBBusaPyrVQT8VypvpZ3w -}
+                       , ticker TickerSuppl
+                       , mediaKit [Unicode ^ ..0xff]
+                       , globalState {U16 -> ^ ..0xff OwnedStateSuppl}
+                       , ownedState {U16 -> ^ ..0xff OwnedStateSuppl}
+                       , extensions {U16 -> ^ ..0xff [Byte]}
+-- JeepBettyHarris05hdbfQi2n8ZbFK1RHbDrxmGpfdGdRxQ5Nffh1HVRWL1x
+data ExtensionIface   :: metadata StrictTypes.SemId {- StandMailboxBaboon08Ckj2p3GLKina636pSKJkj7GB6ft8XeoP4jfGkRUNwtp -}?
+                       , globals {StrictTypes.FieldName -> ^ ..0xff ArgSpec}
+                       , redeems {StrictTypes.FieldName -> ^ ..0xff ArgSpec}
+                       , assignments {StrictTypes.FieldName -> ^ ..0xff ArgSpec}
+                       , valencies {StrictTypes.FieldName -> ^ ..0xff ArgSpec}
+                       , errors {U8 ^ ..0xff}
+-- MorphRemoteEternal0DHRNGrBkjKzS44bGZKfqemimYTs4gPYtS2Sbn7YDczZw
+data GenesisIface     :: metadata StrictTypes.SemId {- StandMailboxBaboon08Ckj2p3GLKina636pSKJkj7GB6ft8XeoP4jfGkRUNwtp -}?
+                       , global {StrictTypes.FieldName -> ^ ..0xff ArgSpec}
+                       , assignments {StrictTypes.FieldName -> ^ ..0xff ArgSpec}
+                       , valencies {StrictTypes.FieldName -> ^ ..0xff ArgSpec}
+                       , errors {U8 ^ ..0xff}
+-- BinaryCinemaCrystal0EbfE9hKA1d6DNd6ziJGpNFy7SdcuirZeLD6SDKtscsaB
+data GlobalIface      :: semId StrictTypes.SemId {- StandMailboxBaboon08Ckj2p3GLKina636pSKJkj7GB6ft8XeoP4jfGkRUNwtp -}?
+                       , required Std.Bool {- FashionSharpRodeo07ZhBHGSJm9ixmm8Z9vCX7i5Ga7j5xrW8t11nsb1Cgpnx -}
+                       , multiple Std.Bool {- FashionSharpRodeo07ZhBHGSJm9ixmm8Z9vCX7i5Ga7j5xrW8t11nsb1Cgpnx -}
+-- TobaccoDollarNeon0E3ntt6pxCqzXgJoqcM3471BBPLddnKcEGsdD3mYAkz5h
+data IdSuite          :: pgp:0 | ssh:1 | ssi:2
+
+-- MediaBatterySquare0CmXRCb4c5xKzEFKE15fb9ZWPabVYtYVWvBPMzx7X6owu
+data Identity         :: name [Unicode ^ ..0xff]
+                       , email [Std.Ascii {- SmilePlasticJudge02NFrhqQqGNDA4HujyTW2pmcjtrN5sbtFfpPFXPPYcGER -} ^ ..0xff]
+                       , suite IdSuite
+                       , pk [Byte ^ ..0xff]
+-- AliceIngridGarlic08WjAyH6pEUgGEa7T8bur64WrZtjCStoJ7PnmsENznpX2
+data Iface            :: version VerNo
+                       , name StrictTypes.TypeName {- RemarkSecondAxis0t47Qbd4ggmas4GmrE6oxCSyKBsosvGNtiXc2B2tuvUo -}
+                       , globalState {StrictTypes.FieldName -> ^ ..0xff GlobalIface}
+                       , assignments {StrictTypes.FieldName -> ^ ..0xff AssignIface}
+                       , valencies {StrictTypes.FieldName -> ^ ..0xff ValencyIface}
+                       , genesis GenesisIface
+                       , transitions {StrictTypes.TypeName -> ^ ..0xff TransitionIface}
+                       , extensions {StrictTypes.TypeName -> ^ ..0xff ExtensionIface}
+                       , errorType StrictTypes.SemId {- StandMailboxBaboon08Ckj2p3GLKina636pSKJkj7GB6ft8XeoP4jfGkRUNwtp -}
+                       , defaultOperation StrictTypes.TypeName {- RemarkSecondAxis0t47Qbd4ggmas4GmrE6oxCSyKBsosvGNtiXc2B2tuvUo -}?
+-- SwitchAlpineFrank052QNQSVnH2xebirNQPAZDMCF7Qbn2xD8jsLuAauDr6cg
+data IfaceId          :: [Byte ^ 32]
+-- DruidTornadoAtomic07YUHVsgjsX8iATFEWrfVEz2TDZ6pVfLyJP4HkYG9yjwW
+data IfaceImpl        :: version VerNo
+                       , schemaId RGB.SchemaId {- SalaryPlasterNickel0AyzbMn4ux89LLU8ho1L4pQa5TXsmRdHd79oh6SXdrCmd -}
+                       , ifaceId IfaceId
+                       , globalState {NamedFieldu16 ^ ..0xff}
+                       , assignments {NamedFieldu16 ^ ..0xff}
+                       , valencies {NamedFieldu16 ^ ..0xff}
+                       , transitions {NamedTypeu16 ^ ..0xff}
+                       , extensions {NamedFieldu16 ^ ..0xff}
+-- StrongPupilRebel0GzuXT5XJx9LUwddxQDx88AUwhbcGGevJxdYBY1z6jJMc
+data IfacePair        :: iface Iface, iimpl IfaceImpl
+-- PackageJimmyModern06qkzo8WTcgXTd3Ky5H2BzPppZmM5Ah4h5VrKL3oj3YTC
+data ImplId           :: [Byte ^ 32]
+-- GondolaAverageUser05KdFZdFqX6cU2wD8hXewdSWQ7oGz9wUUQgWy9aYhTXAc
+data NamedFieldu16    :: id U16, name StrictTypes.FieldName {- SecureJupiterDemo0CK7zqXpkDGwatYDy1bVHoARAq1xTi85DFueWrZdFE7du -}
+-- FrozenFastDeclare097keFfqPh9EBruqHVz8XWVn69rhTcFkKxntW91fwrvT7
+data NamedTypeu16     :: id U16, name StrictTypes.TypeName {- RemarkSecondAxis0t47Qbd4ggmas4GmrE6oxCSyKBsosvGNtiXc2B2tuvUo -}
+-- OpticVodkaChief0FwsWZTTTm4q6hMq7GbrB73GhcXZUNEv6oBURryVw8aBT
+data OwnedIface       :: any ()
+                       | rights ()
+                       | amount ()
+                       | anyData ()
+                       | anyAttach ()
+                       | data StrictTypes.SemId {- StandMailboxBaboon08Ckj2p3GLKina636pSKJkj7GB6ft8XeoP4jfGkRUNwtp -}
+-- ProtectAdmiralOrlando08rU6hg7dnXQTopDKYzXDL1UEmcuirpu3uCEX9857xEei
+data OwnedStateSuppl  :: meaning [Unicode ^ ..0xff], velocity VelocityHint
+-- JudoOliverAppear07wqgZas6f6Y7jWyDzLNxCeGEM8NXppB1f1gZNvNHJD72
+data SupplId          :: [Byte ^ 32]
+-- ModemGalleryCombat0855o8czxvHnWUC5EKkVJmNRGHW32c7y42FT39c358Umz
+data Terminal         :: bundleId RGB.BundleId {- RocketStockProtect0EbWt9bmnjLpAu1LCN78snx734kHLNVUxyb5YxNr8tjd -}, seal TerminalSeal
+-- InfantNoiseDynasty0JAifr7qtesSzZCMJ4Hymyb755CV1i7xxRPRNu6TKrUB7
+data TerminalSeal     :: concealedUtxo BPCore.SecretSeal {- VocalWinterMango081NKrdc9pBoBjsKaGBVN9wXLG4tKjkK4f8DLj7TNMZxh -}
+                       | witnessVout VoutSeal
+-- PeaceDeclareAladdin0Bvn1R4ooghWocfcuVPmRQn49bKurFgYDYDNrAwdWqrMz
+data TickerSuppl      :: absent ()
+                       | global (U16, StrictTypes.Path {- ForwardNepalRose0FiLcRn8DtH8UBS4ByqmSWX6XbCaDShkRU3Wf6i9yzDFV -})
+                       | owned (U16, StrictTypes.Path {- ForwardNepalRose0FiLcRn8DtH8UBS4ByqmSWX6XbCaDShkRU3Wf6i9yzDFV -})
+-- ConcertCharmFlood05cWnhGcxuQfytMcofdipucz16e331MZvic5LfrqyFqti
+data TransitionIface  :: optional Std.Bool {- FashionSharpRodeo07ZhBHGSJm9ixmm8Z9vCX7i5Ga7j5xrW8t11nsb1Cgpnx -}
+                       , metadata StrictTypes.SemId {- StandMailboxBaboon08Ckj2p3GLKina636pSKJkj7GB6ft8XeoP4jfGkRUNwtp -}?
+                       , globals {StrictTypes.FieldName -> ^ ..0xff ArgSpec}
+                       , inputs {StrictTypes.FieldName -> ^ ..0xff ArgSpec}
+                       , assignments {StrictTypes.FieldName -> ^ ..0xff ArgSpec}
+                       , valencies {StrictTypes.FieldName -> ^ ..0xff ArgSpec}
+                       , errors {U8 ^ ..0xff}
+                       , defaultAssignment StrictTypes.FieldName {- SecureJupiterDemo0CK7zqXpkDGwatYDy1bVHoARAq1xTi85DFueWrZdFE7du -}?
+-- JournalSagaArsenal0CVFia8CcZNgpc239exqbPFHFKQ1X5HRbDQg7HJyYCH5V
+data ValencyIface     :: required Std.Bool {- FashionSharpRodeo07ZhBHGSJm9ixmm8Z9vCX7i5Ga7j5xrW8t11nsb1Cgpnx -}, multiple Std.Bool {- FashionSharpRodeo07ZhBHGSJm9ixmm8Z9vCX7i5Ga7j5xrW8t11nsb1Cgpnx -}
+-- HorizonAmberBeyond0D6YXcRfpwygKmweMUVH9kctJneagpj53KbPMKU6CfYXQ
+data VelocityHint     :: unspecified:0 | seldom:10 | episodic:25 | regular:50
+                       | frequent:75 | highFrequency:100
+
+-- GossipSopranoAddress02ZMrVLDxropVRovn6w94JfHRdCFei1ZaXY7amc5SgLrt
+data VerNo            :: v1:0
+
+-- RobertSwingTaboo0Ci6sNkabMUjAk71yBDxmFaHnuhZ1HWT9SGFmW34KWn5G
+data VoutSeal         :: method BPCore.CloseMethod {- AlertCloudArchive0FA1JhsEFKi2LLpuAjuvLA3qiBuEJrwpKyypB9J2aPicr -}
+                       , vout Bitcoin.Vout {- OpusDecadeExample03HHRtSJW5fnGkdVW1EVDH7B97Y79WhwvKyyfsaBkuQkk -}
+                       , blinding U64
+
