@@ -35,7 +35,7 @@ use crate::stl::{rgb_contract_stl, DivisibleAssetSpec, ProofOfReserves, Standard
 
 pub const LIB_NAME_RGB20: &str = "RGB20";
 /// Strict types id for the library providing data types for RGB20 interface.
-pub const LIB_ID_RGB20: &str = "ethnic_raja_gloria_9tSQiAn1aGijb2F892JxTqcHDgmriV8rgN1aDxUREpv5";
+pub const LIB_ID_RGB20: &str = "tribal_amanda_alfonso_5WzqGum1MDNvST8SxUBHxUEGq9sggoNsxrnJnSNMCdhN";
 
 #[derive(
     Wrapper, WrapperMut, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default, From
@@ -321,7 +321,7 @@ impl Rgb20 {
 
     pub fn allocations(&self, filter: &impl OutpointFilter) -> LargeVec<FungibleAllocation> {
         self.0
-            .fungible("assetOwner", Some(filter))
+            .fungible("assetOwner", filter)
             .expect("RGB20 interface requires `assetOwner` state")
     }
 

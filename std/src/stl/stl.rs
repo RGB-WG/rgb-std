@@ -20,19 +20,42 @@
 // limitations under the License.
 
 use bp::bc::stl::bitcoin_stl;
-use strict_types::stl::std_stl;
+use bp::stl::bp_core_stl;
+use commit_verify::stl::commit_verify_stl;
+use rgb::stl::{aluvm_stl, rgb_core_stl};
+use strict_types::stl::{std_stl, strict_types_stl};
 use strict_types::typesys::SystemBuilder;
 use strict_types::{CompileError, LibBuilder, SemId, SymbolicSys, TypeLib, TypeSystem};
 
 use super::{
     DivisibleAssetSpec, Error, MediaType, RicardianContract, Timestamp, LIB_NAME_RGB_CONTRACT,
 };
+use crate::containers::{Contract, Transfer};
 use crate::stl::ProofOfReserves;
+use crate::LIB_NAME_RGB_STD;
 
 /// Strict types id for the library providing standard data types which may be
 /// used in RGB smart contracts.
 pub const LIB_ID_RGB_CONTRACT: &str =
-    "protein_heroic_igloo_q5FBB7mQJG2wLHaaLMsBTaQSeE1cgcB6pGhG5i74aNh";
+    "michael_baby_agenda_Ha1b9aKeSX5QVfo7x4MbUxj6HJkhaGw6aC59ggeGuDcs";
+
+/// Strict types id for the library representing of RGB StdLib data types.
+pub const LIB_ID_RGB_STD: &str = "camel_product_float_9Y12p3rVHBiJh3TZUgup8kMtKggwNX5zPzWH9TgGRiwD";
+
+fn _rgb_std_stl() -> Result<TypeLib, CompileError> {
+    LibBuilder::new(libname!(LIB_NAME_RGB_STD), tiny_bset! {
+        std_stl().to_dependency(),
+        strict_types_stl().to_dependency(),
+        commit_verify_stl().to_dependency(),
+        bitcoin_stl().to_dependency(),
+        bp_core_stl().to_dependency(),
+        aluvm_stl().to_dependency(),
+        rgb_core_stl().to_dependency()
+    })
+    .transpile::<Transfer>()
+    .transpile::<Contract>()
+    .compile()
+}
 
 fn _rgb_contract_stl() -> Result<TypeLib, CompileError> {
     LibBuilder::new(libname!(LIB_NAME_RGB_CONTRACT), tiny_bset! {
@@ -46,6 +69,9 @@ fn _rgb_contract_stl() -> Result<TypeLib, CompileError> {
     .transpile::<ProofOfReserves>()
     .compile()
 }
+
+/// Generates strict type library representation of RGB StdLib data types.
+pub fn rgb_std_stl() -> TypeLib { _rgb_std_stl().expect("invalid strict type RGBStd library") }
 
 /// Generates strict type library providing standard data types which may be
 /// used in RGB smart contracts.
@@ -95,8 +121,14 @@ mod test {
     use super::*;
 
     #[test]
-    fn lib_id() {
+    fn contract_lib_id() {
         let lib = rgb_contract_stl();
         assert_eq!(lib.id().to_string(), LIB_ID_RGB_CONTRACT);
+    }
+
+    #[test]
+    fn std_lib_id() {
+        let lib = rgb_std_stl();
+        assert_eq!(lib.id().to_string(), LIB_ID_RGB_STD);
     }
 }

@@ -98,7 +98,7 @@ pub trait OutpointFilter {
     fn include_outpoint(&self, outpoint: Outpoint) -> bool;
 }
 
-impl<T: OutpointFilter> OutpointFilter for Option<&T> {
+impl OutpointFilter for Option<&[Outpoint]> {
     fn include_outpoint(&self, outpoint: Outpoint) -> bool {
         self.map(|filter| filter.include_outpoint(outpoint))
             .unwrap_or(true)
@@ -165,7 +165,7 @@ impl ContractIface {
     pub fn fungible(
         &self,
         name: impl Into<FieldName>,
-        filter: Option<&impl OutpointFilter>,
+        filter: &impl OutpointFilter,
     ) -> Result<LargeVec<FungibleAllocation>, ContractError> {
         let name = name.into();
         let type_id = self

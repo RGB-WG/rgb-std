@@ -32,7 +32,7 @@ pub use mime::{MediaRegName, MediaType};
 pub use specs::{
     AssetNaming, Details, DivisibleAssetSpec, Name, Precision, RicardianContract, Ticker, Timestamp,
 };
-pub use stl::{rgb_contract_stl, StandardTypes, LIB_ID_RGB_CONTRACT};
+pub use stl::{rgb_contract_stl, rgb_std_stl, StandardTypes, LIB_ID_RGB_CONTRACT, LIB_ID_RGB_STD};
 
 pub const LIB_NAME_RGB_CONTRACT: &str = "RGBContract";
 pub const LIB_NAME_RGB_STD: &str = "RGBStd";

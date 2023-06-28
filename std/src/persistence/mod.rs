@@ -26,10 +26,9 @@
 //!    must be preserved and backed up.
 //! 2. [`rgb::ContractState`], updated with each enclosed consignment and
 //!    disclosure.
-//! 3. Index over stash, which simplifies construction of a new
-//!    consignments.
-//! 4. [`Inventory`], which abstracts stash, contract states and
-//!    index for complex operations requiring participation of all of them.
+//! 3. Index over stash, which simplifies construction of a new consignments.
+//! 4. [`Inventory`], which abstracts stash, contract states and index for
+//!    complex operations requiring participation of all of them.
 //!
 //! 2-4 data can be re-computed from the stash in case of loss or corruption.
 
