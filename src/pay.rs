@@ -34,8 +34,8 @@ use rgbstd::interface::{BuilderError, ContractSuppl, TypedState, VelocityHint};
 use rgbstd::persistence::{ConsignerError, Inventory, InventoryError, Stash};
 
 use crate::invoice::Beneficiary;
-use crate::psbt::{DbcPsbtError, PsbtDbc, RgbExt, RgbInExt, RgbPsbtError};
-use crate::RgbInvoice;
+use crate::psbt::{DbcPsbtError, PsbtDbc, RgbExt, RgbInExt, RgbOutExt, RgbPsbtError};
+use crate::{RgbInvoice, RGB_NATIVE_DERIVATION_INDEX, RGB_TAPRET_DERIVATION_INDEX};
 
 #[derive(Debug, Display, Error, From)]
 #[display(inner)]
@@ -141,16 +141,17 @@ pub trait InventoryWallet: Inventory {
             if beneficiary_output == Some(no as u32) {
                 continue;
             }
-            if let Some(class) = outp
+            if outp
                 // NB: Here we assume that if output has derivation information it belongs to our wallet.
                 .bip32_derivation
                 .first_key_value()
                 .and_then(|(_, src)| src.1.into_iter().rev().nth(1))
                 .copied()
                 .map(u32::from)
-                .and_then(|index| u8::try_from(index).ok())
-                .and_then(|index| VelocityHint::try_from(index).ok())
+                .filter(|index| *index == RGB_NATIVE_DERIVATION_INDEX || *index == RGB_TAPRET_DERIVATION_INDEX)
+                .is_some()
             {
+                let class = outp.rgb_velocity_hint().unwrap_or_default();
                 out_classes.entry(class).or_default().push(no as u32);
             }
         }
