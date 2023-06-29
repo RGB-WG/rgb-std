@@ -43,7 +43,7 @@ pub enum PayError<E1: Error, E2: Error>
 where E1: From<E2>
 {
     /// not enough PSBT output found to put all required state (can't add
-    /// assignment {1} for {0}-velocity state).
+    /// assignment type {1} for {0}-velocity state).
     #[display(doc_comments)]
     NoBlankOrChange(VelocityHint, AssignmentType),
 
