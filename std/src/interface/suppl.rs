@@ -124,4 +124,15 @@ pub enum VelocityHint {
     HighFrequency = 255,
 }
 
+impl VelocityHint {
+    pub fn with_value(value: &u8) -> Self {
+        match *value {
+            0 => VelocityHint::Unspecified,
+            1..=15 => VelocityHint::Seldom,
+            16..=31 => VelocityHint::Episodic,
+            32..=63 => VelocityHint::Regular,
+            64..=127 => VelocityHint::Frequent,
+            128..=255 => VelocityHint::HighFrequency,
+        }
+    }
 }
