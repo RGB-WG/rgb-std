@@ -20,7 +20,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use rgbstd::interface::{rgb20_stl, rgb21_stl};
+use rgbstd::interface::{rgb20_stl, rgb21_stl, rgb25_stl};
 use rgbstd::stl::{rgb_contract_stl, rgb_std_stl};
 use strict_types::parse_args;
 
@@ -66,6 +66,21 @@ fn main() {
                 "
   Description: Types for RGB21 interface
   Author: Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
+  Copyright (C) 2023 LNP/BP Standards Association. All rights reserved.
+  License: Apache-2.0",
+            ),
+        )
+        .expect("unable to write to the file");
+
+    rgb25_stl()
+        .serialize(
+            format,
+            dir.as_ref(),
+            "0.1.0",
+            Some(
+                "
+  Description: Types for RGB25 interface
+  Author: Zoe Faltibà
   Copyright (C) 2023 LNP/BP Standards Association. All rights reserved.
   License: Apache-2.0",
             ),

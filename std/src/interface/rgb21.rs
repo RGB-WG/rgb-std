@@ -26,7 +26,7 @@ use std::fmt::{self, Debug, Formatter};
 use std::str::FromStr;
 
 use amplify::ascii::AsciiString;
-use amplify::confinement::{Confined, NonEmptyVec, SmallBlob, SmallOrdSet};
+use amplify::confinement::{Confined, NonEmptyVec, SmallBlob};
 use bp::bc::stl::bitcoin_stl;
 use strict_encoding::stl::AsciiPrintable;
 use strict_encoding::{
@@ -40,14 +40,13 @@ use super::{
 };
 use crate::interface::{ArgSpec, ContractIface};
 use crate::stl::{
-    rgb_contract_stl, Details, DivisibleAssetSpec, MediaType, Name, ProofOfReserves, StandardTypes,
-    Ticker,
+    rgb_contract_stl, Attachment, Details, DivisibleAssetSpec, MediaType, Name, ProofOfReserves,
+    StandardTypes, Ticker,
 };
 
 pub const LIB_NAME_RGB21: &str = "RGB21";
 /// Strict types id for the library providing data types for RGB21 interface.
-pub const LIB_ID_RGB21: &str =
-    "rainbow_current_second_97FB8NPRBQ9yxJfFFTc1rRJwro1cvGsN1FvnZ1wP5B1Q";
+pub const LIB_ID_RGB21: &str = "hunter_powder_campus_3Vo1fsyUpBBaJXW7ACWKtXgTh7dEyCUgoM2CPcmjRYDk";
 
 #[derive(
     Wrapper, WrapperMut, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default, From
@@ -94,20 +93,6 @@ pub struct OwnedFraction(u64);
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB21)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-pub struct IssueMeta {
-    pub reserves: SmallOrdSet<ProofOfReserves>,
-}
-impl StrictSerialize for IssueMeta {}
-impl StrictDeserialize for IssueMeta {}
-
-#[derive(Clone, Eq, PartialEq, Hash, Debug, Default)]
-#[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB21)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
 pub struct Allocation(TokenIndex, OwnedFraction);
 
@@ -146,21 +131,6 @@ pub struct EmbeddedMedia {
     #[cfg_attr(feature = "serde", serde(rename = "type"))]
     pub ty: MediaType,
     pub data: SmallBlob,
-}
-
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB21)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-pub struct Attachment {
-    #[strict_type(rename = "type")]
-    #[cfg_attr(feature = "serde", serde(rename = "type"))]
-    pub ty: MediaType,
-    pub digest: [u8; 32],
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
@@ -291,7 +261,6 @@ fn _rgb21_stl() -> Result<TypeLib, CompileError> {
         bitcoin_stl().to_dependency(),
         rgb_contract_stl().to_dependency()
     })
-    .transpile::<IssueMeta>()
     .transpile::<TokenData>()
     .transpile::<EngravingData>()
     .transpile::<ItemsCount>()
@@ -325,7 +294,7 @@ pub fn rgb21() -> Iface {
         },
         valencies: none!(),
         genesis: GenesisIface {
-            metadata: Some(types.get("RGB21.IssueMeta")),
+            metadata: Some(types.get("RGBContract.IssueMeta")),
             global: tiny_bmap! {
                 fname!("spec") => ArgSpec::required(),
                 fname!("terms") => ArgSpec::required(),
@@ -388,7 +357,7 @@ pub fn rgb21() -> Iface {
             },
             tn!("Issue") => TransitionIface {
                 optional: true,
-                metadata: Some(types.get("RGB21.IssueMeta")),
+                metadata: Some(types.get("RGBContract.IssueMeta")),
                 globals: tiny_bmap! {
                     fname!("newTokens") => ArgSpec::from_many("tokens"),
                     fname!("newAttachmentTypes") => ArgSpec::from_many("attachmentTypes"),

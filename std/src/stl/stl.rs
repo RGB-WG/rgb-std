@@ -28,7 +28,8 @@ use strict_types::typesys::SystemBuilder;
 use strict_types::{CompileError, LibBuilder, SemId, SymbolicSys, TypeLib, TypeSystem};
 
 use super::{
-    DivisibleAssetSpec, Error, MediaType, RicardianContract, Timestamp, LIB_NAME_RGB_CONTRACT,
+    Amount, BurnMeta, ContractData, DivisibleAssetSpec, Error, IssueMeta, MediaType,
+    RicardianContract, Timestamp, LIB_NAME_RGB_CONTRACT,
 };
 use crate::containers::{Contract, Transfer};
 use crate::stl::ProofOfReserves;
@@ -37,7 +38,7 @@ use crate::LIB_NAME_RGB_STD;
 /// Strict types id for the library providing standard data types which may be
 /// used in RGB smart contracts.
 pub const LIB_ID_RGB_CONTRACT: &str =
-    "michael_baby_agenda_Ha1b9aKeSX5QVfo7x4MbUxj6HJkhaGw6aC59ggeGuDcs";
+    "scoop_ocean_contour_DizxAzKBUaXCUkEZDGQegfJXQeK5Nk4pK142eEkC1EBM";
 
 /// Strict types id for the library representing of RGB StdLib data types.
 pub const LIB_ID_RGB_STD: &str = "camel_product_float_9Y12p3rVHBiJh3TZUgup8kMtKggwNX5zPzWH9TgGRiwD";
@@ -62,11 +63,15 @@ fn _rgb_contract_stl() -> Result<TypeLib, CompileError> {
         std_stl().to_dependency(),
         bitcoin_stl().to_dependency()
     })
+    .transpile::<Amount>()
     .transpile::<Timestamp>()
     .transpile::<DivisibleAssetSpec>()
     .transpile::<RicardianContract>()
+    .transpile::<ContractData>()
     .transpile::<MediaType>()
     .transpile::<ProofOfReserves>()
+    .transpile::<BurnMeta>()
+    .transpile::<IssueMeta>()
     .compile()
 }
 
