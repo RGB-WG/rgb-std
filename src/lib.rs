@@ -69,6 +69,12 @@ pub use invoice::{
 };
 pub use pay::{InventoryWallet, PayError};
 
+/// BIP32 derivation index for outputs which may contain assigned RGB state.
+pub const RGB_NATIVE_DERIVATION_INDEX: u32 = 9;
+/// BIP32 derivation index for outputs which are tweaked with Tapret commitment
+/// and may also optionally contain assigned RGB state.
+pub const RGB_TAPRET_DERIVATION_INDEX: u32 = 10;
+
 // 1. Construct main state transition with transition builder
 // -- shortcut using invoice to do that construction (like .with_invoice())
 // -- have a construction for the "remaining state" assigned to a seal
