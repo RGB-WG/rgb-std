@@ -113,13 +113,26 @@ pub enum VelocityHint {
     Unspecified = 0,
     /// Should be used for thinks like secondary issuance for tokens which do
     /// not inflate very often.
-    Seldom = 10,
+    Seldom = 15,
     /// Should be used for digital identity revocations.
-    Episodic = 25,
+    Episodic = 31,
     /// Should be used for digital art, shares, bonds etc.
-    Regular = 50,
+    Regular = 63,
     /// Should be used for fungible tokens.
-    Frequent = 75,
+    Frequent = 127,
     /// Should be used for stablecoins and money.
-    HighFrequency = 100,
+    HighFrequency = 255,
+}
+
+impl VelocityHint {
+    pub fn with_value(value: &u8) -> Self {
+        match *value {
+            0 => VelocityHint::Unspecified,
+            1..=15 => VelocityHint::Seldom,
+            16..=31 => VelocityHint::Episodic,
+            32..=63 => VelocityHint::Regular,
+            64..=127 => VelocityHint::Frequent,
+            128..=255 => VelocityHint::HighFrequency,
+        }
+    }
 }

@@ -49,6 +49,6 @@ pub use tapret::{
 };
 
 pub use self::rgb::{
-    ProprietaryKeyRgb, RgbExt, RgbInExt, RgbPsbtError, PSBT_GLOBAL_RGB_TRANSITION,
-    PSBT_IN_RGB_CONSUMED_BY, PSBT_RGB_PREFIX,
+    ProprietaryKeyRgb, RgbExt, RgbInExt, RgbOutExt, RgbPsbtError, PSBT_GLOBAL_RGB_TRANSITION,
+    PSBT_IN_RGB_CONSUMED_BY, PSBT_OUT_RGB_VELOCITY_HINT, PSBT_RGB_PREFIX,
 };
