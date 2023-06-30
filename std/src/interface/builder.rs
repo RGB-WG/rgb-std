@@ -34,7 +34,7 @@ use strict_encoding::{FieldName, SerializeError, StrictSerialize, TypeName};
 use strict_types::decode;
 
 use crate::containers::{BuilderSeal, Contract};
-use crate::interface::{Iface, IfaceImpl, IfacePair, TypedState};
+use crate::interface::{Iface, IfaceImpl, IfacePair, TransitionIface, TypedState};
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
@@ -208,7 +208,27 @@ impl TransitionBuilder {
         })
     }
 
+    fn transition_iface(&self) -> &TransitionIface {
+        let transition_name = self
+            .builder
+            .iimpl
+            .transition_name(self.transition_type)
+            .expect("reverse type");
+        self.builder
+            .iface
+            .transitions
+            .get(transition_name)
+            .expect("internal inconsistency")
+    }
+
     pub fn assignments_type(&self, name: &FieldName) -> Option<AssignmentType> {
+        let name = self
+            .transition_iface()
+            .assignments
+            .get(name)?
+            .name
+            .as_ref()
+            .unwrap_or(name);
         self.builder.iimpl.assignments_type(name)
     }
 
@@ -218,18 +238,7 @@ impl TransitionBuilder {
     }
 
     pub fn default_assignment(&self) -> Result<&FieldName, BuilderError> {
-        let transition_name = self
-            .builder
-            .iimpl
-            .transition_name(self.transition_type)
-            .expect("reverse type");
-        let tiface = self
-            .builder
-            .iface
-            .transitions
-            .get(transition_name)
-            .expect("internal inconsistency");
-        tiface
+        self.transition_iface()
             .default_assignment
             .as_ref()
             .ok_or(BuilderError::NoDefaultAssignment)
