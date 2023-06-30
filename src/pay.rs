@@ -23,10 +23,11 @@ use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 
+use amplify::RawArray;
 use bitcoin::hashes::Hash;
 use bitcoin::psbt::Psbt;
 use bp::seals::txout::CloseMethod;
-use bp::Outpoint;
+use bp::{Outpoint, Txid};
 use chrono::Utc;
 use rgb::{AssignmentType, ContractId, GraphSeal, Operation, Opout};
 use rgbstd::containers::{Bindle, BuilderSeal, Transfer};
@@ -107,7 +108,8 @@ pub trait InventoryWallet: Inventory {
         }
         let contract_id = invoice.contract.ok_or(PayError::NoContract)?;
         let iface = invoice.iface.ok_or(PayError::NoIface)?;
-        let mut main_builder = self.transition_builder(contract_id, iface.clone())?;
+        let mut main_builder =
+            self.transition_builder(contract_id, iface.clone(), invoice.operation)?;
 
         let (beneficiary_output, beneficiary) = match invoice.beneficiary {
             Beneficiary::BlindedSeal(seal) => {
@@ -174,9 +176,6 @@ pub trait InventoryWallet: Inventory {
         };
 
         // 2. Prepare and self-consume transition
-        if let Some(op_name) = invoice.operation {
-            main_builder = main_builder.set_transition_type(op_name)?;
-        }
         let assignment_name = invoice
             .assignment
             .as_ref()
@@ -239,9 +238,7 @@ pub trait InventoryWallet: Inventory {
         // Construct blank transitions, self-consume them
         let mut other_transitions = HashMap::with_capacity(spent_state.len());
         for (id, opouts) in spent_state {
-            let mut blank_builder = self
-                .transition_builder(id, iface.clone())?
-                .do_blank_transition()?;
+            let mut blank_builder = self.blank_builder(id, iface.clone())?;
             // TODO: select supplement basing on the signer trust level
             let suppl = self.contract_suppl(id).and_then(|set| set.first());
 
@@ -283,6 +280,12 @@ pub trait InventoryWallet: Inventory {
         for (id, bundle) in bundles {
             self.consume_bundle(id, bundle, witness_txid.to_byte_array().into())?;
         }
+        let beneficiary = match beneficiary {
+            BuilderSeal::Revealed(seal) => BuilderSeal::Revealed(
+                seal.resolve(Txid::from_raw_array(witness_txid.to_byte_array())),
+            ),
+            BuilderSeal::Concealed(seal) => BuilderSeal::Concealed(seal),
+        };
         let transfer = self.transfer(contract_id, [beneficiary])?;
 
         Ok(transfer)

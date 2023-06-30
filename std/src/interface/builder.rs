@@ -34,7 +34,7 @@ use strict_encoding::{FieldName, SerializeError, StrictSerialize, TypeName};
 use strict_types::decode;
 
 use crate::containers::{BuilderSeal, Contract};
-use crate::interface::{Iface, IfaceImpl, IfacePair, TypedState};
+use crate::interface::{Iface, IfaceImpl, IfacePair, TransitionIface, TypedState};
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
@@ -156,20 +156,79 @@ impl ContractBuilder {
 #[derive(Clone, Debug)]
 pub struct TransitionBuilder {
     builder: OperationBuilder<GraphSeal>,
-    transition_type: Option<TransitionType>,
+    transition_type: TransitionType,
     inputs: Inputs,
 }
 
 impl TransitionBuilder {
-    pub fn with(iface: Iface, schema: SubSchema, iimpl: IfaceImpl) -> Result<Self, BuilderError> {
+    pub fn blank_transition(
+        iface: Iface,
+        schema: SubSchema,
+        iimpl: IfaceImpl,
+    ) -> Result<Self, BuilderError> {
+        Self::with(iface, schema, iimpl, BLANK_TRANSITION_ID)
+    }
+
+    pub fn default_transition(
+        iface: Iface,
+        schema: SubSchema,
+        iimpl: IfaceImpl,
+    ) -> Result<Self, BuilderError> {
+        let transition_type = iface
+            .default_operation
+            .as_ref()
+            .and_then(|name| iimpl.transition_type(name))
+            .ok_or(BuilderError::NoOperationSubtype)?;
+        Self::with(iface, schema, iimpl, transition_type)
+    }
+
+    pub fn named_transition(
+        iface: Iface,
+        schema: SubSchema,
+        iimpl: IfaceImpl,
+        transition_name: impl Into<TypeName>,
+    ) -> Result<Self, BuilderError> {
+        let transition_name = transition_name.into();
+        let transition_type = iimpl
+            .transition_type(&transition_name)
+            .ok_or(BuilderError::TransitionNotFound(transition_name))?;
+        Self::with(iface, schema, iimpl, transition_type)
+    }
+
+    fn with(
+        iface: Iface,
+        schema: SubSchema,
+        iimpl: IfaceImpl,
+        transition_type: TransitionType,
+    ) -> Result<Self, BuilderError> {
         Ok(Self {
             builder: OperationBuilder::with(iface, schema, iimpl)?,
-            transition_type: None,
+            transition_type,
             inputs: none!(),
         })
     }
 
+    fn transition_iface(&self) -> &TransitionIface {
+        let transition_name = self
+            .builder
+            .iimpl
+            .transition_name(self.transition_type)
+            .expect("reverse type");
+        self.builder
+            .iface
+            .transitions
+            .get(transition_name)
+            .expect("internal inconsistency")
+    }
+
     pub fn assignments_type(&self, name: &FieldName) -> Option<AssignmentType> {
+        let name = self
+            .transition_iface()
+            .assignments
+            .get(name)?
+            .name
+            .as_ref()
+            .unwrap_or(name);
         self.builder.iimpl.assignments_type(name)
     }
 
@@ -178,36 +237,8 @@ impl TransitionBuilder {
         Ok(self)
     }
 
-    pub fn do_blank_transition(mut self) -> Result<Self, BuilderError> {
-        self.transition_type = Some(BLANK_TRANSITION_ID);
-        Ok(self)
-    }
-
-    pub fn set_transition_type(mut self, name: impl Into<TypeName>) -> Result<Self, BuilderError> {
-        let name = name.into();
-        let transition_type = self
-            .builder
-            .iimpl
-            .transition_type(&name)
-            .ok_or(BuilderError::TransitionNotFound(name))?;
-        self.transition_type = Some(transition_type);
-        Ok(self)
-    }
-
     pub fn default_assignment(&self) -> Result<&FieldName, BuilderError> {
-        let transition_type = self.transition_type()?;
-        let transition_name = self
-            .builder
-            .iimpl
-            .transition_name(transition_type)
-            .expect("reverse type");
-        let tiface = self
-            .builder
-            .iface
-            .transitions
-            .get(transition_name)
-            .expect("internal inconsistency");
-        tiface
+        self.transition_iface()
             .default_assignment
             .as_ref()
             .ok_or(BuilderError::NoDefaultAssignment)
@@ -257,27 +288,13 @@ impl TransitionBuilder {
         Ok(self)
     }
 
-    fn transition_type(&self) -> Result<TransitionType, BuilderError> {
-        self.transition_type
-            .or_else(|| {
-                self.builder
-                    .iface
-                    .default_operation
-                    .as_ref()
-                    .and_then(|name| self.builder.iimpl.transition_type(name))
-            })
-            .ok_or(BuilderError::NoOperationSubtype)
-    }
-
     pub fn complete_transition(self, contract_id: ContractId) -> Result<Transition, BuilderError> {
-        let transition_type = self.transition_type()?;
-
         let (_, _, global, assignments) = self.builder.complete();
 
         let transition = Transition {
             ffv: none!(),
             contract_id,
-            transition_type,
+            transition_type: self.transition_type,
             metadata: empty!(),
             globals: global,
             inputs: self.inputs,

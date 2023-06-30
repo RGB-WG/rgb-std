@@ -24,6 +24,7 @@ use std::error::Error;
 use std::ops::Deref;
 
 use amplify::confinement::{self, Confined};
+use bp::seals::txout::blind::SingleBlindSeal;
 use bp::Txid;
 use commit_verify::mpc;
 use rgb::{
@@ -362,6 +363,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         &mut self,
         contract_id: ContractId,
         iface: impl Into<TypeName>,
+        transition_name: Option<impl Into<TypeName>>,
     ) -> Result<TransitionBuilder, InventoryError<Self::Error>>
     where
         Self::Error: From<<Self::Stash as Stash>::Error>,
@@ -373,8 +375,38 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             .iimpls
             .get(&iface.iface_id())
             .ok_or(DataError::NoIfaceImpl(schema.schema_id(), iface.iface_id()))?;
-        let builder = TransitionBuilder::with(iface.clone(), schema.clone(), iimpl.clone())
-            .expect("internal inconsistency");
+        let builder = if let Some(transition_name) = transition_name {
+            TransitionBuilder::named_transition(
+                iface.clone(),
+                schema.clone(),
+                iimpl.clone(),
+                transition_name.into(),
+            )
+        } else {
+            TransitionBuilder::default_transition(iface.clone(), schema.clone(), iimpl.clone())
+        }
+        .expect("internal inconsistency");
+        Ok(builder)
+    }
+
+    fn blank_builder(
+        &mut self,
+        contract_id: ContractId,
+        iface: impl Into<TypeName>,
+    ) -> Result<TransitionBuilder, InventoryError<Self::Error>>
+    where
+        Self::Error: From<<Self::Stash as Stash>::Error>,
+    {
+        let schema_ifaces = self.contract_schema(contract_id)?;
+        let iface = self.iface_by_name(&iface.into())?;
+        let schema = &schema_ifaces.schema;
+        let iimpl = schema_ifaces
+            .iimpls
+            .get(&iface.iface_id())
+            .ok_or(DataError::NoIfaceImpl(schema.schema_id(), iface.iface_id()))?;
+        let builder =
+            TransitionBuilder::blank_transition(iface.clone(), schema.clone(), iimpl.clone())
+                .expect("internal inconsistency");
         Ok(builder)
     }
 
@@ -429,7 +461,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     fn transfer(
         &mut self,
         contract_id: ContractId,
-        seals: impl IntoIterator<Item = impl Into<BuilderSeal<GraphSeal>>>,
+        seals: impl IntoIterator<Item = impl Into<BuilderSeal<SingleBlindSeal>>>,
     ) -> Result<
         Bindle<Transfer>,
         ConsignerError<Self::Error, <<Self as Deref>::Target as Stash>::Error>,
@@ -453,11 +485,10 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         let (outpoint_seals, terminal_seals) = seals
             .into_iter()
             .map(|seal| match seal.into() {
-                BuilderSeal::Revealed(seal) => (seal.outpoint(), None),
-                BuilderSeal::Concealed(seal) => (None, Some(seal)),
+                BuilderSeal::Revealed(seal) => (seal.outpoint(), seal.conceal()),
+                BuilderSeal::Concealed(seal) => (None, seal),
             })
             .unzip::<_, _, Vec<_>, Vec<_>>();
-        let terminal_seals = terminal_seals.into_iter().flatten().collect::<Vec<_>>();
         opouts.extend(self.opouts_by_outpoints(contract_id, outpoint_seals.into_iter().flatten())?);
         opouts.extend(self.opouts_by_terminals(terminal_seals.iter().copied())?);
 
