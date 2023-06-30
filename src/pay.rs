@@ -23,10 +23,11 @@ use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 
+use amplify::RawArray;
 use bitcoin::hashes::Hash;
 use bitcoin::psbt::Psbt;
 use bp::seals::txout::CloseMethod;
-use bp::Outpoint;
+use bp::{Outpoint, Txid};
 use chrono::Utc;
 use rgb::{AssignmentType, ContractId, GraphSeal, Operation, Opout};
 use rgbstd::containers::{Bindle, BuilderSeal, Transfer};
@@ -279,6 +280,12 @@ pub trait InventoryWallet: Inventory {
         for (id, bundle) in bundles {
             self.consume_bundle(id, bundle, witness_txid.to_byte_array().into())?;
         }
+        let beneficiary = match beneficiary {
+            BuilderSeal::Revealed(seal) => BuilderSeal::Revealed(
+                seal.resolve(Txid::from_raw_array(witness_txid.to_byte_array())),
+            ),
+            BuilderSeal::Concealed(seal) => BuilderSeal::Concealed(seal),
+        };
         let transfer = self.transfer(contract_id, [beneficiary])?;
 
         Ok(transfer)

@@ -24,6 +24,7 @@ use std::error::Error;
 use std::ops::Deref;
 
 use amplify::confinement::{self, Confined};
+use bp::seals::txout::blind::SingleBlindSeal;
 use bp::Txid;
 use commit_verify::mpc;
 use rgb::{
@@ -460,7 +461,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     fn transfer(
         &mut self,
         contract_id: ContractId,
-        seals: impl IntoIterator<Item = impl Into<BuilderSeal<GraphSeal>>>,
+        seals: impl IntoIterator<Item = impl Into<BuilderSeal<SingleBlindSeal>>>,
     ) -> Result<
         Bindle<Transfer>,
         ConsignerError<Self::Error, <<Self as Deref>::Target as Stash>::Error>,
