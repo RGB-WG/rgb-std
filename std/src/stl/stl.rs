@@ -41,7 +41,8 @@ pub const LIB_ID_RGB_CONTRACT: &str =
     "scoop_ocean_contour_DizxAzKBUaXCUkEZDGQegfJXQeK5Nk4pK142eEkC1EBM";
 
 /// Strict types id for the library representing of RGB StdLib data types.
-pub const LIB_ID_RGB_STD: &str = "camel_product_float_9Y12p3rVHBiJh3TZUgup8kMtKggwNX5zPzWH9TgGRiwD";
+pub const LIB_ID_RGB_STD: &str =
+    "abraham_erosion_miranda_6QBNQY6imiWB5rRaLuZUeAsLQZtQS7wGbvrvGQCfuSff";
 
 fn _rgb_std_stl() -> Result<TypeLib, CompileError> {
     LibBuilder::new(libname!(LIB_NAME_RGB_STD), tiny_bset! {
