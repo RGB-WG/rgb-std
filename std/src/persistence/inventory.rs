@@ -362,6 +362,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         &mut self,
         contract_id: ContractId,
         iface: impl Into<TypeName>,
+        transition_name: Option<impl Into<TypeName>>,
     ) -> Result<TransitionBuilder, InventoryError<Self::Error>>
     where
         Self::Error: From<<Self::Stash as Stash>::Error>,
@@ -373,8 +374,38 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             .iimpls
             .get(&iface.iface_id())
             .ok_or(DataError::NoIfaceImpl(schema.schema_id(), iface.iface_id()))?;
-        let builder = TransitionBuilder::with(iface.clone(), schema.clone(), iimpl.clone())
-            .expect("internal inconsistency");
+        let builder = if let Some(transition_name) = transition_name {
+            TransitionBuilder::named_transition(
+                iface.clone(),
+                schema.clone(),
+                iimpl.clone(),
+                transition_name.into(),
+            )
+        } else {
+            TransitionBuilder::default_transition(iface.clone(), schema.clone(), iimpl.clone())
+        }
+        .expect("internal inconsistency");
+        Ok(builder)
+    }
+
+    fn blank_builder(
+        &mut self,
+        contract_id: ContractId,
+        iface: impl Into<TypeName>,
+    ) -> Result<TransitionBuilder, InventoryError<Self::Error>>
+    where
+        Self::Error: From<<Self::Stash as Stash>::Error>,
+    {
+        let schema_ifaces = self.contract_schema(contract_id)?;
+        let iface = self.iface_by_name(&iface.into())?;
+        let schema = &schema_ifaces.schema;
+        let iimpl = schema_ifaces
+            .iimpls
+            .get(&iface.iface_id())
+            .ok_or(DataError::NoIfaceImpl(schema.schema_id(), iface.iface_id()))?;
+        let builder =
+            TransitionBuilder::blank_transition(iface.clone(), schema.clone(), iimpl.clone())
+                .expect("internal inconsistency");
         Ok(builder)
     }
 
