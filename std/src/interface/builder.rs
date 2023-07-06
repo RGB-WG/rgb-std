@@ -357,7 +357,13 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         let serialized = value.to_strict_serialized::<{ u16::MAX as usize }>()?;
 
         // Check value matches type requirements
-        let Some(type_id) = self.iimpl.global_state.iter().find(|t| t.name == name).map(|t| t.id) else {
+        let Some(type_id) = self
+            .iimpl
+            .global_state
+            .iter()
+            .find(|t| t.name == name)
+            .map(|t| t.id)
+        else {
             return Err(BuilderError::GlobalNotFound(name));
         };
         let sem_id = self
@@ -383,7 +389,13 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
     ) -> Result<Self, BuilderError> {
         let name = name.into();
 
-        let Some(type_id) = self.iimpl.assignments.iter().find(|t| t.name == name).map(|t| t.id) else {
+        let Some(type_id) = self
+            .iimpl
+            .assignments
+            .iter()
+            .find(|t| t.name == name)
+            .map(|t| t.id)
+        else {
             return Err(BuilderError::AssignmentNotFound(name));
         };
 
@@ -418,7 +430,13 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         let name = name.into();
         let serialized = value.to_strict_serialized::<U16>()?;
 
-        let Some(type_id) = self.iimpl.assignments.iter().find(|t| t.name == name).map(|t| t.id) else {
+        let Some(type_id) = self
+            .iimpl
+            .assignments
+            .iter()
+            .find(|t| t.name == name)
+            .map(|t| t.id)
+        else {
             return Err(BuilderError::AssignmentNotFound(name));
         };
 
