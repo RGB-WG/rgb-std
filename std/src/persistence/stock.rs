@@ -32,7 +32,8 @@ use rgb::validation::{Status, Validity, Warning};
 use rgb::{
     validation, AnchorId, AnchoredBundle, Assign, AssignmentType, BundleId, ContractHistory,
     ContractId, ContractState, ExposedState, Extension, Genesis, GenesisSeal, GraphSeal, OpId,
-    Operation, Opout, SecretSeal, SubSchema, Transition, TransitionBundle, TxoSeal, TypedAssigns,
+    Operation, Opout, OrderedTxid, SecretSeal, SubSchema, Transition, TransitionBundle, TxoSeal,
+    TypedAssigns,
 };
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 
@@ -511,6 +512,16 @@ impl Inventory for Stock {
         witness_txid: Txid,
     ) -> Result<(), InventoryError<<Self as Inventory>::Error>> {
         self.index_bundle(contract_id, &bundle, witness_txid)?;
+        let history = self
+            .history
+            .get_mut(&contract_id)
+            .ok_or(InventoryInconsistency::StateAbsent(contract_id))?;
+        for item in bundle.values() {
+            if let Some(transition) = &item.transition {
+                let ord_txid = OrderedTxid::new(0, witness_txid);
+                history.add_transition(transition, ord_txid);
+            }
+        }
         self.hoard.consume_bundle(bundle)?;
         Ok(())
     }
