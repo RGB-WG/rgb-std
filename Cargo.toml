@@ -19,10 +19,10 @@ license = "Apache-2.0"
 [workspace.dependencies]
 amplify = "4.0.0"
 baid58 = "0.3.1"
-strict_encoding = "2.4.1"
-strict_types = "1.4.1"
-commit_verify = { version = "0.10.3", features = ["stl"] }
-bp-core = { version = "0.10.4", features = ["stl"] }
+strict_encoding = "2.5.0"
+strict_types = "1.5.0"
+commit_verify = { version = "0.10.4", features = ["stl"] }
+bp-core = { version = "0.10.5", features = ["stl"] }
 rgb-core = { version = "0.10.4", features = ["stl"] }
 
 [package]
@@ -78,4 +78,4 @@ wasm-bindgen-test = "0.3"
 features = [ "all" ]
 
 [patch.crates-io]
-rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "preserve-historic-state" }
+rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "resoler" }
