@@ -26,7 +26,7 @@ use amplify::confinement;
 use amplify::confinement::{Confined, LargeOrdMap, SmallOrdMap, TinyOrdMap, TinyOrdSet};
 use bp::dbc::anchor::MergeError;
 use commit_verify::mpc;
-use commit_verify::mpc::{MerkleBlock, UnrelatedProof};
+use commit_verify::mpc::MerkleBlock;
 use rgb::{
     Anchor, AnchorId, AnchoredBundle, BundleId, ContractId, Extension, Genesis, OpId, Operation,
     SchemaId, TransitionBundle,
@@ -46,7 +46,7 @@ pub enum ConsumeError {
     Confinement(confinement::Error),
 
     #[from]
-    Anchor(UnrelatedProof),
+    Anchor(mpc::InvalidProof),
 
     #[from]
     Merge(MergeError),

@@ -94,7 +94,7 @@ pub enum InventoryError<E: Error> {
     /// Must be reported to LNP/BP Standards Association.
     #[from]
     #[from(mpc::LeafNotKnown)]
-    #[from(mpc::UnrelatedProof)]
+    #[from(mpc::InvalidProof)]
     #[from(RevealError)]
     #[from(StashInconsistency)]
     InternalInconsistency(InventoryInconsistency),
@@ -227,7 +227,7 @@ pub enum InventoryInconsistency {
     /// It may happen due to RGB library bug, or indicate internal inventory
     /// inconsistency and compromised inventory data storage.
     #[from(mpc::LeafNotKnown)]
-    #[from(mpc::UnrelatedProof)]
+    #[from(mpc::InvalidProof)]
     UnrelatedAnchor,
 
     /// bundle reveal error. Details: {0}
