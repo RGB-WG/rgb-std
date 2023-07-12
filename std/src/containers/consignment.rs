@@ -29,8 +29,8 @@ use commit_verify::Conceal;
 use rgb::validation::{AnchoredBundle, ConsignmentApi};
 use rgb::{
     validation, AttachId, BundleId, ContractHistory, ContractId, Extension, Genesis, GraphSeal,
-    OpId, OpRef, Operation, OrderedTxid, Schema, SchemaId, SecretSeal, SubSchema, Transition,
-    TransitionBundle,
+    OpId, OpRef, Operation, Schema, SchemaId, SecretSeal, SubSchema, Transition, TransitionBundle,
+    WitnessAnchor,
 };
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 
@@ -185,7 +185,7 @@ impl<const TYPE: bool> Consignment<TYPE> {
                 if let Some(transition) = &item.transition {
                     let txid = anchored_bundle.anchor.txid;
                     let height = resolver.resolve_height(txid)?;
-                    let ord_txid = OrderedTxid::new(height, txid);
+                    let ord_txid = WitnessAnchor::new(height, txid);
                     history.add_transition(transition, ord_txid);
                     for (id, used) in &mut extension_idx {
                         if *used {

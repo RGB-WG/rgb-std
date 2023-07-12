@@ -20,9 +20,10 @@
 // limitations under the License.
 
 use bp::Txid;
+use rgb::WitnessOrd;
 
 pub trait ResolveHeight {
     type Error: std::error::Error;
 
-    fn resolve_height(&mut self, txid: Txid) -> Result<u32, Self::Error>;
+    fn resolve_height(&mut self, txid: Txid) -> Result<WitnessOrd, Self::Error>;
 }
