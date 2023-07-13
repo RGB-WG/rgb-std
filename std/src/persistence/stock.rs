@@ -518,7 +518,7 @@ impl Inventory for Stock {
             .ok_or(InventoryInconsistency::StateAbsent(contract_id))?;
         for item in bundle.values() {
             if let Some(transition) = &item.transition {
-                let ord_txid = WitnessAnchor::with_mempool(witness_txid);
+                let ord_txid = WitnessAnchor::from_mempool(witness_txid);
                 history.add_transition(transition, ord_txid);
             }
         }
