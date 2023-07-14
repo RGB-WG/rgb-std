@@ -175,12 +175,12 @@ pub struct IfaceImpl {
     pub version: VerNo,
     pub schema_id: SchemaId,
     pub iface_id: IfaceId,
-    pub script: Script,
     pub global_state: TinyOrdSet<NamedField<GlobalStateType>>,
     pub assignments: TinyOrdSet<NamedField<AssignmentType>>,
     pub valencies: TinyOrdSet<NamedField<ValencyType>>,
     pub transitions: TinyOrdSet<NamedType<TransitionType>>,
     pub extensions: TinyOrdSet<NamedField<ExtensionType>>,
+    pub script: Script,
 }
 
 impl CommitStrategy for IfaceImpl {
