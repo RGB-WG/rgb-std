@@ -154,14 +154,14 @@ impl Stock {
         }
 
         // clone needed due to borrow checker
-        for terminal in consignment.terminals.clone() {
-            if let TerminalSeal::ConcealedUtxo(secret) = terminal.seal {
+        for (bundle_id, terminal) in consignment.terminals.clone() {
+            for secret in terminal.seals.iter().filter_map(TerminalSeal::secret_seal) {
                 if let Some(seal) = self
                     .seal_secrets
                     .iter()
                     .find(|s| s.to_concealed_seal() == secret)
                 {
-                    consignment.reveal_bundle_seal(terminal.bundle_id, *seal);
+                    consignment.reveal_bundle_seal(bundle_id, *seal);
                 }
             }
         }

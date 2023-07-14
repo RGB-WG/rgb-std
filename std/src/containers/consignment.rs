@@ -22,9 +22,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::{iter, slice};
 
-use amplify::confinement::{
-    LargeVec, MediumBlob, SmallOrdMap, SmallOrdSet, TinyOrdMap, TinyOrdSet,
-};
+use amplify::confinement::{LargeVec, MediumBlob, SmallOrdMap, TinyOrdMap, TinyOrdSet};
 use commit_verify::Conceal;
 use rgb::validation::{AnchoredBundle, ConsignmentApi};
 use rgb::{
@@ -93,7 +91,7 @@ pub struct Consignment<const TYPE: bool> {
     pub genesis: Genesis,
 
     /// Set of seals which are history terminals.
-    pub terminals: SmallOrdSet<Terminal>,
+    pub terminals: SmallOrdMap<BundleId, Terminal>,
 
     /// Data on all anchored state transitions contained in the consignments.
     pub bundles: LargeVec<AnchoredBundle>,
@@ -279,7 +277,12 @@ impl<const TYPE: bool> ConsignmentApi for Consignment<TYPE> {
     fn terminals(&self) -> BTreeSet<(BundleId, SecretSeal)> {
         self.terminals
             .iter()
-            .map(|terminal| (terminal.bundle_id, terminal.seal.conceal()))
+            .flat_map(|(bundle_id, terminal)| {
+                terminal
+                    .seals
+                    .iter()
+                    .map(|seal| (*bundle_id, seal.conceal()))
+            })
             .collect()
     }
 

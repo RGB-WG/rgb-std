@@ -507,7 +507,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         // outpoints
         let mut anchored_bundles = BTreeMap::<OpId, AnchoredBundle>::new();
         let mut transitions = BTreeMap::<OpId, Transition>::new();
-        let mut terminals = BTreeSet::<Terminal>::new();
+        let mut terminals = BTreeMap::<BundleId, Terminal>::new();
         for opout in opouts {
             if opout.op == contract_id {
                 continue; // we skip genesis since it will be present anywhere
@@ -523,13 +523,13 @@ pub trait Inventory: Deref<Target = Self::Stash> {
                 for index in 0..typed_assignments.len_u16() {
                     let seal = typed_assignments.to_confidential_seals()[index as usize];
                     if terminal_seals.contains(&seal) {
-                        terminals.insert(Terminal::with(bundle_id, seal.into()));
+                        terminals.insert(bundle_id, Terminal::new(seal.into()));
                     } else if opout.no == index && opout.ty == *type_id {
                         if let Some(seal) = typed_assignments
                             .revealed_seal_at(index)
                             .expect("index exists")
                         {
-                            terminals.insert(Terminal::with(bundle_id, seal.into()));
+                            terminals.insert(bundle_id, Terminal::new(seal.into()));
                         } else {
                             return Err(ConsignerError::ConcealedPublicState(opout));
                         }
