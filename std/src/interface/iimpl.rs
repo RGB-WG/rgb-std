@@ -26,7 +26,7 @@ use amplify::{Bytes32, RawArray};
 use baid58::{Baid58ParseError, FromBaid58, ToBaid58};
 use commit_verify::{CommitStrategy, CommitmentId};
 use rgb::{
-    AssignmentType, ExtensionType, GlobalStateType, SchemaId, SchemaTypeIndex, SubSchema,
+    AssignmentType, ExtensionType, GlobalStateType, SchemaId, SchemaTypeIndex, Script, SubSchema,
     TransitionType, ValencyType,
 };
 use strict_encoding::{FieldName, TypeName};
@@ -36,7 +36,7 @@ use strict_types::encoding::{
 
 use crate::interface::iface::IfaceId;
 use crate::interface::{Iface, VerNo};
-use crate::LIB_NAME_RGB_STD;
+use crate::{ReservedBytes, LIB_NAME_RGB_STD};
 
 /// Interface identifier.
 ///
@@ -89,6 +89,9 @@ impl FromStr for ImplId {
 pub struct NamedField<T: SchemaTypeIndex> {
     pub id: T,
     pub name: FieldName,
+    /// Reserved bytes for storing information about value transformation
+    /// procedures
+    pub reserved: ReservedBytes<0u8, 4usize>,
 }
 
 impl<T> PartialEq for NamedField<T>
@@ -98,7 +101,13 @@ where T: SchemaTypeIndex
 }
 
 impl<T: SchemaTypeIndex> NamedField<T> {
-    pub fn with(id: T, name: FieldName) -> NamedField<T> { NamedField { id, name } }
+    pub fn with(id: T, name: FieldName) -> NamedField<T> {
+        NamedField {
+            id,
+            name,
+            reserved: default!(),
+        }
+    }
 }
 
 /// Maps operation numeric type id to a human-readable name.
@@ -116,6 +125,8 @@ impl<T: SchemaTypeIndex> NamedField<T> {
 pub struct NamedType<T: SchemaTypeIndex> {
     pub id: T,
     pub name: TypeName,
+    /// Reserved bytes for storing information about adaptor procedures
+    pub reserved: ReservedBytes<0, 4>,
 }
 
 impl<T> PartialEq for NamedType<T>
@@ -125,7 +136,13 @@ where T: SchemaTypeIndex
 }
 
 impl<T: SchemaTypeIndex> NamedType<T> {
-    pub fn with(id: T, name: TypeName) -> NamedType<T> { NamedType { id, name } }
+    pub fn with(id: T, name: TypeName) -> NamedType<T> {
+        NamedType {
+            id,
+            name,
+            reserved: default!(),
+        }
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -163,6 +180,7 @@ pub struct IfaceImpl {
     pub valencies: TinyOrdSet<NamedField<ValencyType>>,
     pub transitions: TinyOrdSet<NamedType<TransitionType>>,
     pub extensions: TinyOrdSet<NamedField<ExtensionType>>,
+    pub script: Script,
 }
 
 impl CommitStrategy for IfaceImpl {

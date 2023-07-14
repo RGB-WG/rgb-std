@@ -33,7 +33,7 @@ pub use _fs::*;
 use amplify::confinement::{Confined, TinyVec, U24};
 use baid58::Baid58ParseError;
 use base64::Engine;
-use rgb::{ContractId, Schema, SchemaId, SchemaRoot};
+use rgb::{BundleId, ContractId, Schema, SchemaId, SchemaRoot};
 use strict_encoding::{
     StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, StrictType,
 };
@@ -81,8 +81,8 @@ impl BindleContent for Contract {
         bmap! {
             "Version" => self.version.to_string(),
             "Terminals" => self.terminals
-                .iter()
-                .map(|t| t.seal.to_string())
+                .keys()
+                .map(BundleId::to_string)
                 .collect::<Vec<_>>()
                 .join(",\n  "),
         }
@@ -99,8 +99,8 @@ impl BindleContent for Transfer {
             "Version" => self.version.to_string(),
             "ContractId" => self.contract_id().to_string(),
             "Terminals" => self.terminals
-                .iter()
-                .map(|t| t.seal.to_string())
+                .keys()
+                .map(BundleId::to_string)
                 .collect::<Vec<_>>()
                 .join(",\n  "),
         }

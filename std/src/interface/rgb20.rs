@@ -226,6 +226,7 @@ pub fn rgb20() -> Iface {
         extensions: none!(),
         error_type: types.get("RGB20.Error"),
         default_operation: Some(tn!("Transfer")),
+        type_system: types.type_system(),
     }
 }
 

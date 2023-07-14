@@ -22,12 +22,13 @@
 use std::io;
 use std::str::FromStr;
 
+use amplify::confinement::SmallOrdSet;
 use amplify::{Bytes32, RawArray};
 use baid58::{Baid58ParseError, FromBaid58, ToBaid58};
 use commit_verify::{CommitEncode, CommitmentId, Conceal};
 use strict_encoding::{StrictEncode, StrictWriter};
 
-use crate::containers::Transfer;
+use crate::containers::{TerminalSeal, Transfer};
 use crate::LIB_NAME_RGB_STD;
 
 /// Transfer identifier.
@@ -64,9 +65,12 @@ impl CommitEncode for Transfer {
             let mut writer = StrictWriter::with(usize::MAX, e);
             writer = self.transfer.strict_encode(writer)?;
             writer = self.contract_id().strict_encode(writer)?;
-            for terminal in &self.terminals {
-                writer = terminal.seal.conceal().strict_encode(writer)?;
-                writer = terminal.bundle_id.strict_encode(writer)?;
+            for (bundle_id, terminal) in &self.terminals {
+                writer = bundle_id.strict_encode(writer)?;
+                let seals =
+                    SmallOrdSet::try_from_iter(terminal.seals.iter().map(TerminalSeal::conceal))
+                        .expect("same size iterator");
+                writer = seals.strict_encode(writer)?;
             }
             for attach_id in self.attachments.keys() {
                 writer = attach_id.strict_encode(writer)?;
