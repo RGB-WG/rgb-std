@@ -84,6 +84,8 @@ pub mod containers;
 pub mod persistence;
 pub mod resolvers;
 pub mod accessors;
+mod reserved;
 
 pub use bp::{Chain, Outpoint, Txid};
+use reserved::ReservedBytes;
 pub use stl::{LIB_NAME_RGB_CONTRACT, LIB_NAME_RGB_STD};
