@@ -32,8 +32,8 @@ use rgb::validation::{Status, Validity, Warning};
 use rgb::{
     validation, AnchorId, AnchoredBundle, Assign, AssignmentType, BundleId, ContractHistory,
     ContractId, ContractState, ExposedState, Extension, Genesis, GenesisSeal, GraphSeal, OpId,
-    Operation, Opout, OrderedTxid, SecretSeal, SubSchema, Transition, TransitionBundle, TxoSeal,
-    TypedAssigns,
+    Operation, Opout, SecretSeal, SubSchema, Transition, TransitionBundle, TxoSeal, TypedAssigns,
+    WitnessAnchor,
 };
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 
@@ -518,7 +518,7 @@ impl Inventory for Stock {
             .ok_or(InventoryInconsistency::StateAbsent(contract_id))?;
         for item in bundle.values() {
             if let Some(transition) = &item.transition {
-                let ord_txid = OrderedTxid::new(0, witness_txid);
+                let ord_txid = WitnessAnchor::from_mempool(witness_txid);
                 history.add_transition(transition, ord_txid);
             }
         }

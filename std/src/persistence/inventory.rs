@@ -94,7 +94,7 @@ pub enum InventoryError<E: Error> {
     /// Must be reported to LNP/BP Standards Association.
     #[from]
     #[from(mpc::LeafNotKnown)]
-    #[from(mpc::UnrelatedProof)]
+    #[from(mpc::InvalidProof)]
     #[from(RevealError)]
     #[from(StashInconsistency)]
     InternalInconsistency(InventoryInconsistency),
@@ -227,7 +227,7 @@ pub enum InventoryInconsistency {
     /// It may happen due to RGB library bug, or indicate internal inventory
     /// inconsistency and compromised inventory data storage.
     #[from(mpc::LeafNotKnown)]
-    #[from(mpc::UnrelatedProof)]
+    #[from(mpc::InvalidProof)]
     UnrelatedAnchor,
 
     /// bundle reveal error. Details: {0}
@@ -297,11 +297,21 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     where
         R::Error: 'static;
 
+    /// # Safety
+    ///
+    /// Assumes that the bundle belongs to a non-mined witness transaction. Must
+    /// be used only to consume locally-produced bundles before witness
+    /// transactions are mined.
     fn consume_anchor(
         &mut self,
         anchor: Anchor<mpc::MerkleBlock>,
     ) -> Result<(), InventoryError<Self::Error>>;
 
+    /// # Safety
+    ///
+    /// Assumes that the bundle belongs to a non-mined witness transaction. Must
+    /// be used only to consume locally-produced bundles before witness
+    /// transactions are mined.
     fn consume_bundle(
         &mut self,
         contract_id: ContractId,

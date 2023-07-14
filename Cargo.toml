@@ -12,18 +12,18 @@ default-members = [
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
 homepage = "https://github.com/RGB-WG"
 repository = "https://github.com/RGB-WG/rgb-wallet"
-rust-version = "1.66" # Due to strict encoding library (caused by GAD)
+rust-version = "1.67" # Due to strict encoding library
 edition = "2021"
 license = "Apache-2.0"
 
 [workspace.dependencies]
 amplify = "4.0.0"
 baid58 = "0.3.1"
-strict_encoding = "2.4.1"
-strict_types = "1.4.1"
-commit_verify = { version = "0.10.3", features = ["stl"] }
-bp-core = { version = "0.10.4", features = ["stl"] }
-rgb-core = { version = "0.10.4", features = ["stl"] }
+strict_encoding = "2.5.0"
+strict_types = "1.5.0"
+commit_verify = { version = "0.10.4", features = ["stl"] }
+bp-core = { version = "0.10.5", features = ["stl"] }
+rgb-core = { version = "0.10.5", features = ["stl"] }
 
 [package]
 name = "rgb-wallet"
@@ -76,6 +76,3 @@ wasm-bindgen-test = "0.3"
 
 [package.metadata.docs.rs]
 features = [ "all" ]
-
-[patch.crates-io]
-rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "preserve-historic-state" }
