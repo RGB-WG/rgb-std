@@ -151,6 +151,7 @@ pub fn rgb25() -> Iface {
         extensions: none!(),
         error_type: types.get("RGB25.Error"),
         default_operation: Some(tn!("Transfer")),
+        type_system: types.type_system(),
     }
 }
 

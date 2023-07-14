@@ -399,6 +399,7 @@ pub fn rgb21() -> Iface {
         extensions: none!(),
         error_type: types.get("RGB21.Error"),
         default_operation: Some(tn!("Transfer")),
+        type_system: types.type_system(),
     }
 }
 

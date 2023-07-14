@@ -31,7 +31,7 @@ use strict_encoding::{
     FieldName, StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize,
     StrictType, TypeName,
 };
-use strict_types::SemId;
+use strict_types::{SemId, TypeSystem};
 
 use crate::interface::VerNo;
 use crate::LIB_NAME_RGB_STD;
@@ -327,6 +327,7 @@ pub struct Iface {
     pub extensions: TinyOrdMap<TypeName, ExtensionIface>,
     pub error_type: SemId,
     pub default_operation: Option<TypeName>,
+    pub type_system: TypeSystem,
 }
 
 impl PartialEq for Iface {
