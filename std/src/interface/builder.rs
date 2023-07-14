@@ -59,6 +59,9 @@ pub enum BuilderError {
     /// state `{0}` provided to the builder has invalid name
     InvalidStateField(FieldName),
 
+    /// state `{0}` provided to the builder has invalid name
+    InvalidState(AssignmentType),
+
     /// interface doesn't specifies default operation name, thus an explicit
     /// operation type must be provided with `set_operation_type` method.
     NoOperationSubtype,
@@ -98,6 +101,19 @@ impl ContractBuilder {
         self
     }
 
+    pub fn assignments_type(&self, name: &FieldName) -> Option<AssignmentType> {
+        let name = self
+            .builder
+            .iface
+            .genesis
+            .assignments
+            .get(name)?
+            .name
+            .as_ref()
+            .unwrap_or(name);
+        self.builder.iimpl.assignments_type(name)
+    }
+
     pub fn add_global_state(
         mut self,
         name: impl Into<FieldName>,
@@ -113,9 +129,13 @@ impl ContractBuilder {
         seal: impl Into<GenesisSeal>,
         value: u64,
     ) -> Result<Self, BuilderError> {
-        self.builder =
-            self.builder
-                .add_fungible_state(name, BuilderSeal::Revealed(seal.into()), value)?;
+        let name = name.into();
+        let ty = self
+            .assignments_type(&name)
+            .ok_or(BuilderError::AssignmentNotFound(name))?;
+        self.builder = self
+            .builder
+            .add_raw_state(ty, seal.into(), TypedState::Amount(value))?;
         Ok(self)
     }
 
@@ -125,9 +145,16 @@ impl ContractBuilder {
         seal: impl Into<GenesisSeal>,
         value: impl StrictSerialize,
     ) -> Result<Self, BuilderError> {
-        self.builder =
-            self.builder
-                .add_data_state(name, BuilderSeal::Revealed(seal.into()), value)?;
+        let name = name.into();
+        let serialized = value.to_strict_serialized::<U16>()?;
+        let state = RevealedData::from(serialized);
+
+        let ty = self
+            .assignments_type(&name)
+            .ok_or(BuilderError::AssignmentNotFound(name))?;
+        self.builder = self
+            .builder
+            .add_raw_state(ty, seal.into(), TypedState::Data(state))?;
         Ok(self)
     }
 
@@ -260,10 +287,8 @@ impl TransitionBuilder {
     ) -> Result<Self, BuilderError> {
         let assignment_name = self.default_assignment()?;
         let id = self
-            .builder
-            .iimpl
             .assignments_type(assignment_name)
-            .ok_or(BuilderError::InvalidStateField(assignment_name.clone()))?;
+            .ok_or_else(|| BuilderError::InvalidStateField(assignment_name.clone()))?;
 
         self.add_raw_state(id, seal, TypedState::Amount(value))
     }
@@ -274,7 +299,32 @@ impl TransitionBuilder {
         seal: impl Into<BuilderSeal<GraphSeal>>,
         value: u64,
     ) -> Result<Self, BuilderError> {
-        self.builder = self.builder.add_fungible_state(name, seal, value)?;
+        let name = name.into();
+        let ty = self
+            .assignments_type(&name)
+            .ok_or(BuilderError::AssignmentNotFound(name))?;
+        self.builder = self
+            .builder
+            .add_raw_state(ty, seal, TypedState::Amount(value))?;
+        Ok(self)
+    }
+
+    pub fn add_data_state(
+        mut self,
+        name: impl Into<FieldName>,
+        seal: impl Into<BuilderSeal<GraphSeal>>,
+        value: impl StrictSerialize,
+    ) -> Result<Self, BuilderError> {
+        let name = name.into();
+        let serialized = value.to_strict_serialized::<U16>()?;
+        let state = RevealedData::from(serialized);
+
+        let ty = self
+            .assignments_type(&name)
+            .ok_or(BuilderError::AssignmentNotFound(name))?;
+        self.builder = self
+            .builder
+            .add_raw_state(ty, seal, TypedState::Data(state))?;
         Ok(self)
     }
 
@@ -309,7 +359,7 @@ impl TransitionBuilder {
 }
 
 #[derive(Clone, Debug)]
-pub struct OperationBuilder<Seal: ExposedSeal> {
+struct OperationBuilder<Seal: ExposedSeal> {
     // TODO: use references instead of owned values
     schema: SubSchema,
     iface: Iface,
@@ -381,89 +431,6 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         Ok(self)
     }
 
-    pub fn add_fungible_state(
-        mut self,
-        name: impl Into<FieldName>,
-        seal: impl Into<BuilderSeal<Seal>>,
-        value: u64,
-    ) -> Result<Self, BuilderError> {
-        let name = name.into();
-
-        let Some(type_id) = self
-            .iimpl
-            .assignments
-            .iter()
-            .find(|t| t.name == name)
-            .map(|t| t.id)
-        else {
-            return Err(BuilderError::AssignmentNotFound(name));
-        };
-
-        let state_schema = self
-            .schema
-            .owned_types
-            .get(&type_id)
-            .expect("schema should match interface: must be checked by the constructor");
-        if *state_schema != StateSchema::Fungible(FungibleType::Unsigned64Bit) {
-            return Err(BuilderError::InvalidStateField(name));
-        }
-
-        let state = RevealedValue::new(value, &mut thread_rng());
-        match self.fungible.get_mut(&type_id) {
-            Some(assignments) => {
-                assignments.insert(seal.into(), state)?;
-            }
-            None => {
-                self.fungible
-                    .insert(type_id, Confined::with((seal.into(), state)))?;
-            }
-        }
-        Ok(self)
-    }
-
-    pub fn add_data_state(
-        mut self,
-        name: impl Into<FieldName>,
-        seal: impl Into<BuilderSeal<Seal>>,
-        value: impl StrictSerialize,
-    ) -> Result<Self, BuilderError> {
-        let name = name.into();
-        let serialized = value.to_strict_serialized::<U16>()?;
-
-        let Some(type_id) = self
-            .iimpl
-            .assignments
-            .iter()
-            .find(|t| t.name == name)
-            .map(|t| t.id)
-        else {
-            return Err(BuilderError::AssignmentNotFound(name));
-        };
-
-        let state_schema = self
-            .schema
-            .owned_types
-            .get(&type_id)
-            .expect("schema should match interface: must be checked by the constructor");
-
-        if let StateSchema::Structured(_) = *state_schema {
-            let state = RevealedData::from(serialized);
-            match self.data.get_mut(&type_id) {
-                Some(assignments) => {
-                    assignments.insert(seal.into(), state)?;
-                }
-                None => {
-                    self.data
-                        .insert(type_id, Confined::with((seal.into(), state)))?;
-                }
-            }
-        } else {
-            return Err(BuilderError::InvalidStateField(name));
-        }
-
-        Ok(self)
-    }
-
     pub fn add_raw_state(
         mut self,
         type_id: AssignmentType,
@@ -476,6 +443,15 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             }
             TypedState::Amount(value) => {
                 let state = RevealedValue::new(value, &mut thread_rng());
+
+                let state_schema =
+                    self.schema.owned_types.get(&type_id).expect(
+                        "schema should match interface: must be checked by the constructor",
+                    );
+                if *state_schema != StateSchema::Fungible(FungibleType::Unsigned64Bit) {
+                    return Err(BuilderError::InvalidState(type_id));
+                }
+
                 match self.fungible.get_mut(&type_id) {
                     Some(assignments) => {
                         assignments.insert(seal.into(), state)?;
@@ -486,8 +462,25 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
                     }
                 }
             }
-            TypedState::Data(_) => {
-                todo!()
+            TypedState::Data(data) => {
+                let state_schema =
+                    self.schema.owned_types.get(&type_id).expect(
+                        "schema should match interface: must be checked by the constructor",
+                    );
+
+                if let StateSchema::Structured(_) = *state_schema {
+                    match self.data.get_mut(&type_id) {
+                        Some(assignments) => {
+                            assignments.insert(seal.into(), data)?;
+                        }
+                        None => {
+                            self.data
+                                .insert(type_id, Confined::with((seal.into(), data)))?;
+                        }
+                    }
+                } else {
+                    return Err(BuilderError::InvalidState(type_id));
+                }
             }
             TypedState::Attachment(_) => {
                 todo!()
