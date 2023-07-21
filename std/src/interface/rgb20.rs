@@ -252,6 +252,13 @@ impl Rgb20 {
         DivisibleAssetSpec::from_strict_val_unchecked(strict_val)
     }
 
+    pub fn balance(&self, filter: &impl OutpointFilter) -> u64 {
+        self.allocations(filter)
+            .iter()
+            .map(|alloc| alloc.value)
+            .sum::<u64>()
+    }
+
     pub fn allocations(&self, filter: &impl OutpointFilter) -> LargeVec<FungibleAllocation> {
         self.0
             .fungible("assetOwner", filter)
