@@ -26,8 +26,7 @@ use strict_types::{CompileError, LibBuilder, TypeLib};
 use super::{
     AssignIface, GenesisIface, GlobalIface, Iface, OwnedIface, Req, TransitionIface, VerNo,
 };
-use crate::interface::contract::OutpointFilter;
-use crate::interface::{ArgSpec, ContractIface, FungibleAllocation};
+use crate::interface::{ArgSpec, ContractIface, FungibleAllocation, OutpointFilter};
 use crate::stl::{rgb_contract_stl, Amount, ContractData, DivisibleAssetSpec, StandardTypes};
 
 pub const LIB_NAME_RGB20: &str = "RGB20";
