@@ -98,7 +98,7 @@ impl Sum for Amount {
     }
 }
 
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Debug, Default)]
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default)]
 #[repr(u8)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_CONTRACT, tags = repr, into_u8, try_from_u8)]
@@ -134,6 +134,27 @@ impl StrictDeserialize for Precision {}
 
 impl Precision {
     pub fn from_strict_val_unchecked(value: &StrictVal) -> Self { value.unwrap_enum() }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display)]
+#[display("{int}.{fract}")]
+pub struct CoinAmount {
+    pub int: u64,
+    pub fract: u64,
+    pub precision: Precision,
+}
+
+impl CoinAmount {
+    pub fn with(value: u64, precision: Precision) -> Self {
+        let pow = 10_u64.pow(precision as u32);
+        let int = value / pow;
+        let fract = value - int * pow;
+        CoinAmount {
+            int,
+            fract,
+            precision,
+        }
+    }
 }
 
 #[derive(Wrapper, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, From)]
@@ -542,5 +563,18 @@ impl ContractData {
             .unwrap_option()
             .map(Attachment::from_strict_val_unchecked);
         Self { terms, media }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn coin_amount() {
+        let amount = CoinAmount::with(10_000_436_081_95, Precision::default());
+        assert_eq!(amount.int, 10_000);
+        assert_eq!(amount.fract, 436_081_95);
+        assert_eq!(format!("{amount}"), "10000.43608195");
     }
 }
