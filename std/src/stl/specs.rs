@@ -510,6 +510,10 @@ pub struct Timestamp(i32);
 impl StrictSerialize for Timestamp {}
 impl StrictDeserialize for Timestamp {}
 
+impl Timestamp {
+    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self { Self(value.unwrap_uint()) }
+}
+
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_CONTRACT)]
