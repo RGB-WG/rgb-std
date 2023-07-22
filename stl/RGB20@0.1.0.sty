@@ -1,5 +1,5 @@
 {-
-  Id: giant_eagle_capsule_9QCXsi6d26jqNQVszMAYUDffRjwUkGRWeDCM84ZwPafA
+  Id: dragon_table_game_GVz4mvYE94aQ9q2HPtV9VuoppcDdduP54BMKffF7YoFH
   Name: RGB20
   Version: 0.1.0
   Description: Types for RGB20 interface
@@ -8,16 +8,12 @@
   License: Apache-2.0
 -}
 
-typelib RGB20 -- giant_eagle_capsule_9QCXsi6d26jqNQVszMAYUDffRjwUkGRWeDCM84ZwPafA
+typelib RGB20
 
-import level_decide_percent_6z2gZQEJsnP4xoNUC94vqYEE9V7gKQbeJhb5521xta5u as RGBContract
-import cubic_filter_vampire_AqBBP1ZeTXrdAePf6SBcUGbttpvxpHKG7uJLKFkVxtGi as Bitcoin
+-- no dependencies
 
-
-data Amount           :: U64
-data BurnMeta         :: burnProofs {RGBContract.ProofOfReserves}
+-- RubberOhioAlaska0BsYakBZMzKBDfgpfhXt1p81Q1WT27V8U7LvHG4NPmGmM
 data Error            :: supplyMismatch:1 | nonEqualAmounts:2 | invalidProof:3 | insufficientReserves:4
                        | insufficientCoverage:5 | issueExceedsAllowance:6
 
-data IssueMeta        :: reserves {RGBContract.ProofOfReserves}
 

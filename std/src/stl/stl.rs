@@ -20,33 +20,63 @@
 // limitations under the License.
 
 use bp::bc::stl::bitcoin_stl;
-use strict_types::stl::std_stl;
-use strict_types::typelib::{LibBuilder, TranslateError};
+use bp::stl::bp_core_stl;
+use commit_verify::stl::commit_verify_stl;
+pub use rgb::stl::{aluvm_stl, rgb_core_stl, LIB_ID_RGB};
+use strict_types::stl::{std_stl, strict_types_stl};
 use strict_types::typesys::SystemBuilder;
-use strict_types::{SemId, TypeLib, TypeSystem};
+use strict_types::{CompileError, LibBuilder, SemId, SymbolicSys, TypeLib, TypeSystem};
 
 use super::{
-    DivisibleAssetSpec, Error, MediaType, RicardianContract, Timestamp, LIB_NAME_RGB_CONTRACT,
+    Amount, BurnMeta, ContractData, DivisibleAssetSpec, Error, IssueMeta, MediaType,
+    RicardianContract, Timestamp, LIB_NAME_RGB_CONTRACT,
 };
+use crate::containers::{Contract, Transfer};
 use crate::stl::ProofOfReserves;
+use crate::LIB_NAME_RGB_STD;
 
 /// Strict types id for the library providing standard data types which may be
 /// used in RGB smart contracts.
 pub const LIB_ID_RGB_CONTRACT: &str =
-    "level_decide_percent_6z2gZQEJsnP4xoNUC94vqYEE9V7gKQbeJhb5521xta5u";
+    "price_canvas_oliver_9Te5P6nq3oaDHMgttLEbkojbeQPTqqZLhjxZ3my1F8aJ";
 
-fn _rgb_contract_stl() -> Result<TypeLib, TranslateError> {
-    LibBuilder::new(libname!(LIB_NAME_RGB_CONTRACT))
-        .transpile::<Timestamp>()
-        .transpile::<DivisibleAssetSpec>()
-        .transpile::<RicardianContract>()
-        .transpile::<MediaType>()
-        .transpile::<ProofOfReserves>()
-        .compile(bset! {
-            std_stl().to_dependency(),
-            bitcoin_stl().to_dependency()
-        })
+/// Strict types id for the library representing of RGB StdLib data types.
+pub const LIB_ID_RGB_STD: &str = "parent_maze_jessica_3KXsWZ6hSKRbPjSVwRGbwnwJp3ZNQ2tfe6QUwLJEDG6K";
+
+fn _rgb_std_stl() -> Result<TypeLib, CompileError> {
+    LibBuilder::new(libname!(LIB_NAME_RGB_STD), tiny_bset! {
+        std_stl().to_dependency(),
+        strict_types_stl().to_dependency(),
+        commit_verify_stl().to_dependency(),
+        bitcoin_stl().to_dependency(),
+        bp_core_stl().to_dependency(),
+        aluvm_stl().to_dependency(),
+        rgb_core_stl().to_dependency()
+    })
+    .transpile::<Transfer>()
+    .transpile::<Contract>()
+    .compile()
 }
+
+fn _rgb_contract_stl() -> Result<TypeLib, CompileError> {
+    LibBuilder::new(libname!(LIB_NAME_RGB_CONTRACT), tiny_bset! {
+        std_stl().to_dependency(),
+        bitcoin_stl().to_dependency()
+    })
+    .transpile::<Amount>()
+    .transpile::<Timestamp>()
+    .transpile::<DivisibleAssetSpec>()
+    .transpile::<RicardianContract>()
+    .transpile::<ContractData>()
+    .transpile::<MediaType>()
+    .transpile::<ProofOfReserves>()
+    .transpile::<BurnMeta>()
+    .transpile::<IssueMeta>()
+    .compile()
+}
+
+/// Generates strict type library representation of RGB StdLib data types.
+pub fn rgb_std_stl() -> TypeLib { _rgb_std_stl().expect("invalid strict type RGBStd library") }
 
 /// Generates strict type library providing standard data types which may be
 /// used in RGB smart contracts.
@@ -55,7 +85,11 @@ pub fn rgb_contract_stl() -> TypeLib {
 }
 
 #[derive(Debug)]
-pub struct StandardTypes(TypeSystem);
+pub struct StandardTypes(SymbolicSys);
+
+impl Default for StandardTypes {
+    fn default() -> Self { StandardTypes::new() }
+}
 
 impl StandardTypes {
     pub fn new() -> Self {
@@ -68,6 +102,7 @@ impl StandardTypes {
             .expect("error in standard RGBContract type system")
     }
 
+    #[allow(clippy::result_large_err)]
     fn try_with(libs: impl IntoIterator<Item = TypeLib>) -> Result<Self, Error> {
         let mut builder = SystemBuilder::new();
         for lib in libs.into_iter() {
@@ -77,10 +112,10 @@ impl StandardTypes {
         Ok(Self(sys))
     }
 
-    pub fn type_system(&self) -> TypeSystem { self.0.clone() }
+    pub fn type_system(&self) -> TypeSystem { self.0.as_types().clone() }
 
     pub fn get(&self, name: &'static str) -> SemId {
-        self.0.id_by_name(name).unwrap_or_else(|| {
+        *self.0.resolve(name).unwrap_or_else(|| {
             panic!("type '{name}' is absent in standard RGBContract type library")
         })
     }
@@ -91,8 +126,14 @@ mod test {
     use super::*;
 
     #[test]
-    fn lib_id() {
+    fn contract_lib_id() {
         let lib = rgb_contract_stl();
         assert_eq!(lib.id().to_string(), LIB_ID_RGB_CONTRACT);
+    }
+
+    #[test]
+    fn std_lib_id() {
+        let lib = rgb_std_stl();
+        assert_eq!(lib.id().to_string(), LIB_ID_RGB_STD);
     }
 }

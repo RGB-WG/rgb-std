@@ -31,7 +31,7 @@ use strict_encoding::{
     FieldName, StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize,
     StrictType, TypeName,
 };
-use strict_types::SemId;
+use strict_types::{SemId, TypeSystem};
 
 use crate::interface::VerNo;
 use crate::LIB_NAME_RGB_STD;
@@ -62,6 +62,7 @@ impl ToBaid58<32> for IfaceId {
 impl FromBaid58<32> for IfaceId {}
 
 impl IfaceId {
+    #[allow(clippy::wrong_self_convention)]
     fn to_baid58_string(&self) -> String { format!("{}", self.to_baid58()) }
 }
 
@@ -326,6 +327,7 @@ pub struct Iface {
     pub extensions: TinyOrdMap<TypeName, ExtensionIface>,
     pub error_type: SemId,
     pub default_operation: Option<TypeName>,
+    pub type_system: TypeSystem,
 }
 
 impl PartialEq for Iface {

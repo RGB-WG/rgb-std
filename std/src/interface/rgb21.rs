@@ -26,27 +26,27 @@ use std::fmt::{self, Debug, Formatter};
 use std::str::FromStr;
 
 use amplify::ascii::AsciiString;
-use amplify::confinement::{Confined, NonEmptyVec, SmallBlob, SmallOrdSet};
+use amplify::confinement::{Confined, NonEmptyVec, SmallBlob};
 use bp::bc::stl::bitcoin_stl;
 use strict_encoding::stl::AsciiPrintable;
 use strict_encoding::{
     InvalidIdent, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, TypedWrite,
 };
 use strict_types::stl::std_stl;
-use strict_types::typelib::{LibBuilder, TranslateError};
-use strict_types::TypeLib;
+use strict_types::{CompileError, LibBuilder, TypeLib};
 
 use super::{
     AssignIface, GenesisIface, GlobalIface, Iface, OwnedIface, Req, TransitionIface, VerNo,
 };
-use crate::interface::ArgSpec;
+use crate::interface::{ArgSpec, ContractIface};
 use crate::stl::{
-    rgb_contract_stl, Details, MediaType, Name, ProofOfReserves, StandardTypes, Ticker,
+    rgb_contract_stl, Attachment, Details, DivisibleAssetSpec, MediaType, Name, ProofOfReserves,
+    StandardTypes, Ticker,
 };
 
 pub const LIB_NAME_RGB21: &str = "RGB21";
 /// Strict types id for the library providing data types for RGB21 interface.
-pub const LIB_ID_RGB21: &str = "logic_radius_anita_HgevHFfoBcfqUMHjouxvGMtgGyvs2UrPwr6PNbyteSNb";
+pub const LIB_ID_RGB21: &str = "benny_horse_salad_E3AsDKsHSqAPQLvJke3DcPrkErbS2Jxf8pQ8jYBQYJPA";
 
 #[derive(
     Wrapper, WrapperMut, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default, From
@@ -93,22 +93,17 @@ pub struct OwnedFraction(u64);
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB21)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-pub struct IssueMeta {
-    pub reserves: SmallOrdSet<ProofOfReserves>,
-}
-impl StrictSerialize for IssueMeta {}
-impl StrictDeserialize for IssueMeta {}
-
-#[derive(Clone, Eq, PartialEq, Hash, Debug, Default)]
-#[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB21)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
 pub struct Allocation(TokenIndex, OwnedFraction);
+
+impl Allocation {
+    pub fn with(index: TokenIndex, fraction: OwnedFraction) -> Allocation {
+        Allocation(index, fraction)
+    }
+}
+
+impl StrictSerialize for Allocation {}
+impl StrictDeserialize for Allocation {}
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
@@ -136,21 +131,6 @@ pub struct EmbeddedMedia {
     #[cfg_attr(feature = "serde", serde(rename = "type"))]
     pub ty: MediaType,
     pub data: SmallBlob,
-}
-
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB21)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-pub struct Attachment {
-    #[strict_type(rename = "type")]
-    #[cfg_attr(feature = "serde", serde(rename = "type"))]
-    pub ty: MediaType,
-    pub digest: [u8; 32],
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
@@ -187,10 +167,13 @@ impl AttachmentType {
 pub struct AttachmentName(Confined<AsciiString, 1, 20>);
 impl StrictEncode for AttachmentName {
     fn strict_encode<W: TypedWrite>(&self, writer: W) -> std::io::Result<W> {
-        writer.write_newtype::<Self>(
-            &NonEmptyVec::<AsciiPrintable, 20>::try_from_iter([AsciiPrintable::strict_dumb()])
-                .unwrap(),
-        )
+        let iter = self
+            .0
+            .as_bytes()
+            .iter()
+            .map(|c| AsciiPrintable::try_from(*c).unwrap());
+        writer
+            .write_newtype::<Self>(&NonEmptyVec::<AsciiPrintable, 20>::try_from_iter(iter).unwrap())
     }
 }
 
@@ -246,6 +229,9 @@ pub struct TokenData {
     pub reserves: Option<ProofOfReserves>,
 }
 
+impl StrictSerialize for TokenData {}
+impl StrictDeserialize for TokenData {}
+
 const FRACTION_OVERFLOW: u8 = 1;
 const NON_EQUAL_VALUES: u8 = 2;
 const INVALID_PROOF: u8 = 3;
@@ -272,20 +258,19 @@ pub enum Error {
     InvalidAttachmentType = INVALID_ATTACHMENT_TYPE,
 }
 
-fn _rgb21_stl() -> Result<TypeLib, TranslateError> {
-    LibBuilder::new(libname!(LIB_NAME_RGB21))
-        .transpile::<IssueMeta>()
-        .transpile::<TokenData>()
-        .transpile::<EngravingData>()
-        .transpile::<ItemsCount>()
-        .transpile::<Allocation>()
-        .transpile::<AttachmentType>()
-        .transpile::<Error>()
-        .compile(bset! {
-            std_stl().to_dependency(),
-            bitcoin_stl().to_dependency(),
-            rgb_contract_stl().to_dependency()
-        })
+fn _rgb21_stl() -> Result<TypeLib, CompileError> {
+    LibBuilder::new(libname!(LIB_NAME_RGB21), tiny_bset! {
+        std_stl().to_dependency(),
+        bitcoin_stl().to_dependency(),
+        rgb_contract_stl().to_dependency()
+    })
+    .transpile::<TokenData>()
+    .transpile::<EngravingData>()
+    .transpile::<ItemsCount>()
+    .transpile::<Allocation>()
+    .transpile::<AttachmentType>()
+    .transpile::<Error>()
+    .compile()
 }
 
 /// Generates strict type library providing data types for RGB21 interface.
@@ -312,7 +297,7 @@ pub fn rgb21() -> Iface {
         },
         valencies: none!(),
         genesis: GenesisIface {
-            metadata: Some(types.get("RGB21.IssueMeta")),
+            metadata: Some(types.get("RGBContract.IssueMeta")),
             global: tiny_bmap! {
                 fname!("spec") => ArgSpec::required(),
                 fname!("terms") => ArgSpec::required(),
@@ -375,7 +360,7 @@ pub fn rgb21() -> Iface {
             },
             tn!("Issue") => TransitionIface {
                 optional: true,
-                metadata: Some(types.get("RGB21.IssueMeta")),
+                metadata: Some(types.get("RGBContract.IssueMeta")),
                 globals: tiny_bmap! {
                     fname!("newTokens") => ArgSpec::from_many("tokens"),
                     fname!("newAttachmentTypes") => ArgSpec::from_many("attachmentTypes"),
@@ -417,6 +402,31 @@ pub fn rgb21() -> Iface {
         extensions: none!(),
         error_type: types.get("RGB21.Error"),
         default_operation: Some(tn!("Transfer")),
+        type_system: types.type_system(),
+    }
+}
+
+#[derive(Wrapper, WrapperMut, Clone, Eq, PartialEq, Debug)]
+#[wrapper(Deref)]
+#[wrapper_mut(DerefMut)]
+pub struct Rgb21(ContractIface);
+
+impl From<ContractIface> for Rgb21 {
+    fn from(iface: ContractIface) -> Self {
+        if iface.iface.iface_id != rgb21().iface_id() {
+            panic!("the provided interface is not RGB20 interface");
+        }
+        Self(iface)
+    }
+}
+
+impl Rgb21 {
+    pub fn spec(&self) -> DivisibleAssetSpec {
+        let strict_val = &self
+            .0
+            .global("spec")
+            .expect("RGB21 interface requires global `spec`")[0];
+        DivisibleAssetSpec::from_strict_val_unchecked(strict_val)
     }
 }
 

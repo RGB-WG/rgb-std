@@ -23,19 +23,20 @@ use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 
+use amplify::RawArray;
 use bitcoin::hashes::Hash;
 use bitcoin::psbt::Psbt;
 use bp::seals::txout::CloseMethod;
-use bp::Outpoint;
+use bp::{Outpoint, Txid};
 use chrono::Utc;
 use rgb::{AssignmentType, ContractId, GraphSeal, Operation, Opout};
 use rgbstd::containers::{Bindle, BuilderSeal, Transfer};
-use rgbstd::interface::{AppDeriveIndex, BuilderError, ContractSuppl, TypedState};
+use rgbstd::interface::{BuilderError, ContractSuppl, TypedState, VelocityHint};
 use rgbstd::persistence::{ConsignerError, Inventory, InventoryError, Stash};
 
 use crate::invoice::Beneficiary;
-use crate::psbt::{DbcPsbtError, PsbtDbc, RgbExt, RgbInExt, RgbPsbtError};
-use crate::RgbInvoice;
+use crate::psbt::{DbcPsbtError, PsbtDbc, RgbExt, RgbInExt, RgbOutExt, RgbPsbtError};
+use crate::{RgbInvoice, RGB_NATIVE_DERIVATION_INDEX, RGB_TAPRET_DERIVATION_INDEX};
 
 #[derive(Debug, Display, Error, From)]
 #[display(inner)]
@@ -43,9 +44,9 @@ pub enum PayError<E1: Error, E2: Error>
 where E1: From<E2>
 {
     /// not enough PSBT output found to put all required state (can't add
-    /// assignment {1} for {0}-velocity state).
+    /// assignment type {1} for {0}-velocity state).
     #[display(doc_comments)]
-    NoBlankOrChange(AppDeriveIndex, AssignmentType),
+    NoBlankOrChange(VelocityHint, AssignmentType),
 
     /// PSBT lacks beneficiary output matching the invoice.
     #[display(doc_comments)]
@@ -61,9 +62,11 @@ where E1: From<E2>
 
     /// state provided via PSBT inputs is not sufficient to cover invoice state
     /// requirements.
+    #[display(doc_comments)]
     InsufficientState,
 
     /// the invoice has expired
+    #[display(doc_comments)]
     InvoiceExpired,
 
     #[from]
@@ -87,6 +90,7 @@ pub trait InventoryWallet: Inventory {
     ///
     /// 1. If PSBT output has BIP32 derivation information it belongs to our
     /// wallet - except when it matches address from the invoice.
+    #[allow(clippy::result_large_err, clippy::type_complexity)]
     fn pay(
         &mut self,
         invoice: RgbInvoice,
@@ -104,7 +108,8 @@ pub trait InventoryWallet: Inventory {
         }
         let contract_id = invoice.contract.ok_or(PayError::NoContract)?;
         let iface = invoice.iface.ok_or(PayError::NoIface)?;
-        let mut main_builder = self.transition_builder(contract_id, iface.clone())?;
+        let mut main_builder =
+            self.transition_builder(contract_id, iface.clone(), invoice.operation)?;
 
         let (beneficiary_output, beneficiary) = match invoice.beneficiary {
             Beneficiary::BlindedSeal(seal) => {
@@ -133,21 +138,22 @@ pub trait InventoryWallet: Inventory {
             .collect::<Vec<_>>();
 
         // Classify PSBT outputs which can be used for assignments
-        let mut out_classes = HashMap::<AppDeriveIndex, Vec<u32>>::new();
+        let mut out_classes = HashMap::<VelocityHint, Vec<u32>>::new();
         for (no, outp) in psbt.outputs.iter().enumerate() {
             if beneficiary_output == Some(no as u32) {
                 continue;
             }
-            if let Some(class) = outp
+            if outp
                 // NB: Here we assume that if output has derivation information it belongs to our wallet.
                 .bip32_derivation
                 .first_key_value()
-                .and_then(|(_, src)| src.1.into_iter().rev().skip(1).next())
+                .and_then(|(_, src)| src.1.into_iter().rev().nth(1))
                 .copied()
                 .map(u32::from)
-                .and_then(|index| u8::try_from(index).ok())
-                .and_then(|index| AppDeriveIndex::try_from(index).ok())
+                .filter(|index| *index == RGB_NATIVE_DERIVATION_INDEX || *index == RGB_TAPRET_DERIVATION_INDEX)
+                .is_some()
             {
+                let class = outp.rgb_velocity_hint().unwrap_or_default();
                 out_classes.entry(class).or_default().push(no as u32);
             }
         }
@@ -160,7 +166,7 @@ pub trait InventoryWallet: Inventory {
          -> Result<BuilderSeal<GraphSeal>, PayError<_, _>> {
             let velocity = suppl
                 .and_then(|suppl| suppl.owned_state.get(&assignment_type))
-                .map(|s| s.app_index)
+                .map(|s| s.velocity)
                 .unwrap_or_default();
             let vout = out_classes
                 .get_mut(&velocity)
@@ -171,9 +177,6 @@ pub trait InventoryWallet: Inventory {
         };
 
         // 2. Prepare and self-consume transition
-        if let Some(op_name) = invoice.operation {
-            main_builder = main_builder.set_transition_type(op_name)?;
-        }
         let assignment_name = invoice
             .assignment
             .as_ref()
@@ -236,9 +239,7 @@ pub trait InventoryWallet: Inventory {
         // Construct blank transitions, self-consume them
         let mut other_transitions = HashMap::with_capacity(spent_state.len());
         for (id, opouts) in spent_state {
-            let mut blank_builder = self
-                .transition_builder(id, iface.clone())?
-                .do_blank_transition()?;
+            let mut blank_builder = self.blank_builder(id, iface.clone())?;
             // TODO: select supplement basing on the signer trust level
             let suppl = self.contract_suppl(id).and_then(|set| set.first());
 
@@ -280,6 +281,12 @@ pub trait InventoryWallet: Inventory {
         for (id, bundle) in bundles {
             self.consume_bundle(id, bundle, witness_txid.to_byte_array().into())?;
         }
+        let beneficiary = match beneficiary {
+            BuilderSeal::Revealed(seal) => BuilderSeal::Revealed(
+                seal.resolve(Txid::from_raw_array(witness_txid.to_byte_array())),
+            ),
+            BuilderSeal::Concealed(seal) => BuilderSeal::Concealed(seal),
+        };
         let transfer = self.transfer(contract_id, [beneficiary])?;
 
         Ok(transfer)

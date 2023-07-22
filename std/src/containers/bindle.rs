@@ -24,13 +24,16 @@
 //! remote party.
 
 use std::collections::BTreeMap;
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 use std::ops::Deref;
+use std::str::FromStr;
 
 #[cfg(feature = "fs")]
 pub use _fs::*;
-use amplify::confinement::TinyVec;
-use rgb::{ContractId, Schema, SchemaId, SchemaRoot};
+use amplify::confinement::{Confined, TinyVec, U24};
+use baid58::Baid58ParseError;
+use base64::Engine;
+use rgb::{BundleId, ContractId, Schema, SchemaId, SchemaRoot};
 use strict_encoding::{
     StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, StrictType,
 };
@@ -47,7 +50,15 @@ pub trait BindleContent: StrictSerialize + StrictDeserialize + StrictDumb {
     /// String used in ASCII armored blocks
     const PLATE_TITLE: &'static str;
 
-    type Id: Copy + Eq + Display + StrictType + StrictDumb + StrictEncode + StrictDecode;
+    type Id: Copy
+        + Eq
+        + Debug
+        + Display
+        + FromStr<Err = Baid58ParseError>
+        + StrictType
+        + StrictDumb
+        + StrictEncode
+        + StrictDecode;
 
     fn bindle_id(&self) -> Self::Id;
     fn bindle_headers(&self) -> BTreeMap<&'static str, String> { none!() }
@@ -70,8 +81,8 @@ impl BindleContent for Contract {
         bmap! {
             "Version" => self.version.to_string(),
             "Terminals" => self.terminals
-                .iter()
-                .map(|t| t.seal.to_string())
+                .keys()
+                .map(BundleId::to_string)
                 .collect::<Vec<_>>()
                 .join(",\n  "),
         }
@@ -88,8 +99,8 @@ impl BindleContent for Transfer {
             "Version" => self.version.to_string(),
             "ContractId" => self.contract_id().to_string(),
             "Terminals" => self.terminals
-                .iter()
-                .map(|t| t.seal.to_string())
+                .keys()
+                .map(BundleId::to_string)
                 .collect::<Vec<_>>()
                 .join(",\n  "),
         }
@@ -159,10 +170,79 @@ impl<C: BindleContent> Bindle<C> {
     pub fn unbindle(self) -> C { self.data }
 }
 
+#[derive(Clone, PartialEq, Eq, Debug, Display, Error)]
+#[display(doc_comments)]
+pub enum BindleParseError<Id: Copy + Eq + Debug + Display> {
+    /// the provided text doesn't represent a recognizable ASCII-armored RGB
+    /// bindle encoding.
+    WrongStructure,
+
+    /// Id header of the bindle contains unparsable information. Details: {0}
+    InvalidId(Baid58ParseError),
+
+    /// the actual data doesn't match the provided id.
+    ///
+    /// Actual id: {actual}.
+    ///
+    /// Expected id: {expected}.
+    MismatchedId { actual: Id, expected: Id },
+
+    /// bindle data has invalid Base64 encoding (ASCII armoring). Details: {0}
+    Base64(base64::DecodeError),
+
+    /// unable to decode the provided bindle data. Details: {0}
+    Deserialize(strict_encoding::DeserializeError),
+
+    /// bindle contains more than 16MB of data.
+    TooLarge,
+}
+
+impl<C: BindleContent> FromStr for Bindle<C> {
+    type Err = BindleParseError<C::Id>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut lines = s.lines();
+        let first = format!("-----BEGIN {}-----", C::PLATE_TITLE);
+        let last = format!("-----END {}-----", C::PLATE_TITLE);
+        if (lines.next(), lines.next_back()) != (Some(&first), Some(&last)) {
+            return Err(BindleParseError::WrongStructure);
+        }
+        let mut header_id = None;
+        for line in lines.by_ref() {
+            if line.is_empty() {
+                break;
+            }
+            if let Some(id_str) = line.strip_prefix("Id: ") {
+                header_id = Some(C::Id::from_str(id_str).map_err(BindleParseError::InvalidId)?);
+            }
+        }
+        let armor = lines.filter(|l| !l.is_empty()).collect::<String>();
+        let engine = base64::engine::general_purpose::STANDARD;
+        let data = engine.decode(armor).map_err(BindleParseError::Base64)?;
+        let data = C::from_strict_serialized::<U24>(
+            Confined::try_from(data).map_err(|_| BindleParseError::TooLarge)?,
+        )
+        .map_err(BindleParseError::Deserialize)?;
+        let id = data.bindle_id();
+        if let Some(header_id) = header_id {
+            if header_id != id {
+                return Err(BindleParseError::MismatchedId {
+                    actual: id,
+                    expected: header_id,
+                });
+            }
+        }
+        // TODO: parse and validate sigs
+        Ok(Self {
+            id,
+            data,
+            sigs: none!(),
+        })
+    }
+}
+
 impl<C: BindleContent> Display for Bindle<C> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        use base64::Engine;
-
         writeln!(f, "-----BEGIN {}-----", C::PLATE_TITLE)?;
         writeln!(f, "Id: {}", self.id)?;
         for (header, value) in self.bindle_headers() {
@@ -174,10 +254,7 @@ impl<C: BindleContent> Display for Bindle<C> {
         writeln!(f)?;
 
         // TODO: Replace with streamed writer
-        let data = self
-            .data
-            .to_strict_serialized::<0xFFFFFF>()
-            .expect("in-memory");
+        let data = self.data.to_strict_serialized::<U24>().expect("in-memory");
         let engine = base64::engine::general_purpose::STANDARD;
         let data = engine.encode(data);
         let mut data = data.as_str();

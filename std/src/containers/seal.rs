@@ -156,6 +156,13 @@ impl TerminalSeal {
     pub fn new_vout(method: CloseMethod, vout: impl Into<Vout>) -> TerminalSeal {
         TerminalSeal::WitnessVout(VoutSeal::new(method, vout))
     }
+
+    pub fn secret_seal(&self) -> Option<SecretSeal> {
+        match self {
+            TerminalSeal::ConcealedUtxo(seal) => Some(*seal),
+            TerminalSeal::WitnessVout(_) => None,
+        }
+    }
 }
 
 impl Conceal for TerminalSeal {

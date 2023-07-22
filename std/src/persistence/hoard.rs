@@ -26,7 +26,7 @@ use amplify::confinement;
 use amplify::confinement::{Confined, LargeOrdMap, SmallOrdMap, TinyOrdMap, TinyOrdSet};
 use bp::dbc::anchor::MergeError;
 use commit_verify::mpc;
-use commit_verify::mpc::{MerkleBlock, UnrelatedProof};
+use commit_verify::mpc::MerkleBlock;
 use rgb::{
     Anchor, AnchorId, AnchoredBundle, BundleId, ContractId, Extension, Genesis, OpId, Operation,
     SchemaId, TransitionBundle,
@@ -36,7 +36,7 @@ use strict_encoding::TypeName;
 use crate::accessors::{MergeReveal, MergeRevealError};
 use crate::containers::{Cert, Consignment, ContentId, ContentSigs};
 use crate::interface::{rgb20, ContractSuppl, Iface, IfaceId, IfacePair, SchemaIfaces};
-use crate::persistence::{Stash, StashError, StashInconsistency};
+use crate::persistence::{InventoryError, Stash, StashError, StashInconsistency};
 use crate::LIB_NAME_RGB_STD;
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
@@ -46,13 +46,17 @@ pub enum ConsumeError {
     Confinement(confinement::Error),
 
     #[from]
-    Anchor(UnrelatedProof),
+    Anchor(mpc::InvalidProof),
 
     #[from]
     Merge(MergeError),
 
     #[from]
     MergeReveal(MergeRevealError),
+}
+
+impl From<Infallible> for InventoryError<Infallible> {
+    fn from(_: Infallible) -> Self { unreachable!() }
 }
 
 /// Hoard is an in-memory stash useful for WASM implementations.
@@ -239,6 +243,24 @@ impl Stash for Hoard {
         self.schemata
             .get(&schema_id)
             .ok_or_else(|| StashInconsistency::SchemaAbsent(schema_id).into())
+    }
+
+    fn contract_ids_by_iface(&self, name: &TypeName) -> Result<BTreeSet<ContractId>, Self::Error> {
+        let iface = self.iface_by_name(name).unwrap();
+        let iface_id = iface.iface_id();
+        let schemata = self
+            .schemata
+            .iter()
+            .filter(|(_, iface)| iface.iimpls.contains_key(&iface_id))
+            .map(|(schema_id, _)| schema_id)
+            .collect::<BTreeSet<_>>();
+        Ok(self
+            .geneses
+            .iter()
+            .filter(|(_, genesis)| schemata.contains(&genesis.schema_id))
+            .map(|(contract_id, _)| contract_id)
+            .copied()
+            .collect())
     }
 
     fn contract_ids(&self) -> Result<BTreeSet<ContractId>, Self::Error> {

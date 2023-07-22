@@ -22,15 +22,13 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::{iter, slice};
 
-use amplify::confinement::{
-    LargeVec, MediumBlob, SmallOrdMap, SmallOrdSet, TinyOrdMap, TinyOrdSet,
-};
+use amplify::confinement::{LargeVec, MediumBlob, SmallOrdMap, TinyOrdMap, TinyOrdSet};
 use commit_verify::Conceal;
 use rgb::validation::{AnchoredBundle, ConsignmentApi};
 use rgb::{
     validation, AttachId, BundleId, ContractHistory, ContractId, Extension, Genesis, GraphSeal,
-    OpId, OpRef, Operation, OrderedTxid, Schema, SchemaId, SecretSeal, SubSchema, Transition,
-    TransitionBundle,
+    OpId, OpRef, Operation, Schema, SchemaId, SecretSeal, SubSchema, Transition, TransitionBundle,
+    WitnessAnchor,
 };
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 
@@ -93,7 +91,7 @@ pub struct Consignment<const TYPE: bool> {
     pub genesis: Genesis,
 
     /// Set of seals which are history terminals.
-    pub terminals: SmallOrdSet<Terminal>,
+    pub terminals: SmallOrdMap<BundleId, Terminal>,
 
     /// Data on all anchored state transitions contained in the consignments.
     pub bundles: LargeVec<AnchoredBundle>,
@@ -148,12 +146,9 @@ impl<const TYPE: bool> Consignment<TYPE> {
     pub fn contract_id(&self) -> ContractId { self.genesis.contract_id() }
 
     pub fn anchored_bundle(&self, bundle_id: BundleId) -> Option<&AnchoredBundle> {
-        for anchored_bundle in &self.bundles {
-            if anchored_bundle.bundle.bundle_id() == bundle_id {
-                return Some(anchored_bundle);
-            }
-        }
-        None
+        self.bundles
+            .iter()
+            .find(|anchored_bundle| anchored_bundle.bundle.bundle_id() == bundle_id)
     }
 
     pub fn validation_status(&self) -> Option<&validation::Status> {
@@ -188,7 +183,7 @@ impl<const TYPE: bool> Consignment<TYPE> {
                 if let Some(transition) = &item.transition {
                     let txid = anchored_bundle.anchor.txid;
                     let height = resolver.resolve_height(txid)?;
-                    let ord_txid = OrderedTxid::new(height, txid);
+                    let ord_txid = WitnessAnchor::new(height, txid);
                     history.add_transition(transition, ord_txid);
                     for (id, used) in &mut extension_idx {
                         if *used {
@@ -282,7 +277,12 @@ impl<const TYPE: bool> ConsignmentApi for Consignment<TYPE> {
     fn terminals(&self) -> BTreeSet<(BundleId, SecretSeal)> {
         self.terminals
             .iter()
-            .map(|terminal| (terminal.bundle_id, terminal.seal.conceal()))
+            .flat_map(|(bundle_id, terminal)| {
+                terminal
+                    .seals
+                    .iter()
+                    .map(|seal| (*bundle_id, seal.conceal()))
+            })
             .collect()
     }
 

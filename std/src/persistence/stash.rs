@@ -101,6 +101,8 @@ pub trait Stash {
 
     fn contract_ids(&self) -> Result<BTreeSet<ContractId>, Self::Error>;
 
+    fn contract_ids_by_iface(&self, name: &TypeName) -> Result<BTreeSet<ContractId>, Self::Error>;
+
     fn contract_schema(
         &self,
         contract_id: ContractId,

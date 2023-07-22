@@ -21,8 +21,7 @@
 
 use amplify::IoError;
 use baid58::Baid58ParseError;
-use strict_types::typelib::TranslateError;
-use strict_types::typesys;
+use strict_types::{typesys, CompileError};
 
 #[derive(Debug, From)]
 pub(super) enum Error {
@@ -31,9 +30,9 @@ pub(super) enum Error {
     #[from]
     Baid58(Baid58ParseError),
     #[from]
-    Translate(TranslateError),
+    Compile(CompileError),
     #[from]
-    Compile(typesys::Error),
+    Link1(typesys::Error),
     #[from]
-    Link(Vec<typesys::Error>),
+    Link2(Vec<typesys::Error>),
 }

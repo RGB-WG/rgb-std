@@ -19,7 +19,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use amplify::confinement::{TinyOrdMap, TinyString};
+use amplify::confinement::{SmallBlob, TinyOrdMap, TinyString};
 use amplify::Bytes32;
 use rgb::{AssignmentType, ContractId, GlobalStateType};
 use strict_types::value;
@@ -59,8 +59,13 @@ pub struct SupplId(
 pub struct ContractSuppl {
     pub contract_id: ContractId,
     pub ticker: TickerSuppl,
+    /// Media kit is a URL string which provides JSON information on media files
+    /// and colors that should be used for UI,
+    pub media_kit: TinyString,
     pub global_state: TinyOrdMap<AssignmentType, OwnedStateSuppl>,
     pub owned_state: TinyOrdMap<AssignmentType, OwnedStateSuppl>,
+    /// TLV-encoded custom fields.
+    pub extensions: TinyOrdMap<u16, SmallBlob>,
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -90,7 +95,7 @@ pub enum TickerSuppl {
 )]
 pub struct OwnedStateSuppl {
     pub meaning: TinyString,
-    pub app_index: AppDeriveIndex,
+    pub velocity: VelocityHint,
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display, Default)]
@@ -103,13 +108,31 @@ pub struct OwnedStateSuppl {
 )]
 #[display(lowercase)]
 #[repr(u8)]
-pub enum AppDeriveIndex {
-    // TODO: Use non-change output
+pub enum VelocityHint {
     #[default]
-    Any = 1,
-    HighFrequency = 10,
-    Frequent = 20,
-    Regular = 30,
-    Episodic = 40,
-    Seldom = 50,
+    Unspecified = 0,
+    /// Should be used for thinks like secondary issuance for tokens which do
+    /// not inflate very often.
+    Seldom = 15,
+    /// Should be used for digital identity revocations.
+    Episodic = 31,
+    /// Should be used for digital art, shares, bonds etc.
+    Regular = 63,
+    /// Should be used for fungible tokens.
+    Frequent = 127,
+    /// Should be used for stablecoins and money.
+    HighFrequency = 255,
+}
+
+impl VelocityHint {
+    pub fn with_value(value: &u8) -> Self {
+        match *value {
+            0 => VelocityHint::Unspecified,
+            1..=15 => VelocityHint::Seldom,
+            16..=31 => VelocityHint::Episodic,
+            32..=63 => VelocityHint::Regular,
+            64..=127 => VelocityHint::Frequent,
+            128..=255 => VelocityHint::HighFrequency,
+        }
+    }
 }

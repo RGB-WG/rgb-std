@@ -24,6 +24,7 @@ use std::error::Error;
 use std::ops::Deref;
 
 use amplify::confinement::{self, Confined};
+use bp::seals::txout::blind::SingleBlindSeal;
 use bp::Txid;
 use commit_verify::mpc;
 use rgb::{
@@ -54,6 +55,9 @@ pub enum ConsignerError<E1: Error, E2: Error> {
     /// unable to construct consignment: history size too large, resulting in
     /// too many transitions.
     TooManyBundles,
+
+    /// public state at operation output {0} is concealed.
+    ConcealedPublicState(Opout),
 
     #[display(inner)]
     #[from]
@@ -90,7 +94,7 @@ pub enum InventoryError<E: Error> {
     /// Must be reported to LNP/BP Standards Association.
     #[from]
     #[from(mpc::LeafNotKnown)]
-    #[from(mpc::UnrelatedProof)]
+    #[from(mpc::InvalidProof)]
     #[from(RevealError)]
     #[from(StashInconsistency)]
     InternalInconsistency(InventoryInconsistency),
@@ -223,7 +227,7 @@ pub enum InventoryInconsistency {
     /// It may happen due to RGB library bug, or indicate internal inventory
     /// inconsistency and compromised inventory data storage.
     #[from(mpc::LeafNotKnown)]
-    #[from(mpc::UnrelatedProof)]
+    #[from(mpc::InvalidProof)]
     UnrelatedAnchor,
 
     /// bundle reveal error. Details: {0}
@@ -244,6 +248,7 @@ pub enum InventoryInconsistency {
     Stash(StashInconsistency),
 }
 
+#[allow(clippy::result_large_err)]
 pub trait Inventory: Deref<Target = Self::Stash> {
     type Stash: Stash;
     /// Error type which must indicate problems on data retrieval.
@@ -292,11 +297,21 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     where
         R::Error: 'static;
 
+    /// # Safety
+    ///
+    /// Assumes that the bundle belongs to a non-mined witness transaction. Must
+    /// be used only to consume locally-produced bundles before witness
+    /// transactions are mined.
     fn consume_anchor(
         &mut self,
         anchor: Anchor<mpc::MerkleBlock>,
     ) -> Result<(), InventoryError<Self::Error>>;
 
+    /// # Safety
+    ///
+    /// Assumes that the bundle belongs to a non-mined witness transaction. Must
+    /// be used only to consume locally-produced bundles before witness
+    /// transactions are mined.
     fn consume_bundle(
         &mut self,
         contract_id: ContractId,
@@ -316,6 +331,36 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     where
         R::Error: 'static;
 
+    fn contracts_with_iface(
+        &mut self,
+        iface: impl Into<TypeName>,
+    ) -> Result<Vec<ContractIface>, InventoryError<Self::Error>>
+    where
+        Self::Error: From<<Self::Stash as Stash>::Error>,
+        InventoryError<Self::Error>: From<<Self::Stash as Stash>::Error>,
+    {
+        let iface = iface.into();
+        let iface_id = self.iface_by_name(&iface)?.iface_id();
+        self.contract_ids_by_iface(&iface)?
+            .into_iter()
+            .map(|id| self.contract_iface(id, iface_id))
+            .collect()
+    }
+
+    fn contract_iface_named(
+        &mut self,
+        contract_id: ContractId,
+        iface: impl Into<TypeName>,
+    ) -> Result<ContractIface, InventoryError<Self::Error>>
+    where
+        Self::Error: From<<Self::Stash as Stash>::Error>,
+        InventoryError<Self::Error>: From<<Self::Stash as Stash>::Error>,
+    {
+        let iface = iface.into();
+        let iface_id = self.iface_by_name(&iface)?.iface_id();
+        self.contract_iface(contract_id, iface_id)
+    }
+
     fn contract_iface(
         &mut self,
         contract_id: ContractId,
@@ -325,6 +370,36 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     fn anchored_bundle(&self, opid: OpId) -> Result<AnchoredBundle, InventoryError<Self::Error>>;
 
     fn transition_builder(
+        &mut self,
+        contract_id: ContractId,
+        iface: impl Into<TypeName>,
+        transition_name: Option<impl Into<TypeName>>,
+    ) -> Result<TransitionBuilder, InventoryError<Self::Error>>
+    where
+        Self::Error: From<<Self::Stash as Stash>::Error>,
+    {
+        let schema_ifaces = self.contract_schema(contract_id)?;
+        let iface = self.iface_by_name(&iface.into())?;
+        let schema = &schema_ifaces.schema;
+        let iimpl = schema_ifaces
+            .iimpls
+            .get(&iface.iface_id())
+            .ok_or(DataError::NoIfaceImpl(schema.schema_id(), iface.iface_id()))?;
+        let builder = if let Some(transition_name) = transition_name {
+            TransitionBuilder::named_transition(
+                iface.clone(),
+                schema.clone(),
+                iimpl.clone(),
+                transition_name.into(),
+            )
+        } else {
+            TransitionBuilder::default_transition(iface.clone(), schema.clone(), iimpl.clone())
+        }
+        .expect("internal inconsistency");
+        Ok(builder)
+    }
+
+    fn blank_builder(
         &mut self,
         contract_id: ContractId,
         iface: impl Into<TypeName>,
@@ -339,8 +414,9 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             .iimpls
             .get(&iface.iface_id())
             .ok_or(DataError::NoIfaceImpl(schema.schema_id(), iface.iface_id()))?;
-        let builder = TransitionBuilder::with(iface.clone(), schema.clone(), iimpl.clone())
-            .expect("internal inconsistency");
+        let builder =
+            TransitionBuilder::blank_transition(iface.clone(), schema.clone(), iimpl.clone())
+                .expect("internal inconsistency");
         Ok(builder)
     }
 
@@ -376,6 +452,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     fn store_seal_secret(&mut self, seal: GraphSeal) -> Result<(), InventoryError<Self::Error>>;
     fn seal_secrets(&mut self) -> Result<BTreeSet<GraphSeal>, InventoryError<Self::Error>>;
 
+    #[allow(clippy::type_complexity)]
     fn export_contract(
         &mut self,
         contract_id: ContractId,
@@ -390,10 +467,11 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         // TODO: Add known sigs to the bindle
     }
 
+    #[allow(clippy::type_complexity)]
     fn transfer(
         &mut self,
         contract_id: ContractId,
-        seals: impl IntoIterator<Item = impl Into<BuilderSeal<GraphSeal>>>,
+        seals: impl IntoIterator<Item = impl Into<BuilderSeal<SingleBlindSeal>>>,
     ) -> Result<
         Bindle<Transfer>,
         ConsignerError<Self::Error, <<Self as Deref>::Target as Stash>::Error>,
@@ -417,11 +495,10 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         let (outpoint_seals, terminal_seals) = seals
             .into_iter()
             .map(|seal| match seal.into() {
-                BuilderSeal::Revealed(seal) => (seal.outpoint(), None),
-                BuilderSeal::Concealed(seal) => (None, Some(seal)),
+                BuilderSeal::Revealed(seal) => (seal.outpoint(), seal.conceal()),
+                BuilderSeal::Concealed(seal) => (None, seal),
             })
             .unzip::<_, _, Vec<_>, Vec<_>>();
-        let terminal_seals = terminal_seals.into_iter().flatten().collect::<Vec<_>>();
         opouts.extend(self.opouts_by_outpoints(contract_id, outpoint_seals.into_iter().flatten())?);
         opouts.extend(self.opouts_by_terminals(terminal_seals.iter().copied())?);
 
@@ -430,7 +507,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         // outpoints
         let mut anchored_bundles = BTreeMap::<OpId, AnchoredBundle>::new();
         let mut transitions = BTreeMap::<OpId, Transition>::new();
-        let mut terminals = BTreeSet::<Terminal>::new();
+        let mut terminals = BTreeMap::<BundleId, Terminal>::new();
         for opout in opouts {
             if opout.op == contract_id {
                 continue; // we skip genesis since it will be present anywhere
@@ -442,17 +519,19 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             // 2. Collect seals from terminal transitions to add to the consignment
             // terminals
             let bundle_id = anchored_bundle.bundle.bundle_id();
-            for typed_assignments in transition.assignments.values() {
+            for (type_id, typed_assignments) in transition.assignments.iter() {
                 for index in 0..typed_assignments.len_u16() {
-                    if let Some(seal) = typed_assignments
-                        .revealed_seal_at(index)
-                        .expect("index exists")
-                    {
-                        terminals.insert(Terminal::with(bundle_id, seal.into()));
-                    } else {
-                        let seal = typed_assignments.to_confidential_seals()[index as usize];
-                        if terminal_seals.contains(&seal) {
-                            terminals.insert(Terminal::with(bundle_id, seal.into()));
+                    let seal = typed_assignments.to_confidential_seals()[index as usize];
+                    if terminal_seals.contains(&seal) {
+                        terminals.insert(bundle_id, Terminal::new(seal.into()));
+                    } else if opout.no == index && opout.ty == *type_id {
+                        if let Some(seal) = typed_assignments
+                            .revealed_seal_at(index)
+                            .expect("index exists")
+                        {
+                            terminals.insert(bundle_id, Terminal::new(seal.into()));
+                        } else {
+                            return Err(ConsignerError::ConcealedPublicState(opout));
                         }
                     }
                 }
@@ -477,7 +556,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
                 .entry(id)
                 .or_insert(self.anchored_bundle(id)?.clone())
                 .bundle
-                .reveal_transition(&transition)?;
+                .reveal_transition(transition)?;
         }
 
         let genesis = self.genesis(contract_id)?;

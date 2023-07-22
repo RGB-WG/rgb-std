@@ -26,9 +26,11 @@ use std::str::FromStr;
 
 use amplify::ascii::AsciiString;
 use amplify::confinement::{Confined, NonEmptyVec};
+use amplify::s;
 use strict_encoding::{
     InvalidIdent, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, TypedWrite,
 };
+use strict_types::StrictVal;
 
 use super::LIB_NAME_RGB_CONTRACT;
 
@@ -40,7 +42,7 @@ pub struct MediaType {
     #[strict_type(rename = "type")]
     #[cfg_attr(feature = "serde", serde(rename = "type"))]
     pub ty: MediaRegName,
-    pub subtype: MediaRegName,
+    pub subtype: Option<MediaRegName>,
     pub charset: Option<MediaRegName>,
 }
 impl StrictDumb for MediaType {
@@ -54,12 +56,48 @@ impl MediaType {
     ///
     /// Panics is the provided string is an invalid type specifier.
     pub fn with(s: &'static str) -> Self {
-        let (ty, subty) = s.split_once("/").expect("invalid static media type string");
+        let (ty, subty) = s.split_once('/').expect("invalid static media type string");
         MediaType {
             ty: MediaRegName::from(ty),
-            subtype: MediaRegName::from(subty),
+            subtype: if subty == "*" {
+                None
+            } else {
+                Some(MediaRegName::from(subty))
+            },
             charset: None,
         }
+    }
+
+    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
+        let ty = MediaRegName::from_strict_val_unchecked(value.unwrap_struct("type"));
+        let subtype = value
+            .unwrap_struct("subtype")
+            .unwrap_option()
+            .map(MediaRegName::from_strict_val_unchecked);
+        let charset = value
+            .unwrap_struct("charset")
+            .unwrap_option()
+            .map(MediaRegName::from_strict_val_unchecked);
+        Self {
+            ty,
+            subtype,
+            charset,
+        }
+    }
+}
+
+impl std::fmt::Display for MediaType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}/{}",
+            self.ty,
+            if let Some(subty) = &self.subtype {
+                subty.to_string()
+            } else {
+                s!("*")
+            }
+        )
     }
 }
 
@@ -75,9 +113,18 @@ impl MediaType {
 pub struct MediaRegName(Confined<AsciiString, 1, 64>);
 impl StrictEncode for MediaRegName {
     fn strict_encode<W: TypedWrite>(&self, writer: W) -> std::io::Result<W> {
-        writer.write_newtype::<Self>(
-            &NonEmptyVec::<MimeChar, 64>::try_from_iter([MimeChar::strict_dumb()]).unwrap(),
-        )
+        let iter = self
+            .0
+            .as_bytes()
+            .iter()
+            .map(|c| MimeChar::try_from(*c).unwrap());
+        writer.write_newtype::<Self>(&NonEmptyVec::<MimeChar, 64>::try_from_iter(iter).unwrap())
+    }
+}
+
+impl MediaRegName {
+    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
+        MediaRegName::from_str(&value.unwrap_string()).expect("invalid media reg name")
     }
 }
 

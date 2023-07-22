@@ -1,5 +1,5 @@
 {-
-  Id: level_decide_percent_6z2gZQEJsnP4xoNUC94vqYEE9V7gKQbeJhb5521xta5u
+  Id: price_canvas_oliver_9Te5P6nq3oaDHMgttLEbkojbeQPTqqZLhjxZ3my1F8aJ
   Name: RGBContract
   Version: 0.1.0
   Description: Types for writing RGB contracts and interfaces
@@ -8,21 +8,46 @@
   License: Apache-2.0
 -}
 
-typelib RGBContract -- level_decide_percent_6z2gZQEJsnP4xoNUC94vqYEE9V7gKQbeJhb5521xta5u
+typelib RGBContract
 
-import quota_conan_fashion_3TZmAPf8EkQZnbGS1g8uMGes6jEWPqNkFB6pLUKeoefg as Std
-import cubic_filter_vampire_AqBBP1ZeTXrdAePf6SBcUGbttpvxpHKG7uJLKFkVxtGi as Bitcoin
+import race_ballet_golf_6GgF7biXPVNcus2FfQj2pQuRzau11rXApMQLfCZhojgi as Bitcoin
+-- Imports:
+-- Vout := OpusDecadeExample03HHRtSJW5fnGkdVW1EVDH7B97Y79WhwvKyyfsaBkuQkk
+-- Txid := TaxiLearnMalta0C1GfCrG7AXu2sFhRBspd7KpJK2YgyTkVy6pty5rZynRs
+-- Outpoint := CakeLeftPencil0GeFZHi1RYCrrcH1LG4Fo2SWW5M6KLJ8yvoGkFjRWZaA9
+
+import lagoon_rodent_option_9KALDYR8Nyjq4FdMW6kYoL7vdkWnqPqNuFnmE9qHpNjZ as Std
+-- Imports:
+-- AsciiPrintable := PierreForbidOrganic0mbH4meZSjxky12xHm9pg3rw8VoGxEa6rXtt6dAMZLbt
+-- AlphaCapsNum := CrashLemonNight07U5NvJNf343ZzFXsqW2DBYtTSvrb3YdL6oxYd2BaMsVr
 
 
+
+-- ContextLovePlanet0AC2a15L721Fw1YSudEvyX7vr8XjPVn4bPUrRhmZS4oJj
+data Amount           :: U64
+-- SharpSecondStorm0Ep3efqbERhgbus3JbSaKn3Lm9gWtya9xoGYbAjoQhXaB
 data AssetNaming      :: ticker Ticker
                        , name Name
                        , details Details?
+-- GrilleJessicaNeptune09t5kYLUwTpWjwh9eHB1NU3obZnj3qeTZzpZdcfYiqAV4
+data Attachment       :: type MediaType, digest [Byte ^ 32]
+-- ThinkDealTrick0HtN246bWqDBKMgUJf7cKxERW9B2ostpVYPnAG2LVCKCX
+data BurnMeta         :: burnProofs {ProofOfReserves}
+-- EdisonWarningShock0tZLspSCzoPWcsyhL3Q9Tks45bGupxp9VRtvLzQfsBYS
+data ContractData     :: terms RicardianContract, media Attachment?
+-- CamillaBeginLava05Fb7RNdm2jWi7wndRaaU8Lwx76exafTvgQqt9owU9JwM
 data Details          :: [Unicode ^ 1..0xff]
+-- HobbySpiderJoel03p1E6oqjmmGPMHh6H4G3BrQU3iuwr7XRmmytiixPp1oh
 data DivisibleAssetSpec :: naming AssetNaming, precision Precision
+-- CandleAuroraScoop05r9sYFUJy7Kd9FEZ1pe5v4BUPiy1Bg344pNPsENbb7X
+data IssueMeta        :: reserves {ProofOfReserves}
+-- GuruCannonBlue0Bn87eabCqLDccdn1qvtnaxtDrofnw1mBexxR8tSjkN7z
 data MediaRegName     :: [MimeChar ^ 1..0x40]
+-- ReunionPromiseCredit0AUJnh2sR5dxk1TQRtXr7vYVTorbG4Tiy4LY14eQp9yV2
 data MediaType        :: type MediaRegName
-                       , subtype MediaRegName
+                       , subtype MediaRegName?
                        , charset MediaRegName?
+-- NormalBaliNuclear056Qs8Zfm2GAgewu9s7ffVb9xX6QiJhoDskxMhBoz723U
 data MimeChar         :: excl:33 | hash:35 | dollar:36 | amp:38
                        | plus:43 | dash:45 | dot:46 | zero:48
                        | one:49 | two:50 | three:51 | four:52
@@ -36,15 +61,21 @@ data MimeChar         :: excl:33 | hash:35 | dollar:36 | amp:38
                        | v:118 | w:119 | x:120 | y:121
                        | z:122
 
-data Name             :: [Std.AsciiPrintable ^ 1..0x28]
+-- ClaudiaArchiveAugust06PbMuf2YBk8Ff4J15AZ1MBW8XbcAUsprYiF7QjusVrz7
+data Name             :: [Std.AsciiPrintable {- PierreForbidOrganic0mbH4meZSjxky12xHm9pg3rw8VoGxEa6rXtt6dAMZLbt -} ^ 1..0x28]
+-- VisionPaulPixel07G6FJPNejRtmGZP4NPXXHTTozzH4cwdrwrdkB3gziMa1
 data Precision        :: indivisible:0 | deci:1 | centi:2 | milli:3
                        | deciMilli:4 | centiMilli:5 | micro:6 | deciMicro:7
                        | centiMicro:8 | nano:9 | deciNano:10 | centiNano:11
                        | pico:12 | deciPico:13 | centiPico:14 | femto:15
                        | deciFemto:16 | centiFemto:17 | atto:18
 
-data ProofOfReserves  :: utxo Bitcoin.Outpoint, proof [Byte]
+-- LicenseGermanyWindow0zrXMtzeLgFy1NQd46y3CNb549tnukiuMEGJvqxRkyDW
+data ProofOfReserves  :: utxo Bitcoin.Outpoint {- CakeLeftPencil0GeFZHi1RYCrrcH1LG4Fo2SWW5M6KLJ8yvoGkFjRWZaA9 -}, proof [Byte]
+-- OreganoTrafficCoconut02fnqF5VfphtEoAWWEXwqyAZwny3YhkbB5TAh4VpA5JxQ
 data RicardianContract :: [Unicode]
-data Ticker           :: [Std.AlphaCapsNum ^ 1..0x8]
+-- NurseTorpedoGiraffe09dzjKz1d9KyoGnEg6WFSAKnWMaCpg1Lh7p66cmFXbH9e
+data Ticker           :: [Std.AlphaCapsNum {- CrashLemonNight07U5NvJNf343ZzFXsqW2DBYtTSvrb3YdL6oxYd2BaMsVr -} ^ 1..0x8]
+-- WaveAlbumSide0726zXokB167TbBuMGnrPWwCqStN1xnNC2t9PYRjDJKei
 data Timestamp        :: I32
 

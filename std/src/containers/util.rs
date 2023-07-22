@@ -19,12 +19,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use rgb::BundleId;
+use amplify::confinement::SmallOrdSet;
+use bp::Tx;
 
 use super::TerminalSeal;
 use crate::LIB_NAME_RGB_STD;
 
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(
@@ -33,12 +34,23 @@ use crate::LIB_NAME_RGB_STD;
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct Terminal {
-    pub bundle_id: BundleId,
-    pub seal: TerminalSeal,
+    pub seals: SmallOrdSet<TerminalSeal>,
+    pub tx: Option<Tx>,
 }
 
 impl Terminal {
-    pub fn with(bundle_id: BundleId, seal: TerminalSeal) -> Self { Terminal { bundle_id, seal } }
+    pub fn new(seal: TerminalSeal) -> Self {
+        Terminal {
+            seals: small_bset![seal],
+            tx: None,
+        }
+    }
+    pub fn with(seal: TerminalSeal, tx: Tx) -> Self {
+        Terminal {
+            seals: small_bset![seal],
+            tx: Some(tx),
+        }
+    }
 }
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, Default)]

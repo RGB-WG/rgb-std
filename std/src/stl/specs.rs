@@ -23,21 +23,53 @@
 
 use std::fmt;
 use std::fmt::{Debug, Formatter};
+use std::iter::Sum;
 use std::str::FromStr;
 
 use amplify::ascii::AsciiString;
-use amplify::confinement::{Confined, NonEmptyString, NonEmptyVec, SmallString, U8};
+use amplify::confinement::{Confined, NonEmptyString, NonEmptyVec, SmallOrdSet, SmallString, U8};
 use strict_encoding::stl::{AlphaCapsNum, AsciiPrintable};
 use strict_encoding::{
     InvalidIdent, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, StrictType,
     TypedWrite,
 };
+use strict_types::StrictVal;
 
-use super::LIB_NAME_RGB_CONTRACT;
+use super::{MediaType, ProofOfReserves, LIB_NAME_RGB_CONTRACT};
 
-#[derive(Wrapper, WrapperMut, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Debug, Default, From)]
-#[wrapper(Deref, Display, FromStr, MathOps)]
-#[wrapper_mut(DerefMut, MathAssign)]
+#[derive(Clone, Eq, PartialEq, Hash, Debug, Default)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_CONTRACT)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct BurnMeta {
+    pub burn_proofs: SmallOrdSet<ProofOfReserves>,
+}
+impl StrictSerialize for BurnMeta {}
+impl StrictDeserialize for BurnMeta {}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug, Default)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_CONTRACT)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct IssueMeta {
+    pub reserves: SmallOrdSet<ProofOfReserves>,
+}
+impl StrictSerialize for IssueMeta {}
+impl StrictDeserialize for IssueMeta {}
+
+#[derive(
+    Wrapper, WrapperMut, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default, From
+)]
+#[wrapper(Display, FromStr, Add, Sub, Mul, Div, Rem)]
+#[wrapper_mut(AddAssign, SubAssign, MulAssign, DivAssign, RemAssign)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_CONTRACT)]
 #[cfg_attr(
@@ -45,9 +77,26 @@ use super::LIB_NAME_RGB_CONTRACT;
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", transparent)
 )]
-pub struct Timestamp(i32);
-impl StrictSerialize for Timestamp {}
-impl StrictDeserialize for Timestamp {}
+pub struct Amount(u64);
+
+impl StrictSerialize for Amount {}
+impl StrictDeserialize for Amount {}
+
+impl Amount {
+    pub fn zero() -> Self { Amount(0) }
+
+    pub fn one() -> Self { Amount(1) }
+
+    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
+        value.unwrap_uint::<u64>().into()
+    }
+}
+
+impl Sum for Amount {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.fold(Amount::zero(), |acc, i| acc + i)
+    }
+}
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Debug, Default)]
 #[repr(u8)]
@@ -83,6 +132,10 @@ pub enum Precision {
 impl StrictSerialize for Precision {}
 impl StrictDeserialize for Precision {}
 
+impl Precision {
+    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self { value.unwrap_enum() }
+}
+
 #[derive(Wrapper, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, From)]
 #[wrapper(Deref, Display)]
 #[derive(StrictDumb, StrictType, StrictDecode)]
@@ -95,9 +148,12 @@ impl StrictDeserialize for Precision {}
 pub struct Ticker(Confined<AsciiString, 1, 8>);
 impl StrictEncode for Ticker {
     fn strict_encode<W: TypedWrite>(&self, writer: W) -> std::io::Result<W> {
-        writer.write_newtype::<Self>(
-            &NonEmptyVec::<AlphaCapsNum, 8>::try_from_iter([AlphaCapsNum::D]).unwrap(),
-        )
+        let iter = self
+            .0
+            .as_bytes()
+            .iter()
+            .map(|c| AlphaCapsNum::try_from(*c).unwrap());
+        writer.write_newtype::<Self>(&NonEmptyVec::<AlphaCapsNum, 8>::try_from_iter(iter).unwrap())
     }
 }
 impl StrictSerialize for Ticker {}
@@ -137,7 +193,7 @@ impl TryFrom<AsciiString> for Ticker {
             .as_slice()
             .iter()
             .copied()
-            .find(|ch| !ch.is_ascii_uppercase())
+            .find(|ch| AlphaCapsNum::try_from(ch.as_byte()).is_err())
         {
             return Err(InvalidIdent::InvalidChar(ascii, ch));
         }
@@ -164,16 +220,23 @@ impl Debug for Ticker {
 pub struct Name(Confined<AsciiString, 1, 40>);
 impl StrictEncode for Name {
     fn strict_encode<W: TypedWrite>(&self, writer: W) -> std::io::Result<W> {
-        writer.write_newtype::<Self>(
-            &NonEmptyVec::<AsciiPrintable, 40>::try_from_iter([
-                AsciiPrintable::try_from(b'D').unwrap()
-            ])
-            .unwrap(),
-        )
+        let iter = self
+            .0
+            .as_bytes()
+            .iter()
+            .map(|c| AsciiPrintable::try_from(*c).unwrap());
+        writer
+            .write_newtype::<Self>(&NonEmptyVec::<AsciiPrintable, 40>::try_from_iter(iter).unwrap())
     }
 }
 impl StrictSerialize for Name {}
 impl StrictDeserialize for Name {}
+
+impl Name {
+    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
+        Name::from_str(&value.unwrap_string()).unwrap()
+    }
+}
 
 impl StrictDumb for Name {
     fn strict_dumb() -> Self { Name::from("Dumb contract name") }
@@ -185,7 +248,26 @@ impl FromStr for Name {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = AsciiString::from_ascii(s.as_bytes())?;
-        let s = Confined::try_from_iter(s.chars())?;
+        Self::try_from(s)
+    }
+}
+
+impl TryFrom<AsciiString> for Name {
+    type Error = InvalidIdent;
+
+    fn try_from(ascii: AsciiString) -> Result<Self, InvalidIdent> {
+        if ascii.is_empty() {
+            return Err(InvalidIdent::Empty);
+        }
+        if let Some(ch) = ascii
+            .as_slice()
+            .iter()
+            .copied()
+            .find(|ch| AsciiPrintable::try_from(ch.as_byte()).is_err())
+        {
+            return Err(InvalidIdent::InvalidChar(ascii, ch));
+        }
+        let s = Confined::try_from(ascii)?;
         Ok(Self(s))
     }
 }
@@ -199,8 +281,7 @@ impl TryFrom<String> for Name {
 
     fn try_from(name: String) -> Result<Self, InvalidIdent> {
         let name = AsciiString::from_ascii(name.as_bytes())?;
-        let s = Confined::try_from(name)?;
-        Ok(Self(s))
+        Self::try_from(name)
     }
 }
 
@@ -222,6 +303,12 @@ impl Debug for Name {
 pub struct Details(NonEmptyString<U8>);
 impl StrictSerialize for Details {}
 impl StrictDeserialize for Details {}
+
+impl Details {
+    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
+        Details::from_str(&value.unwrap_string()).unwrap()
+    }
+}
 
 impl StrictDumb for Details {
     fn strict_dumb() -> Self {
@@ -295,6 +382,24 @@ impl AssetNaming {
             details: details.map(Details::from_str).transpose()?,
         })
     }
+
+    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
+        let ticker = value.unwrap_struct("ticker").unwrap_string();
+        let name = value.unwrap_struct("name").unwrap_string();
+        let details = value
+            .unwrap_struct("details")
+            .unwrap_option()
+            .map(StrictVal::unwrap_string);
+        AssetNaming {
+            ticker: Ticker::from_str(&ticker).expect("invalid asset ticker"),
+            name: Name::from_str(&name).expect("invalid asset name"),
+            details: details
+                .as_deref()
+                .map(Details::from_str)
+                .transpose()
+                .expect("invalid asset details"),
+        }
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -335,6 +440,18 @@ impl DivisibleAssetSpec {
             precision,
         })
     }
+
+    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
+        let naming = AssetNaming::from_strict_val_unchecked(value.unwrap_struct("naming"));
+        let precision = value.unwrap_struct("precision").unwrap_enum();
+        Self { naming, precision }
+    }
+
+    pub fn ticker(&self) -> &str { self.naming.ticker.as_str() }
+
+    pub fn name(&self) -> &str { self.naming.name.as_str() }
+
+    pub fn details(&self) -> Option<&str> { self.naming.details.as_ref().map(|d| d.as_str()) }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Default)]
@@ -348,3 +465,82 @@ impl DivisibleAssetSpec {
 pub struct RicardianContract(SmallString);
 impl StrictSerialize for RicardianContract {}
 impl StrictDeserialize for RicardianContract {}
+
+impl FromStr for RicardianContract {
+    type Err = InvalidIdent;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = Confined::try_from_iter(s.chars())?;
+        Ok(Self(s))
+    }
+}
+
+#[derive(Wrapper, WrapperMut, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Debug, Default, From)]
+#[wrapper(Deref, Display, FromStr, MathOps)]
+#[wrapper_mut(DerefMut, MathAssign)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_CONTRACT)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", transparent)
+)]
+pub struct Timestamp(i32);
+impl StrictSerialize for Timestamp {}
+impl StrictDeserialize for Timestamp {}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_CONTRACT)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct Attachment {
+    #[strict_type(rename = "type")]
+    #[cfg_attr(feature = "serde", serde(rename = "type"))]
+    pub ty: MediaType,
+    pub digest: [u8; 32],
+}
+impl StrictSerialize for Attachment {}
+impl StrictDeserialize for Attachment {}
+
+impl Attachment {
+    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
+        let ty = MediaType::from_strict_val_unchecked(value.unwrap_struct("type"));
+        let digest = value
+            .unwrap_struct("digest")
+            .unwrap_bytes()
+            .try_into()
+            .expect("invalid digest");
+        Self { ty, digest }
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(StrictDumb, StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_CONTRACT)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct ContractData {
+    pub terms: RicardianContract,
+    pub media: Option<Attachment>,
+}
+impl StrictSerialize for ContractData {}
+impl StrictDeserialize for ContractData {}
+
+impl ContractData {
+    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
+        let terms = RicardianContract::from_str(&value.unwrap_struct("terms").unwrap_string())
+            .expect("invalid terms");
+        let media = value
+            .unwrap_struct("media")
+            .unwrap_option()
+            .map(Attachment::from_strict_val_unchecked);
+        Self { terms, media }
+    }
+}

@@ -33,6 +33,7 @@ use rgb::{
     validation, AnchorId, AnchoredBundle, Assign, AssignmentType, BundleId, ContractHistory,
     ContractId, ContractState, ExposedState, Extension, Genesis, GenesisSeal, GraphSeal, OpId,
     Operation, Opout, SecretSeal, SubSchema, Transition, TransitionBundle, TxoSeal, TypedAssigns,
+    WitnessAnchor,
 };
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 
@@ -109,6 +110,7 @@ impl DerefMut for Stock {
     fn deref_mut(&mut self) -> &mut Self::Target { &mut self.hoard }
 }
 
+#[allow(clippy::result_large_err)]
 impl Stock {
     fn consume_consignment<R: ResolveHeight, const TYPE: bool>(
         &mut self,
@@ -152,14 +154,14 @@ impl Stock {
         }
 
         // clone needed due to borrow checker
-        for terminal in consignment.terminals.clone() {
-            if let TerminalSeal::ConcealedUtxo(secret) = terminal.seal {
+        for (bundle_id, terminal) in consignment.terminals.clone() {
+            for secret in terminal.seals.iter().filter_map(TerminalSeal::secret_seal) {
                 if let Some(seal) = self
                     .seal_secrets
                     .iter()
                     .find(|s| s.to_concealed_seal() == secret)
                 {
-                    consignment.reveal_bundle_seal(terminal.bundle_id, *seal);
+                    consignment.reveal_bundle_seal(bundle_id, *seal);
                 }
             }
         }
@@ -510,6 +512,16 @@ impl Inventory for Stock {
         witness_txid: Txid,
     ) -> Result<(), InventoryError<<Self as Inventory>::Error>> {
         self.index_bundle(contract_id, &bundle, witness_txid)?;
+        let history = self
+            .history
+            .get_mut(&contract_id)
+            .ok_or(InventoryInconsistency::StateAbsent(contract_id))?;
+        for item in bundle.values() {
+            if let Some(transition) = &item.transition {
+                let ord_txid = WitnessAnchor::from_mempool(witness_txid);
+                history.add_transition(transition, ord_txid);
+            }
+        }
         self.hoard.consume_bundle(bundle)?;
         Ok(())
     }

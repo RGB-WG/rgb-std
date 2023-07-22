@@ -19,63 +19,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use amplify::confinement::SmallOrdSet;
+use amplify::confinement::LargeVec;
 use bp::bc::stl::bitcoin_stl;
-use strict_encoding::{StrictDeserialize, StrictSerialize};
-use strict_types::typelib::{LibBuilder, TranslateError};
-use strict_types::TypeLib;
+use strict_types::{CompileError, LibBuilder, TypeLib};
 
 use super::{
     AssignIface, GenesisIface, GlobalIface, Iface, OwnedIface, Req, TransitionIface, VerNo,
 };
-use crate::interface::ArgSpec;
-use crate::stl::{rgb_contract_stl, ProofOfReserves, StandardTypes};
+use crate::interface::contract::OutpointFilter;
+use crate::interface::{ArgSpec, ContractIface, FungibleAllocation};
+use crate::stl::{rgb_contract_stl, Amount, ContractData, DivisibleAssetSpec, StandardTypes};
 
 pub const LIB_NAME_RGB20: &str = "RGB20";
 /// Strict types id for the library providing data types for RGB20 interface.
-pub const LIB_ID_RGB20: &str = "giant_eagle_capsule_9QCXsi6d26jqNQVszMAYUDffRjwUkGRWeDCM84ZwPafA";
-
-#[derive(
-    Wrapper, WrapperMut, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default, From
-)]
-#[wrapper(Display, FromStr, Add, Sub, Mul, Div, Rem)]
-#[wrapper_mut(AddAssign, SubAssign, MulAssign, DivAssign, RemAssign)]
-#[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB20)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", transparent)
-)]
-pub struct Amount(u64);
-
-#[derive(Clone, Eq, PartialEq, Hash, Debug, Default)]
-#[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB20)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-pub struct IssueMeta {
-    pub reserves: SmallOrdSet<ProofOfReserves>,
-}
-impl StrictSerialize for IssueMeta {}
-impl StrictDeserialize for IssueMeta {}
-
-#[derive(Clone, Eq, PartialEq, Hash, Debug, Default)]
-#[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB20)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-pub struct BurnMeta {
-    pub burn_proofs: SmallOrdSet<ProofOfReserves>,
-}
-impl StrictSerialize for BurnMeta {}
-impl StrictDeserialize for BurnMeta {}
+pub const LIB_ID_RGB20: &str = "dragon_table_game_GVz4mvYE94aQ9q2HPtV9VuoppcDdduP54BMKffF7YoFH";
 
 const SUPPLY_MISMATCH: u8 = 1;
 const NON_EQUAL_AMOUNTS: u8 = 2;
@@ -98,16 +55,13 @@ pub enum Error {
     IssueExceedsAllowance = ISSUE_EXCEEDS_ALLOWANCE,
 }
 
-fn _rgb20_stl() -> Result<TypeLib, TranslateError> {
-    LibBuilder::new(libname!(LIB_NAME_RGB20))
-        .transpile::<IssueMeta>()
-        .transpile::<BurnMeta>()
-        .transpile::<Amount>()
-        .transpile::<Error>()
-        .compile(bset! {
-            bitcoin_stl().to_dependency(),
-            rgb_contract_stl().to_dependency()
-        })
+fn _rgb20_stl() -> Result<TypeLib, CompileError> {
+    LibBuilder::new(libname!(LIB_NAME_RGB20), tiny_bset! {
+        bitcoin_stl().to_dependency(),
+        rgb_contract_stl().to_dependency()
+    })
+    .transpile::<Error>()
+    .compile()
 }
 
 /// Generates strict type library providing data types for RGB20 interface.
@@ -121,11 +75,11 @@ pub fn rgb20() -> Iface {
         name: tn!("RGB20"),
         global_state: tiny_bmap! {
             fname!("spec") => GlobalIface::required(types.get("RGBContract.DivisibleAssetSpec")),
-            fname!("terms") => GlobalIface::required(types.get("RGBContract.RicardianContract")),
+            fname!("data") => GlobalIface::required(types.get("RGBContract.ContractData")),
             fname!("created") => GlobalIface::required(types.get("RGBContract.Timestamp")),
-            fname!("issuedSupply") => GlobalIface::none_or_many(types.get("RGB20.Amount")),
-            fname!("burnedSupply") => GlobalIface::none_or_many(types.get("RGB20.Amount")),
-            fname!("replacedSupply") => GlobalIface::none_or_many(types.get("RGB20.Amount")),
+            fname!("issuedSupply") => GlobalIface::one_or_many(types.get("RGBContract.Amount")),
+            fname!("burnedSupply") => GlobalIface::none_or_many(types.get("RGBContract.Amount")),
+            fname!("replacedSupply") => GlobalIface::none_or_many(types.get("RGBContract.Amount")),
         },
         assignments: tiny_bmap! {
             fname!("inflationAllowance") => AssignIface::public(OwnedIface::Amount, Req::NoneOrMore),
@@ -136,10 +90,10 @@ pub fn rgb20() -> Iface {
         },
         valencies: none!(),
         genesis: GenesisIface {
-            metadata: Some(types.get("RGB20.IssueMeta")),
+            metadata: Some(types.get("RGBContract.IssueMeta")),
             global: tiny_bmap! {
                 fname!("spec") => ArgSpec::required(),
-                fname!("terms") => ArgSpec::required(),
+                fname!("data") => ArgSpec::required(),
                 fname!("created") => ArgSpec::required(),
                 fname!("issuedSupply") => ArgSpec::required(),
             },
@@ -175,7 +129,7 @@ pub fn rgb20() -> Iface {
             },
             tn!("Issue") => TransitionIface {
                 optional: true,
-                metadata: Some(types.get("RGB20.IssueMeta")),
+                metadata: Some(types.get("RGBContract.IssueMeta")),
                 globals: tiny_bmap! {
                     fname!("issuedSupply") => ArgSpec::required(),
                 },
@@ -212,7 +166,7 @@ pub fn rgb20() -> Iface {
             },
             tn!("Burn") => TransitionIface {
                 optional: true,
-                metadata: Some(types.get("RGB20.BurnMeta")),
+                metadata: Some(types.get("RGBContract.BurnMeta")),
                 globals: tiny_bmap! {
                     fname!("burnedSupply") => ArgSpec::required(),
                 },
@@ -232,7 +186,7 @@ pub fn rgb20() -> Iface {
             },
             tn!("Replace") => TransitionIface {
                 optional: true,
-                metadata: Some(types.get("RGB20.BurnMeta")),
+                metadata: Some(types.get("RGBContract.BurnMeta")),
                 globals: tiny_bmap! {
                     fname!("replacedSupply") => ArgSpec::required(),
                 },
@@ -272,7 +226,75 @@ pub fn rgb20() -> Iface {
         extensions: none!(),
         error_type: types.get("RGB20.Error"),
         default_operation: Some(tn!("Transfer")),
+        type_system: types.type_system(),
     }
+}
+
+#[derive(Wrapper, WrapperMut, Clone, Eq, PartialEq, Debug)]
+#[wrapper(Deref)]
+#[wrapper_mut(DerefMut)]
+pub struct Rgb20(ContractIface);
+
+impl From<ContractIface> for Rgb20 {
+    fn from(iface: ContractIface) -> Self {
+        if iface.iface.iface_id != rgb20().iface_id() {
+            panic!("the provided interface is not RGB20 interface");
+        }
+        Self(iface)
+    }
+}
+
+impl Rgb20 {
+    pub fn spec(&self) -> DivisibleAssetSpec {
+        let strict_val = &self
+            .0
+            .global("spec")
+            .expect("RGB20 interface requires global `spec`")[0];
+        DivisibleAssetSpec::from_strict_val_unchecked(strict_val)
+    }
+
+    pub fn allocations(&self, filter: &impl OutpointFilter) -> LargeVec<FungibleAllocation> {
+        self.0
+            .fungible("assetOwner", filter)
+            .expect("RGB20 interface requires `assetOwner` state")
+    }
+
+    pub fn contract_data(&self) -> ContractData {
+        let strict_val = &self
+            .0
+            .global("data")
+            .expect("RGB20 interface requires global `data`")[0];
+        ContractData::from_strict_val_unchecked(strict_val)
+    }
+
+    pub fn total_issued_supply(&self) -> Amount {
+        self.0
+            .global("issuedSupply")
+            .expect("RGB20 interface requires global `issuedSupply`")
+            .iter()
+            .map(Amount::from_strict_val_unchecked)
+            .sum()
+    }
+
+    pub fn total_burned_supply(&self) -> Amount {
+        self.0
+            .global("burnedSupply")
+            .unwrap_or_default()
+            .iter()
+            .map(Amount::from_strict_val_unchecked)
+            .sum()
+    }
+
+    pub fn total_replaced_supply(&self) -> Amount {
+        self.0
+            .global("replacedSupply")
+            .unwrap_or_default()
+            .iter()
+            .map(Amount::from_strict_val_unchecked)
+            .sum()
+    }
+
+    pub fn total_supply(&self) -> Amount { self.total_issued_supply() - self.total_burned_supply() }
 }
 
 #[cfg(test)]

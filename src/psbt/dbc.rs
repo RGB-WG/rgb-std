@@ -19,7 +19,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use amplify::num::u4;
+use amplify::num::u5;
 use amplify::RawArray;
 use bitcoin::hashes::Hash;
 use bitcoin::psbt::Psbt;
@@ -111,7 +111,7 @@ impl PsbtDbc for Psbt {
         let txout = &mut self.unsigned_tx.output[vout];
 
         let messages = output.lnpbp4_message_map()?;
-        let min_depth = u4::with(
+        let min_depth = u5::with(
             output
                 .lnpbp4_min_tree_depth()
                 .unwrap_or(PSBT_OUT_LNPBP4_MIN_TREE_DEPTH),
