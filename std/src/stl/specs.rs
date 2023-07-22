@@ -498,11 +498,11 @@ impl FromStr for RicardianContract {
     }
 }
 
-#[derive(Wrapper, WrapperMut, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Debug, Default, From)]
+#[derive(Wrapper, WrapperMut, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Debug, From)]
 #[wrapper(Deref, Display, FromStr, MathOps)]
 #[wrapper_mut(DerefMut, MathAssign)]
-#[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_CONTRACT)]
+#[derive(StrictDumb, StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_CONTRACT, dumb = Timestamp::start_of_epoch())]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
@@ -513,6 +513,10 @@ impl StrictSerialize for Timestamp {}
 impl StrictDeserialize for Timestamp {}
 
 impl Timestamp {
+    pub fn start_of_epoch() -> Self { Timestamp(0) }
+
+    pub fn now() -> Self { Timestamp(Local::now().timestamp()) }
+
     pub fn to_utc(self) -> Option<DateTime<Utc>> {
         NaiveDateTime::from_timestamp_opt(self.0, 0)
             .map(|naive| DateTime::<Utc>::from_utc(naive, Utc))
