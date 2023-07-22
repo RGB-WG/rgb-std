@@ -28,6 +28,7 @@ use std::str::FromStr;
 
 use amplify::ascii::AsciiString;
 use amplify::confinement::{Confined, NonEmptyString, NonEmptyVec, SmallOrdSet, SmallString, U8};
+use chrono::{DateTime, NaiveDateTime, Utc};
 use strict_encoding::stl::{AlphaCapsNum, AsciiPrintable};
 use strict_encoding::{
     InvalidIdent, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, StrictType,
@@ -511,6 +512,12 @@ impl StrictSerialize for Timestamp {}
 impl StrictDeserialize for Timestamp {}
 
 impl Timestamp {
+    pub fn to_utc(self) -> DateTime<Utc> {
+        let naive = NaiveDateTime::from_timestamp_opt(self.0 as i64, 0)
+            .expect("32-bit timestamp is always valid");
+        DateTime::<Utc>::from_utc(naive, Utc)
+    }
+
     pub fn from_strict_val_unchecked(value: &StrictVal) -> Self { Self(value.unwrap_uint()) }
 }
 
