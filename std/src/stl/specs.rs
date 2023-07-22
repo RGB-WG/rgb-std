@@ -28,7 +28,7 @@ use std::str::FromStr;
 
 use amplify::ascii::AsciiString;
 use amplify::confinement::{Confined, NonEmptyString, NonEmptyVec, SmallOrdSet, SmallString, U8};
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::{DateTime, Local, NaiveDateTime, Utc};
 use strict_encoding::stl::{AlphaCapsNum, AsciiPrintable};
 use strict_encoding::{
     InvalidIdent, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, StrictType,
@@ -516,6 +516,8 @@ impl Timestamp {
         NaiveDateTime::from_timestamp_opt(self.0, 0)
             .map(|naive| DateTime::<Utc>::from_utc(naive, Utc))
     }
+
+    pub fn to_local(self) -> Option<DateTime<Local>> { self.to_utc().map(DateTime::<Local>::from) }
 
     pub fn from_strict_val_unchecked(value: &StrictVal) -> Self { Self(value.unwrap_uint()) }
 }
