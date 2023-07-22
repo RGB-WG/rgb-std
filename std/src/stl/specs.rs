@@ -507,15 +507,14 @@ impl FromStr for RicardianContract {
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", transparent)
 )]
-pub struct Timestamp(i32);
+pub struct Timestamp(i64);
 impl StrictSerialize for Timestamp {}
 impl StrictDeserialize for Timestamp {}
 
 impl Timestamp {
-    pub fn to_utc(self) -> DateTime<Utc> {
-        let naive = NaiveDateTime::from_timestamp_opt(self.0 as i64, 0)
-            .expect("32-bit timestamp is always valid");
-        DateTime::<Utc>::from_utc(naive, Utc)
+    pub fn to_utc(self) -> Option<DateTime<Utc>> {
+        NaiveDateTime::from_timestamp_opt(self.0, 0)
+            .map(|naive| DateTime::<Utc>::from_utc(naive, Utc))
     }
 
     pub fn from_strict_val_unchecked(value: &StrictVal) -> Self { Self(value.unwrap_uint()) }
