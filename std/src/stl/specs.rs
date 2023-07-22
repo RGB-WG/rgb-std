@@ -34,6 +34,7 @@ use strict_encoding::{
     InvalidIdent, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, StrictType,
     TypedWrite,
 };
+use strict_types::value::StrictNum;
 use strict_types::StrictVal;
 
 use super::{MediaType, ProofOfReserves, LIB_NAME_RGB_CONTRACT};
@@ -519,7 +520,13 @@ impl Timestamp {
 
     pub fn to_local(self) -> Option<DateTime<Local>> { self.to_utc().map(DateTime::<Local>::from) }
 
-    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self { Self(value.unwrap_uint()) }
+    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
+        // TODO: Move this logic to strict_types StrictVal::unwrap_int method
+        let StrictVal::Number(StrictNum::Int(val)) = value.skip_wrapper() else {
+            panic!("required integer number");
+        };
+        Self(*val as i64)
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
