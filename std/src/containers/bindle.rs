@@ -244,7 +244,7 @@ impl<C: BindleContent> FromStr for Bindle<C> {
 impl<C: BindleContent> Display for Bindle<C> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         writeln!(f, "-----BEGIN {}-----", C::PLATE_TITLE)?;
-        writeln!(f, "Id: {}", self.id)?;
+        writeln!(f, "Id: {:-}", self.id)?;
         for (header, value) in self.bindle_headers() {
             writeln!(f, "{header}: {value}")?;
         }

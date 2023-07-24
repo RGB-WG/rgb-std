@@ -1,10 +1,10 @@
 -----BEGIN STRICT TYPE LIB-----
-Id: morph_angel_jeep_3miGC5GTW58CeuGJgomApmdjm8N6Yu6YuuURS8N4WVBA
+Id: urn:ubideco:stl:3miGC5GTW58CeuGJgomApmdjm8N6Yu6YuuURS8N4WVBA
 Name: RGB21
 Dependencies: 
-  Bitcoin@race_ballet_golf_6GgF7biXPVNcus2FfQj2pQuRzau11rXApMQLfCZhojgi,
-  RGBContract@spoon_shadow_evening_6vbr9ZrtsD9aBjo5qRQ36QEZPVucqvRRjKCPqE8yPeJr,
-  Std@lagoon_rodent_option_9KALDYR8Nyjq4FdMW6kYoL7vdkWnqPqNuFnmE9qHpNjZ
+  urn:ubideco:stl:6GgF7biXPVNcus2FfQj2pQuRzau11rXApMQLfCZhojgi,
+  urn:ubideco:stl:6vbr9ZrtsD9aBjo5qRQ36QEZPVucqvRRjKCPqE8yPeJr,
+  urn:ubideco:stl:9KALDYR8Nyjq4FdMW6kYoL7vdkWnqPqNuFnmE9qHpNjZ
 
 BVJHQjIxA05OhPRwFsnl0mJ8v8P0NrLdbNTRubBEW/9e74J2cndXB0JpdGNvaW5Y
 BZ6bw7btaBmIQIEUKMWtsT6AKI/SjlUO5APEgkORzwtSR0JDb250cmFjdHuEgDye

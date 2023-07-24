@@ -33,7 +33,8 @@ use crate::stl::{
 
 pub const LIB_NAME_RGB20: &str = "RGB20";
 /// Strict types id for the library providing data types for RGB20 interface.
-pub const LIB_ID_RGB20: &str = "dragon_table_game_GVz4mvYE94aQ9q2HPtV9VuoppcDdduP54BMKffF7YoFH";
+pub const LIB_ID_RGB20: &str =
+    "urn:ubideco:stl:GVz4mvYE94aQ9q2HPtV9VuoppcDdduP54BMKffF7YoFH#prince-scarlet-ringo";
 
 const SUPPLY_MISMATCH: u8 = 1;
 const NON_EQUAL_AMOUNTS: u8 = 2;

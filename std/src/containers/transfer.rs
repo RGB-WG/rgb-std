@@ -34,7 +34,7 @@ use crate::LIB_NAME_RGB_STD;
 /// Transfer identifier.
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, From)]
 #[wrapper(Deref, BorrowSlice, Hex, Index, RangeOps)]
-#[display(Self::to_baid58)]
+#[display(Self::to_baid58_string)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(
@@ -49,14 +49,16 @@ pub struct TransferId(
 );
 
 impl ToBaid58<32> for TransferId {
-    const HRI: &'static str = "tfer";
+    const HRI: &'static str = "rgb-cons";
     fn to_baid58_payload(&self) -> [u8; 32] { self.to_raw_array() }
 }
 impl FromBaid58<32> for TransferId {}
-
 impl FromStr for TransferId {
     type Err = Baid58ParseError;
     fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_baid58_str(s) }
+}
+impl TransferId {
+    pub fn to_baid58_string(&self) -> String { format!("{::<#}", self.to_baid58()) }
 }
 
 impl CommitEncode for Transfer {
