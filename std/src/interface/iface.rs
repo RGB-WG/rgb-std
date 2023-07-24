@@ -20,6 +20,7 @@
 // limitations under the License.
 
 use std::cmp::Ordering;
+use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 
 use amplify::confinement::{TinyOrdMap, TinyOrdSet};
@@ -39,9 +40,8 @@ use crate::LIB_NAME_RGB_STD;
 /// Interface identifier.
 ///
 /// Interface identifier commits to all of the interface data.
-#[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, From)]
+#[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
 #[wrapper(Deref, BorrowSlice, Hex, Index, RangeOps)]
-#[display(Self::to_baid58_string)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(
@@ -56,19 +56,24 @@ pub struct IfaceId(
 );
 
 impl ToBaid58<32> for IfaceId {
-    const HRI: &'static str = "rgb-ifc";
+    const HRI: &'static str = "if";
     fn to_baid58_payload(&self) -> [u8; 32] { self.to_raw_array() }
 }
 impl FromBaid58<32> for IfaceId {}
-
-impl IfaceId {
-    #[allow(clippy::wrong_self_convention)]
-    fn to_baid58_string(&self) -> String { format!("{}", self.to_baid58()) }
+impl Display for IfaceId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        if f.sign_minus() {
+            write!(f, "urn:lnp-bp:{::<}", self.to_baid58())
+        } else {
+            write!(f, "urn:lnp-bp:{::<#}", self.to_baid58())
+        }
+    }
 }
-
 impl FromStr for IfaceId {
     type Err = Baid58ParseError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_baid58_str(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_baid58_str(s.trim_start_matches("urn:lnp-bp:"))
+    }
 }
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]

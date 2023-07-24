@@ -36,7 +36,8 @@ use crate::stl::{rgb_contract_stl, Amount, ContractData, Details, Name, Precisio
 
 pub const LIB_NAME_RGB25: &str = "RGB25";
 /// Strict types id for the library providing data types for RGB25 interface.
-pub const LIB_ID_RGB25: &str = "ritual_mask_next_4JmGrg7oTgwuCQtyC4ezC38ToHMzgMCVS5kMSDPwo2ee";
+pub const LIB_ID_RGB25: &str =
+    "urn:ubideco:stl:4JmGrg7oTgwuCQtyC4ezC38ToHMzgMCVS5kMSDPwo2ee#camera-betty-bank";
 
 const SUPPLY_MISMATCH: u8 = 1;
 const NON_EQUAL_AMOUNTS: u8 = 2;

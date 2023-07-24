@@ -26,13 +26,15 @@ use strict_types::{CompileError, LibBuilder, TypeLib};
 use super::{
     AssignIface, GenesisIface, GlobalIface, Iface, OwnedIface, Req, TransitionIface, VerNo,
 };
-use crate::interface::contract::OutpointFilter;
-use crate::interface::{ArgSpec, ContractIface, FungibleAllocation};
-use crate::stl::{rgb_contract_stl, Amount, ContractData, DivisibleAssetSpec, StandardTypes};
+use crate::interface::{ArgSpec, ContractIface, FungibleAllocation, OutpointFilter};
+use crate::stl::{
+    rgb_contract_stl, Amount, ContractData, DivisibleAssetSpec, StandardTypes, Timestamp,
+};
 
 pub const LIB_NAME_RGB20: &str = "RGB20";
 /// Strict types id for the library providing data types for RGB20 interface.
-pub const LIB_ID_RGB20: &str = "dragon_table_game_GVz4mvYE94aQ9q2HPtV9VuoppcDdduP54BMKffF7YoFH";
+pub const LIB_ID_RGB20: &str =
+    "urn:ubideco:stl:GVz4mvYE94aQ9q2HPtV9VuoppcDdduP54BMKffF7YoFH#prince-scarlet-ringo";
 
 const SUPPLY_MISMATCH: u8 = 1;
 const NON_EQUAL_AMOUNTS: u8 = 2;
@@ -249,8 +251,23 @@ impl Rgb20 {
         let strict_val = &self
             .0
             .global("spec")
-            .expect("RGB20 interface requires global `spec`")[0];
+            .expect("RGB20 interface requires global state `spec`")[0];
         DivisibleAssetSpec::from_strict_val_unchecked(strict_val)
+    }
+
+    pub fn created(&self) -> Timestamp {
+        let strict_val = &self
+            .0
+            .global("created")
+            .expect("RGB20 interface requires global state `created`")[0];
+        Timestamp::from_strict_val_unchecked(strict_val)
+    }
+
+    pub fn balance(&self, filter: &impl OutpointFilter) -> u64 {
+        self.allocations(filter)
+            .iter()
+            .map(|alloc| alloc.value)
+            .sum::<u64>()
     }
 
     pub fn allocations(&self, filter: &impl OutpointFilter) -> LargeVec<FungibleAllocation> {

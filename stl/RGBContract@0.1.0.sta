@@ -1,9 +1,9 @@
 -----BEGIN STRICT TYPE LIB-----
-Id: price_canvas_oliver_9Te5P6nq3oaDHMgttLEbkojbeQPTqqZLhjxZ3my1F8aJ
+Id: urn:ubideco:stl:6vbr9ZrtsD9aBjo5qRQ36QEZPVucqvRRjKCPqE8yPeJr
 Name: RGBContract
 Dependencies: 
-  Bitcoin@race_ballet_golf_6GgF7biXPVNcus2FfQj2pQuRzau11rXApMQLfCZhojgi,
-  Std@lagoon_rodent_option_9KALDYR8Nyjq4FdMW6kYoL7vdkWnqPqNuFnmE9qHpNjZ
+  urn:ubideco:stl:6GgF7biXPVNcus2FfQj2pQuRzau11rXApMQLfCZhojgi,
+  urn:ubideco:stl:9KALDYR8Nyjq4FdMW6kYoL7vdkWnqPqNuFnmE9qHpNjZ
 
 C1JHQkNvbnRyYWN0Ak5OhPRwFsnl0mJ8v8P0NrLdbNTRubBEW/9e74J2cndXB0Jp
 dGNvaW57hIA8nvriESWnfCw5vHDS/ej5Q64N/Zz05oLtx2bKcANTdGQCB0JpdGNv
@@ -45,7 +45,7 @@ hP9ppREyp0ErIVW9DlYSwb/jhJVgxQYFcHJvb2YACAAAQAAAAAAAAAAA//8AAAAA
 AAARUmljYXJkaWFuQ29udHJhY3QFAQAIAAEAAAAAAAAAAP//AAAAAAAABlRpY2tl
 cgUBAAgCe4SAPJ764hElp3wsObxw0v3o+UOuDf2c9OaC7cdmynBgFcDnB2Sp9Irn
 HdRIyvQDW//r22Lv9w3IeUKG+JEPQQEAAAAAAAAACAAAAAAAAAAJVGltZXN0YW1w
-BQEAAEQ=
+BQEAAEg=
 
 -----END STRICT TYPE LIB-----
 
