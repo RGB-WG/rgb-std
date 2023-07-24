@@ -1,14 +1,14 @@
 -----BEGIN STRICT TYPE LIB-----
-Id: parent_maze_jessica_3KXsWZ6hSKRbPjSVwRGbwnwJp3ZNQ2tfe6QUwLJEDG6K
+Id: urn:ubideco:stl:3KXsWZ6hSKRbPjSVwRGbwnwJp3ZNQ2tfe6QUwLJEDG6K
 Name: RGBStd
 Dependencies: 
-  CommitVerify@melody_arctic_labor_ZtHaBzu9ojbDahaGKEXe5v9DfSDxLERbLkEB23R6Q6V,
-  BPCore@cuba_caesar_yellow_2YsxMW6xygK2FxFSbbBLqmzaUSytmLHHNF9DRio5zNr2,
-  RGB@memphis_asia_crash_4fGZWR5mH5zZzRZ1r7CSRe776zm3hLBUngfXc4s3vm3V,
-  StrictTypes@canoe_safari_scholar_5XLKQ1sNryZm9bdFKU2kBY3MPYdZXhchVdQKBbHA3gby,
-  Bitcoin@race_ballet_golf_6GgF7biXPVNcus2FfQj2pQuRzau11rXApMQLfCZhojgi,
-  Std@lagoon_rodent_option_9KALDYR8Nyjq4FdMW6kYoL7vdkWnqPqNuFnmE9qHpNjZ,
-  AluVM@degree_boston_heart_DVtm25LRKU4TjbyZmVxPhvCmctZ6vKkPKqfpU2QsDNUo
+  urn:ubideco:stl:ZtHaBzu9ojbDahaGKEXe5v9DfSDxLERbLkEB23R6Q6V,
+  urn:ubideco:stl:2YsxMW6xygK2FxFSbbBLqmzaUSytmLHHNF9DRio5zNr2,
+  urn:ubideco:stl:4fGZWR5mH5zZzRZ1r7CSRe776zm3hLBUngfXc4s3vm3V,
+  urn:ubideco:stl:5XLKQ1sNryZm9bdFKU2kBY3MPYdZXhchVdQKBbHA3gby,
+  urn:ubideco:stl:6GgF7biXPVNcus2FfQj2pQuRzau11rXApMQLfCZhojgi,
+  urn:ubideco:stl:9KALDYR8Nyjq4FdMW6kYoL7vdkWnqPqNuFnmE9qHpNjZ,
+  urn:ubideco:stl:DVtm25LRKU4TjbyZmVxPhvCmctZ6vKkPKqfpU2QsDNUo
 
 BlJHQlN0ZAcIbJMpP1Zo7NnfnUB1CNehMyMWREFWAosurAm/5d+NQgxDb21taXRW
 ZXJpZnkXBk5pibwA035ABMB1qXDVJA6Hx9E0fiwbbm7GLsChNwZCUENvcmU2YLnO
