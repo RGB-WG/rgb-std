@@ -22,6 +22,7 @@
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
+use std::iter;
 
 use amplify::RawArray;
 use bitcoin::hashes::Hash;
@@ -170,7 +171,12 @@ pub trait InventoryWallet: Inventory {
                 .unwrap_or_default();
             let vout = out_classes
                 .get_mut(&velocity)
-                .and_then(|iter| iter.next())
+                .and_then(iter::Cycle::next)
+                .or_else(|| {
+                    out_classes
+                        .get_mut(&VelocityHint::default())
+                        .and_then(iter::Cycle::next)
+                })
                 .ok_or(PayError::NoBlankOrChange(velocity, assignment_type))?;
             let seal = GraphSeal::new_vout(method, vout);
             Ok(BuilderSeal::Revealed(seal))
