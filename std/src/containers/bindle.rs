@@ -114,6 +114,7 @@ impl BindleContent for Iface {
     const PLATE_TITLE: &'static str = "RGB INTERFACE";
     type Id = IfaceId;
     fn bindle_id(&self) -> Self::Id { self.iface_id() }
+    fn bindle_mnemonic(&self) -> Option<String> { Some(self.iface_id().to_mnemonic()) }
     fn bindle_headers(&self) -> BTreeMap<&'static str, String> {
         bmap! {
             "Name" => self.name.to_string()
