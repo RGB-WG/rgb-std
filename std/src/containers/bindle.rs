@@ -127,6 +127,7 @@ impl BindleContent for IfaceImpl {
     const PLATE_TITLE: &'static str = "RGB INTERFACE IMPLEMENTATION";
     type Id = ImplId;
     fn bindle_id(&self) -> Self::Id { self.impl_id() }
+    fn bindle_mnemonic(&self) -> Option<String> { Some(self.impl_id().to_mnemonic()) }
     fn bindle_headers(&self) -> BTreeMap<&'static str, String> {
         bmap! {
             "IfaceId" => self.iface_id.to_string(),
@@ -235,6 +236,7 @@ impl<C: BindleContent> FromStr for Bindle<C> {
                 });
             }
         }
+        // TODO: check mnemonic
         // TODO: parse and validate sigs
         Ok(Self {
             id,

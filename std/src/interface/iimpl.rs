@@ -24,7 +24,7 @@ use std::str::FromStr;
 
 use amplify::confinement::{TinyOrdMap, TinyOrdSet};
 use amplify::{Bytes32, RawArray};
-use baid58::{Baid58ParseError, FromBaid58, ToBaid58};
+use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
 use commit_verify::{CommitStrategy, CommitmentId};
 use rgb::{
     AssignmentType, ExtensionType, GlobalStateType, SchemaId, SchemaTypeIndex, Script, SubSchema,
@@ -59,23 +59,31 @@ pub struct ImplId(
 
 impl ToBaid58<32> for ImplId {
     const HRI: &'static str = "im";
+    const CHUNKING: Option<Chunking> = CHUNKING_32;
     fn to_baid58_payload(&self) -> [u8; 32] { self.to_raw_array() }
+    fn to_baid58_string(&self) -> String { self.to_string() }
 }
 impl FromBaid58<32> for ImplId {}
 impl Display for ImplId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        if !f.alternate() {
+            f.write_str("urn:lnp-bp:sc:")?;
+        }
         if f.sign_minus() {
-            write!(f, "urn:lnp-bp:{::<}", self.to_baid58())
+            write!(f, "{:.2}", self.to_baid58())
         } else {
-            write!(f, "urn:lnp-bp:{::<#}", self.to_baid58())
+            write!(f, "{:#.2}", self.to_baid58())
         }
     }
 }
 impl FromStr for ImplId {
     type Err = Baid58ParseError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Self::from_baid58_str(s.trim_start_matches("urn:lnp-bp:"))
+        Self::from_baid58_maybe_chunked_str(s.trim_start_matches("urn:lnp-bp:"), ':', '#')
     }
+}
+impl ImplId {
+    pub fn to_mnemonic(&self) -> String { self.to_baid58().mnemonic() }
 }
 
 /// Maps certain form of type id (global or owned state or a valency) to a
