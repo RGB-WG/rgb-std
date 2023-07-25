@@ -18,12 +18,12 @@ license = "Apache-2.0"
 
 [workspace.dependencies]
 amplify = "4.0.0"
-baid58 = "0.4.1"
+baid58 = "0.4.4"
 strict_encoding = "2.5.0"
 strict_types = "1.6.0"
 commit_verify = { version = "0.10.5", features = ["stl"] }
-bp-core = { version = "0.10.6", features = ["stl"] }
-rgb-core = { version = "0.10.6", features = ["stl"] }
+bp-core = { version = "0.10.7", features = ["stl"] }
+rgb-core = { version = "0.10.7", features = ["stl"] }
 
 [package]
 name = "rgb-wallet"

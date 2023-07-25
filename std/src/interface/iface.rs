@@ -25,7 +25,7 @@ use std::str::FromStr;
 
 use amplify::confinement::{TinyOrdMap, TinyOrdSet};
 use amplify::{Bytes32, RawArray};
-use baid58::{Baid58ParseError, FromBaid58, ToBaid58};
+use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
 use commit_verify::{CommitStrategy, CommitmentId};
 use rgb::Occurrences;
 use strict_encoding::{
@@ -57,23 +57,31 @@ pub struct IfaceId(
 
 impl ToBaid58<32> for IfaceId {
     const HRI: &'static str = "if";
+    const CHUNKING: Option<Chunking> = CHUNKING_32;
     fn to_baid58_payload(&self) -> [u8; 32] { self.to_raw_array() }
+    fn to_baid58_string(&self) -> String { self.to_string() }
 }
 impl FromBaid58<32> for IfaceId {}
 impl Display for IfaceId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        if !f.alternate() {
+            f.write_str("urn:lnp-bp:sc:")?;
+        }
         if f.sign_minus() {
-            write!(f, "urn:lnp-bp:{::<}", self.to_baid58())
+            write!(f, "{:.2}", self.to_baid58())
         } else {
-            write!(f, "urn:lnp-bp:{::<#}", self.to_baid58())
+            write!(f, "{:#.2}", self.to_baid58())
         }
     }
 }
 impl FromStr for IfaceId {
     type Err = Baid58ParseError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Self::from_baid58_str(s.trim_start_matches("urn:lnp-bp:"))
+        Self::from_baid58_maybe_chunked_str(s.trim_start_matches("urn:lnp-bp:"), ':', '#')
     }
+}
+impl IfaceId {
+    pub fn to_mnemonic(&self) -> String { self.to_baid58().mnemonic() }
 }
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
