@@ -63,6 +63,7 @@ pub trait BindleContent: StrictSerialize + StrictDeserialize + StrictDumb {
     fn bindle_id(&self) -> Self::Id;
     fn bindle_headers(&self) -> BTreeMap<&'static str, String> { none!() }
     fn bindle(self) -> Bindle<Self> { Bindle::new(self) }
+    fn bindle_mnemonic(&self) -> Option<String> { None }
 }
 
 impl<Root: SchemaRoot> BindleContent for Schema<Root> {
@@ -70,6 +71,7 @@ impl<Root: SchemaRoot> BindleContent for Schema<Root> {
     const PLATE_TITLE: &'static str = "RGB SCHEMA";
     type Id = SchemaId;
     fn bindle_id(&self) -> Self::Id { self.schema_id() }
+    fn bindle_mnemonic(&self) -> Option<String> { Some(self.schema_id().to_mnemonic()) }
 }
 
 impl BindleContent for Contract {
@@ -244,7 +246,10 @@ impl<C: BindleContent> FromStr for Bindle<C> {
 impl<C: BindleContent> Display for Bindle<C> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         writeln!(f, "-----BEGIN {}-----", C::PLATE_TITLE)?;
-        writeln!(f, "Id: {:-}", self.id)?;
+        writeln!(f, "Id: {:-#}", self.id)?;
+        if let Some(mnemonic) = self.bindle_mnemonic() {
+            writeln!(f, "Mnemonic: {}", mnemonic)?;
+        }
         for (header, value) in self.bindle_headers() {
             writeln!(f, "{header}: {value}")?;
         }
