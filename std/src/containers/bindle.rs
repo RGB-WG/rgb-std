@@ -96,6 +96,7 @@ impl BindleContent for Transfer {
     const PLATE_TITLE: &'static str = "RGB STATE TRANSFER";
     type Id = TransferId;
     fn bindle_id(&self) -> Self::Id { self.transfer_id() }
+    fn bindle_mnemonic(&self) -> Option<String> { Some(self.transfer_id().to_mnemonic()) }
     fn bindle_headers(&self) -> BTreeMap<&'static str, String> {
         bmap! {
             "Version" => self.version.to_string(),
