@@ -755,7 +755,7 @@ version = "0.10.4"
 dependencies = [
  "amplify",
  "baid58",
- "base64 0.21.2",
+ "base85",
  "bp-core",
  "chrono",
  "commit_verify",

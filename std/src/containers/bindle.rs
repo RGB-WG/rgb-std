@@ -32,7 +32,6 @@ use std::str::FromStr;
 pub use _fs::*;
 use amplify::confinement::{Confined, TinyVec, U24};
 use baid58::Baid58ParseError;
-use base64::Engine;
 use rgb::{BundleId, ContractId, Schema, SchemaId, SchemaRoot};
 use strict_encoding::{
     StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, StrictType,
@@ -192,8 +191,8 @@ pub enum BindleParseError<Id: Copy + Eq + Debug + Display> {
     /// Expected id: {expected}.
     MismatchedId { actual: Id, expected: Id },
 
-    /// bindle data has invalid Base64 encoding (ASCII armoring). Details: {0}
-    Base64(base64::DecodeError),
+    /// bindle data has invalid Base85 encoding (ASCII armoring).
+    Base85,
 
     /// unable to decode the provided bindle data. Details: {0}
     Deserialize(strict_encoding::DeserializeError),
@@ -222,8 +221,7 @@ impl<C: BindleContent> FromStr for Bindle<C> {
             }
         }
         let armor = lines.filter(|l| !l.is_empty()).collect::<String>();
-        let engine = base64::engine::general_purpose::STANDARD;
-        let data = engine.decode(armor).map_err(BindleParseError::Base64)?;
+        let data = base85::decode(&armor).ok_or(BindleParseError::Base85)?;
         let data = C::from_strict_serialized::<U24>(
             Confined::try_from(data).map_err(|_| BindleParseError::TooLarge)?,
         )
@@ -264,8 +262,7 @@ impl<C: BindleContent> Display for Bindle<C> {
 
         // TODO: Replace with streamed writer
         let data = self.data.to_strict_serialized::<U24>().expect("in-memory");
-        let engine = base64::engine::general_purpose::STANDARD;
-        let data = engine.encode(data);
+        let data = base85::encode(&data);
         let mut data = data.as_str();
         while data.len() >= 64 {
             let (line, rest) = data.split_at(64);
