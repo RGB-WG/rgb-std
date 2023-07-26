@@ -78,22 +78,26 @@ impl RgbInvoiceBuilder {
         self
     }
 
-    pub fn set_base_amount(mut self, amount: u64) -> Self {
+    pub fn set_amount_raw(mut self, amount: u64) -> Self {
         self.0.owned_state = TypedState::Amount(amount);
         self
     }
 
-    pub fn set_coins(self, coins: u64, cents: u64, precision: impl Into<u8>) -> Self {
-        self.set_base_amount(coins.pow(precision.into() as u32) + cents)
+    pub fn set_amount(self, integer: u64, decimals: u64, precision: impl Into<u8>) -> Self {
+        self.set_amount_raw(integer.pow(precision.into() as u32) + decimals)
     }
 
-    pub fn set_amount(self, amount: f64, precision: impl Into<u8>) -> Result<Self, Self> {
+    pub unsafe fn set_amount_approx(
+        self,
+        amount: f64,
+        precision: impl Into<u8>,
+    ) -> Result<Self, Self> {
         if amount <= 0.0 {
             return Err(self);
         }
         let coins = amount.floor();
         let cents = amount - coins;
-        Ok(self.set_coins(coins as u64, cents as u64, precision))
+        Ok(self.set_amount(coins as u64, cents as u64, precision))
     }
 
     pub fn set_chain(mut self, chain: impl Into<Chain>) -> Self {
