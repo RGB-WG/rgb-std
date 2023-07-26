@@ -19,11 +19,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::str::FromStr;
+
 use rgb::ContractId;
 use rgbstd::interface::TypedState;
 use rgbstd::Chain;
 
-use super::{Beneficiary, RgbInvoice, RgbTransport};
+use super::{Beneficiary, RgbInvoice, RgbTransport, TransportParseError};
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct RgbInvoiceBuilder(RgbInvoice);
@@ -101,6 +103,42 @@ impl RgbInvoiceBuilder {
 
     pub fn set_expiry_timestamp(mut self, expiry: i64) -> Self {
         self.0.expiry = Some(expiry);
+        self
+    }
+
+    pub fn add_transport(self, transport: &str) -> Result<Self, (Self, TransportParseError)> {
+        let transport = match RgbTransport::from_str(transport) {
+            Err(err) => return Err((self, err)),
+            Ok(transport) => transport,
+        };
+        Ok(self.add_transport_raw(transport))
+    }
+
+    pub fn add_transport_raw(mut self, transport: RgbTransport) -> Self {
+        self.0.transports.push(transport);
+        self
+    }
+
+    pub fn add_transports<'a>(
+        self,
+        transports: impl IntoIterator<Item = &'a str>,
+    ) -> Result<Self, (Self, TransportParseError)> {
+        let res = transports
+            .into_iter()
+            .map(RgbTransport::from_str)
+            .collect::<Result<Vec<_>, TransportParseError>>();
+        let transports = match res {
+            Err(err) => return Err((self, err)),
+            Ok(transports) => transports,
+        };
+        Ok(self.add_transports_raw(transports))
+    }
+
+    pub fn add_transports_raw(
+        mut self,
+        transports: impl IntoIterator<Item = RgbTransport>,
+    ) -> Self {
+        self.0.transports.extend(transports);
         self
     }
 
