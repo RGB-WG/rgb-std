@@ -23,6 +23,7 @@ use std::str::FromStr;
 
 use rgb::ContractId;
 use rgbstd::interface::TypedState;
+use rgbstd::stl::Precision;
 use rgbstd::Chain;
 
 use super::{Beneficiary, RgbInvoice, RgbTransport, TransportParseError};
@@ -83,21 +84,35 @@ impl RgbInvoiceBuilder {
         self
     }
 
-    pub fn set_amount(self, integer: u64, decimals: u64, precision: impl Into<u8>) -> Self {
-        self.set_amount_raw(integer.pow(precision.into() as u32) + decimals)
+    pub fn set_amount(
+        self,
+        integer: u64,
+        decimals: u64,
+        precision: Precision,
+    ) -> Result<Self, Self> {
+        // 2^64 ~ 10^19 < 10^18 (18 is max value for Precision enum)
+        let pow = 10u64.pow(precision as u32);
+        // number of decimals can't be larger than the smallest possible integer
+        if decimals >= pow {
+            return Err(self);
+        }
+        let Some(mut amount) = integer.checked_mul(pow) else {
+            return Err(self);
+        };
+        amount = amount.checked_add(decimals).expect(
+            "integer has at least the same number of zeros in the lowest digits as much as \
+             decimals has digits at most, so overflow is not possible",
+        );
+        Ok(self.set_amount_raw(amount))
     }
 
-    pub unsafe fn set_amount_approx(
-        self,
-        amount: f64,
-        precision: impl Into<u8>,
-    ) -> Result<Self, Self> {
+    pub unsafe fn set_amount_approx(self, amount: f64, precision: Precision) -> Result<Self, Self> {
         if amount <= 0.0 {
             return Err(self);
         }
         let coins = amount.floor();
         let cents = amount - coins;
-        Ok(self.set_amount(coins as u64, cents as u64, precision))
+        self.set_amount(coins as u64, cents as u64, precision)
     }
 
     pub fn set_chain(mut self, chain: impl Into<Chain>) -> Self {
