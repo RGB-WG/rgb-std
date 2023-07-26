@@ -61,6 +61,7 @@
 extern crate amplify;
 #[macro_use]
 extern crate strict_encoding;
+pub extern crate bitcoin;
 
 mod invoice;
 mod pay;
