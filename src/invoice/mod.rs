@@ -23,5 +23,6 @@ mod invoice;
 mod parse;
 mod builder;
 
+pub use builder::RgbInvoiceBuilder;
 pub use invoice::{Beneficiary, InvoiceState, RgbInvoice, RgbTransport};
 pub use parse::{InvoiceParseError, TransportParseError};

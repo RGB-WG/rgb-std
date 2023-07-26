@@ -54,7 +54,6 @@ pub enum Beneficiary {
     BlindedSeal(SecretSeal),
     #[from]
     WitnessUtxo(Address),
-    // TODO: add BifrostNode(),
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]

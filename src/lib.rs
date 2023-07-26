@@ -59,13 +59,16 @@
 
 #[macro_use]
 extern crate amplify;
+#[macro_use]
+extern crate strict_encoding;
 
 mod invoice;
 mod pay;
 pub mod psbt;
 
 pub use invoice::{
-    Beneficiary, InvoiceParseError, InvoiceState, RgbInvoice, RgbTransport, TransportParseError,
+    Beneficiary, InvoiceParseError, InvoiceState, RgbInvoice, RgbInvoiceBuilder, RgbTransport,
+    TransportParseError,
 };
 pub use pay::{InventoryWallet, PayError};
 
