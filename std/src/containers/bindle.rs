@@ -131,8 +131,8 @@ impl BindleContent for IfaceImpl {
     fn bindle_mnemonic(&self) -> Option<String> { Some(self.impl_id().to_mnemonic()) }
     fn bindle_headers(&self) -> BTreeMap<&'static str, String> {
         bmap! {
-            "IfaceId" => self.iface_id.to_string(),
-            "SchemaId" => self.schema_id.to_string(),
+            "IfaceId" => format!("{:-#}", self.iface_id),
+            "SchemaId" => format!("{:-#}", self.schema_id),
         }
     }
 }
