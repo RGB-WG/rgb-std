@@ -30,6 +30,7 @@ use std::str::FromStr;
 
 #[cfg(feature = "fs")]
 pub use _fs::*;
+use amplify::confinement;
 use amplify::confinement::{Confined, TinyVec, U24};
 use baid58::Baid58ParseError;
 use rgb::{BundleId, ContractId, Schema, SchemaId, SchemaRoot};
@@ -174,7 +175,7 @@ impl<C: BindleContent> Bindle<C> {
     pub fn unbindle(self) -> C { self.data }
 }
 
-#[derive(Clone, PartialEq, Eq, Debug, Display, Error)]
+#[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum BindleParseError<Id: Copy + Eq + Debug + Display> {
     /// the provided text doesn't represent a recognizable ASCII-armored RGB
@@ -192,12 +193,15 @@ pub enum BindleParseError<Id: Copy + Eq + Debug + Display> {
     MismatchedId { actual: Id, expected: Id },
 
     /// bindle data has invalid Base85 encoding (ASCII armoring).
+    #[from(base85::Error)]
     Base85,
 
     /// unable to decode the provided bindle data. Details: {0}
+    #[from]
     Deserialize(strict_encoding::DeserializeError),
 
     /// bindle contains more than 16MB of data.
+    #[from(confinement::Error)]
     TooLarge,
 }
 
@@ -221,11 +225,8 @@ impl<C: BindleContent> FromStr for Bindle<C> {
             }
         }
         let armor = lines.filter(|l| !l.is_empty()).collect::<String>();
-        let data = base85::decode(&armor).ok_or(BindleParseError::Base85)?;
-        let data = C::from_strict_serialized::<U24>(
-            Confined::try_from(data).map_err(|_| BindleParseError::TooLarge)?,
-        )
-        .map_err(BindleParseError::Deserialize)?;
+        let data = base85::decode(&armor)?;
+        let data = C::from_strict_serialized::<U24>(Confined::try_from(data)?)?;
         let id = data.bindle_id();
         if let Some(header_id) = header_id {
             if header_id != id {
