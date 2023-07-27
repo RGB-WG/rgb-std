@@ -22,6 +22,7 @@
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
+use std::iter;
 
 use amplify::RawArray;
 use bitcoin::hashes::Hash;
@@ -147,7 +148,9 @@ pub trait InventoryWallet: Inventory {
                 // NB: Here we assume that if output has derivation information it belongs to our wallet.
                 .bip32_derivation
                 .first_key_value()
-                .and_then(|(_, src)| src.1.into_iter().rev().nth(1))
+                .map(|(_, src)| src)
+                .or_else(|| outp.tap_key_origins.first_key_value().map(|(_, (_, src))| src))
+                .and_then(|(_, src)| src.into_iter().rev().nth(1))
                 .copied()
                 .map(u32::from)
                 .filter(|index| *index == RGB_NATIVE_DERIVATION_INDEX || *index == RGB_TAPRET_DERIVATION_INDEX)
@@ -170,7 +173,12 @@ pub trait InventoryWallet: Inventory {
                 .unwrap_or_default();
             let vout = out_classes
                 .get_mut(&velocity)
-                .and_then(|iter| iter.next())
+                .and_then(iter::Cycle::next)
+                .or_else(|| {
+                    out_classes
+                        .get_mut(&VelocityHint::default())
+                        .and_then(iter::Cycle::next)
+                })
                 .ok_or(PayError::NoBlankOrChange(velocity, assignment_type))?;
             let seal = GraphSeal::new_vout(method, vout);
             Ok(BuilderSeal::Revealed(seal))
