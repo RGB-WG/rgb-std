@@ -29,9 +29,11 @@ use fluent_uri::enc::EStr;
 use fluent_uri::Uri;
 use indexmap::IndexMap;
 use percent_encoding::{utf8_percent_encode, AsciiSet, CONTROLS};
-use rgb::{AttachId, ContractId, SecretSeal};
+use rgb::{ContractId, SecretSeal};
 use rgbstd::interface::TypedState;
-use strict_encoding::{FieldName, InvalidIdent, TypeName};
+use strict_encoding::{InvalidIdent, TypeName};
+
+use super::{Beneficiary, RgbInvoice, RgbTransport};
 
 const OMITTED: char = '~';
 const EXPIRY: &str = "expiry";
@@ -48,103 +50,6 @@ const QUERY_ENCODE: &AsciiSet = &CONTROLS
     .add(b']')
     .add(b'&')
     .add(b'=');
-
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub enum RgbTransport {
-    JsonRpc { tls: bool, host: String },
-    RestHttp { tls: bool, host: String },
-    WebSockets { tls: bool, host: String },
-    Storm {/* todo */},
-    UnspecifiedMeans,
-}
-
-impl std::fmt::Display for RgbTransport {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            RgbTransport::JsonRpc { tls, host } => {
-                let s = if *tls { "s" } else { "" };
-                write!(f, "rpc{s}{TRANSPORT_HOST_SEP}{}", host)?;
-            }
-            RgbTransport::RestHttp { tls, host } => {
-                let s = if *tls { "s" } else { "" };
-                write!(f, "http{s}{TRANSPORT_HOST_SEP}{}", host)?;
-            }
-            RgbTransport::WebSockets { tls, host } => {
-                let s = if *tls { "s" } else { "" };
-                write!(f, "ws{s}{TRANSPORT_HOST_SEP}{}", host)?;
-            }
-            RgbTransport::Storm {} => {
-                write!(f, "storm{TRANSPORT_HOST_SEP}_/")?;
-            }
-            RgbTransport::UnspecifiedMeans => {}
-        };
-        Ok(())
-    }
-}
-
-impl FromStr for RgbTransport {
-    type Err = TransportParseError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let tokens = s.split_once(TRANSPORT_HOST_SEP);
-        if tokens.is_none() {
-            return Err(TransportParseError::InvalidTransport(s.to_string()));
-        }
-        let (trans_type, host) = tokens.unwrap();
-        if host.is_empty() {
-            return Err(TransportParseError::InvalidTransportHost(host.to_string()));
-        }
-        let host = host.to_string();
-        let transport = match trans_type {
-            "rpc" => RgbTransport::JsonRpc { tls: false, host },
-            "rpcs" => RgbTransport::JsonRpc { tls: true, host },
-            "http" => RgbTransport::RestHttp { tls: false, host },
-            "https" => RgbTransport::RestHttp { tls: true, host },
-            "ws" => RgbTransport::WebSockets { tls: false, host },
-            "wss" => RgbTransport::WebSockets { tls: true, host },
-            "storm" => RgbTransport::Storm {},
-            _ => return Err(TransportParseError::InvalidTransport(s.to_string())),
-        };
-        Ok(transport)
-    }
-}
-
-#[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
-pub enum InvoiceState {
-    #[display("")]
-    Void,
-    #[display("{0}.{1}")]
-    Fungible(u64, u64),
-    #[display("...")] // TODO
-    Data(Vec<u8> /* StrictVal */),
-    #[display(inner)]
-    Attach(AttachId),
-}
-
-#[derive(Clone, Eq, PartialEq, Hash, Debug, Display, From)]
-#[display(inner)]
-pub enum Beneficiary {
-    #[from]
-    BlindedSeal(SecretSeal),
-    #[from]
-    WitnessUtxo(Address),
-    // TODO: add BifrostNode(),
-}
-
-#[derive(Clone, Eq, PartialEq, Debug)]
-pub struct RgbInvoice {
-    pub transports: Vec<RgbTransport>,
-    pub contract: Option<ContractId>,
-    pub iface: Option<TypeName>,
-    pub operation: Option<TypeName>,
-    pub assignment: Option<FieldName>,
-    pub beneficiary: Beneficiary,
-    pub owned_state: TypedState,
-    pub chain: Option<Chain>,
-    /// UTC unix timestamp
-    pub expiry: Option<i64>,
-    pub unknown_query: IndexMap<String, String>,
-}
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(inner)]
@@ -217,29 +122,6 @@ pub enum InvoiceParseError {
     IfaceName(InvalidIdent),
 }
 
-fn percent_decode(estr: &EStr) -> Result<String, InvoiceParseError> {
-    Ok(estr
-        .decode()
-        .into_string()
-        .map_err(|e| InvoiceParseError::InvalidQueryParam(e.to_string()))?
-        .to_string())
-}
-
-fn map_query_params(uri: &Uri<&str>) -> Result<IndexMap<String, String>, InvoiceParseError> {
-    let mut map: IndexMap<String, String> = IndexMap::new();
-    if let Some(q) = uri.query() {
-        let params = q.split('&');
-        for p in params {
-            if let Some((k, v)) = p.split_once('=') {
-                map.insert(percent_decode(k)?, percent_decode(v)?);
-            } else {
-                return Err(InvoiceParseError::InvalidQueryParam(p.to_string()));
-            }
-        }
-    }
-    Ok(map)
-}
-
 impl RgbInvoice {
     fn has_params(&self) -> bool {
         self.expiry.is_some() ||
@@ -261,6 +143,57 @@ impl RgbInvoice {
         }
         query_params.extend(self.unknown_query.clone());
         query_params
+    }
+}
+
+impl Display for RgbTransport {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RgbTransport::JsonRpc { tls, host } => {
+                let s = if *tls { "s" } else { "" };
+                write!(f, "rpc{s}{TRANSPORT_HOST_SEP}{}", host)?;
+            }
+            RgbTransport::RestHttp { tls, host } => {
+                let s = if *tls { "s" } else { "" };
+                write!(f, "http{s}{TRANSPORT_HOST_SEP}{}", host)?;
+            }
+            RgbTransport::WebSockets { tls, host } => {
+                let s = if *tls { "s" } else { "" };
+                write!(f, "ws{s}{TRANSPORT_HOST_SEP}{}", host)?;
+            }
+            RgbTransport::Storm {} => {
+                write!(f, "storm{TRANSPORT_HOST_SEP}_/")?;
+            }
+            RgbTransport::UnspecifiedMeans => {}
+        };
+        Ok(())
+    }
+}
+
+impl FromStr for RgbTransport {
+    type Err = TransportParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let tokens = s.split_once(TRANSPORT_HOST_SEP);
+        if tokens.is_none() {
+            return Err(TransportParseError::InvalidTransport(s.to_string()));
+        }
+        let (trans_type, host) = tokens.unwrap();
+        if host.is_empty() {
+            return Err(TransportParseError::InvalidTransportHost(host.to_string()));
+        }
+        let host = host.to_string();
+        let transport = match trans_type {
+            "rpc" => RgbTransport::JsonRpc { tls: false, host },
+            "rpcs" => RgbTransport::JsonRpc { tls: true, host },
+            "http" => RgbTransport::RestHttp { tls: false, host },
+            "https" => RgbTransport::RestHttp { tls: true, host },
+            "ws" => RgbTransport::WebSockets { tls: false, host },
+            "wss" => RgbTransport::WebSockets { tls: true, host },
+            "storm" => RgbTransport::Storm {},
+            _ => return Err(TransportParseError::InvalidTransport(s.to_string())),
+        };
+        Ok(transport)
     }
 }
 
@@ -418,6 +351,29 @@ impl FromStr for RgbInvoice {
             unknown_query: query_params,
         })
     }
+}
+
+fn percent_decode(estr: &EStr) -> Result<String, InvoiceParseError> {
+    Ok(estr
+        .decode()
+        .into_string()
+        .map_err(|e| InvoiceParseError::InvalidQueryParam(e.to_string()))?
+        .to_string())
+}
+
+fn map_query_params(uri: &Uri<&str>) -> Result<IndexMap<String, String>, InvoiceParseError> {
+    let mut map: IndexMap<String, String> = IndexMap::new();
+    if let Some(q) = uri.query() {
+        let params = q.split('&');
+        for p in params {
+            if let Some((k, v)) = p.split_once('=') {
+                map.insert(percent_decode(k)?, percent_decode(v)?);
+            } else {
+                return Err(InvoiceParseError::InvalidQueryParam(p.to_string()));
+            }
+        }
+    }
+    Ok(map)
 }
 
 #[cfg(test)]
