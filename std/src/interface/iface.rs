@@ -65,7 +65,7 @@ impl FromBaid58<32> for IfaceId {}
 impl Display for IfaceId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         if !f.alternate() {
-            f.write_str("urn:lnp-bp:sc:")?;
+            f.write_str("urn:lnp-bp:if:")?;
         }
         if f.sign_minus() {
             write!(f, "{:.2}", self.to_baid58())
