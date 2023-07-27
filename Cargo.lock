@@ -168,9 +168,12 @@ checksum = "604178f6c5c21f02dc555784810edfb88d34ac2c73b2eae109655649ee73ce3d"
 
 [[package]]
 name = "base85"
-version = "1.1.1"
+version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "88b68cde48c539cf9db81c5598e215dc32d0401a167f899cf26e35f61815eb9e"
+checksum = "affba8f9496cbbacbefe5b9f3a0a9fac6cc48f6951e7331e293b241e67bdcf06"
+dependencies = [
+ "thiserror",
+]
 
 [[package]]
 name = "bech32"
@@ -237,9 +240,9 @@ dependencies = [
 
 [[package]]
 name = "bp-core"
-version = "0.10.7"
+version = "0.10.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ad89567d378fb0bf06e1d3370b12c17b587563fa3ea075d22a6a3d7e3b77f2b"
+checksum = "439c8341a93e8263d377060d082b8d2fe98574b234e86d41a04375a1fd8ce03c"
 dependencies = [
  "amplify",
  "bp-dbc",
@@ -254,9 +257,9 @@ dependencies = [
 
 [[package]]
 name = "bp-dbc"
-version = "0.10.7"
+version = "0.10.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac8b9fa8ce5e85c3b052f2857eb14b710e893052f2680584f48959627e78148b"
+checksum = "2d4117c6bc39e96bdd07b255fd0e6a29557f16c7e53f3c60f0e1ff1747a9a3d2"
 dependencies = [
  "amplify",
  "base85",
@@ -283,9 +286,9 @@ dependencies = [
 
 [[package]]
 name = "bp-seals"
-version = "0.10.7"
+version = "0.10.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f02ea90eaca184fda85230cfac2457fd352c3d81bd28f67254185d0b199eb6f"
+checksum = "098878a5c4cf1256f6c07fcd7b742705e1e4e9c14b9cf992460e5f7f81254235"
 dependencies = [
  "amplify",
  "baid58",
@@ -751,7 +754,7 @@ dependencies = [
 
 [[package]]
 name = "rgb-std"
-version = "0.10.4"
+version = "0.10.5"
 dependencies = [
  "amplify",
  "baid58",
@@ -771,7 +774,7 @@ dependencies = [
 
 [[package]]
 name = "rgb-wallet"
-version = "0.10.4"
+version = "0.10.5"
 dependencies = [
  "amplify",
  "baid58",
@@ -1054,6 +1057,26 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "thiserror"
+version = "1.0.44"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "611040a08a0439f8248d1990b111c95baa9c704c805fa1f62104b39655fd7f90"
+dependencies = [
+ "thiserror-impl",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "1.0.44"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "090198534930841fab3a5d1bb637cde49e339654e606195f8d9c76eeb081dc96"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.27",
 ]
 
 [[package]]
