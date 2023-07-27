@@ -148,7 +148,9 @@ pub trait InventoryWallet: Inventory {
                 // NB: Here we assume that if output has derivation information it belongs to our wallet.
                 .bip32_derivation
                 .first_key_value()
-                .and_then(|(_, src)| src.1.into_iter().rev().nth(1))
+                .map(|(_, src)| src)
+                .or_else(|| outp.tap_key_origins.first_key_value().map(|(_, (_, src))| src))
+                .and_then(|(_, src)| src.into_iter().rev().nth(1))
                 .copied()
                 .map(u32::from)
                 .filter(|index| *index == RGB_NATIVE_DERIVATION_INDEX || *index == RGB_TAPRET_DERIVATION_INDEX)
