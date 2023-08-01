@@ -8,6 +8,7 @@ default-members = [
     "std",
     "invoice"
 ]
+resolver = "2"
 
 [workspace.package]
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
