@@ -20,8 +20,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use rgbstd::interface::{rgb20_stl, rgb21_stl, rgb25_stl};
-use rgbstd::stl::{rgb_contract_stl, rgb_std_stl};
+use rgb::interface::{rgb20_stl, rgb21_stl, rgb25_stl};
+use rgb::stl::{rgb_contract_stl, rgb_std_stl};
 use strict_types::parse_args;
 
 fn main() {

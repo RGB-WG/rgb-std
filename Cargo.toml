@@ -1,9 +1,12 @@
 [workspace]
 members = [
     "std",
+    "invoice",
+    "stl"
 ]
 default-members = [
     "std",
+    "invoice"
 ]
 
 [workspace.package]
@@ -22,3 +25,7 @@ strict_types = "1.6.0"
 commit_verify = { version = "0.10.5", features = ["stl"] }
 bp-core = { version = "0.10.8", features = ["stl"] }
 rgb-core = { version = "0.10.7", features = ["stl"] }
+
+[patch.crates-io]
+bp-primitives = { git = "https://github.com/BP-WG/bp-core", branch = "primitives" }
+bp-std = { git = "https://github.com/BP-WG/bp-std" }

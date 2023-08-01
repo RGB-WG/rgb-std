@@ -23,9 +23,9 @@ dependencies = [
 
 [[package]]
 name = "amplify"
-version = "4.0.0"
+version = "4.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f26966af46e0d200e8bf2b7f16230997c1c3f2d141bc27ccc091c012ed527b58"
+checksum = "4707ab08f19a25ba492cbf61713591b7f022b54ee188f35457e6de22f367df4a"
 dependencies = [
  "amplify_apfloat",
  "amplify_derive 3.0.1",
@@ -176,10 +176,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "bech32"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d86b93f97252c47b41663388e6d155714a9d0c398b99f1005cbc5f978b29f445"
+
+[[package]]
 name = "bitcoin-private"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73290177011694f38ec25e165d0387ab7ea749a4b81cd4c80dae5988229f7a57"
+
+[[package]]
+name = "bitcoin_hashes"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d7066118b13d4b20b23645932dfb3a81ce7e29f95726c2036fa33cd7b092501"
+dependencies = [
+ "bitcoin-private",
+]
 
 [[package]]
 name = "bitflags"
@@ -245,8 +260,7 @@ dependencies = [
 [[package]]
 name = "bp-primitives"
 version = "0.10.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "608a06488cc9909ed80b1b1dc0acedd655cfe94df60bdb6af80546b993e252e7"
+source = "git+https://github.com/BP-WG/bp-core?branch=primitives#0d9814ed72fbcfb84bd06bb3c07d23bc32058feb"
 dependencies = [
  "amplify",
  "commit_verify",
@@ -271,6 +285,17 @@ dependencies = [
  "serde",
  "single_use_seals",
  "strict_encoding",
+]
+
+[[package]]
+name = "bp-std"
+version = "0.11.0"
+source = "git+https://github.com/BP-WG/bp-std#2784561b5e4ebf0e8c979b8516636e78ae72ab8a"
+dependencies = [
+ "amplify",
+ "bech32",
+ "bitcoin_hashes",
+ "bp-primitives",
 ]
 
 [[package]]
@@ -439,6 +464,15 @@ name = "equivalent"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
+
+[[package]]
+name = "fluent-uri"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "17c704e9dbe1ddd863da1e6ff3567795087b1eb201ce80d8fa81162e1516500d"
+dependencies = [
+ "bitflags",
+]
 
 [[package]]
 name = "fnv"
@@ -629,6 +663,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "de3145af08024dea9fa9914f381a17b8fc6034dfb00f3a84013f7ff43f29ed4c"
 
 [[package]]
+name = "percent-encoding"
+version = "2.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b2a4787296e9989611394c33f193f676704af1686e70b8f8033ab5ba9a35a94"
+
+[[package]]
 name = "ppv-lite86"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -704,6 +744,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "rgb-invoice"
+version = "0.11.0-alpha"
+dependencies = [
+ "amplify",
+ "baid58",
+ "bp-std",
+ "chrono",
+ "fluent-uri",
+ "getrandom",
+ "indexmap 2.0.0",
+ "percent-encoding",
+ "rand",
+ "rgb-std",
+ "strict_encoding",
+ "wasm-bindgen",
+ "wasm-bindgen-test",
+]
+
+[[package]]
 name = "rgb-std"
 version = "0.11.0-alpha"
 dependencies = [
@@ -721,6 +780,14 @@ dependencies = [
  "strict_types",
  "wasm-bindgen",
  "wasm-bindgen-test",
+]
+
+[[package]]
+name = "rgb-stl"
+version = "0.11.0-alpha"
+dependencies = [
+ "rgb-std",
+ "strict_types",
 ]
 
 [[package]]

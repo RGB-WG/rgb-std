@@ -88,6 +88,7 @@ mod reserved;
 
 pub use bp::{Chain, Outpoint, Txid};
 pub(crate) use reserved::ReservedBytes;
+pub use rgb::*;
 pub use stl::{LIB_NAME_RGB_CONTRACT, LIB_NAME_RGB_STD};
 
 /// BIP32 derivation index for outputs which may contain assigned RGB state.

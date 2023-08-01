@@ -1,4 +1,4 @@
-// RGB wallet library for smart contracts on Bitcoin & Lightning network
+// RGB smart contract invoicing library
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -23,14 +23,13 @@ use std::fmt::{self, Debug, Display, Formatter};
 use std::num::ParseIntError;
 use std::str::FromStr;
 
-use bitcoin::{Address, Network};
-use bp::Chain;
+use bp::{Address, AddressNetwork};
 use fluent_uri::enc::EStr;
 use fluent_uri::Uri;
 use indexmap::IndexMap;
 use percent_encoding::{utf8_percent_encode, AsciiSet, CONTROLS};
-use rgb::{ContractId, SecretSeal};
-use rgbstd::interface::TypedState;
+use rgb::interface::TypedState;
+use rgb::{Chain, ContractId, SecretSeal};
 use strict_encoding::{InvalidIdent, TypeName};
 
 use super::{Beneficiary, RgbInvoice, RgbTransport};
@@ -110,8 +109,8 @@ pub enum InvoiceParseError {
     Beneficiary(String),
 
     #[display(doc_comments)]
-    /// network {0} is not supported.
-    UnsupportedNetwork(Network),
+    /// network {0:?} is not supported.
+    UnsupportedNetwork(AddressNetwork),
 
     #[from]
     Num(ParseIntError),
@@ -298,13 +297,11 @@ impl FromStr for RgbInvoice {
                 (Ok(seal), Err(_)) => Beneficiary::BlindedSeal(seal),
                 (Err(_), Ok(addr)) => {
                     chain = Some(match addr.network {
-                        Network::Bitcoin => Chain::Bitcoin,
-                        Network::Testnet => Chain::Testnet3,
-                        Network::Signet => Chain::Signet,
-                        Network::Regtest => Chain::Regtest,
-                        unknown => return Err(InvoiceParseError::UnsupportedNetwork(unknown)),
+                        AddressNetwork::Mainnet => Chain::Bitcoin,
+                        AddressNetwork::Testnet => Chain::Testnet3,
+                        AddressNetwork::Regtest => Chain::Regtest,
                     });
-                    Beneficiary::WitnessUtxo(addr.assume_checked())
+                    Beneficiary::WitnessUtxo(addr)
                 }
                 (Err(_), Err(_)) => {
                     return Err(InvoiceParseError::Beneficiary(beneficiary_str.to_owned()));
