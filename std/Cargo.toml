@@ -24,7 +24,7 @@ commit_verify = { workspace = true }
 bp-core = { workspace = true }
 rgb-core = { workspace = true }
 baid58 = { workspace = true }
-base85 = "1.2.1"
+base85 = "=2.0.0"
 chrono = "0.4.26"
 serde_crate = { package = "serde", version = "1", features = ["derive"] }
 

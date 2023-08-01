@@ -19,7 +19,7 @@ edition = "2021"
 license = "Apache-2.0"
 
 [workspace.dependencies]
-amplify = "4.0.0"
+amplify = "4.0.1"
 baid58 = "0.4.4"
 strict_encoding = "2.5.0"
 strict_types = "1.6.0"
@@ -28,5 +28,4 @@ bp-core = { version = "0.10.8", features = ["stl"] }
 rgb-core = { version = "0.10.7", features = ["stl"] }
 
 [patch.crates-io]
-bp-primitives = { git = "https://github.com/BP-WG/bp-core", branch = "primitives" }
 bp-std = { git = "https://github.com/BP-WG/bp-std" }
