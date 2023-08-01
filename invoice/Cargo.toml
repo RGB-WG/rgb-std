@@ -1,8 +1,8 @@
 [package]
-name = "rgb-std"
+name = "rgb-invoice"
 version = "0.11.0-alpha"
-description = "RGB standard library for working with smart contracts on Bitcoin & Lightning"
-keywords = ["bitcoin", "lightning", "rgb", "smart-contracts", "lnp-bp"]
+description = "RGB smart contract invoicing library"
+keywords = ["bitcoin", "invoices", "rgb", "smart-contracts", "lnp-bp"]
 categories = ["cryptography::cryptocurrencies"]
 authors = { workspace = true }
 repository = { workspace = true }
@@ -13,35 +13,16 @@ rust-version = { workspace = true }
 readme = "../README.md"
 
 [lib]
-name = "rgbstd"
+name = "rgbinvoice"
 crate-type = ["cdylib", "rlib"] # We need this for WASM
-
-[[bin]]
-name = "rgb-stl"
 
 [dependencies]
 amplify = { workspace = true }
-strict_encoding = { workspace = true }
-strict_types = { workspace = true }
-commit_verify = { workspace = true }
-bp-core = { workspace = true }
-rgb-core = { workspace = true }
 baid58 = { workspace = true }
-base85 = "1.2.1"
-chrono = "0.4.26"
-serde_crate = { package = "serde", version = "1", features = ["derive"] }
-
-[features]
-default = []
-all = ["fs", "serde"]
-serde = [
-    "amplify/serde",
-    "strict_encoding/serde", "strict_types/serde",
-    "commit_verify/serde",
-    "bp-core/serde",
-    "rgb-core/serde",
-]
-fs = []
+rgb-std = { version = "0.11.0-alpha", path = "../std" }
+fluent-uri = "0.1.4"
+chrono = "0.4.24"
+percent-encoding = "2.2.0"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2"

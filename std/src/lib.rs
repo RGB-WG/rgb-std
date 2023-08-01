@@ -87,5 +87,11 @@ pub mod accessors;
 mod reserved;
 
 pub use bp::{Chain, Outpoint, Txid};
-use reserved::ReservedBytes;
+pub(crate) use reserved::ReservedBytes;
 pub use stl::{LIB_NAME_RGB_CONTRACT, LIB_NAME_RGB_STD};
+
+/// BIP32 derivation index for outputs which may contain assigned RGB state.
+pub const RGB_NATIVE_DERIVATION_INDEX: u32 = 9;
+/// BIP32 derivation index for outputs which are tweaked with Tapret commitment
+/// and may also optionally contain assigned RGB state.
+pub const RGB_TAPRET_DERIVATION_INDEX: u32 = 10;
