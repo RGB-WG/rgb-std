@@ -22,7 +22,7 @@
 #![allow(unused_braces)] // caused by rustc unable to understand strict_dumb
 
 use std::fmt;
-use std::fmt::{Debug, Formatter};
+use std::fmt::{Debug, Display, Formatter, Write};
 use std::iter::Sum;
 use std::str::FromStr;
 
@@ -138,8 +138,7 @@ impl Precision {
     pub fn from_strict_val_unchecked(value: &StrictVal) -> Self { value.unwrap_enum() }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display)]
-#[display("{int}.{fract}")]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub struct CoinAmount {
     pub int: u64,
     pub fract: u64,
@@ -156,6 +155,47 @@ impl CoinAmount {
             fract,
             precision,
         }
+    }
+}
+
+impl Display for CoinAmount {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let mut int = self.int.to_string();
+        if f.alternate() {
+            int = int
+                .chars()
+                .rev()
+                .collect::<String>()
+                .as_bytes()
+                .chunks(3)
+                .map(<[u8]>::to_owned)
+                .map(|mut chunk| unsafe {
+                    chunk.reverse();
+                    String::from_utf8_unchecked(chunk)
+                })
+                .rev()
+                .collect::<Vec<_>>()
+                .join("`");
+        }
+        f.write_str(&int)?;
+        if self.fract > 0 {
+            f.write_char('.')?;
+            let mut float = self.fract.to_string();
+            let len = float.len();
+            if let Some(decimals) = f.precision() {
+                float.extend("0".repeat(decimals - len).chars());
+            }
+            if f.alternate() {
+                float = float
+                    .as_bytes()
+                    .chunks(3)
+                    .map(|chunk| unsafe { String::from_utf8_unchecked(chunk.to_owned()) })
+                    .collect::<Vec<_>>()
+                    .join("`");
+            }
+            f.write_str(&float)?;
+        }
+        Ok(())
     }
 }
 
@@ -599,5 +639,6 @@ mod test {
         assert_eq!(amount.int, 10_000);
         assert_eq!(amount.fract, 436_081_95);
         assert_eq!(format!("{amount}"), "10000.43608195");
+        assert_eq!(format!("{amount:#.10}"), "10`000.436`081`950`0");
     }
 }
