@@ -517,7 +517,8 @@ impl DivisibleAssetSpec {
     pub fn details(&self) -> Option<&str> { self.naming.details.as_ref().map(|d| d.as_str()) }
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug, Default)]
+#[derive(Clone, Eq, PartialEq, Hash, Debug, Display, Default)]
+#[display(inner)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_CONTRACT)]
 #[cfg_attr(
