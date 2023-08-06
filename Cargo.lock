@@ -780,6 +780,7 @@ dependencies = [
  "baid58",
  "base85",
  "bp-core",
+ "bp-std",
  "chrono",
  "commit_verify",
  "getrandom",

@@ -19,7 +19,7 @@ crate-type = ["cdylib", "rlib"] # We need this for WASM
 [dependencies]
 amplify = { workspace = true }
 baid58 = { workspace = true }
-bp-std = "0.11.0"
+bp-std = { workspace = true }
 psbt = "0.11.0"
 rgb-std = { version = "0.11.0-alpha", path = "../std" }
 
