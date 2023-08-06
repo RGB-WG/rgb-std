@@ -263,11 +263,11 @@ impl Rgb20 {
         Timestamp::from_strict_val_unchecked(strict_val)
     }
 
-    pub fn balance(&self, filter: &impl OutpointFilter) -> u64 {
+    pub fn balance(&self, filter: &impl OutpointFilter) -> Amount {
         self.allocations(filter)
             .iter()
             .map(|alloc| alloc.value)
-            .sum::<u64>()
+            .sum::<Amount>()
     }
 
     pub fn allocations(&self, filter: &impl OutpointFilter) -> LargeVec<FungibleAllocation> {

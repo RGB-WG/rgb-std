@@ -94,6 +94,12 @@ impl Amount {
     }
 }
 
+impl Sum<u64> for Amount {
+    fn sum<I: Iterator<Item = u64>>(iter: I) -> Self {
+        iter.fold(Amount::zero(), |acc, i| acc + Amount::from(i))
+    }
+}
+
 impl Sum for Amount {
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
         iter.fold(Amount::zero(), |acc, i| acc + i)
