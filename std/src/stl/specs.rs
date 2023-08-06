@@ -142,6 +142,19 @@ impl StrictDeserialize for Precision {}
 
 impl Precision {
     pub fn from_strict_val_unchecked(value: &StrictVal) -> Self { value.unwrap_enum() }
+    pub fn decimals(self) -> u8 { self as u8 }
+}
+
+impl From<Precision> for u16 {
+    fn from(value: Precision) -> Self { value as u8 as u16 }
+}
+
+impl From<Precision> for u32 {
+    fn from(value: Precision) -> Self { value as u8 as u32 }
+}
+
+impl From<Precision> for u64 {
+    fn from(value: Precision) -> Self { value as u8 as u64 }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
