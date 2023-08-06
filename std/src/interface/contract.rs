@@ -45,7 +45,7 @@ pub enum ContractError {
     Reify(decode::Error),
 }
 
-#[derive(Clone, Eq, PartialEq, Debug, Display, From)]
+#[derive(Clone, Eq, PartialEq, Debug, Hash, Display, From)]
 #[display(inner)]
 pub enum TypedState {
     #[display("")]
@@ -58,7 +58,7 @@ pub enum TypedState {
     Attachment(AttachedState),
 }
 
-#[derive(Clone, Eq, PartialEq, Debug, Display)]
+#[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
 #[display("{id}:{media_type}")]
 pub struct AttachedState {
     pub id: AttachId,
