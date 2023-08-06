@@ -53,8 +53,13 @@ impl<K: DeriveXOnly> Derive<ScriptPubkey> for TapretKey<K> {
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
 pub enum DescriptorRgb<S: DeriveSet = XpubDescriptor> {
+    None,
     #[from]
     TapretKey(TapretKey<S::XOnly>),
+}
+
+impl<S: DeriveSet> Default for DescriptorRgb<S> {
+    fn default() -> Self { DescriptorRgb::None }
 }
 
 impl<S: DeriveSet> Derive<ScriptPubkey> for DescriptorRgb<S> {
@@ -64,6 +69,7 @@ impl<S: DeriveSet> Derive<ScriptPubkey> for DescriptorRgb<S> {
         index: impl Into<NormalIndex>,
     ) -> ScriptPubkey {
         match self {
+            DescriptorRgb::None => ScriptPubkey::default(),
             DescriptorRgb::TapretKey(d) => d.derive(change, index),
         }
     }
