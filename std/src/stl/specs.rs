@@ -103,6 +103,15 @@ impl Amount {
         precision.into().checked_convert(amount)
     }
 
+    pub fn value(self) -> u64 { self.0 }
+
+    pub fn split(self, precision: impl Into<Precision>) -> (u64, u64) {
+        let precision = precision.into();
+        let int = self.floor(precision);
+        let fract = self.rem(precision);
+        (int, fract)
+    }
+
     pub fn round(&self, precision: impl Into<Precision>) -> u64 {
         let precision = precision.into();
         let mul = precision.multiplier();
@@ -262,10 +271,10 @@ pub struct CoinAmount {
 }
 
 impl CoinAmount {
-    pub fn with(value: u64, precision: Precision) -> Self {
-        let pow = 10_u64.pow(precision as u32);
-        let int = value / pow;
-        let fract = value - int * pow;
+    pub fn with(value: impl Into<Amount>, precision: impl Into<Precision>) -> Self {
+        let precision = precision.into();
+        let value = value.into();
+        let (int, fract) = value.split(precision);
         CoinAmount {
             int,
             fract,
@@ -752,7 +761,7 @@ mod test {
 
     #[test]
     fn coin_amount() {
-        let amount = CoinAmount::with(10_000_436_081_95, Precision::default());
+        let amount = CoinAmount::with(10_000_436_081_95u64, Precision::default());
         assert_eq!(amount.int, 10_000);
         assert_eq!(amount.fract, 436_081_95);
         assert_eq!(format!("{amount}"), "10000.43608195");
