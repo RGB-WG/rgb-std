@@ -260,8 +260,7 @@ dependencies = [
 [[package]]
 name = "bp-primitives"
 version = "0.10.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b450c7dc09b5379d52c0a7980e5041339dea9753b5810afd397d67480d29b605"
+source = "git+https://github.com/BP-WG/bp-core?branch=primitives#323c75a40c26b53ebb9217d5cfcdce4e7cc3f08b"
 dependencies = [
  "amplify",
  "commit_verify",

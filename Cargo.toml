@@ -29,4 +29,5 @@ bp-std = "0.11.0"
 rgb-core = { version = "0.10.7", features = ["stl"] }
 
 [patch.crates-io]
+bp-primitives = { git = "https://github.com/BP-WG/bp-core", branch = "primitives" }
 bp-std = { git = "https://github.com/BP-WG/bp-std" }

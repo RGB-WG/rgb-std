@@ -28,6 +28,7 @@ use std::str::FromStr;
 
 use amplify::ascii::AsciiString;
 use amplify::confinement::{Confined, NonEmptyString, NonEmptyVec, SmallOrdSet, SmallString, U8};
+use bp::Sats;
 use chrono::{DateTime, Local, NaiveDateTime, Utc};
 use strict_encoding::stl::{AlphaCapsNum, AsciiPrintable};
 use strict_encoding::{
@@ -79,30 +80,87 @@ impl StrictDeserialize for IssueMeta {}
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", transparent)
 )]
-pub struct Amount(u64);
+pub struct Amount(
+    #[from]
+    #[from(u32)]
+    #[from(u16)]
+    #[from(u8)]
+    #[from(Sats)]
+    u64,
+);
 
 impl StrictSerialize for Amount {}
 impl StrictDeserialize for Amount {}
 
 impl Amount {
-    pub fn zero() -> Self { Amount(0) }
+    pub const ZERO: Self = Amount(0);
 
-    pub fn one() -> Self { Amount(1) }
+    pub fn with_precision(amount: u64, precision: impl Into<Precision>) -> Self {
+        precision.into().unchecked_convert(amount)
+    }
+
+    pub fn with_precision_checked(amount: u64, precision: impl Into<Precision>) -> Option<Self> {
+        precision.into().checked_convert(amount)
+    }
+
+    pub fn round(&self, precision: impl Into<Precision>) -> u64 {
+        let precision = precision.into();
+        let mul = precision.multiplier();
+        if self.0 == 0 {
+            return 0;
+        }
+        let inc = 2 * self.rem(precision) / mul;
+        self.0 / mul + inc
+    }
+
+    pub fn ceil(&self, precision: impl Into<Precision>) -> u64 {
+        let precision = precision.into();
+        if self.0 == 0 {
+            return 0;
+        }
+        let inc = if self.rem(precision) > 0 { 1 } else { 0 };
+        self.0 / precision.multiplier() + inc
+    }
+
+    pub fn floor(&self, precision: impl Into<Precision>) -> u64 {
+        if self.0 == 0 {
+            return 0;
+        }
+        self.0 / precision.into().multiplier()
+    }
+
+    pub fn rem(&self, precision: impl Into<Precision>) -> u64 {
+        self.0 % precision.into().multiplier()
+    }
 
     pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
         value.unwrap_uint::<u64>().into()
+    }
+
+    pub fn saturating_add(&self, other: impl Into<Self>) -> Self {
+        self.0.saturating_add(other.into().0).into()
+    }
+    pub fn saturating_sub(&self, other: impl Into<Self>) -> Self {
+        self.0.saturating_sub(other.into().0).into()
+    }
+
+    pub fn saturating_add_assign(&mut self, other: impl Into<Self>) {
+        *self = self.0.saturating_add(other.into().0).into();
+    }
+    pub fn saturating_sub_assign(&mut self, other: impl Into<Self>) {
+        *self = self.0.saturating_sub(other.into().0).into();
     }
 }
 
 impl Sum<u64> for Amount {
     fn sum<I: Iterator<Item = u64>>(iter: I) -> Self {
-        iter.fold(Amount::zero(), |acc, i| acc + Amount::from(i))
+        iter.fold(Amount::ZERO, |sum, value| sum.saturating_add(value))
     }
 }
 
 impl Sum for Amount {
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
-        iter.fold(Amount::zero(), |acc, i| acc + i)
+        iter.fold(Amount::ZERO, |sum, value| sum.saturating_add(value))
     }
 }
 
@@ -142,7 +200,46 @@ impl StrictDeserialize for Precision {}
 
 impl Precision {
     pub fn from_strict_val_unchecked(value: &StrictVal) -> Self { value.unwrap_enum() }
-    pub fn decimals(self) -> u8 { self as u8 }
+    pub const fn decimals(self) -> u8 { self as u8 }
+    pub const fn decimals_u32(self) -> u32 { self as u8 as u32 }
+
+    pub const fn multiplier(self) -> u64 {
+        match self {
+            Precision::Indivisible => 1,
+            Precision::Deci => 10,
+            Precision::Centi => 100,
+            Precision::Milli => 1000,
+            Precision::DeciMilli => 10_000,
+            Precision::CentiMilli => 100_000,
+            Precision::Micro => 1_000_000,
+            Precision::DeciMicro => 10_000_000,
+            Precision::CentiMicro => 100_000_000,
+            Precision::Nano => 1_000_000_000,
+            Precision::DeciNano => 10_000_000_000,
+            Precision::CentiNano => 100_000_000_000,
+            Precision::Pico => 1_000_000_000_000,
+            Precision::DeciPico => 10_000_000_000_000,
+            Precision::CentiPico => 100_000_000_000_000,
+            Precision::Femto => 1_000_000_000_000_000,
+            Precision::DeciFemto => 10_000_000_000_000_000,
+            Precision::CentiFemto => 100_000_000_000_000_000,
+            Precision::Atto => 1_000_000_000_000_000_000,
+        }
+    }
+
+    pub fn unchecked_convert(self, amount: impl Into<u64>) -> Amount {
+        (amount.into() * self.multiplier()).into()
+    }
+
+    pub fn checked_convert(self, amount: impl Into<u64>) -> Option<Amount> {
+        amount
+            .into()
+            .checked_mul(self.multiplier())
+            .map(Amount::from)
+    }
+    pub fn saturating_convert(self, amount: impl Into<u64>) -> Amount {
+        amount.into().saturating_mul(self.multiplier()).into()
+    }
 }
 
 impl From<Precision> for u16 {
