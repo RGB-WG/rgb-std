@@ -20,11 +20,59 @@
 // limitations under the License.
 
 use std::collections::BTreeMap;
+use std::str::FromStr;
 
 use bp::dbc::tapret::TapretCommitment;
-use bpstd::{Derive, DeriveSet, DeriveXOnly, Keychain, NormalIndex, ScriptPubkey, XpubDescriptor};
+use bpstd::{
+    Derive, DeriveSet, DeriveXOnly, Idx, IndexError, IndexParseError, Keychain, NormalIndex,
+    ScriptPubkey, XpubDescriptor,
+};
 #[cfg(feature = "serde")]
 use serde_with::DisplayFromStr;
+
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
+#[repr(u8)]
+pub enum RgbKeychain {
+    #[display("0h", alt = "0'")]
+    External = 0,
+
+    #[display("1h", alt = "1'")]
+    Internal = 1,
+
+    #[display("9h", alt = "9'")]
+    Rgb = 9,
+
+    #[display("10h", alt = "10'")]
+    Tapret = 10,
+}
+
+impl RgbKeychain {
+    pub fn is_seal(self) -> bool { self == Self::Rgb || self == Self::Tapret }
+}
+
+impl Keychain for RgbKeychain {
+    const STANDARD_SET: &'static [Self] =
+        &[Self::External, Self::Internal, Self::Rgb, Self::Tapret];
+    fn derivation(self) -> NormalIndex { NormalIndex::from(self as u8) }
+}
+
+impl FromStr for RgbKeychain {
+    type Err = IndexParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match NormalIndex::from_str(s)? {
+            NormalIndex::ZERO => Ok(RgbKeychain::External),
+            NormalIndex::ONE => Ok(RgbKeychain::Internal),
+            val => Err(IndexError {
+                what: "non-standard keychain",
+                invalid: val.index(),
+                start: 0,
+                end: 1,
+            }
+            .into()),
+        }
+    }
+}
 
 #[cfg_attr(
     feature = "serde",
