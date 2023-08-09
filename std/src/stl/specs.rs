@@ -95,6 +95,10 @@ impl StrictDeserialize for Amount {}
 impl Amount {
     pub const ZERO: Self = Amount(0);
 
+    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
+        value.unwrap_uint::<u64>().into()
+    }
+
     pub fn with_precision(amount: u64, precision: impl Into<Precision>) -> Self {
         precision.into().unchecked_convert(amount)
     }
@@ -140,10 +144,6 @@ impl Amount {
 
     pub fn rem(&self, precision: impl Into<Precision>) -> u64 {
         self.0 % precision.into().multiplier()
-    }
-
-    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
-        value.unwrap_uint::<u64>().into()
     }
 
     pub fn saturating_add(&self, other: impl Into<Self>) -> Self {

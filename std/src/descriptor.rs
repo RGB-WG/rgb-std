@@ -22,7 +22,7 @@
 use std::collections::BTreeMap;
 
 use bp::dbc::tapret::TapretCommitment;
-use bpstd::{Derive, DeriveSet, DeriveXOnly, NormalIndex, ScriptPubkey, XpubDescriptor};
+use bpstd::{Derive, DeriveSet, DeriveXOnly, Keychain, NormalIndex, ScriptPubkey, XpubDescriptor};
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
 pub struct TapretKey<K: DeriveXOnly = XpubDescriptor> {
@@ -40,11 +40,7 @@ impl<K: DeriveXOnly> TapretKey<K> {
 }
 
 impl<K: DeriveXOnly> Derive<ScriptPubkey> for TapretKey<K> {
-    fn derive(
-        &self,
-        change: impl Into<NormalIndex>,
-        index: impl Into<NormalIndex>,
-    ) -> ScriptPubkey {
+    fn derive(&self, change: impl Keychain, index: impl Into<NormalIndex>) -> ScriptPubkey {
         // TODO: Apply tweaks
         let internal_key = self.internal_key.derive(change, index);
         ScriptPubkey::p2tr_key_only(internal_key)
@@ -63,11 +59,7 @@ impl<S: DeriveSet> Default for DescriptorRgb<S> {
 }
 
 impl<S: DeriveSet> Derive<ScriptPubkey> for DescriptorRgb<S> {
-    fn derive(
-        &self,
-        change: impl Into<NormalIndex>,
-        index: impl Into<NormalIndex>,
-    ) -> ScriptPubkey {
+    fn derive(&self, change: impl Keychain, index: impl Into<NormalIndex>) -> ScriptPubkey {
         match self {
             DescriptorRgb::None => ScriptPubkey::default(),
             DescriptorRgb::TapretKey(d) => d.derive(change, index),
