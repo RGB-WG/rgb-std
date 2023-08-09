@@ -27,13 +27,18 @@ rgb-core = { workspace = true }
 baid58 = { workspace = true }
 base85 = "=2.0.0"
 chrono = "0.4.26"
-serde_crate = { package = "serde", version = "1", features = ["derive"] }
+serde_crate = { workspace = true, optional = true }
+serde_with = { workspace = true, optional = true }
+cfg_eval = { workspace = true, optional = true }
 
 [features]
 default = ["descriptor"]
 all = ["fs", "descriptor", "serde"]
 descriptor = ["bpstd"]
 serde = [
+    "serde_crate",
+    "serde_with",
+    "cfg_eval",
     "amplify/serde",
     "strict_encoding/serde", "strict_types/serde",
     "commit_verify/serde",

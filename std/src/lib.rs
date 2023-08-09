@@ -75,6 +75,12 @@ extern crate strict_encoding;
 #[cfg(feature = "serde")]
 #[macro_use]
 extern crate serde_crate as serde;
+#[cfg(feature = "serde")]
+#[macro_use]
+extern crate serde_with;
+#[cfg(feature = "serde")]
+#[macro_use]
+extern crate cfg_eval;
 
 pub use rgb::{contract, schema, validation, vm};
 

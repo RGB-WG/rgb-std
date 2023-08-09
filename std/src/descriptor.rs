@@ -23,10 +23,27 @@ use std::collections::BTreeMap;
 
 use bp::dbc::tapret::TapretCommitment;
 use bpstd::{Derive, DeriveSet, DeriveXOnly, Keychain, NormalIndex, ScriptPubkey, XpubDescriptor};
+#[cfg(feature = "serde")]
+use serde_with::DisplayFromStr;
 
+#[cfg_attr(
+    feature = "serde",
+    cfg_eval,
+    serde_as,
+    derive(Serialize, Deserialize),
+    serde(
+        crate = "serde_crate",
+        bound(
+            serialize = "K: std::fmt::Display",
+            deserialize = "K: std::str::FromStr, K::Err: std::fmt::Display"
+        )
+    )
+)]
 #[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
 pub struct TapretKey<K: DeriveXOnly = XpubDescriptor> {
+    #[cfg_attr(feature = "serde", serde_as(as = "DisplayFromStr"))]
     pub internal_key: K,
+    #[cfg_attr(feature = "serde", serde_as(as = "BTreeMap<DisplayFromStr, DisplayFromStr>"))]
     pub tweaks: BTreeMap<NormalIndex, TapretCommitment>,
 }
 
@@ -47,6 +64,21 @@ impl<K: DeriveXOnly> Derive<ScriptPubkey> for TapretKey<K> {
     }
 }
 
+#[cfg_attr(
+    feature = "serde",
+    cfg_eval,
+    serde_as,
+    derive(Serialize, Deserialize),
+    serde(
+        crate = "serde_crate",
+        rename_all = "camelCase",
+        bound(
+            serialize = "S::XOnly: std::fmt::Display",
+            deserialize = "S::XOnly: std::str::FromStr, <S::XOnly as std::str::FromStr>::Err: \
+                           std::fmt::Display"
+        )
+    )
+)]
 #[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
 pub enum DescriptorRgb<S: DeriveSet = XpubDescriptor> {
     None,
