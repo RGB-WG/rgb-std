@@ -33,16 +33,16 @@ use serde_with::DisplayFromStr;
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
 #[repr(u8)]
 pub enum RgbKeychain {
-    #[display("0h", alt = "0'")]
+    #[display("0", alt = "0")]
     External = 0,
 
-    #[display("1h", alt = "1'")]
+    #[display("1", alt = "1")]
     Internal = 1,
 
-    #[display("9h", alt = "9'")]
+    #[display("9", alt = "9")]
     Rgb = 9,
 
-    #[display("10h", alt = "10'")]
+    #[display("10", alt = "10")]
     Tapret = 10,
 }
 
@@ -53,6 +53,17 @@ impl RgbKeychain {
 impl Keychain for RgbKeychain {
     const STANDARD_SET: &'static [Self] =
         &[Self::External, Self::Internal, Self::Rgb, Self::Tapret];
+
+    fn from_derivation(index: NormalIndex) -> Option<Self> {
+        match index.index() {
+            0 => Some(Self::External),
+            1 => Some(Self::Internal),
+            9 => Some(Self::Rgb),
+            10 => Some(Self::Tapret),
+            _ => None,
+        }
+    }
+
     fn derivation(self) -> NormalIndex { NormalIndex::from(self as u8) }
 }
 
@@ -91,7 +102,7 @@ impl FromStr for RgbKeychain {
 pub struct TapretKey<K: DeriveXOnly = XpubDescriptor> {
     #[cfg_attr(feature = "serde", serde_as(as = "DisplayFromStr"))]
     pub internal_key: K,
-    #[cfg_attr(feature = "serde", serde_as(as = "BTreeMap<DisplayFromStr, DisplayFromStr>"))]
+    #[cfg_attr(feature = "serde", serde_as(as = "BTreeMap<_, DisplayFromStr>"))]
     pub tweaks: BTreeMap<NormalIndex, TapretCommitment>,
 }
 

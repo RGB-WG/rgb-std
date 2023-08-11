@@ -40,10 +40,12 @@ serde = [
     "serde_with",
     "cfg_eval",
     "amplify/serde",
-    "strict_encoding/serde", "strict_types/serde",
+    "strict_encoding/serde",
+    "strict_types/serde",
     "commit_verify/serde",
     "bp-core/serde",
     "rgb-core/serde",
+    "bpstd/serde",
 ]
 fs = []
 

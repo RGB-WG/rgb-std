@@ -260,7 +260,7 @@ dependencies = [
 [[package]]
 name = "bp-primitives"
 version = "0.10.7"
-source = "git+https://github.com/BP-WG/bp-core?branch=primitives#323c75a40c26b53ebb9217d5cfcdce4e7cc3f08b"
+source = "git+https://github.com/BP-WG/bp-core?branch=primitives#b0c8538c223c29e85ad58fe4f6be59d6c8555515"
 dependencies = [
  "amplify",
  "commit_verify",
@@ -290,12 +290,15 @@ dependencies = [
 [[package]]
 name = "bp-std"
 version = "0.11.0"
-source = "git+https://github.com/BP-WG/bp-std#48239bd73c12ab212b5278cac82447913ff7dba5"
+source = "git+https://github.com/BP-WG/bp-std#497ca85d87e57264b77593d9bfae35c96f1cf0d6"
 dependencies = [
  "amplify",
  "bech32",
  "bitcoin_hashes",
  "bp-primitives",
+ "cfg_eval",
+ "serde",
+ "serde_with 3.2.0",
 ]
 
 [[package]]
@@ -1438,9 +1441,9 @@ checksum = "1a515f5799fe4961cb532f983ce2b23082366b898e52ffbce459c86f67c8378a"
 
 [[package]]
 name = "winnow"
-version = "0.5.4"
+version = "0.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "acaaa1190073b2b101e15083c38ee8ec891b5e05cbee516521e94ec008f61e64"
+checksum = "24e89d1a98b9799a44aaef7698fb6bc684c4e5c1cd28abbf6b784dad844f6a92"
 dependencies = [
  "memchr",
 ]
