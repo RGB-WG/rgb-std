@@ -103,7 +103,7 @@ impl FromStr for RgbKeychain {
         )
     )
 )]
-#[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct TapretKey<K: DeriveXOnly = XpubDescriptor> {
     #[cfg_attr(feature = "serde", serde_as(as = "DisplayFromStr"))]
     pub internal_key: K,
@@ -125,6 +125,15 @@ impl<K: DeriveXOnly> Derive<ScriptPubkey> for TapretKey<K> {
         // TODO: Apply tweaks
         let internal_key = self.internal_key.derive(change, index);
         ScriptPubkey::p2tr_key_only(internal_key)
+    }
+}
+
+impl<K: DeriveXOnly> From<K> for TapretKey<K> {
+    fn from(tr: K) -> Self {
+        TapretKey {
+            internal_key: tr,
+            tweaks: none!(),
+        }
     }
 }
 
