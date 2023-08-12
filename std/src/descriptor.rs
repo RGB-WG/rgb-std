@@ -31,6 +31,11 @@ use bpstd::{
 use serde_with::DisplayFromStr;
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
 #[repr(u8)]
 pub enum RgbKeychain {
     #[display("0", alt = "0")]
