@@ -24,8 +24,8 @@ use std::str::FromStr;
 
 use bp::dbc::tapret::TapretCommitment;
 use bpstd::{
-    Derive, DeriveSet, DeriveXOnly, Idx, IndexError, IndexParseError, Keychain, NormalIndex,
-    ScriptPubkey, XpubDescriptor,
+    Derive, DeriveSet, DeriveXOnly, DescriptorStd, Idx, IndexError, IndexParseError, Keychain,
+    NormalIndex, ScriptPubkey, TrKey, XpubDescriptor,
 };
 #[cfg(feature = "serde")]
 use serde_with::DisplayFromStr;
@@ -128,6 +128,15 @@ impl<K: DeriveXOnly> Derive<ScriptPubkey> for TapretKey<K> {
     }
 }
 
+impl<K: DeriveXOnly> From<TrKey<K>> for TapretKey<K> {
+    fn from(tr: TrKey<K>) -> Self {
+        TapretKey {
+            internal_key: tr.into_internal_key(),
+            tweaks: none!(),
+        }
+    }
+}
+
 #[cfg_attr(
     feature = "serde",
     cfg_eval,
@@ -159,6 +168,14 @@ impl<S: DeriveSet> Derive<ScriptPubkey> for DescriptorRgb<S> {
         match self {
             DescriptorRgb::None => ScriptPubkey::default(),
             DescriptorRgb::TapretKey(d) => d.derive(change, index),
+        }
+    }
+}
+
+impl From<DescriptorStd> for DescriptorRgb {
+    fn from(descr: DescriptorStd) -> Self {
+        match descr {
+            DescriptorStd::TrKey(tr) => DescriptorRgb::TapretKey(tr.into()),
         }
     }
 }
