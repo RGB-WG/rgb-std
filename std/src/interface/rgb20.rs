@@ -26,7 +26,9 @@ use strict_types::{CompileError, LibBuilder, TypeLib};
 use super::{
     AssignIface, GenesisIface, GlobalIface, Iface, OwnedIface, Req, TransitionIface, VerNo,
 };
-use crate::interface::{ArgSpec, ContractIface, FungibleAllocation, OutpointFilter};
+use crate::interface::{
+    ArgSpec, ContractIface, FungibleAllocation, IfaceId, IfaceWrapper, OutpointFilter,
+};
 use crate::stl::{
     rgb_contract_stl, Amount, ContractData, DivisibleAssetSpec, StandardTypes, Timestamp,
 };
@@ -239,11 +241,20 @@ pub struct Rgb20(ContractIface);
 
 impl From<ContractIface> for Rgb20 {
     fn from(iface: ContractIface) -> Self {
-        if iface.iface.iface_id != rgb20().iface_id() {
+        if iface.iface.iface_id != Rgb20::IFACE_ID {
             panic!("the provided interface is not RGB20 interface");
         }
         Self(iface)
     }
+}
+
+impl IfaceWrapper for Rgb20 {
+    const IFACE_NAME: &'static str = LIB_NAME_RGB20;
+    const IFACE_ID: IfaceId = IfaceId::from_array([
+        0x2e, 0x8c, 0x09, 0xc4, 0xbd, 0xb9, 0x5a, 0x46, 0x95, 0x4b, 0x29, 0x88, 0xac, 0x48, 0x89,
+        0xa3, 0x5c, 0xb7, 0x7c, 0x90, 0x0a, 0x94, 0xf8, 0x8b, 0x1a, 0x33, 0xb5, 0x76, 0x2d, 0x43,
+        0xfb, 0x3d,
+    ]);
 }
 
 impl Rgb20 {
@@ -325,6 +336,11 @@ mod test {
     fn lib_id() {
         let lib = rgb20_stl();
         assert_eq!(lib.id().to_string(), LIB_ID_RGB20);
+    }
+
+    #[test]
+    fn iface_id() {
+        assert_eq!(Rgb20::IFACE_ID, rgb20().iface_id());
     }
 
     #[test]

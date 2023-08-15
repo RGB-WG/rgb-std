@@ -38,7 +38,8 @@ use crate::containers::{
     Bindle, BuilderSeal, Cert, Consignment, ContentId, Contract, Terminal, Transfer,
 };
 use crate::interface::{
-    ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, TransitionBuilder, TypedState,
+    ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, IfaceWrapper, TransitionBuilder,
+    TypedState,
 };
 use crate::persistence::hoard::ConsumeError;
 use crate::persistence::stash::StashInconsistency;
@@ -359,6 +360,13 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         let iface = iface.into();
         let iface_id = self.iface_by_name(&iface)?.iface_id();
         self.contract_iface(contract_id, iface_id)
+    }
+
+    fn contract_iface_wrapped<W: IfaceWrapper>(
+        &mut self,
+        contract_id: ContractId,
+    ) -> Result<W, InventoryError<Self::Error>> {
+        self.contract_iface(contract_id, W::IFACE_ID).map(W::from)
     }
 
     fn contract_iface(

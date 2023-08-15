@@ -38,7 +38,7 @@ use strict_types::{CompileError, LibBuilder, TypeLib};
 use super::{
     AssignIface, GenesisIface, GlobalIface, Iface, OwnedIface, Req, TransitionIface, VerNo,
 };
-use crate::interface::{ArgSpec, ContractIface};
+use crate::interface::{ArgSpec, ContractIface, IfaceId, IfaceWrapper};
 use crate::stl::{
     rgb_contract_stl, Attachment, Details, DivisibleAssetSpec, MediaType, Name, ProofOfReserves,
     StandardTypes, Ticker,
@@ -414,11 +414,20 @@ pub struct Rgb21(ContractIface);
 
 impl From<ContractIface> for Rgb21 {
     fn from(iface: ContractIface) -> Self {
-        if iface.iface.iface_id != rgb21().iface_id() {
+        if iface.iface.iface_id != Rgb21::IFACE_ID {
             panic!("the provided interface is not RGB20 interface");
         }
         Self(iface)
     }
+}
+
+impl IfaceWrapper for Rgb21 {
+    const IFACE_NAME: &'static str = LIB_NAME_RGB21;
+    const IFACE_ID: IfaceId = IfaceId::from_array([
+        0x04, 0x05, 0x17, 0x86, 0x56, 0x57, 0x1a, 0x21, 0xd4, 0x55, 0xd5, 0xad, 0x0e, 0x0e, 0x5f,
+        0x67, 0xd4, 0xb1, 0x76, 0x3f, 0x6e, 0xb3, 0x83, 0x44, 0x80, 0x40, 0x8a, 0x18, 0xd0, 0x14,
+        0x30, 0x95,
+    ]);
 }
 
 impl Rgb21 {
@@ -442,6 +451,11 @@ mod test {
     fn lib_id() {
         let lib = rgb21_stl();
         assert_eq!(lib.id().to_string(), LIB_ID_RGB21);
+    }
+
+    #[test]
+    fn iface_id() {
+        assert_eq!(Rgb21::IFACE_ID, rgb21().iface_id());
     }
 
     #[test]

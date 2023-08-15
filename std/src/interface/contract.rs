@@ -32,7 +32,7 @@ use strict_encoding::FieldName;
 use strict_types::typify::TypedVal;
 use strict_types::{decode, StrictVal};
 
-use crate::interface::IfaceImpl;
+use crate::interface::{IfaceId, IfaceImpl};
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
@@ -212,4 +212,11 @@ impl ContractIface {
     ) -> LargeOrdMap<AssignmentType, LargeVec<TypedState>> {
         todo!()
     }
+
+    pub fn wrap<W: IfaceWrapper>(self) -> W { W::from(self) }
+}
+
+pub trait IfaceWrapper: From<ContractIface> {
+    const IFACE_NAME: &'static str;
+    const IFACE_ID: IfaceId;
 }

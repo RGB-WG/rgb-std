@@ -81,6 +81,7 @@ impl FromStr for IfaceId {
     }
 }
 impl IfaceId {
+    pub const fn from_array(id: [u8; 32]) -> Self { IfaceId(Bytes32::from_array(id)) }
     pub fn to_mnemonic(&self) -> String { self.to_baid58().mnemonic() }
 }
 
