@@ -537,7 +537,7 @@ impl Inventory for Stock {
         self.consume_consignment(contract, resolver, true)
     }
 
-    fn contract_iface(
+    fn contract_iface_id(
         &mut self,
         contract_id: ContractId,
         iface_id: IfaceId,

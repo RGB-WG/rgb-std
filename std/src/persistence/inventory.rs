@@ -332,7 +332,18 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     where
         R::Error: 'static;
 
-    fn contracts_with_iface(
+    fn contracts_by_iface<W: IfaceWrapper>(&mut self) -> Result<Vec<W>, InventoryError<Self::Error>>
+    where
+        Self::Error: From<<Self::Stash as Stash>::Error>,
+        InventoryError<Self::Error>: From<<Self::Stash as Stash>::Error>,
+    {
+        self.contract_ids_by_iface(&W::IFACE_NAME.into())?
+            .into_iter()
+            .map(|id| self.contract_iface_wrapped(id))
+            .collect()
+    }
+
+    fn contracts_by_iface_name(
         &mut self,
         iface: impl Into<TypeName>,
     ) -> Result<Vec<ContractIface>, InventoryError<Self::Error>>
@@ -344,7 +355,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         let iface_id = self.iface_by_name(&iface)?.iface_id();
         self.contract_ids_by_iface(&iface)?
             .into_iter()
-            .map(|id| self.contract_iface(id, iface_id))
+            .map(|id| self.contract_iface_id(id, iface_id))
             .collect()
     }
 
@@ -359,17 +370,18 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     {
         let iface = iface.into();
         let iface_id = self.iface_by_name(&iface)?.iface_id();
-        self.contract_iface(contract_id, iface_id)
+        self.contract_iface_id(contract_id, iface_id)
     }
 
     fn contract_iface_wrapped<W: IfaceWrapper>(
         &mut self,
         contract_id: ContractId,
     ) -> Result<W, InventoryError<Self::Error>> {
-        self.contract_iface(contract_id, W::IFACE_ID).map(W::from)
+        self.contract_iface_id(contract_id, W::IFACE_ID)
+            .map(W::from)
     }
 
-    fn contract_iface(
+    fn contract_iface_id(
         &mut self,
         contract_id: ContractId,
         iface_id: IfaceId,
