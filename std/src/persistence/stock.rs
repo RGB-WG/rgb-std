@@ -173,10 +173,15 @@ impl Stock {
         self.history.insert(id, history)?;
 
         let contract_id = consignment.contract_id();
-        self.contract_index.insert(contract_id, ContractIndex {
-            public_opouts: empty!(),
-            outpoint_opouts: empty!(),
-        })?;
+        match self.contract_index.get(&contract_id) {
+            None => {
+                self.contract_index.insert(contract_id, ContractIndex {
+                    public_opouts: empty!(),
+                    outpoint_opouts: empty!(),
+                })?;
+            }
+            Some(_) => {}
+        }
         self.index_genesis(contract_id, &consignment.genesis)?;
         for extension in &consignment.extensions {
             self.index_extension(contract_id, extension)?;
