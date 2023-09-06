@@ -27,7 +27,7 @@ rgb-core = { version = "0.10.7", features = ["stl"] }
 
 [package]
 name = "rgb-wallet"
-version = "0.10.7"
+version = "0.10.8"
 description = "RGB wallet library for smart contracts on Bitcoin & Lightning network"
 keywords = ["bitcoin", "lightning", "rgb", "smart-contracts", "lnp-bp"]
 categories = ["cryptography::cryptocurrencies"]
@@ -52,7 +52,7 @@ strict_encoding = { workspace = true }
 # descriptor-wallet = "0.10.0-alpha.1"
 bp-core = { workspace = true }
 rgb-core = { workspace = true }
-rgb-std = { version = "0.10.7", path = "std" }
+rgb-std = { version = "0.10.8", path = "std" }
 fluent-uri = "0.1.4"
 indexmap = "1.9.2"
 # TODO: This dependencies should be replaced with psbt package
