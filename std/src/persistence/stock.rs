@@ -53,8 +53,8 @@ use crate::{Outpoint, LIB_NAME_RGB_STD};
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 pub struct IndexedBundle(ContractId, BundleId);
 
-#[derive(Clone, Debug)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[derive(Clone, Debug, Default)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 pub struct ContractIndex {
     public_opouts: MediumOrdSet<Opout>,
@@ -173,10 +173,9 @@ impl Stock {
         self.history.insert(id, history)?;
 
         let contract_id = consignment.contract_id();
-        self.contract_index.insert(contract_id, ContractIndex {
-            public_opouts: empty!(),
-            outpoint_opouts: empty!(),
-        })?;
+        if !self.contract_index.contains_key(&contract_id) {
+            self.contract_index.insert(contract_id, empty!())?;
+        }
         self.index_genesis(contract_id, &consignment.genesis)?;
         for extension in &consignment.extensions {
             self.index_extension(contract_id, extension)?;
