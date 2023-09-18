@@ -19,7 +19,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use bitcoin::Address;
+use bitcoin::{Address, Network};
 use indexmap::IndexMap;
 use rgb::{AttachId, ContractId, SecretSeal};
 use rgbstd::interface::TypedState;
@@ -54,6 +54,26 @@ pub enum Beneficiary {
     BlindedSeal(SecretSeal),
     #[from]
     WitnessUtxo(Address),
+}
+
+impl Beneficiary {
+    pub fn chain_info(&self) -> Option<Chain> {
+        match self {
+            Beneficiary::BlindedSeal(_) => None,
+            Beneficiary::WitnessUtxo(addr) if addr.network == Network::Bitcoin => {
+                Some(Chain::Bitcoin)
+            }
+            Beneficiary::WitnessUtxo(addr) if addr.network == Network::Regtest => {
+                Some(Chain::Regtest)
+            }
+            Beneficiary::WitnessUtxo(addr) if addr.network == Network::Signet => {
+                Some(Chain::Signet)
+            }
+            Beneficiary::WitnessUtxo(_) => Some(Chain::Testnet3),
+        }
+    }
+
+    pub fn has_chain_info(&self) -> bool { self.chain_info().is_some() }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
