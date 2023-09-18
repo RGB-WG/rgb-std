@@ -23,13 +23,13 @@ use std::fmt::{self, Debug, Display, Formatter};
 use std::num::ParseIntError;
 use std::str::FromStr;
 
-use bp::{Address, AddressNetwork};
+use bp::{Address, AddressNetwork, Chain, ChainParseError};
 use fluent_uri::enc::EStr;
 use fluent_uri::Uri;
 use indexmap::IndexMap;
 use percent_encoding::{utf8_percent_encode, AsciiSet, CONTROLS};
 use rgb::interface::TypedState;
-use rgb::{Chain, ContractId, SecretSeal};
+use rgb::{ContractId, SecretSeal};
 use strict_encoding::{InvalidIdent, TypeName};
 
 use super::{Beneficiary, RgbInvoice, RgbTransport};
@@ -37,6 +37,7 @@ use super::{Beneficiary, RgbInvoice, RgbTransport};
 const OMITTED: char = '~';
 const EXPIRY: &str = "expiry";
 const ENDPOINTS: &str = "endpoints";
+const CHAIN: &str = "chain";
 const TRANSPORT_SEP: char = ',';
 const TRANSPORT_HOST_SEP: &str = "://";
 const QUERY_ENCODE: &AsciiSet = &CONTROLS
@@ -106,7 +107,16 @@ pub enum InvoiceParseError {
     /// network {0:?} is not supported.
     UnsupportedNetwork(AddressNetwork),
 
+    /// chain `{chain}` explicitly specified in the invoice doesn't match
+    /// network `{addr_chain}` used in the provided beneficiary address.
+    ChainMismatch { chain: Chain, addr_chain: Chain },
+
     #[from]
+    #[display(inner)]
+    InvalidChain(ChainParseError),
+
+    #[from]
+    #[display(inner)]
     Num(ParseIntError),
 
     #[from]
@@ -115,14 +125,32 @@ pub enum InvoiceParseError {
 }
 
 impl RgbInvoice {
+    #[inline]
+    fn non_default_chain(&self) -> Option<Chain> {
+        if self.beneficiary.has_chain_info() {
+            return None;
+        }
+        if let Some(chain) = self.chain {
+            if chain != Chain::Bitcoin {
+                return Some(chain);
+            }
+        }
+        None
+    }
+
+    #[inline]
     fn has_params(&self) -> bool {
         self.expiry.is_some() ||
             self.transports != vec![RgbTransport::UnspecifiedMeans] ||
+            self.non_default_chain().is_some() ||
             !self.unknown_query.is_empty()
     }
 
     fn query_params(&self) -> IndexMap<String, String> {
         let mut query_params: IndexMap<String, String> = IndexMap::new();
+        if let Some(chain) = self.non_default_chain() {
+            query_params.insert(CHAIN.to_string(), chain.to_string());
+        }
         if let Some(expiry) = self.expiry {
             query_params.insert(EXPIRY.to_string(), expiry.to_string());
         }
@@ -305,6 +333,26 @@ impl FromStr for RgbInvoice {
             };
 
         let mut query_params = map_query_params(&uri)?;
+
+        let chain = if let Some(chain_str) = query_params.remove(CHAIN) {
+            match (Chain::from_str(&chain_str)?, chain) {
+                (chain, None) => Some(chain),
+                (chain, Some(addr_chain)) if chain == addr_chain => Some(chain),
+                (chain, Some(addr_chain))
+                    if chain.is_testnet() &&
+                        addr_chain.is_testnet() &&
+                        chain != Chain::Regtest &&
+                        addr_chain != Chain::Regtest =>
+                {
+                    Some(chain)
+                }
+                (chain, Some(addr_chain)) => {
+                    return Err(InvoiceParseError::ChainMismatch { chain, addr_chain });
+                }
+            }
+        } else {
+            None
+        };
 
         let transports = if let Some(endpoints) = query_params.remove(ENDPOINTS) {
             let tokens: Vec<&str> = endpoints.split(TRANSPORT_SEP).collect();
