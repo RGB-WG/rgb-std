@@ -417,6 +417,155 @@ fn map_query_params(uri: &Uri<&str>) -> Result<IndexMap<String, String>, Invoice
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::RgbInvoiceBuilder;
+
+    #[test]
+    fn display_chain() {
+        let seal =
+            SecretSeal::from_str("utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb")
+                .unwrap();
+
+        // seal-based default
+        let invoice = RgbInvoiceBuilder::rgb20_anything(seal.clone()).finish();
+        assert_eq!(
+            invoice.to_string(),
+            "rgb:~/RGB20/utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb"
+        );
+
+        // seal-based bitcoin
+        let invoice = RgbInvoiceBuilder::rgb20_anything(seal.clone())
+            .set_chain(Chain::Bitcoin)
+            .unwrap()
+            .finish();
+        assert_eq!(
+            invoice.to_string(),
+            "rgb:~/RGB20/utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb"
+        );
+
+        // seal-based testnet
+        let invoice = RgbInvoiceBuilder::rgb20_anything(seal.clone())
+            .set_chain(Chain::Testnet3)
+            .unwrap()
+            .finish();
+        assert_eq!(
+            invoice.to_string(),
+            "rgb:~/RGB20/utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb?\
+             chain=testnet"
+        );
+
+        let addr_bc = Address::from_str("bc1qpws79r3ea4yy2ujsahwrmy2gutdj8w5whnhket")
+            .unwrap()
+            .assume_checked();
+        let addr_tc = Address::from_str("mxVFsFW5N4mu1HPkxPttorvocvzeZ7KZyk")
+            .unwrap()
+            .assume_checked();
+
+        // address-based default
+        let invoice = RgbInvoiceBuilder::rgb20_anything(addr_bc.clone()).finish();
+        assert_eq!(invoice.to_string(), "rgb:~/RGB20/bc1qpws79r3ea4yy2ujsahwrmy2gutdj8w5whnhket");
+
+        // address-based bitcoin
+        let invoice = RgbInvoiceBuilder::rgb20_anything(addr_bc.clone())
+            .set_chain(Chain::Bitcoin)
+            .unwrap()
+            .finish();
+        assert_eq!(invoice.to_string(), "rgb:~/RGB20/bc1qpws79r3ea4yy2ujsahwrmy2gutdj8w5whnhket");
+
+        // address-based testnet - mismatching
+        assert!(
+            RgbInvoiceBuilder::rgb20_anything(addr_bc.clone())
+                .set_chain(Chain::Testnet3)
+                .is_err()
+        );
+
+        // address-based testnet
+        let invoice = RgbInvoiceBuilder::rgb20_anything(addr_tc.clone())
+            .set_chain(Chain::Testnet3)
+            .unwrap()
+            .finish();
+        assert_eq!(invoice.to_string(), "rgb:~/RGB20/mxVFsFW5N4mu1HPkxPttorvocvzeZ7KZyk");
+
+        // address-based regtest - mismatching
+        assert!(
+            RgbInvoiceBuilder::rgb20_anything(addr_tc.clone())
+                .set_chain(Chain::Regtest)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn from_str_chain() {
+        let invoice = RgbInvoice::from_str(
+            "rgb:~/RGB20/utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb",
+        )
+        .unwrap();
+        assert_eq!(invoice.chain, None);
+
+        let invoice = RgbInvoice::from_str(
+            "rgb:~/RGB20/utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb?\
+             chain=testnet",
+        )
+        .unwrap();
+        assert_eq!(invoice.chain, Some(Chain::Testnet3));
+
+        let invoice = RgbInvoice::from_str(
+            "rgb:~/RGB20/utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb?\
+             chain=testnet3",
+        )
+        .unwrap();
+        assert_eq!(invoice.chain, Some(Chain::Testnet3));
+
+        let invoice = RgbInvoice::from_str(
+            "rgb:~/RGB20/utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb?chain=signet",
+        )
+        .unwrap();
+        assert_eq!(invoice.chain, Some(Chain::Signet));
+
+        let invoice = RgbInvoice::from_str(
+            "rgb:~/RGB20/utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb?\
+             chain=regtest",
+        )
+        .unwrap();
+        assert_eq!(invoice.chain, Some(Chain::Regtest));
+
+        let invoice =
+            RgbInvoice::from_str("rgb:~/RGB20/bc1qpws79r3ea4yy2ujsahwrmy2gutdj8w5whnhket").unwrap();
+        assert_eq!(invoice.chain, None);
+
+        let invoice = RgbInvoice::from_str(
+            "rgb:~/RGB20/bc1qpws79r3ea4yy2ujsahwrmy2gutdj8w5whnhket?chain=bitcoin",
+        )
+        .unwrap();
+        assert_eq!(invoice.chain, Some(Chain::Bitcoin));
+
+        assert_eq!(
+            RgbInvoice::from_str(
+                "rgb:~/RGB20/bc1qpws79r3ea4yy2ujsahwrmy2gutdj8w5whnhket?chain=testnet",
+            ),
+            Err(InvoiceParseError::ChainMismatch {
+                chain: Chain::Testnet3,
+                addr_chain: Chain::Bitcoin
+            })
+        );
+
+        let invoice =
+            RgbInvoice::from_str("rgb:~/RGB20/mxVFsFW5N4mu1HPkxPttorvocvzeZ7KZyk?chain=testnet")
+                .unwrap();
+        assert_eq!(invoice.chain, Some(Chain::Testnet3));
+
+        let invoice =
+            RgbInvoice::from_str("rgb:~/RGB20/mxVFsFW5N4mu1HPkxPttorvocvzeZ7KZyk?chain=signet")
+                .unwrap();
+        assert_eq!(invoice.chain, Some(Chain::Signet));
+
+        assert_eq!(
+            RgbInvoice::from_str("rgb:~/RGB20/mxVFsFW5N4mu1HPkxPttorvocvzeZ7KZyk?chain=regtest",),
+            Err(InvoiceParseError::ChainMismatch {
+                chain: Chain::Regtest,
+                addr_chain: Chain::Testnet3
+            })
+        );
+    }
 
     #[test]
     fn parse() {
