@@ -19,7 +19,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use bp::Address;
+use bp::{Address, AddressNetwork};
 use indexmap::IndexMap;
 use rgb::interface::TypedState;
 use rgb::{AttachId, Chain, ContractId, SecretSeal};
@@ -53,6 +53,28 @@ pub enum Beneficiary {
     BlindedSeal(SecretSeal),
     #[from]
     WitnessUtxo(Address),
+}
+
+impl Beneficiary {
+    pub fn chain_info(&self) -> Option<Chain> {
+        match self {
+            Beneficiary::BlindedSeal(_) => None,
+            Beneficiary::WitnessUtxo(Address {
+                network: AddressNetwork::Mainnet,
+                ..
+            }) => Some(Chain::Bitcoin),
+            Beneficiary::WitnessUtxo(Address {
+                network: AddressNetwork::Regtest,
+                ..
+            }) => Some(Chain::Regtest),
+            Beneficiary::WitnessUtxo(Address {
+                network: AddressNetwork::Testnet,
+                ..
+            }) => Some(Chain::Testnet3),
+        }
+    }
+
+    pub fn has_chain_info(&self) -> bool { self.chain_info().is_some() }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
