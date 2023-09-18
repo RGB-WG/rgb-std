@@ -65,53 +65,45 @@ pub enum TransportParseError {
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
-#[display(inner)]
+#[display(doc_comments)]
 #[non_exhaustive]
 pub enum InvoiceParseError {
     #[from]
+    #[display(inner)]
     Uri(fluent_uri::ParseError),
 
-    #[display(doc_comments)]
     /// invalid invoice.
     Invalid,
 
-    #[display(doc_comments)]
     /// invalid invoice scheme {0}.
     InvalidScheme(String),
 
-    #[display(doc_comments)]
     /// no invoice transport has been provided.
     NoTransport,
 
-    #[display(doc_comments)]
     /// invalid invoice: contract ID present but no contract interface provided.
     ContractIdNoIface,
 
-    #[display(doc_comments)]
     /// invalid contract ID.
     InvalidContractId(String),
 
-    #[display(doc_comments)]
     /// invalid interface {0}.
     InvalidIface(String),
 
-    #[display(doc_comments)]
     /// invalid expiration timestamp {0}.
     InvalidExpiration(String),
 
-    #[display(doc_comments)]
     /// invalid query parameter {0}.
     InvalidQueryParam(String),
 
     #[from]
+    #[display(inner)]
     Id(baid58::Baid58ParseError),
 
-    #[display(doc_comments)]
     /// can't recognize beneficiary "": it should be either a bitcoin address or
     /// a blinded UTXO seal.
     Beneficiary(String),
 
-    #[display(doc_comments)]
     /// network {0} is not supported.
     UnsupportedNetwork(Network),
 
@@ -119,7 +111,6 @@ pub enum InvoiceParseError {
     Num(ParseIntError),
 
     #[from]
-    #[display(doc_comments)]
     /// invalid interface name.
     IfaceName(InvalidIdent),
 }
