@@ -32,15 +32,16 @@ pub struct RgbInvoiceBuilder(RgbInvoice);
 
 impl RgbInvoiceBuilder {
     pub fn new(beneficiary: impl Into<Beneficiary>) -> Self {
+        let beneficiary = beneficiary.into();
         Self(RgbInvoice {
             transports: vec![RgbTransport::UnspecifiedMeans],
             contract: None,
             iface: None,
             operation: None,
             assignment: None,
-            beneficiary: beneficiary.into(),
+            chain: beneficiary.chain_info().unwrap_or(Chain::Bitcoin),
+            beneficiary,
             owned_state: TypedState::Void,
-            chain: None,
             expiry: None,
             unknown_query: none!(),
         })
@@ -126,7 +127,7 @@ impl RgbInvoiceBuilder {
                     chain2 != Chain::Regtest => {}
             _ => return Err(self),
         }
-        self.0.chain = Some(chain);
+        self.0.chain = chain;
         Ok(self)
     }
 

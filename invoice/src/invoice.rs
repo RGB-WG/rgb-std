@@ -86,7 +86,7 @@ pub struct RgbInvoice {
     pub assignment: Option<FieldName>,
     pub beneficiary: Beneficiary,
     pub owned_state: TypedState,
-    pub chain: Option<Chain>,
+    pub chain: Chain,
     /// UTC unix timestamp
     pub expiry: Option<i64>,
     pub unknown_query: IndexMap<String, String>,
