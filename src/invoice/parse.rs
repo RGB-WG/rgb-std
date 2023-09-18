@@ -128,15 +128,11 @@ pub enum InvoiceParseError {
 impl RgbInvoice {
     #[inline]
     fn non_default_chain(&self) -> Option<Chain> {
-        if self.beneficiary.has_chain_info() {
-            return None;
+        if self.chain == Chain::Bitcoin {
+            None
+        } else {
+            Some(self.chain)
         }
-        if let Some(chain) = self.chain {
-            if chain != Chain::Bitcoin {
-                return Some(chain);
-            }
-        }
-        None
     }
 
     #[inline]
@@ -387,7 +383,7 @@ impl FromStr for RgbInvoice {
             assignment: None,
             beneficiary,
             owned_state: value,
-            chain,
+            chain: chain.unwrap_or(Chain::Bitcoin),
             expiry,
             unknown_query: query_params,
         })
@@ -486,7 +482,10 @@ mod test {
             .set_chain(Chain::Testnet3)
             .unwrap()
             .finish();
-        assert_eq!(invoice.to_string(), "rgb:~/RGB20/mxVFsFW5N4mu1HPkxPttorvocvzeZ7KZyk");
+        assert_eq!(
+            invoice.to_string(),
+            "rgb:~/RGB20/mxVFsFW5N4mu1HPkxPttorvocvzeZ7KZyk?chain=testnet"
+        );
 
         // address-based regtest - mismatching
         assert!(
@@ -502,44 +501,44 @@ mod test {
             "rgb:~/RGB20/utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb",
         )
         .unwrap();
-        assert_eq!(invoice.chain, None);
+        assert_eq!(invoice.chain, Chain::Bitcoin);
 
         let invoice = RgbInvoice::from_str(
             "rgb:~/RGB20/utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb?\
              chain=testnet",
         )
         .unwrap();
-        assert_eq!(invoice.chain, Some(Chain::Testnet3));
+        assert_eq!(invoice.chain, Chain::Testnet3);
 
         let invoice = RgbInvoice::from_str(
             "rgb:~/RGB20/utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb?\
              chain=testnet3",
         )
         .unwrap();
-        assert_eq!(invoice.chain, Some(Chain::Testnet3));
+        assert_eq!(invoice.chain, Chain::Testnet3);
 
         let invoice = RgbInvoice::from_str(
             "rgb:~/RGB20/utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb?chain=signet",
         )
         .unwrap();
-        assert_eq!(invoice.chain, Some(Chain::Signet));
+        assert_eq!(invoice.chain, Chain::Signet);
 
         let invoice = RgbInvoice::from_str(
             "rgb:~/RGB20/utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb?\
              chain=regtest",
         )
         .unwrap();
-        assert_eq!(invoice.chain, Some(Chain::Regtest));
+        assert_eq!(invoice.chain, Chain::Regtest);
 
         let invoice =
             RgbInvoice::from_str("rgb:~/RGB20/bc1qpws79r3ea4yy2ujsahwrmy2gutdj8w5whnhket").unwrap();
-        assert_eq!(invoice.chain, None);
+        assert_eq!(invoice.chain, Chain::Bitcoin);
 
         let invoice = RgbInvoice::from_str(
             "rgb:~/RGB20/bc1qpws79r3ea4yy2ujsahwrmy2gutdj8w5whnhket?chain=bitcoin",
         )
         .unwrap();
-        assert_eq!(invoice.chain, Some(Chain::Bitcoin));
+        assert_eq!(invoice.chain, Chain::Bitcoin);
 
         assert_eq!(
             RgbInvoice::from_str(
@@ -554,12 +553,12 @@ mod test {
         let invoice =
             RgbInvoice::from_str("rgb:~/RGB20/mxVFsFW5N4mu1HPkxPttorvocvzeZ7KZyk?chain=testnet")
                 .unwrap();
-        assert_eq!(invoice.chain, Some(Chain::Testnet3));
+        assert_eq!(invoice.chain, Chain::Testnet3);
 
         let invoice =
             RgbInvoice::from_str("rgb:~/RGB20/mxVFsFW5N4mu1HPkxPttorvocvzeZ7KZyk?chain=signet")
                 .unwrap();
-        assert_eq!(invoice.chain, Some(Chain::Signet));
+        assert_eq!(invoice.chain, Chain::Signet);
 
         assert_eq!(
             RgbInvoice::from_str("rgb:~/RGB20/mxVFsFW5N4mu1HPkxPttorvocvzeZ7KZyk?chain=regtest",),
