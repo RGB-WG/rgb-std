@@ -115,9 +115,20 @@ impl RgbInvoiceBuilder {
         self.set_amount(coins as u64, cents as u64, precision)
     }
 
-    pub fn set_chain(mut self, chain: impl Into<Chain>) -> Self {
-        self.0.chain = Some(chain.into());
-        self
+    pub fn set_chain(mut self, chain: impl Into<Chain>) -> Result<Self, Self> {
+        let chain = chain.into();
+        match (self.0.beneficiary.chain_info(), chain) {
+            (None, _) => {}
+            (Some(chain1), chain2) if chain1 == chain2 => {}
+            (Some(chain1), chain2)
+                if chain1.is_testnet() &&
+                    chain2.is_testnet() &&
+                    chain1 != Chain::Regtest &&
+                    chain2 != Chain::Regtest => {}
+            _ => return Err(self),
+        }
+        self.0.chain = Some(chain);
+        Ok(self)
     }
 
     pub fn set_expiry_timestamp(mut self, expiry: i64) -> Self {
