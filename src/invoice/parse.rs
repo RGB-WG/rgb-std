@@ -53,6 +53,7 @@ const QUERY_ENCODE: &AsciiSet = &CONTROLS
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(inner)]
+#[non_exhaustive]
 pub enum TransportParseError {
     #[display(doc_comments)]
     /// invalid transport {0}.
@@ -65,6 +66,7 @@ pub enum TransportParseError {
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(inner)]
+#[non_exhaustive]
 pub enum InvoiceParseError {
     #[from]
     Uri(fluent_uri::ParseError),
