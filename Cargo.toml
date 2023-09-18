@@ -76,3 +76,6 @@ wasm-bindgen-test = "0.3"
 
 [package.metadata.docs.rs]
 features = [ "all" ]
+
+[patch.crates-io]
+bp-primitives = { git = "https://github.com/BP-WG/bp-core", branch = "primitives" }
