@@ -20,13 +20,18 @@
 // limitations under the License.
 
 use std::collections::BTreeMap;
+use std::ops::Range;
 use std::str::FromStr;
+use std::{iter, vec};
 
 use bp::dbc::tapret::TapretCommitment;
+use bp::InternalPk;
 use bpstd::{
-    Derive, DeriveSet, DeriveXOnly, DescriptorStd, Idx, IndexError, IndexParseError, Keychain,
-    NormalIndex, ScriptPubkey, TrKey, XpubDescriptor,
+    CompressedPk, Derive, DeriveCompr, DeriveSet, DeriveXOnly, DerivedScript, Descriptor,
+    DescriptorStd, Idx, IndexError, IndexParseError, KeyOrigin, NormalIndex, Terminal, TrKey,
+    XpubDerivable, XpubSpec,
 };
+use indexmap::IndexMap;
 #[cfg(feature = "serde")]
 use serde_with::DisplayFromStr;
 
@@ -53,23 +58,6 @@ pub enum RgbKeychain {
 
 impl RgbKeychain {
     pub fn is_seal(self) -> bool { self == Self::Rgb || self == Self::Tapret }
-}
-
-impl Keychain for RgbKeychain {
-    const STANDARD_SET: &'static [Self] =
-        &[Self::External, Self::Internal, Self::Rgb, Self::Tapret];
-
-    fn from_derivation(index: NormalIndex) -> Option<Self> {
-        match index.index() {
-            0 => Some(Self::External),
-            1 => Some(Self::Internal),
-            9 => Some(Self::Rgb),
-            10 => Some(Self::Tapret),
-            _ => None,
-        }
-    }
-
-    fn derivation(self) -> NormalIndex { NormalIndex::from(self as u8) }
 }
 
 impl FromStr for RgbKeychain {
@@ -104,7 +92,7 @@ impl FromStr for RgbKeychain {
     )
 )]
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub struct TapretKey<K: DeriveXOnly = XpubDescriptor> {
+pub struct TapretKey<K: DeriveXOnly = XpubDerivable> {
     #[cfg_attr(feature = "serde", serde_as(as = "DisplayFromStr"))]
     pub internal_key: K,
     #[cfg_attr(feature = "serde", serde_as(as = "BTreeMap<_, DisplayFromStr>"))]
@@ -120,11 +108,15 @@ impl<K: DeriveXOnly> TapretKey<K> {
     }
 }
 
-impl<K: DeriveXOnly> Derive<ScriptPubkey> for TapretKey<K> {
-    fn derive(&self, change: impl Keychain, index: impl Into<NormalIndex>) -> ScriptPubkey {
+impl<K: DeriveXOnly> Derive<DerivedScript> for TapretKey<K> {
+    fn keychains(&self) -> Range<u8> {
+        0..2 /* FIXME */
+    }
+
+    fn derive(&self, change: u8, index: impl Into<NormalIndex>) -> DerivedScript {
         // TODO: Apply tweaks
         let internal_key = self.internal_key.derive(change, index);
-        ScriptPubkey::p2tr_key_only(internal_key)
+        DerivedScript::TaprootKeyOnly(internal_key)
     }
 }
 
@@ -148,8 +140,6 @@ impl<K: DeriveXOnly> From<TrKey<K>> for TapretKey<K> {
 
 #[cfg_attr(
     feature = "serde",
-    cfg_eval,
-    serde_as,
     derive(Serialize, Deserialize),
     serde(
         crate = "serde_crate",
@@ -162,8 +152,9 @@ impl<K: DeriveXOnly> From<TrKey<K>> for TapretKey<K> {
     )
 )]
 #[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
-pub enum DescriptorRgb<S: DeriveSet = XpubDescriptor> {
+pub enum DescriptorRgb<S: DeriveSet = XpubDerivable> {
     None,
+
     #[from]
     TapretKey(TapretKey<S::XOnly>),
 }
@@ -172,18 +163,45 @@ impl<S: DeriveSet> Default for DescriptorRgb<S> {
     fn default() -> Self { DescriptorRgb::None }
 }
 
-impl<S: DeriveSet> Derive<ScriptPubkey> for DescriptorRgb<S> {
-    fn derive(&self, change: impl Keychain, index: impl Into<NormalIndex>) -> ScriptPubkey {
+impl<S: DeriveSet> Derive<DerivedScript> for DescriptorRgb<S> {
+    fn keychains(&self) -> Range<u8> {
         match self {
-            DescriptorRgb::None => ScriptPubkey::default(),
+            DescriptorRgb::None => Range::default(),
+            DescriptorRgb::TapretKey(d) => d.keychains(),
+        }
+    }
+
+    fn derive(&self, change: u8, index: impl Into<NormalIndex>) -> DerivedScript {
+        match self {
+            DescriptorRgb::None => todo!(),
             DescriptorRgb::TapretKey(d) => d.derive(change, index),
         }
     }
 }
 
+impl<K: DeriveSet<Compr = K, XOnly = K> + DeriveCompr + DeriveXOnly> Descriptor<K>
+    for DescriptorRgb<K>
+where Self: Derive<DerivedScript>
+{
+    type KeyIter<'k> = vec::IntoIter<&'k K> where Self: 'k, K: 'k;
+    type VarIter<'v> = iter::Empty<&'v ()> where Self: 'v, (): 'v;
+    type XpubIter<'x> = vec::IntoIter<&'x XpubSpec> where Self: 'x;
+
+    fn keys(&self) -> Self::KeyIter<'_> { todo!() }
+
+    fn vars(&self) -> Self::VarIter<'_> { todo!() }
+
+    fn xpubs(&self) -> Self::XpubIter<'_> { todo!() }
+
+    fn compr_keyset(&self, terminal: Terminal) -> IndexMap<CompressedPk, KeyOrigin> { todo!() }
+
+    fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<InternalPk, KeyOrigin> { todo!() }
+}
+
 impl From<DescriptorStd> for DescriptorRgb {
     fn from(descr: DescriptorStd) -> Self {
         match descr {
+            DescriptorStd::Wpkh(_) => todo!(),
             DescriptorStd::TrKey(tr) => DescriptorRgb::TapretKey(tr.into()),
         }
     }

@@ -23,7 +23,7 @@ use std::fmt::{self, Debug, Display, Formatter};
 use std::num::ParseIntError;
 use std::str::FromStr;
 
-use bp::{Address, AddressNetwork};
+use bpstd::{Address, AddressNetwork};
 use fluent_uri::enc::EStr;
 use fluent_uri::Uri;
 use indexmap::IndexMap;

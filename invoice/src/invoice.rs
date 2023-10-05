@@ -19,7 +19,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use bp::Address;
+use bpstd::Address;
 use indexmap::IndexMap;
 use rgb::interface::TypedState;
 use rgb::{AttachId, Chain, ContractId, SecretSeal};

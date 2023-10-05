@@ -30,6 +30,7 @@ chrono = "0.4.26"
 serde_crate = { workspace = true, optional = true }
 serde_with = { workspace = true, optional = true }
 cfg_eval = { workspace = true, optional = true }
+indexmap = "2.0.2"
 
 [features]
 default = ["descriptor"]

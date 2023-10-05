@@ -32,5 +32,7 @@ serde_crate = { package = "serde", version = "1" }
 serde_with = "3.1.0"
 
 [patch.crates-io]
-bp-primitives = { git = "https://github.com/BP-WG/bp-core", branch = "primitives" }
+bp-primitives = { git = "https://github.com/BP-WG/bp-core" }
 bp-std = { git = "https://github.com/BP-WG/bp-std" }
+psbt = { git = "https://github.com/BP-WG/bp-std" }
+rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "deps" }
