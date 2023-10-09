@@ -25,12 +25,12 @@ use std::str::FromStr;
 use std::{iter, vec};
 
 use bp::dbc::tapret::TapretCommitment;
-use bp::InternalPk;
 use bpstd::{
-    CompressedPk, Derive, DeriveCompr, DeriveSet, DeriveXOnly, DerivedScript, Descriptor,
-    DescriptorStd, Idx, IndexError, IndexParseError, KeyOrigin, NormalIndex, Terminal, TrKey,
-    XpubDerivable, XpubSpec,
+    CompressedPk, Derive, DeriveCompr, DeriveSet, DeriveXOnly, DerivedScript, Idx, IndexError,
+    IndexParseError, KeyOrigin, NormalIndex, TapDerivation, Terminal, XOnlyPk, XpubDerivable,
+    XpubSpec,
 };
+use descriptors::{Descriptor, DescriptorStd, TrKey};
 use indexmap::IndexMap;
 #[cfg(feature = "serde")]
 use serde_with::DisplayFromStr;
@@ -116,7 +116,7 @@ impl<K: DeriveXOnly> Derive<DerivedScript> for TapretKey<K> {
     fn derive(&self, change: u8, index: impl Into<NormalIndex>) -> DerivedScript {
         // TODO: Apply tweaks
         let internal_key = self.internal_key.derive(change, index);
-        DerivedScript::TaprootKeyOnly(internal_key)
+        DerivedScript::TaprootKeyOnly(internal_key.into())
     }
 }
 
@@ -195,7 +195,7 @@ where Self: Derive<DerivedScript>
 
     fn compr_keyset(&self, terminal: Terminal) -> IndexMap<CompressedPk, KeyOrigin> { todo!() }
 
-    fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<InternalPk, KeyOrigin> { todo!() }
+    fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> { todo!() }
 }
 
 impl From<DescriptorStd> for DescriptorRgb {
@@ -203,6 +203,7 @@ impl From<DescriptorStd> for DescriptorRgb {
         match descr {
             DescriptorStd::Wpkh(_) => todo!(),
             DescriptorStd::TrKey(tr) => DescriptorRgb::TapretKey(tr.into()),
+            _ => todo!(),
         }
     }
 }
