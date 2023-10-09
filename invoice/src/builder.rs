@@ -1,4 +1,4 @@
-// RGB wallet library for smart contracts on Bitcoin & Lightning network
+// RGB smart contract invoicing library
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -21,10 +21,9 @@
 
 use std::str::FromStr;
 
-use rgb::ContractId;
-use rgbstd::interface::TypedState;
-use rgbstd::stl::Precision;
-use rgbstd::Chain;
+use rgb::interface::TypedState;
+use rgb::stl::Precision;
+use rgb::{Chain, ContractId};
 
 use super::{Beneficiary, RgbInvoice, RgbTransport, TransportParseError};
 

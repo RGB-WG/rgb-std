@@ -164,17 +164,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d86b93f97252c47b41663388e6d155714a9d0c398b99f1005cbc5f978b29f445"
 
 [[package]]
-name = "bitcoin"
-version = "0.30.1"
+name = "bitcoin-internals"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4e99ff7289b20a7385f66a0feda78af2fc119d28fb56aea8886a9cd0a4abdd75"
-dependencies = [
- "bech32",
- "bitcoin-private",
- "bitcoin_hashes",
- "hex_lit",
- "secp256k1",
-]
+checksum = "9425c3bf7089c983facbae04de54513cce73b41c7f9ff8c845b54e7bc64ebbfb"
 
 [[package]]
 name = "bitcoin-private"
@@ -184,11 +177,12 @@ checksum = "73290177011694f38ec25e165d0387ab7ea749a4b81cd4c80dae5988229f7a57"
 
 [[package]]
 name = "bitcoin_hashes"
-version = "0.12.0"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d7066118b13d4b20b23645932dfb3a81ce7e29f95726c2036fa33cd7b092501"
+checksum = "1930a4dabfebb8d7d9992db18ebe3ae2876f0a305fab206fd168df931ede293b"
 dependencies = [
- "bitcoin-private",
+ "bitcoin-internals",
+ "hex-conservative",
 ]
 
 [[package]]
@@ -281,6 +275,22 @@ dependencies = [
  "serde",
  "single_use_seals",
  "strict_encoding",
+]
+
+[[package]]
+name = "bp-std"
+version = "0.10.0-beta.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8098ada83a67537e36620857c16630bc4df32a50113650555b9a287eb0a64fe0"
+dependencies = [
+ "amplify",
+ "bech32",
+ "bitcoin_hashes",
+ "bp-consensus",
+ "bp-core",
+ "commit_verify",
+ "indexmap",
+ "serde",
 ]
 
 [[package]]
@@ -401,6 +411,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "descriptors"
+version = "0.10.0-BP-beta.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d6105e8317f28ac87e2a30cd4f8fcd1a4fc330e63b0faf55d93cf2041fc12dd5"
+dependencies = [
+ "amplify",
+ "bp-std",
+ "indexmap",
+]
+
+[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -470,10 +491,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
 
 [[package]]
-name = "hex_lit"
+name = "hex-conservative"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3011d1213f159867b13cfd6ac92d2cd5f1345762c63be3554e84092d85a50bbd"
+checksum = "30ed443af458ccb6d81c1e7e661545f94d3176752fb1df2f543b902a1e0f51e2"
 
 [[package]]
 name = "iana-time-zone"
@@ -665,16 +686,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "rgb-invoice"
+version = "0.10.10"
+dependencies = [
+ "amplify",
+ "baid58",
+ "bp-std",
+ "chrono",
+ "fluent-uri",
+ "getrandom",
+ "indexmap",
+ "percent-encoding",
+ "rand",
+ "rgb-std",
+ "strict_encoding",
+ "wasm-bindgen",
+ "wasm-bindgen-test",
+]
+
+[[package]]
 name = "rgb-std"
-version = "0.10.8"
+version = "0.10.10"
 dependencies = [
  "amplify",
  "baid58",
  "base85",
  "bp-core",
+ "bp-std",
  "chrono",
  "commit_verify",
+ "descriptors",
  "getrandom",
+ "indexmap",
  "rand",
  "rgb-core",
  "serde",
@@ -685,25 +728,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "rgb-wallet"
-version = "0.10.8"
+name = "rgb-stl"
+version = "0.10.10"
 dependencies = [
- "amplify",
- "baid58",
- "bitcoin",
- "bp-core",
- "chrono",
- "commit_verify",
- "fluent-uri",
- "getrandom",
- "indexmap",
- "percent-encoding",
- "rand",
- "rgb-core",
  "rgb-std",
- "strict_encoding",
- "wasm-bindgen",
- "wasm-bindgen-test",
+ "strict_types",
 ]
 
 [[package]]
@@ -733,7 +762,6 @@ version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "25996b82292a7a57ed3508f052cfff8640d38d32018784acd714758b43da9c8f"
 dependencies = [
- "bitcoin_hashes",
  "rand",
  "secp256k1-sys",
  "serde",

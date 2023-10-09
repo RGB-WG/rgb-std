@@ -20,6 +20,7 @@
 // limitations under the License.
 
 use std::collections::{BTreeSet, HashSet};
+use std::ops::Deref;
 
 use amplify::confinement::{LargeOrdMap, LargeVec, SmallVec};
 use bp::Outpoint;
@@ -31,7 +32,7 @@ use strict_encoding::FieldName;
 use strict_types::typify::TypedVal;
 use strict_types::{decode, StrictVal};
 
-use crate::interface::IfaceImpl;
+use crate::interface::{IfaceId, IfaceImpl};
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
@@ -44,7 +45,7 @@ pub enum ContractError {
     Reify(decode::Error),
 }
 
-#[derive(Clone, Eq, PartialEq, Debug, Display, From)]
+#[derive(Clone, Eq, PartialEq, Debug, Hash, Display, From)]
 #[display(inner)]
 pub enum TypedState {
     #[display("")]
@@ -57,7 +58,7 @@ pub enum TypedState {
     Attachment(AttachedState),
 }
 
-#[derive(Clone, Eq, PartialEq, Debug, Display)]
+#[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
 #[display("{id}:{media_type}")]
 pub struct AttachedState {
     pub id: AttachId,
@@ -98,11 +99,33 @@ pub trait OutpointFilter {
     fn include_outpoint(&self, outpoint: Outpoint) -> bool;
 }
 
-impl OutpointFilter for Option<&[Outpoint]> {
+pub struct FilterIncludeAll;
+pub struct FilterExclude<T: OutpointFilter>(pub T);
+
+impl<T: OutpointFilter> OutpointFilter for &T {
+    fn include_outpoint(&self, outpoint: Outpoint) -> bool { (*self).include_outpoint(outpoint) }
+}
+
+impl<T: OutpointFilter> OutpointFilter for &mut T {
     fn include_outpoint(&self, outpoint: Outpoint) -> bool {
-        self.map(|filter| filter.include_outpoint(outpoint))
+        self.deref().include_outpoint(outpoint)
+    }
+}
+
+impl<T: OutpointFilter> OutpointFilter for Option<T> {
+    fn include_outpoint(&self, outpoint: Outpoint) -> bool {
+        self.as_ref()
+            .map(|filter| filter.include_outpoint(outpoint))
             .unwrap_or(true)
     }
+}
+
+impl OutpointFilter for FilterIncludeAll {
+    fn include_outpoint(&self, _: Outpoint) -> bool { true }
+}
+
+impl<T: OutpointFilter> OutpointFilter for FilterExclude<T> {
+    fn include_outpoint(&self, outpoint: Outpoint) -> bool { !self.0.include_outpoint(outpoint) }
 }
 
 impl OutpointFilter for &[Outpoint] {
@@ -189,4 +212,11 @@ impl ContractIface {
     ) -> LargeOrdMap<AssignmentType, LargeVec<TypedState>> {
         todo!()
     }
+
+    pub fn wrap<W: IfaceWrapper>(self) -> W { W::from(self) }
+}
+
+pub trait IfaceWrapper: From<ContractIface> {
+    const IFACE_NAME: &'static str;
+    const IFACE_ID: IfaceId;
 }

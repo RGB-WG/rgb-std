@@ -1,4 +1,4 @@
-// RGB wallet library for smart contracts on Bitcoin & Lightning network
+// RGB smart contract invoicing library
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -18,6 +18,11 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+#[macro_use]
+extern crate amplify;
+#[macro_use]
+extern crate strict_encoding;
 
 mod invoice;
 mod parse;

@@ -1,0 +1,39 @@
+[package]
+name = "rgb-invoice"
+version = "0.10.10"
+description = "RGB smart contract invoicing library"
+keywords = ["bitcoin", "invoices", "rgb", "smart-contracts", "lnp-bp"]
+categories = ["cryptography::cryptocurrencies"]
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+rust-version = { workspace = true }
+readme = "../README.md"
+
+[lib]
+name = "rgbinvoice"
+crate-type = ["cdylib", "rlib"] # We need this for WASM
+
+[dependencies]
+amplify = { workspace = true }
+baid58 = { workspace = true }
+strict_encoding = { workspace = true }
+bp-std = { workspace = true }
+rgb-std = { version = "0.10.10", path = "../std" }
+indexmap = "2.0.2"
+fluent-uri = "0.1.4"
+chrono = "0.4.31"
+percent-encoding = "2.3.0"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+rand = { version = "0.8.4", optional = true }
+getrandom = { version = "0.2", features = ["js"] }
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+[package.metadata.docs.rs]
+features = [ "all" ]

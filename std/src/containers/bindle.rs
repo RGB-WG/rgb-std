@@ -25,6 +25,7 @@
 
 use std::collections::BTreeMap;
 use std::fmt::{Debug, Display};
+use std::io::Read;
 use std::ops::Deref;
 use std::str::FromStr;
 
@@ -33,9 +34,10 @@ pub use _fs::*;
 use amplify::confinement;
 use amplify::confinement::{Confined, TinyVec, U24};
 use baid58::Baid58ParseError;
-use rgb::{BundleId, ContractId, Schema, SchemaId, SchemaRoot};
+use rgb::{BundleId, ContractId, Schema, SchemaId, SchemaRoot, SubSchema};
 use strict_encoding::{
-    StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, StrictType,
+    StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictReader, StrictSerialize,
+    StrictType,
 };
 
 use crate::containers::transfer::TransferId;
@@ -277,14 +279,49 @@ impl<C: BindleContent> Display for Bindle<C> {
     }
 }
 
+impl<C: BindleContent> Bindle<C> {
+    pub fn load(mut data: impl Read) -> Result<Self, LoadError> {
+        let mut rgb = [0u8; 3];
+        let mut magic = [0u8; 4];
+        data.read_exact(&mut rgb)?;
+        data.read_exact(&mut magic)?;
+        if rgb != *b"RGB" || magic != C::MAGIC {
+            return Err(LoadError::InvalidMagic);
+        }
+        let mut reader = StrictReader::with(usize::MAX, data);
+        let me = Self::strict_decode(&mut reader)?;
+        Ok(me)
+    }
+}
+
+impl UniversalBindle {
+    pub fn load(mut data: impl Read) -> Result<Self, LoadError> {
+        let mut rgb = [0u8; 3];
+        let mut magic = [0u8; 4];
+        data.read_exact(&mut rgb)?;
+        data.read_exact(&mut magic)?;
+        if rgb != *b"RGB" {
+            return Err(LoadError::InvalidMagic);
+        }
+        let mut reader = StrictReader::with(usize::MAX, data);
+        Ok(match magic {
+            x if x == Iface::MAGIC => Bindle::<Iface>::strict_decode(&mut reader)?.into(),
+            x if x == SubSchema::MAGIC => Bindle::<SubSchema>::strict_decode(&mut reader)?.into(),
+            x if x == IfaceImpl::MAGIC => Bindle::<IfaceImpl>::strict_decode(&mut reader)?.into(),
+            x if x == Contract::MAGIC => Bindle::<Contract>::strict_decode(&mut reader)?.into(),
+            x if x == Transfer::MAGIC => Bindle::<Transfer>::strict_decode(&mut reader)?.into(),
+            _ => return Err(LoadError::InvalidMagic),
+        })
+    }
+}
+
 #[cfg(feature = "fs")]
 mod _fs {
-    use std::io::{Read, Write};
+    use std::io::Write;
     use std::path::Path;
     use std::{fs, io};
 
-    use rgb::SubSchema;
-    use strict_encoding::{DecodeError, StrictEncode, StrictReader, StrictWriter};
+    use strict_encoding::{DecodeError, StrictEncode, StrictWriter};
 
     use super::*;
 
@@ -326,18 +363,9 @@ mod _fs {
     }
 
     impl<C: BindleContent> Bindle<C> {
-        pub fn load(path: impl AsRef<Path>) -> Result<Self, LoadError> {
-            let mut rgb = [0u8; 3];
-            let mut magic = [0u8; 4];
-            let mut file = fs::File::open(path)?;
-            file.read_exact(&mut rgb)?;
-            file.read_exact(&mut magic)?;
-            if rgb != *b"RGB" || magic != C::MAGIC {
-                return Err(LoadError::InvalidMagic);
-            }
-            let mut reader = StrictReader::with(usize::MAX, file);
-            let me = Self::strict_decode(&mut reader)?;
-            Ok(me)
+        pub fn load_file(path: impl AsRef<Path>) -> Result<Self, LoadError> {
+            let file = fs::File::open(path)?;
+            Self::load(file)
         }
 
         pub fn save(&self, path: impl AsRef<Path>) -> Result<(), io::Error> {
@@ -351,28 +379,9 @@ mod _fs {
     }
 
     impl UniversalBindle {
-        pub fn load(path: impl AsRef<Path>) -> Result<Self, LoadError> {
-            let mut rgb = [0u8; 3];
-            let mut magic = [0u8; 4];
-            let mut file = fs::File::open(path)?;
-            file.read_exact(&mut rgb)?;
-            file.read_exact(&mut magic)?;
-            if rgb != *b"RGB" {
-                return Err(LoadError::InvalidMagic);
-            }
-            let mut reader = StrictReader::with(usize::MAX, file);
-            Ok(match magic {
-                x if x == Iface::MAGIC => Bindle::<Iface>::strict_decode(&mut reader)?.into(),
-                x if x == SubSchema::MAGIC => {
-                    Bindle::<SubSchema>::strict_decode(&mut reader)?.into()
-                }
-                x if x == IfaceImpl::MAGIC => {
-                    Bindle::<IfaceImpl>::strict_decode(&mut reader)?.into()
-                }
-                x if x == Contract::MAGIC => Bindle::<Contract>::strict_decode(&mut reader)?.into(),
-                x if x == Transfer::MAGIC => Bindle::<Transfer>::strict_decode(&mut reader)?.into(),
-                _ => return Err(LoadError::InvalidMagic),
-            })
+        pub fn load_file(path: impl AsRef<Path>) -> Result<Self, LoadError> {
+            let file = fs::File::open(path)?;
+            Self::load(file)
         }
     }
 }

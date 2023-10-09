@@ -1,4 +1,4 @@
-// RGB wallet library for smart contracts on Bitcoin & Lightning network
+// RGB smart contract invoicing library
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -19,11 +19,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use bitcoin::Address;
+use bpstd::Address;
 use indexmap::IndexMap;
-use rgb::{AttachId, ContractId, SecretSeal};
-use rgbstd::interface::TypedState;
-use rgbstd::Chain;
+use rgb::interface::TypedState;
+use rgb::{AttachId, Chain, ContractId, SecretSeal};
 use strict_encoding::{FieldName, TypeName};
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]

@@ -31,7 +31,7 @@ use strict_types::{CompileError, LibBuilder, TypeLib};
 use super::{
     AssignIface, GenesisIface, GlobalIface, Iface, OwnedIface, Req, TransitionIface, VerNo,
 };
-use crate::interface::{ArgSpec, ContractIface};
+use crate::interface::{ArgSpec, ContractIface, IfaceId, IfaceWrapper};
 use crate::stl::{rgb_contract_stl, Amount, ContractData, Details, Name, Precision, StandardTypes};
 
 pub const LIB_NAME_RGB25: &str = "RGB25";
@@ -163,11 +163,20 @@ pub struct Rgb25(ContractIface);
 
 impl From<ContractIface> for Rgb25 {
     fn from(iface: ContractIface) -> Self {
-        if iface.iface.iface_id != rgb25().iface_id() {
+        if iface.iface.iface_id != Rgb25::IFACE_ID {
             panic!("the provided interface is not RGB25 interface");
         }
         Self(iface)
     }
+}
+
+impl IfaceWrapper for Rgb25 {
+    const IFACE_NAME: &'static str = LIB_NAME_RGB25;
+    const IFACE_ID: IfaceId = IfaceId::from_array([
+        0xfa, 0xfd, 0xf4, 0x9e, 0x6a, 0x5d, 0x2f, 0xf5, 0x42, 0xf6, 0x48, 0xb2, 0x64, 0xef, 0x90,
+        0xbe, 0x8b, 0x78, 0x85, 0x49, 0x16, 0x5d, 0xc3, 0x6b, 0xc6, 0x83, 0x57, 0x79, 0xb9, 0x37,
+        0x73, 0xc4,
+    ]);
 }
 
 impl Rgb25 {
@@ -237,6 +246,11 @@ mod test {
     fn lib_id() {
         let lib = rgb25_stl();
         assert_eq!(lib.id().to_string(), LIB_ID_RGB25);
+    }
+
+    #[test]
+    fn iface_id() {
+        assert_eq!(Rgb25::IFACE_ID, rgb25().iface_id());
     }
 
     #[test]

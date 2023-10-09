@@ -1,0 +1,21 @@
+[package]
+name = "rgb-stl"
+version = "0.10.10"
+description = "RGB strict type libraries"
+keywords = ["bitcoin", "lightning", "rgb", "smart-contracts", "lnp-bp"]
+categories = ["cryptography::cryptocurrencies"]
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+rust-version = { workspace = true }
+readme = "../README.md"
+
+[[bin]]
+name = "rgb-stl"
+path = "src/main.rs"
+
+[dependencies]
+strict_types = { workspace = true }
+rgb-std = { version = "0.10.10", path = "../std" }
