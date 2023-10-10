@@ -22,8 +22,6 @@ strict_encoding = { workspace = true }
 strict_types = { workspace = true }
 commit_verify = { workspace = true }
 bp-core = { workspace = true }
-bp-std = { workspace = true, optional = true }
-descriptors = "=0.10.0-BP-beta.1"
 rgb-core = { workspace = true }
 baid58 = { workspace = true }
 base85 = "=2.0.0"
@@ -32,9 +30,8 @@ indexmap = "2.0.2"
 serde_crate = { workspace = true, optional = true }
 
 [features]
-default = ["descriptor"]
-all = ["fs", "descriptor", "serde"]
-descriptor = ["bp-std"]
+default = []
+all = ["fs", "serde"]
 serde = [
     "serde_crate",
     "amplify/serde",
@@ -43,7 +40,6 @@ serde = [
     "commit_verify/serde",
     "bp-core/serde",
     "rgb-core/serde",
-    "bp-std/serde",
 ]
 fs = []
 
