@@ -21,7 +21,7 @@ amplify = { workspace = true }
 baid58 = { workspace = true }
 strict_encoding = { workspace = true }
 bp-std = { version = "0.10.0-beta.1" }
-rgb-std = { version = "0.10.10", path = "../std" }
+rgb-std = { version = "0.10.10", path = ".." }
 indexmap = "2.0.2"
 fluent-uri = "0.1.4"
 chrono = "0.4.31"
