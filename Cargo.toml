@@ -86,3 +86,4 @@ features = [ "all" ]
 
 [patch.crates-io]
 rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "v0.10" }
+bp-std = { git = "https://github.com/BP-WG/bp-std" }
