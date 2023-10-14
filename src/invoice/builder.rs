@@ -31,6 +31,7 @@ use super::{Beneficiary, RgbInvoice, RgbTransport, TransportParseError};
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct RgbInvoiceBuilder(RgbInvoice);
 
+#[allow(clippy::result_large_err)]
 impl RgbInvoiceBuilder {
     pub fn new(beneficiary: impl Into<Beneficiary>) -> Self {
         Self(RgbInvoice {
@@ -106,6 +107,11 @@ impl RgbInvoiceBuilder {
         Ok(self.set_amount_raw(amount))
     }
 
+    /// # Safety
+    ///
+    /// The function may cause the loss of the information about the precise
+    /// amout of the asset, since f64 type doesn't provide full precision
+    /// required for that.
     pub unsafe fn set_amount_approx(self, amount: f64, precision: Precision) -> Result<Self, Self> {
         if amount <= 0.0 {
             return Err(self);
