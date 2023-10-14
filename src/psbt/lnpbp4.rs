@@ -21,8 +21,8 @@
 
 use std::collections::BTreeMap;
 
-use amplify::confinement;
-use amplify::confinement::Confined;
+use amplify::confinement::{self, Confined};
+use amplify::FromSliceError;
 use bitcoin::psbt::raw::ProprietaryKey;
 use bitcoin::psbt::Output;
 use commit_verify::mpc::{self, Message, ProtocolId};
@@ -84,6 +84,10 @@ pub enum Lnpbp4PsbtError {
     #[from(bitcoin::hashes::Error)]
     InvalidKeyValue,
 
+    /// the length of the commitment data doesn't match 32 byte hash.
+    #[from(FromSliceError)]
+    InvalidHashValue,
+
     /// message map produced from PSBT inputs exceeds maximum size bounds.
     #[from]
     MessageMapTooLarge(confinement::Error),
@@ -120,10 +124,7 @@ impl OutputLnpbp4 for Output {
                 key.prefix == PSBT_LNPBP4_PREFIX && key.subtype == PSBT_OUT_LNPBP4_MESSAGE
             })
             .map(|(key, val)| {
-                Ok((
-                    ProtocolId::from_slice(&key.key).ok_or(Lnpbp4PsbtError::InvalidKeyValue)?,
-                    Message::from_slice(val).ok_or(Lnpbp4PsbtError::InvalidKeyValue)?,
-                ))
+                Ok((ProtocolId::copy_from_slice(&key.key)?, Message::copy_from_slice(val)?))
             })
             .collect::<Result<BTreeMap<_, _>, Lnpbp4PsbtError>>()?;
         Confined::try_from(map).map_err(Lnpbp4PsbtError::from)
@@ -139,7 +140,7 @@ impl OutputLnpbp4 for Output {
     fn lnpbp4_message(&self, protocol_id: ProtocolId) -> Option<Message> {
         let key = ProprietaryKey::lnpbp4_message(protocol_id);
         let data = self.proprietary.get(&key)?;
-        Message::from_slice(data)
+        Message::copy_from_slice(data).ok()
     }
 
     /// Returns a valid LNPBP-4 entropy value, if present.

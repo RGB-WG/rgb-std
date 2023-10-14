@@ -27,7 +27,7 @@ mod mime;
 mod chain;
 
 pub use chain::ProofOfReserves;
-pub(self) use error::Error;
+use error::Error;
 pub use mime::{MediaRegName, MediaType};
 pub use specs::{
     Amount, AssetNaming, Attachment, BurnMeta, CoinAmount, ContractData, Details,

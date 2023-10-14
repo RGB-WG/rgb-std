@@ -27,7 +27,7 @@ rgb-core = { version = "0.10.8", features = ["stl"] }
 
 [package]
 name = "rgb-wallet"
-version = "0.10.8"
+version = "0.10.9"
 description = "RGB wallet library for smart contracts on Bitcoin & Lightning network"
 keywords = ["bitcoin", "lightning", "rgb", "smart-contracts", "lnp-bp"]
 categories = ["cryptography::cryptocurrencies"]
@@ -76,6 +76,3 @@ wasm-bindgen-test = "0.3"
 
 [package.metadata.docs.rs]
 features = [ "all" ]
-
-[patch.crates-io]
-rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "v0.10" }

@@ -19,7 +19,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use bp::bc::stl::bitcoin_stl;
+use bp::bc::stl::bp_tx_stl;
 use bp::stl::bp_core_stl;
 use commit_verify::stl::commit_verify_stl;
 pub use rgb::stl::{aluvm_stl, rgb_core_stl, LIB_ID_RGB};
@@ -49,7 +49,7 @@ fn _rgb_std_stl() -> Result<TypeLib, CompileError> {
         std_stl().to_dependency(),
         strict_types_stl().to_dependency(),
         commit_verify_stl().to_dependency(),
-        bitcoin_stl().to_dependency(),
+        bp_tx_stl().to_dependency(),
         bp_core_stl().to_dependency(),
         aluvm_stl().to_dependency(),
         rgb_core_stl().to_dependency()
@@ -62,7 +62,7 @@ fn _rgb_std_stl() -> Result<TypeLib, CompileError> {
 fn _rgb_contract_stl() -> Result<TypeLib, CompileError> {
     LibBuilder::new(libname!(LIB_NAME_RGB_CONTRACT), tiny_bset! {
         std_stl().to_dependency(),
-        bitcoin_stl().to_dependency()
+        bp_tx_stl().to_dependency()
     })
     .transpile::<Amount>()
     .transpile::<Timestamp>()
@@ -94,12 +94,12 @@ impl Default for StandardTypes {
 
 impl StandardTypes {
     pub fn new() -> Self {
-        Self::try_with([std_stl(), bitcoin_stl(), rgb_contract_stl()])
+        Self::try_with([std_stl(), bp_tx_stl(), rgb_contract_stl()])
             .expect("error in standard RGBContract type system")
     }
 
     pub fn with(lib: TypeLib) -> Self {
-        Self::try_with([std_stl(), bitcoin_stl(), rgb_contract_stl(), lib])
+        Self::try_with([std_stl(), bp_tx_stl(), rgb_contract_stl(), lib])
             .expect("error in standard RGBContract type system")
     }
 

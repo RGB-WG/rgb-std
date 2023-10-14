@@ -27,7 +27,7 @@ use std::str::FromStr;
 
 use amplify::ascii::AsciiString;
 use amplify::confinement::{Confined, NonEmptyVec, SmallBlob};
-use bp::bc::stl::bitcoin_stl;
+use bp::bc::stl::bp_tx_stl;
 use strict_encoding::stl::AsciiPrintable;
 use strict_encoding::{
     InvalidIdent, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, TypedWrite,
@@ -262,7 +262,7 @@ pub enum Error {
 fn _rgb21_stl() -> Result<TypeLib, CompileError> {
     LibBuilder::new(libname!(LIB_NAME_RGB21), tiny_bset! {
         std_stl().to_dependency(),
-        bitcoin_stl().to_dependency(),
+        bp_tx_stl().to_dependency(),
         rgb_contract_stl().to_dependency()
     })
     .transpile::<TokenData>()

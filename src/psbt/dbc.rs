@@ -20,7 +20,7 @@
 // limitations under the License.
 
 use amplify::num::u5;
-use amplify::RawArray;
+use amplify::ByteArray;
 use bitcoin::hashes::Hash;
 use bitcoin::psbt::Psbt;
 use bitcoin::secp256k1::SECP256K1;
@@ -152,7 +152,7 @@ impl PsbtDbc for Psbt {
             Proof::TapretFirst(tapret_proof)
         } else if method == CloseMethod::OpretFirst {
             output.set_opret_commitment(commitment)?;
-            txout.script_pubkey = ScriptBuf::new_op_return(&commitment.to_raw_array());
+            txout.script_pubkey = ScriptBuf::new_op_return(&commitment.to_byte_array());
             Proof::OpretFirst
         } else {
             return Err(DbcPsbtError::MethodUnsupported(method));
