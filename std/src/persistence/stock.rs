@@ -24,7 +24,7 @@ use std::convert::Infallible;
 use std::ops::{Deref, DerefMut};
 
 use amplify::confinement::{MediumOrdMap, MediumOrdSet, TinyOrdMap};
-use amplify::RawArray;
+use amplify::ByteArray;
 use bp::dbc::Anchor;
 use bp::Txid;
 use commit_verify::mpc::MerkleBlock;
@@ -498,7 +498,7 @@ impl Inventory for Stock {
         let anchor_id = anchor.anchor_id();
         for (_, bundle_id) in anchor.mpc_proof.to_known_message_map() {
             self.anchor_bundle_index
-                .insert(bundle_id.to_raw_array().into(), anchor_id)?;
+                .insert(bundle_id.to_byte_array().into(), anchor_id)?;
         }
         self.hoard.consume_anchor(anchor)?;
         Ok(())

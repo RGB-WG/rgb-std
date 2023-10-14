@@ -23,7 +23,7 @@ use std::io;
 use std::str::FromStr;
 
 use amplify::confinement::SmallOrdSet;
-use amplify::{Bytes32, RawArray};
+use amplify::{ByteArray, Bytes32};
 use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
 use commit_verify::{CommitEncode, CommitmentId, Conceal};
 use strict_encoding::{StrictEncode, StrictWriter};
@@ -51,7 +51,7 @@ pub struct TransferId(
 impl ToBaid58<32> for TransferId {
     const HRI: &'static str = "consign";
     const CHUNKING: Option<Chunking> = CHUNKING_32;
-    fn to_baid58_payload(&self) -> [u8; 32] { self.to_raw_array() }
+    fn to_baid58_payload(&self) -> [u8; 32] { self.to_byte_array() }
     fn to_baid58_string(&self) -> String { self.to_string() }
 }
 impl FromBaid58<32> for TransferId {}

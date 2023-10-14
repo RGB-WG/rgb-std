@@ -24,7 +24,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::iter;
 
-use amplify::RawArray;
+use amplify::ByteArray;
 use bitcoin::hashes::Hash;
 use bitcoin::psbt::Psbt;
 use bp::seals::txout::CloseMethod;
@@ -291,7 +291,7 @@ pub trait InventoryWallet: Inventory {
         }
         let beneficiary = match beneficiary {
             BuilderSeal::Revealed(seal) => BuilderSeal::Revealed(
-                seal.resolve(Txid::from_raw_array(witness_txid.to_byte_array())),
+                seal.resolve(Txid::from_byte_array(witness_txid.to_byte_array())),
             ),
             BuilderSeal::Concealed(seal) => BuilderSeal::Concealed(seal),
         };

@@ -163,7 +163,7 @@ impl OutputOpret for Output {
             return Err(OpretKeyError::NonOpReturnOutput);
         }*/
         let data = self.proprietary.get(&ProprietaryKey::opret_commitment())?;
-        mpc::Commitment::from_slice(data)
+        mpc::Commitment::copy_from_slice(data).ok()
     }
 
     /// Assigns value of the opreturn commitment to this PSBT output, by

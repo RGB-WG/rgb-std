@@ -179,7 +179,7 @@ impl OutputTapret for Output {
     /// only in situations when the commitment is absent.
     fn tapret_commitment(&self) -> Option<mpc::Commitment> {
         let data = self.proprietary.get(&ProprietaryKey::tapret_commitment())?;
-        mpc::Commitment::from_slice(data)
+        mpc::Commitment::copy_from_slice(data).ok()
     }
 
     /// Assigns value of the tapreturn commitment to this PSBT output, by
