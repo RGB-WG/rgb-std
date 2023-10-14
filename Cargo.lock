@@ -667,7 +667,7 @@ dependencies = [
 
 [[package]]
 name = "rgb-std"
-version = "0.10.8"
+version = "0.10.9"
 dependencies = [
  "amplify",
  "baid58",
@@ -687,7 +687,7 @@ dependencies = [
 
 [[package]]
 name = "rgb-wallet"
-version = "0.10.8"
+version = "0.10.9"
 dependencies = [
  "amplify",
  "baid58",

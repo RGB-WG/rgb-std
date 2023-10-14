@@ -1,6 +1,6 @@
 [package]
 name = "rgb-std"
-version = "0.10.8"
+version = "0.10.9"
 description = "RGB standard library for working with smart contracts on Bitcoin & Lightning"
 keywords = ["bitcoin", "lightning", "rgb", "smart-contracts", "lnp-bp"]
 categories = ["cryptography::cryptocurrencies"]
@@ -28,7 +28,7 @@ bp-core = { workspace = true }
 rgb-core = { workspace = true }
 baid58 = { workspace = true }
 base85 = "=2.0.0"
-chrono = "0.4.31"
+chrono = "0.4.26"
 serde_crate = { package = "serde", version = "1", features = ["derive"] }
 
 [features]
