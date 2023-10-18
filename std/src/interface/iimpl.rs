@@ -161,6 +161,11 @@ impl<T: SchemaTypeIndex> NamedType<T> {
 #[derive(Clone, Eq, PartialEq, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
 pub struct SchemaIfaces {
     pub schema: SubSchema,
     pub iimpls: TinyOrdMap<IfaceId, IfaceImpl>,
