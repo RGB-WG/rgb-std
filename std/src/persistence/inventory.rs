@@ -410,13 +410,29 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         let schema_ifaces = self.contract_schema(contract_id)?;
         let iface = self.iface_by_name(&iface.into())?;
         let schema = &schema_ifaces.schema;
-        let iimpl = schema_ifaces
-            .iimpls
-            .get(&iface.iface_id())
-            .ok_or(DataError::NoIfaceImpl(schema.schema_id(), iface.iface_id()))?;
-        let builder =
+
+        if schema_ifaces.iimpls.is_empty() {
+            return Err(InventoryError::DataError(DataError::NoIfaceImpl(
+                schema.schema_id(),
+                iface.iface_id(),
+            )));
+        }
+
+        let builder = if let Some(iimpl) = schema_ifaces.iimpls.get(&iface.iface_id()) {
             TransitionBuilder::blank_transition(iface.clone(), schema.clone(), iimpl.clone())
-                .expect("internal inconsistency");
+                .expect("internal inconsistency")
+        } else {
+            let (default_iface_id, default_iimpl) = schema_ifaces.iimpls.first_key_value().unwrap();
+            let default_iface = self.iface_by_id(*default_iface_id)?;
+
+            TransitionBuilder::blank_transition(
+                default_iface.clone(),
+                schema.clone(),
+                default_iimpl.clone(),
+            )
+            .expect("internal inconsistency")
+        };
+
         Ok(builder)
     }
 
