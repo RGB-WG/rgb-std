@@ -21,16 +21,17 @@
 
 use std::collections::{BTreeSet, HashSet};
 
-use amplify::confinement::{LargeOrdMap, LargeVec, SmallVec};
+use amplify::confinement::{LargeOrdMap, LargeVec, SmallVec, U16};
 use bp::Outpoint;
 use rgb::{
-    AssignmentType, AttachId, ContractId, ContractState, FungibleOutput, MediaType, RevealedAttach,
-    RevealedData, SealWitness,
+    AssignmentType, AttachId, ContractId, ContractState, DataOutput, FungibleOutput, MediaType,
+    RevealedAttach, RevealedData, SealWitness,
 };
-use strict_encoding::FieldName;
+use strict_encoding::{FieldName, StrictDeserialize};
 use strict_types::typify::TypedVal;
 use strict_types::{decode, StrictVal};
 
+use crate::interface::rgb21::Allocation;
 use crate::interface::IfaceImpl;
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
@@ -90,6 +91,28 @@ impl From<&FungibleOutput> for FungibleAllocation {
             owner: out.seal,
             witness: out.witness,
             value: out.state.value.as_u64(),
+        }
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub struct DataAllocation {
+    pub owner: Outpoint,
+    pub witness: SealWitness,
+    pub value: Allocation,
+}
+
+impl From<DataOutput> for DataAllocation {
+    fn from(out: DataOutput) -> Self { Self::from(&out) }
+}
+
+impl From<&DataOutput> for DataAllocation {
+    fn from(out: &DataOutput) -> Self {
+        DataAllocation {
+            owner: out.seal,
+            witness: out.witness,
+            value: Allocation::from_strict_serialized::<U16>(out.state.as_ref().to_owned())
+                .expect("invalid allocation data"),
         }
     }
 }
@@ -179,6 +202,24 @@ impl ContractIface {
             .filter(|outp| outp.opout.ty == type_id)
             .filter(|outp| filter.include_outpoint(outp.seal))
             .map(FungibleAllocation::from);
+        Ok(LargeVec::try_from_iter(state).expect("same or smaller collection size"))
+    }
+
+    pub fn data(
+        &self,
+        name: impl Into<FieldName>,
+    ) -> Result<LargeVec<DataAllocation>, ContractError> {
+        let name = name.into();
+        let type_id = self
+            .iface
+            .assignments_type(&name)
+            .ok_or(ContractError::FieldNameUnknown(name))?;
+        let state = self
+            .state
+            .data()
+            .iter()
+            .filter(|outp| outp.opout.ty == type_id)
+            .map(DataAllocation::from);
         Ok(LargeVec::try_from_iter(state).expect("same or smaller collection size"))
     }
 

@@ -101,6 +101,9 @@ impl Allocation {
     pub fn with(index: TokenIndex, fraction: OwnedFraction) -> Allocation {
         Allocation(index, fraction)
     }
+
+    pub fn token_id(self) -> TokenIndex { self.0 }
+    pub fn fraction(self) -> OwnedFraction { self.1 }
 }
 
 impl StrictSerialize for Allocation {}
