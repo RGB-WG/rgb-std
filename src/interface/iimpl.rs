@@ -27,10 +27,10 @@ use amplify::{ByteArray, Bytes32};
 use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
 use commit_verify::{CommitStrategy, CommitmentId};
 use rgb::{
-    AssignmentType, ExtensionType, GlobalStateType, SchemaId, SchemaTypeIndex, Script, SubSchema,
-    TransitionType, ValencyType,
+    AssignmentType, ExtensionType, GlobalStateType, SchemaId, Script, SubSchema, TransitionType,
+    ValencyType,
 };
-use strict_encoding::{FieldName, TypeName};
+use strict_encoding::{FieldName, StrictDumb, TypeName};
 use strict_types::encoding::{
     StrictDecode, StrictDeserialize, StrictEncode, StrictSerialize, StrictType,
 };
@@ -38,6 +38,16 @@ use strict_types::encoding::{
 use crate::interface::iface::IfaceId;
 use crate::interface::{Iface, VerNo};
 use crate::{ReservedBytes, LIB_NAME_RGB_STD};
+
+pub trait SchemaTypeIndex:
+    Copy + Eq + Ord + StrictType + StrictDumb + StrictEncode + StrictDecode
+{
+}
+impl SchemaTypeIndex for GlobalStateType {}
+impl SchemaTypeIndex for AssignmentType {}
+impl SchemaTypeIndex for ValencyType {}
+impl SchemaTypeIndex for ExtensionType {}
+impl SchemaTypeIndex for TransitionType {}
 
 /// Interface identifier.
 ///
