@@ -23,7 +23,7 @@ use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 
 use amplify::confinement::{TinyOrdMap, TinyOrdSet};
-use amplify::{Bytes32, RawArray};
+use amplify::{ByteArray, Bytes32};
 use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
 use commit_verify::{CommitStrategy, CommitmentId};
 use rgb::{
@@ -60,7 +60,7 @@ pub struct ImplId(
 impl ToBaid58<32> for ImplId {
     const HRI: &'static str = "im";
     const CHUNKING: Option<Chunking> = CHUNKING_32;
-    fn to_baid58_payload(&self) -> [u8; 32] { self.to_raw_array() }
+    fn to_baid58_payload(&self) -> [u8; 32] { self.to_byte_array() }
     fn to_baid58_string(&self) -> String { self.to_string() }
 }
 impl FromBaid58<32> for ImplId {}
@@ -161,6 +161,11 @@ impl<T: SchemaTypeIndex> NamedType<T> {
 #[derive(Clone, Eq, PartialEq, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
 pub struct SchemaIfaces {
     pub schema: SubSchema,
     pub iimpls: TinyOrdMap<IfaceId, IfaceImpl>,

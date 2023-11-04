@@ -20,7 +20,7 @@
 // limitations under the License.
 
 use amplify::confinement::LargeVec;
-use bp::bc::stl::bitcoin_stl;
+use bp::bc::stl::bp_tx_stl;
 use strict_types::{CompileError, LibBuilder, TypeLib};
 
 use super::{
@@ -61,7 +61,7 @@ pub enum Error {
 
 fn _rgb20_stl() -> Result<TypeLib, CompileError> {
     LibBuilder::new(libname!(LIB_NAME_RGB20), tiny_bset! {
-        bitcoin_stl().to_dependency(),
+        bp_tx_stl().to_dependency(),
         rgb_contract_stl().to_dependency()
     })
     .transpile::<Error>()

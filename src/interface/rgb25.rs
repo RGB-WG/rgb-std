@@ -23,7 +23,7 @@
 
 use std::fmt::Debug;
 
-use bp::bc::stl::bitcoin_stl;
+use bp::bc::stl::bp_tx_stl;
 use strict_encoding::{StrictDumb, StrictEncode};
 use strict_types::stl::std_stl;
 use strict_types::{CompileError, LibBuilder, TypeLib};
@@ -61,7 +61,7 @@ pub enum Error {
 fn _rgb25_stl() -> Result<TypeLib, CompileError> {
     LibBuilder::new(libname!(LIB_NAME_RGB25), tiny_bset! {
         std_stl().to_dependency(),
-        bitcoin_stl().to_dependency(),
+        bp_tx_stl().to_dependency(),
         rgb_contract_stl().to_dependency(),
     })
     .transpile::<Error>()

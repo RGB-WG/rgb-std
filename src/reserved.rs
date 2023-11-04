@@ -52,10 +52,10 @@ impl<const VAL: u8, const LEN: usize> StrictDecode for ReservedBytes<VAL, LEN> {
     fn strict_decode(reader: &mut impl TypedRead) -> Result<Self, DecodeError> {
         let me = reader.read_newtype::<Self>()?;
         if me.0 != [VAL; LEN] {
-            return Err(DecodeError::DataIntegrityError(format!(
+            Err(DecodeError::DataIntegrityError(format!(
                 "reserved bytes required to have value [{VAL}; {LEN}] while {} was found",
                 me.0.to_hex()
-            )));
+            )))
         } else {
             Ok(me)
         }
@@ -103,7 +103,7 @@ mod _serde {
                 }
             }
 
-            let _: () = deserializer.deserialize_unit(UntaggedUnitVisitor::default())?;
+            deserializer.deserialize_unit(UntaggedUnitVisitor)?;
             Ok(default!())
         }
     }
