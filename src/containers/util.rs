@@ -65,7 +65,7 @@ impl Terminal {
 #[non_exhaustive]
 #[repr(u8)]
 pub enum ContainerVer {
-    // V0 was a previous version before v0.10, which is now not supported.
+    // V0 and V1 was a previous version before v0.11, currently not supported.
     #[default]
-    V1 = 1,
+    V2 = 2,
 }

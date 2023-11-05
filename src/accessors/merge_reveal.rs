@@ -24,7 +24,7 @@ use std::collections::BTreeMap;
 use amplify::confinement::Confined;
 use amplify::Wrapper;
 use bp::dbc::anchor::MergeError;
-use commit_verify::{mpc, CommitmentId};
+use commit_verify::CommitmentId;
 use rgb::{
     Anchor, AnchoredBundle, Assign, Assignments, BundleItem, ExposedSeal, ExposedState, Extension,
     Genesis, OpId, Transition, TransitionBundle, TypedAssigns,
@@ -64,7 +64,7 @@ pub trait MergeReveal: Sized {
     fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError>;
 }
 
-impl MergeReveal for Anchor<mpc::MerkleBlock> {
+impl MergeReveal for Anchor {
     fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {
         self.merge_reveal(other).map_err(MergeRevealError::from)
     }

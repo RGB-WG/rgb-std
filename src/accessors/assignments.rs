@@ -20,22 +20,23 @@
 // limitations under the License.
 
 use amplify::confinement::SmallVec;
+use commit_verify::Conceal;
 use rgb::{
     Assign, AssignAttach, AssignData, AssignFungible, AssignRights, ExposedSeal, ExposedState,
-    TypedAssigns,
+    SealDefinition, TypedAssigns,
 };
 
 pub trait TypedAssignsExt<Seal: ExposedSeal> {
-    fn reveal_seal(&mut self, seal: Seal);
+    fn reveal_seal(&mut self, seal: SealDefinition<Seal>);
 
-    fn filter_revealed_seals(&self) -> Vec<Seal>;
+    fn filter_revealed_seals(&self) -> Vec<SealDefinition<Seal>>;
 }
 
 impl<Seal: ExposedSeal> TypedAssignsExt<Seal> for TypedAssigns<Seal> {
-    fn reveal_seal(&mut self, seal: Seal) {
+    fn reveal_seal(&mut self, seal: SealDefinition<Seal>) {
         fn reveal<State: ExposedState, Seal: ExposedSeal>(
             vec: &mut SmallVec<Assign<State, Seal>>,
-            revealed: Seal,
+            revealed: SealDefinition<Seal>,
         ) {
             for assign in vec.iter_mut() {
                 match assign {
@@ -64,7 +65,7 @@ impl<Seal: ExposedSeal> TypedAssignsExt<Seal> for TypedAssigns<Seal> {
         }
     }
 
-    fn filter_revealed_seals(&self) -> Vec<Seal> {
+    fn filter_revealed_seals(&self) -> Vec<SealDefinition<Seal>> {
         match self {
             TypedAssigns::Declarative(s) => {
                 s.iter().filter_map(AssignRights::revealed_seal).collect()

@@ -9,6 +9,7 @@ default-members = [
 resolver = "2"
 
 [workspace.package]
+version = "0.11.0-beta.1"
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
 homepage = "https://github.com/RGB-WG"
 repository = "https://github.com/RGB-WG/rgb-wallet"
@@ -21,14 +22,14 @@ amplify = "4.5.0"
 baid58 = "0.4.4"
 strict_encoding = "2.6.1"
 strict_types = "1.6.3"
-commit_verify = { version = "0.10.6", features = ["stl"] }
-bp-core = { version = "0.10.11", features = ["stl"] }
-rgb-core = { version = "0.10.8", features = ["stl"] }
+commit_verify = { version = "0.11.0-beta.1", features = ["stl"] }
+bp-core = { version = "0.11.0-beta.1", features = ["stl"] }
+rgb-core = { version = "0.11.0-beta.1", features = ["stl"] }
 serde_crate = { package = "serde", version = "1", features = ["derive"] }
 
 [package]
 name = "rgb-std"
-version = "0.10.10"
+version = { workspace = true }
 description = "RGB standard library for working with smart contracts on Bitcoin & Lightning"
 keywords = ["bitcoin", "lightning", "rgb", "smart-contracts", "lnp-bp"]
 categories = ["cryptography::cryptocurrencies"]
@@ -81,3 +82,6 @@ wasm-bindgen-test = "0.3"
 
 [package.metadata.docs.rs]
 features = [ "all" ]
+
+[patch.crates-io]
+rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "v0.11" }

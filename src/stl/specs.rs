@@ -685,7 +685,7 @@ impl Timestamp {
 
     pub fn to_utc(self) -> Option<DateTime<Utc>> {
         NaiveDateTime::from_timestamp_opt(self.0, 0)
-            .map(|naive| DateTime::<Utc>::from_utc(naive, Utc))
+            .map(|naive| DateTime::from_naive_utc_and_offset(naive, Utc))
     }
 
     pub fn to_local(self) -> Option<DateTime<Local>> { self.to_utc().map(DateTime::<Local>::from) }

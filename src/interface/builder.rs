@@ -19,16 +19,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use amplify::confinement::{Confined, TinyOrdMap, U16, U8};
 use amplify::{confinement, Wrapper};
-use bp::secp256k1::rand::thread_rng;
-use bp::Chain;
 use rgb::{
-    Assign, AssignmentType, Assignments, ContractId, ExposedSeal, FungibleType, Genesis,
-    GenesisSeal, GlobalState, GraphSeal, Input, Inputs, Opout, RevealedData, RevealedValue,
-    StateSchema, SubSchema, Transition, TransitionType, TypedAssigns, BLANK_TRANSITION_ID,
+    AltLayer1, AltLayer1Set, AssetTag, Assign, AssignmentType, Assignments, ContractId,
+    ExposedSeal, FungibleType, Genesis, GenesisSeal, GlobalState, GraphSeal, Input, Inputs, Opout,
+    RevealedData, RevealedValue, SealDefinition, StateSchema, SubSchema, Transition,
+    TransitionType, TypedAssigns,
 };
 use strict_encoding::{FieldName, SerializeError, StrictSerialize, TypeName};
 use strict_types::decode;
@@ -40,27 +39,34 @@ use crate::interface::{Iface, IfaceImpl, IfacePair, TransitionIface, TypedState}
 #[display(doc_comments)]
 pub enum BuilderError {
     /// interface implementation references different interface that the one
-    /// provided to the forge.
+    /// provided to the builder.
     InterfaceMismatch,
 
     /// interface implementation references different schema that the one
-    /// provided to the forge.
+    /// provided to the builder.
     SchemaMismatch,
 
-    /// Global state `{0}` is not known to the schema.
+    /// contract already has too many layers1.
+    TooManyLayers1,
+
+    /// global state `{0}` is not known to the schema.
     GlobalNotFound(FieldName),
 
-    /// Assignment `{0}` is not known to the schema.
+    /// assignment `{0}` is not known to the schema.
     AssignmentNotFound(FieldName),
 
     /// transition `{0}` is not known to the schema.
     TransitionNotFound(TypeName),
 
-    /// state `{0}` provided to the builder has invalid name
+    /// state `{0}` provided to the builder has invalid name.
     InvalidStateField(FieldName),
 
-    /// state `{0}` provided to the builder has invalid name
+    /// state `{0}` provided to the builder has invalid name.
     InvalidState(AssignmentType),
+
+    /// can't add asset of type `{0}`: you need to register the type with asset
+    /// type firtst using `add_asset_tag` method.
+    AssetTagUnknown(AssignmentType),
 
     /// interface doesn't specifies default operation name, thus an explicit
     /// operation type must be provided with `set_operation_type` method.
@@ -85,20 +91,39 @@ pub enum BuilderError {
 #[derive(Clone, Debug)]
 pub struct ContractBuilder {
     builder: OperationBuilder<GenesisSeal>,
-    chain: Chain,
+    testnet: bool,
+    alt_layers1: AltLayer1Set,
 }
 
 impl ContractBuilder {
-    pub fn with(iface: Iface, schema: SubSchema, iimpl: IfaceImpl) -> Result<Self, BuilderError> {
+    pub fn mainnet(
+        iface: Iface,
+        schema: SubSchema,
+        iimpl: IfaceImpl,
+    ) -> Result<Self, BuilderError> {
         Ok(Self {
             builder: OperationBuilder::with(iface, schema, iimpl)?,
-            chain: default!(),
+            testnet: false,
+            alt_layers1: none!(),
+        })
+    }
+    pub fn testnet(
+        iface: Iface,
+        schema: SubSchema,
+        iimpl: IfaceImpl,
+    ) -> Result<Self, BuilderError> {
+        Ok(Self {
+            builder: OperationBuilder::with(iface, schema, iimpl)?,
+            testnet: true,
+            alt_layers1: none!(),
         })
     }
 
-    pub fn set_chain(mut self, chain: Chain) -> Self {
-        self.chain = chain;
-        self
+    pub fn add_layer1(mut self, layer1: AltLayer1) -> Result<Self, BuilderError> {
+        self.alt_layers1
+            .push(layer1)
+            .map(|_| self)
+            .map_err(|_| BuilderError::TooManyLayers1)
     }
 
     pub fn assignments_type(&self, name: &FieldName) -> Option<AssignmentType> {
@@ -126,7 +151,7 @@ impl ContractBuilder {
     pub fn add_fungible_state(
         mut self,
         name: impl Into<FieldName>,
-        seal: impl Into<GenesisSeal>,
+        seal: impl Into<SealDefinition<GenesisSeal>>,
         value: u64,
     ) -> Result<Self, BuilderError> {
         let name = name.into();
@@ -142,7 +167,7 @@ impl ContractBuilder {
     pub fn add_data_state(
         mut self,
         name: impl Into<FieldName>,
-        seal: impl Into<GenesisSeal>,
+        seal: impl Into<SealDefinition<GenesisSeal>>,
         value: impl StrictSerialize,
     ) -> Result<Self, BuilderError> {
         let name = name.into();
@@ -164,7 +189,8 @@ impl ContractBuilder {
         let genesis = Genesis {
             ffv: none!(),
             schema_id: schema.schema_id(),
-            chain: self.chain,
+            testnet: self.testnet,
+            alt_layers1: self.alt_layers1,
             metadata: empty!(),
             globals: global,
             assignments,
@@ -193,7 +219,7 @@ impl TransitionBuilder {
         schema: SubSchema,
         iimpl: IfaceImpl,
     ) -> Result<Self, BuilderError> {
-        Self::with(iface, schema, iimpl, BLANK_TRANSITION_ID)
+        Self::with(iface, schema, iimpl, TransitionType::BLANK)
     }
 
     pub fn default_transition(
@@ -364,6 +390,7 @@ struct OperationBuilder<Seal: ExposedSeal> {
     schema: SubSchema,
     iface: Iface,
     iimpl: IfaceImpl,
+    asset_tags: BTreeMap<AssignmentType, AssetTag>,
 
     global: GlobalState,
     // rights: TinyOrdMap<AssignmentType, Confined<HashSet<BuilderSeal<Seal>>, 1, U8>>,
@@ -391,11 +418,18 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             schema,
             iface,
             iimpl,
+            asset_tags: none!(),
 
             global: none!(),
             fungible: none!(),
             data: none!(),
         })
+    }
+
+    #[inline]
+    pub fn add_asset_tag(mut self, assignment_type: AssignmentType, asset_tag: AssetTag) -> Self {
+        self.asset_tags.insert(assignment_type, asset_tag);
+        self
     }
 
     pub fn add_global_state(
@@ -442,7 +476,11 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
                 todo!()
             }
             TypedState::Amount(value) => {
-                let state = RevealedValue::new(value, &mut thread_rng());
+                let tag = *self
+                    .asset_tags
+                    .get(&type_id)
+                    .ok_or(BuilderError::AssetTagUnknown(type_id))?;
+                let state = RevealedValue::new_random_blinding(value, tag);
 
                 let state_schema =
                     self.schema.owned_types.get(&type_id).expect(

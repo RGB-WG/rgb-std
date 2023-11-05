@@ -25,15 +25,13 @@ use std::ops::{Deref, DerefMut};
 
 use amplify::confinement::{MediumOrdMap, MediumOrdSet, TinyOrdMap};
 use amplify::ByteArray;
-use bp::dbc::Anchor;
 use bp::Txid;
-use commit_verify::mpc::MerkleBlock;
 use rgb::validation::{Status, Validity, Warning};
 use rgb::{
-    validation, AnchorId, AnchoredBundle, Assign, AssignmentType, BundleId, ContractHistory,
-    ContractId, ContractState, ExposedState, Extension, Genesis, GenesisSeal, GraphSeal, OpId,
-    Operation, Opout, SecretSeal, SubSchema, Transition, TransitionBundle, TxoSeal, TypedAssigns,
-    WitnessAnchor,
+    validation, Anchor, AnchorId, AnchoredBundle, Assign, AssignmentType, BundleId,
+    ContractHistory, ContractId, ContractState, ExposedState, Extension, Genesis, GenesisSeal,
+    GraphSeal, OpId, Operation, Opout, SealDefinition, SecretSeal, SubSchema, Transition,
+    TransitionBundle, TxoSeal, TypedAssigns, WitnessAnchor,
 };
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 
@@ -80,7 +78,7 @@ pub struct Stock {
     contract_index: TinyOrdMap<ContractId, ContractIndex>,
     terminal_index: MediumOrdMap<SecretSeal, Opout>,
     // secrets
-    seal_secrets: MediumOrdSet<GraphSeal>,
+    seal_secrets: MediumOrdSet<SealDefinition<GraphSeal>>,
 }
 
 impl Default for Stock {
@@ -491,10 +489,7 @@ impl Inventory for Stock {
         self.consume_consignment(transfer, resolver, force)
     }
 
-    fn consume_anchor(
-        &mut self,
-        anchor: Anchor<MerkleBlock>,
-    ) -> Result<(), InventoryError<Self::Error>> {
+    fn consume_anchor(&mut self, anchor: Anchor) -> Result<(), InventoryError<Self::Error>> {
         let anchor_id = anchor.anchor_id();
         for (_, bundle_id) in anchor.mpc_proof.to_known_message_map() {
             self.anchor_bundle_index
@@ -703,12 +698,17 @@ impl Inventory for Stock {
         Ok(res)
     }
 
-    fn store_seal_secret(&mut self, seal: GraphSeal) -> Result<(), InventoryError<Self::Error>> {
+    fn store_seal_secret(
+        &mut self,
+        seal: SealDefinition<GraphSeal>,
+    ) -> Result<(), InventoryError<Self::Error>> {
         self.seal_secrets.push(seal)?;
         Ok(())
     }
 
-    fn seal_secrets(&mut self) -> Result<BTreeSet<GraphSeal>, InventoryError<Self::Error>> {
+    fn seal_secrets(
+        &mut self,
+    ) -> Result<BTreeSet<SealDefinition<GraphSeal>>, InventoryError<Self::Error>> {
         Ok(self.seal_secrets.to_inner())
     }
 }

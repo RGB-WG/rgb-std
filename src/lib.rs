@@ -88,7 +88,7 @@ pub mod accessors;
 pub mod descriptor;
 mod reserved;
 
-pub use bp::{Chain, Outpoint, Txid};
+pub use bp::{Outpoint, Txid};
 pub(crate) use reserved::ReservedBytes;
 pub use rgb::*;
 pub use stl::{LIB_NAME_RGB_CONTRACT, LIB_NAME_RGB_STD};

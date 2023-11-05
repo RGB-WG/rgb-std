@@ -26,10 +26,11 @@ use std::ops::Deref;
 use amplify::confinement::{self, Confined};
 use bp::seals::txout::blind::SingleBlindSeal;
 use bp::Txid;
-use commit_verify::mpc;
+use commit_verify::{mpc, Conceal};
 use rgb::{
     validation, Anchor, AnchoredBundle, BundleId, ContractId, ExposedSeal, GraphSeal, OpId,
-    Operation, Opout, SchemaId, SecretSeal, SubSchema, Transition, TransitionBundle,
+    Operation, Opout, SchemaId, SealDefinition, SecretSeal, SubSchema, Transition,
+    TransitionBundle,
 };
 use strict_encoding::TypeName;
 
@@ -303,10 +304,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     /// Assumes that the bundle belongs to a non-mined witness transaction. Must
     /// be used only to consume locally-produced bundles before witness
     /// transactions are mined.
-    fn consume_anchor(
-        &mut self,
-        anchor: Anchor<mpc::MerkleBlock>,
-    ) -> Result<(), InventoryError<Self::Error>>;
+    fn consume_anchor(&mut self, anchor: Anchor) -> Result<(), InventoryError<Self::Error>>;
 
     /// # Safety
     ///
@@ -469,8 +467,13 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         outpoints: impl IntoIterator<Item = impl Into<Outpoint>>,
     ) -> Result<BTreeMap<Opout, TypedState>, InventoryError<Self::Error>>;
 
-    fn store_seal_secret(&mut self, seal: GraphSeal) -> Result<(), InventoryError<Self::Error>>;
-    fn seal_secrets(&mut self) -> Result<BTreeSet<GraphSeal>, InventoryError<Self::Error>>;
+    fn store_seal_secret(
+        &mut self,
+        seal: SealDefinition<GraphSeal>,
+    ) -> Result<(), InventoryError<Self::Error>>;
+    fn seal_secrets(
+        &mut self,
+    ) -> Result<BTreeSet<SealDefinition<GraphSeal>>, InventoryError<Self::Error>>;
 
     #[allow(clippy::type_complexity)]
     fn export_contract(
@@ -481,7 +484,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         ConsignerError<Self::Error, <<Self as Deref>::Target as Stash>::Error>,
     > {
         let mut consignment =
-            self.consign::<GraphSeal, false>(contract_id, [] as [GraphSeal; 0])?;
+            self.consign::<GraphSeal, false>(contract_id, [] as [SealDefinition<GraphSeal>; 0])?;
         consignment.transfer = false;
         Ok(consignment.into())
         // TODO: Add known sigs to the bindle

@@ -26,9 +26,9 @@ use amplify::confinement::{LargeVec, MediumBlob, SmallOrdMap, TinyOrdMap, TinyOr
 use commit_verify::Conceal;
 use rgb::validation::{AnchoredBundle, ConsignmentApi};
 use rgb::{
-    validation, AttachId, BundleId, ContractHistory, ContractId, Extension, Genesis, GraphSeal,
-    OpId, OpRef, Operation, Schema, SchemaId, SecretSeal, SubSchema, Transition, TransitionBundle,
-    WitnessAnchor,
+    validation, AssetTag, AssignmentType, AttachId, BundleId, ContractHistory, ContractId,
+    Extension, Genesis, GraphSeal, OpId, OpRef, Operation, Schema, SchemaId, SealDefinition,
+    SecretSeal, SubSchema, Transition, TransitionBundle, WitnessAnchor,
 };
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 
@@ -87,6 +87,9 @@ pub struct Consignment<const TYPE: bool> {
     /// Known supplements.
     pub supplements: TinyOrdSet<ContractSuppl>,
 
+    /// Confidential asset tags.
+    pub asset_tags: SmallOrdMap<AssignmentType, AssetTag>,
+
     /// Genesis data.
     pub genesis: Genesis,
 
@@ -120,11 +123,12 @@ impl<const TYPE: bool> Consignment<TYPE> {
         assert_eq!(schema.schema_id(), genesis.schema_id);
         Consignment {
             validation_status: None,
-            version: ContainerVer::V1,
+            version: ContainerVer::V2,
             transfer: TYPE,
             schema,
             ifaces: none!(),
             supplements: none!(),
+            asset_tags: none!(),
             genesis,
             terminals: none!(),
             bundles: none!(),
@@ -214,7 +218,7 @@ impl<const TYPE: bool> Consignment<TYPE> {
         Ok(history)
     }
 
-    pub fn reveal_bundle_seal(&mut self, bundle_id: BundleId, revealed: GraphSeal) {
+    pub fn reveal_bundle_seal(&mut self, bundle_id: BundleId, revealed: SealDefinition<GraphSeal>) {
         for anchored_bundle in &mut self.bundles {
             if anchored_bundle.bundle.bundle_id() == bundle_id {
                 anchored_bundle.bundle.reveal_seal(revealed);
@@ -230,6 +234,7 @@ impl<const TYPE: bool> Consignment<TYPE> {
             schema: self.schema,
             ifaces: self.ifaces,
             supplements: self.supplements,
+            asset_tags: self.asset_tags,
             genesis: self.genesis,
             terminals: self.terminals,
             bundles: self.bundles,
@@ -245,6 +250,9 @@ impl<const TYPE: bool> ConsignmentApi for Consignment<TYPE> {
     = slice::Iter<'container, AnchoredBundle> where Self: 'container;
 
     fn schema(&self) -> &SubSchema { &self.schema }
+
+    #[inline]
+    fn asset_tags(&self) -> &BTreeMap<AssignmentType, AssetTag> { self.asset_tags.as_inner() }
 
     fn operation(&self, opid: OpId) -> Option<OpRef> {
         if opid == self.genesis.id() {

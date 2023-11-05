@@ -27,8 +27,9 @@ impl<const TYPE: bool> Consignment<TYPE> {
     pub fn validate<R: ResolveTx>(
         mut self,
         resolver: &mut R,
+        testnet: bool,
     ) -> Result<Consignment<TYPE>, Consignment<TYPE>> {
-        let mut status = Validator::validate(&self, resolver);
+        let mut status = Validator::validate(&self, resolver, testnet);
 
         let validity = status.validity();
 
