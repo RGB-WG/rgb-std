@@ -19,11 +19,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use bp::Txid;
-use rgb::WitnessOrd;
+use rgb::{ExposedSeal, SealDefinition, WitnessOrd};
 
 pub trait ResolveHeight {
     type Error: std::error::Error;
 
-    fn resolve_height(&mut self, txid: Txid) -> Result<WitnessOrd, Self::Error>;
+    fn resolve_height<S: ExposedSeal>(
+        &mut self,
+        seal_definition: SealDefinition<S>,
+    ) -> Result<WitnessOrd, Self::Error>;
 }
