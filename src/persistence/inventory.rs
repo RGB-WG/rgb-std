@@ -29,8 +29,8 @@ use bp::Txid;
 use commit_verify::{mpc, Conceal};
 use rgb::{
     validation, Anchor, AnchoredBundle, BundleId, ContractId, ExposedSeal, GraphSeal, OpId,
-    Operation, Opout, SchemaId, SealDefinition, SecretSeal, SubSchema, Transition,
-    TransitionBundle,
+    Operation, Opout, Output, SchemaId, SealDefinition, SecretSeal, SubSchema, Transition,
+    TransitionBundle, WitnessId,
 };
 use strict_encoding::TypeName;
 
@@ -46,7 +46,6 @@ use crate::persistence::hoard::ConsumeError;
 use crate::persistence::stash::StashInconsistency;
 use crate::persistence::{Stash, StashError};
 use crate::resolvers::ResolveHeight;
-use crate::Outpoint;
 
 #[derive(Debug, Display, Error, From)]
 #[display(doc_comments)]
@@ -160,6 +159,9 @@ pub enum DataError {
     /// you'd like to take the risc, call `import_contract_force`.
     TerminalsUnmined,
 
+    /// mismatch between witness seal chain and anchor chain.
+    ChainMismatch,
+
     #[display(inner)]
     #[from]
     Reveal(RevealError),
@@ -169,7 +171,7 @@ pub enum DataError {
     Merge(MergeRevealError),
 
     /// outpoint {0} is not part of the contract {1}.
-    OutpointUnknown(Outpoint, ContractId),
+    OutpointUnknown(Output, ContractId),
 
     #[from]
     Confinement(confinement::Error),
@@ -304,7 +306,10 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     /// Assumes that the bundle belongs to a non-mined witness transaction. Must
     /// be used only to consume locally-produced bundles before witness
     /// transactions are mined.
-    fn consume_anchor(&mut self, anchor: Anchor) -> Result<(), InventoryError<Self::Error>>;
+    fn consume_anchor(
+        &mut self,
+        anchor: Anchor<mpc::MerkleBlock>,
+    ) -> Result<(), InventoryError<Self::Error>>;
 
     /// # Safety
     ///
@@ -315,7 +320,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         &mut self,
         contract_id: ContractId,
         bundle: TransitionBundle,
-        witness_txid: Txid,
+        witness_id: WitnessId,
     ) -> Result<(), InventoryError<Self::Error>>;
 
     /// # Safety
@@ -440,9 +445,9 @@ pub trait Inventory: Deref<Target = Self::Stash> {
 
     fn transition(&self, opid: OpId) -> Result<&Transition, InventoryError<Self::Error>>;
 
-    fn contracts_by_outpoints(
+    fn contracts_by_outputs(
         &mut self,
-        outpoints: impl IntoIterator<Item = impl Into<Outpoint>>,
+        outputs: impl IntoIterator<Item = impl Into<Output>>,
     ) -> Result<BTreeSet<ContractId>, InventoryError<Self::Error>>;
 
     fn public_opouts(
@@ -450,10 +455,10 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         contract_id: ContractId,
     ) -> Result<BTreeSet<Opout>, InventoryError<Self::Error>>;
 
-    fn opouts_by_outpoints(
+    fn opouts_by_outputs(
         &mut self,
         contract_id: ContractId,
-        outpoints: impl IntoIterator<Item = impl Into<Outpoint>>,
+        outputs: impl IntoIterator<Item = impl Into<Output>>,
     ) -> Result<BTreeSet<Opout>, InventoryError<Self::Error>>;
 
     fn opouts_by_terminals(
@@ -461,10 +466,10 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         terminals: impl IntoIterator<Item = SecretSeal>,
     ) -> Result<BTreeSet<Opout>, InventoryError<Self::Error>>;
 
-    fn state_for_outpoints(
+    fn state_for_outputs(
         &mut self,
         contract_id: ContractId,
-        outpoints: impl IntoIterator<Item = impl Into<Outpoint>>,
+        outputs: impl IntoIterator<Item = impl Into<Output>>,
     ) -> Result<BTreeMap<Opout, TypedState>, InventoryError<Self::Error>>;
 
     fn store_seal_secret(
@@ -518,11 +523,11 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         let (outpoint_seals, terminal_seals) = seals
             .into_iter()
             .map(|seal| match seal.into() {
-                BuilderSeal::Revealed(seal) => (seal.outpoint(), seal.conceal()),
+                BuilderSeal::Revealed(seal) => (seal.output(), seal.conceal()),
                 BuilderSeal::Concealed(seal) => (None, seal),
             })
             .unzip::<_, _, Vec<_>, Vec<_>>();
-        opouts.extend(self.opouts_by_outpoints(contract_id, outpoint_seals.into_iter().flatten())?);
+        opouts.extend(self.opouts_by_outputs(contract_id, outpoint_seals.into_iter().flatten())?);
         opouts.extend(self.opouts_by_terminals(terminal_seals.iter().copied())?);
 
         // 1.1. Get all public transitions

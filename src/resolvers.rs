@@ -19,13 +19,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use rgb::{ExposedSeal, SealDefinition, WitnessOrd};
+use rgb::{Anchor, WitnessAnchor};
 
 pub trait ResolveHeight {
     type Error: std::error::Error;
 
-    fn resolve_height<S: ExposedSeal>(
-        &mut self,
-        seal_definition: SealDefinition<S>,
-    ) -> Result<WitnessOrd, Self::Error>;
+    fn resolve_anchor(&mut self, anchor: &Anchor) -> Result<WitnessAnchor, Self::Error>;
 }

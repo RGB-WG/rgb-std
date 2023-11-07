@@ -25,8 +25,8 @@ use std::ops::Deref;
 use amplify::confinement::{LargeOrdMap, LargeVec, SmallVec};
 use bp::Outpoint;
 use rgb::{
-    AssignmentType, AttachId, ContractId, ContractState, FungibleOutput, MediaType, RevealedAttach,
-    RevealedData, SealWitness,
+    AssignmentType, AttachId, ContractId, ContractState, FungibleOutput, MediaType, Output,
+    RevealedAttach, RevealedData, WitnessId,
 };
 use strict_encoding::FieldName;
 use strict_types::typify::TypedVal;
@@ -76,8 +76,8 @@ impl From<RevealedAttach> for AttachedState {
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct FungibleAllocation {
-    pub owner: Outpoint,
-    pub witness: SealWitness,
+    pub owner: Output,
+    pub witness: Option<WitnessId>,
     pub value: u64,
 }
 
@@ -88,7 +88,7 @@ impl From<FungibleOutput> for FungibleAllocation {
 impl From<&FungibleOutput> for FungibleAllocation {
     fn from(out: &FungibleOutput) -> Self {
         FungibleAllocation {
-            owner: out.seal,
+            owner: out.output,
             witness: out.witness,
             value: out.state.value.as_u64(),
         }
@@ -96,52 +96,50 @@ impl From<&FungibleOutput> for FungibleAllocation {
 }
 
 pub trait OutpointFilter {
-    fn include_outpoint(&self, outpoint: Outpoint) -> bool;
+    fn include_output(&self, output: Output) -> bool;
 }
 
 pub struct FilterIncludeAll;
 pub struct FilterExclude<T: OutpointFilter>(pub T);
 
 impl<T: OutpointFilter> OutpointFilter for &T {
-    fn include_outpoint(&self, outpoint: Outpoint) -> bool { (*self).include_outpoint(outpoint) }
+    fn include_output(&self, output: Output) -> bool { (*self).include_output(output) }
 }
 
 impl<T: OutpointFilter> OutpointFilter for &mut T {
-    fn include_outpoint(&self, outpoint: Outpoint) -> bool {
-        self.deref().include_outpoint(outpoint)
-    }
+    fn include_output(&self, output: Output) -> bool { self.deref().include_output(output) }
 }
 
 impl<T: OutpointFilter> OutpointFilter for Option<T> {
-    fn include_outpoint(&self, outpoint: Outpoint) -> bool {
+    fn include_output(&self, output: Output) -> bool {
         self.as_ref()
-            .map(|filter| filter.include_outpoint(outpoint))
+            .map(|filter| filter.include_output(output))
             .unwrap_or(true)
     }
 }
 
 impl OutpointFilter for FilterIncludeAll {
-    fn include_outpoint(&self, _: Outpoint) -> bool { true }
+    fn include_output(&self, _: Output) -> bool { true }
 }
 
 impl<T: OutpointFilter> OutpointFilter for FilterExclude<T> {
-    fn include_outpoint(&self, outpoint: Outpoint) -> bool { !self.0.include_outpoint(outpoint) }
+    fn include_output(&self, output: Output) -> bool { !self.0.include_output(output) }
 }
 
-impl OutpointFilter for &[Outpoint] {
-    fn include_outpoint(&self, outpoint: Outpoint) -> bool { self.contains(&outpoint) }
+impl OutpointFilter for &[Output] {
+    fn include_output(&self, output: Output) -> bool { self.contains(&output) }
 }
 
-impl OutpointFilter for Vec<Outpoint> {
-    fn include_outpoint(&self, outpoint: Outpoint) -> bool { self.contains(&outpoint) }
+impl OutpointFilter for Vec<Output> {
+    fn include_output(&self, output: Output) -> bool { self.contains(&output) }
 }
 
-impl OutpointFilter for HashSet<Outpoint> {
-    fn include_outpoint(&self, outpoint: Outpoint) -> bool { self.contains(&outpoint) }
+impl OutpointFilter for HashSet<Output> {
+    fn include_output(&self, output: Output) -> bool { self.contains(&output) }
 }
 
-impl OutpointFilter for BTreeSet<Outpoint> {
-    fn include_outpoint(&self, outpoint: Outpoint) -> bool { self.contains(&outpoint) }
+impl OutpointFilter for BTreeSet<Output> {
+    fn include_output(&self, output: Output) -> bool { self.contains(&output) }
 }
 
 /// Contract state is an in-memory structure providing API to read structured
@@ -200,7 +198,7 @@ impl ContractIface {
             .fungibles()
             .iter()
             .filter(|outp| outp.opout.ty == type_id)
-            .filter(|outp| filter.include_outpoint(outp.seal))
+            .filter(|outp| filter.include_output(outp.output))
             .map(FungibleAllocation::from);
         Ok(LargeVec::try_from_iter(state).expect("same or smaller collection size"))
     }

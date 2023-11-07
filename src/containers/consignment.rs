@@ -24,11 +24,11 @@ use std::{iter, slice};
 
 use amplify::confinement::{LargeVec, MediumBlob, SmallOrdMap, TinyOrdMap, TinyOrdSet};
 use commit_verify::Conceal;
-use rgb::validation::{AnchoredBundle, ConsignmentApi};
+use rgb::validation::{self, ConsignmentApi};
 use rgb::{
-    validation, AssetTag, AssignmentType, AttachId, BundleId, ContractHistory, ContractId,
+    AnchoredBundle, AssetTag, AssignmentType, AttachId, BundleId, ContractHistory, ContractId,
     Extension, Genesis, GraphSeal, OpId, OpRef, Operation, Schema, SchemaId, SealDefinition,
-    SecretSeal, SubSchema, Transition, TransitionBundle, WitnessAnchor,
+    SecretSeal, SubSchema, Transition, TransitionBundle,
 };
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 
@@ -185,10 +185,9 @@ impl<const TYPE: bool> Consignment<TYPE> {
         for anchored_bundle in &self.bundles {
             for item in anchored_bundle.bundle.values() {
                 if let Some(transition) = &item.transition {
-                    let txid = anchored_bundle.anchor.txid;
-                    let height = resolver.resolve_height(txid)?;
-                    let ord_txid = WitnessAnchor::new(height, txid);
-                    history.add_transition(transition, ord_txid);
+                    let witness_anchor = resolver.resolve_anchor(&anchored_bundle.anchor)?;
+
+                    history.add_transition(transition, witness_anchor);
                     for (id, used) in &mut extension_idx {
                         if *used {
                             continue;
@@ -197,11 +196,11 @@ impl<const TYPE: bool> Consignment<TYPE> {
                             if input.prev_out.op == *id {
                                 *used = true;
                                 if let Some(ord) = ordered_extensions.get_mut(id) {
-                                    if *ord > ord_txid {
-                                        *ord = ord_txid;
+                                    if *ord > witness_anchor {
+                                        *ord = witness_anchor;
                                     }
                                 } else {
-                                    ordered_extensions.insert(*id, ord_txid);
+                                    ordered_extensions.insert(*id, witness_anchor);
                                 }
                             }
                         }
@@ -210,8 +209,8 @@ impl<const TYPE: bool> Consignment<TYPE> {
             }
         }
         for extension in &self.extensions {
-            if let Some(ord_txid) = ordered_extensions.get(&extension.id()) {
-                history.add_extension(extension, *ord_txid);
+            if let Some(witness_anchor) = ordered_extensions.get(&extension.id()) {
+                history.add_extension(extension, *witness_anchor);
             }
         }
 

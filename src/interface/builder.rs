@@ -122,8 +122,14 @@ impl ContractBuilder {
     pub fn add_layer1(mut self, layer1: AltLayer1) -> Result<Self, BuilderError> {
         self.alt_layers1
             .push(layer1)
-            .map(|_| self)
-            .map_err(|_| BuilderError::TooManyLayers1)
+            .map_err(|_| BuilderError::TooManyLayers1)?;
+        Ok(self)
+    }
+
+    #[inline]
+    pub fn add_asset_tag(mut self, assignment_type: AssignmentType, asset_tag: AssetTag) -> Self {
+        self.builder = self.builder.add_asset_tag(assignment_type, asset_tag);
+        self
     }
 
     pub fn assignments_type(&self, name: &FieldName) -> Option<AssignmentType> {

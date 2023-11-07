@@ -69,7 +69,7 @@ pub struct Hoard {
     pub(super) suppl: TinyOrdMap<ContractId, TinyOrdSet<ContractSuppl>>,
     pub(super) bundles: LargeOrdMap<BundleId, TransitionBundle>,
     pub(super) extensions: LargeOrdMap<OpId, Extension>,
-    pub(super) anchors: LargeOrdMap<AnchorId, Anchor>,
+    pub(super) anchors: LargeOrdMap<AnchorId, Anchor<mpc::MerkleBlock>>,
     pub(super) sigs: SmallOrdMap<ContentId, ContentSigs>,
 }
 
@@ -172,7 +172,7 @@ impl Hoard {
 
         for AnchoredBundle { anchor, bundle } in consignment.bundles {
             let bundle_id = bundle.bundle_id();
-            let anchor = anchor.into_merkle_block(contract_id, bundle_id.into())?;
+            let anchor = anchor.map(|a| a.into_merkle_block(contract_id, bundle_id.into()))?;
             self.consume_anchor(anchor)?;
             self.consume_bundle(bundle)?;
         }
@@ -198,7 +198,7 @@ impl Hoard {
     }
 
     // TODO: Move into Stash trait and re-implement using trait accessor methods
-    pub fn consume_anchor(&mut self, anchor: Anchor) -> Result<(), ConsumeError> {
+    pub fn consume_anchor(&mut self, anchor: Anchor<mpc::MerkleBlock>) -> Result<(), ConsumeError> {
         let anchor_id = anchor.anchor_id();
         match self.anchors.get_mut(&anchor_id) {
             Some(a) => *a = a.clone().merge_reveal(anchor)?,
@@ -300,7 +300,10 @@ impl Stash for Hoard {
         Ok(self.anchors.keys().copied().collect())
     }
 
-    fn anchor(&self, anchor_id: AnchorId) -> Result<&Anchor, StashError<Self::Error>> {
+    fn anchor(
+        &self,
+        anchor_id: AnchorId,
+    ) -> Result<&Anchor<mpc::MerkleBlock>, StashError<Self::Error>> {
         self.anchors
             .get(&anchor_id)
             .ok_or(StashInconsistency::AnchorAbsent(anchor_id).into())

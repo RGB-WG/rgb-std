@@ -25,6 +25,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 
 use amplify::confinement::TinyOrdSet;
+use commit_verify::mpc;
 use rgb::{
     Anchor, AnchorId, BundleId, ContractId, Extension, Genesis, OpId, SchemaId, TransitionBundle,
 };
@@ -124,5 +125,8 @@ pub trait Stash {
 
     fn anchor_ids(&self) -> Result<BTreeSet<AnchorId>, Self::Error>;
 
-    fn anchor(&self, anchor_id: AnchorId) -> Result<&Anchor, StashError<Self::Error>>;
+    fn anchor(
+        &self,
+        anchor_id: AnchorId,
+    ) -> Result<&Anchor<mpc::MerkleBlock>, StashError<Self::Error>>;
 }
