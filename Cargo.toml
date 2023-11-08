@@ -42,7 +42,7 @@ rust-version = { workspace = true }
 readme = "README.md"
 
 [lib]
-name = "rgb"
+name = "rgbstd"
 crate-type = ["cdylib", "rlib"] # We need this for WASM
 
 [dependencies]
