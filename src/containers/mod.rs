@@ -37,9 +37,7 @@ mod util;
 mod validate;
 mod certs;
 
-pub use bindle::{Bindle, BindleContent, BindleParseError};
-#[cfg(feature = "fs")]
-pub use bindle::{LoadError, UniversalBindle};
+pub use bindle::{Bindle, BindleContent, BindleParseError, LoadError, UniversalBindle};
 pub use certs::{Cert, ContentId, ContentSigs, Identity};
 pub use consignment::{Consignment, Contract, Transfer};
 pub use disclosure::Disclosure;

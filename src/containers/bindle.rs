@@ -25,14 +25,11 @@
 
 use std::collections::BTreeMap;
 use std::fmt::{Debug, Display};
-use std::io::Read;
+use std::io::{self, Read};
 use std::ops::Deref;
 use std::str::FromStr;
 
-#[cfg(feature = "fs")]
-pub use _fs::*;
-use amplify::confinement;
-use amplify::confinement::{Confined, TinyVec, U24};
+use amplify::confinement::{self, Confined, TinyVec, U24};
 use baid58::Baid58ParseError;
 use rgb::{BundleId, ContractId, Schema, SchemaId, SchemaRoot, SubSchema};
 use strict_encoding::{
@@ -294,6 +291,31 @@ impl<C: BindleContent> Bindle<C> {
     }
 }
 
+#[derive(Clone, Debug, From)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase", tag = "type")
+)]
+pub enum UniversalBindle {
+    #[from]
+    #[cfg_attr(feature = "serde", serde(rename = "interface"))]
+    Iface(Bindle<Iface>),
+
+    #[from]
+    Schema(Bindle<SubSchema>),
+
+    #[from]
+    #[cfg_attr(feature = "serde", serde(rename = "implementation"))]
+    Impl(Bindle<IfaceImpl>),
+
+    #[from]
+    Contract(Bindle<Contract>),
+
+    #[from]
+    Transfer(Bindle<Transfer>),
+}
+
 impl UniversalBindle {
     pub fn load(mut data: impl Read) -> Result<Self, LoadError> {
         let mut rgb = [0u8; 3];
@@ -315,52 +337,27 @@ impl UniversalBindle {
     }
 }
 
+#[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
+#[display(doc_comments)]
+pub enum LoadError {
+    /// invalid file data.
+    InvalidMagic,
+
+    #[display(inner)]
+    #[from]
+    #[from(io::Error)]
+    Decode(strict_encoding::DecodeError),
+}
+
 #[cfg(feature = "fs")]
 mod _fs {
     use std::io::Write;
     use std::path::Path;
     use std::{fs, io};
 
-    use strict_encoding::{DecodeError, StrictEncode, StrictWriter};
+    use strict_encoding::{StrictEncode, StrictWriter};
 
     use super::*;
-
-    #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
-    #[display(doc_comments)]
-    pub enum LoadError {
-        /// invalid file data.
-        InvalidMagic,
-
-        #[display(inner)]
-        #[from]
-        #[from(io::Error)]
-        Decode(DecodeError),
-    }
-
-    #[derive(Clone, Debug, From)]
-    #[cfg_attr(
-        feature = "serde",
-        derive(Serialize, Deserialize),
-        serde(crate = "serde_crate", rename_all = "camelCase", tag = "type")
-    )]
-    pub enum UniversalBindle {
-        #[from]
-        #[cfg_attr(feature = "serde", serde(rename = "interface"))]
-        Iface(Bindle<Iface>),
-
-        #[from]
-        Schema(Bindle<SubSchema>),
-
-        #[from]
-        #[cfg_attr(feature = "serde", serde(rename = "implementation"))]
-        Impl(Bindle<IfaceImpl>),
-
-        #[from]
-        Contract(Bindle<Contract>),
-
-        #[from]
-        Transfer(Bindle<Transfer>),
-    }
 
     impl<C: BindleContent> Bindle<C> {
         pub fn load_file(path: impl AsRef<Path>) -> Result<Self, LoadError> {
