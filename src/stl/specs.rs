@@ -308,7 +308,7 @@ impl Display for CoinAmount {
             let mut float = self.fract.to_string();
             let len = float.len();
             if let Some(decimals) = f.precision() {
-                float.extend("0".repeat(decimals - len).chars());
+                float.push_str(&"0".repeat(decimals - len));
             }
             if f.alternate() {
                 float = float
