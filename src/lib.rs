@@ -84,8 +84,6 @@ pub mod containers;
 pub mod persistence;
 pub mod resolvers;
 pub mod accessors;
-#[cfg(feature = "descriptor")]
-pub mod descriptor;
 mod reserved;
 
 pub use bp::{Outpoint, Txid};
