@@ -760,6 +760,7 @@ mod test {
     use super::*;
 
     #[test]
+    #[allow(clippy::inconsistent_digit_grouping)]
     fn coin_amount() {
         let amount = CoinAmount::with(10_000_436_081_95u64, Precision::default());
         assert_eq!(amount.int, 10_000);
