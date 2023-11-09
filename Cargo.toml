@@ -1,14 +1,15 @@
 [workspace]
 members = [
-    "std",
     ".",
+    "stl"
 ]
 default-members = [
-    "std",
-    "."
+    ".",
 ]
+resolver = "2"
 
 [workspace.package]
+version = "0.11.0-beta.1"
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
 homepage = "https://github.com/RGB-WG"
 repository = "https://github.com/RGB-WG/rgb-wallet"
@@ -21,14 +22,15 @@ amplify = "4.5.0"
 baid58 = "0.4.4"
 strict_encoding = "2.6.1"
 strict_types = "1.6.3"
-commit_verify = { version = "0.10.6", features = ["stl"] }
-bp-core = { version = "0.10.11", features = ["stl"] }
-rgb-core = { version = "0.10.8", features = ["stl"] }
+commit_verify = { version = "0.11.0-beta.1", features = ["stl"] }
+bp-core = { version = "0.11.0-beta.1", features = ["stl"] }
+rgb-core = { version = "0.11.0-beta.1", features = ["stl"] }
+serde_crate = { package = "serde", version = "1", features = ["derive"] }
 
 [package]
-name = "rgb-wallet"
-version = "0.10.9"
-description = "RGB wallet library for smart contracts on Bitcoin & Lightning network"
+name = "rgb-std"
+version = { workspace = true }
+description = "RGB standard library for working with smart contracts on Bitcoin & Lightning"
 keywords = ["bitcoin", "lightning", "rgb", "smart-contracts", "lnp-bp"]
 categories = ["cryptography::cryptocurrencies"]
 authors = { workspace = true }
@@ -38,33 +40,37 @@ edition = { workspace = true }
 license = { workspace = true }
 rust-version = { workspace = true }
 readme = "README.md"
-exclude = [".github", "std"]
 
 [lib]
-name = "rgbwallet"
+name = "rgbstd"
 crate-type = ["cdylib", "rlib"] # We need this for WASM
 
 [dependencies]
 amplify = { workspace = true }
-baid58 = { workspace = true }
-commit_verify = { workspace = true }
 strict_encoding = { workspace = true }
-# descriptor-wallet = "0.10.0-alpha.1"
+strict_types = { workspace = true }
+commit_verify = { workspace = true }
 bp-core = { workspace = true }
 rgb-core = { workspace = true }
-rgb-std = { version = "0.10.8", path = "std" }
-fluent-uri = "0.1.4"
+baid58 = { workspace = true }
+base85 = "=2.0.0"
+chrono = "0.4.31"
 indexmap = "2.0.2"
-# TODO: This dependencies should be replaced with psbt package
-bitcoin = "0.30.1"
-chrono = "0.4.24"
-percent-encoding = "2.2.0"
+serde_crate = { workspace = true, optional = true }
 
 [features]
 default = []
 all = ["fs", "serde"]
-serde = ["rgb-std/serde", "rgb-core/serde"]
-fs = ["rgb-std/fs"]
+serde = [
+    "serde_crate",
+    "amplify/serde",
+    "strict_encoding/serde",
+    "strict_types/serde",
+    "commit_verify/serde",
+    "bp-core/serde",
+    "rgb-core/serde",
+]
+fs = []
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2"
@@ -76,3 +82,6 @@ wasm-bindgen-test = "0.3"
 
 [package.metadata.docs.rs]
 features = [ "all" ]
+
+[patch.crates-io]
+rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "v0.11" }

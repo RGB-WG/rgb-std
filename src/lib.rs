@@ -1,4 +1,4 @@
-// RGB wallet library for smart contracts on Bitcoin & Lightning network
+// RGB standard library for working with smart contracts on Bitcoin & Lightning
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -19,33 +19,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Library provides three main procedures:
-//!
-//! ## 1. PSBT-based state transition construction.
-//!
-//! Given PSBT-originating set of outpoints the procedure creates all required
-//! state transitions for all contracts, adding necessary information to PSBT
-//! for constructing bundles and tapret proofs. The actual state transitions are
-//! saved into the stash even before witness transactions are mined. They may be
-//! also put into PSBT, if needed for the hardware signers.
-//!
-//! ## 2. PSBT-based finalization.
-//!
-//! Procedure takes PSBT with all information for constructing transition
-//! bundles and taprets and
-//! a) generates final tapret commitment;
-//! b) creates consignment for the main transfer.
-//!
-//! ## 3. Descriptor-based contract state.
-//!
-//! Checks descriptor UTXO set and updates contract, removing outdated outputs.
-//! For instance, after consignment creation, a new state transition is already
-//! present in the contract state, even before the witness transaction is mined.
-//! Descriptor filtering of the contract state will show a valid result, since
-//! a new state without mined witness will not be displayed. Once the witness
-//! gets mined, a new state appears, and previous state gets invalidated since
-//! it no longer assigned to an unspent transaction output.
-
 #![deny(
     non_upper_case_globals,
     non_camel_case_types,
@@ -53,38 +26,73 @@
     unused_mut,
     unused_imports,
     dead_code,
-    //missing_docs
+    // missing_docs
 )]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
+// CORE LIB:
+// issue    :: Schema, Metadata, {GlobalState}, {Assignments} -> Genesis
+//
+// STD LIB:
+// import   :: Stash, (Schema | Interface) -> Stash
+// state    :: Inventory, ContractId -> ContractState
+// interpret :: ContractState, Interface -> InterpretedState
+//
+// issue    :: Schema, State, Interface -> Consignment -- calls `core::issue`
+//                                                     -- internally
+// extract  :: Inventory, ContractId, Interface -> Consignment
+//          -- contract transfer
+//
+// compose  :: Inventory, ContractId, Interface, [Outpoint] -> Consignment
+//          -- base for state transfer describing existing state
+// transfer :: Consignment, (...) -> StateTransition -- prepares transition
+// preserve :: Stash, [Outpoint], StateTransition -> [StateTransition]
+//          -- creates blank state transitions
+// consign  :: Stash, StateTransition -> Consignment -- extracts history data
+//
+// reveal   :: Consignment, RevealInfo -> Consignment -- removes blinding from
+//                                                    -- known UTXOs
+// validate :: Consignment -> (Validity, ContractUpdate)
+// enclose  :: Inventory, Disclosure -> Inventory !!
+// consume  :: Inventory, Consignment -> Inventory !! -- for both transfers and
+//                                                    -- contracts
+//
+// endpoints :: Consignment -> [Outpoint] -- used to construct initial PSBT
+
+// WALLET LIB:
+// embed     :: Psbt, ContractId -> Psbt -- adds contract information to PSBT
+// commit    :: Psbt, ContractId, Transition -> Psbt -- adds transition
+//                                                   -- information to the PSBT
+// bundle    :: Psbt -> Psbt -- takes individual transitions and bundles them
+// finalize  :: Psbt -> Psbt -- should be performed by BP; converts individual
+//                           -- commitments into tapret
+
+extern crate core;
 #[macro_use]
 extern crate amplify;
 #[macro_use]
 extern crate strict_encoding;
-pub extern crate bitcoin;
+#[cfg(feature = "serde")]
+#[macro_use]
+extern crate serde_crate as serde;
 
-mod invoice;
-mod pay;
-pub mod psbt;
+pub use rgb::{contract, schema, validation, vm};
 
-pub use invoice::{
-    Beneficiary, InvoiceParseError, InvoiceState, RgbInvoice, RgbInvoiceBuilder, RgbTransport,
-    TransportParseError,
-};
-pub use pay::{InventoryWallet, PayError};
+pub mod stl;
+pub mod interface;
+pub mod containers;
+pub mod persistence;
+pub mod resolvers;
+pub mod accessors;
+mod reserved;
+
+pub use bp::{Outpoint, Txid};
+pub(crate) use reserved::ReservedBytes;
+pub use rgb::*;
+pub use stl::{LIB_NAME_RGB_CONTRACT, LIB_NAME_RGB_STD};
 
 /// BIP32 derivation index for outputs which may contain assigned RGB state.
 pub const RGB_NATIVE_DERIVATION_INDEX: u32 = 9;
 /// BIP32 derivation index for outputs which are tweaked with Tapret commitment
 /// and may also optionally contain assigned RGB state.
 pub const RGB_TAPRET_DERIVATION_INDEX: u32 = 10;
-
-// 1. Construct main state transition with transition builder
-// -- shortcut using invoice to do that construction (like .with_invoice())
-// -- have a construction for the "remaining state" assigned to a seal
-//    prototype.
-// 2. Add that state transition to PSBT
-// -- add change by checking change PSBT flag and assigning remaining state to
-//    that output
-// 3. Extract from PSBT all spent prevouts and construct blank state transitions
-//    for each one of them; embed them into PSBT
