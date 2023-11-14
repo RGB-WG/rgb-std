@@ -194,9 +194,9 @@ dependencies = [
 
 [[package]]
 name = "bp-consensus"
-version = "0.11.0-beta.1"
+version = "0.11.0-beta.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ab8f217830b75d84b06b2a82bb42109b441b552bf8b871de8d735a60bf9717f"
+checksum = "0b50dbcec1e75163cdd1ba1cc265f1bb67ae4319b00469c36b3972a2eb49b879"
 dependencies = [
  "amplify",
  "chrono",
@@ -270,9 +270,9 @@ checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
 
 [[package]]
 name = "cc"
-version = "1.0.83"
+version = "1.0.84"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1174fb0b6ec23863f8b971027804a42614e347eafb0a95bf0b12cdae21fc4d0"
+checksum = "0f8e7c90afad890484a21653d08b6e209ae34770fb5ee298f9c699fcc1e5c856"
 dependencies = [
  "libc",
 ]
@@ -599,7 +599,8 @@ dependencies = [
 [[package]]
 name = "rgb-core"
 version = "0.11.0-beta.1"
-source = "git+https://github.com/RGB-WG/rgb-core?branch=v0.11#0abbeddd3804e4be5ea5dbb22b5c21bdde5c9845"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e548bc2d50dac8821ceb7fc2b8e8655cb0a41bb9d76f9b1c069d1e4e09f782c"
 dependencies = [
  "aluvm",
  "amplify",
