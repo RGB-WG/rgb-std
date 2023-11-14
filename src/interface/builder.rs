@@ -171,23 +171,25 @@ impl ContractBuilder {
     pub fn add_fungible_state(
         mut self,
         name: impl Into<FieldName>,
-        seal: impl Into<SealDefinition<GenesisSeal>>,
+        seal: impl Into<GenesisSeal>,
         value: u64,
     ) -> Result<Self, BuilderError> {
         let name = name.into();
         let ty = self
             .assignments_type(&name)
             .ok_or(BuilderError::AssignmentNotFound(name))?;
-        self.builder = self
-            .builder
-            .add_raw_state(ty, seal.into(), TypedState::Amount(value))?;
+        self.builder = self.builder.add_raw_state(
+            ty,
+            SealDefinition::Bitcoin(seal.into()),
+            TypedState::Amount(value),
+        )?;
         Ok(self)
     }
 
     pub fn add_data_state(
         mut self,
         name: impl Into<FieldName>,
-        seal: impl Into<SealDefinition<GenesisSeal>>,
+        seal: impl Into<GenesisSeal>,
         value: impl StrictSerialize,
     ) -> Result<Self, BuilderError> {
         let name = name.into();
@@ -197,9 +199,11 @@ impl ContractBuilder {
         let ty = self
             .assignments_type(&name)
             .ok_or(BuilderError::AssignmentNotFound(name))?;
-        self.builder = self
-            .builder
-            .add_raw_state(ty, seal.into(), TypedState::Data(state))?;
+        self.builder = self.builder.add_raw_state(
+            ty,
+            SealDefinition::Bitcoin(seal.into()),
+            TypedState::Data(state),
+        )?;
         Ok(self)
     }
 
@@ -328,7 +332,7 @@ impl TransitionBuilder {
 
     pub fn add_fungible_state_default(
         self,
-        seal: impl Into<BuilderSeal<GraphSeal>>,
+        seal: impl Into<GraphSeal>,
         value: u64,
     ) -> Result<Self, BuilderError> {
         let assignment_name = self.default_assignment()?;
@@ -336,29 +340,31 @@ impl TransitionBuilder {
             .assignments_type(assignment_name)
             .ok_or_else(|| BuilderError::InvalidStateField(assignment_name.clone()))?;
 
-        self.add_raw_state(id, seal, TypedState::Amount(value))
+        self.add_raw_state(id, SealDefinition::Bitcoin(seal.into()), TypedState::Amount(value))
     }
 
     pub fn add_fungible_state(
         mut self,
         name: impl Into<FieldName>,
-        seal: impl Into<BuilderSeal<GraphSeal>>,
+        seal: impl Into<GraphSeal>,
         value: u64,
     ) -> Result<Self, BuilderError> {
         let name = name.into();
         let ty = self
             .assignments_type(&name)
             .ok_or(BuilderError::AssignmentNotFound(name))?;
-        self.builder = self
-            .builder
-            .add_raw_state(ty, seal, TypedState::Amount(value))?;
+        self.builder = self.builder.add_raw_state(
+            ty,
+            SealDefinition::Bitcoin(seal.into()),
+            TypedState::Amount(value),
+        )?;
         Ok(self)
     }
 
     pub fn add_data_state(
         mut self,
         name: impl Into<FieldName>,
-        seal: impl Into<BuilderSeal<GraphSeal>>,
+        seal: impl Into<GraphSeal>,
         value: impl StrictSerialize,
     ) -> Result<Self, BuilderError> {
         let name = name.into();
@@ -368,9 +374,11 @@ impl TransitionBuilder {
         let ty = self
             .assignments_type(&name)
             .ok_or(BuilderError::AssignmentNotFound(name))?;
-        self.builder = self
-            .builder
-            .add_raw_state(ty, seal, TypedState::Data(state))?;
+        self.builder = self.builder.add_raw_state(
+            ty,
+            SealDefinition::Bitcoin(seal.into()),
+            TypedState::Data(state),
+        )?;
         Ok(self)
     }
 
