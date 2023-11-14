@@ -34,8 +34,8 @@ mod suppl;
 
 pub use builder::{BuilderError, ContractBuilder, TransitionBuilder};
 pub use contract::{
-    ContractIface, FilterExclude, FilterIncludeAll, FungibleAllocation, IfaceWrapper,
-    OutpointFilter, TypedState,
+    AllocationWitness, ContractIface, FilterExclude, FilterIncludeAll, FungibleAllocation,
+    IfaceWrapper, OutpointFilter, TypedState,
 };
 pub use iface::{
     ArgMap, ArgSpec, AssignIface, ExtensionIface, GenesisIface, GlobalIface, Iface, IfaceId,

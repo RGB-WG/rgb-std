@@ -74,11 +74,28 @@ impl From<RevealedAttach> for AttachedState {
     }
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Display)]
+pub enum AllocationWitness {
+    #[display("~")]
+    Absent,
+    #[display(inner)]
+    Present(WitnessId),
+}
+
+impl From<Option<WitnessId>> for AllocationWitness {
+    fn from(value: Option<WitnessId>) -> Self {
+        match value {
+            None => AllocationWitness::Absent,
+            Some(id) => AllocationWitness::Present(id),
+        }
+    }
+}
+
 // TODO: Consider removing type in favour of `FungibleOutput`
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct FungibleAllocation {
     pub owner: Output,
-    pub witness: Option<WitnessId>,
+    pub witness: AllocationWitness,
     pub value: u64,
 }
 
@@ -90,7 +107,7 @@ impl From<&FungibleOutput> for FungibleAllocation {
     fn from(out: &FungibleOutput) -> Self {
         FungibleAllocation {
             owner: out.output,
-            witness: out.witness,
+            witness: out.witness.into(),
             value: out.state.value.as_u64(),
         }
     }
