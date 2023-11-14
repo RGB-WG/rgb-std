@@ -96,6 +96,19 @@ pub struct ContractBuilder {
 }
 
 impl ContractBuilder {
+    pub fn with(
+        iface: Iface,
+        schema: SubSchema,
+        iimpl: IfaceImpl,
+        testnet: bool,
+    ) -> Result<Self, BuilderError> {
+        Ok(Self {
+            builder: OperationBuilder::with(iface, schema, iimpl)?,
+            testnet,
+            alt_layers1: none!(),
+        })
+    }
+
     pub fn mainnet(
         iface: Iface,
         schema: SubSchema,
@@ -107,6 +120,7 @@ impl ContractBuilder {
             alt_layers1: none!(),
         })
     }
+
     pub fn testnet(
         iface: Iface,
         schema: SubSchema,

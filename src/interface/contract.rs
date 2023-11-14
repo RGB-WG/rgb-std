@@ -74,6 +74,7 @@ impl From<RevealedAttach> for AttachedState {
     }
 }
 
+// TODO: Consider removing type in favour of `FungibleOutput`
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct FungibleAllocation {
     pub owner: Output,
