@@ -33,7 +33,7 @@ use strict_encoding::{FieldName, SerializeError, StrictSerialize, TypeName};
 use strict_types::decode;
 
 use crate::containers::{BuilderSeal, Contract};
-use crate::interface::{Iface, IfaceImpl, IfacePair, TransitionIface, TypedState};
+use crate::interface::{Iface, IfaceImpl, IfacePair, TransitionIface};
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
@@ -150,19 +150,7 @@ impl ContractBuilder {
         Ok(self)
     }
 
-    pub fn assignments_type(&self, name: &FieldName) -> Option<AssignmentType> {
-        let name = self
-            .builder
-            .iface
-            .genesis
-            .assignments
-            .get(name)?
-            .name
-            .as_ref()
-            .unwrap_or(name);
-        self.builder.iimpl.assignments_type(name)
-    }
-
+    #[inline]
     pub fn add_global_state(
         mut self,
         name: impl Into<FieldName>,
@@ -178,15 +166,7 @@ impl ContractBuilder {
         seal: impl Into<GenesisSeal>,
         value: u64,
     ) -> Result<Self, BuilderError> {
-        let name = name.into();
-        let ty = self
-            .assignments_type(&name)
-            .ok_or(BuilderError::AssignmentNotFound(name))?;
-        self.builder = self.builder.add_raw_state(
-            ty,
-            SealDefinition::Bitcoin(seal.into()),
-            TypedState::Amount(value),
-        )?;
+        self.builder = self.builder.add_fungible_state(name, seal, value, None)?;
         Ok(self)
     }
 
@@ -196,18 +176,7 @@ impl ContractBuilder {
         seal: impl Into<GenesisSeal>,
         value: impl StrictSerialize,
     ) -> Result<Self, BuilderError> {
-        let name = name.into();
-        let serialized = value.to_strict_serialized::<U16>()?;
-        let state = RevealedData::from(serialized);
-
-        let ty = self
-            .assignments_type(&name)
-            .ok_or(BuilderError::AssignmentNotFound(name))?;
-        self.builder = self.builder.add_raw_state(
-            ty,
-            SealDefinition::Bitcoin(seal.into()),
-            TypedState::Data(state),
-        )?;
+        self.builder = self.builder.add_data_state(name, seal, value, None)?;
         Ok(self)
     }
 
@@ -289,42 +258,17 @@ impl TransitionBuilder {
         })
     }
 
-    fn transition_iface(&self) -> &TransitionIface {
-        let transition_name = self
-            .builder
-            .iimpl
-            .transition_name(self.transition_type)
-            .expect("reverse type");
-        self.builder
-            .iface
-            .transitions
-            .get(transition_name)
-            .expect("internal inconsistency")
-    }
-
-    pub fn assignments_type(&self, name: &FieldName) -> Option<AssignmentType> {
-        let name = self
-            .transition_iface()
-            .assignments
-            .get(name)?
-            .name
-            .as_ref()
-            .unwrap_or(name);
-        self.builder.iimpl.assignments_type(name)
-    }
-
-    pub fn add_input(mut self, opout: Opout) -> Result<Self, BuilderError> {
-        self.inputs.push(Input::with(opout))?;
+    #[inline]
+    pub fn add_asset_tag(
+        mut self,
+        assignment_type: AssignmentType,
+        asset_tag: AssetTag,
+    ) -> Result<Self, BuilderError> {
+        self.builder = self.builder.add_asset_tag(assignment_type, asset_tag)?;
         Ok(self)
     }
 
-    pub fn default_assignment(&self) -> Result<&FieldName, BuilderError> {
-        self.transition_iface()
-            .default_assignment
-            .as_ref()
-            .ok_or(BuilderError::NoDefaultAssignment)
-    }
-
+    #[inline]
     pub fn add_global_state(
         mut self,
         name: impl Into<FieldName>,
@@ -334,17 +278,26 @@ impl TransitionBuilder {
         Ok(self)
     }
 
-    pub fn add_fungible_state_default(
+    pub fn add_input(mut self, opout: Opout) -> Result<Self, BuilderError> {
+        self.inputs.push(Input::with(opout))?;
+        Ok(self)
+    }
+
+    pub fn default_assignment(&self) -> Result<&FieldName, BuilderError> {
+        self.builder
+            .transition_iface(self.transition_type)
+            .default_assignment
+            .as_ref()
+            .ok_or(BuilderError::NoDefaultAssignment)
+    }
+
+    pub fn add_fungible_default_state(
         self,
         seal: impl Into<GraphSeal>,
         value: u64,
     ) -> Result<Self, BuilderError> {
-        let assignment_name = self.default_assignment()?;
-        let id = self
-            .assignments_type(assignment_name)
-            .ok_or_else(|| BuilderError::InvalidStateField(assignment_name.clone()))?;
-
-        self.add_raw_state(id, SealDefinition::Bitcoin(seal.into()), TypedState::Amount(value))
+        let assignment_name = self.default_assignment()?.clone();
+        self.add_fungible_state(assignment_name, seal.into(), value)
     }
 
     pub fn add_fungible_state(
@@ -353,15 +306,9 @@ impl TransitionBuilder {
         seal: impl Into<GraphSeal>,
         value: u64,
     ) -> Result<Self, BuilderError> {
-        let name = name.into();
-        let ty = self
-            .assignments_type(&name)
-            .ok_or(BuilderError::AssignmentNotFound(name))?;
-        self.builder = self.builder.add_raw_state(
-            ty,
-            SealDefinition::Bitcoin(seal.into()),
-            TypedState::Amount(value),
-        )?;
+        self.builder =
+            self.builder
+                .add_fungible_state(name, seal, value, Some(self.transition_type))?;
         Ok(self)
     }
 
@@ -371,28 +318,9 @@ impl TransitionBuilder {
         seal: impl Into<GraphSeal>,
         value: impl StrictSerialize,
     ) -> Result<Self, BuilderError> {
-        let name = name.into();
-        let serialized = value.to_strict_serialized::<U16>()?;
-        let state = RevealedData::from(serialized);
-
-        let ty = self
-            .assignments_type(&name)
-            .ok_or(BuilderError::AssignmentNotFound(name))?;
-        self.builder = self.builder.add_raw_state(
-            ty,
-            SealDefinition::Bitcoin(seal.into()),
-            TypedState::Data(state),
-        )?;
-        Ok(self)
-    }
-
-    pub fn add_raw_state(
-        mut self,
-        type_id: AssignmentType,
-        seal: impl Into<BuilderSeal<GraphSeal>>,
-        state: TypedState,
-    ) -> Result<Self, BuilderError> {
-        self.builder = self.builder.add_raw_state(type_id, seal, state)?;
+        self.builder =
+            self.builder
+                .add_data_state(name, seal, value, Some(self.transition_type))?;
         Ok(self)
     }
 
@@ -417,7 +345,7 @@ impl TransitionBuilder {
 }
 
 #[derive(Clone, Debug)]
-struct OperationBuilder<Seal: ExposedSeal> {
+pub struct OperationBuilder<Seal: ExposedSeal> {
     // TODO: use references instead of owned values
     schema: SubSchema,
     iface: Iface,
@@ -434,7 +362,7 @@ struct OperationBuilder<Seal: ExposedSeal> {
 }
 
 impl<Seal: ExposedSeal> OperationBuilder<Seal> {
-    pub fn with(iface: Iface, schema: SubSchema, iimpl: IfaceImpl) -> Result<Self, BuilderError> {
+    fn with(iface: Iface, schema: SubSchema, iimpl: IfaceImpl) -> Result<Self, BuilderError> {
         if iimpl.iface_id != iface.iface_id() {
             return Err(BuilderError::InterfaceMismatch);
         }
@@ -456,6 +384,35 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             fungible: none!(),
             data: none!(),
         })
+    }
+
+    fn transition_iface(&self, ty: TransitionType) -> &TransitionIface {
+        let transition_name = self.iimpl.transition_name(ty).expect("reverse type");
+        self.iface
+            .transitions
+            .get(transition_name)
+            .expect("internal inconsistency")
+    }
+
+    fn assignments_type(
+        &self,
+        name: &FieldName,
+        ty: Option<TransitionType>,
+    ) -> Option<AssignmentType> {
+        let assignments = match ty {
+            None => &self.iface.genesis.assignments,
+            Some(ty) => &self.transition_iface(ty).assignments,
+        };
+        let name = assignments.get(name)?.name.as_ref().unwrap_or(name);
+        self.iimpl.assignments_type(name)
+    }
+
+    #[inline]
+    fn state_schema(&self, type_id: AssignmentType) -> &StateSchema {
+        self.schema
+            .owned_types
+            .get(&type_id)
+            .expect("schema should match interface: must be checked by the constructor")
     }
 
     #[inline]
@@ -501,64 +458,73 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         Ok(self)
     }
 
-    pub fn add_raw_state(
+    fn add_fungible_state(
         mut self,
-        type_id: AssignmentType,
-        seal: impl Into<BuilderSeal<Seal>>,
-        state: TypedState,
+        name: impl Into<FieldName>,
+        seal: impl Into<Seal>,
+        value: u64,
+        ty: Option<TransitionType>,
     ) -> Result<Self, BuilderError> {
-        match state {
-            TypedState::Void => {
-                todo!()
-            }
-            TypedState::Amount(value) => {
-                let tag = *self
-                    .asset_tags
-                    .get(&type_id)
-                    .ok_or(BuilderError::AssetTagUnknown(type_id))?;
-                let state = RevealedValue::new_random_blinding(value, tag);
+        let name = name.into();
 
-                let state_schema =
-                    self.schema.owned_types.get(&type_id).expect(
-                        "schema should match interface: must be checked by the constructor",
-                    );
-                if *state_schema != StateSchema::Fungible(FungibleType::Unsigned64Bit) {
-                    return Err(BuilderError::InvalidState(type_id));
-                }
+        let type_id = self
+            .assignments_type(&name, ty)
+            .ok_or(BuilderError::AssignmentNotFound(name))?;
 
-                match self.fungible.get_mut(&type_id) {
-                    Some(assignments) => {
-                        assignments.insert(seal.into(), state)?;
-                    }
-                    None => {
-                        self.fungible
-                            .insert(type_id, Confined::with((seal.into(), state)))?;
-                    }
-                }
-            }
-            TypedState::Data(data) => {
-                let state_schema =
-                    self.schema.owned_types.get(&type_id).expect(
-                        "schema should match interface: must be checked by the constructor",
-                    );
+        let tag = *self
+            .asset_tags
+            .get(&type_id)
+            .ok_or(BuilderError::AssetTagUnknown(type_id))?;
 
-                if let StateSchema::Structured(_) = *state_schema {
-                    match self.data.get_mut(&type_id) {
-                        Some(assignments) => {
-                            assignments.insert(seal.into(), data)?;
-                        }
-                        None => {
-                            self.data
-                                .insert(type_id, Confined::with((seal.into(), data)))?;
-                        }
-                    }
-                } else {
-                    return Err(BuilderError::InvalidState(type_id));
+        let state = RevealedValue::new_random_blinding(value, tag);
+
+        let state_schema = self.state_schema(type_id);
+        if *state_schema != StateSchema::Fungible(FungibleType::Unsigned64Bit) {
+            return Err(BuilderError::InvalidState(type_id));
+        }
+
+        let seal = BuilderSeal::<Seal>::from(SealDefinition::Bitcoin(seal.into()));
+        match self.fungible.get_mut(&type_id) {
+            Some(assignments) => {
+                assignments.insert(seal, state)?;
+            }
+            None => {
+                self.fungible
+                    .insert(type_id, Confined::with((seal, state)))?;
+            }
+        }
+
+        Ok(self)
+    }
+
+    fn add_data_state(
+        mut self,
+        name: impl Into<FieldName>,
+        seal: impl Into<Seal>,
+        value: impl StrictSerialize,
+        ty: Option<TransitionType>,
+    ) -> Result<Self, BuilderError> {
+        let name = name.into();
+        let serialized = value.to_strict_serialized::<U16>()?;
+        let state = RevealedData::from(serialized);
+
+        let type_id = self
+            .assignments_type(&name, ty)
+            .ok_or(BuilderError::AssignmentNotFound(name))?;
+
+        let state_schema = self.state_schema(type_id);
+        let seal = BuilderSeal::<Seal>::from(SealDefinition::Bitcoin(seal.into()));
+        if let StateSchema::Structured(_) = *state_schema {
+            match self.data.get_mut(&type_id) {
+                Some(assignments) => {
+                    assignments.insert(seal, state)?;
+                }
+                None => {
+                    self.data.insert(type_id, Confined::with((seal, state)))?;
                 }
             }
-            TypedState::Attachment(_) => {
-                todo!()
-            }
+        } else {
+            return Err(BuilderError::InvalidState(type_id));
         }
         Ok(self)
     }
