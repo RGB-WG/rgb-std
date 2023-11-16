@@ -555,7 +555,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
                 let state = assignment
                     .as_revealed_state_mut()
                     .expect("builder always operates revealed state");
-                let inputs = inputs
+                let mut inputs = inputs
                     .map(|i| {
                         i.iter()
                             .filter(|(out, _)| out.prev_out.ty == id)
@@ -566,6 +566,9 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
                             .collect::<Vec<_>>()
                     })
                     .unwrap_or_default();
+                if inputs.is_empty() {
+                    inputs = vec![BlindingFactor::EMPTY];
+                }
                 state.blinding = BlindingFactor::zero_balanced(inputs, blindings).expect(
                     "malformed set of blinding factors; probably random generator is broken",
                 );
