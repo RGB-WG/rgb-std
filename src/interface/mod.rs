@@ -32,6 +32,7 @@ pub mod rgb21;
 pub mod rgb25;
 mod suppl;
 
+pub use asset_tag_ext::AssetTagExt;
 pub use builder::{BuilderError, ContractBuilder, TransitionBuilder};
 pub use contract::{
     AllocationWitness, ContractIface, FilterExclude, FilterIncludeAll, FungibleAllocation,
@@ -47,6 +48,8 @@ pub use rgb21::{rgb21, rgb21_stl, Rgb21, LIB_ID_RGB21, LIB_NAME_RGB21};
 pub use rgb25::{rgb25, rgb25_stl, Rgb25, LIB_ID_RGB25, LIB_NAME_RGB25};
 pub use suppl::{ContractSuppl, OwnedStateSuppl, SupplId, TickerSuppl, VelocityHint};
 
+use crate::stl::Ticker;
+
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = crate::LIB_NAME_RGB_STD, tags = repr, into_u8, try_from_u8)]
@@ -61,4 +64,41 @@ pub enum VerNo {
     #[default]
     #[display("v1")]
     V1 = 0,
+}
+
+mod asset_tag_ext {
+    use std::time::SystemTime;
+
+    use amplify::confinement::U8;
+    use bp::secp256k1::rand::{thread_rng, RngCore};
+    use commit_verify::{DigestExt, Sha256};
+    use rgb::AssetTag;
+
+    use super::*;
+
+    pub trait AssetTagExt: Sized {
+        fn new_rgb20(issuer_domain: &str, ticker: &Ticker) -> Self {
+            Self::new_custom("RGB20", &format!("{issuer_domain}/{ticker}"))
+        }
+        fn new_rgb21(issuer_domain: &str, ticker: &Ticker) -> Self {
+            Self::new_custom("RGB21", &format!("{issuer_domain}/{ticker}"))
+        }
+        fn new_rgb25(issuer_domain: &str, ticker: &Ticker) -> Self {
+            Self::new_custom("RGB25", &format!("{issuer_domain}/{ticker}"))
+        }
+        fn new_custom(iface_name: &str, data: &str) -> Self;
+    }
+
+    impl AssetTagExt for AssetTag {
+        fn new_custom(iface_name: &str, data: &str) -> Self {
+            let rand = thread_rng().next_u64();
+            let timestamp = SystemTime::now().elapsed().expect("system time error");
+            let mut hasher = Sha256::default();
+            hasher.input_with_len::<U8>(iface_name.as_bytes());
+            hasher.input_with_len::<U8>(data.as_bytes());
+            hasher.input_raw(&timestamp.as_nanos().to_le_bytes());
+            hasher.input_raw(&rand.to_le_bytes());
+            AssetTag::from(hasher.finish())
+        }
+    }
 }
