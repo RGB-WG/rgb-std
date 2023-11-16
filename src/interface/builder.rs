@@ -21,19 +21,19 @@
 
 use std::collections::HashMap;
 
-use amplify::confinement::{Confined, TinyOrdMap, U16, U8};
+use amplify::confinement::{Confined, TinyOrdMap, TinyOrdSet, U16, U8};
 use amplify::{confinement, Wrapper};
 use rgb::{
-    AltLayer1, AltLayer1Set, AssetTag, Assign, AssignmentType, Assignments, ContractId,
-    ExposedSeal, FungibleType, Genesis, GenesisSeal, GlobalState, GraphSeal, Input, Inputs, Opout,
-    RevealedData, RevealedValue, SealDefinition, StateSchema, SubSchema, Transition,
+    AltLayer1, AltLayer1Set, AssetTag, Assign, AssignmentType, Assignments, BlindingFactor,
+    ContractId, ExposedSeal, FungibleType, Genesis, GenesisSeal, GlobalState, GraphSeal, Input,
+    Opout, RevealedData, RevealedValue, SealDefinition, StateSchema, SubSchema, Transition,
     TransitionType, TypedAssigns,
 };
 use strict_encoding::{FieldName, SerializeError, StrictSerialize, TypeName};
 use strict_types::decode;
 
 use crate::containers::{BuilderSeal, Contract};
-use crate::interface::{Iface, IfaceImpl, IfacePair, TransitionIface};
+use crate::interface::{Iface, IfaceImpl, IfacePair, TransitionIface, TypedState};
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
@@ -181,7 +181,7 @@ impl ContractBuilder {
     }
 
     pub fn issue_contract(self) -> Result<Contract, BuilderError> {
-        let (schema, iface_pair, global, assignments, asset_tags) = self.builder.complete();
+        let (schema, iface_pair, global, assignments, asset_tags) = self.builder.complete(None);
 
         let genesis = Genesis {
             ffv: none!(),
@@ -207,7 +207,7 @@ impl ContractBuilder {
 pub struct TransitionBuilder {
     builder: OperationBuilder<GraphSeal>,
     transition_type: TransitionType,
-    inputs: Inputs,
+    inputs: TinyOrdMap<Input, TypedState>,
 }
 
 impl TransitionBuilder {
@@ -278,8 +278,8 @@ impl TransitionBuilder {
         Ok(self)
     }
 
-    pub fn add_input(mut self, opout: Opout) -> Result<Self, BuilderError> {
-        self.inputs.push(Input::with(opout))?;
+    pub fn add_input(mut self, opout: Opout, state: TypedState) -> Result<Self, BuilderError> {
+        self.inputs.insert(Input::with(opout), state)?;
         Ok(self)
     }
 
@@ -325,7 +325,7 @@ impl TransitionBuilder {
     }
 
     pub fn complete_transition(self, contract_id: ContractId) -> Result<Transition, BuilderError> {
-        let (_, _, global, assignments, _) = self.builder.complete();
+        let (_, _, global, assignments, _) = self.builder.complete(Some(&self.inputs));
 
         let transition = Transition {
             ffv: none!(),
@@ -333,7 +333,9 @@ impl TransitionBuilder {
             transition_type: self.transition_type,
             metadata: empty!(),
             globals: global,
-            inputs: self.inputs,
+            inputs: TinyOrdSet::try_from_iter(self.inputs.into_keys())
+                .expect("same size iter")
+                .into(),
             assignments,
             valencies: none!(),
         };
@@ -531,18 +533,48 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
 
     fn complete(
         self,
+        inputs: Option<&TinyOrdMap<Input, TypedState>>,
     ) -> (SubSchema, IfacePair, GlobalState, Assignments<Seal>, TinyOrdMap<AssignmentType, AssetTag>)
     {
         let owned_state = self.fungible.into_iter().map(|(id, vec)| {
-            let vec = vec.into_iter().map(|(seal, value)| match seal {
-                BuilderSeal::Revealed(seal) => Assign::Revealed { seal, state: value },
-                BuilderSeal::Concealed(seal) => Assign::ConfidentialSeal { seal, state: value },
+            let mut blindings = Vec::with_capacity(vec.len());
+            let mut vec = vec
+                .into_iter()
+                .map(|(seal, value)| {
+                    blindings.push(value.blinding);
+                    match seal {
+                        BuilderSeal::Revealed(seal) => Assign::Revealed { seal, state: value },
+                        BuilderSeal::Concealed(seal) => {
+                            Assign::ConfidentialSeal { seal, state: value }
+                        }
+                    }
+                })
+                .collect::<Vec<_>>();
+            vec.last_mut().map(|assignment| {
+                blindings.pop();
+                let state = assignment
+                    .as_revealed_state_mut()
+                    .expect("builder always operates revealed state");
+                let inputs = inputs
+                    .map(|i| {
+                        i.iter()
+                            .filter(|(out, _)| out.prev_out.ty == id)
+                            .map(|(_, ts)| match ts {
+                                TypedState::Amount(_, blinding) => *blinding,
+                                _ => panic!("previous state has invalid type"),
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default();
+                state.blinding = BlindingFactor::zero_balanced(inputs, blindings).expect(
+                    "malformed set of blinding factors; probably random generator is broken",
+                );
             });
             let state = Confined::try_from_iter(vec).expect("at least one element");
             let state = TypedAssigns::Fungible(state);
             (id, state)
         });
-        let owned_state_data = self.data.into_iter().map(|(id, vec)| {
+        let owned_data = self.data.into_iter().map(|(id, vec)| {
             let vec_data = vec.into_iter().map(|(seal, value)| match seal {
                 BuilderSeal::Revealed(seal) => Assign::Revealed { seal, state: value },
                 BuilderSeal::Concealed(seal) => Assign::ConfidentialSeal { seal, state: value },
@@ -553,11 +585,11 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         });
 
         let owned_state = Confined::try_from_iter(owned_state).expect("same size");
-        let owned_state_data = Confined::try_from_iter(owned_state_data).expect("same size");
+        let owned_data = Confined::try_from_iter(owned_data).expect("same size");
 
         let mut assignments = Assignments::from_inner(owned_state);
         assignments
-            .extend(Assignments::from_inner(owned_state_data).into_inner())
+            .extend(Assignments::from_inner(owned_data).into_inner())
             .expect("");
 
         let iface_pair = IfacePair::with(self.iface, self.iimpl);

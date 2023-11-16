@@ -658,7 +658,10 @@ impl Inventory for Stock {
 
         for output in history.fungibles() {
             if outputs.contains(&output.output) {
-                res.insert(output.opout, TypedState::Amount(output.state.value.as_u64()));
+                res.insert(
+                    output.opout,
+                    TypedState::Amount(output.state.value.as_u64(), output.state.blinding),
+                );
             }
         }
 
