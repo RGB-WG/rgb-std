@@ -25,8 +25,8 @@ use std::ops::Deref;
 use amplify::confinement::{LargeOrdMap, LargeVec, SmallVec};
 use bp::Outpoint;
 use rgb::{
-    AssignmentType, AttachId, ContractId, ContractState, FungibleOutput, MediaType, Output,
-    RevealedAttach, RevealedData, WitnessId,
+    AssignmentType, AttachId, BlindingFactor, ContractId, ContractState, FungibleOutput, MediaType,
+    Output, RevealedAttach, RevealedData, WitnessId,
 };
 use strict_encoding::FieldName;
 use strict_types::typify::TypedVal;
@@ -50,8 +50,7 @@ pub enum ContractError {
 pub enum TypedState {
     #[display("")]
     Void,
-    #[from]
-    Amount(u64),
+    Amount(u64, BlindingFactor),
     #[from]
     Data(RevealedData),
     #[from]
