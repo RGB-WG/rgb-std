@@ -19,7 +19,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 
 use amplify::confinement::{Confined, TinyOrdMap, U16, U8};
 use amplify::{confinement, Wrapper};
@@ -141,9 +141,13 @@ impl ContractBuilder {
     }
 
     #[inline]
-    pub fn add_asset_tag(mut self, assignment_type: AssignmentType, asset_tag: AssetTag) -> Self {
-        self.builder = self.builder.add_asset_tag(assignment_type, asset_tag);
-        self
+    pub fn add_asset_tag(
+        mut self,
+        assignment_type: AssignmentType,
+        asset_tag: AssetTag,
+    ) -> Result<Self, BuilderError> {
+        self.builder = self.builder.add_asset_tag(assignment_type, asset_tag)?;
+        Ok(self)
     }
 
     pub fn assignments_type(&self, name: &FieldName) -> Option<AssignmentType> {
@@ -208,7 +212,7 @@ impl ContractBuilder {
     }
 
     pub fn issue_contract(self) -> Result<Contract, BuilderError> {
-        let (schema, iface_pair, global, assignments) = self.builder.complete();
+        let (schema, iface_pair, global, assignments, asset_tags) = self.builder.complete();
 
         let genesis = Genesis {
             ffv: none!(),
@@ -223,7 +227,7 @@ impl ContractBuilder {
 
         // TODO: Validate against schema
 
-        let mut contract = Contract::new(schema, genesis);
+        let mut contract = Contract::new(schema, genesis, asset_tags);
         contract.ifaces = tiny_bmap! { iface_pair.iface_id() => iface_pair };
 
         Ok(contract)
@@ -393,7 +397,7 @@ impl TransitionBuilder {
     }
 
     pub fn complete_transition(self, contract_id: ContractId) -> Result<Transition, BuilderError> {
-        let (_, _, global, assignments) = self.builder.complete();
+        let (_, _, global, assignments, _) = self.builder.complete();
 
         let transition = Transition {
             ffv: none!(),
@@ -418,7 +422,7 @@ struct OperationBuilder<Seal: ExposedSeal> {
     schema: SubSchema,
     iface: Iface,
     iimpl: IfaceImpl,
-    asset_tags: BTreeMap<AssignmentType, AssetTag>,
+    asset_tags: TinyOrdMap<AssignmentType, AssetTag>,
 
     global: GlobalState,
     // rights: TinyOrdMap<AssignmentType, Confined<HashSet<BuilderSeal<Seal>>, 1, U8>>,
@@ -455,9 +459,13 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
     }
 
     #[inline]
-    pub fn add_asset_tag(mut self, assignment_type: AssignmentType, asset_tag: AssetTag) -> Self {
-        self.asset_tags.insert(assignment_type, asset_tag);
-        self
+    pub fn add_asset_tag(
+        mut self,
+        assignment_type: AssignmentType,
+        asset_tag: AssetTag,
+    ) -> Result<Self, BuilderError> {
+        self.asset_tags.insert(assignment_type, asset_tag)?;
+        Ok(self)
     }
 
     pub fn add_global_state(
@@ -555,7 +563,10 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         Ok(self)
     }
 
-    fn complete(self) -> (SubSchema, IfacePair, GlobalState, Assignments<Seal>) {
+    fn complete(
+        self,
+    ) -> (SubSchema, IfacePair, GlobalState, Assignments<Seal>, TinyOrdMap<AssignmentType, AssetTag>)
+    {
         let owned_state = self.fungible.into_iter().map(|(id, vec)| {
             let vec = vec.into_iter().map(|(seal, value)| match seal {
                 BuilderSeal::Revealed(seal) => Assign::Revealed { seal, state: value },
@@ -585,6 +596,6 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
 
         let iface_pair = IfacePair::with(self.iface, self.iimpl);
 
-        (self.schema, iface_pair, self.global, assignments)
+        (self.schema, iface_pair, self.global, assignments, self.asset_tags)
     }
 }
