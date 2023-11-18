@@ -143,10 +143,10 @@ impl ContractBuilder {
     #[inline]
     pub fn add_asset_tag(
         mut self,
-        assignment_type: AssignmentType,
+        name: impl Into<FieldName>,
         asset_tag: AssetTag,
     ) -> Result<Self, BuilderError> {
-        self.builder = self.builder.add_asset_tag(assignment_type, asset_tag)?;
+        self.builder = self.builder.add_asset_tag(name, asset_tag, None)?;
         Ok(self)
     }
 
@@ -261,10 +261,12 @@ impl TransitionBuilder {
     #[inline]
     pub fn add_asset_tag(
         mut self,
-        assignment_type: AssignmentType,
+        name: impl Into<FieldName>,
         asset_tag: AssetTag,
     ) -> Result<Self, BuilderError> {
-        self.builder = self.builder.add_asset_tag(assignment_type, asset_tag)?;
+        self.builder = self
+            .builder
+            .add_asset_tag(name, asset_tag, Some(self.transition_type))?;
         Ok(self)
     }
 
@@ -420,10 +422,16 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
     #[inline]
     pub fn add_asset_tag(
         mut self,
-        assignment_type: AssignmentType,
+        name: impl Into<FieldName>,
         asset_tag: AssetTag,
+        ty: Option<TransitionType>,
     ) -> Result<Self, BuilderError> {
-        self.asset_tags.insert(assignment_type, asset_tag)?;
+        let name = name.into();
+        let type_id = self
+            .assignments_type(&name, ty)
+            .ok_or(BuilderError::AssignmentNotFound(name))?;
+
+        self.asset_tags.insert(type_id, asset_tag)?;
         Ok(self)
     }
 
