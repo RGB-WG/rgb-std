@@ -481,10 +481,17 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             .assignments_type(&name, ty)
             .ok_or(BuilderError::AssignmentNotFound(name))?;
 
-        let tag = *self
-            .asset_tags
-            .get(&type_id)
-            .ok_or(BuilderError::AssetTagUnknown(type_id))?;
+        let tag = match self.asset_tags.get(&type_id) {
+            Some(asset_tag) => *asset_tag,
+            None => {
+                let asset_tag = AssetTag::new_random(
+                    &format!("{}/{}", self.schema.schema_id(), self.iface.iface_id()),
+                    type_id,
+                );
+                self.asset_tags.insert(type_id, asset_tag)?;
+                asset_tag
+            }
+        };
 
         let state = RevealedValue::new_random_blinding(value, tag);
 
