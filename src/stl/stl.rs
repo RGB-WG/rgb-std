@@ -32,6 +32,7 @@ use super::{
     RicardianContract, Timestamp, LIB_NAME_RGB_CONTRACT,
 };
 use crate::containers::{Contract, Transfer};
+use crate::persistence::Stock;
 use crate::stl::ProofOfReserves;
 use crate::LIB_NAME_RGB_STD;
 
@@ -42,7 +43,7 @@ pub const LIB_ID_RGB_CONTRACT: &str =
 
 /// Strict types id for the library representing of RGB StdLib data types.
 pub const LIB_ID_RGB_STD: &str =
-    "urn:ubideco:stl:BweL96SmzWcFTCe1w9hcjaVDqStsHRA54TuTkT9fTvNh#violet-balance-village";
+    "urn:ubideco:stl:5BWvsBkteVgD3yiGy8gHHuzhHFLQTz4mZU7kJob3JkHW#lazarus-ranger-neutral";
 
 fn _rgb_std_stl() -> Result<TypeLib, CompileError> {
     LibBuilder::new(libname!(LIB_NAME_RGB_STD), tiny_bset! {
@@ -56,6 +57,7 @@ fn _rgb_std_stl() -> Result<TypeLib, CompileError> {
     })
     .transpile::<Transfer>()
     .transpile::<Contract>()
+    .transpile::<Stock>()
     .compile()
 }
 

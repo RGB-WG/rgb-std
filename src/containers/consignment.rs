@@ -88,7 +88,7 @@ pub struct Consignment<const TYPE: bool> {
     pub supplements: TinyOrdSet<ContractSuppl>,
 
     /// Confidential asset tags.
-    pub asset_tags: SmallOrdMap<AssignmentType, AssetTag>,
+    pub asset_tags: TinyOrdMap<AssignmentType, AssetTag>,
 
     /// Genesis data.
     pub genesis: Genesis,
@@ -119,7 +119,11 @@ impl<const TYPE: bool> Consignment<TYPE> {
     /// # Panics
     ///
     /// If the provided schema is not the one which is used by genesis.
-    pub fn new(schema: SubSchema, genesis: Genesis) -> Self {
+    pub fn new(
+        schema: SubSchema,
+        genesis: Genesis,
+        asset_tags: TinyOrdMap<AssignmentType, AssetTag>,
+    ) -> Self {
         assert_eq!(schema.schema_id(), genesis.schema_id);
         Consignment {
             validation_status: None,
@@ -128,7 +132,7 @@ impl<const TYPE: bool> Consignment<TYPE> {
             schema,
             ifaces: none!(),
             supplements: none!(),
-            asset_tags: none!(),
+            asset_tags,
             genesis,
             terminals: none!(),
             bundles: none!(),

@@ -32,6 +32,7 @@ pub mod rgb21;
 pub mod rgb25;
 mod suppl;
 
+pub use asset_tag_ext::AssetTagExt;
 pub use builder::{BuilderError, ContractBuilder, TransitionBuilder};
 pub use contract::{
     AllocationWitness, ContractIface, FilterExclude, FilterIncludeAll, FungibleAllocation,
@@ -61,4 +62,31 @@ pub enum VerNo {
     #[default]
     #[display("v1")]
     V1 = 0,
+}
+
+// TODO: Move to RGB Core
+mod asset_tag_ext {
+    use std::time::SystemTime;
+
+    use amplify::confinement::U8;
+    use bp::secp256k1::rand::{thread_rng, RngCore};
+    use commit_verify::{DigestExt, Sha256};
+    use rgb::{AssetTag, AssignmentType};
+
+    pub trait AssetTagExt: Sized {
+        fn new_random(contract_domain: impl AsRef<str>, assignment_type: AssignmentType) -> Self;
+    }
+
+    impl AssetTagExt for AssetTag {
+        fn new_random(contract_domain: impl AsRef<str>, assignment_type: AssignmentType) -> Self {
+            let rand = thread_rng().next_u64();
+            let timestamp = SystemTime::now().elapsed().expect("system time error");
+            let mut hasher = Sha256::default();
+            hasher.input_with_len::<U8>(contract_domain.as_ref().as_bytes());
+            hasher.input_raw(&assignment_type.to_le_bytes());
+            hasher.input_raw(&timestamp.as_nanos().to_le_bytes());
+            hasher.input_raw(&rand.to_le_bytes());
+            AssetTag::from(hasher.finish())
+        }
+    }
 }

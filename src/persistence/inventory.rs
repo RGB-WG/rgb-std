@@ -589,7 +589,9 @@ pub trait Inventory: Deref<Target = Self::Stash> {
 
         let genesis = self.genesis(contract_id)?;
         let schema_ifaces = self.schema(genesis.schema_id)?;
-        let mut consignment = Consignment::new(schema_ifaces.schema.clone(), genesis.clone());
+        let asset_tags = self.contract_asset_tags(contract_id)?;
+        let mut consignment =
+            Consignment::new(schema_ifaces.schema.clone(), genesis.clone(), asset_tags.clone());
         for (iface_id, iimpl) in &schema_ifaces.iimpls {
             let iface = self.iface_by_id(*iface_id)?;
             consignment
