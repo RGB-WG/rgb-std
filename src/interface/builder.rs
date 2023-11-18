@@ -558,7 +558,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
                     }
                 })
                 .collect::<Vec<_>>();
-            vec.last_mut().map(|assignment| {
+            if let Some(assignment) = vec.last_mut() {
                 blindings.pop();
                 let state = assignment
                     .as_revealed_state_mut()
@@ -580,7 +580,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
                 state.blinding = BlindingFactor::zero_balanced(inputs, blindings).expect(
                     "malformed set of blinding factors; probably random generator is broken",
                 );
-            });
+            }
             let state = Confined::try_from_iter(vec).expect("at least one element");
             let state = TypedAssigns::Fungible(state);
             (id, state)
