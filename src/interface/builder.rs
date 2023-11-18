@@ -489,7 +489,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             Some(asset_tag) => *asset_tag,
             None => {
                 let asset_tag = AssetTag::new_random(
-                    &format!("{}/{}", self.schema.schema_id(), self.iface.iface_id()),
+                    format!("{}/{}", self.schema.schema_id(), self.iface.iface_id()),
                     type_id,
                 );
                 self.asset_tags.insert(type_id, asset_tag)?;
