@@ -347,6 +347,11 @@ impl StrictEncode for Ticker {
 impl StrictSerialize for Ticker {}
 impl StrictDeserialize for Ticker {}
 
+impl AsRef<str> for Ticker {
+    #[inline]
+    fn as_ref(&self) -> &str { self.0.as_str() }
+}
+
 // TODO: Ensure all constructors filter invalid characters
 impl FromStr for Ticker {
     type Err = InvalidIdent;
@@ -420,6 +425,11 @@ impl StrictEncode for Name {
 impl StrictSerialize for Name {}
 impl StrictDeserialize for Name {}
 
+impl AsRef<str> for Name {
+    #[inline]
+    fn as_ref(&self) -> &str { self.0.as_str() }
+}
+
 impl Name {
     pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
         Name::from_str(&value.unwrap_string()).unwrap()
@@ -491,6 +501,11 @@ impl Debug for Name {
 pub struct Details(NonEmptyString<U8>);
 impl StrictSerialize for Details {}
 impl StrictDeserialize for Details {}
+
+impl AsRef<str> for Details {
+    #[inline]
+    fn as_ref(&self) -> &str { self.0.as_str() }
+}
 
 impl Details {
     pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
@@ -654,6 +669,11 @@ impl DivisibleAssetSpec {
 pub struct RicardianContract(SmallString);
 impl StrictSerialize for RicardianContract {}
 impl StrictDeserialize for RicardianContract {}
+
+impl AsRef<str> for RicardianContract {
+    #[inline]
+    fn as_ref(&self) -> &str { self.0.as_str() }
+}
 
 impl FromStr for RicardianContract {
     type Err = InvalidIdent;
