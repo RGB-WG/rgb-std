@@ -48,8 +48,6 @@ pub use rgb21::{rgb21, rgb21_stl, Rgb21, LIB_ID_RGB21, LIB_NAME_RGB21};
 pub use rgb25::{rgb25, rgb25_stl, Rgb25, LIB_ID_RGB25, LIB_NAME_RGB25};
 pub use suppl::{ContractSuppl, OwnedStateSuppl, SupplId, TickerSuppl, VelocityHint};
 
-use crate::stl::Ticker;
-
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = crate::LIB_NAME_RGB_STD, tags = repr, into_u8, try_from_u8)]
@@ -66,46 +64,26 @@ pub enum VerNo {
     V1 = 0,
 }
 
+// TODO: Move to RGB Core
 mod asset_tag_ext {
     use std::time::SystemTime;
 
     use amplify::confinement::U8;
     use bp::secp256k1::rand::{thread_rng, RngCore};
     use commit_verify::{DigestExt, Sha256};
-    use rgb::AssetTag;
-    use strict_encoding::TypeName;
-
-    use super::*;
+    use rgb::{AssetTag, AssignmentType};
 
     pub trait AssetTagExt: Sized {
-        fn new_rgb20(issuer_domain: &str, ticker: &Ticker) -> Self {
-            Self::new_custom("RGB20", issuer_domain, ticker)
-        }
-        fn new_rgb21(issuer_domain: &str, ticker: &Ticker) -> Self {
-            Self::new_custom("RGB21", issuer_domain, ticker)
-        }
-        fn new_rgb25(issuer_domain: &str, ticker: &Ticker) -> Self {
-            Self::new_custom("RGB25", issuer_domain, ticker)
-        }
-        fn new_custom(
-            iface_name: impl Into<TypeName>,
-            issuer_domain: impl AsRef<str>,
-            ticker: impl AsRef<str>,
-        ) -> Self;
+        fn new_random(contract_domain: impl AsRef<str>, assignment_type: AssignmentType) -> Self;
     }
 
     impl AssetTagExt for AssetTag {
-        fn new_custom(
-            iface_name: impl Into<TypeName>,
-            issuer_domain: impl AsRef<str>,
-            ticker: impl AsRef<str>,
-        ) -> Self {
+        fn new_random(contract_domain: impl AsRef<str>, assignment_type: AssignmentType) -> Self {
             let rand = thread_rng().next_u64();
             let timestamp = SystemTime::now().elapsed().expect("system time error");
             let mut hasher = Sha256::default();
-            hasher.input_with_len::<U8>(iface_name.into().as_bytes());
-            hasher.input_with_len::<U8>(issuer_domain.as_ref().as_bytes());
-            hasher.input_with_len::<U8>(ticker.as_ref().as_bytes());
+            hasher.input_with_len::<U8>(contract_domain.as_ref().as_bytes());
+            hasher.input_raw(&assignment_type.to_le_bytes());
             hasher.input_raw(&timestamp.as_nanos().to_le_bytes());
             hasher.input_raw(&rand.to_le_bytes());
             AssetTag::from(hasher.finish())
