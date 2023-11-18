@@ -73,29 +73,39 @@ mod asset_tag_ext {
     use bp::secp256k1::rand::{thread_rng, RngCore};
     use commit_verify::{DigestExt, Sha256};
     use rgb::AssetTag;
+    use strict_encoding::TypeName;
 
     use super::*;
 
     pub trait AssetTagExt: Sized {
         fn new_rgb20(issuer_domain: &str, ticker: &Ticker) -> Self {
-            Self::new_custom("RGB20", &format!("{issuer_domain}/{ticker}"))
+            Self::new_custom("RGB20", issuer_domain, ticker)
         }
         fn new_rgb21(issuer_domain: &str, ticker: &Ticker) -> Self {
-            Self::new_custom("RGB21", &format!("{issuer_domain}/{ticker}"))
+            Self::new_custom("RGB21", issuer_domain, ticker)
         }
         fn new_rgb25(issuer_domain: &str, ticker: &Ticker) -> Self {
-            Self::new_custom("RGB25", &format!("{issuer_domain}/{ticker}"))
+            Self::new_custom("RGB25", issuer_domain, ticker)
         }
-        fn new_custom(iface_name: &str, data: &str) -> Self;
+        fn new_custom(
+            iface_name: impl Into<TypeName>,
+            issuer_domain: impl AsRef<str>,
+            ticker: impl AsRef<str>,
+        ) -> Self;
     }
 
     impl AssetTagExt for AssetTag {
-        fn new_custom(iface_name: &str, data: &str) -> Self {
+        fn new_custom(
+            iface_name: impl Into<TypeName>,
+            issuer_domain: impl AsRef<str>,
+            ticker: impl AsRef<str>,
+        ) -> Self {
             let rand = thread_rng().next_u64();
             let timestamp = SystemTime::now().elapsed().expect("system time error");
             let mut hasher = Sha256::default();
-            hasher.input_with_len::<U8>(iface_name.as_bytes());
-            hasher.input_with_len::<U8>(data.as_bytes());
+            hasher.input_with_len::<U8>(iface_name.into().as_bytes());
+            hasher.input_with_len::<U8>(issuer_domain.as_ref().as_bytes());
+            hasher.input_with_len::<U8>(ticker.as_ref().as_bytes());
             hasher.input_raw(&timestamp.as_nanos().to_le_bytes());
             hasher.input_raw(&rand.to_le_bytes());
             AssetTag::from(hasher.finish())
