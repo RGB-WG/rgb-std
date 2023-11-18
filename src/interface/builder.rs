@@ -64,9 +64,9 @@ pub enum BuilderError {
     /// state `{0}` provided to the builder has invalid name.
     InvalidState(AssignmentType),
 
-    /// can't add asset of type `{0}`: you need to register the type with asset
-    /// type firtst using `add_asset_tag` method.
-    AssetTagUnknown(AssignmentType),
+    /// asset tag for the state `{0}` must be added before any fungible state of
+    /// the same type.
+    AssetTagSet(AssignmentType),
 
     /// interface doesn't specifies default operation name, thus an explicit
     /// operation type must be provided with `set_operation_type` method.
@@ -431,6 +431,10 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             .assignments_type(&name, ty)
             .ok_or(BuilderError::AssignmentNotFound(name))?;
 
+        if self.fungible.contains_key(&type_id) {
+            return Err(BuilderError::AssetTagSet(type_id));
+        }
+
         self.asset_tags.insert(type_id, asset_tag)?;
         Ok(self)
     }
@@ -481,10 +485,17 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             .assignments_type(&name, ty)
             .ok_or(BuilderError::AssignmentNotFound(name))?;
 
-        let tag = *self
-            .asset_tags
-            .get(&type_id)
-            .ok_or(BuilderError::AssetTagUnknown(type_id))?;
+        let tag = match self.asset_tags.get(&type_id) {
+            Some(asset_tag) => *asset_tag,
+            None => {
+                let asset_tag = AssetTag::new_random(
+                    format!("{}/{}", self.schema.schema_id(), self.iface.iface_id()),
+                    type_id,
+                );
+                self.asset_tags.insert(type_id, asset_tag)?;
+                asset_tag
+            }
+        };
 
         let state = RevealedValue::new_random_blinding(value, tag);
 
