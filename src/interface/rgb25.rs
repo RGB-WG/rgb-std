@@ -24,6 +24,7 @@
 use std::fmt::Debug;
 
 use bp::bc::stl::bp_tx_stl;
+use invoice::{Amount, Precision};
 use strict_encoding::{StrictDumb, StrictEncode};
 use strict_types::stl::std_stl;
 use strict_types::{CompileError, LibBuilder, TypeLib};
@@ -32,7 +33,7 @@ use super::{
     AssignIface, GenesisIface, GlobalIface, Iface, OwnedIface, Req, TransitionIface, VerNo,
 };
 use crate::interface::{ArgSpec, ContractIface, IfaceId, IfaceWrapper};
-use crate::stl::{rgb_contract_stl, Amount, ContractData, Details, Name, Precision, StandardTypes};
+use crate::stl::{rgb_contract_stl, ContractData, Details, Name, StandardTypes};
 
 pub const LIB_NAME_RGB25: &str = "RGB25";
 /// Strict types id for the library providing data types for RGB25 interface.

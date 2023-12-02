@@ -22,14 +22,15 @@
 use bp::bc::stl::bp_tx_stl;
 use bp::stl::bp_core_stl;
 use commit_verify::stl::commit_verify_stl;
+use invoice::Amount;
 pub use rgb::stl::{aluvm_stl, rgb_core_stl, LIB_ID_RGB};
 use strict_types::stl::{std_stl, strict_types_stl};
 use strict_types::typesys::SystemBuilder;
 use strict_types::{CompileError, LibBuilder, SemId, SymbolicSys, TypeLib, TypeSystem};
 
 use super::{
-    Amount, BurnMeta, ContractData, DivisibleAssetSpec, Error, IssueMeta, MediaType,
-    RicardianContract, Timestamp, LIB_NAME_RGB_CONTRACT,
+    BurnMeta, ContractData, DivisibleAssetSpec, Error, IssueMeta, MediaType, RicardianContract,
+    Timestamp, LIB_NAME_RGB_CONTRACT,
 };
 use crate::containers::{Contract, Transfer};
 use crate::persistence::Stock;

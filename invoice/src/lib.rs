@@ -1,4 +1,4 @@
-// RGB standard library for working with smart contracts on Bitcoin & Lightning
+// RGB wallet library for smart contracts on Bitcoin & Lightning network
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -19,22 +19,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-mod specs;
-#[allow(clippy::module_inception)]
-mod stl;
-mod error;
-mod mime;
-mod chain;
+#[macro_use]
+extern crate amplify;
+#[macro_use]
+extern crate strict_encoding;
+#[cfg(feature = "serde")]
+extern crate serde_crate as serde;
 
-pub use chain::ProofOfReserves;
-use error::Error;
-pub use invoice::LIB_NAME_RGB_CONTRACT;
-pub use mime::{MediaRegName, MediaType};
-pub use specs::{
-    AssetNaming, Attachment, BurnMeta, ContractData, Details, DivisibleAssetSpec, IssueMeta, Name,
-    RicardianContract, Ticker, Timestamp,
-};
-pub use stl::{
-    rgb_contract_stl, rgb_std_stl, StandardTypes, LIB_ID_RGB, LIB_ID_RGB_CONTRACT, LIB_ID_RGB_STD,
-};
-pub const LIB_NAME_RGB_STD: &str = "RGBStd";
+/// Re-exporting BP invoice data types.
+pub use ::invoice::*;
+
+#[allow(clippy::module_inception)]
+mod invoice;
+mod parse;
+mod builder;
+mod amount;
+
+pub use amount::{Amount, CoinAmount, Precision};
+pub use builder::RgbInvoiceBuilder;
+pub use invoice::{Beneficiary, InvoiceState, RgbInvoice, RgbTransport};
+pub use parse::{InvoiceParseError, TransportParseError};
+
+pub const LIB_NAME_RGB_CONTRACT: &str = "RGBContract";
