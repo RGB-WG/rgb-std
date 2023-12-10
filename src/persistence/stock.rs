@@ -471,7 +471,7 @@ impl Inventory for Stock {
         self.consume_consignment(transfer, resolver, force)
     }
 
-    fn consume_anchor(
+    unsafe fn consume_anchor(
         &mut self,
         anchor: Anchor<mpc::MerkleBlock>,
     ) -> Result<(), InventoryError<Self::Error>> {
@@ -484,7 +484,7 @@ impl Inventory for Stock {
         Ok(())
     }
 
-    fn consume_bundle(
+    unsafe fn consume_bundle(
         &mut self,
         contract_id: ContractId,
         bundle: TransitionBundle,
@@ -643,7 +643,7 @@ impl Inventory for Stock {
         &mut self,
         contract_id: ContractId,
         outputs: impl IntoIterator<Item = impl Into<Output>>,
-    ) -> Result<BTreeMap<Opout, TypedState>, InventoryError<Self::Error>> {
+    ) -> Result<BTreeMap<(Opout, Output), TypedState>, InventoryError<Self::Error>> {
         let outputs = outputs
             .into_iter()
             .map(|o| o.into())
@@ -656,30 +656,33 @@ impl Inventory for Stock {
 
         let mut res = BTreeMap::new();
 
-        for output in history.fungibles() {
-            if outputs.contains(&output.output) {
+        for item in history.fungibles() {
+            if outputs.contains(&item.output) {
                 res.insert(
-                    output.opout,
-                    TypedState::Amount(output.state.value.as_u64(), output.state.blinding),
+                    (item.opout, item.output),
+                    TypedState::Amount(item.state.value.as_u64(), item.state.blinding),
                 );
             }
         }
 
-        for output in history.data() {
-            if outputs.contains(&output.output) {
-                res.insert(output.opout, TypedState::Data(output.state.clone()));
+        for item in history.data() {
+            if outputs.contains(&item.output) {
+                res.insert((item.opout, item.output), TypedState::Data(item.state.clone()));
             }
         }
 
-        for output in history.rights() {
-            if outputs.contains(&output.output) {
-                res.insert(output.opout, TypedState::Void);
+        for item in history.rights() {
+            if outputs.contains(&item.output) {
+                res.insert((item.opout, item.output), TypedState::Void);
             }
         }
 
-        for output in history.attach() {
-            if outputs.contains(&output.output) {
-                res.insert(output.opout, TypedState::Attachment(output.state.clone().into()));
+        for item in history.attach() {
+            if outputs.contains(&item.output) {
+                res.insert(
+                    (item.opout, item.output),
+                    TypedState::Attachment(item.state.clone().into()),
+                );
             }
         }
 

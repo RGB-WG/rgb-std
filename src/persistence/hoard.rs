@@ -27,8 +27,8 @@ use amplify::confinement::{Confined, LargeOrdMap, SmallOrdMap, TinyOrdMap, TinyO
 use bp::dbc::anchor::MergeError;
 use commit_verify::mpc;
 use rgb::{
-    Anchor, AnchorId, AnchoredBundle, AssetTag, AssignmentType, BundleId, ContractId, Extension,
-    Genesis, OpId, Operation, SchemaId, TransitionBundle,
+    Anchor, AnchorId, AnchoredBundle, AssetTag, AssignmentType, BundleError, BundleId, ContractId,
+    Extension, Genesis, OpId, Operation, SchemaId, TransitionBundle,
 };
 use strict_encoding::TypeName;
 
@@ -46,6 +46,9 @@ pub enum ConsumeError {
 
     #[from]
     Anchor(mpc::InvalidProof),
+
+    #[from]
+    Bundle(BundleError),
 
     #[from]
     Merge(MergeError),
