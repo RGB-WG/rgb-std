@@ -471,7 +471,7 @@ impl Inventory for Stock {
         self.consume_consignment(transfer, resolver, force)
     }
 
-    fn consume_anchor(
+    unsafe fn consume_anchor(
         &mut self,
         anchor: Anchor<mpc::MerkleBlock>,
     ) -> Result<(), InventoryError<Self::Error>> {
@@ -484,7 +484,7 @@ impl Inventory for Stock {
         Ok(())
     }
 
-    fn consume_bundle(
+    unsafe fn consume_bundle(
         &mut self,
         contract_id: ContractId,
         bundle: TransitionBundle,

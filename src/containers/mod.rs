@@ -36,10 +36,12 @@ mod seal;
 mod util;
 mod validate;
 mod certs;
+mod partials;
 
 pub use bindle::{Bindle, BindleContent, BindleParseError, LoadError, UniversalBindle};
 pub use certs::{Cert, ContentId, ContentSigs, Identity};
 pub use consignment::{Consignment, Contract, Transfer};
 pub use disclosure::Disclosure;
+pub use partials::{Batch, Fascia};
 pub use seal::{BuilderSeal, TerminalSeal, VoutSeal};
 pub use util::{ContainerVer, Terminal};

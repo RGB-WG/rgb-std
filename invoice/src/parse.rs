@@ -303,7 +303,7 @@ impl FromStr for RgbInvoice {
                 (Ok(seal), Err(_)) => Beneficiary::BlindedSeal(seal),
                 (Err(_), Ok(addr)) => {
                     address_network = Some(addr.network);
-                    Beneficiary::WitnessUtxo(addr)
+                    Beneficiary::WitnessVoutBitcoin(addr)
                 }
                 (Err(_), Err(_)) => {
                     return Err(InvoiceParseError::Beneficiary(beneficiary_str.to_owned()));

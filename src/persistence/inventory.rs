@@ -19,33 +19,39 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::cmp::Ordering;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::error::Error;
+use std::iter;
 use std::ops::Deref;
 
-use amplify::confinement::{self, Confined};
+use amplify::confinement::{self, Confined, MediumOrdMap, MediumVec};
 use bp::seals::txout::blind::SingleBlindSeal;
-use bp::Txid;
+use bp::seals::txout::CloseMethod;
+use bp::{Txid, Vout};
+use chrono::Utc;
 use commit_verify::{mpc, Conceal};
+use invoice::{Beneficiary, RgbInvoice};
 use rgb::{
-    validation, Anchor, AnchoredBundle, BundleId, ContractId, ExposedSeal, GraphSeal, OpId,
-    Operation, Opout, Output, SchemaId, SealDefinition, SecretSeal, SubSchema, Transition,
-    TransitionBundle, WitnessId,
+    validation, Anchor, AnchoredBundle, AssignmentType, BundleError, BundleId, ContractId,
+    ExposedSeal, GraphSeal, Layer1, OpId, Operation, Opout, Output, SchemaId, SealDefinition,
+    SecretSeal, SubSchema, Transition, TransitionBundle, WitnessId,
 };
 use strict_encoding::TypeName;
 
 use crate::accessors::{BundleExt, MergeRevealError, RevealError};
 use crate::containers::{
-    Bindle, BuilderSeal, Cert, Consignment, ContentId, Contract, Terminal, Transfer,
+    Batch, Bindle, BuilderSeal, Cert, Consignment, ContentId, Contract, Fascia, Terminal, Transfer,
 };
 use crate::interface::{
-    ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, IfaceWrapper, TransitionBuilder,
-    TypedState,
+    BuilderError, ContractIface, ContractSuppl, Iface, IfaceId, IfaceImpl, IfacePair, IfaceWrapper,
+    TransitionBuilder, TypedState, VelocityHint,
 };
 use crate::persistence::hoard::ConsumeError;
 use crate::persistence::stash::StashInconsistency;
 use crate::persistence::{Stash, StashError};
 use crate::resolvers::ResolveHeight;
+use crate::Outpoint;
 
 #[derive(Debug, Display, Error, From)]
 #[display(doc_comments)]
@@ -84,6 +90,7 @@ pub enum InventoryError<E: Error> {
     /// errors during consume operation.
     // TODO: Make part of connectivity error
     #[from]
+    #[from(BundleError)]
     Consume(ConsumeError),
 
     /// error in input data.
@@ -301,22 +308,32 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     where
         R::Error: 'static;
 
-    /// # Safety
+    /// Imports fascia into the stash, index and inventory.
     ///
-    /// Assumes that the bundle belongs to a non-mined witness transaction. Must
-    /// be used only to consume locally-produced bundles before witness
-    /// transactions are mined.
-    fn consume_anchor(
+    /// Part of the transfer workflow. Called once PSBT is completed and an RGB
+    /// fascia containing anchor and all state transitions is exported from
+    /// it.
+    ///
+    /// Must be called before the consignment is created, when witness
+    /// transaction is not yet mined.
+    fn consume(&mut self, fascia: Fascia) -> Result<(), InventoryError<Self::Error>> {
+        let witness_id = fascia.anchor.witness_id();
+        unsafe { self.consume_anchor(fascia.anchor)? };
+        for bundle in fascia.bundles {
+            let contract_id = bundle.validate()?;
+            unsafe { self.consume_bundle(contract_id, bundle, witness_id)? };
+        }
+        Ok(())
+    }
+
+    #[doc(hidden)]
+    unsafe fn consume_anchor(
         &mut self,
         anchor: Anchor<mpc::MerkleBlock>,
     ) -> Result<(), InventoryError<Self::Error>>;
 
-    /// # Safety
-    ///
-    /// Assumes that the bundle belongs to a non-mined witness transaction. Must
-    /// be used only to consume locally-produced bundles before witness
-    /// transactions are mined.
-    fn consume_bundle(
+    #[doc(hidden)]
+    unsafe fn consume_bundle(
         &mut self,
         contract_id: ContractId,
         bundle: TransitionBundle,
@@ -608,5 +625,128 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         // TODO: Add known sigs to the consignment
 
         Ok(consignment)
+    }
+
+    /// Composes a batch of state transitions updating state for the provided
+    /// set of previous outputs, satisfying requirements of the invoice, paying
+    /// the change back and including the necessary blank state transitions.
+    fn compose(
+        &mut self,
+        invoice: RgbInvoice,
+        prev_outputs: impl IntoIterator<Item = impl Into<Output>>,
+        method: CloseMethod,
+        change_vout: Vout,
+        allocator: impl Fn(ContractId, AssignmentType, VelocityHint) -> Option<Vout>,
+    ) -> Result<Batch, InventoryError<Self::Error>> {
+        let mut output_for_assignment = |id: ContractId,
+                                         assignment_type: AssignmentType|
+         -> Result<BuilderSeal<GraphSeal>, ComposeError> {
+            // TODO: select supplement basing on the signer trust level
+            let suppl = self.contract_suppl(id).and_then(|set| set.first());
+            let velocity = suppl
+                .and_then(|suppl| suppl.owned_state.get(&assignment_type))
+                .map(|s| s.velocity)
+                .unwrap_or_default();
+            let vout = allocator(id, assignment_type, velocity)
+                .ok_or(ComposeError::NoBlankOrChange(velocity, assignment_type))?;
+            let seal = GraphSeal::new_vout(method, vout);
+            Ok(BuilderSeal::Revealed(SealDefinition::with(invoice.layer1(), seal)))
+        };
+
+        // 1. Prepare the data
+        if let Some(expiry) = invoice.expiry {
+            if expiry < Utc::now().timestamp() {
+                return Err(ComposeError::InvoiceExpired);
+            }
+        }
+        let contract_id = invoice.contract.ok_or(ComposeError::NoContract)?;
+        let iface = invoice.iface.ok_or(ComposeError::NoIface)?;
+        let mut main_builder =
+            self.transition_builder(contract_id, iface.clone(), invoice.operation)?;
+
+        let beneficiary = match invoice.beneficiary {
+            Beneficiary::BlindedSeal(seal) => BuilderSeal::Concealed(seal),
+            Beneficiary::WitnessVoutBitcoin(_) => BuilderSeal::Revealed(SealDefinition::Bitcoin(
+                GraphSeal::new_vout(method, change_vout),
+            )),
+        };
+
+        // 2. Prepare transition
+        let mut main_inputs = MediumVec::<Outpoint>::new();
+        let assignment_name = invoice
+            .assignment
+            .as_ref()
+            .or_else(|| main_builder.default_assignment().ok())
+            .ok_or(BuilderError::NoDefaultAssignment)?;
+        let assignment_id = main_builder
+            .assignments_type(assignment_name)
+            .ok_or(BuilderError::InvalidStateField(assignment_name.clone()))?;
+        let mut sum_inputs = 0u64;
+        for (opout, state) in self.state_for_outputs(contract_id, prev_outputs)? {
+            main_builder = main_builder.add_input(opout)?;
+            main_inputs.insert(opout);
+            if opout.ty != assignment_id {
+                let seal = output_for_assignment(contract_id, opout.ty)?;
+                main_builder = main_builder.add_raw_state(opout.ty, seal, state)?;
+            } else if let TypedState::Amount(value, _) = state {
+                sum_inputs += value;
+            }
+        }
+        // Add change
+        let main_transition = match invoice.owned_state {
+            TypedState::Amount(amt) => {
+                match sum_inputs.cmp(&amt) {
+                    Ordering::Greater => {
+                        let seal = output_for_assignment(contract_id, assignment_id)?;
+                        let change = TypedState::Amount(sum_inputs - amt);
+                        main_builder = main_builder.add_raw_state(assignment_id, seal, change)?;
+                    }
+                    Ordering::Less => return Err(ComposeError::InsufficientState),
+                    Ordering::Equal => {}
+                }
+                main_builder
+                    .add_raw_state(assignment_id, beneficiary, TypedState::Amount(amt))?
+                    .complete_transition(contract_id)?
+            }
+            _ => {
+                todo!("only TypedState::Amount is currently supported")
+            }
+        };
+
+        // 3. Prepare other transitions
+        // Enumerate state
+        let mut spent_state = HashMap::<ContractId, BTreeMap<Opout, TypedState>>::new();
+        for output in prev_outputs {
+            let output = output.into();
+            for id in self.contracts_by_outpoints([output])? {
+                if id == contract_id {
+                    continue;
+                }
+                spent_state
+                    .entry(id)
+                    .or_default()
+                    .extend(self.state_for_outpoints(id, [output])?);
+            }
+        }
+        // Construct blank transitions
+        let mut other_transitions = MediumOrdMap::with_capacity(spent_state.len());
+        for (id, opouts) in spent_state {
+            let mut blank_builder = self.blank_builder(id, iface.clone())?;
+            for (opout, state) in opouts {
+                let seal = output_for_assignment(id, opout.ty)?;
+                blank_builder = blank_builder
+                    .add_input(opout)?
+                    .add_raw_state(opout.ty, seal, state)?;
+            }
+
+            other_transitions.insert(id, blank_builder.complete_transition(contract_id)?)?;
+        }
+
+        Ok(Batch {
+            main_id: main_transition.id(),
+            main_transition,
+            main_inputs,
+            blank_transitions,
+        })
     }
 }

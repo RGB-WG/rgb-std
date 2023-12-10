@@ -19,9 +19,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::fmt;
+use std::fmt::{Display, Formatter};
+use std::str::FromStr;
+
+use amplify::Wrapper;
+use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32CHECKSUM};
 use indexmap::IndexMap;
 use invoice::{Address, Network};
-use rgb::{AttachId, ContractId, SecretSeal};
+use rgb::{AttachId, ContractId, Layer1, SecretSeal};
 use strict_encoding::{FieldName, TypeName};
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
@@ -48,10 +54,26 @@ pub enum InvoiceState {
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display, From)]
 #[display(inner)]
 pub enum Beneficiary {
+    // TODO: Create wrapping type for SecretSeal to cover/commit to a specific layer1.
+    //       Move Baid58 encoding from BP seals to here. Use utxob1 for bitcoin, and use
+    //       utxol1 for liquid.
     #[from]
     BlindedSeal(SecretSeal),
     #[from]
-    WitnessUtxo(Address),
+    WitnessVoutBitcoin(Address),
+    // TODO: Add support for Liquid beneficiaries
+    //#[from]
+    //WitnessVoutLiquid(Address),
+}
+
+impl Beneficiary {
+    pub fn layer1(&self) -> Layer1 {
+        match self {
+            // TODO: Fix supporting liquid
+            Beneficiary::BlindedSeal(_) => Layer1::Bitcoin,
+            Beneficiary::WitnessVoutBitcoin(_) => Layer1::Bitcoin,
+        }
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
