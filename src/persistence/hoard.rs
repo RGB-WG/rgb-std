@@ -275,7 +275,13 @@ impl Stash for Hoard {
         Ok(self.geneses.keys().copied().collect())
     }
 
-    fn contract_suppl(&self, contract_id: ContractId) -> Option<&TinyOrdSet<ContractSuppl>> {
+    fn contract_suppl(&self, contract_id: ContractId) -> Option<&ContractSuppl> {
+        // TODO: select supplement basing on the signer trust level
+        self.contract_suppl_all(contract_id)
+            .and_then(|set| set.first())
+    }
+
+    fn contract_suppl_all(&self, contract_id: ContractId) -> Option<&TinyOrdSet<ContractSuppl>> {
         self.suppl.get(&contract_id)
     }
 

@@ -670,10 +670,10 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     /// the change back and including the necessary blank state transitions.
     fn compose(
         &self,
-        invoice: RgbInvoice,
+        invoice: &RgbInvoice,
         prev_outputs: impl IntoIterator<Item = impl Into<Output>>,
         method: CloseMethod,
-        change_vout: Vout,
+        change_vout: impl Into<Vout>,
         allocator: impl Fn(ContractId, AssignmentType, VelocityHint) -> Option<Vout>,
     ) -> Result<Batch, ComposeError<Self::Error, <<Self as Deref>::Target as Stash>::Error>>
     where
@@ -683,15 +683,16 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             BlindingFactor::random()
         })
     }
+
     /// Composes a batch of state transitions updating state for the provided
     /// set of previous outputs, satisfying requirements of the invoice, paying
     /// the change back and including the necessary blank state transitions.
     fn compose_deterministic(
         &self,
-        invoice: RgbInvoice,
+        invoice: &RgbInvoice,
         prev_outputs: impl IntoIterator<Item = impl Into<Output>>,
         method: CloseMethod,
-        change_vout: Vout,
+        change_vout: impl Into<Vout>,
         allocator: impl Fn(ContractId, AssignmentType, VelocityHint) -> Option<Vout>,
         blinder: impl Fn(ContractId, AssignmentType) -> BlindingFactor,
     ) -> Result<Batch, ComposeError<Self::Error, <<Self as Deref>::Target as Stash>::Error>>
@@ -699,6 +700,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         Self::Error: From<<Self::Stash as Stash>::Error>,
     {
         let layer1 = invoice.layer1();
+        let change_vout = change_vout.into();
         let prev_outputs = prev_outputs
             .into_iter()
             .map(|o| o.into())
@@ -710,8 +712,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             BuilderSeal<GraphSeal>,
             ComposeError<Self::Error, <<Self as Deref>::Target as Stash>::Error>,
         > {
-            // TODO: select supplement basing on the signer trust level
-            let suppl = self.contract_suppl(id).and_then(|set| set.first());
+            let suppl = self.contract_suppl(id);
             let velocity = suppl
                 .and_then(|suppl| suppl.owned_state.get(&assignment_type))
                 .map(|s| s.velocity)
@@ -729,9 +730,9 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             }
         }
         let contract_id = invoice.contract.ok_or(ComposeError::NoContract)?;
-        let iface = invoice.iface.ok_or(ComposeError::NoIface)?;
+        let iface = invoice.iface.as_ref().ok_or(ComposeError::NoIface)?;
         let mut main_builder =
-            self.transition_builder(contract_id, iface.clone(), invoice.operation)?;
+            self.transition_builder(contract_id, iface.clone(), invoice.operation.clone())?;
 
         let beneficiary = match invoice.beneficiary {
             Beneficiary::BlindedSeal(seal) => BuilderSeal::Concealed(seal),

@@ -112,7 +112,8 @@ pub trait Stash {
         self.schema(genesis.schema_id)
     }
 
-    fn contract_suppl(&self, contract_id: ContractId) -> Option<&TinyOrdSet<ContractSuppl>>;
+    fn contract_suppl(&self, contract_id: ContractId) -> Option<&ContractSuppl>;
+    fn contract_suppl_all(&self, contract_id: ContractId) -> Option<&TinyOrdSet<ContractSuppl>>;
 
     fn contract_asset_tags(
         &self,
