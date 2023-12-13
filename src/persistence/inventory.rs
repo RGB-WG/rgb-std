@@ -32,9 +32,9 @@ use chrono::Utc;
 use commit_verify::{mpc, Conceal};
 use invoice::{Beneficiary, InvoiceState, RgbInvoice};
 use rgb::{
-    validation, Anchor, AnchoredBundle, AssignmentType, BundleError, BundleId, ContractId,
-    ExposedSeal, GraphSeal, OpId, Operation, Opout, Output, SchemaId, SealDefinition, SecretSeal,
-    SubSchema, Transition, TransitionBundle, WitnessId,
+    validation, Anchor, AnchoredBundle, AssignmentType, BlindingFactor, BundleError, BundleId,
+    ContractId, ExposedSeal, GraphSeal, OpId, Operation, Opout, Output, SchemaId, SealDefinition,
+    SecretSeal, SubSchema, Transition, TransitionBundle, WitnessId,
 };
 use strict_encoding::TypeName;
 
@@ -679,6 +679,25 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     where
         Self::Error: From<<Self::Stash as Stash>::Error>,
     {
+        self.compose_deterministic(invoice, prev_outputs, method, change_vout, allocator, |_, _| {
+            BlindingFactor::random()
+        })
+    }
+    /// Composes a batch of state transitions updating state for the provided
+    /// set of previous outputs, satisfying requirements of the invoice, paying
+    /// the change back and including the necessary blank state transitions.
+    fn compose_deterministic(
+        &self,
+        invoice: RgbInvoice,
+        prev_outputs: impl IntoIterator<Item = impl Into<Output>>,
+        method: CloseMethod,
+        change_vout: Vout,
+        allocator: impl Fn(ContractId, AssignmentType, VelocityHint) -> Option<Vout>,
+        blinder: impl Fn(ContractId, AssignmentType) -> BlindingFactor,
+    ) -> Result<Batch, ComposeError<Self::Error, <<Self as Deref>::Target as Stash>::Error>>
+    where
+        Self::Error: From<<Self::Stash as Stash>::Error>,
+    {
         let layer1 = invoice.layer1();
         let prev_outputs = prev_outputs
             .into_iter()
@@ -733,14 +752,14 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             .assignments_type(&assignment_name)
             .ok_or(BuilderError::InvalidStateField(assignment_name.clone()))?;
         let mut sum_inputs = 0u64;
-        for ((opout, output), state) in
+        for ((opout, output), mut state) in
             self.state_for_outputs(contract_id, prev_outputs.iter().cloned())?
         {
             main_builder = main_builder.add_input(opout, state.clone())?;
             main_inputs.push(output)?;
             if opout.ty != assignment_id {
                 let seal = output_for_assignment(contract_id, opout.ty)?;
-                // TODO: Update blinding factor
+                state.update_blinding(blinder(contract_id, assignment_id));
                 main_builder = main_builder.add_owned_state_raw(opout.ty, seal, state)?;
             } else if let TypedState::Amount(value, _, _) = state {
                 sum_inputs += value;
@@ -752,19 +771,23 @@ pub trait Inventory: Deref<Target = Self::Stash> {
                 match sum_inputs.cmp(&amt) {
                     Ordering::Greater => {
                         let seal = output_for_assignment(contract_id, assignment_id)?;
-                        // TODO: Use deterministic entropy
-                        main_builder = main_builder.add_fungible_state(
-                            assignment_name.clone(),
+                        main_builder = main_builder.add_fungible_state_raw(
+                            assignment_id,
                             seal,
                             sum_inputs - amt,
+                            blinder(contract_id, assignment_id),
                         )?;
                     }
                     Ordering::Less => return Err(ComposeError::InsufficientState),
                     Ordering::Equal => {}
                 }
-                // TODO: Use deterministic entropy
                 main_builder
-                    .add_fungible_state(assignment_name.clone(), beneficiary, amt)?
+                    .add_fungible_state_raw(
+                        assignment_id,
+                        beneficiary,
+                        amt,
+                        blinder(contract_id, assignment_id),
+                    )?
                     .complete_transition(contract_id)?
             }
             _ => {
@@ -791,10 +814,12 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         for (id, opouts) in spent_state {
             let mut blank_builder = self.blank_builder(id, iface.clone())?;
             let mut outputs = MediumVec::with_capacity(opouts.len());
-            for ((opout, output), state) in opouts {
+            for ((opout, output), mut state) in opouts {
                 let seal = output_for_assignment(id, opout.ty)?;
                 outputs.push(output)?;
-                // TODO: update blinding factor
+                if let TypedState::Amount(_, ref mut blinding, _) = state {
+                    *blinding = blinder(id, opout.ty);
+                }
                 blank_builder = blank_builder
                     .add_input(opout, state.clone())?
                     .add_owned_state_raw(opout.ty, seal, state)?;

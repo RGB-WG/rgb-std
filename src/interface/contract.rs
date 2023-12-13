@@ -57,6 +57,17 @@ pub enum TypedState {
     Attachment(AttachedState),
 }
 
+impl TypedState {
+    pub fn update_blinding(&mut self, blinding: BlindingFactor) {
+        match self {
+            TypedState::Void => {}
+            TypedState::Amount(_, b, _) => *b = blinding,
+            TypedState::Data(_) => {}
+            TypedState::Attachment(_) => {}
+        }
+    }
+}
+
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
 #[display("{id}:{media_type}")]
 pub struct AttachedState {

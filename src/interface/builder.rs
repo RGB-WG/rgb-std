@@ -65,9 +65,17 @@ pub enum BuilderError {
     /// state `{0}` provided to the builder has invalid name.
     InvalidState(AssignmentType),
 
-    /// asset tag for the state `{0}` must be added before any fungible state of
+    /// asset tag for state `{0}` must be added before any fungible state of
     /// the same type.
-    AssetTagSet(AssignmentType),
+    AssetTagMissed(AssignmentType),
+
+    /// asset tag for state `{0}` was already automatically created. Please call
+    /// `add_asset_tag` before adding any fungible state to the builder.
+    AssetTagAutomatic(AssignmentType),
+
+    /// state data for state type `{0}` are invalid: asset tag doesn't match the
+    /// tag defined by the contract.
+    AssetTagInvalid(AssignmentType),
 
     /// interface doesn't specifies default operation name, thus an explicit
     /// operation type must be provided with `set_operation_type` method.
@@ -186,7 +194,30 @@ impl ContractBuilder {
         seal: BuilderSeal<GenesisSeal>,
         value: u64,
     ) -> Result<Self, BuilderError> {
-        self.builder = self.builder.add_fungible_state(name, seal, value, None)?;
+        let name = name.into();
+        let type_id = self
+            .builder
+            .assignments_type(&name, None)
+            .ok_or(BuilderError::AssignmentNotFound(name.clone()))?;
+        let tag = match self.builder.asset_tags.get(&type_id) {
+            Some(asset_tag) => *asset_tag,
+            None => {
+                let asset_tag = AssetTag::new_random(
+                    format!(
+                        "{}/{}",
+                        self.builder.schema.schema_id(),
+                        self.builder.iface.iface_id()
+                    ),
+                    type_id,
+                );
+                self.builder.asset_tags.insert(type_id, asset_tag)?;
+                asset_tag
+            }
+        };
+
+        self.builder = self
+            .builder
+            .add_fungible_state(name, seal, value, tag, None)?;
         Ok(self)
     }
 
@@ -329,16 +360,6 @@ impl TransitionBuilder {
             .assignments_type(name, Some(self.transition_type))
     }
 
-    pub fn add_owned_state_raw(
-        mut self,
-        type_id: AssignmentType,
-        seal: BuilderSeal<GraphSeal>,
-        state: TypedState,
-    ) -> Result<Self, BuilderError> {
-        self.builder = self.builder.add_owned_state_raw(type_id, seal, state)?;
-        Ok(self)
-    }
-
     pub fn add_rights(
         mut self,
         name: impl Into<FieldName>,
@@ -359,15 +380,49 @@ impl TransitionBuilder {
         self.add_fungible_state(assignment_name, seal.into(), value)
     }
 
+    pub fn add_owned_state_raw(
+        mut self,
+        type_id: AssignmentType,
+        seal: BuilderSeal<GraphSeal>,
+        state: TypedState,
+    ) -> Result<Self, BuilderError> {
+        if matches!(state, TypedState::Amount(_, _, tag) if self.builder.asset_tag(type_id)? != tag)
+        {
+            return Err(BuilderError::AssetTagInvalid(type_id));
+        }
+        self.builder = self.builder.add_owned_state_raw(type_id, seal, state)?;
+        Ok(self)
+    }
+
+    pub fn add_fungible_state_raw(
+        mut self,
+        type_id: AssignmentType,
+        seal: BuilderSeal<GraphSeal>,
+        value: u64,
+        blinding: BlindingFactor,
+    ) -> Result<Self, BuilderError> {
+        let tag = self.builder.asset_tag(type_id)?;
+        let state = RevealedValue::with_blinding(value, blinding, tag);
+        self.builder = self.builder.add_fungible_state_raw(type_id, seal, state)?;
+        Ok(self)
+    }
+
     pub fn add_fungible_state(
         mut self,
         name: impl Into<FieldName>,
         seal: BuilderSeal<GraphSeal>,
         value: u64,
     ) -> Result<Self, BuilderError> {
+        let name = name.into();
+        let type_id = self
+            .builder
+            .assignments_type(&name, None)
+            .ok_or(BuilderError::AssignmentNotFound(name.clone()))?;
+        let tag = self.builder.asset_tag(type_id)?;
+
         self.builder =
             self.builder
-                .add_fungible_state(name, seal, value, Some(self.transition_type))?;
+                .add_fungible_state(name, seal, value, tag, Some(self.transition_type))?;
         Ok(self)
     }
 
@@ -501,6 +556,14 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
     }
 
     #[inline]
+    pub fn asset_tag(&self, type_id: AssignmentType) -> Result<AssetTag, BuilderError> {
+        self.asset_tags
+            .get(&type_id)
+            .ok_or(BuilderError::AssetTagMissed(type_id))
+            .copied()
+    }
+
+    #[inline]
     pub fn add_asset_tag(
         mut self,
         name: impl Into<FieldName>,
@@ -513,7 +576,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             .ok_or(BuilderError::AssignmentNotFound(name))?;
 
         if self.fungible.contains_key(&type_id) {
-            return Err(BuilderError::AssetTagSet(type_id));
+            return Err(BuilderError::AssetTagAutomatic(type_id));
         }
 
         self.asset_tags.insert(type_id, asset_tag)?;
@@ -633,10 +696,11 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
     }
 
     fn add_fungible_state(
-        mut self,
+        self,
         name: impl Into<FieldName>,
         seal: BuilderSeal<Seal>,
         value: u64,
+        tag: AssetTag,
         ty: Option<TransitionType>,
     ) -> Result<Self, BuilderError> {
         let name = name.into();
@@ -644,18 +708,6 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         let type_id = self
             .assignments_type(&name, ty)
             .ok_or(BuilderError::AssignmentNotFound(name))?;
-
-        let tag = match self.asset_tags.get(&type_id) {
-            Some(asset_tag) => *asset_tag,
-            None => {
-                let asset_tag = AssetTag::new_random(
-                    format!("{}/{}", self.schema.schema_id(), self.iface.iface_id()),
-                    type_id,
-                );
-                self.asset_tags.insert(type_id, asset_tag)?;
-                asset_tag
-            }
-        };
 
         let state = RevealedValue::new_random_blinding(value, tag);
         self.add_fungible_state_raw(type_id, seal, state)
