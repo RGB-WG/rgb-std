@@ -517,7 +517,7 @@ impl Inventory for Stock {
     }
 
     fn contract_iface_id(
-        &mut self,
+        &self,
         contract_id: ContractId,
         iface_id: IfaceId,
     ) -> Result<ContractIface, InventoryError<Self::Error>> {
@@ -577,7 +577,7 @@ impl Inventory for Stock {
     }
 
     fn contracts_by_outputs(
-        &mut self,
+        &self,
         outputs: impl IntoIterator<Item = impl Into<Output>>,
     ) -> Result<BTreeSet<ContractId>, InventoryError<Self::Error>> {
         let outputs = outputs
@@ -596,7 +596,7 @@ impl Inventory for Stock {
     }
 
     fn public_opouts(
-        &mut self,
+        &self,
         contract_id: ContractId,
     ) -> Result<BTreeSet<Opout>, InventoryError<Self::Error>> {
         let index = self
@@ -607,7 +607,7 @@ impl Inventory for Stock {
     }
 
     fn opouts_by_outputs(
-        &mut self,
+        &self,
         contract_id: ContractId,
         outputs: impl IntoIterator<Item = impl Into<Output>>,
     ) -> Result<BTreeSet<Opout>, InventoryError<Self::Error>> {
@@ -627,7 +627,7 @@ impl Inventory for Stock {
     }
 
     fn opouts_by_terminals(
-        &mut self,
+        &self,
         terminals: impl IntoIterator<Item = SecretSeal>,
     ) -> Result<BTreeSet<Opout>, InventoryError<Self::Error>> {
         let terminals = terminals.into_iter().collect::<BTreeSet<_>>();
@@ -640,7 +640,7 @@ impl Inventory for Stock {
     }
 
     fn state_for_outputs(
-        &mut self,
+        &self,
         contract_id: ContractId,
         outputs: impl IntoIterator<Item = impl Into<Output>>,
     ) -> Result<BTreeMap<(Opout, Output), TypedState>, InventoryError<Self::Error>> {
@@ -660,7 +660,11 @@ impl Inventory for Stock {
             if outputs.contains(&item.output) {
                 res.insert(
                     (item.opout, item.output),
-                    TypedState::Amount(item.state.value.as_u64(), item.state.blinding),
+                    TypedState::Amount(
+                        item.state.value.as_u64(),
+                        item.state.blinding,
+                        item.state.tag,
+                    ),
                 );
             }
         }
@@ -698,7 +702,7 @@ impl Inventory for Stock {
     }
 
     fn seal_secrets(
-        &mut self,
+        &self,
     ) -> Result<BTreeSet<SealDefinition<GraphSeal>>, InventoryError<Self::Error>> {
         Ok(self.seal_secrets.to_inner())
     }

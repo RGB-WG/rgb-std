@@ -20,38 +20,37 @@
 // limitations under the License.
 
 use std::cmp::Ordering;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::error::Error;
-use std::iter;
 use std::ops::Deref;
 
-use amplify::confinement::{self, Confined, MediumOrdMap, MediumVec};
+use amplify::confinement::{self, Confined, MediumVec};
 use bp::seals::txout::blind::SingleBlindSeal;
 use bp::seals::txout::CloseMethod;
 use bp::{Txid, Vout};
 use chrono::Utc;
 use commit_verify::{mpc, Conceal};
-use invoice::{Beneficiary, RgbInvoice};
+use invoice::{Beneficiary, InvoiceState, RgbInvoice};
 use rgb::{
     validation, Anchor, AnchoredBundle, AssignmentType, BundleError, BundleId, ContractId,
-    ExposedSeal, GraphSeal, Layer1, OpId, Operation, Opout, Output, SchemaId, SealDefinition,
-    SecretSeal, SubSchema, Transition, TransitionBundle, WitnessId,
+    ExposedSeal, GraphSeal, OpId, Operation, Opout, Output, SchemaId, SealDefinition, SecretSeal,
+    SubSchema, Transition, TransitionBundle, WitnessId,
 };
 use strict_encoding::TypeName;
 
 use crate::accessors::{BundleExt, MergeRevealError, RevealError};
 use crate::containers::{
-    Batch, Bindle, BuilderSeal, Cert, Consignment, ContentId, Contract, Fascia, Terminal, Transfer,
+    Batch, BatchItem, Bindle, BuilderSeal, Cert, Consignment, ContentId, Contract, Fascia,
+    Terminal, Transfer,
 };
 use crate::interface::{
-    BuilderError, ContractIface, ContractSuppl, Iface, IfaceId, IfaceImpl, IfacePair, IfaceWrapper,
+    BuilderError, ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, IfaceWrapper,
     TransitionBuilder, TypedState, VelocityHint,
 };
 use crate::persistence::hoard::ConsumeError;
 use crate::persistence::stash::StashInconsistency;
 use crate::persistence::{Stash, StashError};
 use crate::resolvers::ResolveHeight;
-use crate::Outpoint;
 
 #[derive(Debug, Display, Error, From)]
 #[display(doc_comments)]
@@ -66,18 +65,56 @@ pub enum ConsignerError<E1: Error, E2: Error> {
     /// public state at operation output {0} is concealed.
     ConcealedPublicState(Opout),
 
-    #[display(inner)]
     #[from]
+    #[display(inner)]
     Reveal(RevealError),
 
-    #[display(inner)]
     #[from]
     #[from(InventoryInconsistency)]
+    #[display(inner)]
     InventoryError(InventoryError<E1>),
 
-    #[display(inner)]
     #[from]
     #[from(StashInconsistency)]
+    #[display(inner)]
+    StashError(StashError<E2>),
+}
+
+#[derive(Debug, Display, Error, From)]
+#[display(doc_comments)]
+pub enum ComposeError<E1: Error, E2: Error> {
+    /// no outputs available to store state of type {1} with velocity class
+    /// '{0}'.
+    NoBlankOrChange(VelocityHint, AssignmentType),
+
+    /// expired invoice.
+    InvoiceExpired,
+
+    /// the invoice contains no contract information.
+    NoContract,
+
+    /// the invoice contains no interface information.
+    NoIface,
+
+    /// the invoice requirements can't be fulfilled using available assets or
+    /// smart contract state.
+    InsufficientState,
+
+    /// the operation produces too many state transitions which can't fit the
+    /// container requirements.
+    #[from]
+    Confinement(confinement::Error),
+
+    #[from]
+    #[display(inner)]
+    Builder(BuilderError),
+
+    #[from]
+    #[display(inner)]
+    InventoryError(InventoryError<E1>),
+
+    #[from]
+    #[display(inner)]
     StashError(StashError<E2>),
 }
 
@@ -352,7 +389,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     where
         R::Error: 'static;
 
-    fn contracts_by_iface<W: IfaceWrapper>(&mut self) -> Result<Vec<W>, InventoryError<Self::Error>>
+    fn contracts_by_iface<W: IfaceWrapper>(&self) -> Result<Vec<W>, InventoryError<Self::Error>>
     where
         Self::Error: From<<Self::Stash as Stash>::Error>,
         InventoryError<Self::Error>: From<<Self::Stash as Stash>::Error>,
@@ -364,7 +401,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     }
 
     fn contracts_by_iface_name(
-        &mut self,
+        &self,
         iface: impl Into<TypeName>,
     ) -> Result<Vec<ContractIface>, InventoryError<Self::Error>>
     where
@@ -380,7 +417,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     }
 
     fn contract_iface_named(
-        &mut self,
+        &self,
         contract_id: ContractId,
         iface: impl Into<TypeName>,
     ) -> Result<ContractIface, InventoryError<Self::Error>>
@@ -394,7 +431,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     }
 
     fn contract_iface_wrapped<W: IfaceWrapper>(
-        &mut self,
+        &self,
         contract_id: ContractId,
     ) -> Result<W, InventoryError<Self::Error>> {
         self.contract_iface_id(contract_id, W::IFACE_ID)
@@ -402,7 +439,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     }
 
     fn contract_iface_id(
-        &mut self,
+        &self,
         contract_id: ContractId,
         iface_id: IfaceId,
     ) -> Result<ContractIface, InventoryError<Self::Error>>;
@@ -410,7 +447,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     fn anchored_bundle(&self, opid: OpId) -> Result<AnchoredBundle, InventoryError<Self::Error>>;
 
     fn transition_builder(
-        &mut self,
+        &self,
         contract_id: ContractId,
         iface: impl Into<TypeName>,
         transition_name: Option<impl Into<TypeName>>,
@@ -440,7 +477,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     }
 
     fn blank_builder(
-        &mut self,
+        &self,
         contract_id: ContractId,
         iface: impl Into<TypeName>,
     ) -> Result<TransitionBuilder, InventoryError<Self::Error>>
@@ -463,28 +500,28 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     fn transition(&self, opid: OpId) -> Result<&Transition, InventoryError<Self::Error>>;
 
     fn contracts_by_outputs(
-        &mut self,
+        &self,
         outputs: impl IntoIterator<Item = impl Into<Output>>,
     ) -> Result<BTreeSet<ContractId>, InventoryError<Self::Error>>;
 
     fn public_opouts(
-        &mut self,
+        &self,
         contract_id: ContractId,
     ) -> Result<BTreeSet<Opout>, InventoryError<Self::Error>>;
 
     fn opouts_by_outputs(
-        &mut self,
+        &self,
         contract_id: ContractId,
         outputs: impl IntoIterator<Item = impl Into<Output>>,
     ) -> Result<BTreeSet<Opout>, InventoryError<Self::Error>>;
 
     fn opouts_by_terminals(
-        &mut self,
+        &self,
         terminals: impl IntoIterator<Item = SecretSeal>,
     ) -> Result<BTreeSet<Opout>, InventoryError<Self::Error>>;
 
     fn state_for_outputs(
-        &mut self,
+        &self,
         contract_id: ContractId,
         outputs: impl IntoIterator<Item = impl Into<Output>>,
     ) -> Result<BTreeMap<(Opout, Output), TypedState>, InventoryError<Self::Error>>;
@@ -495,12 +532,12 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     ) -> Result<(), InventoryError<Self::Error>>;
 
     fn seal_secrets(
-        &mut self,
+        &self,
     ) -> Result<BTreeSet<SealDefinition<GraphSeal>>, InventoryError<Self::Error>>;
 
     #[allow(clippy::type_complexity)]
     fn export_contract(
-        &mut self,
+        &self,
         contract_id: ContractId,
     ) -> Result<
         Bindle<Contract>,
@@ -515,7 +552,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
 
     #[allow(clippy::type_complexity)]
     fn transfer(
-        &mut self,
+        &self,
         contract_id: ContractId,
         seals: impl IntoIterator<Item = impl Into<BuilderSeal<SingleBlindSeal>>>,
     ) -> Result<
@@ -529,7 +566,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     }
 
     fn consign<Seal: ExposedSeal, const TYPE: bool>(
-        &mut self,
+        &self,
         contract_id: ContractId,
         seals: impl IntoIterator<Item = impl Into<BuilderSeal<Seal>>>,
     ) -> Result<
@@ -632,16 +669,28 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     /// set of previous outputs, satisfying requirements of the invoice, paying
     /// the change back and including the necessary blank state transitions.
     fn compose(
-        &mut self,
+        &self,
         invoice: RgbInvoice,
         prev_outputs: impl IntoIterator<Item = impl Into<Output>>,
         method: CloseMethod,
         change_vout: Vout,
         allocator: impl Fn(ContractId, AssignmentType, VelocityHint) -> Option<Vout>,
-    ) -> Result<Batch, InventoryError<Self::Error>> {
-        let mut output_for_assignment = |id: ContractId,
-                                         assignment_type: AssignmentType|
-         -> Result<BuilderSeal<GraphSeal>, ComposeError> {
+    ) -> Result<Batch, ComposeError<Self::Error, <<Self as Deref>::Target as Stash>::Error>>
+    where
+        Self::Error: From<<Self::Stash as Stash>::Error>,
+    {
+        let layer1 = invoice.layer1();
+        let prev_outputs = prev_outputs
+            .into_iter()
+            .map(|o| o.into())
+            .collect::<HashSet<Output>>();
+
+        let output_for_assignment = |id: ContractId,
+                                     assignment_type: AssignmentType|
+         -> Result<
+            BuilderSeal<GraphSeal>,
+            ComposeError<Self::Error, <<Self as Deref>::Target as Stash>::Error>,
+        > {
             // TODO: select supplement basing on the signer trust level
             let suppl = self.contract_suppl(id).and_then(|set| set.first());
             let velocity = suppl
@@ -651,7 +700,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             let vout = allocator(id, assignment_type, velocity)
                 .ok_or(ComposeError::NoBlankOrChange(velocity, assignment_type))?;
             let seal = GraphSeal::new_vout(method, vout);
-            Ok(BuilderSeal::Revealed(SealDefinition::with(invoice.layer1(), seal)))
+            Ok(BuilderSeal::Revealed(SealDefinition::with(layer1, seal)))
         };
 
         // 1. Prepare the data
@@ -678,35 +727,44 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             .assignment
             .as_ref()
             .or_else(|| main_builder.default_assignment().ok())
-            .ok_or(BuilderError::NoDefaultAssignment)?;
+            .ok_or(BuilderError::NoDefaultAssignment)?
+            .clone();
         let assignment_id = main_builder
-            .assignments_type(assignment_name)
+            .assignments_type(&assignment_name)
             .ok_or(BuilderError::InvalidStateField(assignment_name.clone()))?;
         let mut sum_inputs = 0u64;
-        for ((opout, output), state) in self.state_for_outputs(contract_id, prev_outputs)? {
-            main_builder = main_builder.add_input(opout)?;
+        for ((opout, output), state) in
+            self.state_for_outputs(contract_id, prev_outputs.iter().cloned())?
+        {
+            main_builder = main_builder.add_input(opout, state.clone())?;
             main_inputs.push(output)?;
             if opout.ty != assignment_id {
                 let seal = output_for_assignment(contract_id, opout.ty)?;
-                main_builder = main_builder.add_raw_state(opout.ty, seal, state)?;
-            } else if let TypedState::Amount(value, _) = state {
+                // TODO: Update blinding factor
+                main_builder = main_builder.add_owned_state_raw(opout.ty, seal, state)?;
+            } else if let TypedState::Amount(value, _, _) = state {
                 sum_inputs += value;
             }
         }
         // Add change
         let main_transition = match invoice.owned_state {
-            TypedState::Amount(amt) => {
+            InvoiceState::Amount(amt) => {
                 match sum_inputs.cmp(&amt) {
                     Ordering::Greater => {
                         let seal = output_for_assignment(contract_id, assignment_id)?;
-                        let change = TypedState::Amount(sum_inputs - amt);
-                        main_builder = main_builder.add_raw_state(assignment_id, seal, change)?;
+                        // TODO: Use deterministic entropy
+                        main_builder = main_builder.add_fungible_state(
+                            assignment_name.clone(),
+                            seal,
+                            sum_inputs - amt,
+                        )?;
                     }
                     Ordering::Less => return Err(ComposeError::InsufficientState),
                     Ordering::Equal => {}
                 }
+                // TODO: Use deterministic entropy
                 main_builder
-                    .add_raw_state(assignment_id, beneficiary, TypedState::Amount(amt))?
+                    .add_fungible_state(assignment_name.clone(), beneficiary, amt)?
                     .complete_transition(contract_id)?
             }
             _ => {
@@ -718,8 +776,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         // Enumerate state
         let mut spent_state = HashMap::<ContractId, BTreeMap<(Opout, Output), TypedState>>::new();
         for output in prev_outputs {
-            let output = output.into();
-            for id in self.contracts_by_outpoints([output])? {
+            for id in self.contracts_by_outputs([output])? {
                 if id == contract_id {
                     continue;
                 }
@@ -730,27 +787,26 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             }
         }
         // Construct blank transitions
-        let mut blank_transitions = MediumOrdMap::with_capacity(spent_state.len());
+        let mut blanks = MediumVec::with_capacity(spent_state.len());
         for (id, opouts) in spent_state {
             let mut blank_builder = self.blank_builder(id, iface.clone())?;
             let mut outputs = MediumVec::with_capacity(opouts.len());
             for ((opout, output), state) in opouts {
                 let seal = output_for_assignment(id, opout.ty)?;
                 outputs.push(output)?;
+                // TODO: update blinding factor
                 blank_builder = blank_builder
-                    .add_input(opout)?
-                    .add_raw_state(opout.ty, seal, state)?;
+                    .add_input(opout, state.clone())?
+                    .add_owned_state_raw(opout.ty, seal, state)?;
             }
 
             let transition = blank_builder.complete_transition(contract_id)?;
-            blank_transitions.insert(transition.id(), (transition, outputs))?;
+            blanks.push(BatchItem::new(transition, outputs))?;
         }
 
         Ok(Batch {
-            main_id: main_transition.id(),
-            main_transition,
-            main_inputs,
-            blank_transitions,
+            main: BatchItem::new(main_transition, main_inputs),
+            blanks,
         })
     }
 }

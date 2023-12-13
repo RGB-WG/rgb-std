@@ -19,20 +19,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use amplify::confinement::{Confined, TinyOrdMap, TinyOrdSet, U16, U8};
 use amplify::{confinement, Wrapper};
 use rgb::{
     AltLayer1, AltLayer1Set, AssetTag, Assign, AssignmentType, Assignments, BlindingFactor,
     ContractId, ExposedSeal, FungibleType, Genesis, GenesisSeal, GlobalState, GraphSeal, Input,
-    Opout, RevealedData, RevealedValue, SealDefinition, StateSchema, SubSchema, Transition,
-    TransitionType, TypedAssigns,
+    Opout, RevealedData, RevealedValue, StateSchema, SubSchema, Transition, TransitionType,
+    TypedAssigns,
 };
 use strict_encoding::{FieldName, SerializeError, StrictSerialize, TypeName};
 use strict_types::decode;
 
 use crate::containers::{BuilderSeal, Contract};
+use crate::interface::contract::AttachedState;
 use crate::interface::{Iface, IfaceImpl, IfacePair, TransitionIface, TypedState};
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
@@ -160,23 +161,52 @@ impl ContractBuilder {
         Ok(self)
     }
 
+    pub fn add_owned_state_raw(
+        mut self,
+        type_id: AssignmentType,
+        seal: BuilderSeal<GenesisSeal>,
+        state: TypedState,
+    ) -> Result<Self, BuilderError> {
+        self.builder = self.builder.add_owned_state_raw(type_id, seal, state)?;
+        Ok(self)
+    }
+
+    pub fn add_rights(
+        mut self,
+        name: impl Into<FieldName>,
+        seal: BuilderSeal<GenesisSeal>,
+    ) -> Result<Self, BuilderError> {
+        self.builder = self.builder.add_rights(name, seal, None)?;
+        Ok(self)
+    }
+
     pub fn add_fungible_state(
         mut self,
         name: impl Into<FieldName>,
-        seal: impl Into<GenesisSeal>,
+        seal: BuilderSeal<GenesisSeal>,
         value: u64,
     ) -> Result<Self, BuilderError> {
         self.builder = self.builder.add_fungible_state(name, seal, value, None)?;
         Ok(self)
     }
 
-    pub fn add_data_state(
+    pub fn add_data(
         mut self,
         name: impl Into<FieldName>,
-        seal: impl Into<GenesisSeal>,
+        seal: BuilderSeal<GenesisSeal>,
         value: impl StrictSerialize,
     ) -> Result<Self, BuilderError> {
-        self.builder = self.builder.add_data_state(name, seal, value, None)?;
+        self.builder = self.builder.add_data(name, seal, value, None)?;
+        Ok(self)
+    }
+
+    pub fn add_attachment(
+        mut self,
+        name: impl Into<FieldName>,
+        seal: BuilderSeal<GenesisSeal>,
+        attachment: AttachedState,
+    ) -> Result<Self, BuilderError> {
+        self.builder = self.builder.add_attachment(name, seal, attachment, None)?;
         Ok(self)
     }
 
@@ -293,9 +323,36 @@ impl TransitionBuilder {
             .ok_or(BuilderError::NoDefaultAssignment)
     }
 
+    #[inline]
+    pub fn assignments_type(&self, name: &FieldName) -> Option<AssignmentType> {
+        self.builder
+            .assignments_type(name, Some(self.transition_type))
+    }
+
+    pub fn add_owned_state_raw(
+        mut self,
+        type_id: AssignmentType,
+        seal: BuilderSeal<GraphSeal>,
+        state: TypedState,
+    ) -> Result<Self, BuilderError> {
+        self.builder = self.builder.add_owned_state_raw(type_id, seal, state)?;
+        Ok(self)
+    }
+
+    pub fn add_rights(
+        mut self,
+        name: impl Into<FieldName>,
+        seal: BuilderSeal<GraphSeal>,
+    ) -> Result<Self, BuilderError> {
+        self.builder = self
+            .builder
+            .add_rights(name, seal, Some(self.transition_type))?;
+        Ok(self)
+    }
+
     pub fn add_fungible_default_state(
         self,
-        seal: impl Into<GraphSeal>,
+        seal: BuilderSeal<GraphSeal>,
         value: u64,
     ) -> Result<Self, BuilderError> {
         let assignment_name = self.default_assignment()?.clone();
@@ -305,7 +362,7 @@ impl TransitionBuilder {
     pub fn add_fungible_state(
         mut self,
         name: impl Into<FieldName>,
-        seal: impl Into<GraphSeal>,
+        seal: BuilderSeal<GraphSeal>,
         value: u64,
     ) -> Result<Self, BuilderError> {
         self.builder =
@@ -314,15 +371,36 @@ impl TransitionBuilder {
         Ok(self)
     }
 
-    pub fn add_data_state(
+    pub fn add_data(
         mut self,
         name: impl Into<FieldName>,
-        seal: impl Into<GraphSeal>,
+        seal: BuilderSeal<GraphSeal>,
         value: impl StrictSerialize,
+    ) -> Result<Self, BuilderError> {
+        self.builder = self
+            .builder
+            .add_data(name, seal, value, Some(self.transition_type))?;
+        Ok(self)
+    }
+
+    pub fn add_data_default(
+        self,
+        seal: BuilderSeal<GraphSeal>,
+        value: impl StrictSerialize,
+    ) -> Result<Self, BuilderError> {
+        let assignment_name = self.default_assignment()?.clone();
+        self.add_data(assignment_name, seal.into(), value)
+    }
+
+    pub fn add_attachment(
+        mut self,
+        name: impl Into<FieldName>,
+        seal: BuilderSeal<GraphSeal>,
+        attachment: AttachedState,
     ) -> Result<Self, BuilderError> {
         self.builder =
             self.builder
-                .add_data_state(name, seal, value, Some(self.transition_type))?;
+                .add_attachment(name, seal, attachment, Some(self.transition_type))?;
         Ok(self)
     }
 
@@ -357,11 +435,12 @@ pub struct OperationBuilder<Seal: ExposedSeal> {
     asset_tags: TinyOrdMap<AssignmentType, AssetTag>,
 
     global: GlobalState,
-    // rights: TinyOrdMap<AssignmentType, Confined<HashSet<BuilderSeal<Seal>>, 1, U8>>,
+    rights: TinyOrdMap<AssignmentType, Confined<HashSet<BuilderSeal<Seal>>, 1, U8>>,
     fungible:
         TinyOrdMap<AssignmentType, Confined<HashMap<BuilderSeal<Seal>, RevealedValue>, 1, U8>>,
     data: TinyOrdMap<AssignmentType, Confined<HashMap<BuilderSeal<Seal>, RevealedData>, 1, U8>>,
-    // TODO: add attachments
+    attachments:
+        TinyOrdMap<AssignmentType, Confined<HashMap<BuilderSeal<Seal>, AttachedState>, 1, U8>>,
     // TODO: add valencies
 }
 
@@ -385,7 +464,9 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             asset_tags: none!(),
 
             global: none!(),
+            rights: none!(),
             fungible: none!(),
+            attachments: none!(),
             data: none!(),
         })
     }
@@ -472,10 +553,89 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         Ok(self)
     }
 
+    fn add_owned_state_raw(
+        self,
+        type_id: AssignmentType,
+        seal: BuilderSeal<Seal>,
+        state: TypedState,
+    ) -> Result<Self, BuilderError> {
+        match state {
+            TypedState::Void => self.add_rights_raw(type_id, seal),
+            TypedState::Amount(value, blinding, tag) => self.add_fungible_state_raw(
+                type_id,
+                seal,
+                RevealedValue::with_blinding(value, blinding, tag),
+            ),
+            TypedState::Data(data) => self.add_data_raw(type_id, seal, data),
+            TypedState::Attachment(attach) => self.add_attachment_raw(type_id, seal, attach),
+        }
+    }
+
+    fn add_rights_raw(
+        mut self,
+        type_id: AssignmentType,
+        seal: BuilderSeal<Seal>,
+    ) -> Result<Self, BuilderError> {
+        let state_schema = self.state_schema(type_id);
+        if *state_schema != StateSchema::Fungible(FungibleType::Unsigned64Bit) {
+            return Err(BuilderError::InvalidState(type_id));
+        }
+
+        match self.rights.get_mut(&type_id) {
+            Some(assignments) => {
+                assignments.push(seal)?;
+            }
+            None => {
+                self.rights.insert(type_id, Confined::with(seal))?;
+            }
+        }
+
+        Ok(self)
+    }
+
+    fn add_rights(
+        self,
+        name: impl Into<FieldName>,
+        seal: BuilderSeal<Seal>,
+        ty: Option<TransitionType>,
+    ) -> Result<Self, BuilderError> {
+        let name = name.into();
+
+        let type_id = self
+            .assignments_type(&name, ty)
+            .ok_or(BuilderError::AssignmentNotFound(name))?;
+
+        self.add_rights_raw(type_id, seal)
+    }
+
+    fn add_fungible_state_raw(
+        mut self,
+        type_id: AssignmentType,
+        seal: BuilderSeal<Seal>,
+        state: RevealedValue,
+    ) -> Result<Self, BuilderError> {
+        let state_schema = self.state_schema(type_id);
+        if *state_schema != StateSchema::Fungible(FungibleType::Unsigned64Bit) {
+            return Err(BuilderError::InvalidState(type_id));
+        }
+
+        match self.fungible.get_mut(&type_id) {
+            Some(assignments) => {
+                assignments.insert(seal, state)?;
+            }
+            None => {
+                self.fungible
+                    .insert(type_id, Confined::with((seal, state)))?;
+            }
+        }
+
+        Ok(self)
+    }
+
     fn add_fungible_state(
         mut self,
         name: impl Into<FieldName>,
-        seal: impl Into<Seal>,
+        seal: BuilderSeal<Seal>,
         value: u64,
         ty: Option<TransitionType>,
     ) -> Result<Self, BuilderError> {
@@ -498,43 +658,16 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         };
 
         let state = RevealedValue::new_random_blinding(value, tag);
-
-        let state_schema = self.state_schema(type_id);
-        if *state_schema != StateSchema::Fungible(FungibleType::Unsigned64Bit) {
-            return Err(BuilderError::InvalidState(type_id));
-        }
-
-        let seal = BuilderSeal::<Seal>::from(SealDefinition::Bitcoin(seal.into()));
-        match self.fungible.get_mut(&type_id) {
-            Some(assignments) => {
-                assignments.insert(seal, state)?;
-            }
-            None => {
-                self.fungible
-                    .insert(type_id, Confined::with((seal, state)))?;
-            }
-        }
-
-        Ok(self)
+        self.add_fungible_state_raw(type_id, seal, state)
     }
 
-    fn add_data_state(
+    fn add_data_raw(
         mut self,
-        name: impl Into<FieldName>,
-        seal: impl Into<Seal>,
-        value: impl StrictSerialize,
-        ty: Option<TransitionType>,
+        type_id: AssignmentType,
+        seal: BuilderSeal<Seal>,
+        state: RevealedData,
     ) -> Result<Self, BuilderError> {
-        let name = name.into();
-        let serialized = value.to_strict_serialized::<U16>()?;
-        let state = RevealedData::from(serialized);
-
-        let type_id = self
-            .assignments_type(&name, ty)
-            .ok_or(BuilderError::AssignmentNotFound(name))?;
-
         let state_schema = self.state_schema(type_id);
-        let seal = BuilderSeal::<Seal>::from(SealDefinition::Bitcoin(seal.into()));
         if let StateSchema::Structured(_) = *state_schema {
             match self.data.get_mut(&type_id) {
                 Some(assignments) => {
@@ -548,6 +681,63 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             return Err(BuilderError::InvalidState(type_id));
         }
         Ok(self)
+    }
+
+    fn add_data(
+        self,
+        name: impl Into<FieldName>,
+        seal: BuilderSeal<Seal>,
+        value: impl StrictSerialize,
+        ty: Option<TransitionType>,
+    ) -> Result<Self, BuilderError> {
+        let name = name.into();
+        let serialized = value.to_strict_serialized::<U16>()?;
+        let state = RevealedData::from(serialized);
+
+        let type_id = self
+            .assignments_type(&name, ty)
+            .ok_or(BuilderError::AssignmentNotFound(name))?;
+
+        self.add_data_raw(type_id, seal, state)
+    }
+
+    fn add_attachment_raw(
+        mut self,
+        type_id: AssignmentType,
+        seal: BuilderSeal<Seal>,
+        state: AttachedState,
+    ) -> Result<Self, BuilderError> {
+        let state_schema = self.state_schema(type_id);
+        if let StateSchema::Structured(_) = *state_schema {
+            match self.attachments.get_mut(&type_id) {
+                Some(assignments) => {
+                    assignments.insert(seal, state)?;
+                }
+                None => {
+                    self.attachments
+                        .insert(type_id, Confined::with((seal, state)))?;
+                }
+            }
+        } else {
+            return Err(BuilderError::InvalidState(type_id));
+        }
+        Ok(self)
+    }
+
+    fn add_attachment(
+        self,
+        name: impl Into<FieldName>,
+        seal: BuilderSeal<Seal>,
+        state: AttachedState,
+        ty: Option<TransitionType>,
+    ) -> Result<Self, BuilderError> {
+        let name = name.into();
+
+        let type_id = self
+            .assignments_type(&name, ty)
+            .ok_or(BuilderError::AssignmentNotFound(name))?;
+
+        self.add_attachment_raw(type_id, seal, state)
     }
 
     fn complete(
@@ -579,7 +769,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
                         i.iter()
                             .filter(|(out, _)| out.prev_out.ty == id)
                             .map(|(_, ts)| match ts {
-                                TypedState::Amount(_, blinding) => *blinding,
+                                TypedState::Amount(_, blinding, _) => *blinding,
                                 _ => panic!("previous state has invalid type"),
                             })
                             .collect::<Vec<_>>()

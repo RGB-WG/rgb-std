@@ -84,3 +84,11 @@ pub struct RgbInvoice {
     pub expiry: Option<i64>,
     pub unknown_query: IndexMap<String, String>,
 }
+
+impl RgbInvoice {
+    pub fn layer1(&self) -> Layer1 {
+        match self.beneficiary {
+            Beneficiary::BlindedSeal(_) | Beneficiary::WitnessVoutBitcoin(_) => Layer1::Bitcoin,
+        }
+    }
+}

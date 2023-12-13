@@ -23,7 +23,7 @@ use std::vec;
 
 use amplify::confinement::MediumVec;
 use commit_verify::mpc;
-use rgb::{Anchor, OpId, Output, Transition, TransitionBundle};
+use rgb::{Anchor, OpId, Operation, Output, Transition, TransitionBundle};
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 
 use crate::LIB_NAME_RGB_STD;
@@ -40,6 +40,16 @@ pub struct BatchItem {
     pub id: OpId,
     pub inputs: MediumVec<Output>,
     pub transition: Transition,
+}
+
+impl BatchItem {
+    pub fn new(transition: Transition, inputs: MediumVec<Output>) -> Self {
+        BatchItem {
+            id: transition.id(),
+            inputs,
+            transition,
+        }
+    }
 }
 
 /// A batch of state transitions under different contracts which are associated

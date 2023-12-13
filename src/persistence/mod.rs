@@ -39,7 +39,8 @@ pub mod hoard;
 
 pub use hoard::Hoard;
 pub use inventory::{
-    ConsignerError, Inventory, InventoryDataError, InventoryError, InventoryInconsistency,
+    ComposeError, ConsignerError, Inventory, InventoryDataError, InventoryError,
+    InventoryInconsistency,
 };
 pub use stash::{Stash, StashError, StashInconsistency};
 pub use stock::Stock;
