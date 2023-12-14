@@ -27,9 +27,9 @@ use std::str::FromStr;
 use bp::seals::txout::blind::ParseError;
 use bp::seals::txout::{CloseMethod, TxPtr};
 use bp::secp256k1::rand::{thread_rng, RngCore};
-use bp::Vout;
+use bp::{Outpoint, Vout};
 use commit_verify::Conceal;
-use rgb::{ExposedSeal, GraphSeal, SealDefinition, SecretSeal};
+use rgb::{ExposedSeal, GenesisSeal, GraphSeal, SealDefinition, SecretSeal};
 
 use crate::LIB_NAME_RGB_STD;
 
@@ -242,4 +242,16 @@ pub enum BuilderSeal<Seal: ExposedSeal> {
     Revealed(SealDefinition<Seal>),
     #[from]
     Concealed(SecretSeal),
+}
+
+impl From<Outpoint> for BuilderSeal<GenesisSeal> {
+    fn from(outpoint: Outpoint) -> Self {
+        BuilderSeal::Revealed(SealDefinition::Bitcoin(outpoint.into()))
+    }
+}
+
+impl From<Outpoint> for BuilderSeal<GraphSeal> {
+    fn from(outpoint: Outpoint) -> Self {
+        BuilderSeal::Revealed(SealDefinition::Bitcoin(outpoint.into()))
+    }
 }
