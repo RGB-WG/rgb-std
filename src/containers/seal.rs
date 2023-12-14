@@ -29,7 +29,7 @@ use bp::seals::txout::{CloseMethod, TxPtr};
 use bp::secp256k1::rand::{thread_rng, RngCore};
 use bp::{Outpoint, Vout};
 use commit_verify::Conceal;
-use rgb::{ExposedSeal, GenesisSeal, GraphSeal, SealDefinition, SecretSeal};
+use rgb::{ExposedSeal, GenesisSeal, GraphSeal, SecretSeal, Xchain};
 
 use crate::LIB_NAME_RGB_STD;
 
@@ -156,10 +156,10 @@ impl From<GraphSeal> for TerminalSeal {
     }
 }
 
-impl From<SealDefinition<GraphSeal>> for TerminalSeal {
-    fn from(seal: SealDefinition<GraphSeal>) -> Self {
+impl From<Xchain<GraphSeal>> for TerminalSeal {
+    fn from(seal: Xchain<GraphSeal>) -> Self {
         match seal {
-            SealDefinition::Bitcoin(
+            Xchain::Bitcoin(
                 seal @ GraphSeal {
                     txid: TxPtr::WitnessTx,
                     ..
@@ -169,7 +169,7 @@ impl From<SealDefinition<GraphSeal>> for TerminalSeal {
                 seal.vout,
                 seal.blinding,
             )),
-            SealDefinition::Liquid(
+            Xchain::Liquid(
                 seal @ GraphSeal {
                     txid: TxPtr::WitnessTx,
                     ..
@@ -206,10 +206,10 @@ impl Conceal for TerminalSeal {
         match *self {
             TerminalSeal::ConcealedUtxo(hash) => hash,
             TerminalSeal::BitcoinWitnessVout(seal) => {
-                SealDefinition::Bitcoin(GraphSeal::from(seal)).conceal()
+                Xchain::Bitcoin(GraphSeal::from(seal)).conceal()
             }
             TerminalSeal::LiquidWitnessVout(seal) => {
-                SealDefinition::Liquid(GraphSeal::from(seal)).conceal()
+                Xchain::Liquid(GraphSeal::from(seal)).conceal()
             }
         }
     }
@@ -239,19 +239,15 @@ impl FromStr for TerminalSeal {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, From)]
 pub enum BuilderSeal<Seal: ExposedSeal> {
     #[from]
-    Revealed(SealDefinition<Seal>),
+    Revealed(Xchain<Seal>),
     #[from]
     Concealed(SecretSeal),
 }
 
 impl From<Outpoint> for BuilderSeal<GenesisSeal> {
-    fn from(outpoint: Outpoint) -> Self {
-        BuilderSeal::Revealed(SealDefinition::Bitcoin(outpoint.into()))
-    }
+    fn from(outpoint: Outpoint) -> Self { BuilderSeal::Revealed(Xchain::Bitcoin(outpoint.into())) }
 }
 
 impl From<Outpoint> for BuilderSeal<GraphSeal> {
-    fn from(outpoint: Outpoint) -> Self {
-        BuilderSeal::Revealed(SealDefinition::Bitcoin(outpoint.into()))
-    }
+    fn from(outpoint: Outpoint) -> Self { BuilderSeal::Revealed(Xchain::Bitcoin(outpoint.into())) }
 }

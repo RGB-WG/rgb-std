@@ -33,8 +33,8 @@ use commit_verify::{mpc, Conceal};
 use invoice::{Beneficiary, InvoiceState, RgbInvoice};
 use rgb::{
     validation, Anchor, AnchoredBundle, AssignmentType, BlindingFactor, BundleError, BundleId,
-    ContractId, ExposedSeal, GraphSeal, OpId, Operation, Opout, Output, SchemaId, SealDefinition,
-    SecretSeal, SubSchema, Transition, TransitionBundle, WitnessId,
+    ContractId, ExposedSeal, GraphSeal, OpId, Operation, Opout, OutputSeal, SchemaId, SecretSeal,
+    SubSchema, Transition, TransitionBundle, WitnessId, Xchain,
 };
 use strict_encoding::TypeName;
 
@@ -215,7 +215,7 @@ pub enum DataError {
     Merge(MergeRevealError),
 
     /// outpoint {0} is not part of the contract {1}.
-    OutpointUnknown(Output, ContractId),
+    OutpointUnknown(OutputSeal, ContractId),
 
     #[from]
     Confinement(confinement::Error),
@@ -501,7 +501,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
 
     fn contracts_by_outputs(
         &self,
-        outputs: impl IntoIterator<Item = impl Into<Output>>,
+        outputs: impl IntoIterator<Item = impl Into<OutputSeal>>,
     ) -> Result<BTreeSet<ContractId>, InventoryError<Self::Error>>;
 
     fn public_opouts(
@@ -512,7 +512,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     fn opouts_by_outputs(
         &self,
         contract_id: ContractId,
-        outputs: impl IntoIterator<Item = impl Into<Output>>,
+        outputs: impl IntoIterator<Item = impl Into<OutputSeal>>,
     ) -> Result<BTreeSet<Opout>, InventoryError<Self::Error>>;
 
     fn opouts_by_terminals(
@@ -523,17 +523,15 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     fn state_for_outputs(
         &self,
         contract_id: ContractId,
-        outputs: impl IntoIterator<Item = impl Into<Output>>,
-    ) -> Result<BTreeMap<(Opout, Output), TypedState>, InventoryError<Self::Error>>;
+        outputs: impl IntoIterator<Item = impl Into<OutputSeal>>,
+    ) -> Result<BTreeMap<(Opout, OutputSeal), TypedState>, InventoryError<Self::Error>>;
 
     fn store_seal_secret(
         &mut self,
-        seal: SealDefinition<GraphSeal>,
+        seal: Xchain<GraphSeal>,
     ) -> Result<(), InventoryError<Self::Error>>;
 
-    fn seal_secrets(
-        &self,
-    ) -> Result<BTreeSet<SealDefinition<GraphSeal>>, InventoryError<Self::Error>>;
+    fn seal_secrets(&self) -> Result<BTreeSet<Xchain<GraphSeal>>, InventoryError<Self::Error>>;
 
     #[allow(clippy::type_complexity)]
     fn export_contract(
@@ -544,7 +542,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         ConsignerError<Self::Error, <<Self as Deref>::Target as Stash>::Error>,
     > {
         let mut consignment =
-            self.consign::<GraphSeal, false>(contract_id, [] as [SealDefinition<GraphSeal>; 0])?;
+            self.consign::<GraphSeal, false>(contract_id, [] as [Xchain<GraphSeal>; 0])?;
         consignment.transfer = false;
         Ok(consignment.into())
         // TODO: Add known sigs to the bindle
@@ -578,7 +576,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         let (outpoint_seals, terminal_seals) = seals
             .into_iter()
             .map(|seal| match seal.into() {
-                BuilderSeal::Revealed(seal) => (seal.output(), seal.conceal()),
+                BuilderSeal::Revealed(seal) => (seal.to_output_seal(), seal.conceal()),
                 BuilderSeal::Concealed(seal) => (None, seal),
             })
             .unzip::<_, _, Vec<_>, Vec<_>>();
@@ -671,7 +669,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     fn compose(
         &self,
         invoice: &RgbInvoice,
-        prev_outputs: impl IntoIterator<Item = impl Into<Output>>,
+        prev_outputs: impl IntoIterator<Item = impl Into<OutputSeal>>,
         method: CloseMethod,
         change_vout: impl Into<Vout>,
         allocator: impl Fn(ContractId, AssignmentType, VelocityHint) -> Option<Vout>,
@@ -690,7 +688,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     fn compose_deterministic(
         &self,
         invoice: &RgbInvoice,
-        prev_outputs: impl IntoIterator<Item = impl Into<Output>>,
+        prev_outputs: impl IntoIterator<Item = impl Into<OutputSeal>>,
         method: CloseMethod,
         change_vout: impl Into<Vout>,
         allocator: impl Fn(ContractId, AssignmentType, VelocityHint) -> Option<Vout>,
@@ -704,7 +702,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         let prev_outputs = prev_outputs
             .into_iter()
             .map(|o| o.into())
-            .collect::<HashSet<Output>>();
+            .collect::<HashSet<OutputSeal>>();
 
         let output_for_assignment = |id: ContractId,
                                      assignment_type: AssignmentType|
@@ -720,7 +718,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             let vout = allocator(id, assignment_type, velocity)
                 .ok_or(ComposeError::NoBlankOrChange(velocity, assignment_type))?;
             let seal = GraphSeal::new_vout(method, vout);
-            Ok(BuilderSeal::Revealed(SealDefinition::with(layer1, seal)))
+            Ok(BuilderSeal::Revealed(Xchain::with(layer1, seal)))
         };
 
         // 1. Prepare the data
@@ -736,13 +734,13 @@ pub trait Inventory: Deref<Target = Self::Stash> {
 
         let beneficiary = match invoice.beneficiary {
             Beneficiary::BlindedSeal(seal) => BuilderSeal::Concealed(seal),
-            Beneficiary::WitnessVoutBitcoin(_) => BuilderSeal::Revealed(SealDefinition::Bitcoin(
-                GraphSeal::new_vout(method, change_vout),
-            )),
+            Beneficiary::WitnessVoutBitcoin(_) => {
+                BuilderSeal::Revealed(Xchain::Bitcoin(GraphSeal::new_vout(method, change_vout)))
+            }
         };
 
         // 2. Prepare transition
-        let mut main_inputs = MediumVec::<Output>::new();
+        let mut main_inputs = MediumVec::<OutputSeal>::new();
         let assignment_name = invoice
             .assignment
             .as_ref()
@@ -798,7 +796,8 @@ pub trait Inventory: Deref<Target = Self::Stash> {
 
         // 3. Prepare other transitions
         // Enumerate state
-        let mut spent_state = HashMap::<ContractId, BTreeMap<(Opout, Output), TypedState>>::new();
+        let mut spent_state =
+            HashMap::<ContractId, BTreeMap<(Opout, OutputSeal), TypedState>>::new();
         for output in prev_outputs {
             for id in self.contracts_by_outputs([output])? {
                 if id == contract_id {
@@ -814,10 +813,10 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         let mut blanks = MediumVec::with_capacity(spent_state.len());
         for (id, opouts) in spent_state {
             let mut blank_builder = self.blank_builder(id, iface.clone())?;
-            let mut outputs = MediumVec::with_capacity(opouts.len());
+            let mut outputs = Vec::with_capacity(opouts.len());
             for ((opout, output), mut state) in opouts {
                 let seal = output_for_assignment(id, opout.ty)?;
-                outputs.push(output)?;
+                outputs.push(output);
                 if let TypedState::Amount(_, ref mut blinding, _) = state {
                     *blinding = blinder(id, opout.ty);
                 }
@@ -827,11 +826,11 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             }
 
             let transition = blank_builder.complete_transition(contract_id)?;
-            blanks.push(BatchItem::new(transition, outputs))?;
+            blanks.push(BatchItem::new(transition, outputs)?)?;
         }
 
         Ok(Batch {
-            main: BatchItem::new(main_transition, main_inputs),
+            main: BatchItem::new(main_transition, main_inputs)?,
             blanks,
         })
     }

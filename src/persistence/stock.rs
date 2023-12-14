@@ -30,8 +30,8 @@ use rgb::validation::{Status, Validity, Warning};
 use rgb::{
     validation, Anchor, AnchorId, AnchoredBundle, Assign, AssignmentType, BundleId,
     ContractHistory, ContractId, ContractState, ExposedState, Extension, Genesis, GenesisSeal,
-    GraphSeal, OpId, Operation, Opout, Output, SealDefinition, SecretSeal, SubSchema, Transition,
-    TransitionBundle, TypedAssigns, WitnessAnchor, WitnessId,
+    GraphSeal, OpId, Operation, Opout, OutputSeal, SecretSeal, SubSchema, Transition,
+    TransitionBundle, TypedAssigns, WitnessAnchor, WitnessId, Xchain,
 };
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 
@@ -56,7 +56,7 @@ pub struct IndexedBundle(ContractId, BundleId);
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 pub struct ContractIndex {
     public_opouts: MediumOrdSet<Opout>,
-    outpoint_opouts: MediumOrdMap<Output, MediumOrdSet<Opout>>,
+    outpoint_opouts: MediumOrdMap<OutputSeal, MediumOrdSet<Opout>>,
 }
 
 /// Stock is an in-memory inventory (stash, index, contract state) useful for
@@ -78,7 +78,7 @@ pub struct Stock {
     contract_index: TinyOrdMap<ContractId, ContractIndex>,
     terminal_index: MediumOrdMap<SecretSeal, Opout>,
     // secrets
-    seal_secrets: MediumOrdSet<SealDefinition<GraphSeal>>,
+    seal_secrets: MediumOrdSet<Xchain<GraphSeal>>,
 }
 
 impl Default for Stock {
@@ -292,7 +292,9 @@ impl Stock {
         for (no, a) in vec.iter().enumerate() {
             let opout = Opout::new(opid, type_id, no as u16);
             if let Assign::ConfidentialState { seal, .. } | Assign::Revealed { seal, .. } = a {
-                let output = seal.output().expect("genesis seals always have outpoint");
+                let output = seal
+                    .to_output_seal()
+                    .expect("genesis seals always have outpoint");
                 match index.outpoint_opouts.get_mut(&output) {
                     Some(opouts) => {
                         opouts.push(opout)?;
@@ -328,7 +330,7 @@ impl Stock {
             let opout = Opout::new(opid, type_id, no as u16);
             if let Assign::ConfidentialState { seal, .. } | Assign::Revealed { seal, .. } = a {
                 let output = seal
-                    .output_or_witness(witness_id)
+                    .try_to_output_seal(witness_id)
                     .map_err(|_| DataError::ChainMismatch)?;
                 match index.outpoint_opouts.get_mut(&output) {
                     Some(opouts) => {
@@ -578,7 +580,7 @@ impl Inventory for Stock {
 
     fn contracts_by_outputs(
         &self,
-        outputs: impl IntoIterator<Item = impl Into<Output>>,
+        outputs: impl IntoIterator<Item = impl Into<OutputSeal>>,
     ) -> Result<BTreeSet<ContractId>, InventoryError<Self::Error>> {
         let outputs = outputs
             .into_iter()
@@ -609,7 +611,7 @@ impl Inventory for Stock {
     fn opouts_by_outputs(
         &self,
         contract_id: ContractId,
-        outputs: impl IntoIterator<Item = impl Into<Output>>,
+        outputs: impl IntoIterator<Item = impl Into<OutputSeal>>,
     ) -> Result<BTreeSet<Opout>, InventoryError<Self::Error>> {
         let index = self
             .contract_index
@@ -642,8 +644,8 @@ impl Inventory for Stock {
     fn state_for_outputs(
         &self,
         contract_id: ContractId,
-        outputs: impl IntoIterator<Item = impl Into<Output>>,
-    ) -> Result<BTreeMap<(Opout, Output), TypedState>, InventoryError<Self::Error>> {
+        outputs: impl IntoIterator<Item = impl Into<OutputSeal>>,
+    ) -> Result<BTreeMap<(Opout, OutputSeal), TypedState>, InventoryError<Self::Error>> {
         let outputs = outputs
             .into_iter()
             .map(|o| o.into())
@@ -657,9 +659,9 @@ impl Inventory for Stock {
         let mut res = BTreeMap::new();
 
         for item in history.fungibles() {
-            if outputs.contains(&item.output) {
+            if outputs.contains(&item.seal) {
                 res.insert(
-                    (item.opout, item.output),
+                    (item.opout, item.seal),
                     TypedState::Amount(
                         item.state.value.as_u64(),
                         item.state.blinding,
@@ -670,21 +672,21 @@ impl Inventory for Stock {
         }
 
         for item in history.data() {
-            if outputs.contains(&item.output) {
-                res.insert((item.opout, item.output), TypedState::Data(item.state.clone()));
+            if outputs.contains(&item.seal) {
+                res.insert((item.opout, item.seal), TypedState::Data(item.state.clone()));
             }
         }
 
         for item in history.rights() {
-            if outputs.contains(&item.output) {
-                res.insert((item.opout, item.output), TypedState::Void);
+            if outputs.contains(&item.seal) {
+                res.insert((item.opout, item.seal), TypedState::Void);
             }
         }
 
         for item in history.attach() {
-            if outputs.contains(&item.output) {
+            if outputs.contains(&item.seal) {
                 res.insert(
-                    (item.opout, item.output),
+                    (item.opout, item.seal),
                     TypedState::Attachment(item.state.clone().into()),
                 );
             }
@@ -695,15 +697,13 @@ impl Inventory for Stock {
 
     fn store_seal_secret(
         &mut self,
-        seal: SealDefinition<GraphSeal>,
+        seal: Xchain<GraphSeal>,
     ) -> Result<(), InventoryError<Self::Error>> {
         self.seal_secrets.push(seal)?;
         Ok(())
     }
 
-    fn seal_secrets(
-        &self,
-    ) -> Result<BTreeSet<SealDefinition<GraphSeal>>, InventoryError<Self::Error>> {
+    fn seal_secrets(&self) -> Result<BTreeSet<Xchain<GraphSeal>>, InventoryError<Self::Error>> {
         Ok(self.seal_secrets.to_inner())
     }
 }

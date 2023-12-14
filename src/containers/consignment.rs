@@ -27,8 +27,8 @@ use commit_verify::Conceal;
 use rgb::validation::{self, ConsignmentApi};
 use rgb::{
     AnchoredBundle, AssetTag, AssignmentType, AttachId, BundleId, ContractHistory, ContractId,
-    Extension, Genesis, GraphSeal, OpId, OpRef, Operation, Schema, SchemaId, SealDefinition,
-    SecretSeal, SubSchema, Transition, TransitionBundle,
+    Extension, Genesis, GraphSeal, OpId, OpRef, Operation, Schema, SchemaId, SecretSeal, SubSchema,
+    Transition, TransitionBundle, Xchain,
 };
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 
@@ -221,7 +221,7 @@ impl<const TYPE: bool> Consignment<TYPE> {
         Ok(history)
     }
 
-    pub fn reveal_bundle_seal(&mut self, bundle_id: BundleId, revealed: SealDefinition<GraphSeal>) {
+    pub fn reveal_bundle_seal(&mut self, bundle_id: BundleId, revealed: Xchain<GraphSeal>) {
         for anchored_bundle in &mut self.bundles {
             if anchored_bundle.bundle.bundle_id() == bundle_id {
                 anchored_bundle.bundle.reveal_seal(revealed);

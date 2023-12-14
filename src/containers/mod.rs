@@ -44,4 +44,4 @@ pub use consignment::{Consignment, Contract, Transfer};
 pub use disclosure::Disclosure;
 pub use partials::{Batch, BatchItem, Fascia};
 pub use seal::{BuilderSeal, TerminalSeal, VoutSeal};
-pub use util::{ContainerVer, Terminal};
+pub use util::{ContainerVer, Terminal, XchainOutpoint};

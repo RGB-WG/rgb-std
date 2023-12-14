@@ -19,17 +19,59 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::ops::{BitOr, BitOrAssign};
 use std::vec;
 
-use amplify::confinement::MediumVec;
+use amplify::confinement;
+use amplify::confinement::{Confined, MediumVec, U24};
+use bp::seals::txout::CloseMethod;
 use commit_verify::mpc;
-use rgb::{Anchor, OpId, Operation, Output, Transition, TransitionBundle};
+use rgb::{Anchor, OpId, Operation, OutputSeal, Transition, TransitionBundle};
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 
+use crate::containers::XchainOutpoint;
 use crate::LIB_NAME_RGB_STD;
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD, tags = repr, into_u8, try_from_u8)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+#[repr(u8)]
+pub enum BatchCloseMethods {
+    #[strict_type(dumb)]
+    TapretFirst = 0x01,
+    OpretFirst = 0x02,
+    Both = 0x03,
+}
+
+impl BitOr for BatchCloseMethods {
+    type Output = Self;
+    fn bitor(self, rhs: Self) -> Self::Output { if self == rhs { self } else { Self::Both } }
+}
+
+impl BitOrAssign for BatchCloseMethods {
+    fn bitor_assign(&mut self, rhs: Self) { *self = self.bitor(rhs); }
+}
+
+impl From<OutputSeal> for BatchCloseMethods {
+    fn from(seal: OutputSeal) -> Self { seal.method().into() }
+}
+
+impl From<CloseMethod> for BatchCloseMethods {
+    fn from(method: CloseMethod) -> Self {
+        match method {
+            CloseMethod::OpretFirst => BatchCloseMethods::OpretFirst,
+            CloseMethod::TapretFirst => BatchCloseMethods::TapretFirst,
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(
     feature = "serde",
@@ -38,17 +80,41 @@ use crate::LIB_NAME_RGB_STD;
 )]
 pub struct BatchItem {
     pub id: OpId,
-    pub inputs: MediumVec<Output>,
+    pub inputs: Confined<Vec<XchainOutpoint>, 1, U24>,
     pub transition: Transition,
+    pub methods: BatchCloseMethods,
+}
+
+impl StrictDumb for BatchItem {
+    fn strict_dumb() -> Self { Self::new(strict_dumb!(), [strict_dumb!()]).unwrap() }
 }
 
 impl BatchItem {
-    pub fn new(transition: Transition, inputs: MediumVec<Output>) -> Self {
-        BatchItem {
+    pub fn new(
+        transition: Transition,
+        seals: impl AsRef<[OutputSeal]>,
+    ) -> Result<Self, confinement::Error> {
+        let inputs = Confined::<Vec<_>, 1, U24>::try_from_iter(
+            seals.as_ref().iter().copied().map(XchainOutpoint::from),
+        )?;
+        let methods = seals
+            .as_ref()
+            .iter()
+            .map(|seal| seal.method())
+            .map(BatchCloseMethods::from)
+            .fold(None, |acc, i| {
+                Some(match acc {
+                    None => i,
+                    Some(a) => a | i,
+                })
+            })
+            .expect("confinement guarantees at least one item");
+        Ok(BatchItem {
             id: transition.id(),
             inputs,
             transition,
-        }
+            methods,
+        })
     }
 }
 
