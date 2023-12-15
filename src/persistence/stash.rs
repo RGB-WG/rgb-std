@@ -27,8 +27,8 @@ use std::error::Error;
 use amplify::confinement::{TinyOrdMap, TinyOrdSet};
 use commit_verify::mpc;
 use rgb::{
-    Anchor, AssetTag, AssignmentType, BundleId, ContractId, Extension, Genesis, OpId, SchemaId,
-    TransitionBundle, WitnessId,
+    AssetTag, AssignmentType, BundleId, ContractId, Extension, Genesis, OpId, SchemaId,
+    TransitionBundle, WitnessId, XAnchor,
 };
 use strict_encoding::TypeName;
 
@@ -133,5 +133,5 @@ pub trait Stash {
     fn anchor(
         &self,
         witness_id: WitnessId,
-    ) -> Result<&Anchor<mpc::MerkleBlock>, StashError<Self::Error>>;
+    ) -> Result<&XAnchor<mpc::MerkleBlock>, StashError<Self::Error>>;
 }

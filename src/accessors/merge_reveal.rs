@@ -26,8 +26,8 @@ use amplify::Wrapper;
 use bp::dbc::anchor::MergeError;
 use commit_verify::{mpc, CommitmentId};
 use rgb::{
-    Anchor, AnchorSet, Assign, Assignments, ExposedSeal, ExposedState, Extension, Genesis, OpId,
-    Transition, TransitionBundle, TypedAssigns,
+    AnchorSet, Assign, Assignments, ExposedSeal, ExposedState, Extension, Genesis, OpId,
+    Transition, TransitionBundle, TypedAssigns, XAnchor,
 };
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error, From)]
@@ -218,14 +218,14 @@ impl MergeRevealContract for AnchoredBundle {
 }
  */
 
-impl MergeReveal for Anchor<mpc::MerkleBlock> {
+impl MergeReveal for XAnchor<mpc::MerkleBlock> {
     fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {
         match (self, other) {
-            (Anchor::Bitcoin(anchor), Anchor::Bitcoin(other)) => {
-                anchor.merge_reveal(other).map(Anchor::Bitcoin)
+            (XAnchor::Bitcoin(anchor), XAnchor::Bitcoin(other)) => {
+                anchor.merge_reveal(other).map(XAnchor::Bitcoin)
             }
-            (Anchor::Liquid(anchor), Anchor::Liquid(other)) => {
-                anchor.merge_reveal(other).map(Anchor::Liquid)
+            (XAnchor::Liquid(anchor), XAnchor::Liquid(other)) => {
+                anchor.merge_reveal(other).map(XAnchor::Liquid)
             }
             _ => Err(MergeError::TxidMismatch.into()),
         }

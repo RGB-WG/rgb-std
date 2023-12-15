@@ -19,10 +19,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use rgb::{Anchor, WitnessAnchor};
+use rgb::{WitnessAnchor, XAnchor};
 
 pub trait ResolveHeight {
     type Error: std::error::Error;
 
-    fn resolve_anchor(&mut self, anchor: &Anchor) -> Result<WitnessAnchor, Self::Error>;
+    fn resolve_anchor(&mut self, anchor: &XAnchor) -> Result<WitnessAnchor, Self::Error>;
 }

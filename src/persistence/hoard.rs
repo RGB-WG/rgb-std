@@ -27,8 +27,8 @@ use amplify::confinement::{Confined, LargeOrdMap, SmallOrdMap, TinyOrdMap, TinyO
 use bp::dbc::anchor::MergeError;
 use commit_verify::mpc;
 use rgb::{
-    Anchor, AnchoredBundle, AssetTag, AssignmentType, BundleId, ContractId, Extension, Genesis,
-    OpId, Operation, SchemaId, TransitionBundle, WitnessId,
+    AnchoredBundle, AssetTag, AssignmentType, BundleId, ContractId, Extension, Genesis, OpId,
+    Operation, SchemaId, TransitionBundle, WitnessId, XAnchor,
 };
 use strict_encoding::TypeName;
 
@@ -70,7 +70,7 @@ pub struct Hoard {
     pub(super) asset_tags: TinyOrdMap<ContractId, TinyOrdMap<AssignmentType, AssetTag>>,
     pub(super) bundles: LargeOrdMap<BundleId, TransitionBundle>,
     pub(super) extensions: LargeOrdMap<OpId, Extension>,
-    pub(super) anchors: LargeOrdMap<WitnessId, Anchor<mpc::MerkleBlock>>,
+    pub(super) anchors: LargeOrdMap<WitnessId, XAnchor<mpc::MerkleBlock>>,
     pub(super) sigs: SmallOrdMap<ContentId, ContentSigs>,
 }
 
@@ -204,7 +204,10 @@ impl Hoard {
     }
 
     // TODO: Move into Stash trait and re-implement using trait accessor methods
-    pub fn consume_anchor(&mut self, anchor: Anchor<mpc::MerkleBlock>) -> Result<(), ConsumeError> {
+    pub fn consume_anchor(
+        &mut self,
+        anchor: XAnchor<mpc::MerkleBlock>,
+    ) -> Result<(), ConsumeError> {
         let witness_id = anchor.witness_id();
         match self.anchors.get_mut(&witness_id) {
             Some(a) => *a = a.clone().merge_reveal(anchor)?,
@@ -311,7 +314,7 @@ impl Stash for Hoard {
     fn anchor(
         &self,
         witness_id: WitnessId,
-    ) -> Result<&Anchor<mpc::MerkleBlock>, StashError<Self::Error>> {
+    ) -> Result<&XAnchor<mpc::MerkleBlock>, StashError<Self::Error>> {
         self.anchors
             .get(&witness_id)
             .ok_or(StashInconsistency::AnchorAbsent(witness_id).into())

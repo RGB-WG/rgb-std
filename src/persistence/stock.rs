@@ -27,10 +27,10 @@ use amplify::confinement::{MediumOrdMap, MediumOrdSet, TinyOrdMap};
 use commit_verify::{mpc, Conceal};
 use rgb::validation::{Status, Validity, Warning};
 use rgb::{
-    validation, Anchor, AnchoredBundle, Assign, AssignmentType, BundleId, ContractHistory,
-    ContractId, ContractState, ExposedState, Extension, Genesis, GenesisSeal, GraphSeal, OpId,
-    Operation, Opout, OutputSeal, SecretSeal, SubSchema, Transition, TransitionBundle,
-    TypedAssigns, WitnessAnchor, WitnessId, Xchain,
+    validation, AnchoredBundle, Assign, AssignmentType, BundleId, ContractHistory, ContractId,
+    ContractState, ExposedState, Extension, Genesis, GenesisSeal, GraphSeal, OpId, Operation,
+    Opout, OutputSeal, SecretSeal, SubSchema, Transition, TransitionBundle, TypedAssigns,
+    WitnessAnchor, WitnessId, XAnchor, XSeal,
 };
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 
@@ -77,7 +77,7 @@ pub struct Stock {
     contract_index: TinyOrdMap<ContractId, ContractIndex>,
     terminal_index: MediumOrdMap<SecretSeal, Opout>,
     // secrets
-    seal_secrets: MediumOrdSet<Xchain<GraphSeal>>,
+    seal_secrets: MediumOrdSet<XSeal<GraphSeal>>,
 }
 
 impl Default for Stock {
@@ -464,7 +464,7 @@ impl Inventory for Stock {
 
     unsafe fn consume_anchor(
         &mut self,
-        anchor: Anchor<mpc::MerkleBlock>,
+        anchor: XAnchor<mpc::MerkleBlock>,
     ) -> Result<(), InventoryError<Self::Error>> {
         let witness_id = anchor.witness_id();
         for (bundle_id, _) in anchor.known_bundle_ids() {
@@ -685,13 +685,13 @@ impl Inventory for Stock {
 
     fn store_seal_secret(
         &mut self,
-        seal: Xchain<GraphSeal>,
+        seal: XSeal<GraphSeal>,
     ) -> Result<(), InventoryError<Self::Error>> {
         self.seal_secrets.push(seal)?;
         Ok(())
     }
 
-    fn seal_secrets(&self) -> Result<BTreeSet<Xchain<GraphSeal>>, InventoryError<Self::Error>> {
+    fn seal_secrets(&self) -> Result<BTreeSet<XSeal<GraphSeal>>, InventoryError<Self::Error>> {
         Ok(self.seal_secrets.to_inner())
     }
 }

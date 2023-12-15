@@ -32,9 +32,9 @@ use chrono::Utc;
 use commit_verify::{mpc, Conceal};
 use invoice::{Beneficiary, InvoiceState, RgbInvoice};
 use rgb::{
-    validation, Anchor, AnchoredBundle, AssignmentType, BlindingFactor, BundleId, ContractId,
-    ExposedSeal, GraphSeal, OpId, Operation, Opout, OutputSeal, SchemaId, SecretSeal, SubSchema,
-    Transition, TransitionBundle, WitnessId, Xchain,
+    validation, AnchoredBundle, AssignmentType, BlindingFactor, BundleId, ContractId, ExposedSeal,
+    GraphSeal, OpId, Operation, Opout, OutputSeal, SchemaId, SecretSeal, SubSchema, Transition,
+    TransitionBundle, WitnessId, XAnchor, XSeal,
 };
 use strict_encoding::TypeName;
 
@@ -372,7 +372,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     #[doc(hidden)]
     unsafe fn consume_anchor(
         &mut self,
-        anchor: Anchor<mpc::MerkleBlock>,
+        anchor: XAnchor<mpc::MerkleBlock>,
     ) -> Result<(), InventoryError<Self::Error>>;
 
     #[doc(hidden)]
@@ -534,10 +534,10 @@ pub trait Inventory: Deref<Target = Self::Stash> {
 
     fn store_seal_secret(
         &mut self,
-        seal: Xchain<GraphSeal>,
+        seal: XSeal<GraphSeal>,
     ) -> Result<(), InventoryError<Self::Error>>;
 
-    fn seal_secrets(&self) -> Result<BTreeSet<Xchain<GraphSeal>>, InventoryError<Self::Error>>;
+    fn seal_secrets(&self) -> Result<BTreeSet<XSeal<GraphSeal>>, InventoryError<Self::Error>>;
 
     #[allow(clippy::type_complexity)]
     fn export_contract(
@@ -548,7 +548,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         ConsignerError<Self::Error, <<Self as Deref>::Target as Stash>::Error>,
     > {
         let mut consignment =
-            self.consign::<GraphSeal, false>(contract_id, [] as [Xchain<GraphSeal>; 0])?;
+            self.consign::<GraphSeal, false>(contract_id, [] as [XSeal<GraphSeal>; 0])?;
         consignment.transfer = false;
         Ok(consignment.into())
         // TODO: Add known sigs to the bindle
@@ -724,7 +724,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             let vout = allocator(id, assignment_type, velocity)
                 .ok_or(ComposeError::NoBlankOrChange(velocity, assignment_type))?;
             let seal = GraphSeal::new_vout(method, vout);
-            Ok(BuilderSeal::Revealed(Xchain::with(layer1, seal)))
+            Ok(BuilderSeal::Revealed(XSeal::with(layer1, seal)))
         };
 
         // 1. Prepare the data
@@ -741,7 +741,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         let beneficiary = match invoice.beneficiary {
             Beneficiary::BlindedSeal(seal) => BuilderSeal::Concealed(seal),
             Beneficiary::WitnessVoutBitcoin(_) => {
-                BuilderSeal::Revealed(Xchain::Bitcoin(GraphSeal::new_vout(method, change_vout)))
+                BuilderSeal::Revealed(XSeal::Bitcoin(GraphSeal::new_vout(method, change_vout)))
             }
         };
 

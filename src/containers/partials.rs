@@ -26,7 +26,7 @@ use amplify::confinement;
 use amplify::confinement::{Confined, MediumVec, U24};
 use bp::seals::txout::CloseMethod;
 use commit_verify::mpc;
-use rgb::{Anchor, OpId, Operation, OutputSeal, Transition, TransitionBundle};
+use rgb::{OpId, Operation, OutputSeal, Transition, TransitionBundle, XAnchor};
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 
 use crate::containers::XchainOutpoint;
@@ -160,7 +160,7 @@ impl IntoIterator for Batch {
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct Fascia {
-    pub anchor: Anchor<mpc::MerkleBlock>,
+    pub anchor: XAnchor<mpc::MerkleBlock>,
     pub bundles: MediumVec<TransitionBundle>,
 }
 
