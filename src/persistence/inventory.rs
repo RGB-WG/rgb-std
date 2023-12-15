@@ -526,6 +526,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         terminals: impl IntoIterator<Item = SecretSeal>,
     ) -> Result<BTreeSet<Opout>, InventoryError<Self::Error>>;
 
+    #[allow(clippy::type_complexity)]
     fn state_for_outputs(
         &self,
         contract_id: ContractId,
@@ -710,6 +711,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             .map(|o| o.into())
             .collect::<HashSet<OutputSeal>>();
 
+        #[allow(clippy::type_complexity)]
         let output_for_assignment = |id: ContractId,
                                      assignment_type: AssignmentType|
          -> Result<

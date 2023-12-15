@@ -174,7 +174,7 @@ impl Hoard {
 
         for AnchoredBundle { anchor, bundle } in consignment.bundles {
             let bundle_id = bundle.bundle_id();
-            let anchor = anchor.into_merkle_block(contract_id, bundle_id.into())?;
+            let anchor = anchor.into_merkle_block(contract_id, bundle_id)?;
             self.consume_anchor(anchor)?;
             self.consume_bundle(bundle)?;
         }
