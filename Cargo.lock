@@ -217,7 +217,7 @@ dependencies = [
 [[package]]
 name = "bp-consensus"
 version = "0.11.0-beta.2"
-source = "git+https://github.com/BP-WG/bp-core?branch=v0.11#59de59f7bfb2f0913a28d08e6e9fc58d22b2c0f9"
+source = "git+https://github.com/BP-WG/bp-core?branch=doubleanchors#2d3806295804fc3d50b4259f1d5da41f8cf88356"
 dependencies = [
  "amplify",
  "chrono",
@@ -231,7 +231,7 @@ dependencies = [
 [[package]]
 name = "bp-core"
 version = "0.11.0-beta.1"
-source = "git+https://github.com/BP-WG/bp-core?branch=v0.11#59de59f7bfb2f0913a28d08e6e9fc58d22b2c0f9"
+source = "git+https://github.com/BP-WG/bp-core?branch=doubleanchors#2d3806295804fc3d50b4259f1d5da41f8cf88356"
 dependencies = [
  "amplify",
  "bp-consensus",
@@ -247,7 +247,7 @@ dependencies = [
 [[package]]
 name = "bp-dbc"
 version = "0.11.0-beta.1"
-source = "git+https://github.com/BP-WG/bp-core?branch=v0.11#59de59f7bfb2f0913a28d08e6e9fc58d22b2c0f9"
+source = "git+https://github.com/BP-WG/bp-core?branch=doubleanchors#2d3806295804fc3d50b4259f1d5da41f8cf88356"
 dependencies = [
  "amplify",
  "base85",
@@ -272,7 +272,7 @@ dependencies = [
 [[package]]
 name = "bp-seals"
 version = "0.11.0-beta.1"
-source = "git+https://github.com/BP-WG/bp-core?branch=v0.11#59de59f7bfb2f0913a28d08e6e9fc58d22b2c0f9"
+source = "git+https://github.com/BP-WG/bp-core?branch=doubleanchors#2d3806295804fc3d50b4259f1d5da41f8cf88356"
 dependencies = [
  "amplify",
  "baid58",
@@ -649,7 +649,7 @@ dependencies = [
 [[package]]
 name = "rgb-core"
 version = "0.11.0-beta.2"
-source = "git+https://github.com/RGB-WG/rgb-core?branch=v0.11#441e27c165607c3e9fee0416acda6e0176888f6a"
+source = "git+https://github.com/RGB-WG/rgb-core?branch=validation#5805b2871403af54eae9cfed271679fea6e681ff"
 dependencies = [
  "aluvm",
  "amplify",
@@ -1024,9 +1024,9 @@ checksum = "3354b9ac3fae1ff6755cb6db53683adb661634f67557942dea4facebec0fee4b"
 
 [[package]]
 name = "unsafe-libyaml"
-version = "0.2.9"
+version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f28467d3e1d3c6586d8f25fa243f544f5800fec42d97032474e17222c2b75cfa"
+checksum = "ab4c90930b95a82d00dc9e9ac071b4991924390d46cbd0dfe566148667605e4b"
 
 [[package]]
 name = "version_check"

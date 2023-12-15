@@ -40,31 +40,30 @@ pub trait BundleExt {
     ///
     /// `true` if the transition was previously concealed; `false` if it was
     /// already revealed; error if the transition is unrelated to the bundle.
-    fn reveal_transition(&mut self, transition: &Transition) -> Result<bool, RevealError>;
+    fn reveal_transition(&mut self, transition: Transition) -> Result<bool, RevealError>;
 }
 
 impl BundleExt for TransitionBundle {
     fn reveal_seal(&mut self, seal: Xchain<GraphSeal>) {
-        for (_, item) in self.keyed_values_mut() {
-            if let Some(transition) = &mut item.transition {
-                for (_, assign) in transition.assignments.keyed_values_mut() {
-                    assign.reveal_seal(seal)
-                }
+        for (_, transition) in self.known_transitions.keyed_values_mut() {
+            for (_, assign) in transition.assignments.keyed_values_mut() {
+                assign.reveal_seal(seal)
             }
         }
     }
 
-    fn reveal_transition(&mut self, transition: &Transition) -> Result<bool, RevealError> {
-        let id = transition.id();
-        let item = self
-            .get_mut(&id)
-            .ok_or(RevealError::UnrelatedTransition(id))?;
-        match item.transition {
-            None => {
-                item.transition = Some(transition.clone());
-                Ok(true)
-            }
-            Some(_) => Ok(false),
+    fn reveal_transition(&mut self, transition: Transition) -> Result<bool, RevealError> {
+        let opid = transition.id();
+        self.input_map
+            .values()
+            .find(|id| *id == &opid)
+            .ok_or(RevealError::UnrelatedTransition(opid))?;
+        if self.known_transitions.contains_key(&opid) {
+            return Ok(false);
         }
+        self.known_transitions
+            .insert(opid, transition.clone())
+            .expect("same size as input map");
+        Ok(true)
     }
 }

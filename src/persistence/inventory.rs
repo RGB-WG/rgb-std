@@ -32,9 +32,9 @@ use chrono::Utc;
 use commit_verify::{mpc, Conceal};
 use invoice::{Beneficiary, InvoiceState, RgbInvoice};
 use rgb::{
-    validation, Anchor, AnchoredBundle, AssignmentType, BlindingFactor, BundleError, BundleId,
-    ContractId, ExposedSeal, GraphSeal, OpId, Operation, Opout, OutputSeal, SchemaId, SecretSeal,
-    SubSchema, Transition, TransitionBundle, WitnessId, Xchain,
+    validation, Anchor, AnchoredBundle, AssignmentType, BlindingFactor, BundleId, ContractId,
+    ExposedSeal, GraphSeal, OpId, Operation, Opout, OutputSeal, SchemaId, SecretSeal, SubSchema,
+    Transition, TransitionBundle, WitnessId, Xchain,
 };
 use strict_encoding::TypeName;
 
@@ -127,7 +127,6 @@ pub enum InventoryError<E: Error> {
     /// errors during consume operation.
     // TODO: Make part of connectivity error
     #[from]
-    #[from(BundleError)]
     Consume(ConsumeError),
 
     /// error in input data.
@@ -353,14 +352,21 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     ///
     /// Must be called before the consignment is created, when witness
     /// transaction is not yet mined.
-    fn consume(&mut self, fascia: Fascia) -> Result<(), InventoryError<Self::Error>> {
+    fn consume(&mut self, _fascia: Fascia) -> Result<(), InventoryError<Self::Error>> {
+        todo!();
+        /*
         let witness_id = fascia.anchor.witness_id();
         unsafe { self.consume_anchor(fascia.anchor)? };
         for bundle in fascia.bundles {
-            let contract_id = bundle.validate()?;
-            unsafe { self.consume_bundle(contract_id, bundle, witness_id)? };
+            let ids1 = bundle.known_transitions.keys().copied().collect::<BTreeSet<_>>();
+            let ids2 = bundle.input_map.values().copied().collect::<BTreeSet<_>>();
+            if !ids1.is_subset(&ids2) {
+
+            }
+            unsafe { self.consume_bundle(fascia.contract_id, bundle, witness_id)? };
         }
         Ok(())
+         */
     }
 
     #[doc(hidden)]
@@ -637,7 +643,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
                 .entry(id)
                 .or_insert(self.anchored_bundle(id)?.clone())
                 .bundle
-                .reveal_transition(transition)?;
+                .reveal_transition(transition.clone())?;
         }
 
         let genesis = self.genesis(contract_id)?;

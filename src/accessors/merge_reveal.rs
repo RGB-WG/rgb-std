@@ -26,7 +26,7 @@ use amplify::Wrapper;
 use bp::dbc::anchor::MergeError;
 use commit_verify::{mpc, CommitmentId};
 use rgb::{
-    Anchor, AnchoredBundle, Assign, Assignments, BundleItem, ExposedSeal, ExposedState, Extension,
+    Anchor, AnchoredBundle, Assign, Assignments, ContractId, ExposedSeal, ExposedState, Extension,
     Genesis, OpId, Transition, TransitionBundle, TypedAssigns,
 };
 
@@ -41,6 +41,15 @@ pub enum MergeRevealError {
     #[from]
     #[display(inner)]
     AnchorMismatch(MergeError),
+
+    /// the merged bundles contain excessive transactions.
+    ExcessiveTransactions,
+
+    /// contract id provided for the merge-reveal operation doesn't matches
+    /// multi-protocol commitment.
+    #[from(mpc::InvalidProof)]
+    #[from(mpc::LeafNotKnown)]
+    ContractMismatch,
 }
 
 /// A trait to merge two structures modifying the revealed status
@@ -62,6 +71,14 @@ pub trait MergeReveal: Sized {
     // TODO: Take self by mut ref instead of consuming (will remove clones in
     //       Stash::consume operation).
     fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError>;
+}
+
+pub trait MergeRevealContract: Sized {
+    fn merge_reveal_contract(
+        self,
+        other: Self,
+        contract_id: ContractId,
+    ) -> Result<Self, MergeRevealError>;
 }
 
 impl MergeReveal for Anchor<mpc::MerkleBlock> {
@@ -171,41 +188,33 @@ impl<Seal: ExposedSeal> MergeReveal for Assignments<Seal> {
     }
 }
 
-impl MergeReveal for BundleItem {
+impl MergeReveal for TransitionBundle {
     fn merge_reveal(mut self, other: Self) -> Result<Self, MergeRevealError> {
-        debug_assert_eq!(self.inputs, other.inputs);
-        match (self.transition, other.transition) {
-            (Some(op1), Some(op2)) => self.transition = Some(op1.merge_reveal(op2)?),
-            (None, Some(op)) => self.transition = Some(op),
-            (me, None) => self.transition = me,
+        debug_assert_eq!(self.commitment_id(), other.commitment_id());
+        if self.known_transitions.len() + other.known_transitions.len() > self.input_map.len() ||
+            self.known_transitions
+                .extend(other.known_transitions)
+                .is_err()
+        {
+            return Err(MergeRevealError::ExcessiveTransactions);
         }
         Ok(self)
     }
 }
 
-impl MergeReveal for TransitionBundle {
-    fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {
-        debug_assert_eq!(self.commitment_id(), other.commitment_id());
-        let mut result = BTreeMap::new();
-        for (first, second) in self
-            .into_inner()
-            .into_iter()
-            .zip(other.into_inner().into_iter())
-        {
-            debug_assert_eq!(first.0, second.0);
-            result.insert(first.0, first.1.merge_reveal(second.1)?);
-        }
-        Ok(TransitionBundle::from_inner(
-            Confined::try_from(result).expect("collection of the same size"),
-        ))
-    }
-}
-
-impl MergeReveal for AnchoredBundle {
-    fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {
+impl MergeRevealContract for AnchoredBundle {
+    fn merge_reveal_contract(
+        self,
+        other: Self,
+        contract_id: ContractId,
+    ) -> Result<Self, MergeRevealError> {
+        let bundle_id = self.bundle_id();
+        let anchor1 = self.anchor.into_merkle_block(contract_id, bundle_id)?;
+        let anchor2 = other.anchor.into_merkle_block(contract_id, bundle_id)?;
         Ok(AnchoredBundle {
-            // TODO: uncomment
-            anchor: self.anchor, //.merge_reveal(other.anchor)?,
+            anchor: anchor1
+                .merge_reveal(anchor2)?
+                .into_merkle_proof(contract_id)?,
             bundle: self.bundle.merge_reveal(other.bundle)?,
         })
     }

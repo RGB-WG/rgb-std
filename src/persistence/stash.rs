@@ -27,8 +27,8 @@ use std::error::Error;
 use amplify::confinement::{TinyOrdMap, TinyOrdSet};
 use commit_verify::mpc;
 use rgb::{
-    Anchor, AnchorId, AssetTag, AssignmentType, BundleId, ContractId, Extension, Genesis, OpId,
-    SchemaId, TransitionBundle,
+    Anchor, AssetTag, AssignmentType, BundleId, ContractId, Extension, Genesis, OpId, SchemaId,
+    TransitionBundle, WitnessId,
 };
 use strict_encoding::TypeName;
 
@@ -77,7 +77,7 @@ pub enum StashInconsistency {
     ///
     /// It may happen due to RGB standard library bug, or indicate internal
     /// stash inconsistency and compromised stash data storage.
-    AnchorAbsent(AnchorId),
+    AnchorAbsent(WitnessId),
 
     /// bundle {0} is absent.
     ///
@@ -130,10 +130,8 @@ pub trait Stash {
 
     fn extension(&self, op_id: OpId) -> Result<&Extension, StashError<Self::Error>>;
 
-    fn anchor_ids(&self) -> Result<BTreeSet<AnchorId>, Self::Error>;
-
     fn anchor(
         &self,
-        anchor_id: AnchorId,
+        witness_id: WitnessId,
     ) -> Result<&Anchor<mpc::MerkleBlock>, StashError<Self::Error>>;
 }

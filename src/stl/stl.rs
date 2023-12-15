@@ -44,7 +44,7 @@ pub const LIB_ID_RGB_CONTRACT: &str =
 
 /// Strict types id for the library representing of RGB StdLib data types.
 pub const LIB_ID_RGB_STD: &str =
-    "urn:ubideco:stl:DYA42oBWsH5kKa1dUVwHEEkzEmhDDypKnXWDF1F4RnVK#example-alice-salt";
+    "urn:ubideco:stl:E3LrF7ryeC9J8rABKrs1ceRg2skzsjaWVFk9xbi1x56#nobel-origami-tempo";
 
 fn _rgb_std_stl() -> Result<TypeLib, CompileError> {
     LibBuilder::new(libname!(LIB_NAME_RGB_STD), tiny_bset! {

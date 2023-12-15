@@ -24,14 +24,13 @@ use std::convert::Infallible;
 use std::ops::{Deref, DerefMut};
 
 use amplify::confinement::{MediumOrdMap, MediumOrdSet, TinyOrdMap};
-use amplify::ByteArray;
 use commit_verify::{mpc, Conceal};
 use rgb::validation::{Status, Validity, Warning};
 use rgb::{
-    validation, Anchor, AnchorId, AnchoredBundle, Assign, AssignmentType, BundleId,
-    ContractHistory, ContractId, ContractState, ExposedState, Extension, Genesis, GenesisSeal,
-    GraphSeal, OpId, Operation, Opout, OutputSeal, SecretSeal, SubSchema, Transition,
-    TransitionBundle, TypedAssigns, WitnessAnchor, WitnessId, Xchain,
+    validation, Anchor, AnchoredBundle, Assign, AssignmentType, BundleId, ContractHistory,
+    ContractId, ContractState, ExposedState, Extension, Genesis, GenesisSeal, GraphSeal, OpId,
+    Operation, Opout, OutputSeal, SecretSeal, SubSchema, Transition, TransitionBundle,
+    TypedAssigns, WitnessAnchor, WitnessId, Xchain,
 };
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 
@@ -74,7 +73,7 @@ pub struct Stock {
     history: TinyOrdMap<ContractId, ContractHistory>,
     // index
     bundle_op_index: MediumOrdMap<OpId, IndexedBundle>,
-    anchor_bundle_index: MediumOrdMap<BundleId, AnchorId>,
+    anchor_bundle_index: MediumOrdMap<BundleId, WitnessId>,
     contract_index: TinyOrdMap<ContractId, ContractIndex>,
     terminal_index: MediumOrdMap<SecretSeal, Opout>,
     // secrets
@@ -176,9 +175,9 @@ impl Stock {
         }
         for AnchoredBundle { anchor, bundle } in &mut consignment.bundles {
             let bundle_id = bundle.bundle_id();
-            let anchor_id = anchor.anchor_id(contract_id, bundle_id.into())?;
-            self.anchor_bundle_index.insert(bundle_id, anchor_id)?;
-            self.index_bundle(contract_id, bundle, anchor.witness_id())?;
+            let witness_id = anchor.witness_id();
+            self.anchor_bundle_index.insert(bundle_id, witness_id)?;
+            self.index_bundle(contract_id, bundle, witness_id)?;
         }
 
         self.hoard.consume_consignment(consignment)?;
@@ -243,32 +242,22 @@ impl Stock {
         witness_id: WitnessId,
     ) -> Result<(), InventoryError<<Self as Inventory>::Error>> {
         let bundle_id = bundle.bundle_id();
-        for (opid, item) in bundle.iter() {
-            if let Some(transition) = &item.transition {
-                self.bundle_op_index
-                    .insert(*opid, IndexedBundle(id, bundle_id))?;
-                for (type_id, assign) in transition.assignments.iter() {
-                    match assign {
-                        TypedAssigns::Declarative(vec) => {
-                            self.index_transition_assignments(
-                                id, vec, *opid, *type_id, witness_id,
-                            )?;
-                        }
-                        TypedAssigns::Fungible(vec) => {
-                            self.index_transition_assignments(
-                                id, vec, *opid, *type_id, witness_id,
-                            )?;
-                        }
-                        TypedAssigns::Structured(vec) => {
-                            self.index_transition_assignments(
-                                id, vec, *opid, *type_id, witness_id,
-                            )?;
-                        }
-                        TypedAssigns::Attachment(vec) => {
-                            self.index_transition_assignments(
-                                id, vec, *opid, *type_id, witness_id,
-                            )?;
-                        }
+        for (opid, transition) in &bundle.known_transitions {
+            self.bundle_op_index
+                .insert(*opid, IndexedBundle(id, bundle_id))?;
+            for (type_id, assign) in transition.assignments.iter() {
+                match assign {
+                    TypedAssigns::Declarative(vec) => {
+                        self.index_transition_assignments(id, vec, *opid, *type_id, witness_id)?;
+                    }
+                    TypedAssigns::Fungible(vec) => {
+                        self.index_transition_assignments(id, vec, *opid, *type_id, witness_id)?;
+                    }
+                    TypedAssigns::Structured(vec) => {
+                        self.index_transition_assignments(id, vec, *opid, *type_id, witness_id)?;
+                    }
+                    TypedAssigns::Attachment(vec) => {
+                        self.index_transition_assignments(id, vec, *opid, *type_id, witness_id)?;
                     }
                 }
             }
@@ -477,10 +466,9 @@ impl Inventory for Stock {
         &mut self,
         anchor: Anchor<mpc::MerkleBlock>,
     ) -> Result<(), InventoryError<Self::Error>> {
-        let anchor_id = anchor.anchor_id();
-        for (_, bundle_id) in anchor.mpc_proof.to_known_message_map() {
-            self.anchor_bundle_index
-                .insert(bundle_id.to_byte_array().into(), anchor_id)?;
+        let witness_id = anchor.witness_id();
+        for (bundle_id, _) in anchor.known_bundle_ids() {
+            self.anchor_bundle_index.insert(bundle_id, witness_id)?;
         }
         self.hoard.consume_anchor(anchor)?;
         Ok(())
@@ -497,11 +485,9 @@ impl Inventory for Stock {
             .history
             .get_mut(&contract_id)
             .ok_or(InventoryInconsistency::StateAbsent(contract_id))?;
-        for item in bundle.values() {
-            if let Some(transition) = &item.transition {
-                let witness_anchor = WitnessAnchor::from_mempool(witness_id);
-                history.add_transition(transition, witness_anchor);
-            }
+        for transition in bundle.known_transitions.values() {
+            let witness_anchor = WitnessAnchor::from_mempool(witness_id);
+            history.add_transition(transition, witness_anchor);
         }
         self.hoard.consume_bundle(bundle)?;
         Ok(())
@@ -554,8 +540,10 @@ impl Inventory for Stock {
             .get(&opid)
             .ok_or(InventoryInconsistency::BundleAbsent(opid))?;
         let bundle = self.bundle(*bundle_id)?;
-        let item = bundle.get(&opid).ok_or(DataError::Concealed)?;
-        let transition = item.transition.as_ref().ok_or(DataError::Concealed)?;
+        let transition = bundle
+            .known_transitions
+            .get(&opid)
+            .ok_or(DataError::Concealed)?;
         Ok(transition)
     }
 
@@ -572,7 +560,7 @@ impl Inventory for Stock {
 
         let bundle = self.bundle(*bundle_id)?.clone();
         let anchor = self.anchor(*anchor_id)?;
-        let anchor = anchor.clone().map(|a| a.into_merkle_proof(*contract_id))?;
+        let anchor = anchor.to_merkle_proof(*contract_id)?;
         // TODO: Conceal all transitions except the one we need
 
         Ok(AnchoredBundle { anchor, bundle })
