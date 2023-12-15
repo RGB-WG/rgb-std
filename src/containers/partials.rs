@@ -41,31 +41,31 @@ use crate::LIB_NAME_RGB_STD;
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 #[repr(u8)]
-pub enum BatchCloseMethods {
+pub enum CloseMethodSet {
     #[strict_type(dumb)]
     TapretFirst = 0x01,
     OpretFirst = 0x02,
     Both = 0x03,
 }
 
-impl BitOr for BatchCloseMethods {
+impl BitOr for CloseMethodSet {
     type Output = Self;
     fn bitor(self, rhs: Self) -> Self::Output { if self == rhs { self } else { Self::Both } }
 }
 
-impl BitOrAssign for BatchCloseMethods {
+impl BitOrAssign for CloseMethodSet {
     fn bitor_assign(&mut self, rhs: Self) { *self = self.bitor(rhs); }
 }
 
-impl From<OutputSeal> for BatchCloseMethods {
+impl From<OutputSeal> for CloseMethodSet {
     fn from(seal: OutputSeal) -> Self { seal.method().into() }
 }
 
-impl From<CloseMethod> for BatchCloseMethods {
+impl From<CloseMethod> for CloseMethodSet {
     fn from(method: CloseMethod) -> Self {
         match method {
-            CloseMethod::OpretFirst => BatchCloseMethods::OpretFirst,
-            CloseMethod::TapretFirst => BatchCloseMethods::TapretFirst,
+            CloseMethod::OpretFirst => CloseMethodSet::OpretFirst,
+            CloseMethod::TapretFirst => CloseMethodSet::TapretFirst,
         }
     }
 }
@@ -82,7 +82,7 @@ pub struct BatchItem {
     pub id: OpId,
     pub inputs: Confined<Vec<XchainOutpoint>, 1, U24>,
     pub transition: Transition,
-    pub methods: BatchCloseMethods,
+    pub methods: CloseMethodSet,
 }
 
 impl StrictDumb for BatchItem {
@@ -101,7 +101,7 @@ impl BatchItem {
             .as_ref()
             .iter()
             .map(|seal| seal.method())
-            .map(BatchCloseMethods::from)
+            .map(CloseMethodSet::from)
             .fold(None, |acc, i| {
                 Some(match acc {
                     None => i,
