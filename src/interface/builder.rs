@@ -21,7 +21,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use amplify::confinement::{Confined, TinyOrdMap, TinyOrdSet, U16, U8};
+use amplify::confinement::{Confined, TinyOrdMap, TinyOrdSet, U16};
 use amplify::{confinement, Wrapper};
 use rgb::{
     AltLayer1, AltLayer1Set, AssetTag, Assign, AssignmentType, Assignments, BlindingFactor,
@@ -490,12 +490,12 @@ pub struct OperationBuilder<Seal: ExposedSeal> {
     asset_tags: TinyOrdMap<AssignmentType, AssetTag>,
 
     global: GlobalState,
-    rights: TinyOrdMap<AssignmentType, Confined<HashSet<BuilderSeal<Seal>>, 1, U8>>,
+    rights: TinyOrdMap<AssignmentType, Confined<HashSet<BuilderSeal<Seal>>, 1, U16>>,
     fungible:
-        TinyOrdMap<AssignmentType, Confined<HashMap<BuilderSeal<Seal>, RevealedValue>, 1, U8>>,
-    data: TinyOrdMap<AssignmentType, Confined<HashMap<BuilderSeal<Seal>, RevealedData>, 1, U8>>,
+        TinyOrdMap<AssignmentType, Confined<HashMap<BuilderSeal<Seal>, RevealedValue>, 1, U16>>,
+    data: TinyOrdMap<AssignmentType, Confined<HashMap<BuilderSeal<Seal>, RevealedData>, 1, U16>>,
     attachments:
-        TinyOrdMap<AssignmentType, Confined<HashMap<BuilderSeal<Seal>, AttachedState>, 1, U8>>,
+        TinyOrdMap<AssignmentType, Confined<HashMap<BuilderSeal<Seal>, AttachedState>, 1, U16>>,
     // TODO: add valencies
 }
 
