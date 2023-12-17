@@ -42,6 +42,6 @@ pub use bindle::{Bindle, BindleContent, BindleParseError, LoadError, UniversalBi
 pub use certs::{Cert, ContentId, ContentSigs, Identity};
 pub use consignment::{Consignment, Contract, Transfer};
 pub use disclosure::Disclosure;
-pub use partials::{Batch, BatchItem, Fascia};
+pub use partials::{Batch, BatchItem, CloseMethodSet, Fascia};
 pub use seal::{BuilderSeal, TerminalSeal, VoutSeal};
 pub use util::{ContainerVer, Terminal, XchainOutpoint};
