@@ -24,7 +24,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::error::Error;
 use std::ops::Deref;
 
-use amplify::confinement::{self, Confined, MediumVec};
+use amplify::confinement::{self, Confined, MediumVec, U24};
 use bp::seals::txout::blind::SingleBlindSeal;
 use bp::seals::txout::CloseMethod;
 use bp::{Txid, Vout};
@@ -818,7 +818,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             }
         }
         // Construct blank transitions
-        let mut blanks = MediumVec::with_capacity(spent_state.len());
+        let mut blanks = Confined::<Vec<_>, 0, { U24 - 1 }>::with_capacity(spent_state.len());
         for (id, opouts) in spent_state {
             let mut blank_builder = self.blank_builder(id, iface.clone())?;
             let mut outputs = Vec::with_capacity(opouts.len());

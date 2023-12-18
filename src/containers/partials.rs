@@ -23,7 +23,7 @@ use std::ops::{BitOr, BitOrAssign};
 use std::vec;
 
 use amplify::confinement;
-use amplify::confinement::{Confined, MediumVec, U24};
+use amplify::confinement::{Confined, U24};
 use bp::seals::txout::CloseMethod;
 use commit_verify::mpc;
 use rgb::{OpId, Operation, OutputSeal, Transition, TransitionBundle, XAnchor};
@@ -160,7 +160,7 @@ impl BatchItem {
 )]
 pub struct Batch {
     pub main: BatchItem,
-    pub blanks: MediumVec<BatchItem>,
+    pub blanks: Confined<Vec<BatchItem>, 0, { U24 - 1 }>,
 }
 
 impl StrictSerialize for Batch {}
@@ -181,7 +181,7 @@ impl IntoIterator for Batch {
 /// of finalized state transitions (under multiple contracts), packed into
 /// bundles, and anchored to a single layer 1 transaction.
 #[derive(Clone, PartialEq, Eq, Debug)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(
     feature = "serde",
@@ -190,8 +190,16 @@ impl IntoIterator for Batch {
 )]
 pub struct Fascia {
     pub anchor: XAnchor<mpc::MerkleBlock>,
-    pub bundles: MediumVec<TransitionBundle>,
+    pub bundles: Confined<Vec<TransitionBundle>, 1, U24>,
 }
 
+impl StrictDumb for Fascia {
+    fn strict_dumb() -> Self {
+        Fascia {
+            anchor: strict_dumb!(),
+            bundles: confined_vec![strict_dumb!()],
+        }
+    }
+}
 impl StrictSerialize for Fascia {}
 impl StrictDeserialize for Fascia {}
