@@ -40,8 +40,8 @@ use strict_encoding::TypeName;
 
 use crate::accessors::{BundleExt, MergeRevealError, RevealError};
 use crate::containers::{
-    Batch, BatchItem, Bindle, BuilderSeal, Cert, Consignment, ContentId, Contract, Fascia,
-    Terminal, Transfer,
+    Batch, Bindle, BuilderSeal, Cert, Consignment, ContentId, Contract, Fascia, Terminal, Transfer,
+    TransitionInfo,
 };
 use crate::interface::{
     BuilderError, ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, IfaceWrapper,
@@ -834,11 +834,11 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             }
 
             let transition = blank_builder.complete_transition(contract_id)?;
-            blanks.push(BatchItem::new(transition, outputs)?)?;
+            blanks.push(TransitionInfo::new(transition, outputs)?)?;
         }
 
         Ok(Batch {
-            main: BatchItem::new(main_transition, main_inputs)?,
+            main: TransitionInfo::new(main_transition, main_inputs)?,
             blanks,
         })
     }

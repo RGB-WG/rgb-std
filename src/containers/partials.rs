@@ -19,7 +19,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
+use std::hash::{Hash, Hasher};
 use std::ops::{BitOr, BitOrAssign};
 use std::vec;
 
@@ -100,7 +102,7 @@ impl CloseMethodSet {
     pub fn has_opret_first(self) -> bool { matches!(self, Self::OpretFirst | Self::Both) }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Eq, Debug)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(
@@ -108,18 +110,34 @@ impl CloseMethodSet {
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-pub struct BatchItem {
+pub struct TransitionInfo {
     pub id: OpId,
     pub inputs: Confined<Vec<XchainOutpoint>, 1, U24>,
     pub transition: Transition,
     pub methods: CloseMethodSet,
 }
 
-impl StrictDumb for BatchItem {
+impl StrictDumb for TransitionInfo {
     fn strict_dumb() -> Self { Self::new(strict_dumb!(), [strict_dumb!()]).unwrap() }
 }
 
-impl BatchItem {
+impl PartialEq for TransitionInfo {
+    fn eq(&self, other: &Self) -> bool { self.id.eq(&other.id) }
+}
+
+impl Ord for TransitionInfo {
+    fn cmp(&self, other: &Self) -> Ordering { self.id.cmp(&other.id) }
+}
+
+impl PartialOrd for TransitionInfo {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
+}
+
+impl Hash for TransitionInfo {
+    fn hash<H: Hasher>(&self, state: &mut H) { state.write(self.id.as_slice()) }
+}
+
+impl TransitionInfo {
     pub fn new(
         transition: Transition,
         seals: impl AsRef<[OutputSeal]>,
@@ -139,7 +157,7 @@ impl BatchItem {
                 })
             })
             .expect("confinement guarantees at least one item");
-        Ok(BatchItem {
+        Ok(TransitionInfo {
             id: transition.id(),
             inputs,
             transition,
@@ -160,16 +178,16 @@ impl BatchItem {
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct Batch {
-    pub main: BatchItem,
-    pub blanks: Confined<Vec<BatchItem>, 0, { U24 - 1 }>,
+    pub main: TransitionInfo,
+    pub blanks: Confined<Vec<TransitionInfo>, 0, { U24 - 1 }>,
 }
 
 impl StrictSerialize for Batch {}
 impl StrictDeserialize for Batch {}
 
 impl IntoIterator for Batch {
-    type Item = BatchItem;
-    type IntoIter = vec::IntoIter<BatchItem>;
+    type Item = TransitionInfo;
+    type IntoIter = vec::IntoIter<TransitionInfo>;
 
     fn into_iter(self) -> Self::IntoIter {
         let mut vec = self.blanks.into_inner();
