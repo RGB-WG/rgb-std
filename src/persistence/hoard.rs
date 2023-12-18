@@ -291,6 +291,10 @@ impl Stash for Hoard {
             .ok_or(StashInconsistency::ContractAbsent(contract_id).into())
     }
 
+    fn witness_ids(&self) -> Result<BTreeSet<WitnessId>, Self::Error> {
+        Ok(self.anchors.keys().copied().collect())
+    }
+
     fn bundle_ids(&self) -> Result<BTreeSet<BundleId>, Self::Error> {
         Ok(self.bundles.keys().copied().collect())
     }

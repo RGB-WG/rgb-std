@@ -122,6 +122,8 @@ pub trait Stash {
 
     fn genesis(&self, contract_id: ContractId) -> Result<&Genesis, StashError<Self::Error>>;
 
+    fn witness_ids(&self) -> Result<BTreeSet<WitnessId>, Self::Error>;
+
     fn bundle_ids(&self) -> Result<BTreeSet<BundleId>, Self::Error>;
 
     fn bundle(&self, bundle_id: BundleId) -> Result<&TransitionBundle, StashError<Self::Error>>;
