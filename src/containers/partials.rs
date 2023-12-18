@@ -54,19 +54,27 @@ pub enum CloseMethodSet {
 impl BitOr<Option<CloseMethodSet>> for CloseMethodSet {
     type Output = Self;
     fn bitor(mut self, rhs: Option<CloseMethodSet>) -> Self::Output {
-        rhs.map(|m| self |= m);
+        if let Some(m) = rhs {
+            self |= m
+        };
         self
     }
 }
 
 impl BitOrAssign<Option<CloseMethodSet>> for CloseMethodSet {
-    fn bitor_assign(&mut self, rhs: Option<CloseMethodSet>) { rhs.map(|m| *self |= m); }
+    fn bitor_assign(&mut self, rhs: Option<CloseMethodSet>) {
+        if let Some(m) = rhs {
+            *self |= m
+        };
+    }
 }
 
 impl BitOr<CloseMethodSet> for Option<CloseMethodSet> {
     type Output = CloseMethodSet;
     fn bitor(self, mut rhs: CloseMethodSet) -> Self::Output {
-        self.map(|m| rhs |= m);
+        if let Some(m) = self {
+            rhs |= m
+        };
         rhs
     }
 }
