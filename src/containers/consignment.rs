@@ -49,10 +49,7 @@ pub type Contract = Consignment<false>;
 ///
 /// All consignments-related procedures, including validation or merging
 /// consignments data into stash or schema-specific data storage, must start
-/// with `endpoints` and process up to the genesis. If any of the nodes within
-/// the consignments are not part of the paths connecting endpoints with the
-/// genesis, consignments validation will return
-/// [`validation::Warning::ExcessiveNode`] warning.
+/// with `endpoints` and process up to the genesis.
 #[derive(Clone, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
