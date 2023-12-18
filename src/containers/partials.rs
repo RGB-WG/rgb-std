@@ -196,6 +196,14 @@ impl IntoIterator for Batch {
     }
 }
 
+impl Batch {
+    pub fn close_method_set(&self) -> CloseMethodSet {
+        let mut methods = self.main.methods;
+        self.blanks.iter().for_each(|i| methods |= i.methods);
+        methods
+    }
+}
+
 /// Structure exported from a PSBT for merging into the stash. It contains a set
 /// of finalized state transitions (under multiple contracts), packed into
 /// bundles, and anchored to a single layer 1 transaction.
