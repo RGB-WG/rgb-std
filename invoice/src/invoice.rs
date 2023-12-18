@@ -45,7 +45,7 @@ pub enum InvoiceState {
     Attach(AttachId),
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug, Display, From)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display, From)]
 #[display(inner)]
 pub enum Beneficiary {
     // TODO: Create wrapping type for SecretSeal to cover/commit to a specific layer1.

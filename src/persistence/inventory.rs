@@ -87,6 +87,9 @@ pub enum ComposeError<E1: Error, E2: Error> {
     /// '{0}'.
     NoBlankOrChange(VelocityHint, AssignmentType),
 
+    /// the provided PSBT doesn't pay any sats to the RGB beneficiary address.
+    NoBeneficiaryOutput,
+
     /// expired invoice.
     InvoiceExpired,
 
@@ -678,7 +681,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         invoice: &RgbInvoice,
         prev_outputs: impl IntoIterator<Item = impl Into<OutputSeal>>,
         method: CloseMethod,
-        change_vout: impl Into<Vout>,
+        change_vout: Option<impl Into<Vout>>,
         allocator: impl Fn(ContractId, AssignmentType, VelocityHint) -> Option<Vout>,
     ) -> Result<Batch, ComposeError<Self::Error, <<Self as Deref>::Target as Stash>::Error>>
     where
@@ -697,7 +700,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         invoice: &RgbInvoice,
         prev_outputs: impl IntoIterator<Item = impl Into<OutputSeal>>,
         method: CloseMethod,
-        change_vout: impl Into<Vout>,
+        beneficiary_vout: Option<impl Into<Vout>>,
         allocator: impl Fn(ContractId, AssignmentType, VelocityHint) -> Option<Vout>,
         blinder: impl Fn(ContractId, AssignmentType) -> BlindingFactor,
     ) -> Result<Batch, ComposeError<Self::Error, <<Self as Deref>::Target as Stash>::Error>>
@@ -705,7 +708,6 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         Self::Error: From<<Self::Stash as Stash>::Error>,
     {
         let layer1 = invoice.layer1();
-        let change_vout = change_vout.into();
         let prev_outputs = prev_outputs
             .into_iter()
             .map(|o| o.into())
@@ -740,10 +742,13 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         let mut main_builder =
             self.transition_builder(contract_id, iface.clone(), invoice.operation.clone())?;
 
-        let beneficiary = match invoice.beneficiary {
-            Beneficiary::BlindedSeal(seal) => BuilderSeal::Concealed(seal),
-            Beneficiary::WitnessVoutBitcoin(_) => {
-                BuilderSeal::Revealed(XSeal::Bitcoin(GraphSeal::new_vout(method, change_vout)))
+        let beneficiary = match (invoice.beneficiary, beneficiary_vout) {
+            (Beneficiary::BlindedSeal(seal), _) => BuilderSeal::Concealed(seal),
+            (Beneficiary::WitnessVoutBitcoin(_), Some(vout)) => {
+                BuilderSeal::Revealed(XSeal::Bitcoin(GraphSeal::new_vout(method, vout.into())))
+            }
+            (Beneficiary::WitnessVoutBitcoin(_), None) => {
+                return Err(ComposeError::NoBeneficiaryOutput);
             }
         };
 
