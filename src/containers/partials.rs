@@ -48,6 +48,30 @@ pub enum CloseMethodSet {
     Both = 0x03,
 }
 
+impl BitOr<Option<CloseMethodSet>> for CloseMethodSet {
+    type Output = Self;
+    fn bitor(mut self, rhs: Option<CloseMethodSet>) -> Self::Output {
+        rhs.map(|m| self |= m);
+        self
+    }
+}
+
+impl BitOrAssign<Option<CloseMethodSet>> for CloseMethodSet {
+    fn bitor_assign(&mut self, rhs: Option<CloseMethodSet>) { rhs.map(|m| *self |= m); }
+}
+
+impl BitOr<CloseMethodSet> for Option<CloseMethodSet> {
+    type Output = CloseMethodSet;
+    fn bitor(self, mut rhs: CloseMethodSet) -> Self::Output {
+        self.map(|m| rhs |= m);
+        rhs
+    }
+}
+
+impl BitOrAssign<CloseMethodSet> for Option<CloseMethodSet> {
+    fn bitor_assign(&mut self, rhs: CloseMethodSet) { *self = Some(rhs | *self) }
+}
+
 impl BitOr for CloseMethodSet {
     type Output = Self;
     fn bitor(self, rhs: Self) -> Self::Output { if self == rhs { self } else { Self::Both } }
@@ -68,6 +92,11 @@ impl From<CloseMethod> for CloseMethodSet {
             CloseMethod::TapretFirst => CloseMethodSet::TapretFirst,
         }
     }
+}
+
+impl CloseMethodSet {
+    pub fn has_tapret_first(self) -> bool { matches!(self, Self::TapretFirst | Self::Both) }
+    pub fn has_opret_first(self) -> bool { matches!(self, Self::OpretFirst | Self::Both) }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
