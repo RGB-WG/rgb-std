@@ -19,6 +19,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::BTreeMap;
 use std::ops::{BitOr, BitOrAssign};
 use std::vec;
 
@@ -26,7 +27,7 @@ use amplify::confinement;
 use amplify::confinement::{Confined, U24};
 use bp::seals::txout::CloseMethod;
 use commit_verify::mpc;
-use rgb::{OpId, Operation, OutputSeal, Transition, TransitionBundle, XAnchor};
+use rgb::{ContractId, OpId, Operation, OutputSeal, Transition, TransitionBundle, XAnchor};
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 
 use crate::containers::XchainOutpoint;
@@ -190,14 +191,14 @@ impl IntoIterator for Batch {
 )]
 pub struct Fascia {
     pub anchor: XAnchor<mpc::MerkleBlock>,
-    pub bundles: Confined<Vec<TransitionBundle>, 1, U24>,
+    pub bundles: Confined<BTreeMap<ContractId, TransitionBundle>, 1, U24>,
 }
 
 impl StrictDumb for Fascia {
     fn strict_dumb() -> Self {
         Fascia {
             anchor: strict_dumb!(),
-            bundles: confined_vec![strict_dumb!()],
+            bundles: confined_bmap![strict_dumb!() => strict_dumb!()],
         }
     }
 }
