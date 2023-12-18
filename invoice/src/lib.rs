@@ -37,7 +37,7 @@ mod amount;
 
 pub use amount::{Amount, CoinAmount, Precision};
 pub use builder::RgbInvoiceBuilder;
-pub use invoice::{Beneficiary, InvoiceState, RgbInvoice, RgbTransport};
+pub use crate::invoice::{Beneficiary, InvoiceState, RgbInvoice, RgbTransport};
 pub use parse::{InvoiceParseError, TransportParseError};
 
 pub const LIB_NAME_RGB_CONTRACT: &str = "RGBContract";
