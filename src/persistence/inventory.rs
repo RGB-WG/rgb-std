@@ -471,7 +471,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             .iimpls
             .get(&iface.iface_id())
             .ok_or(DataError::NoIfaceImpl(schema.schema_id(), iface.iface_id()))?;
-        let builder = if let Some(transition_name) = transition_name {
+        let mut builder = if let Some(transition_name) = transition_name {
             TransitionBuilder::named_transition(
                 iface.clone(),
                 schema.clone(),
@@ -482,6 +482,12 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             TransitionBuilder::default_transition(iface.clone(), schema.clone(), iimpl.clone())
         }
         .expect("internal inconsistency");
+        let tags = self.contract_asset_tags(contract_id)?;
+        for (assignment_type, asset_tag) in tags {
+            builder = builder
+                .add_asset_tag_raw(*assignment_type, *asset_tag)
+                .expect("tags are in bset and must not repeat");
+        }
         Ok(builder)
     }
 

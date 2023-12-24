@@ -332,6 +332,16 @@ impl TransitionBuilder {
     }
 
     #[inline]
+    pub fn add_asset_tag_raw(
+        mut self,
+        type_id: AssignmentType,
+        asset_tag: AssetTag,
+    ) -> Result<Self, BuilderError> {
+        self.builder = self.builder.add_asset_tag_raw(type_id, asset_tag)?;
+        Ok(self)
+    }
+
+    #[inline]
     pub fn add_global_state(
         mut self,
         name: impl Into<FieldName>,
@@ -565,7 +575,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
 
     #[inline]
     pub fn add_asset_tag(
-        mut self,
+        self,
         name: impl Into<FieldName>,
         asset_tag: AssetTag,
         ty: Option<TransitionType>,
@@ -575,6 +585,15 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             .assignments_type(&name, ty)
             .ok_or(BuilderError::AssignmentNotFound(name))?;
 
+        self.add_asset_tag_raw(type_id, asset_tag)
+    }
+
+    #[inline]
+    pub fn add_asset_tag_raw(
+        mut self,
+        type_id: AssignmentType,
+        asset_tag: AssetTag,
+    ) -> Result<Self, BuilderError> {
         if self.fungible.contains_key(&type_id) {
             return Err(BuilderError::AssetTagAutomatic(type_id));
         }
