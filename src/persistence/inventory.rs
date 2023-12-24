@@ -186,7 +186,7 @@ impl<E: Error> From<InventoryDataError<E>> for InventoryError<E> {
 }
 
 #[derive(Debug, Display, Error, From)]
-#[display(inner)]
+#[display(doc_comments)]
 pub enum DataError {
     /// the consignment was not validated by the local host and thus can't be
     /// imported.
@@ -208,8 +208,8 @@ pub enum DataError {
     /// mismatch between witness seal chain and anchor chain.
     ChainMismatch,
 
-    #[display(inner)]
     #[from]
+    #[display(inner)]
     Reveal(RevealError),
 
     #[from]
@@ -220,15 +220,18 @@ pub enum DataError {
     OutpointUnknown(OutputSeal, ContractId),
 
     #[from]
+    #[display(inner)]
     Confinement(confinement::Error),
 
     #[from]
+    #[display(inner)]
     IfaceImpl(IfaceImplError),
 
     /// schema {0} doesn't implement interface {1}.
     NoIfaceImpl(SchemaId, IfaceId),
 
     #[from]
+    #[display(inner)]
     HeightResolver(Box<dyn Error>),
 
     /// Information is concealed.
