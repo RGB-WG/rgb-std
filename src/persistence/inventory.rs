@@ -355,21 +355,22 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     ///
     /// Must be called before the consignment is created, when witness
     /// transaction is not yet mined.
-    fn consume(&mut self, _fascia: Fascia) -> Result<(), InventoryError<Self::Error>> {
-        todo!();
-        /*
+    fn consume(&mut self, fascia: Fascia) -> Result<(), InventoryError<Self::Error>> {
         let witness_id = fascia.anchor.witness_id();
         unsafe { self.consume_anchor(fascia.anchor)? };
-        for bundle in fascia.bundles {
-            let ids1 = bundle.known_transitions.keys().copied().collect::<BTreeSet<_>>();
+        for (contract_id, bundle) in fascia.bundles {
+            let ids1 = bundle
+                .known_transitions
+                .keys()
+                .copied()
+                .collect::<BTreeSet<_>>();
             let ids2 = bundle.input_map.values().copied().collect::<BTreeSet<_>>();
             if !ids1.is_subset(&ids2) {
-
+                return Err(ConsumeError::InvalidBundle(contract_id, bundle.bundle_id()).into());
             }
-            unsafe { self.consume_bundle(fascia.contract_id, bundle, witness_id)? };
+            unsafe { self.consume_bundle(contract_id, bundle, witness_id)? };
         }
         Ok(())
-         */
     }
 
     #[doc(hidden)]

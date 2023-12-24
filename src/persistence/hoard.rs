@@ -52,6 +52,10 @@ pub enum ConsumeError {
 
     #[from]
     MergeReveal(MergeRevealError),
+
+    /// bundle {1} for contract {0} contains invalid transitioon input map
+    #[display(doc_comments)]
+    InvalidBundle(ContractId, BundleId),
 }
 
 impl From<Infallible> for InventoryError<Infallible> {
