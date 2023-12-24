@@ -33,7 +33,7 @@ use strict_encoding::{InvalidIdent, TypeName};
 
 use super::{Beneficiary, InvoiceState, RgbInvoice, RgbTransport};
 
-const OMITTED: char = '~';
+const OMITTED: &str = "~";
 const EXPIRY: &str = "expiry";
 const NETWORK: &str = "network";
 const ENDPOINTS: &str = "endpoints";
@@ -63,36 +63,39 @@ pub enum TransportParseError {
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
-#[display(inner)]
+#[display(doc_comments)]
 pub enum InvoiceParseError {
     #[from]
+    #[display(inner)]
     Uri(fluent_uri::ParseError),
 
-    #[display(doc_comments)]
     /// invalid invoice.
     Invalid,
 
-    #[display(doc_comments)]
+    /// contract id is missed from the invoice.
+    ContractMissed,
+
+    /// interface information is missed from the invoice.
+    IfaceMissed,
+
+    /// assignment data is missed from the invoice.
+    AssignmentMissed,
+
     /// invalid invoice scheme {0}.
     InvalidScheme(String),
 
-    #[display(doc_comments)]
     /// no invoice transport has been provided.
     NoTransport,
 
-    #[display(doc_comments)]
     /// invalid invoice: contract ID present but no contract interface provided.
     ContractIdNoIface,
 
-    #[display(doc_comments)]
     /// invalid contract ID.
     InvalidContractId(String),
 
-    #[display(doc_comments)]
     /// invalid interface {0}.
     InvalidIface(String),
 
-    #[display(doc_comments)]
     /// invalid expiration timestamp {0}.
     InvalidExpiration(String),
 
@@ -100,28 +103,26 @@ pub enum InvoiceParseError {
     #[from]
     InvalidNetwork(UnknownNetwork),
 
-    #[display(doc_comments)]
     /// address network `{0:#?}` doesn't match network `{1}` specified in the
     /// invoice.
     NetworkMismatch(AddressNetwork, Network),
 
-    #[display(doc_comments)]
     /// invalid query parameter {0}.
     InvalidQueryParam(String),
 
     #[from]
+    #[display(inner)]
     Id(baid58::Baid58ParseError),
 
-    #[display(doc_comments)]
     /// can't recognize beneficiary "": it should be either a bitcoin address or
     /// a blinded UTXO seal.
     Beneficiary(String),
 
     #[from]
+    #[display(inner)]
     Num(ParseIntError),
 
     #[from]
-    #[display(doc_comments)]
     /// invalid interface name.
     IfaceName(InvalidIdent),
 }
@@ -255,47 +256,52 @@ impl FromStr for RgbInvoice {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let uri = Uri::parse(s)?;
 
-        let scheme = uri.scheme().ok_or(InvoiceParseError::Invalid)?.to_string();
-        if scheme != "rgb" {
-            return Err(InvoiceParseError::InvalidScheme(scheme));
+        let scheme = uri.scheme().ok_or(InvoiceParseError::Invalid)?;
+        if scheme.as_str() != "rgb" {
+            return Err(InvoiceParseError::InvalidScheme(scheme.to_string()));
         }
 
-        let path = uri
-            .path()
-            .segments()
-            .map(|e| e.to_string())
-            .collect::<Vec<String>>();
+        let mut path = uri.path().segments();
 
         let mut network = None;
         let mut address_network = None;
 
-        let mut next_path_index = 0;
-
-        let contract_id_str = &path[next_path_index];
-        let contract = match ContractId::from_str(contract_id_str) {
+        let Some(contract_id_str) = path.next() else {
+            return Err(InvoiceParseError::ContractMissed);
+        };
+        let contract = match ContractId::from_str(contract_id_str.as_str()) {
             Ok(cid) => Some(cid),
-            Err(_) if contract_id_str == &OMITTED.to_string() => None,
-            Err(_) => return Err(InvoiceParseError::InvalidContractId(contract_id_str.clone())),
+            Err(_) if contract_id_str.as_str() == OMITTED => None,
+            Err(_) => {
+                return Err(InvoiceParseError::InvalidContractId(contract_id_str.to_string()));
+            }
         };
-        next_path_index += 1;
 
-        let iface_str = &path[next_path_index];
-        let iface = match TypeName::try_from(iface_str.clone()) {
-            Ok(i) => Some(i),
-            Err(_) if iface_str == &OMITTED.to_string() => None,
-            Err(_) => return Err(InvoiceParseError::InvalidIface(iface_str.clone())),
+        let Some(iface_str) = path.next() else {
+            return Err(InvoiceParseError::IfaceMissed);
         };
-        next_path_index += 1;
+        let iface = match TypeName::try_from(iface_str.to_string()) {
+            Ok(i) => Some(i),
+            Err(_) if iface_str.as_str() == OMITTED => None,
+            Err(_) => return Err(InvoiceParseError::InvalidIface(iface_str.to_string())),
+        };
         if contract.is_some() && iface.is_none() {
             return Err(InvoiceParseError::ContractIdNoIface);
         }
 
-        let mut assignment = path[next_path_index].split('+');
+        let Some(assignment) = path.next() else {
+            return Err(InvoiceParseError::AssignmentMissed);
+        };
+        let (amount, beneficiary) = assignment
+            .as_str()
+            .split_once('+')
+            .map(|(a, b)| (Some(a), Some(b)))
+            .unwrap_or((Some(&assignment.as_str()), None));
         // TODO: support other state types
-        let (beneficiary_str, value) = match (assignment.next(), assignment.next()) {
+        let (beneficiary_str, value) = match (amount, beneficiary) {
             (Some(a), Some(b)) => (b, InvoiceState::Amount(a.parse::<u64>()?)),
             (Some(b), None) => (b, InvoiceState::Void),
-            _ => return Err(InvoiceParseError::Invalid),
+            _ => unreachable!(),
         };
 
         let beneficiary =
@@ -316,7 +322,7 @@ impl FromStr for RgbInvoice {
         let mut query_params = map_query_params(&uri)?;
 
         let transports = if let Some(endpoints) = query_params.remove(ENDPOINTS) {
-            let tokens: Vec<&str> = endpoints.split(TRANSPORT_SEP).collect();
+            let tokens = endpoints.split(TRANSPORT_SEP);
             let mut transport_vec: Vec<RgbTransport> = vec![];
             for token in tokens {
                 transport_vec.push(
