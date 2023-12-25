@@ -296,7 +296,7 @@ impl FromStr for RgbInvoice {
             .as_str()
             .split_once('+')
             .map(|(a, b)| (Some(a), Some(b)))
-            .unwrap_or((Some(&assignment.as_str()), None));
+            .unwrap_or((Some(assignment.as_str()), None));
         // TODO: support other state types
         let (beneficiary_str, value) = match (amount, beneficiary) {
             (Some(a), Some(b)) => (b, InvoiceState::Amount(a.parse::<u64>()?)),
