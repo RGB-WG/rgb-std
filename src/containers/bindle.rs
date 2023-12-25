@@ -291,7 +291,8 @@ impl<C: BindleContent> Bindle<C> {
     }
 }
 
-#[derive(Clone, Debug, From)]
+#[derive(Clone, Debug, Display, From)]
+#[display(inner)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
