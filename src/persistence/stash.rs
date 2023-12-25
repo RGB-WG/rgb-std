@@ -27,8 +27,8 @@ use std::error::Error;
 use amplify::confinement::{TinyOrdMap, TinyOrdSet};
 use commit_verify::mpc;
 use rgb::{
-    Anchor, AnchorId, AssetTag, AssignmentType, BundleId, ContractId, Extension, Genesis, OpId,
-    SchemaId, TransitionBundle,
+    AssetTag, AssignmentType, BundleId, ContractId, Extension, Genesis, OpId, SchemaId,
+    TransitionBundle, WitnessId, XAnchor,
 };
 use strict_encoding::TypeName;
 
@@ -77,7 +77,7 @@ pub enum StashInconsistency {
     ///
     /// It may happen due to RGB standard library bug, or indicate internal
     /// stash inconsistency and compromised stash data storage.
-    AnchorAbsent(AnchorId),
+    AnchorAbsent(WitnessId),
 
     /// bundle {0} is absent.
     ///
@@ -112,7 +112,8 @@ pub trait Stash {
         self.schema(genesis.schema_id)
     }
 
-    fn contract_suppl(&self, contract_id: ContractId) -> Option<&TinyOrdSet<ContractSuppl>>;
+    fn contract_suppl(&self, contract_id: ContractId) -> Option<&ContractSuppl>;
+    fn contract_suppl_all(&self, contract_id: ContractId) -> Option<&TinyOrdSet<ContractSuppl>>;
 
     fn contract_asset_tags(
         &self,
@@ -120,6 +121,8 @@ pub trait Stash {
     ) -> Result<&TinyOrdMap<AssignmentType, AssetTag>, StashError<Self::Error>>;
 
     fn genesis(&self, contract_id: ContractId) -> Result<&Genesis, StashError<Self::Error>>;
+
+    fn witness_ids(&self) -> Result<BTreeSet<WitnessId>, Self::Error>;
 
     fn bundle_ids(&self) -> Result<BTreeSet<BundleId>, Self::Error>;
 
@@ -129,10 +132,8 @@ pub trait Stash {
 
     fn extension(&self, op_id: OpId) -> Result<&Extension, StashError<Self::Error>>;
 
-    fn anchor_ids(&self) -> Result<BTreeSet<AnchorId>, Self::Error>;
-
     fn anchor(
         &self,
-        anchor_id: AnchorId,
-    ) -> Result<&Anchor<mpc::MerkleBlock>, StashError<Self::Error>>;
+        witness_id: WitnessId,
+    ) -> Result<&XAnchor<mpc::MerkleBlock>, StashError<Self::Error>>;
 }

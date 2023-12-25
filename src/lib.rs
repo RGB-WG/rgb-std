@@ -76,7 +76,8 @@ extern crate strict_encoding;
 #[macro_use]
 extern crate serde_crate as serde;
 
-pub use rgb::{contract, schema, validation, vm};
+/// Re-exporting all invoice data types (RGB and BP).
+pub extern crate invoice;
 
 pub mod stl;
 pub mod interface;

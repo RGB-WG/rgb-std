@@ -22,14 +22,15 @@
 use bp::bc::stl::bp_tx_stl;
 use bp::stl::bp_core_stl;
 use commit_verify::stl::commit_verify_stl;
+use invoice::Amount;
 pub use rgb::stl::{aluvm_stl, rgb_core_stl, LIB_ID_RGB};
 use strict_types::stl::{std_stl, strict_types_stl};
 use strict_types::typesys::SystemBuilder;
 use strict_types::{CompileError, LibBuilder, SemId, SymbolicSys, TypeLib, TypeSystem};
 
 use super::{
-    Amount, BurnMeta, ContractData, DivisibleAssetSpec, Error, IssueMeta, MediaType,
-    RicardianContract, Timestamp, LIB_NAME_RGB_CONTRACT,
+    BurnMeta, ContractData, DivisibleAssetSpec, Error, IssueMeta, MediaType, RicardianContract,
+    Timestamp, LIB_NAME_RGB_CONTRACT,
 };
 use crate::containers::{Contract, Transfer};
 use crate::persistence::Stock;
@@ -43,7 +44,7 @@ pub const LIB_ID_RGB_CONTRACT: &str =
 
 /// Strict types id for the library representing of RGB StdLib data types.
 pub const LIB_ID_RGB_STD: &str =
-    "urn:ubideco:stl:5BWvsBkteVgD3yiGy8gHHuzhHFLQTz4mZU7kJob3JkHW#lazarus-ranger-neutral";
+    "urn:ubideco:stl:2N7iehth1MBA1yQaJebjMxw45x9fGYAMNqrmGU3pxwvU#tribal-modem-andy";
 
 fn _rgb_std_stl() -> Result<TypeLib, CompileError> {
     LibBuilder::new(libname!(LIB_NAME_RGB_STD), tiny_bset! {

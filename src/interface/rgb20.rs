@@ -21,6 +21,7 @@
 
 use amplify::confinement::LargeVec;
 use bp::bc::stl::bp_tx_stl;
+use invoice::Amount;
 use strict_types::{CompileError, LibBuilder, TypeLib};
 
 use super::{
@@ -29,9 +30,7 @@ use super::{
 use crate::interface::{
     ArgSpec, ContractIface, FungibleAllocation, IfaceId, IfaceWrapper, OutpointFilter,
 };
-use crate::stl::{
-    rgb_contract_stl, Amount, ContractData, DivisibleAssetSpec, StandardTypes, Timestamp,
-};
+use crate::stl::{rgb_contract_stl, ContractData, DivisibleAssetSpec, StandardTypes, Timestamp};
 
 pub const LIB_NAME_RGB20: &str = "RGB20";
 /// Strict types id for the library providing data types for RGB20 interface.

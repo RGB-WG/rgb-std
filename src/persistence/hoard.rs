@@ -27,8 +27,8 @@ use amplify::confinement::{Confined, LargeOrdMap, SmallOrdMap, TinyOrdMap, TinyO
 use bp::dbc::anchor::MergeError;
 use commit_verify::mpc;
 use rgb::{
-    Anchor, AnchorId, AnchoredBundle, AssetTag, AssignmentType, BundleId, ContractId, Extension,
-    Genesis, OpId, Operation, SchemaId, TransitionBundle,
+    AnchoredBundle, AssetTag, AssignmentType, BundleId, ContractId, Extension, Genesis, OpId,
+    Operation, SchemaId, TransitionBundle, WitnessId, XAnchor,
 };
 use strict_encoding::TypeName;
 
@@ -52,6 +52,10 @@ pub enum ConsumeError {
 
     #[from]
     MergeReveal(MergeRevealError),
+
+    /// bundle {1} for contract {0} contains invalid transitioon input map
+    #[display(doc_comments)]
+    InvalidBundle(ContractId, BundleId),
 }
 
 impl From<Infallible> for InventoryError<Infallible> {
@@ -70,7 +74,7 @@ pub struct Hoard {
     pub(super) asset_tags: TinyOrdMap<ContractId, TinyOrdMap<AssignmentType, AssetTag>>,
     pub(super) bundles: LargeOrdMap<BundleId, TransitionBundle>,
     pub(super) extensions: LargeOrdMap<OpId, Extension>,
-    pub(super) anchors: LargeOrdMap<AnchorId, Anchor<mpc::MerkleBlock>>,
+    pub(super) anchors: LargeOrdMap<WitnessId, XAnchor<mpc::MerkleBlock>>,
     pub(super) sigs: SmallOrdMap<ContentId, ContentSigs>,
 }
 
@@ -174,7 +178,7 @@ impl Hoard {
 
         for AnchoredBundle { anchor, bundle } in consignment.bundles {
             let bundle_id = bundle.bundle_id();
-            let anchor = anchor.map(|a| a.into_merkle_block(contract_id, bundle_id.into()))?;
+            let anchor = anchor.into_merkle_block(contract_id, bundle_id)?;
             self.consume_anchor(anchor)?;
             self.consume_bundle(bundle)?;
         }
@@ -204,12 +208,15 @@ impl Hoard {
     }
 
     // TODO: Move into Stash trait and re-implement using trait accessor methods
-    pub fn consume_anchor(&mut self, anchor: Anchor<mpc::MerkleBlock>) -> Result<(), ConsumeError> {
-        let anchor_id = anchor.anchor_id();
-        match self.anchors.get_mut(&anchor_id) {
+    pub fn consume_anchor(
+        &mut self,
+        anchor: XAnchor<mpc::MerkleBlock>,
+    ) -> Result<(), ConsumeError> {
+        let witness_id = anchor.witness_id();
+        match self.anchors.get_mut(&witness_id) {
             Some(a) => *a = a.clone().merge_reveal(anchor)?,
             None => {
-                self.anchors.insert(anchor_id, anchor)?;
+                self.anchors.insert(witness_id, anchor)?;
             }
         }
         Ok(())
@@ -272,7 +279,13 @@ impl Stash for Hoard {
         Ok(self.geneses.keys().copied().collect())
     }
 
-    fn contract_suppl(&self, contract_id: ContractId) -> Option<&TinyOrdSet<ContractSuppl>> {
+    fn contract_suppl(&self, contract_id: ContractId) -> Option<&ContractSuppl> {
+        // TODO: select supplement basing on the signer trust level
+        self.contract_suppl_all(contract_id)
+            .and_then(|set| set.first())
+    }
+
+    fn contract_suppl_all(&self, contract_id: ContractId) -> Option<&TinyOrdSet<ContractSuppl>> {
         self.suppl.get(&contract_id)
     }
 
@@ -280,6 +293,10 @@ impl Stash for Hoard {
         self.geneses
             .get(&contract_id)
             .ok_or(StashInconsistency::ContractAbsent(contract_id).into())
+    }
+
+    fn witness_ids(&self) -> Result<BTreeSet<WitnessId>, Self::Error> {
+        Ok(self.anchors.keys().copied().collect())
     }
 
     fn bundle_ids(&self) -> Result<BTreeSet<BundleId>, Self::Error> {
@@ -302,17 +319,13 @@ impl Stash for Hoard {
             .ok_or(StashInconsistency::OperationAbsent(op_id).into())
     }
 
-    fn anchor_ids(&self) -> Result<BTreeSet<AnchorId>, Self::Error> {
-        Ok(self.anchors.keys().copied().collect())
-    }
-
     fn anchor(
         &self,
-        anchor_id: AnchorId,
-    ) -> Result<&Anchor<mpc::MerkleBlock>, StashError<Self::Error>> {
+        witness_id: WitnessId,
+    ) -> Result<&XAnchor<mpc::MerkleBlock>, StashError<Self::Error>> {
         self.anchors
-            .get(&anchor_id)
-            .ok_or(StashInconsistency::AnchorAbsent(anchor_id).into())
+            .get(&witness_id)
+            .ok_or(StashInconsistency::AnchorAbsent(witness_id).into())
     }
 
     fn contract_asset_tags(

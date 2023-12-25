@@ -1,4 +1,4 @@
-// RGB standard library for working with smart contracts on Bitcoin & Lightning
+// RGB wallet library for smart contracts on Bitcoin & Lightning network
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -19,10 +19,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use rgb::{WitnessAnchor, XAnchor};
+#[macro_use]
+extern crate amplify;
+#[macro_use]
+extern crate strict_encoding;
+#[cfg(feature = "serde")]
+extern crate serde_crate as serde;
 
-pub trait ResolveHeight {
-    type Error: std::error::Error;
+/// Re-exporting BP invoice data types.
+pub use ::invoice::*;
 
-    fn resolve_anchor(&mut self, anchor: &XAnchor) -> Result<WitnessAnchor, Self::Error>;
-}
+#[allow(clippy::module_inception)]
+mod invoice;
+mod parse;
+mod builder;
+mod amount;
+
+pub use amount::{Amount, CoinAmount, Precision};
+pub use builder::RgbInvoiceBuilder;
+pub use parse::{InvoiceParseError, TransportParseError};
+
+pub use crate::invoice::{Beneficiary, InvoiceState, RgbInvoice, RgbTransport};
+
+pub const LIB_NAME_RGB_CONTRACT: &str = "RGBContract";
