@@ -190,7 +190,7 @@ impl Hoard {
 
         // Update asset tags
         self.asset_tags
-            .insert(contract_id, consignment.asset_tags.clone())?;
+            .insert(contract_id, consignment.asset_tags)?;
 
         Ok(())
     }

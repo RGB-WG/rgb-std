@@ -62,7 +62,7 @@ impl BundleExt for TransitionBundle {
             return Ok(false);
         }
         self.known_transitions
-            .insert(opid, transition.clone())
+            .insert(opid, transition)
             .expect("same size as input map");
         Ok(true)
     }
