@@ -20,8 +20,9 @@
 // limitations under the License.
 
 use amplify::confinement::SmallOrdSet;
-use bp::{Outpoint, Tx};
-use rgb::OutputSeal;
+use bp::seals::txout::ExplicitSeal;
+use bp::{Outpoint, Tx, Txid};
+use rgb::{OutputSeal, XSeal};
 
 use super::TerminalSeal;
 use crate::LIB_NAME_RGB_STD;
@@ -101,6 +102,15 @@ impl From<OutputSeal> for XchainOutpoint {
         match seal {
             OutputSeal::Bitcoin(s) => XchainOutpoint::Bitcoin(s.into()),
             OutputSeal::Liquid(s) => XchainOutpoint::Liquid(s.into()),
+        }
+    }
+}
+
+impl From<XchainOutpoint> for XSeal<ExplicitSeal<Txid>> {
+    fn from(outpoint: XchainOutpoint) -> Self {
+        match outpoint {
+            XchainOutpoint::Bitcoin(outpoint) => XSeal::Bitcoin(outpoint.into()),
+            XchainOutpoint::Liquid(outpoint) => XSeal::Liquid(outpoint.into()),
         }
     }
 }
