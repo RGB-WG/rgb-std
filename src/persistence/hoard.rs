@@ -25,7 +25,8 @@ use std::convert::Infallible;
 use amplify::confinement;
 use amplify::confinement::{Confined, LargeOrdMap, SmallOrdMap, TinyOrdMap, TinyOrdSet};
 use bp::dbc::anchor::MergeError;
-use commit_verify::mpc;
+use bp::dbc::tapret::TapretCommitment;
+use commit_verify::{mpc, CommitmentId};
 use rgb::{
     AnchoredBundle, AssetTag, AssignmentType, BundleId, ContractId, Extension, Genesis, OpId,
     Operation, SchemaId, TransitionBundle, WitnessId, XAnchor,
@@ -336,5 +337,26 @@ impl Stash for Hoard {
             .get(&contract_id)
             .ok_or(StashInconsistency::ContractAbsent(contract_id))
             .map_err(StashError::from)
+    }
+
+    fn taprets(&self) -> Result<BTreeMap<WitnessId, TapretCommitment>, StashError<Self::Error>> {
+        Ok(self
+            .anchors
+            .iter()
+            .filter_map(|(witness_id, anchor)| {
+                match anchor {
+                    XAnchor::Bitcoin(set) | XAnchor::Liquid(set) => set,
+                }
+                .as_split()
+                .0
+                .map(|a| (*witness_id, a))
+            })
+            .map(|(witness_id, tapret)| {
+                (witness_id, TapretCommitment {
+                    mpc: tapret.mpc_proof.commitment_id(),
+                    nonce: tapret.dbc_proof.path_proof.nonce(),
+                })
+            })
+            .collect())
     }
 }
