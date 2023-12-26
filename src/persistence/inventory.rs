@@ -690,15 +690,20 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         invoice: &RgbInvoice,
         prev_outputs: impl IntoIterator<Item = impl Into<OutputSeal>>,
         method: CloseMethod,
-        change_vout: Option<impl Into<Vout>>,
+        beneficiary_vout: Option<impl Into<Vout>>,
         allocator: impl Fn(ContractId, AssignmentType, VelocityHint) -> Option<Vout>,
     ) -> Result<Batch, ComposeError<Self::Error, <<Self as Deref>::Target as Stash>::Error>>
     where
         Self::Error: From<<Self::Stash as Stash>::Error>,
     {
-        self.compose_deterministic(invoice, prev_outputs, method, change_vout, allocator, |_, _| {
-            BlindingFactor::random()
-        })
+        self.compose_deterministic(
+            invoice,
+            prev_outputs,
+            method,
+            beneficiary_vout,
+            allocator,
+            |_, _| BlindingFactor::random(),
+        )
     }
 
     /// Composes a batch of state transitions updating state for the provided
