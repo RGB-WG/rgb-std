@@ -19,17 +19,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::{BTreeMap, BTreeSet};
-use std::rc::Rc;
-use std::{iter, vec};
+use std::collections::BTreeMap;
+use std::iter;
 
 use amplify::confinement::{LargeVec, MediumBlob, SmallOrdMap, TinyOrdMap, TinyOrdSet};
-use commit_verify::Conceal;
-use rgb::validation::{self, ConsignmentApi};
+use rgb::validation::{self};
 use rgb::{
     AnchoredBundle, AssetTag, AssignmentType, AttachId, BundleId, ContractHistory, ContractId,
-    Extension, Genesis, GraphSeal, OpId, OpRef, Operation, Schema, SchemaId, SecretSeal, SubSchema,
-    Transition, XSeal,
+    Extension, Genesis, GraphSeal, OpId, Operation, Schema, SchemaId, SubSchema, Transition, XSeal,
 };
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 
@@ -157,13 +154,13 @@ impl<const TYPE: bool> Consignment<TYPE> {
             .find(|anchored_bundle| anchored_bundle.bundle.bundle_id() == bundle_id)
     }
 
-    fn transition(&self, opid: OpId) -> Option<&Transition> {
+    pub(super) fn transition(&self, opid: OpId) -> Option<&Transition> {
         self.bundles
             .iter()
             .find_map(|ab| ab.bundle.known_transitions.get(&opid))
     }
 
-    fn extension(&self, opid: OpId) -> Option<&Extension> {
+    pub(super) fn extension(&self, opid: OpId) -> Option<&Extension> {
         self.extensions
             .iter()
             .find(|&extension| extension.id() == opid)
@@ -253,55 +250,5 @@ impl<const TYPE: bool> Consignment<TYPE> {
             attachments: self.attachments,
             signatures: self.signatures,
         }
-    }
-}
-
-#[derive(Debug)]
-pub struct BundleIdIter(vec::IntoIter<AnchoredBundle>);
-
-impl Iterator for BundleIdIter {
-    type Item = BundleId;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next().as_ref().map(AnchoredBundle::bundle_id)
-    }
-}
-
-impl<const TYPE: bool> ConsignmentApi for Consignment<TYPE> {
-    type Iter<'a> = BundleIdIter;
-
-    fn schema(&self) -> &SubSchema { &self.schema }
-
-    #[inline]
-    fn asset_tags(&self) -> &BTreeMap<AssignmentType, AssetTag> { self.asset_tags.as_inner() }
-
-    fn operation(&self, opid: OpId) -> Option<OpRef> {
-        if opid == self.genesis.id() {
-            return Some(OpRef::Genesis(&self.genesis));
-        }
-        self.transition(opid)
-            .map(OpRef::from)
-            .or_else(|| self.extension(opid).map(OpRef::from))
-    }
-
-    fn genesis(&self) -> &Genesis { &self.genesis }
-
-    fn terminals(&self) -> BTreeSet<(BundleId, SecretSeal)> {
-        self.terminals
-            .iter()
-            .flat_map(|(bundle_id, terminal)| {
-                terminal
-                    .seals
-                    .iter()
-                    .map(|seal| (*bundle_id, seal.conceal()))
-            })
-            .collect()
-    }
-
-    fn bundle_ids<'a>(&self) -> Self::Iter<'a> { BundleIdIter(self.bundles.clone().into_iter()) }
-
-    fn anchored_bundle(&self, bundle_id: BundleId) -> Option<Rc<AnchoredBundle>> {
-        self.anchored_bundle(bundle_id)
-            .map(|ab| Rc::new(ab.clone()))
     }
 }

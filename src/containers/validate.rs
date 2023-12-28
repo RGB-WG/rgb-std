@@ -21,7 +21,7 @@
 
 use rgb::validation::{ResolveTx, Validator, Validity, Warning};
 
-use super::Consignment;
+use super::{Consignment, IndexedConsignment};
 
 impl<const TYPE: bool> Consignment<TYPE> {
     pub fn validate<R: ResolveTx>(
@@ -29,7 +29,8 @@ impl<const TYPE: bool> Consignment<TYPE> {
         resolver: &mut R,
         testnet: bool,
     ) -> Result<Consignment<TYPE>, Consignment<TYPE>> {
-        let mut status = Validator::validate(&self, resolver, testnet);
+        let index = IndexedConsignment::new(&self);
+        let mut status = Validator::validate(&index, resolver, testnet);
 
         let validity = status.validity();
 
