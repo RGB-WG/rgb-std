@@ -42,8 +42,8 @@ pub enum MergeRevealError {
     #[display(inner)]
     AnchorMismatch(MergeError),
 
-    /// the merged bundles contain excessive transactions.
-    ExcessiveTransactions,
+    /// the merged bundles contain excessive transitions.
+    ExcessiveTransitions,
 
     /// contract id provided for the merge-reveal operation doesn't matches
     /// multi-protocol commitment.
@@ -187,12 +187,14 @@ impl<Seal: ExposedSeal> MergeReveal for Assignments<Seal> {
 impl MergeReveal for TransitionBundle {
     fn merge_reveal(mut self, other: Self) -> Result<Self, MergeRevealError> {
         debug_assert_eq!(self.commitment_id(), other.commitment_id());
-        if self.known_transitions.len() + other.known_transitions.len() > self.input_map.len() ||
-            self.known_transitions
-                .extend(other.known_transitions)
-                .is_err()
+
+        if self
+            .known_transitions
+            .extend(other.known_transitions)
+            .is_err() ||
+            self.input_map.len() < self.known_transitions.len()
         {
-            return Err(MergeRevealError::ExcessiveTransactions);
+            return Err(MergeRevealError::ExcessiveTransitions);
         }
         Ok(self)
     }
