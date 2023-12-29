@@ -21,15 +21,11 @@
 
 #![doc = include_str!("seals.md")]
 
-use std::fmt::{self, Display, Formatter};
-use std::str::FromStr;
-
-use bp::seals::txout::blind::ParseError;
-use bp::seals::txout::{CloseMethod, TxPtr};
+use bp::seals::txout::CloseMethod;
 use bp::secp256k1::rand::{thread_rng, RngCore};
-use bp::{Outpoint, Vout};
+use bp::Vout;
 use commit_verify::Conceal;
-use rgb::{ExposedSeal, GenesisSeal, GraphSeal, SecretSeal, XSeal};
+use rgb::{GraphSeal, SecretSeal, TxoSeal, XChain};
 
 use crate::LIB_NAME_RGB_STD;
 
@@ -107,7 +103,9 @@ impl VoutSeal {
 }
 
 impl From<VoutSeal> for GraphSeal {
-    fn from(seal: VoutSeal) -> Self { Self::with_vout(seal.method, seal.vout, seal.blinding) }
+    fn from(seal: VoutSeal) -> Self {
+        Self::with_blinded_vout(seal.method, seal.vout, seal.blinding)
+    }
 }
 
 /// Seal endpoint is a confidential seal which may be linked to the witness
@@ -135,66 +133,22 @@ pub enum TerminalSeal {
     ConcealedUtxo(SecretSeal),
 
     /// Seal contained within the witness transaction
+    #[from]
     #[strict_type(tag = 1)]
-    BitcoinWitnessVout(VoutSeal),
-
-    /// Seal contained within the witness transaction
-    #[strict_type(tag = 2)]
-    LiquidWitnessVout(VoutSeal),
-}
-
-impl From<GraphSeal> for TerminalSeal {
-    fn from(seal: GraphSeal) -> Self {
-        match seal.txid {
-            TxPtr::WitnessTx => TerminalSeal::BitcoinWitnessVout(VoutSeal::with(
-                seal.method,
-                seal.vout,
-                seal.blinding,
-            )),
-            TxPtr::Txid(_) => TerminalSeal::ConcealedUtxo(seal.conceal()),
-        }
-    }
-}
-
-impl From<XSeal<GraphSeal>> for TerminalSeal {
-    fn from(seal: XSeal<GraphSeal>) -> Self {
-        match seal {
-            XSeal::Bitcoin(
-                seal @ GraphSeal {
-                    txid: TxPtr::WitnessTx,
-                    ..
-                },
-            ) => TerminalSeal::BitcoinWitnessVout(VoutSeal::with(
-                seal.method,
-                seal.vout,
-                seal.blinding,
-            )),
-            XSeal::Liquid(
-                seal @ GraphSeal {
-                    txid: TxPtr::WitnessTx,
-                    ..
-                },
-            ) => TerminalSeal::LiquidWitnessVout(VoutSeal::with(
-                seal.method,
-                seal.vout,
-                seal.blinding,
-            )),
-            _ => TerminalSeal::ConcealedUtxo(seal.conceal()),
-        }
-    }
+    WitnessVout(VoutSeal),
 }
 
 impl TerminalSeal {
     /// Constructs [`TerminalSeal`] for the witness transaction. Uses
     /// `thread_rng` to initialize blinding factor.
     pub fn new_vout(method: CloseMethod, vout: impl Into<Vout>) -> TerminalSeal {
-        TerminalSeal::BitcoinWitnessVout(VoutSeal::new(method, vout))
+        TerminalSeal::WitnessVout(VoutSeal::new(method, vout))
     }
 
     pub fn secret_seal(&self) -> Option<SecretSeal> {
         match self {
             TerminalSeal::ConcealedUtxo(seal) => Some(*seal),
-            TerminalSeal::BitcoinWitnessVout(_) | TerminalSeal::LiquidWitnessVout(_) => None,
+            TerminalSeal::WitnessVout(_) => None,
         }
     }
 }
@@ -205,47 +159,15 @@ impl Conceal for TerminalSeal {
     fn conceal(&self) -> Self::Concealed {
         match *self {
             TerminalSeal::ConcealedUtxo(hash) => hash,
-            TerminalSeal::BitcoinWitnessVout(seal) => {
-                XSeal::Bitcoin(GraphSeal::from(seal)).conceal()
-            }
-            TerminalSeal::LiquidWitnessVout(seal) => XSeal::Liquid(GraphSeal::from(seal)).conceal(),
+            TerminalSeal::WitnessVout(seal) => GraphSeal::from(seal).conceal(),
         }
-    }
-}
-
-impl Display for TerminalSeal {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match *self {
-            TerminalSeal::ConcealedUtxo(ref seal) => Display::fmt(seal, f),
-            TerminalSeal::BitcoinWitnessVout(seal) => Display::fmt(&GraphSeal::from(seal), f),
-            TerminalSeal::LiquidWitnessVout(seal) => Display::fmt(&GraphSeal::from(seal), f),
-        }
-    }
-}
-
-impl FromStr for TerminalSeal {
-    type Err = ParseError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        SecretSeal::from_str(s)
-            .map(TerminalSeal::from)
-            .or_else(|_| GraphSeal::from_str(s).map(TerminalSeal::from))
     }
 }
 
 /// Seal used by operation builder which can be either revealed or concealed.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, From)]
-pub enum BuilderSeal<Seal: ExposedSeal> {
+pub enum BuilderSeal<Seal: TxoSeal + Ord> {
+    Revealed(XChain<Seal>),
     #[from]
-    Revealed(XSeal<Seal>),
-    #[from]
-    Concealed(SecretSeal),
-}
-
-impl From<Outpoint> for BuilderSeal<GenesisSeal> {
-    fn from(outpoint: Outpoint) -> Self { BuilderSeal::Revealed(XSeal::Bitcoin(outpoint.into())) }
-}
-
-impl From<Outpoint> for BuilderSeal<GraphSeal> {
-    fn from(outpoint: Outpoint) -> Self { BuilderSeal::Revealed(XSeal::Bitcoin(outpoint.into())) }
+    Concealed(XChain<SecretSeal>),
 }

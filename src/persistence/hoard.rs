@@ -48,6 +48,9 @@ pub enum ConsumeError {
     #[from]
     Anchor(mpc::InvalidProof),
 
+    #[display("anchor set {0} contains inconsistent information on witness id")]
+    AnchorInconsistent(WitnessId),
+
     #[from]
     Merge(MergeError),
 
@@ -213,7 +216,9 @@ impl Hoard {
         &mut self,
         anchor: XAnchor<mpc::MerkleBlock>,
     ) -> Result<(), ConsumeError> {
-        let witness_id = anchor.witness_id();
+        let witness_id = anchor
+            .witness_id()
+            .ok_or_else(|| ConsumeError::AnchorInconsistent(anchor.witness_id_unchecked()))?;
         match self.anchors.get_mut(&witness_id) {
             Some(a) => *a = a.clone().merge_reveal(anchor)?,
             None => {

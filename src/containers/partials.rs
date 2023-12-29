@@ -28,11 +28,14 @@ use std::vec;
 use amplify::confinement;
 use amplify::confinement::{Confined, U24};
 use bp::seals::txout::CloseMethod;
+use bp::Outpoint;
 use commit_verify::mpc;
-use rgb::{ContractId, OpId, Operation, OutputSeal, Transition, TransitionBundle, XAnchor};
+use rgb::{
+    ContractId, OpId, Operation, Transition, TransitionBundle, TxoSeal, XAnchor, XOutputSeal,
+};
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 
-use crate::containers::XchainOutpoint;
+use crate::containers::XOutpoint;
 use crate::LIB_NAME_RGB_STD;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
@@ -92,8 +95,8 @@ impl BitOrAssign for CloseMethodSet {
     fn bitor_assign(&mut self, rhs: Self) { *self = self.bitor(rhs); }
 }
 
-impl From<OutputSeal> for CloseMethodSet {
-    fn from(seal: OutputSeal) -> Self { seal.method().into() }
+impl From<XOutputSeal> for CloseMethodSet {
+    fn from(seal: XOutputSeal) -> Self { seal.method().into() }
 }
 
 impl From<CloseMethod> for CloseMethodSet {
@@ -120,7 +123,7 @@ impl CloseMethodSet {
 )]
 pub struct TransitionInfo {
     pub id: OpId,
-    pub inputs: Confined<Vec<XchainOutpoint>, 1, U24>,
+    pub inputs: Confined<Vec<XOutpoint>, 1, U24>,
     pub transition: Transition,
     pub methods: CloseMethodSet,
 }
@@ -148,10 +151,14 @@ impl Hash for TransitionInfo {
 impl TransitionInfo {
     pub fn new(
         transition: Transition,
-        seals: impl AsRef<[OutputSeal]>,
+        seals: impl AsRef<[XOutputSeal]>,
     ) -> Result<Self, confinement::Error> {
         let inputs = Confined::<Vec<_>, 1, U24>::try_from_iter(
-            seals.as_ref().iter().copied().map(XchainOutpoint::from),
+            seals
+                .as_ref()
+                .iter()
+                .copied()
+                .map(|seal| seal.map(Outpoint::from)),
         )?;
         let methods = seals
             .as_ref()

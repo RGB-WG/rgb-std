@@ -19,7 +19,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use rgb::{GraphSeal, OpId, Operation, Transition, TransitionBundle, XSeal};
+use rgb::{GraphSeal, OpId, Operation, Transition, TransitionBundle, XChain};
 
 use crate::accessors::TypedAssignsExt;
 
@@ -32,7 +32,7 @@ pub enum RevealError {
 
 pub trait BundleExt {
     /// Ensures that the seal is revealed inside the bundle.
-    fn reveal_seal(&mut self, seal: XSeal<GraphSeal>);
+    fn reveal_seal(&mut self, seal: XChain<GraphSeal>);
 
     /// Ensures that the transition is revealed inside the bundle.
     ///
@@ -44,7 +44,7 @@ pub trait BundleExt {
 }
 
 impl BundleExt for TransitionBundle {
-    fn reveal_seal(&mut self, seal: XSeal<GraphSeal>) {
+    fn reveal_seal(&mut self, seal: XChain<GraphSeal>) {
         for (_, transition) in self.known_transitions.keyed_values_mut() {
             for (_, assign) in transition.assignments.keyed_values_mut() {
                 assign.reveal_seal(seal)

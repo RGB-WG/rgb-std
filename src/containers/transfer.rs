@@ -73,9 +73,14 @@ impl CommitEncode for Transfer {
             writer = self.contract_id().strict_encode(writer)?;
             for (bundle_id, terminal) in &self.terminals {
                 writer = bundle_id.strict_encode(writer)?;
-                let seals =
-                    SmallOrdSet::try_from_iter(terminal.seals.iter().map(TerminalSeal::conceal))
-                        .expect("same size iterator");
+                let seals = SmallOrdSet::try_from_iter(
+                    terminal
+                        .as_reduced_unsafe()
+                        .seals
+                        .iter()
+                        .map(TerminalSeal::conceal),
+                )
+                .expect("same size iterator");
                 writer = seals.strict_encode(writer)?;
             }
             for attach_id in self.attachments.keys() {

@@ -28,7 +28,7 @@ use fluent_uri::Uri;
 use indexmap::IndexMap;
 use invoice::{Address, AddressNetwork, Network, UnknownNetwork};
 use percent_encoding::{utf8_percent_encode, AsciiSet, CONTROLS};
-use rgb::{ContractId, SecretSeal};
+use rgb::{ContractId, SecretSeal, XChain};
 use strict_encoding::{InvalidIdent, TypeName};
 
 use super::{Beneficiary, InvoiceState, RgbInvoice, RgbTransport};
@@ -304,20 +304,22 @@ impl FromStr for RgbInvoice {
             _ => unreachable!(),
         };
 
-        let beneficiary =
-            match (SecretSeal::from_str(beneficiary_str), Address::from_str(beneficiary_str)) {
-                (Ok(seal), Err(_)) => Beneficiary::BlindedSeal(seal),
-                (Err(_), Ok(addr)) => {
-                    address_network = Some(addr.network);
-                    Beneficiary::WitnessVoutBitcoin(addr)
-                }
-                (Err(_), Err(_)) => {
-                    return Err(InvoiceParseError::Beneficiary(beneficiary_str.to_owned()));
-                }
-                (Ok(_), Ok(_)) => {
-                    panic!("found a string which is both valid bitcoin address and UTXO blind seal")
-                }
-            };
+        let beneficiary = match (
+            XChain::<SecretSeal>::from_str(beneficiary_str),
+            Address::from_str(beneficiary_str),
+        ) {
+            (Ok(seal), Err(_)) => Beneficiary::BlindedSeal(seal),
+            (Err(_), Ok(addr)) => {
+                address_network = Some(addr.network);
+                Beneficiary::WitnessVoutBitcoin(addr)
+            }
+            (Err(_), Err(_)) => {
+                return Err(InvoiceParseError::Beneficiary(beneficiary_str.to_owned()));
+            }
+            (Ok(_), Ok(_)) => {
+                panic!("found a string which is both valid bitcoin address and UTXO blind seal")
+            }
+        };
 
         let mut query_params = map_query_params(&uri)?;
 

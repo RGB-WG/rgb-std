@@ -21,7 +21,7 @@
 
 use indexmap::IndexMap;
 use invoice::{Address, Network};
-use rgb::{AttachId, ContractId, Layer1, SecretSeal};
+use rgb::{AttachId, ContractId, Layer1, SecretSeal, XChain};
 use strict_encoding::{FieldName, TypeName};
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
@@ -52,7 +52,7 @@ pub enum Beneficiary {
     //       Move Baid58 encoding from BP seals to here. Use utxob1 for bitcoin, and use
     //       utxol1 for liquid.
     #[from]
-    BlindedSeal(SecretSeal),
+    BlindedSeal(XChain<SecretSeal>),
     #[from]
     WitnessVoutBitcoin(Address),
     // TODO: Add support for Liquid beneficiaries

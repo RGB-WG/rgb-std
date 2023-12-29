@@ -26,7 +26,8 @@ use amplify::confinement::{LargeVec, MediumBlob, SmallOrdMap, TinyOrdMap, TinyOr
 use rgb::validation::{self};
 use rgb::{
     AnchoredBundle, AssetTag, AssignmentType, AttachId, BundleId, ContractHistory, ContractId,
-    Extension, Genesis, GraphSeal, OpId, Operation, Schema, SchemaId, SubSchema, Transition, XSeal,
+    Extension, Genesis, GraphSeal, OpId, Operation, Schema, SchemaId, SubSchema, Transition,
+    XChain,
 };
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 
@@ -89,7 +90,7 @@ pub struct Consignment<const TYPE: bool> {
     pub genesis: Genesis,
 
     /// Set of seals which are history terminals.
-    pub terminals: SmallOrdMap<BundleId, Terminal>,
+    pub terminals: SmallOrdMap<BundleId, XChain<Terminal>>,
 
     /// Data on all anchored state transitions contained in the consignments.
     pub bundles: LargeVec<AnchoredBundle>,
@@ -226,7 +227,7 @@ impl<const TYPE: bool> Consignment<TYPE> {
         Ok(history)
     }
 
-    pub fn reveal_bundle_seal(&mut self, bundle_id: BundleId, revealed: XSeal<GraphSeal>) {
+    pub fn reveal_bundle_seal(&mut self, bundle_id: BundleId, revealed: XChain<GraphSeal>) {
         for anchored_bundle in &mut self.bundles {
             if anchored_bundle.bundle.bundle_id() == bundle_id {
                 anchored_bundle.bundle.reveal_seal(revealed);
