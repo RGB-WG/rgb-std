@@ -25,8 +25,7 @@ use std::error::Error;
 use std::ops::Deref;
 
 use amplify::confinement::{self, Confined, MediumVec, U24};
-use bp::seals::txout::blind::SingleBlindSeal;
-use bp::seals::txout::CloseMethod;
+use bp::seals::txout::{CloseMethod, ExplicitSeal};
 use bp::{Txid, Vout};
 use chrono::Utc;
 use commit_verify::{mpc, Conceal};
@@ -572,7 +571,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     fn transfer(
         &self,
         contract_id: ContractId,
-        seals: impl IntoIterator<Item = impl Into<BuilderSeal<SingleBlindSeal>>>,
+        seals: impl IntoIterator<Item = impl Into<BuilderSeal<ExplicitSeal<Txid>>>>,
     ) -> Result<
         Bindle<Transfer>,
         ConsignerError<Self::Error, <<Self as Deref>::Target as Stash>::Error>,
@@ -691,15 +690,20 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         invoice: &RgbInvoice,
         prev_outputs: impl IntoIterator<Item = impl Into<OutputSeal>>,
         method: CloseMethod,
-        change_vout: Option<impl Into<Vout>>,
+        beneficiary_vout: Option<impl Into<Vout>>,
         allocator: impl Fn(ContractId, AssignmentType, VelocityHint) -> Option<Vout>,
     ) -> Result<Batch, ComposeError<Self::Error, <<Self as Deref>::Target as Stash>::Error>>
     where
         Self::Error: From<<Self::Stash as Stash>::Error>,
     {
-        self.compose_deterministic(invoice, prev_outputs, method, change_vout, allocator, |_, _| {
-            BlindingFactor::random()
-        })
+        self.compose_deterministic(
+            invoice,
+            prev_outputs,
+            method,
+            beneficiary_vout,
+            allocator,
+            |_, _| BlindingFactor::random(),
+        )
     }
 
     /// Composes a batch of state transitions updating state for the provided

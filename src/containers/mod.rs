@@ -37,11 +37,13 @@ mod util;
 mod validate;
 mod certs;
 mod partials;
+mod indexed;
 
 pub use bindle::{Bindle, BindleContent, BindleParseError, LoadError, UniversalBindle};
 pub use certs::{Cert, ContentId, ContentSigs, Identity};
 pub use consignment::{Consignment, Contract, Transfer};
 pub use disclosure::Disclosure;
+pub use indexed::IndexedConsignment;
 pub use partials::{Batch, CloseMethodSet, Fascia, TransitionInfo};
 pub use seal::{BuilderSeal, TerminalSeal, VoutSeal};
 pub use util::{ContainerVer, Terminal, XchainOutpoint};

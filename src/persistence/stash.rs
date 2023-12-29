@@ -25,6 +25,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 
 use amplify::confinement::{TinyOrdMap, TinyOrdSet};
+use bp::dbc::tapret::TapretCommitment;
 use commit_verify::mpc;
 use rgb::{
     AssetTag, AssignmentType, BundleId, ContractId, Extension, Genesis, OpId, SchemaId,
@@ -136,4 +137,6 @@ pub trait Stash {
         &self,
         witness_id: WitnessId,
     ) -> Result<&XAnchor<mpc::MerkleBlock>, StashError<Self::Error>>;
+
+    fn taprets(&self) -> Result<BTreeMap<WitnessId, TapretCommitment>, StashError<Self::Error>>;
 }

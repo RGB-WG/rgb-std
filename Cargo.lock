@@ -225,6 +225,18 @@ dependencies = [
  "chrono",
  "commit_verify",
  "secp256k1 0.28.0",
+ "strict_encoding",
+]
+
+[[package]]
+name = "bp-consensus"
+version = "0.11.0-beta.3"
+source = "git+https://github.com/BP-WG/bp-core?branch=v0.11#50630d40828c522f78066c6ca473f0f3291b977d"
+dependencies = [
+ "amplify",
+ "chrono",
+ "commit_verify",
+ "secp256k1 0.28.0",
  "serde",
  "strict_encoding",
  "strict_types",
@@ -233,11 +245,10 @@ dependencies = [
 [[package]]
 name = "bp-core"
 version = "0.11.0-beta.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0143f6c7399cb6d0003407e6de197a03b3b42b34380fab02c8fecaf4431b061"
+source = "git+https://github.com/BP-WG/bp-core?branch=v0.11#50630d40828c522f78066c6ca473f0f3291b977d"
 dependencies = [
  "amplify",
- "bp-consensus",
+ "bp-consensus 0.11.0-beta.3 (git+https://github.com/BP-WG/bp-core?branch=v0.11)",
  "bp-dbc",
  "bp-seals",
  "commit_verify",
@@ -250,12 +261,11 @@ dependencies = [
 [[package]]
 name = "bp-dbc"
 version = "0.11.0-beta.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e3e04649c77079cfd1466ba14a62c83585053bb61d294578a39fcfe38f402db"
+source = "git+https://github.com/BP-WG/bp-core?branch=v0.11#50630d40828c522f78066c6ca473f0f3291b977d"
 dependencies = [
  "amplify",
  "base85",
- "bp-consensus",
+ "bp-consensus 0.11.0-beta.3 (git+https://github.com/BP-WG/bp-core?branch=v0.11)",
  "commit_verify",
  "secp256k1 0.28.0",
  "serde",
@@ -271,18 +281,17 @@ dependencies = [
  "amplify",
  "bech32",
  "bitcoin_hashes",
- "bp-consensus",
+ "bp-consensus 0.11.0-beta.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "bp-seals"
 version = "0.11.0-beta.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a1e4955315fad858472320ee5a7fba8a35c61c3928bdacb581931e23d4f25c7b"
+source = "git+https://github.com/BP-WG/bp-core?branch=v0.11#50630d40828c522f78066c6ca473f0f3291b977d"
 dependencies = [
  "amplify",
  "baid58",
- "bp-consensus",
+ "bp-consensus 0.11.0-beta.3 (git+https://github.com/BP-WG/bp-core?branch=v0.11)",
  "bp-dbc",
  "commit_verify",
  "rand",
@@ -655,8 +664,7 @@ dependencies = [
 [[package]]
 name = "rgb-core"
 version = "0.11.0-beta.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbd6b8a6d616997c670ea40a5a9badc9744f3e1fa29213affabdd2d2c192ef3b"
+source = "git+https://github.com/RGB-WG/rgb-core?branch=v0.11#7eb443b87745d2a05030f556d8a33ba8dbed0f0a"
 dependencies = [
  "aluvm",
  "amplify",

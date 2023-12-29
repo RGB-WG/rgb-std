@@ -192,7 +192,7 @@ impl MergeReveal for TransitionBundle {
             .known_transitions
             .extend(other.known_transitions)
             .is_err() ||
-            self.input_map.len() < self.known_transitions.len()
+            self.input_map.len() > self.known_transitions.len()
         {
             return Err(MergeRevealError::ExcessiveTransitions);
         }
