@@ -522,7 +522,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
 
         // TODO: check schema internal consistency
         // TODO: check interface internal consistency
-        // TODO: check implmenetation internal consistency
+        // TODO: check implementation internal consistency
 
         Ok(OperationBuilder {
             schema,
