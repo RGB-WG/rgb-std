@@ -39,6 +39,8 @@ pub use amount::{Amount, CoinAmount, Precision};
 pub use builder::RgbInvoiceBuilder;
 pub use parse::{InvoiceParseError, TransportParseError};
 
-pub use crate::invoice::{Beneficiary, InvoiceState, RgbInvoice, RgbTransport};
+pub use crate::invoice::{
+    Beneficiary, ChainNet, InvoiceState, RgbInvoice, RgbTransport, XChainNet,
+};
 
 pub const LIB_NAME_RGB_CONTRACT: &str = "RGBContract";
