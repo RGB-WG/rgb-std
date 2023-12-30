@@ -59,7 +59,7 @@ impl FromStr for TransferId {
     type Err = Baid58ParseError;
     fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_baid58_chunked_str(s, ':', '#') }
 }
-#[allow(clippy::wrong_self_convention)] // We need the method that takes self by ref in order to have simplier APIs in iterators
+#[allow(clippy::wrong_self_convention)] // We need the method that takes self by ref in order to have simpler APIs in iterators
 impl TransferId {
     pub fn to_baid58_string(&self) -> String { format!("{::<#.2}", self.to_baid58()) }
     pub fn to_mnemonic(&self) -> String { self.to_baid58().mnemonic() }
