@@ -20,7 +20,7 @@
 // limitations under the License.
 
 use indexmap::IndexMap;
-use invoice::{AddressNetwork, AddressPayload};
+use invoice::{AddressNetwork, AddressPayload, Network};
 use rgb::{AttachId, ContractId, Layer1, SecretSeal};
 use strict_encoding::{FieldName, TypeName};
 
@@ -116,6 +116,15 @@ impl<T> XChainNet<T> {
             ChainNet::BitcoinRegtest => XChainNet::BitcoinRegtest(data),
             ChainNet::LiquidMainnet => XChainNet::LiquidMainnet(data),
             ChainNet::LiquidTestnet => XChainNet::LiquidTestnet(data),
+        }
+    }
+
+    pub fn bitcoin(network: Network, data: T) -> Self {
+        match network {
+            Network::Mainnet => Self::BitcoinMainnet(data),
+            Network::Testnet3 => Self::BitcoinTestnet(data),
+            Network::Signet => Self::BitcoinSignet(data),
+            Network::Regtest => Self::BitcoinRegtest(data),
         }
     }
 
