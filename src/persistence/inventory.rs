@@ -774,16 +774,20 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             .assignments_type(&assignment_name)
             .ok_or(BuilderError::InvalidStateField(assignment_name.clone()))?;
 
-        let beneficiary = match (invoice.beneficiary, beneficiary_vout) {
-            (Beneficiary::BlindedSeal(seal), _) => BuilderSeal::Concealed(seal),
-            (Beneficiary::WitnessVoutBitcoin(_), Some(vout)) => {
-                BuilderSeal::Revealed(XChain::Bitcoin(GraphSeal::with_blinded_vout(
+        let layer1 = invoice.beneficiary.chain_network().layer1();
+        let beneficiary = match (invoice.beneficiary.into_inner(), beneficiary_vout) {
+            (Beneficiary::BlindedSeal(seal), _) => {
+                BuilderSeal::Concealed(XChain::with(layer1, seal))
+            }
+            (Beneficiary::WitnessVout(_), Some(vout)) => BuilderSeal::Revealed(XChain::with(
+                layer1,
+                GraphSeal::with_blinded_vout(
                     method,
                     vout,
                     seal_blinder(contract_id, assignment_id),
-                )))
-            }
-            (Beneficiary::WitnessVoutBitcoin(_), None) => {
+                ),
+            )),
+            (Beneficiary::WitnessVout(_), None) => {
                 return Err(ComposeError::NoBeneficiaryOutput);
             }
         };

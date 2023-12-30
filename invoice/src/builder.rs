@@ -21,17 +21,17 @@
 
 use std::str::FromStr;
 
-use invoice::Network;
 use rgb::ContractId;
 
 use super::{Beneficiary, InvoiceState, Precision, RgbInvoice, RgbTransport, TransportParseError};
+use crate::invoice::XChainNet;
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct RgbInvoiceBuilder(RgbInvoice);
 
 #[allow(clippy::result_large_err)]
 impl RgbInvoiceBuilder {
-    pub fn new(beneficiary: impl Into<Beneficiary>) -> Self {
+    pub fn new(beneficiary: impl Into<XChainNet<Beneficiary>>) -> Self {
         Self(RgbInvoice {
             transports: vec![RgbTransport::UnspecifiedMeans],
             contract: None,
@@ -40,21 +40,20 @@ impl RgbInvoiceBuilder {
             assignment: None,
             beneficiary: beneficiary.into(),
             owned_state: InvoiceState::Void,
-            network: None,
             expiry: None,
             unknown_query: none!(),
         })
     }
 
-    pub fn with(contract_id: ContractId, beneficiary: impl Into<Beneficiary>) -> Self {
+    pub fn with(contract_id: ContractId, beneficiary: impl Into<XChainNet<Beneficiary>>) -> Self {
         Self::new(beneficiary).set_contract(contract_id)
     }
 
-    pub fn rgb20(contract_id: ContractId, beneficiary: impl Into<Beneficiary>) -> Self {
+    pub fn rgb20(contract_id: ContractId, beneficiary: impl Into<XChainNet<Beneficiary>>) -> Self {
         Self::with(contract_id, beneficiary).set_interface("RGB20")
     }
 
-    pub fn rgb20_anything(beneficiary: impl Into<Beneficiary>) -> Self {
+    pub fn rgb20_anything(beneficiary: impl Into<XChainNet<Beneficiary>>) -> Self {
         Self::new(beneficiary).set_interface("RGB20")
     }
 
@@ -117,11 +116,6 @@ impl RgbInvoiceBuilder {
         let coins = amount.floor();
         let cents = amount - coins;
         self.set_amount(coins as u64, cents as u64, precision)
-    }
-
-    pub fn set_network(mut self, network: impl Into<Network>) -> Self {
-        self.0.network = Some(network.into());
-        self
     }
 
     pub fn set_expiry_timestamp(mut self, expiry: i64) -> Self {

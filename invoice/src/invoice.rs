@@ -20,11 +20,12 @@
 // limitations under the License.
 
 use indexmap::IndexMap;
-use invoice::{Address, Network};
-use rgb::{AttachId, ContractId, Layer1, SecretSeal, XChain};
+use invoice::{AddressNetwork, AddressPayload};
+use rgb::{AttachId, ContractId, Layer1, SecretSeal};
 use strict_encoding::{FieldName, TypeName};
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[non_exhaustive]
 pub enum RgbTransport {
     JsonRpc { tls: bool, host: String },
     RestHttp { tls: bool, host: String },
@@ -45,50 +46,130 @@ pub enum InvoiceState {
     Attach(AttachId),
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display, From)]
-#[display(inner)]
-pub enum Beneficiary {
-    // TODO: Create wrapping type for SecretSeal to cover/commit to a specific layer1.
-    //       Move Baid58 encoding from BP seals to here. Use utxob1 for bitcoin, and use
-    //       utxol1 for liquid.
-    #[from]
-    BlindedSeal(XChain<SecretSeal>),
-    #[from]
-    WitnessVoutBitcoin(Address),
-    // TODO: Add support for Liquid beneficiaries
-    //#[from]
-    //WitnessVoutLiquid(Address),
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
+#[non_exhaustive]
+pub enum ChainNet {
+    #[display("bc")]
+    BitcoinMainnet,
+    #[display("tb")]
+    BitcoinTestnet,
+    #[display("sb")]
+    BitcoinSignet,
+    #[display("bcrt")]
+    BitcoinRegtest,
+    #[display("lq")]
+    LiquidMainnet,
+    #[display("tl")]
+    LiquidTestnet,
 }
 
-impl Beneficiary {
+impl ChainNet {
     pub fn layer1(&self) -> Layer1 {
         match self {
-            // TODO: Fix supporting liquid
-            Beneficiary::BlindedSeal(_) => Layer1::Bitcoin,
-            Beneficiary::WitnessVoutBitcoin(_) => Layer1::Bitcoin,
+            ChainNet::BitcoinMainnet |
+            ChainNet::BitcoinTestnet |
+            ChainNet::BitcoinSignet |
+            ChainNet::BitcoinRegtest => Layer1::Bitcoin,
+            ChainNet::LiquidMainnet | ChainNet::LiquidTestnet => Layer1::Liquid,
+        }
+    }
+
+    pub fn is_prod(&self) -> bool {
+        match self {
+            ChainNet::BitcoinMainnet | ChainNet::LiquidMainnet => true,
+
+            ChainNet::BitcoinTestnet |
+            ChainNet::BitcoinSignet |
+            ChainNet::BitcoinRegtest |
+            ChainNet::LiquidTestnet => false,
+        }
+    }
+
+    pub(crate) fn address_network(&self) -> AddressNetwork {
+        match self {
+            ChainNet::BitcoinMainnet => AddressNetwork::Mainnet,
+            ChainNet::BitcoinTestnet | ChainNet::BitcoinSignet => AddressNetwork::Testnet,
+            ChainNet::BitcoinRegtest => AddressNetwork::Regtest,
+            ChainNet::LiquidMainnet => AddressNetwork::Mainnet,
+            ChainNet::LiquidTestnet => AddressNetwork::Testnet,
         }
     }
 }
 
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
+#[non_exhaustive]
+pub enum XChainNet<T> {
+    BitcoinMainnet(T),
+    BitcoinTestnet(T),
+    BitcoinSignet(T),
+    BitcoinRegtest(T),
+    LiquidMainnet(T),
+    LiquidTestnet(T),
+}
+
+impl<T> XChainNet<T> {
+    pub fn with(cn: ChainNet, data: T) -> Self {
+        match cn {
+            ChainNet::BitcoinMainnet => XChainNet::BitcoinMainnet(data),
+            ChainNet::BitcoinTestnet => XChainNet::BitcoinTestnet(data),
+            ChainNet::BitcoinSignet => XChainNet::BitcoinSignet(data),
+            ChainNet::BitcoinRegtest => XChainNet::BitcoinRegtest(data),
+            ChainNet::LiquidMainnet => XChainNet::LiquidMainnet(data),
+            ChainNet::LiquidTestnet => XChainNet::LiquidTestnet(data),
+        }
+    }
+
+    pub fn chain_network(&self) -> ChainNet {
+        match self {
+            XChainNet::BitcoinMainnet(_) => ChainNet::BitcoinMainnet,
+            XChainNet::BitcoinTestnet(_) => ChainNet::BitcoinTestnet,
+            XChainNet::BitcoinSignet(_) => ChainNet::BitcoinSignet,
+            XChainNet::BitcoinRegtest(_) => ChainNet::BitcoinRegtest,
+            XChainNet::LiquidMainnet(_) => ChainNet::LiquidMainnet,
+            XChainNet::LiquidTestnet(_) => ChainNet::LiquidTestnet,
+        }
+    }
+
+    pub fn into_inner(self) -> T {
+        match self {
+            XChainNet::BitcoinMainnet(inner) |
+            XChainNet::BitcoinTestnet(inner) |
+            XChainNet::BitcoinSignet(inner) |
+            XChainNet::BitcoinRegtest(inner) |
+            XChainNet::LiquidMainnet(inner) |
+            XChainNet::LiquidTestnet(inner) => inner,
+        }
+    }
+
+    pub fn layer1(&self) -> Layer1 { self.chain_network().layer1() }
+    pub fn is_prod(&self) -> bool { self.chain_network().is_prod() }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, From)]
+pub enum Beneficiary {
+    #[from]
+    BlindedSeal(SecretSeal),
+    #[from]
+    WitnessVout(AddressPayload),
+}
+
 #[derive(Clone, Eq, PartialEq, Debug)]
+#[non_exhaustive]
 pub struct RgbInvoice {
     pub transports: Vec<RgbTransport>,
     pub contract: Option<ContractId>,
     pub iface: Option<TypeName>,
     pub operation: Option<TypeName>,
     pub assignment: Option<FieldName>,
-    pub beneficiary: Beneficiary,
+    pub beneficiary: XChainNet<Beneficiary>,
     pub owned_state: InvoiceState,
-    pub network: Option<Network>,
     /// UTC unix timestamp
     pub expiry: Option<i64>,
     pub unknown_query: IndexMap<String, String>,
 }
 
 impl RgbInvoice {
-    pub fn layer1(&self) -> Layer1 {
-        match self.beneficiary {
-            Beneficiary::BlindedSeal(_) | Beneficiary::WitnessVoutBitcoin(_) => Layer1::Bitcoin,
-        }
-    }
+    pub fn chain_network(&self) -> ChainNet { self.beneficiary.chain_network() }
+    pub fn layer1(&self) -> Layer1 { self.beneficiary.layer1() }
+    pub fn is_prod(&self) -> bool { self.beneficiary.is_prod() }
 }
