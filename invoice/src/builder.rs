@@ -22,6 +22,7 @@
 use std::str::FromStr;
 
 use rgb::ContractId;
+use strict_encoding::{FieldName, TypeName};
 
 use super::{Beneficiary, InvoiceState, Precision, RgbInvoice, RgbTransport, TransportParseError};
 use crate::invoice::XChainNet;
@@ -62,18 +63,18 @@ impl RgbInvoiceBuilder {
         self
     }
 
-    pub fn set_interface(mut self, name: &'static str) -> Self {
-        self.0.iface = Some(tn!(name));
+    pub fn set_interface(mut self, name: impl Into<TypeName>) -> Self {
+        self.0.iface = Some(name.into());
         self
     }
 
-    pub fn set_operation(mut self, name: &'static str) -> Self {
-        self.0.operation = Some(tn!(name));
+    pub fn set_operation(mut self, name: impl Into<TypeName>) -> Self {
+        self.0.operation = Some(name.into());
         self
     }
 
-    pub fn set_assignment(mut self, name: &'static str) -> Self {
-        self.0.assignment = Some(fname!(name));
+    pub fn set_assignment(mut self, name: impl Into<FieldName>) -> Self {
+        self.0.assignment = Some(name.into());
         self
     }
 
