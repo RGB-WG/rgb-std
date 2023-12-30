@@ -28,7 +28,6 @@ use std::vec;
 use amplify::confinement;
 use amplify::confinement::{Confined, U24};
 use bp::seals::txout::CloseMethod;
-use bp::Outpoint;
 use commit_verify::mpc;
 use rgb::{
     ContractId, OpId, Operation, Transition, TransitionBundle, TxoSeal, XAnchor, XOutputSeal,
@@ -154,11 +153,7 @@ impl TransitionInfo {
         seals: impl AsRef<[XOutputSeal]>,
     ) -> Result<Self, confinement::Error> {
         let inputs = Confined::<Vec<_>, 1, U24>::try_from_iter(
-            seals
-                .as_ref()
-                .iter()
-                .copied()
-                .map(|seal| seal.map(Outpoint::from)),
+            seals.as_ref().iter().copied().map(XOutpoint::from),
         )?;
         let methods = seals
             .as_ref()

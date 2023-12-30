@@ -34,7 +34,9 @@ use rgb::{
 };
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 
-use crate::containers::{Bindle, Cert, Consignment, ContentId, Contract, TerminalSeal, Transfer};
+use crate::containers::{
+    Bindle, Cert, Consignment, ContentId, Contract, TerminalSeal, Transfer, XOutpoint,
+};
 use crate::interface::{
     ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, SchemaIfaces, TypedState,
 };
@@ -641,10 +643,10 @@ impl Inventory for Stock {
             .collect())
     }
 
-    fn state_for_outputs(
+    fn state_for_outpoints(
         &self,
         contract_id: ContractId,
-        outputs: impl IntoIterator<Item = impl Into<XOutputSeal>>,
+        outputs: impl IntoIterator<Item = impl Into<XOutpoint>>,
     ) -> Result<BTreeMap<(Opout, XOutputSeal), TypedState>, InventoryError<Self::Error>> {
         let outputs = outputs
             .into_iter()
@@ -659,7 +661,7 @@ impl Inventory for Stock {
         let mut res = BTreeMap::new();
 
         for item in history.fungibles() {
-            if outputs.contains(&item.seal) {
+            if outputs.contains(&item.seal.into()) {
                 res.insert(
                     (item.opout, item.seal),
                     TypedState::Amount(
@@ -672,19 +674,19 @@ impl Inventory for Stock {
         }
 
         for item in history.data() {
-            if outputs.contains(&item.seal) {
+            if outputs.contains(&item.seal.into()) {
                 res.insert((item.opout, item.seal), TypedState::Data(item.state.clone()));
             }
         }
 
         for item in history.rights() {
-            if outputs.contains(&item.seal) {
+            if outputs.contains(&item.seal.into()) {
                 res.insert((item.opout, item.seal), TypedState::Void);
             }
         }
 
         for item in history.attach() {
-            if outputs.contains(&item.seal) {
+            if outputs.contains(&item.seal.into()) {
                 res.insert(
                     (item.opout, item.seal),
                     TypedState::Attachment(item.state.clone().into()),

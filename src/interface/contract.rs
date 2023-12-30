@@ -233,7 +233,7 @@ impl ContractIface {
             .fungibles()
             .iter()
             .filter(|outp| outp.opout.ty == type_id)
-            .filter(|outp| filter.include_output(outp.seal.map(Outpoint::from)))
+            .filter(|outp| filter.include_output(outp.seal))
             .map(FungibleAllocation::from);
         Ok(LargeVec::try_from_iter(state).expect("same or smaller collection size"))
     }

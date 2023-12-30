@@ -40,7 +40,7 @@ use strict_encoding::TypeName;
 use crate::accessors::{BundleExt, MergeRevealError, RevealError};
 use crate::containers::{
     Batch, Bindle, BuilderSeal, Cert, Consignment, ContentId, Contract, Fascia, Terminal,
-    TerminalSeal, Transfer, TransitionInfo,
+    TerminalSeal, Transfer, TransitionInfo, XOutpoint,
 };
 use crate::interface::{
     BuilderError, ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, IfaceWrapper,
@@ -541,10 +541,10 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     ) -> Result<BTreeSet<Opout>, InventoryError<Self::Error>>;
 
     #[allow(clippy::type_complexity)]
-    fn state_for_outputs(
+    fn state_for_outpoints(
         &self,
         contract_id: ContractId,
-        outputs: impl IntoIterator<Item = impl Into<XOutputSeal>>,
+        outpoints: impl IntoIterator<Item = impl Into<XOutpoint>>,
     ) -> Result<BTreeMap<(Opout, XOutputSeal), TypedState>, InventoryError<Self::Error>>;
 
     fn store_seal_secret(
@@ -796,7 +796,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         let mut main_inputs = MediumVec::<XOutputSeal>::new();
         let mut sum_inputs = 0u64;
         for ((opout, output), mut state) in
-            self.state_for_outputs(contract_id, prev_outputs.iter().cloned())?
+            self.state_for_outpoints(contract_id, prev_outputs.iter().cloned())?
         {
             main_builder = main_builder.add_input(opout, state.clone())?;
             main_inputs.push(output)?;
@@ -850,7 +850,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
                 spent_state
                     .entry(id)
                     .or_default()
-                    .extend(self.state_for_outputs(id, [output])?);
+                    .extend(self.state_for_outpoints(id, [output])?);
             }
         }
         // Construct blank transitions
