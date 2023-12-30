@@ -21,7 +21,7 @@
 
 #![doc = include_str!("seals.md")]
 
-use bp::seals::txout::CloseMethod;
+use bp::seals::txout::{BlindSeal, CloseMethod, SealTxid};
 use bp::secp256k1::rand::{thread_rng, RngCore};
 use bp::Vout;
 use commit_verify::Conceal;
@@ -170,4 +170,8 @@ pub enum BuilderSeal<Seal: TxoSeal + Ord> {
     Revealed(XChain<Seal>),
     #[from]
     Concealed(XChain<SecretSeal>),
+}
+
+impl<Id: SealTxid> From<XChain<BlindSeal<Id>>> for BuilderSeal<BlindSeal<Id>> {
+    fn from(seal: XChain<BlindSeal<Id>>) -> Self { BuilderSeal::Revealed(seal) }
 }
