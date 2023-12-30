@@ -30,13 +30,11 @@ use rgb::{
     validation, AnchoredBundle, Assign, AssignmentType, BundleId, ContractHistory, ContractId,
     ContractState, ExposedState, Extension, Genesis, GenesisSeal, GraphSeal, OpId, Operation,
     Opout, SecretSeal, SubSchema, Transition, TransitionBundle, TypedAssigns, WitnessAnchor,
-    WitnessId, XAnchor, XChain, XOutputSeal,
+    WitnessId, XAnchor, XChain, XOutpoint, XOutputSeal,
 };
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 
-use crate::containers::{
-    Bindle, Cert, Consignment, ContentId, Contract, TerminalSeal, Transfer, XOutpoint,
-};
+use crate::containers::{Bindle, Cert, Consignment, ContentId, Contract, TerminalSeal, Transfer};
 use crate::interface::{
     ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, SchemaIfaces, TypedState,
 };

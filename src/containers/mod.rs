@@ -46,4 +46,4 @@ pub use disclosure::Disclosure;
 pub use indexed::IndexedConsignment;
 pub use partials::{Batch, CloseMethodSet, Fascia, TransitionInfo};
 pub use seal::{BuilderSeal, TerminalSeal, VoutSeal};
-pub use util::{ContainerVer, Terminal, XOutpoint};
+pub use util::{ContainerVer, Terminal};

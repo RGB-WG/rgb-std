@@ -30,11 +30,11 @@ use amplify::confinement::{Confined, U24};
 use bp::seals::txout::CloseMethod;
 use commit_verify::mpc;
 use rgb::{
-    ContractId, OpId, Operation, Transition, TransitionBundle, TxoSeal, XAnchor, XOutputSeal,
+    ContractId, OpId, Operation, Transition, TransitionBundle, TxoSeal, XAnchor, XOutpoint,
+    XOutputSeal,
 };
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 
-use crate::containers::XOutpoint;
 use crate::LIB_NAME_RGB_STD;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]

@@ -33,14 +33,14 @@ use invoice::{Beneficiary, InvoiceState, RgbInvoice};
 use rgb::{
     validation, AnchoredBundle, AssignmentType, BlindingFactor, BundleId, ContractId, GraphSeal,
     OpId, Operation, Opout, SchemaId, SecretSeal, SubSchema, Transition, TransitionBundle,
-    WitnessId, XAnchor, XChain, XOutputSeal,
+    WitnessId, XAnchor, XChain, XOutpoint, XOutputSeal,
 };
 use strict_encoding::TypeName;
 
 use crate::accessors::{BundleExt, MergeRevealError, RevealError};
 use crate::containers::{
     Batch, Bindle, BuilderSeal, Cert, Consignment, ContentId, Contract, Fascia, Terminal,
-    TerminalSeal, Transfer, TransitionInfo, XOutpoint,
+    TerminalSeal, Transfer, TransitionInfo,
 };
 use crate::interface::{
     BuilderError, ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, IfaceWrapper,

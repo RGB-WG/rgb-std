@@ -20,8 +20,7 @@
 // limitations under the License.
 
 use amplify::confinement::SmallOrdSet;
-use bp::{Outpoint, Tx};
-use rgb::XChain;
+use bp::Tx;
 
 use super::TerminalSeal;
 use crate::LIB_NAME_RGB_STD;
@@ -70,5 +69,3 @@ pub enum ContainerVer {
     #[default]
     V2 = 2,
 }
-
-pub type XOutpoint = XChain<Outpoint>;

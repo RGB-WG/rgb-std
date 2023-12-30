@@ -26,13 +26,12 @@ use amplify::confinement::{LargeOrdMap, LargeVec, SmallVec};
 use bp::Outpoint;
 use rgb::{
     AssetTag, AssignmentType, AttachId, BlindingFactor, ContractId, ContractState, FungibleOutput,
-    MediaType, RevealedAttach, RevealedData, WitnessId, XOutputSeal,
+    MediaType, RevealedAttach, RevealedData, WitnessId, XOutpoint, XOutputSeal,
 };
 use strict_encoding::FieldName;
 use strict_types::typify::TypedVal;
 use strict_types::{decode, StrictVal};
 
-use crate::containers::XOutpoint;
 use crate::interface::{IfaceId, IfaceImpl};
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
