@@ -37,7 +37,7 @@ The current list of the projects based on the library include:
 ## Library
 
 The library can be integrated into other rust projects via `Cargo.toml`
-`[dependecies]` section:
+`[dependencies]` section:
 
 ```toml
 rgb-wallet = "0.10.0"
