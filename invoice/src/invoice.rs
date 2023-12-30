@@ -85,7 +85,7 @@ impl ChainNet {
         }
     }
 
-    pub(crate) fn address_network(&self) -> AddressNetwork {
+    pub fn address_network(&self) -> AddressNetwork {
         match self {
             ChainNet::BitcoinMainnet => AddressNetwork::Mainnet,
             ChainNet::BitcoinTestnet | ChainNet::BitcoinSignet => AddressNetwork::Testnet,
@@ -142,6 +142,7 @@ impl<T> XChainNet<T> {
     }
 
     pub fn layer1(&self) -> Layer1 { self.chain_network().layer1() }
+    pub fn address_network(&self) -> AddressNetwork { self.chain_network().address_network() }
     pub fn is_prod(&self) -> bool { self.chain_network().is_prod() }
 }
 
@@ -170,6 +171,7 @@ pub struct RgbInvoice {
 
 impl RgbInvoice {
     pub fn chain_network(&self) -> ChainNet { self.beneficiary.chain_network() }
+    pub fn address_network(&self) -> AddressNetwork { self.beneficiary.address_network() }
     pub fn layer1(&self) -> Layer1 { self.beneficiary.layer1() }
     pub fn is_prod(&self) -> bool { self.beneficiary.is_prod() }
 }
