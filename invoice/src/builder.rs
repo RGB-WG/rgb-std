@@ -108,7 +108,7 @@ impl RgbInvoiceBuilder {
     /// # Safety
     ///
     /// The function may cause the loss of the information about the precise
-    /// amout of the asset, since f64 type doesn't provide full precision
+    /// amount of the asset, since f64 type doesn't provide full precision
     /// required for that.
     pub unsafe fn set_amount_approx(self, amount: f64, precision: Precision) -> Result<Self, Self> {
         if amount <= 0.0 {
