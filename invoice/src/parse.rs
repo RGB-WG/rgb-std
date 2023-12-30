@@ -212,7 +212,7 @@ impl Display for XChainNet<Beneficiary> {
                     .trim_start_matches("bcrt1");
                 // 26 27 34 42 62 -- 14..72
                 // TODO: Do address chunking
-                f.write_str(&s)
+                f.write_str(s)
             }
         }
     }

@@ -716,6 +716,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     /// Composes a batch of state transitions updating state for the provided
     /// set of previous outputs, satisfying requirements of the invoice, paying
     /// the change back and including the necessary blank state transitions.
+    #[allow(clippy::too_many_arguments)]
     fn compose_deterministic(
         &self,
         invoice: &RgbInvoice,
