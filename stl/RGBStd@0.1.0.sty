@@ -65,7 +65,7 @@ import urn:ubideco:stl:EZiZRCHpyqJakmTU1zkwczq5YKMbapfMhVLhS8DbkpwC#premium-hone
 -- AltLayer1Set := urn:ubideco:semid:3Sruah3S3s7c8XRpD8bN7c8rnSKemwvnxhocQzHy5D9m#manual-cycle-circus
 -- VoidState := urn:ubideco:semid:49HkbZvGaJE3phHjLBMQCR3NK1sGA462HJr5BkqQ6YQr#nectar-ceramic-driver
 -- AnchorSet := urn:ubideco:semid:4GL38RVDhs4JkL5phqyF6pguwL6Av8qTUWCVNfGeWdUg#history-joel-ivory
--- XSealBlindSealTxPtr := urn:ubideco:semid:4Nr4GNjqYM4KpeLkWEFjy8FxYs1jVV6CCum7CMftHCm9#studio-evening-camera
+-- XChainBlindSealTxPtr := urn:ubideco:semid:4Nr4GNjqYM4KpeLkWEFjy8FxYs1jVV6CCum7CMftHCm9#studio-evening-camera
 -- TransitionType := urn:ubideco:semid:4XEmzMLZTXc4XB3njvemMq5qdMmx5EKJPAXpJaBPrqCb#puma-joshua-evita
 -- Occurrences := urn:ubideco:semid:4gjtVBchJQ5f1aAzoyxYWeGp6qZi9dPudJCbWKYKhw1a#unicorn-empire-mama
 -- StateSchema := urn:ubideco:semid:4pgZ5NMvRK6Jf2ua7H3TCF8bMNHhZR7PuUJawqq1X4uG#yoga-arizona-flex
@@ -75,7 +75,7 @@ import urn:ubideco:stl:EZiZRCHpyqJakmTU1zkwczq5YKMbapfMhVLhS8DbkpwC#premium-hone
 -- GlobalValues := urn:ubideco:semid:5j3xo5bTKFzcKayBQELdAVzUEnuPPAVd8etsBPG1EgZ3#volcano-expand-paper
 -- ValencyType := urn:ubideco:semid:5mswXMrudHpJEnuoLA86YY2VHN5iL56hmKcmh5k1h3e5#palma-exit-pupil
 -- PedersenCommitment := urn:ubideco:semid:5twbh2U5hyaowidwum1iRNCqebBLxTuZTuNPt3SaRT13#nepal-delta-earth
--- XSealExplicitSeal := urn:ubideco:semid:5yxE75Qk7ScEuNdG4NXGASsGkpyUVQB3FVaxm3q8w1zK#carbon-network-hilton
+-- XChainExplicitSeal := urn:ubideco:semid:5yxE75Qk7ScEuNdG4NXGASsGkpyUVQB3FVaxm3q8w1zK#carbon-network-hilton
 -- AssignRevealedValueBlindSealTxid := urn:ubideco:semid:6McV9ZYuRYX11q6DnALBt7uYo6yxoFjDWocYeXnsEUJc#cotton-david-edition
 -- ExtensionType := urn:ubideco:semid:7m9MHRdHSXnhYiheDeXybxnHAxPRgs84USnVELFH98Cd#mission-salsa-parole
 -- Transition := urn:ubideco:semid:7pNXtZVVpUHTSZi9UiyPWWRDvKsRzdyByntYcyytnwVy#data-wedding-night
@@ -90,7 +90,7 @@ import urn:ubideco:stl:EZiZRCHpyqJakmTU1zkwczq5YKMbapfMhVLhS8DbkpwC#premium-hone
 -- BlindingFactor := urn:ubideco:semid:9zzp5XyDaLvZSGhCEWtey1Y7xdD1soEYdGaimjyZexyf#agenda-ivory-blast
 -- AssignmentType := urn:ubideco:semid:A9sThAqgwKPfuJcR4GDfTQHUAbbS5sbEXG5XVk7FZHEg#hunter-hello-retro
 -- AssignVoidStateBlindSealTxPtr := urn:ubideco:semid:ACfDgeTtorFy3NqZWw6CuWHNKT3hpuXpwFHV9DpjLoT1#campus-front-carpet
--- XSealBlindSealTxid := urn:ubideco:semid:Age9RPnuptagg4d8Q6wixptyT6y6yRFvTSWEkrT6H6Vc#ford-guitar-tonight
+-- XChainBlindSealTxid := urn:ubideco:semid:Age9RPnuptagg4d8Q6wixptyT6y6yRFvTSWEkrT6H6Vc#ford-guitar-tonight
 -- AssignmentsBlindSealTxid := urn:ubideco:semid:AkbqFDMkiwdiUVmhPaBmq2D4RkeGqb4bB7jq5JTA3AQV#radio-sherman-cabinet
 -- Opout := urn:ubideco:semid:Au5jXjVgXjeE2n7dFQnPQwjLRQJ3eoGygRvt8ppzXrfx#india-joshua-adam
 -- SchemaId := urn:ubideco:semid:AyzbMn4ux89LLU8ho1L4pQa5TXsmRdHd79oh6SXdrCmd#garcia-smoke-ozone
@@ -225,7 +225,7 @@ data ContentId        :: schema RGB.SchemaId {- urn:ubideco:semid:AyzbMn4ux89LLU
 -- urn:ubideco:semid:72v5XvfiTB7HJinscrxy5ZTa4PwubG9YCtkK8JQt7F5B#denver-almanac-cobalt
 data ContentSigs      :: {Cert ^ 1..0xa}
 -- urn:ubideco:semid:EFPmZdw9YNzrqSdx9buUBvoUmXAzEho94rfP9phgpTx5#license-infant-bicycle
-data ContractIndex    :: publicOpouts {RGB.Opout {- urn:ubideco:semid:Au5jXjVgXjeE2n7dFQnPQwjLRQJ3eoGygRvt8ppzXrfx#india-joshua-adam -} ^ ..0xffffff}, outpointOpouts {RGB.XSealExplicitSeal -> ^ ..0xffffff {RGB.Opout {- urn:ubideco:semid:Au5jXjVgXjeE2n7dFQnPQwjLRQJ3eoGygRvt8ppzXrfx#india-joshua-adam -} ^ ..0xffffff}}
+data ContractIndex    :: publicOpouts {RGB.Opout {- urn:ubideco:semid:Au5jXjVgXjeE2n7dFQnPQwjLRQJ3eoGygRvt8ppzXrfx#india-joshua-adam -} ^ ..0xffffff}, outpointOpouts {RGB.XChainExplicitSeal -> ^ ..0xffffff {RGB.Opout {- urn:ubideco:semid:Au5jXjVgXjeE2n7dFQnPQwjLRQJ3eoGygRvt8ppzXrfx#india-joshua-adam -} ^ ..0xffffff}}
 -- urn:ubideco:semid:3WPrDGfcJCVwN9ZtFUf1w6SqsutP7xuJ8wRdby9VgPHF#slang-mars-belgium
 data ContractSuppl    :: contractId RGB.ContractId {- urn:ubideco:semid:Bho42Xw8wPy2nWxgz6H51rNdBBusaPyrVQT8VypvpZ3w#alarm-danube-vampire -}
                        , ticker TickerSuppl
@@ -338,7 +338,7 @@ data Stock            :: hoard Hoard
                        , anchorBundleIndex {RGB.BundleId -> ^ ..0xffffff RGB.WitnessId {- urn:ubideco:semid:EEYT7goTNgX2nNFoKosg6FKx1CDSyFWHKNK1TRySs6gr#axiom-gyro-album -}}
                        , contractIndex {RGB.ContractId -> ^ ..0xff ContractIndex}
                        , terminalIndex {BPCore.SecretSeal -> ^ ..0xffffff RGB.Opout {- urn:ubideco:semid:Au5jXjVgXjeE2n7dFQnPQwjLRQJ3eoGygRvt8ppzXrfx#india-joshua-adam -}}
-                       , sealSecrets {RGB.XSealBlindSealTxPtr {- urn:ubideco:semid:4Nr4GNjqYM4KpeLkWEFjy8FxYs1jVV6CCum7CMftHCm9#studio-evening-camera -} ^ ..0xffffff}
+                       , sealSecrets {RGB.XChainBlindSealTxPtr {- urn:ubideco:semid:4Nr4GNjqYM4KpeLkWEFjy8FxYs1jVV6CCum7CMftHCm9#studio-evening-camera -} ^ ..0xffffff}
 -- urn:ubideco:semid:7wqgZas6f6Y7jWyDzLNxCeGEM8NXppB1f1gZNvNHJD72#partner-austin-dinner
 data SupplId          :: [Byte ^ 32]
 -- urn:ubideco:semid:CXGPwRETAtPV783GHQKZmnpvrtbUzELpBP74ScXDBP22#system-billy-polaris

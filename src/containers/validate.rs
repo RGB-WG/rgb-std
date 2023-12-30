@@ -19,12 +19,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use rgb::validation::{ResolveTx, Validator, Validity, Warning};
+use rgb::validation::{ResolveWitness, Validator, Validity, Warning};
 
 use super::{Consignment, IndexedConsignment};
 
 impl<const TYPE: bool> Consignment<TYPE> {
-    pub fn validate<R: ResolveTx>(
+    pub fn validate<R: ResolveWitness>(
         mut self,
         resolver: &mut R,
         testnet: bool,

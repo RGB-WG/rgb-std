@@ -24,11 +24,12 @@ use std::ops::Deref;
 use std::rc::Rc;
 use std::vec;
 
+use amplify::confinement::Collection;
 use commit_verify::Conceal;
 use rgb::validation::ConsignmentApi;
 use rgb::{
     AnchoredBundle, AssetTag, AssignmentType, BundleId, Genesis, OpId, OpRef, Operation, SubSchema,
-    WitnessId,
+    WitnessId, XChain,
 };
 
 use super::Consignment;
@@ -52,7 +53,7 @@ impl<'c, const TYPE: bool> IndexedConsignment<'c, TYPE> {
         let mut op_witness_ids = BTreeMap::new();
         for ab in &consignment.bundles {
             for opid in ab.bundle.known_transitions.keys() {
-                op_witness_ids.insert(*opid, ab.anchor.witness_id());
+                op_witness_ids.insert(*opid, ab.anchor.witness_id_unchecked());
             }
         }
         Self {
@@ -81,16 +82,23 @@ impl<'c, const TYPE: bool> ConsignmentApi for IndexedConsignment<'c, TYPE> {
 
     fn genesis(&self) -> &Genesis { &self.genesis }
 
-    fn terminals(&self) -> BTreeSet<(BundleId, SecretSeal)> {
-        self.terminals
-            .iter()
-            .flat_map(|(bundle_id, terminal)| {
-                terminal
-                    .seals
-                    .iter()
-                    .map(|seal| (*bundle_id, seal.conceal()))
-            })
-            .collect()
+    fn terminals(&self) -> BTreeSet<(BundleId, XChain<SecretSeal>)> {
+        let mut set = BTreeSet::new();
+        for (bundle_id, terminal) in &self.terminals {
+            match terminal {
+                XChain::Bitcoin(term) => {
+                    for seal in &term.seals {
+                        set.push((*bundle_id, XChain::Bitcoin(seal.conceal())));
+                    }
+                }
+                XChain::Liquid(term) => {
+                    for seal in &term.seals {
+                        set.push((*bundle_id, XChain::Liquid(seal.conceal())));
+                    }
+                }
+            }
+        }
+        set
     }
 
     fn bundle_ids<'a>(&self) -> Self::Iter<'a> { BundleIdIter(self.bundles.clone().into_iter()) }

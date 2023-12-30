@@ -319,6 +319,8 @@ impl TransitionBuilder {
         })
     }
 
+    pub fn transition_type(&self) -> TransitionType { self.transition_type }
+
     #[inline]
     pub fn add_asset_tag(
         mut self,

@@ -20,9 +20,7 @@
 // limitations under the License.
 
 use amplify::confinement::SmallOrdSet;
-use bp::seals::txout::ExplicitSeal;
-use bp::{Outpoint, Tx, Txid};
-use rgb::{OutputSeal, XSeal};
+use bp::Tx;
 
 use super::TerminalSeal;
 use crate::LIB_NAME_RGB_STD;
@@ -70,47 +68,4 @@ pub enum ContainerVer {
     // V0 and V1 was a previous version before v0.11, currently not supported.
     #[default]
     V2 = 2,
-}
-
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD, tags = custom, dumb = Self::Bitcoin(strict_dumb!()))]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-#[non_exhaustive]
-pub enum XchainOutpoint {
-    #[strict_type(tag = 0x00)]
-    #[display("bitcoin:{0}", alt = "{0}")]
-    Bitcoin(Outpoint),
-
-    #[strict_type(tag = 0x01)]
-    #[display("liquid:{0}")]
-    Liquid(Outpoint),
-    /*
-    #[strict_type(tag = 0x10)]
-    Abraxas,
-    #[strict_type(tag = 0x11)]
-    Prime,
-     */
-}
-
-impl From<OutputSeal> for XchainOutpoint {
-    fn from(seal: OutputSeal) -> Self {
-        match seal {
-            OutputSeal::Bitcoin(s) => XchainOutpoint::Bitcoin(s.into()),
-            OutputSeal::Liquid(s) => XchainOutpoint::Liquid(s.into()),
-        }
-    }
-}
-
-impl From<XchainOutpoint> for XSeal<ExplicitSeal<Txid>> {
-    fn from(outpoint: XchainOutpoint) -> Self {
-        match outpoint {
-            XchainOutpoint::Bitcoin(outpoint) => XSeal::Bitcoin(outpoint.into()),
-            XchainOutpoint::Liquid(outpoint) => XSeal::Liquid(outpoint.into()),
-        }
-    }
 }
