@@ -32,10 +32,10 @@ pub mod rgb21;
 pub mod rgb25;
 mod suppl;
 
-pub use builder::{BuilderError, ContractBuilder, TransitionBuilder};
+pub use builder::{BuilderError, BuilderState, ContractBuilder, TransitionBuilder};
 pub use contract::{
-    AllocationWitness, ContractError, ContractIface, FilterExclude, FilterIncludeAll,
-    FungibleAllocation, IfaceWrapper, OutpointFilter, TypedState,
+    ContractError, ContractIface, DataAllocation, FilterExclude, FilterIncludeAll,
+    FungibleAllocation, IfaceWrapper, OutpointFilter, RightsAllocation,
 };
 pub use iface::{
     ArgMap, ArgSpec, AssignIface, ExtensionIface, GenesisIface, GlobalIface, Iface, IfaceId,

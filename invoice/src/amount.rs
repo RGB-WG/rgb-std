@@ -24,6 +24,7 @@ use std::fmt::{Display, Formatter, Write};
 use std::iter::Sum;
 
 use bp::Sats;
+use rgb::{KnownState, RevealedValue};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use strict_encoding::{StrictDeserialize, StrictSerialize};
@@ -54,6 +55,12 @@ pub struct Amount(
 
 impl StrictSerialize for Amount {}
 impl StrictDeserialize for Amount {}
+
+impl KnownState for Amount {}
+
+impl From<RevealedValue> for Amount {
+    fn from(value: RevealedValue) -> Self { Amount(value.value.as_u64()) }
+}
 
 impl Amount {
     pub const ZERO: Self = Amount(0);

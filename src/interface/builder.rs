@@ -34,7 +34,30 @@ use strict_types::decode;
 
 use crate::containers::{BuilderSeal, Contract};
 use crate::interface::contract::AttachedState;
-use crate::interface::{Iface, IfaceImpl, IfacePair, TransitionIface, TypedState};
+use crate::interface::{Iface, IfaceImpl, IfacePair, TransitionIface};
+
+#[derive(Clone, Eq, PartialEq, Debug, Hash, Display, From)]
+#[display(inner)]
+pub enum BuilderState {
+    #[display("")]
+    Void,
+    Amount(u64, BlindingFactor, AssetTag),
+    #[from]
+    Data(RevealedData),
+    #[from]
+    Attachment(AttachedState),
+}
+
+impl BuilderState {
+    pub fn update_blinding(&mut self, blinding: BlindingFactor) {
+        match self {
+            BuilderState::Void => {}
+            BuilderState::Amount(_, b, _) => *b = blinding,
+            BuilderState::Data(_) => {}
+            BuilderState::Attachment(_) => {}
+        }
+    }
+}
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
@@ -173,7 +196,7 @@ impl ContractBuilder {
         mut self,
         type_id: AssignmentType,
         seal: impl Into<BuilderSeal<GenesisSeal>>,
-        state: TypedState,
+        state: BuilderState,
     ) -> Result<Self, BuilderError> {
         self.builder = self.builder.add_owned_state_raw(type_id, seal, state)?;
         Ok(self)
@@ -268,7 +291,7 @@ impl ContractBuilder {
 pub struct TransitionBuilder {
     builder: OperationBuilder<GraphSeal>,
     transition_type: TransitionType,
-    inputs: TinyOrdMap<Input, TypedState>,
+    inputs: TinyOrdMap<Input, BuilderState>,
 }
 
 impl TransitionBuilder {
@@ -353,7 +376,7 @@ impl TransitionBuilder {
         Ok(self)
     }
 
-    pub fn add_input(mut self, opout: Opout, state: TypedState) -> Result<Self, BuilderError> {
+    pub fn add_input(mut self, opout: Opout, state: BuilderState) -> Result<Self, BuilderError> {
         self.inputs.insert(Input::with(opout), state)?;
         Ok(self)
     }
@@ -376,9 +399,9 @@ impl TransitionBuilder {
         mut self,
         type_id: AssignmentType,
         seal: impl Into<BuilderSeal<GraphSeal>>,
-        state: TypedState,
+        state: BuilderState,
     ) -> Result<Self, BuilderError> {
-        if matches!(state, TypedState::Amount(_, _, tag) if self.builder.asset_tag(type_id)? != tag)
+        if matches!(state, BuilderState::Amount(_, _, tag) if self.builder.asset_tag(type_id)? != tag)
         {
             return Err(BuilderError::AssetTagInvalid(type_id));
         }
@@ -641,17 +664,17 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         self,
         type_id: AssignmentType,
         seal: impl Into<BuilderSeal<Seal>>,
-        state: TypedState,
+        state: BuilderState,
     ) -> Result<Self, BuilderError> {
         match state {
-            TypedState::Void => self.add_rights_raw(type_id, seal),
-            TypedState::Amount(value, blinding, tag) => self.add_fungible_state_raw(
+            BuilderState::Void => self.add_rights_raw(type_id, seal),
+            BuilderState::Amount(value, blinding, tag) => self.add_fungible_state_raw(
                 type_id,
                 seal,
                 RevealedValue::with_blinding(value, blinding, tag),
             ),
-            TypedState::Data(data) => self.add_data_raw(type_id, seal, data),
-            TypedState::Attachment(attach) => self.add_attachment_raw(type_id, seal, attach),
+            BuilderState::Data(data) => self.add_data_raw(type_id, seal, data),
+            BuilderState::Attachment(attach) => self.add_attachment_raw(type_id, seal, attach),
         }
     }
 
@@ -819,7 +842,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
 
     fn complete(
         self,
-        inputs: Option<&TinyOrdMap<Input, TypedState>>,
+        inputs: Option<&TinyOrdMap<Input, BuilderState>>,
     ) -> (SubSchema, IfacePair, GlobalState, Assignments<Seal>, TinyOrdMap<AssignmentType, AssetTag>)
     {
         let owned_state = self.fungible.into_iter().map(|(id, vec)| {
@@ -846,7 +869,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
                         i.iter()
                             .filter(|(out, _)| out.prev_out.ty == id)
                             .map(|(_, ts)| match ts {
-                                TypedState::Amount(_, blinding, _) => *blinding,
+                                BuilderState::Amount(_, blinding, _) => *blinding,
                                 _ => panic!("previous state has invalid type"),
                             })
                             .collect::<Vec<_>>()

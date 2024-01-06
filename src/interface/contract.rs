@@ -22,11 +22,11 @@
 use std::collections::{BTreeSet, HashSet};
 use std::ops::Deref;
 
-use amplify::confinement::{LargeOrdMap, LargeVec, SmallVec};
-use bp::Outpoint;
+use amplify::confinement::SmallVec;
+use invoice::Amount;
 use rgb::{
-    AssetTag, AssignmentType, AttachId, BlindingFactor, ContractId, ContractState, FungibleOutput,
-    MediaType, RevealedAttach, RevealedData, WitnessId, XOutpoint, XOutputSeal,
+    AttachId, ContractId, ContractState, KnownState, MediaType, OutputAssignment, RevealedAttach,
+    RevealedData, VoidState, XOutpoint,
 };
 use strict_encoding::FieldName;
 use strict_types::typify::TypedVal;
@@ -45,28 +45,9 @@ pub enum ContractError {
     Reify(decode::Error),
 }
 
-#[derive(Clone, Eq, PartialEq, Debug, Hash, Display, From)]
-#[display(inner)]
-pub enum TypedState {
-    #[display("")]
-    Void,
-    Amount(u64, BlindingFactor, AssetTag),
-    #[from]
-    Data(RevealedData),
-    #[from]
-    Attachment(AttachedState),
-}
-
-impl TypedState {
-    pub fn update_blinding(&mut self, blinding: BlindingFactor) {
-        match self {
-            TypedState::Void => {}
-            TypedState::Amount(_, b, _) => *b = blinding,
-            TypedState::Data(_) => {}
-            TypedState::Attachment(_) => {}
-        }
-    }
-}
+pub type RightsAllocation = OutputAssignment<VoidState>;
+pub type FungibleAllocation = OutputAssignment<Amount>;
+pub type DataAllocation = OutputAssignment<RevealedData>;
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
 #[display("{id}:{media_type}")]
@@ -80,45 +61,6 @@ impl From<RevealedAttach> for AttachedState {
         AttachedState {
             id: attach.id,
             media_type: attach.media_type,
-        }
-    }
-}
-
-#[derive(Copy, Clone, Eq, PartialEq, Debug, Display)]
-pub enum AllocationWitness {
-    #[display("~")]
-    Absent,
-    #[display(inner)]
-    Present(WitnessId),
-}
-
-impl From<Option<WitnessId>> for AllocationWitness {
-    fn from(value: Option<WitnessId>) -> Self {
-        match value {
-            None => AllocationWitness::Absent,
-            Some(id) => AllocationWitness::Present(id),
-        }
-    }
-}
-
-// TODO: Consider removing type in favour of `FungibleOutput`
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub struct FungibleAllocation {
-    pub owner: XOutputSeal,
-    pub witness: AllocationWitness,
-    pub value: u64,
-}
-
-impl From<FungibleOutput> for FungibleAllocation {
-    fn from(out: FungibleOutput) -> Self { Self::from(&out) }
-}
-
-impl From<&FungibleOutput> for FungibleAllocation {
-    fn from(out: &FungibleOutput) -> Self {
-        FungibleAllocation {
-            owner: out.seal,
-            witness: out.witness.into(),
-            value: out.state.value.as_u64(),
         }
     }
 }
@@ -217,33 +159,54 @@ impl ContractIface {
         Ok(SmallVec::try_from_iter(state).expect("same or smaller collection size"))
     }
 
-    pub fn fungible(
-        &self,
+    fn extract_state<'c, 'f: 'c, S: KnownState + 'c, U: KnownState + 'c>(
+        &'c self,
+        state: impl IntoIterator<Item = &'c OutputAssignment<S>> + 'c,
         name: impl Into<FieldName>,
-        filter: &impl OutpointFilter,
-    ) -> Result<LargeVec<FungibleAllocation>, ContractError> {
+        filter: &'f impl OutpointFilter,
+    ) -> Result<impl Iterator<Item = OutputAssignment<U>> + 'c, ContractError>
+    where
+        S: Clone,
+        U: From<S>,
+    {
         let name = name.into();
         let type_id = self
             .iface
             .assignments_type(&name)
             .ok_or(ContractError::FieldNameUnknown(name))?;
-        let state = self
-            .state
-            .fungibles()
-            .iter()
-            .filter(|outp| outp.opout.ty == type_id)
+        Ok(state
+            .into_iter()
+            .filter(move |outp| outp.opout.ty == type_id)
             .filter(|outp| filter.include_output(outp.seal))
-            .map(FungibleAllocation::from);
-        Ok(LargeVec::try_from_iter(state).expect("same or smaller collection size"))
+            .cloned()
+            .map(OutputAssignment::<S>::transmute))
+    }
+
+    pub fn rights<'c, 'f: 'c>(
+        &'c self,
+        name: impl Into<FieldName>,
+        filter: &'f impl OutpointFilter,
+    ) -> Result<impl Iterator<Item = RightsAllocation> + 'c, ContractError> {
+        self.extract_state(self.state.rights(), name, filter)
+    }
+
+    pub fn fungible<'c, 'f: 'c>(
+        &'c self,
+        name: impl Into<FieldName>,
+        filter: &'f impl OutpointFilter,
+    ) -> Result<impl Iterator<Item = FungibleAllocation> + 'c, ContractError> {
+        self.extract_state(self.state.fungibles(), name, filter)
+    }
+
+    pub fn data<'c, 'f: 'c>(
+        &'c self,
+        name: impl Into<FieldName>,
+        filter: &'f impl OutpointFilter,
+    ) -> Result<impl Iterator<Item = DataAllocation> + 'c, ContractError> {
+        self.extract_state(self.state.data(), name, filter)
     }
 
     // TODO: Add rights, attachments and structured data APIs
-    pub fn outpoint(
-        &self,
-        _outpoint: Outpoint,
-    ) -> LargeOrdMap<AssignmentType, LargeVec<TypedState>> {
-        todo!()
-    }
 
     pub fn wrap<W: IfaceWrapper>(self) -> W { W::from(self) }
 }

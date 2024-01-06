@@ -36,7 +36,7 @@ use strict_encoding::{StrictDeserialize, StrictSerialize};
 
 use crate::containers::{Bindle, Cert, Consignment, ContentId, Contract, TerminalSeal, Transfer};
 use crate::interface::{
-    ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, SchemaIfaces, TypedState,
+    BuilderState, ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, SchemaIfaces,
 };
 use crate::persistence::hoard::ConsumeError;
 use crate::persistence::inventory::{DataError, IfaceImplError, InventoryInconsistency};
@@ -645,7 +645,7 @@ impl Inventory for Stock {
         &self,
         contract_id: ContractId,
         outputs: impl IntoIterator<Item = impl Into<XOutpoint>>,
-    ) -> Result<BTreeMap<(Opout, XOutputSeal), TypedState>, InventoryError<Self::Error>> {
+    ) -> Result<BTreeMap<(Opout, XOutputSeal), BuilderState>, InventoryError<Self::Error>> {
         let outputs = outputs
             .into_iter()
             .map(|o| o.into())
@@ -662,7 +662,7 @@ impl Inventory for Stock {
             if outputs.contains(&item.seal.into()) {
                 res.insert(
                     (item.opout, item.seal),
-                    TypedState::Amount(
+                    BuilderState::Amount(
                         item.state.value.as_u64(),
                         item.state.blinding,
                         item.state.tag,
@@ -673,13 +673,13 @@ impl Inventory for Stock {
 
         for item in history.data() {
             if outputs.contains(&item.seal.into()) {
-                res.insert((item.opout, item.seal), TypedState::Data(item.state.clone()));
+                res.insert((item.opout, item.seal), BuilderState::Data(item.state.clone()));
             }
         }
 
         for item in history.rights() {
             if outputs.contains(&item.seal.into()) {
-                res.insert((item.opout, item.seal), TypedState::Void);
+                res.insert((item.opout, item.seal), BuilderState::Void);
             }
         }
 
@@ -687,7 +687,7 @@ impl Inventory for Stock {
             if outputs.contains(&item.seal.into()) {
                 res.insert(
                     (item.opout, item.seal),
-                    TypedState::Attachment(item.state.clone().into()),
+                    BuilderState::Attachment(item.state.clone().into()),
                 );
             }
         }

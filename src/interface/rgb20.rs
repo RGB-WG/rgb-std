@@ -19,7 +19,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use amplify::confinement::LargeVec;
 use bp::bc::stl::bp_tx_stl;
 use invoice::Amount;
 use strict_types::{CompileError, LibBuilder, TypeLib};
@@ -275,12 +274,14 @@ impl Rgb20 {
 
     pub fn balance(&self, filter: &impl OutpointFilter) -> Amount {
         self.allocations(filter)
-            .iter()
-            .map(|alloc| alloc.value)
+            .map(|alloc| alloc.state)
             .sum::<Amount>()
     }
 
-    pub fn allocations(&self, filter: &impl OutpointFilter) -> LargeVec<FungibleAllocation> {
+    pub fn allocations<'c, 'f: 'c>(
+        &'c self,
+        filter: &'f impl OutpointFilter,
+    ) -> impl Iterator<Item = FungibleAllocation> + 'c {
         self.0
             .fungible("assetOwner", filter)
             .expect("RGB20 interface requires `assetOwner` state")
