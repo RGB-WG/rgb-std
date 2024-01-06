@@ -380,15 +380,19 @@ impl ContractIface {
     }
 
     // TODO: Ignore blank state transition
-    pub fn operations<C: StateChange<State = AllocatedState>>(
-        &self,
+    fn operations<'c, C: StateChange>(
+        &'c self,
+        state: impl IntoIterator<Item = OutputAssignment<C::State>> + 'c,
+        allocations: impl Iterator<Item = OutputAssignment<C::State>> + 'c,
         witness_filter: impl WitnessFilter + Copy,
-        outpoint_filter: impl OutpointFilter + Copy,
         // resolver: impl WitnessCheck + 'c,
-    ) -> HashMap<WitnessId, IfaceOp<C>> {
+    ) -> HashMap<WitnessId, IfaceOp<C>>
+    where
+        C::State: 'c,
+    {
         fn f<'a, S: KnownState + 'a, U: KnownState + 'a>(
             filter: impl WitnessFilter + 'a,
-            state: impl IntoIterator<Item = &'a OutputAssignment<S>> + 'a,
+            state: impl IntoIterator<Item = OutputAssignment<S>> + 'a,
         ) -> impl Iterator<Item = OutputAssignment<U>> + 'a
         where
             S: Clone,
@@ -397,16 +401,10 @@ impl ContractIface {
             state
                 .into_iter()
                 .filter(move |outp| filter.include_witness(outp.witness))
-                .cloned()
                 .map(OutputAssignment::<S>::transmute)
         }
 
-        let spent = f(witness_filter, self.state.rights())
-            .map(OwnedAllocation::from)
-            .chain(f(witness_filter, self.state.fungibles()).map(OwnedAllocation::from))
-            .chain(f(witness_filter, self.state.data()).map(OwnedAllocation::from))
-            .chain(f(witness_filter, self.state.attach()).map(OwnedAllocation::from));
-
+        let spent = f::<_, C::State>(witness_filter, state).map(OutputAssignment::from);
         let mut ops = HashMap::<WitnessId, IfaceOp<C>>::new();
         for alloc in spent {
             let AssignmentWitness::Present(witness_id) = alloc.witness else {
@@ -419,7 +417,7 @@ impl ContractIface {
             }
         }
 
-        for alloc in self.allocations(outpoint_filter) {
+        for alloc in allocations {
             let AssignmentWitness::Present(witness_id) = alloc.witness else {
                 continue;
             };
@@ -431,6 +429,23 @@ impl ContractIface {
         }
 
         ops
+    }
+
+    pub fn fungible_ops<C: StateChange<State = Amount>>(
+        &self,
+        name: impl Into<FieldName>,
+        witness_filter: impl WitnessFilter + Copy,
+        outpoint_filter: impl OutpointFilter + Copy,
+    ) -> Result<HashMap<WitnessId, IfaceOp<C>>, ContractError> {
+        Ok(self.operations(
+            self.state
+                .fungibles()
+                .iter()
+                .cloned()
+                .map(OutputAssignment::transmute),
+            self.fungible(name, outpoint_filter)?,
+            witness_filter,
+        ))
     }
 
     pub fn wrap<W: IfaceWrapper>(self) -> W { W::from(self) }
