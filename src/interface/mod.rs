@@ -35,8 +35,8 @@ mod suppl;
 pub use builder::{BuilderError, ContractBuilder, TransitionBuilder};
 pub use contract::{
     AllocatedState, AttachAllocation, AttachedState, ContractError, ContractIface, DataAllocation,
-    FilterExclude, FilterIncludeAll, FungibleAllocation, IfaceWrapper, OutpointFilter,
-    OwnedAllocation, RightsAllocation,
+    FilterExclude, FilterIncludeAll, FungibleAllocation, IfaceOp, IfaceWrapper, OutpointFilter,
+    OwnedAllocation, RightsAllocation, StateChange, WitnessFilter,
 };
 pub use iface::{
     ArgMap, ArgSpec, AssignIface, ExtensionIface, GenesisIface, GlobalIface, Iface, IfaceId,

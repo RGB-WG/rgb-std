@@ -19,16 +19,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::{BTreeSet, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ops::Deref;
 
-use amplify::confinement::SmallVec;
+use amplify::confinement::{SmallOrdSet, SmallVec};
 use invoice::Amount;
 use rgb::{
-    AttachId, ContractId, ContractState, DataState, KnownState, MediaType, OutputAssignment,
-    RevealedAttach, RevealedData, RevealedValue, VoidState, XOutpoint,
+    AssignmentWitness, AttachId, ContractId, ContractState, DataState, KnownState, MediaType, OpId,
+    OutputAssignment, RevealedAttach, RevealedData, RevealedValue, VoidState, WitnessId, XOutpoint,
+    XOutputSeal,
 };
-use strict_encoding::FieldName;
+use strict_encoding::{FieldName, StrictDecode, StrictDumb, StrictEncode};
 use strict_types::typify::TypedVal;
 use strict_types::{decode, StrictVal};
 
@@ -111,6 +112,71 @@ impl From<RevealedAttach> for AttachedState {
     }
 }
 
+pub trait StateChange: Clone + Eq + StrictDumb + StrictEncode + StrictDecode {
+    type State: KnownState;
+    fn from_spent(state: Self::State) -> Self;
+    fn from_received(state: Self::State) -> Self;
+    fn merge_spent(&mut self, state: Self::State);
+    fn merge_received(&mut self, state: Self::State);
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct IfaceOp<S: StateChange> {
+    pub opids: SmallOrdSet<OpId>,  // may come from multiple bundles
+    pub inputs: SmallOrdSet<OpId>, // may come from multiple bundles
+    pub state_change: S,
+    pub payers: SmallOrdSet<XOutputSeal>,
+    pub beneficiaries: SmallOrdSet<XOutputSeal>,
+}
+
+impl<C: StateChange> IfaceOp<C> {
+    fn from_spent(alloc: OutputAssignment<C::State>) -> Self {
+        Self {
+            opids: none!(),
+            inputs: confined_bset![alloc.opout.op],
+            state_change: C::from_spent(alloc.state),
+            payers: none!(),
+            // TODO: Do something with beneficiary info
+            beneficiaries: none!(),
+        }
+    }
+    fn from_received(alloc: OutputAssignment<C::State>) -> Self {
+        Self {
+            opids: confined_bset![alloc.opout.op],
+            inputs: none!(),
+            state_change: C::from_received(alloc.state),
+            // TODO: Do something with payer info
+            payers: none!(),
+            beneficiaries: none!(),
+        }
+    }
+    fn merge_spent(&mut self, alloc: OutputAssignment<C::State>) {
+        self.inputs
+            .push(alloc.opout.op)
+            .expect("internal inconsistency of stash data");
+        self.state_change.merge_spent(alloc.state);
+        // TODO: Do something with beneficiary info
+    }
+    fn merge_received(&mut self, alloc: OutputAssignment<C::State>) {
+        self.opids
+            .push(alloc.opout.op)
+            .expect("internal inconsistency of stash data");
+        self.state_change.merge_received(alloc.state);
+        // TODO: Do something with payer info
+    }
+}
+
+pub trait WitnessFilter {
+    fn include_witness(&self, witness: impl Into<AssignmentWitness>) -> bool;
+}
+
 pub trait OutpointFilter {
     fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool;
 }
@@ -190,6 +256,8 @@ pub struct ContractIface {
     pub iface: IfaceImpl,
 }
 
+// TODO: Introduce witness checker: additional filter returning only those data
+//       which witnesses are mined
 impl ContractIface {
     pub fn contract_id(&self) -> ContractId { self.state.contract_id() }
 
@@ -309,6 +377,60 @@ impl ContractIface {
         outpoint: XOutpoint,
     ) -> impl Iterator<Item = OwnedAllocation> + '_ {
         self.allocations(outpoint)
+    }
+
+    // TODO: Ignore blank state transition
+    pub fn operations<C: StateChange<State = AllocatedState>>(
+        &self,
+        witness_filter: impl WitnessFilter + Copy,
+        outpoint_filter: impl OutpointFilter + Copy,
+        // resolver: impl WitnessCheck + 'c,
+    ) -> HashMap<WitnessId, IfaceOp<C>> {
+        fn f<'a, S: KnownState + 'a, U: KnownState + 'a>(
+            filter: impl WitnessFilter + 'a,
+            state: impl IntoIterator<Item = &'a OutputAssignment<S>> + 'a,
+        ) -> impl Iterator<Item = OutputAssignment<U>> + 'a
+        where
+            S: Clone,
+            U: From<S>,
+        {
+            state
+                .into_iter()
+                .filter(move |outp| filter.include_witness(outp.witness))
+                .cloned()
+                .map(OutputAssignment::<S>::transmute)
+        }
+
+        let spent = f(witness_filter, self.state.rights())
+            .map(OwnedAllocation::from)
+            .chain(f(witness_filter, self.state.fungibles()).map(OwnedAllocation::from))
+            .chain(f(witness_filter, self.state.data()).map(OwnedAllocation::from))
+            .chain(f(witness_filter, self.state.attach()).map(OwnedAllocation::from));
+
+        let mut ops = HashMap::<WitnessId, IfaceOp<C>>::new();
+        for alloc in spent {
+            let AssignmentWitness::Present(witness_id) = alloc.witness else {
+                continue;
+            };
+            if let Some(op) = ops.get_mut(&witness_id) {
+                op.merge_spent(alloc);
+            } else {
+                ops.insert(witness_id, IfaceOp::from_spent(alloc));
+            }
+        }
+
+        for alloc in self.allocations(outpoint_filter) {
+            let AssignmentWitness::Present(witness_id) = alloc.witness else {
+                continue;
+            };
+            if let Some(op) = ops.get_mut(&witness_id) {
+                op.merge_received(alloc);
+            } else {
+                ops.insert(witness_id, IfaceOp::from_received(alloc));
+            }
+        }
+
+        ops
     }
 
     pub fn wrap<W: IfaceWrapper>(self) -> W { W::from(self) }
