@@ -26,7 +26,7 @@ use amplify::confinement::SmallVec;
 use invoice::Amount;
 use rgb::{
     AttachId, ContractId, ContractState, DataState, KnownState, MediaType, OutputAssignment,
-    RevealedAttach, VoidState, XOutpoint,
+    RevealedAttach, RevealedData, RevealedValue, VoidState, XOutpoint,
 };
 use strict_encoding::FieldName;
 use strict_types::typify::TypedVal;
@@ -46,6 +46,41 @@ pub enum ContractError {
     Reify(decode::Error),
 }
 
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Display, From)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD, tags = custom)]
+#[display(inner)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub enum AllocatedState {
+    #[from(())]
+    #[from(VoidState)]
+    #[display("~")]
+    #[strict_type(tag = 0, dumb)]
+    Void,
+
+    #[from]
+    #[from(RevealedValue)]
+    #[strict_type(tag = 1)]
+    Amount(Amount),
+
+    #[from]
+    #[from(RevealedData)]
+    #[strict_type(tag = 2)]
+    Data(DataState),
+
+    #[from]
+    #[from(RevealedAttach)]
+    #[strict_type(tag = 3)]
+    Attachment(AttachedState),
+}
+
+impl KnownState for AllocatedState {}
+
+pub type OwnedAllocation = OutputAssignment<AllocatedState>;
 pub type RightsAllocation = OutputAssignment<VoidState>;
 pub type FungibleAllocation = OutputAssignment<Amount>;
 pub type DataAllocation = OutputAssignment<DataState>;
@@ -77,56 +112,74 @@ impl From<RevealedAttach> for AttachedState {
 }
 
 pub trait OutpointFilter {
-    fn include_output(&self, output: impl Into<XOutpoint>) -> bool;
+    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool;
 }
 
 pub struct FilterIncludeAll;
 pub struct FilterExclude<T: OutpointFilter>(pub T);
 
 impl<T: OutpointFilter> OutpointFilter for &T {
-    fn include_output(&self, output: impl Into<XOutpoint>) -> bool {
-        (*self).include_output(output)
+    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
+        (*self).include_outpoint(outpoint)
     }
 }
 
 impl<T: OutpointFilter> OutpointFilter for &mut T {
-    fn include_output(&self, output: impl Into<XOutpoint>) -> bool {
-        self.deref().include_output(output)
+    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
+        self.deref().include_outpoint(outpoint)
     }
 }
 
 impl<T: OutpointFilter> OutpointFilter for Option<T> {
-    fn include_output(&self, output: impl Into<XOutpoint>) -> bool {
+    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
         self.as_ref()
-            .map(|filter| filter.include_output(output))
+            .map(|filter| filter.include_outpoint(outpoint))
             .unwrap_or(true)
     }
 }
 
 impl OutpointFilter for FilterIncludeAll {
-    fn include_output(&self, _: impl Into<XOutpoint>) -> bool { true }
+    fn include_outpoint(&self, _: impl Into<XOutpoint>) -> bool { true }
 }
 
 impl<T: OutpointFilter> OutpointFilter for FilterExclude<T> {
-    fn include_output(&self, output: impl Into<XOutpoint>) -> bool {
-        !self.0.include_output(output.into())
+    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
+        !self.0.include_outpoint(outpoint.into())
+    }
+}
+
+impl OutpointFilter for XOutpoint {
+    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool { *self == outpoint.into() }
+}
+
+impl<const LEN: usize> OutpointFilter for [XOutpoint; LEN] {
+    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
+        self.contains(&outpoint.into())
     }
 }
 
 impl OutpointFilter for &[XOutpoint] {
-    fn include_output(&self, output: impl Into<XOutpoint>) -> bool { self.contains(&output.into()) }
+    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
+        self.contains(&outpoint.into())
+    }
 }
 
 impl OutpointFilter for Vec<XOutpoint> {
-    fn include_output(&self, output: impl Into<XOutpoint>) -> bool { self.contains(&output.into()) }
+    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
+        self.contains(&outpoint.into())
+    }
 }
 
 impl OutpointFilter for HashSet<XOutpoint> {
-    fn include_output(&self, output: impl Into<XOutpoint>) -> bool { self.contains(&output.into()) }
+    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
+        self.contains(&outpoint.into())
+    }
 }
 
 impl OutpointFilter for BTreeSet<XOutpoint> {
-    fn include_output(&self, output: impl Into<XOutpoint>) -> bool { self.contains(&output.into()) }
+    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
+        self.contains(&outpoint.into())
+    }
 }
 
 /// Contract state is an in-memory structure providing API to read structured
@@ -188,7 +241,7 @@ impl ContractIface {
         Ok(state
             .into_iter()
             .filter(move |outp| outp.opout.ty == type_id)
-            .filter(|outp| filter.include_output(outp.seal))
+            .filter(|outp| filter.include_outpoint(outp.seal))
             .cloned()
             .map(OutputAssignment::<S>::transmute))
     }
@@ -223,6 +276,32 @@ impl ContractIface {
         filter: &'f impl OutpointFilter,
     ) -> Result<impl Iterator<Item = AttachAllocation> + 'c, ContractError> {
         self.extract_state(self.state.attach(), name, filter)
+    }
+
+    pub fn outpoint_allocations(
+        &self,
+        outpoint: XOutpoint,
+    ) -> impl Iterator<Item = OwnedAllocation> + '_ {
+        fn f<'a, 'f: 'a, S: KnownState + 'a, U: KnownState + 'a>(
+            filter: impl OutpointFilter + 'f,
+            state: impl IntoIterator<Item = &'a OutputAssignment<S>> + 'a,
+        ) -> impl Iterator<Item = OutputAssignment<U>> + 'a
+        where
+            S: Clone,
+            U: From<S>,
+        {
+            state
+                .into_iter()
+                .filter(move |outp| filter.include_outpoint(outp.seal))
+                .cloned()
+                .map(OutputAssignment::<S>::transmute)
+        }
+
+        f(outpoint, self.state.rights())
+            .map(OwnedAllocation::from)
+            .chain(f(outpoint, self.state.fungibles()).map(OwnedAllocation::from))
+            .chain(f(outpoint, self.state.data()).map(OwnedAllocation::from))
+            .chain(f(outpoint, self.state.attach()).map(OwnedAllocation::from))
     }
 
     pub fn wrap<W: IfaceWrapper>(self) -> W { W::from(self) }
