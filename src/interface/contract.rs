@@ -223,11 +223,11 @@ impl ContractIface {
         Ok(SmallVec::try_from_iter(state).expect("same or smaller collection size"))
     }
 
-    fn extract_state<'c, 'f: 'c, S: KnownState + 'c, U: KnownState + 'c>(
+    fn extract_state<'c, S: KnownState + 'c, U: KnownState + 'c>(
         &'c self,
         state: impl IntoIterator<Item = &'c OutputAssignment<S>> + 'c,
         name: impl Into<FieldName>,
-        filter: &'f impl OutpointFilter,
+        filter: impl OutpointFilter + 'c,
     ) -> Result<impl Iterator<Item = OutputAssignment<U>> + 'c, ContractError>
     where
         S: Clone,
@@ -241,49 +241,49 @@ impl ContractIface {
         Ok(state
             .into_iter()
             .filter(move |outp| outp.opout.ty == type_id)
-            .filter(|outp| filter.include_outpoint(outp.seal))
+            .filter(move |outp| filter.include_outpoint(outp.seal))
             .cloned()
             .map(OutputAssignment::<S>::transmute))
     }
 
-    pub fn rights<'c, 'f: 'c>(
+    pub fn rights<'c>(
         &'c self,
         name: impl Into<FieldName>,
-        filter: &'f impl OutpointFilter,
+        filter: impl OutpointFilter + 'c,
     ) -> Result<impl Iterator<Item = RightsAllocation> + 'c, ContractError> {
         self.extract_state(self.state.rights(), name, filter)
     }
 
-    pub fn fungible<'c, 'f: 'c>(
+    pub fn fungible<'c>(
         &'c self,
         name: impl Into<FieldName>,
-        filter: &'f impl OutpointFilter,
+        filter: impl OutpointFilter + 'c,
     ) -> Result<impl Iterator<Item = FungibleAllocation> + 'c, ContractError> {
         self.extract_state(self.state.fungibles(), name, filter)
     }
 
-    pub fn data<'c, 'f: 'c>(
+    pub fn data<'c>(
         &'c self,
         name: impl Into<FieldName>,
-        filter: &'f impl OutpointFilter,
+        filter: impl OutpointFilter + 'c,
     ) -> Result<impl Iterator<Item = DataAllocation> + 'c, ContractError> {
         self.extract_state(self.state.data(), name, filter)
     }
 
-    pub fn attachments<'c, 'f: 'c>(
+    pub fn attachments<'c>(
         &'c self,
         name: impl Into<FieldName>,
-        filter: &'f impl OutpointFilter,
+        filter: impl OutpointFilter + 'c,
     ) -> Result<impl Iterator<Item = AttachAllocation> + 'c, ContractError> {
         self.extract_state(self.state.attach(), name, filter)
     }
 
-    pub fn outpoint_allocations(
-        &self,
-        outpoint: XOutpoint,
-    ) -> impl Iterator<Item = OwnedAllocation> + '_ {
-        fn f<'a, 'f: 'a, S: KnownState + 'a, U: KnownState + 'a>(
-            filter: impl OutpointFilter + 'f,
+    pub fn allocations<'c>(
+        &'c self,
+        filter: impl OutpointFilter + Copy + 'c,
+    ) -> impl Iterator<Item = OwnedAllocation> + 'c {
+        fn f<'a, S: KnownState + 'a, U: KnownState + 'a>(
+            filter: impl OutpointFilter + 'a,
             state: impl IntoIterator<Item = &'a OutputAssignment<S>> + 'a,
         ) -> impl Iterator<Item = OutputAssignment<U>> + 'a
         where
@@ -297,11 +297,18 @@ impl ContractIface {
                 .map(OutputAssignment::<S>::transmute)
         }
 
-        f(outpoint, self.state.rights())
+        f(filter, self.state.rights())
             .map(OwnedAllocation::from)
-            .chain(f(outpoint, self.state.fungibles()).map(OwnedAllocation::from))
-            .chain(f(outpoint, self.state.data()).map(OwnedAllocation::from))
-            .chain(f(outpoint, self.state.attach()).map(OwnedAllocation::from))
+            .chain(f(filter, self.state.fungibles()).map(OwnedAllocation::from))
+            .chain(f(filter, self.state.data()).map(OwnedAllocation::from))
+            .chain(f(filter, self.state.attach()).map(OwnedAllocation::from))
+    }
+
+    pub fn outpoint_allocations(
+        &self,
+        outpoint: XOutpoint,
+    ) -> impl Iterator<Item = OwnedAllocation> + '_ {
+        self.allocations(outpoint)
     }
 
     pub fn wrap<W: IfaceWrapper>(self) -> W { W::from(self) }
