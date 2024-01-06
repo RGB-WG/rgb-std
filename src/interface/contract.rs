@@ -25,14 +25,15 @@ use std::ops::Deref;
 use amplify::confinement::SmallVec;
 use invoice::Amount;
 use rgb::{
-    AttachId, ContractId, ContractState, KnownState, MediaType, OutputAssignment, RevealedAttach,
-    RevealedData, VoidState, XOutpoint,
+    AttachId, ContractId, ContractState, DataState, KnownState, MediaType, OutputAssignment,
+    RevealedAttach, VoidState, XOutpoint,
 };
 use strict_encoding::FieldName;
 use strict_types::typify::TypedVal;
 use strict_types::{decode, StrictVal};
 
 use crate::interface::{IfaceId, IfaceImpl};
+use crate::LIB_NAME_RGB_STD;
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
@@ -47,14 +48,24 @@ pub enum ContractError {
 
 pub type RightsAllocation = OutputAssignment<VoidState>;
 pub type FungibleAllocation = OutputAssignment<Amount>;
-pub type DataAllocation = OutputAssignment<RevealedData>;
+pub type DataAllocation = OutputAssignment<DataState>;
+pub type AttachAllocation = OutputAssignment<AttachedState>;
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
 #[display("{id}:{media_type}")]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
 pub struct AttachedState {
     pub id: AttachId,
     pub media_type: MediaType,
 }
+
+impl KnownState for AttachedState {}
 
 impl From<RevealedAttach> for AttachedState {
     fn from(attach: RevealedAttach) -> Self {
@@ -151,7 +162,7 @@ impl ContractIface {
             .into_iter()
             .map(|revealed| {
                 type_system
-                    .strict_deserialize_type(type_schema.sem_id, revealed.as_ref())
+                    .strict_deserialize_type(type_schema.sem_id, revealed.value.as_ref())
                     .map(TypedVal::unbox)
             })
             .take(type_schema.max_items as usize)
@@ -206,7 +217,13 @@ impl ContractIface {
         self.extract_state(self.state.data(), name, filter)
     }
 
-    // TODO: Add rights, attachments and structured data APIs
+    pub fn attachments<'c, 'f: 'c>(
+        &'c self,
+        name: impl Into<FieldName>,
+        filter: &'f impl OutpointFilter,
+    ) -> Result<impl Iterator<Item = AttachAllocation> + 'c, ContractError> {
+        self.extract_state(self.state.attach(), name, filter)
+    }
 
     pub fn wrap<W: IfaceWrapper>(self) -> W { W::from(self) }
 }

@@ -29,7 +29,7 @@ use bp::seals::txout::CloseMethod;
 use bp::{Txid, Vout};
 use chrono::Utc;
 use commit_verify::{mpc, Conceal};
-use invoice::{Beneficiary, InvoiceState, RgbInvoice};
+use invoice::{Amount, Beneficiary, InvoiceState, RgbInvoice};
 use rgb::{
     validation, AnchoredBundle, AssignmentType, BlindingFactor, BundleId, ContractId, GraphSeal,
     OpId, Operation, Opout, SchemaId, SecretSeal, SubSchema, Transition, TransitionBundle,
@@ -43,12 +43,12 @@ use crate::containers::{
     TerminalSeal, Transfer, TransitionInfo,
 };
 use crate::interface::{
-    BuilderError, BuilderState, ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, IfaceWrapper,
+    BuilderError, ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, IfaceWrapper,
     TransitionBuilder, VelocityHint,
 };
 use crate::persistence::hoard::ConsumeError;
 use crate::persistence::stash::StashInconsistency;
-use crate::persistence::{Stash, StashError};
+use crate::persistence::{PresistedState, Stash, StashError};
 use crate::resolvers::ResolveHeight;
 
 #[derive(Debug, Display, Error, From)]
@@ -545,7 +545,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         &self,
         contract_id: ContractId,
         outpoints: impl IntoIterator<Item = impl Into<XOutpoint>>,
-    ) -> Result<BTreeMap<(Opout, XOutputSeal), BuilderState>, InventoryError<Self::Error>>;
+    ) -> Result<BTreeMap<(Opout, XOutputSeal), PresistedState>, InventoryError<Self::Error>>;
 
     fn store_seal_secret(
         &mut self,
@@ -795,7 +795,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
 
         // 2. Prepare transition
         let mut main_inputs = MediumVec::<XOutputSeal>::new();
-        let mut sum_inputs = 0u64;
+        let mut sum_inputs = Amount::ZERO;
         for ((opout, output), mut state) in
             self.state_for_outpoints(contract_id, prev_outputs.iter().cloned())?
         {
@@ -805,7 +805,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
                 let seal = output_for_assignment(contract_id, opout.ty)?;
                 state.update_blinding(pedersen_blinder(contract_id, assignment_id));
                 main_builder = main_builder.add_owned_state_raw(opout.ty, seal, state)?;
-            } else if let BuilderState::Amount(value, _, _) = state {
+            } else if let PresistedState::Amount(value, _, _) = state {
                 sum_inputs += value;
             }
         }
@@ -842,7 +842,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         // 3. Prepare other transitions
         // Enumerate state
         let mut spent_state =
-            HashMap::<ContractId, BTreeMap<(Opout, XOutputSeal), BuilderState>>::new();
+            HashMap::<ContractId, BTreeMap<(Opout, XOutputSeal), PresistedState>>::new();
         for output in prev_outputs {
             for id in self.contracts_by_outputs([output])? {
                 if id == contract_id {
@@ -862,7 +862,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             for ((opout, output), mut state) in opouts {
                 let seal = output_for_assignment(id, opout.ty)?;
                 outputs.push(output);
-                if let BuilderState::Amount(_, ref mut blinding, _) = state {
+                if let PresistedState::Amount(_, ref mut blinding, _) = state {
                     *blinding = pedersen_blinder(id, opout.ty);
                 }
                 blank_builder = blank_builder

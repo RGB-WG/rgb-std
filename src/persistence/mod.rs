@@ -36,6 +36,7 @@ mod stash;
 mod inventory;
 pub mod stock;
 pub mod hoard;
+mod state;
 
 pub use hoard::Hoard;
 pub use inventory::{
@@ -43,4 +44,5 @@ pub use inventory::{
     InventoryInconsistency,
 };
 pub use stash::{Stash, StashError, StashInconsistency};
+pub use state::PresistedState;
 pub use stock::Stock;

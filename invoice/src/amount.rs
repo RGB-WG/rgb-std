@@ -24,7 +24,7 @@ use std::fmt::{Display, Formatter, Write};
 use std::iter::Sum;
 
 use bp::Sats;
-use rgb::{KnownState, RevealedValue};
+use rgb::{FungibleState, KnownState, RevealedValue};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use strict_encoding::{StrictDeserialize, StrictSerialize};
@@ -60,6 +60,14 @@ impl KnownState for Amount {}
 
 impl From<RevealedValue> for Amount {
     fn from(value: RevealedValue) -> Self { Amount(value.value.as_u64()) }
+}
+
+impl From<FungibleState> for Amount {
+    fn from(state: FungibleState) -> Self { Amount(state.as_u64()) }
+}
+
+impl From<Amount> for FungibleState {
+    fn from(amount: Amount) -> Self { FungibleState::Bits64(amount.0) }
 }
 
 impl Amount {
