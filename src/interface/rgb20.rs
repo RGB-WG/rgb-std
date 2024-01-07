@@ -330,15 +330,15 @@ impl Rgb20 {
         Timestamp::from_strict_val_unchecked(strict_val)
     }
 
-    pub fn balance(&self, filter: &impl OutpointFilter) -> Amount {
+    pub fn balance(&self, filter: impl OutpointFilter) -> Amount {
         self.allocations(filter)
             .map(|alloc| alloc.state)
             .sum::<Amount>()
     }
 
-    pub fn allocations<'c, 'f: 'c>(
+    pub fn allocations<'c>(
         &'c self,
-        filter: &'f impl OutpointFilter,
+        filter: impl OutpointFilter + 'c,
     ) -> impl Iterator<Item = FungibleAllocation> + 'c {
         self.0
             .fungible("assetOwner", filter)

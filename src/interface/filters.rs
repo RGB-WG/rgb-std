@@ -33,7 +33,17 @@ pub trait OutpointFilter {
 }
 
 pub struct FilterIncludeAll;
-pub struct FilterExclude<T: OutpointFilter>(pub T);
+pub struct FilterExclude<T>(pub T);
+
+impl OutpointFilter for FilterIncludeAll {
+    fn include_outpoint(&self, _: impl Into<XOutpoint>) -> bool { true }
+}
+
+impl<T: OutpointFilter> OutpointFilter for FilterExclude<T> {
+    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
+        !self.0.include_outpoint(outpoint.into())
+    }
+}
 
 impl<T: OutpointFilter> OutpointFilter for &T {
     fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
@@ -52,16 +62,6 @@ impl<T: OutpointFilter> OutpointFilter for Option<T> {
         self.as_ref()
             .map(|filter| filter.include_outpoint(outpoint))
             .unwrap_or(true)
-    }
-}
-
-impl OutpointFilter for FilterIncludeAll {
-    fn include_outpoint(&self, _: impl Into<XOutpoint>) -> bool { true }
-}
-
-impl<T: OutpointFilter> OutpointFilter for FilterExclude<T> {
-    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
-        !self.0.include_outpoint(outpoint.into())
     }
 }
 
@@ -96,5 +96,73 @@ impl OutpointFilter for HashSet<XOutpoint> {
 impl OutpointFilter for BTreeSet<XOutpoint> {
     fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
         self.contains(&outpoint.into())
+    }
+}
+
+// WitnessFilter
+
+impl WitnessFilter for FilterIncludeAll {
+    fn include_witness(&self, _: impl Into<AssignmentWitness>) -> bool { true }
+}
+
+impl<T: WitnessFilter> WitnessFilter for FilterExclude<T> {
+    fn include_witness(&self, witness: impl Into<AssignmentWitness>) -> bool {
+        !self.0.include_witness(witness.into())
+    }
+}
+
+impl<T: WitnessFilter> WitnessFilter for &T {
+    fn include_witness(&self, witness: impl Into<AssignmentWitness>) -> bool {
+        (*self).include_witness(witness)
+    }
+}
+
+impl<T: WitnessFilter> WitnessFilter for &mut T {
+    fn include_witness(&self, witness: impl Into<AssignmentWitness>) -> bool {
+        self.deref().include_witness(witness)
+    }
+}
+
+impl<T: WitnessFilter> WitnessFilter for Option<T> {
+    fn include_witness(&self, witness: impl Into<AssignmentWitness>) -> bool {
+        self.as_ref()
+            .map(|filter| filter.include_witness(witness))
+            .unwrap_or(true)
+    }
+}
+
+impl WitnessFilter for AssignmentWitness {
+    fn include_witness(&self, witness: impl Into<AssignmentWitness>) -> bool {
+        *self == witness.into()
+    }
+}
+
+impl<const LEN: usize> WitnessFilter for [AssignmentWitness; LEN] {
+    fn include_witness(&self, witness: impl Into<AssignmentWitness>) -> bool {
+        self.contains(&witness.into())
+    }
+}
+
+impl WitnessFilter for &[AssignmentWitness] {
+    fn include_witness(&self, witness: impl Into<AssignmentWitness>) -> bool {
+        self.contains(&witness.into())
+    }
+}
+
+impl WitnessFilter for Vec<AssignmentWitness> {
+    fn include_witness(&self, witness: impl Into<AssignmentWitness>) -> bool {
+        self.contains(&witness.into())
+    }
+}
+
+impl WitnessFilter for HashSet<AssignmentWitness> {
+    fn include_witness(&self, witness: impl Into<AssignmentWitness>) -> bool {
+        self.contains(&witness.into())
+    }
+}
+
+impl WitnessFilter for BTreeSet<AssignmentWitness> {
+    fn include_witness(&self, witness: impl Into<AssignmentWitness>) -> bool {
+        self.contains(&witness.into())
     }
 }
