@@ -23,6 +23,7 @@ use amplify::IoError;
 use baid58::Baid58ParseError;
 use strict_types::{typesys, CompileError};
 
+#[allow(dead_code)]
 #[derive(Debug, From)]
 pub(super) enum Error {
     #[from(std::io::Error)]

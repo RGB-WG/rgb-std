@@ -261,12 +261,11 @@ pub enum AmountChange {
 impl StateChange for AmountChange {
     type State = Amount;
 
-    fn from_spent(state: Self::State) -> Self { AmountChange::Dec(state.into()) }
+    fn from_spent(state: Self::State) -> Self { AmountChange::Dec(state) }
 
-    fn from_received(state: Self::State) -> Self { AmountChange::Inc(state.into()) }
+    fn from_received(state: Self::State) -> Self { AmountChange::Inc(state) }
 
-    fn merge_spent(&mut self, state: Self::State) {
-        let sub = Amount::from(state);
+    fn merge_spent(&mut self, sub: Self::State) {
         *self = match self {
             AmountChange::Dec(neg) => AmountChange::Dec(*neg + sub),
             AmountChange::Zero => AmountChange::Dec(sub),
@@ -277,8 +276,7 @@ impl StateChange for AmountChange {
         };
     }
 
-    fn merge_received(&mut self, state: Self::State) {
-        let add = Amount::from(state);
+    fn merge_received(&mut self, add: Self::State) {
         *self = match self {
             AmountChange::Inc(pos) => AmountChange::Inc(*pos + add),
             AmountChange::Zero => AmountChange::Inc(add),
