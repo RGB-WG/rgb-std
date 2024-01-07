@@ -19,7 +19,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::{BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::ops::Deref;
 
 use rgb::{AssignmentWitness, XOutpoint};
@@ -99,6 +99,20 @@ impl OutpointFilter for BTreeSet<XOutpoint> {
     }
 }
 
+impl<V> OutpointFilter for HashMap<XOutpoint, V> {
+    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
+        let outpoint = outpoint.into();
+        self.keys().any(|o| *o == outpoint)
+    }
+}
+
+impl<V> OutpointFilter for BTreeMap<XOutpoint, V> {
+    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
+        let outpoint = outpoint.into();
+        self.keys().any(|o| *o == outpoint)
+    }
+}
+
 // WitnessFilter
 
 impl WitnessFilter for FilterIncludeAll {
@@ -164,5 +178,19 @@ impl WitnessFilter for HashSet<AssignmentWitness> {
 impl WitnessFilter for BTreeSet<AssignmentWitness> {
     fn include_witness(&self, witness: impl Into<AssignmentWitness>) -> bool {
         self.contains(&witness.into())
+    }
+}
+
+impl<V> WitnessFilter for HashMap<AssignmentWitness, V> {
+    fn include_witness(&self, witness: impl Into<AssignmentWitness>) -> bool {
+        let witness = witness.into();
+        self.keys().any(|w| *w == witness)
+    }
+}
+
+impl<V> WitnessFilter for BTreeMap<AssignmentWitness, V> {
+    fn include_witness(&self, witness: impl Into<AssignmentWitness>) -> bool {
+        let witness = witness.into();
+        self.keys().any(|w| *w == witness)
     }
 }
