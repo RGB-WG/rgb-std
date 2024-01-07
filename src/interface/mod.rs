@@ -31,13 +31,14 @@ pub mod rgb20;
 pub mod rgb21;
 pub mod rgb25;
 mod suppl;
+mod filters;
 
 pub use builder::{BuilderError, ContractBuilder, TransitionBuilder};
 pub use contract::{
     AllocatedState, AttachAllocation, AttachedState, ContractError, ContractIface, DataAllocation,
-    FilterExclude, FilterIncludeAll, FungibleAllocation, IfaceOp, IfaceWrapper, OutpointFilter,
-    OwnedAllocation, RightsAllocation, StateChange, WitnessFilter,
+    FungibleAllocation, IfaceOp, IfaceWrapper, OwnedAllocation, RightsAllocation, StateChange,
 };
+pub use filters::{FilterExclude, FilterIncludeAll, OutpointFilter, WitnessFilter};
 pub use iface::{
     ArgMap, ArgSpec, AssignIface, ExtensionIface, GenesisIface, GlobalIface, Iface, IfaceId,
     OwnedIface, Req, TransitionIface, ValencyIface,

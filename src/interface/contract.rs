@@ -19,8 +19,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::{BTreeSet, HashMap, HashSet};
-use std::ops::Deref;
+use std::collections::HashMap;
 
 use amplify::confinement::{SmallOrdSet, SmallVec};
 use invoice::Amount;
@@ -33,7 +32,7 @@ use strict_encoding::{FieldName, StrictDecode, StrictDumb, StrictEncode};
 use strict_types::typify::TypedVal;
 use strict_types::{decode, StrictVal};
 
-use crate::interface::{IfaceId, IfaceImpl};
+use crate::interface::{IfaceId, IfaceImpl, OutpointFilter, WitnessFilter};
 use crate::LIB_NAME_RGB_STD;
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
@@ -170,81 +169,6 @@ impl<C: StateChange> IfaceOp<C> {
             .expect("internal inconsistency of stash data");
         self.state_change.merge_received(alloc.state);
         // TODO: Do something with payer info
-    }
-}
-
-pub trait WitnessFilter {
-    fn include_witness(&self, witness: impl Into<AssignmentWitness>) -> bool;
-}
-
-pub trait OutpointFilter {
-    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool;
-}
-
-pub struct FilterIncludeAll;
-pub struct FilterExclude<T: OutpointFilter>(pub T);
-
-impl<T: OutpointFilter> OutpointFilter for &T {
-    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
-        (*self).include_outpoint(outpoint)
-    }
-}
-
-impl<T: OutpointFilter> OutpointFilter for &mut T {
-    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
-        self.deref().include_outpoint(outpoint)
-    }
-}
-
-impl<T: OutpointFilter> OutpointFilter for Option<T> {
-    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
-        self.as_ref()
-            .map(|filter| filter.include_outpoint(outpoint))
-            .unwrap_or(true)
-    }
-}
-
-impl OutpointFilter for FilterIncludeAll {
-    fn include_outpoint(&self, _: impl Into<XOutpoint>) -> bool { true }
-}
-
-impl<T: OutpointFilter> OutpointFilter for FilterExclude<T> {
-    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
-        !self.0.include_outpoint(outpoint.into())
-    }
-}
-
-impl OutpointFilter for XOutpoint {
-    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool { *self == outpoint.into() }
-}
-
-impl<const LEN: usize> OutpointFilter for [XOutpoint; LEN] {
-    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
-        self.contains(&outpoint.into())
-    }
-}
-
-impl OutpointFilter for &[XOutpoint] {
-    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
-        self.contains(&outpoint.into())
-    }
-}
-
-impl OutpointFilter for Vec<XOutpoint> {
-    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
-        self.contains(&outpoint.into())
-    }
-}
-
-impl OutpointFilter for HashSet<XOutpoint> {
-    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
-        self.contains(&outpoint.into())
-    }
-}
-
-impl OutpointFilter for BTreeSet<XOutpoint> {
-    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
-        self.contains(&outpoint.into())
     }
 }
 
