@@ -29,7 +29,7 @@ use bp::seals::txout::CloseMethod;
 use bp::{Txid, Vout};
 use chrono::Utc;
 use commit_verify::{mpc, Conceal};
-use invoice::{Beneficiary, InvoiceState, RgbInvoice};
+use invoice::{Amount, Beneficiary, InvoiceState, RgbInvoice};
 use rgb::{
     validation, AnchoredBundle, AssignmentType, BlindingFactor, BundleId, ContractId, GraphSeal,
     OpId, Operation, Opout, SchemaId, SecretSeal, SubSchema, Transition, TransitionBundle,
@@ -44,11 +44,11 @@ use crate::containers::{
 };
 use crate::interface::{
     BuilderError, ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, IfaceWrapper,
-    TransitionBuilder, TypedState, VelocityHint,
+    TransitionBuilder, VelocityHint,
 };
 use crate::persistence::hoard::ConsumeError;
 use crate::persistence::stash::StashInconsistency;
-use crate::persistence::{Stash, StashError};
+use crate::persistence::{PresistedState, Stash, StashError};
 use crate::resolvers::ResolveHeight;
 
 #[derive(Debug, Display, Error, From)]
@@ -507,13 +507,34 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         let schema_ifaces = self.contract_schema(contract_id)?;
         let iface = self.iface_by_name(&iface.into())?;
         let schema = &schema_ifaces.schema;
-        let iimpl = schema_ifaces
-            .iimpls
-            .get(&iface.iface_id())
-            .ok_or(DataError::NoIfaceImpl(schema.schema_id(), iface.iface_id()))?;
-        let builder =
+        if schema_ifaces.iimpls.is_empty() {
+            return Err(InventoryError::DataError(DataError::NoIfaceImpl(
+                schema.schema_id(),
+                iface.iface_id(),
+            )));
+        }
+
+        let mut builder = if let Some(iimpl) = schema_ifaces.iimpls.get(&iface.iface_id()) {
             TransitionBuilder::blank_transition(iface.clone(), schema.clone(), iimpl.clone())
-                .expect("internal inconsistency");
+                .expect("internal inconsistency")
+        } else {
+            let (default_iface_id, default_iimpl) = schema_ifaces.iimpls.first_key_value().unwrap();
+            let default_iface = self.iface_by_id(*default_iface_id)?;
+
+            TransitionBuilder::blank_transition(
+                default_iface.clone(),
+                schema.clone(),
+                default_iimpl.clone(),
+            )
+            .expect("internal inconsistency")
+        };
+        let tags = self.contract_asset_tags(contract_id)?;
+        for (assignment_type, asset_tag) in tags {
+            builder = builder
+                .add_asset_tag_raw(*assignment_type, *asset_tag)
+                .expect("tags are in bset and must not repeat");
+        }
+
         Ok(builder)
     }
 
@@ -545,7 +566,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         &self,
         contract_id: ContractId,
         outpoints: impl IntoIterator<Item = impl Into<XOutpoint>>,
-    ) -> Result<BTreeMap<(Opout, XOutputSeal), TypedState>, InventoryError<Self::Error>>;
+    ) -> Result<BTreeMap<(Opout, XOutputSeal), PresistedState>, InventoryError<Self::Error>>;
 
     fn store_seal_secret(
         &mut self,
@@ -795,7 +816,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
 
         // 2. Prepare transition
         let mut main_inputs = MediumVec::<XOutputSeal>::new();
-        let mut sum_inputs = 0u64;
+        let mut sum_inputs = Amount::ZERO;
         for ((opout, output), mut state) in
             self.state_for_outpoints(contract_id, prev_outputs.iter().cloned())?
         {
@@ -805,7 +826,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
                 let seal = output_for_assignment(contract_id, opout.ty)?;
                 state.update_blinding(pedersen_blinder(contract_id, assignment_id));
                 main_builder = main_builder.add_owned_state_raw(opout.ty, seal, state)?;
-            } else if let TypedState::Amount(value, _, _) = state {
+            } else if let PresistedState::Amount(value, _, _) = state {
                 sum_inputs += value;
             }
         }
@@ -842,7 +863,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         // 3. Prepare other transitions
         // Enumerate state
         let mut spent_state =
-            HashMap::<ContractId, BTreeMap<(Opout, XOutputSeal), TypedState>>::new();
+            HashMap::<ContractId, BTreeMap<(Opout, XOutputSeal), PresistedState>>::new();
         for output in prev_outputs {
             for id in self.contracts_by_outputs([output])? {
                 if id == contract_id {
@@ -862,7 +883,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             for ((opout, output), mut state) in opouts {
                 let seal = output_for_assignment(id, opout.ty)?;
                 outputs.push(output);
-                if let TypedState::Amount(_, ref mut blinding, _) = state {
+                if let PresistedState::Amount(_, ref mut blinding, _) = state {
                     *blinding = pedersen_blinder(id, opout.ty);
                 }
                 blank_builder = blank_builder

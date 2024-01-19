@@ -19,20 +19,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::{BTreeSet, HashSet};
-use std::ops::Deref;
+use std::collections::HashMap;
 
-use amplify::confinement::{LargeOrdMap, LargeVec, SmallVec};
-use bp::Outpoint;
+use amplify::confinement::{SmallOrdSet, SmallVec};
+use invoice::Amount;
 use rgb::{
-    AssetTag, AssignmentType, AttachId, BlindingFactor, ContractId, ContractState, FungibleOutput,
-    MediaType, RevealedAttach, RevealedData, WitnessId, XOutpoint, XOutputSeal,
+    AssignmentWitness, AttachId, ContractId, ContractState, DataState, KnownState, MediaType, OpId,
+    OutputAssignment, RevealedAttach, RevealedData, RevealedValue, VoidState, WitnessId, XOutpoint,
+    XOutputSeal,
 };
-use strict_encoding::FieldName;
+use strict_encoding::{FieldName, StrictDecode, StrictDumb, StrictEncode};
 use strict_types::typify::TypedVal;
 use strict_types::{decode, StrictVal};
 
-use crate::interface::{IfaceId, IfaceImpl};
+use crate::interface::{IfaceId, IfaceImpl, OutpointFilter, WitnessFilter};
+use crate::LIB_NAME_RGB_STD;
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
@@ -45,35 +46,61 @@ pub enum ContractError {
     Reify(decode::Error),
 }
 
-#[derive(Clone, Eq, PartialEq, Debug, Hash, Display, From)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Display, From)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD, tags = custom)]
 #[display(inner)]
-pub enum TypedState {
-    #[display("")]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub enum AllocatedState {
+    #[from(())]
+    #[from(VoidState)]
+    #[display("~")]
+    #[strict_type(tag = 0, dumb)]
     Void,
-    Amount(u64, BlindingFactor, AssetTag),
+
     #[from]
-    Data(RevealedData),
+    #[from(RevealedValue)]
+    #[strict_type(tag = 1)]
+    Amount(Amount),
+
     #[from]
+    #[from(RevealedData)]
+    #[strict_type(tag = 2)]
+    Data(DataState),
+
+    #[from]
+    #[from(RevealedAttach)]
+    #[strict_type(tag = 3)]
     Attachment(AttachedState),
 }
 
-impl TypedState {
-    pub fn update_blinding(&mut self, blinding: BlindingFactor) {
-        match self {
-            TypedState::Void => {}
-            TypedState::Amount(_, b, _) => *b = blinding,
-            TypedState::Data(_) => {}
-            TypedState::Attachment(_) => {}
-        }
-    }
-}
+impl KnownState for AllocatedState {}
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
+pub type OwnedAllocation = OutputAssignment<AllocatedState>;
+pub type RightsAllocation = OutputAssignment<VoidState>;
+pub type FungibleAllocation = OutputAssignment<Amount>;
+pub type DataAllocation = OutputAssignment<DataState>;
+pub type AttachAllocation = OutputAssignment<AttachedState>;
+
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
 #[display("{id}:{media_type}")]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
 pub struct AttachedState {
     pub id: AttachId,
     pub media_type: MediaType,
 }
+
+impl KnownState for AttachedState {}
 
 impl From<RevealedAttach> for AttachedState {
     fn from(attach: RevealedAttach) -> Self {
@@ -84,96 +111,65 @@ impl From<RevealedAttach> for AttachedState {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug, Display)]
-pub enum AllocationWitness {
-    #[display("~")]
-    Absent,
-    #[display(inner)]
-    Present(WitnessId),
+pub trait StateChange: Clone + Eq + StrictDumb + StrictEncode + StrictDecode {
+    type State: KnownState;
+    fn from_spent(state: Self::State) -> Self;
+    fn from_received(state: Self::State) -> Self;
+    fn merge_spent(&mut self, state: Self::State);
+    fn merge_received(&mut self, state: Self::State);
 }
 
-impl From<Option<WitnessId>> for AllocationWitness {
-    fn from(value: Option<WitnessId>) -> Self {
-        match value {
-            None => AllocationWitness::Absent,
-            Some(id) => AllocationWitness::Present(id),
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct IfaceOp<S: StateChange> {
+    pub opids: SmallOrdSet<OpId>,  // may come from multiple bundles
+    pub inputs: SmallOrdSet<OpId>, // may come from multiple bundles
+    pub state_change: S,
+    pub payers: SmallOrdSet<XOutputSeal>,
+    pub beneficiaries: SmallOrdSet<XOutputSeal>,
+}
+
+impl<C: StateChange> IfaceOp<C> {
+    fn from_spent(alloc: OutputAssignment<C::State>) -> Self {
+        Self {
+            opids: none!(),
+            inputs: confined_bset![alloc.opout.op],
+            state_change: C::from_spent(alloc.state),
+            payers: none!(),
+            // TODO: Do something with beneficiary info
+            beneficiaries: none!(),
         }
     }
-}
-
-// TODO: Consider removing type in favour of `FungibleOutput`
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub struct FungibleAllocation {
-    pub owner: XOutputSeal,
-    pub witness: AllocationWitness,
-    pub value: u64,
-}
-
-impl From<FungibleOutput> for FungibleAllocation {
-    fn from(out: FungibleOutput) -> Self { Self::from(&out) }
-}
-
-impl From<&FungibleOutput> for FungibleAllocation {
-    fn from(out: &FungibleOutput) -> Self {
-        FungibleAllocation {
-            owner: out.seal,
-            witness: out.witness.into(),
-            value: out.state.value.as_u64(),
+    fn from_received(alloc: OutputAssignment<C::State>) -> Self {
+        Self {
+            opids: confined_bset![alloc.opout.op],
+            inputs: none!(),
+            state_change: C::from_received(alloc.state),
+            // TODO: Do something with payer info
+            payers: none!(),
+            beneficiaries: none!(),
         }
     }
-}
-
-pub trait OutpointFilter {
-    fn include_output(&self, output: impl Into<XOutpoint>) -> bool;
-}
-
-pub struct FilterIncludeAll;
-pub struct FilterExclude<T: OutpointFilter>(pub T);
-
-impl<T: OutpointFilter> OutpointFilter for &T {
-    fn include_output(&self, output: impl Into<XOutpoint>) -> bool {
-        (*self).include_output(output)
+    fn merge_spent(&mut self, alloc: OutputAssignment<C::State>) {
+        self.inputs
+            .push(alloc.opout.op)
+            .expect("internal inconsistency of stash data");
+        self.state_change.merge_spent(alloc.state);
+        // TODO: Do something with beneficiary info
     }
-}
-
-impl<T: OutpointFilter> OutpointFilter for &mut T {
-    fn include_output(&self, output: impl Into<XOutpoint>) -> bool {
-        self.deref().include_output(output)
+    fn merge_received(&mut self, alloc: OutputAssignment<C::State>) {
+        self.opids
+            .push(alloc.opout.op)
+            .expect("internal inconsistency of stash data");
+        self.state_change.merge_received(alloc.state);
+        // TODO: Do something with payer info
     }
-}
-
-impl<T: OutpointFilter> OutpointFilter for Option<T> {
-    fn include_output(&self, output: impl Into<XOutpoint>) -> bool {
-        self.as_ref()
-            .map(|filter| filter.include_output(output))
-            .unwrap_or(true)
-    }
-}
-
-impl OutpointFilter for FilterIncludeAll {
-    fn include_output(&self, _: impl Into<XOutpoint>) -> bool { true }
-}
-
-impl<T: OutpointFilter> OutpointFilter for FilterExclude<T> {
-    fn include_output(&self, output: impl Into<XOutpoint>) -> bool {
-        !self.0.include_output(output.into())
-    }
-}
-
-impl OutpointFilter for &[XOutpoint] {
-    fn include_output(&self, output: impl Into<XOutpoint>) -> bool { self.contains(&output.into()) }
-}
-
-impl OutpointFilter for Vec<XOutpoint> {
-    fn include_output(&self, output: impl Into<XOutpoint>) -> bool { self.contains(&output.into()) }
-}
-
-impl OutpointFilter for HashSet<XOutpoint> {
-    fn include_output(&self, output: impl Into<XOutpoint>) -> bool { self.contains(&output.into()) }
-}
-
-impl OutpointFilter for BTreeSet<XOutpoint> {
-    fn include_output(&self, output: impl Into<XOutpoint>) -> bool { self.contains(&output.into()) }
 }
 
 /// Contract state is an in-memory structure providing API to read structured
@@ -184,6 +180,8 @@ pub struct ContractIface {
     pub iface: IfaceImpl,
 }
 
+// TODO: Introduce witness checker: additional filter returning only those data
+//       which witnesses are mined
 impl ContractIface {
     pub fn contract_id(&self) -> ContractId { self.state.contract_id() }
 
@@ -209,7 +207,7 @@ impl ContractIface {
             .into_iter()
             .map(|revealed| {
                 type_system
-                    .strict_deserialize_type(type_schema.sem_id, revealed.as_ref())
+                    .strict_deserialize_type(type_schema.sem_id, revealed.value.as_ref())
                     .map(TypedVal::unbox)
             })
             .take(type_schema.max_items as usize)
@@ -217,32 +215,161 @@ impl ContractIface {
         Ok(SmallVec::try_from_iter(state).expect("same or smaller collection size"))
     }
 
-    pub fn fungible(
-        &self,
+    fn extract_state<'c, S: KnownState + 'c, U: KnownState + 'c>(
+        &'c self,
+        state: impl IntoIterator<Item = &'c OutputAssignment<S>> + 'c,
         name: impl Into<FieldName>,
-        filter: &impl OutpointFilter,
-    ) -> Result<LargeVec<FungibleAllocation>, ContractError> {
+        filter: impl OutpointFilter + 'c,
+    ) -> Result<impl Iterator<Item = OutputAssignment<U>> + 'c, ContractError>
+    where
+        S: Clone,
+        U: From<S>,
+    {
         let name = name.into();
         let type_id = self
             .iface
             .assignments_type(&name)
             .ok_or(ContractError::FieldNameUnknown(name))?;
-        let state = self
-            .state
-            .fungibles()
-            .iter()
-            .filter(|outp| outp.opout.ty == type_id)
-            .filter(|outp| filter.include_output(outp.seal))
-            .map(FungibleAllocation::from);
-        Ok(LargeVec::try_from_iter(state).expect("same or smaller collection size"))
+        Ok(state
+            .into_iter()
+            .filter(move |outp| outp.opout.ty == type_id)
+            .filter(move |outp| filter.include_outpoint(outp.seal))
+            .cloned()
+            .map(OutputAssignment::<S>::transmute))
     }
 
-    // TODO: Add rights, attachments and structured data APIs
-    pub fn outpoint(
+    pub fn rights<'c>(
+        &'c self,
+        name: impl Into<FieldName>,
+        filter: impl OutpointFilter + 'c,
+    ) -> Result<impl Iterator<Item = RightsAllocation> + 'c, ContractError> {
+        self.extract_state(self.state.rights(), name, filter)
+    }
+
+    pub fn fungible<'c>(
+        &'c self,
+        name: impl Into<FieldName>,
+        filter: impl OutpointFilter + 'c,
+    ) -> Result<impl Iterator<Item = FungibleAllocation> + 'c, ContractError> {
+        self.extract_state(self.state.fungibles(), name, filter)
+    }
+
+    pub fn data<'c>(
+        &'c self,
+        name: impl Into<FieldName>,
+        filter: impl OutpointFilter + 'c,
+    ) -> Result<impl Iterator<Item = DataAllocation> + 'c, ContractError> {
+        self.extract_state(self.state.data(), name, filter)
+    }
+
+    pub fn attachments<'c>(
+        &'c self,
+        name: impl Into<FieldName>,
+        filter: impl OutpointFilter + 'c,
+    ) -> Result<impl Iterator<Item = AttachAllocation> + 'c, ContractError> {
+        self.extract_state(self.state.attach(), name, filter)
+    }
+
+    pub fn allocations<'c>(
+        &'c self,
+        filter: impl OutpointFilter + Copy + 'c,
+    ) -> impl Iterator<Item = OwnedAllocation> + 'c {
+        fn f<'a, S: KnownState + 'a, U: KnownState + 'a>(
+            filter: impl OutpointFilter + 'a,
+            state: impl IntoIterator<Item = &'a OutputAssignment<S>> + 'a,
+        ) -> impl Iterator<Item = OutputAssignment<U>> + 'a
+        where
+            S: Clone,
+            U: From<S>,
+        {
+            state
+                .into_iter()
+                .filter(move |outp| filter.include_outpoint(outp.seal))
+                .cloned()
+                .map(OutputAssignment::<S>::transmute)
+        }
+
+        f(filter, self.state.rights())
+            .map(OwnedAllocation::from)
+            .chain(f(filter, self.state.fungibles()).map(OwnedAllocation::from))
+            .chain(f(filter, self.state.data()).map(OwnedAllocation::from))
+            .chain(f(filter, self.state.attach()).map(OwnedAllocation::from))
+    }
+
+    pub fn outpoint_allocations(
         &self,
-        _outpoint: Outpoint,
-    ) -> LargeOrdMap<AssignmentType, LargeVec<TypedState>> {
-        todo!()
+        outpoint: XOutpoint,
+    ) -> impl Iterator<Item = OwnedAllocation> + '_ {
+        self.allocations(outpoint)
+    }
+
+    // TODO: Ignore blank state transition
+    fn operations<'c, C: StateChange>(
+        &'c self,
+        state: impl IntoIterator<Item = OutputAssignment<C::State>> + 'c,
+        allocations: impl Iterator<Item = OutputAssignment<C::State>> + 'c,
+        witness_filter: impl WitnessFilter + Copy,
+        // resolver: impl WitnessCheck + 'c,
+    ) -> HashMap<WitnessId, IfaceOp<C>>
+    where
+        C::State: 'c,
+    {
+        fn f<'a, S: KnownState + 'a, U: KnownState + 'a>(
+            filter: impl WitnessFilter + 'a,
+            state: impl IntoIterator<Item = OutputAssignment<S>> + 'a,
+        ) -> impl Iterator<Item = OutputAssignment<U>> + 'a
+        where
+            S: Clone,
+            U: From<S>,
+        {
+            state
+                .into_iter()
+                .filter(move |outp| filter.include_witness(outp.witness))
+                .map(OutputAssignment::<S>::transmute)
+        }
+
+        let spent = f::<_, C::State>(witness_filter, state).map(OutputAssignment::from);
+        let mut ops = HashMap::<WitnessId, IfaceOp<C>>::new();
+        for alloc in spent {
+            let AssignmentWitness::Present(witness_id) = alloc.witness else {
+                continue;
+            };
+            if let Some(op) = ops.get_mut(&witness_id) {
+                op.merge_spent(alloc);
+            } else {
+                ops.insert(witness_id, IfaceOp::from_spent(alloc));
+            }
+        }
+
+        for alloc in allocations {
+            let AssignmentWitness::Present(witness_id) = alloc.witness else {
+                continue;
+            };
+            if let Some(op) = ops.get_mut(&witness_id) {
+                op.merge_received(alloc);
+            } else {
+                ops.insert(witness_id, IfaceOp::from_received(alloc));
+            }
+        }
+
+        ops
+    }
+
+    pub fn fungible_ops<C: StateChange<State = Amount>>(
+        &self,
+        name: impl Into<FieldName>,
+        witness_filter: impl WitnessFilter + Copy,
+        outpoint_filter: impl OutpointFilter + Copy,
+    ) -> Result<HashMap<WitnessId, IfaceOp<C>>, ContractError> {
+        Ok(self.operations(
+            self.state
+                .fungibles()
+                .iter()
+                .cloned()
+                .map(OutputAssignment::transmute),
+            self.fungible(name, outpoint_filter)?,
+            witness_filter,
+        ))
     }
 
     pub fn wrap<W: IfaceWrapper>(self) -> W { W::from(self) }

@@ -19,21 +19,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use amplify::IoError;
-use baid58::Baid58ParseError;
-use strict_types::{typesys, CompileError};
+use invoice::Amount;
+use rgb::{AssetTag, BlindingFactor, DataState};
 
-#[allow(dead_code)]
-#[derive(Debug, From)]
-pub(super) enum Error {
-    #[from(std::io::Error)]
-    Io(IoError),
-    #[from]
-    Baid58(Baid58ParseError),
-    #[from]
-    Compile(CompileError),
-    #[from]
-    Link1(typesys::Error),
-    #[from]
-    Link2(Vec<typesys::Error>),
+use crate::interface::AttachedState;
+
+#[derive(Clone, Eq, PartialEq, Debug, Hash)]
+pub enum PresistedState {
+    Void,
+    Amount(Amount, BlindingFactor, AssetTag),
+    Data(DataState, u128),
+    Attachment(AttachedState, u64),
+}
+
+impl PresistedState {
+    pub(super) fn update_blinding(&mut self, blinding: BlindingFactor) {
+        match self {
+            PresistedState::Void => {}
+            PresistedState::Amount(_, b, _) => *b = blinding,
+            PresistedState::Data(_, _) => {}
+            PresistedState::Attachment(_, _) => {}
+        }
+    }
 }

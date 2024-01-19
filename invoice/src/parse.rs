@@ -31,7 +31,7 @@ use percent_encoding::{utf8_percent_encode, AsciiSet, CONTROLS};
 use rgb::{ContractId, SecretSeal};
 use strict_encoding::{InvalidIdent, TypeName};
 
-use super::{Beneficiary, InvoiceState, RgbInvoice, RgbTransport};
+use super::{Amount, Beneficiary, InvoiceState, RgbInvoice, RgbTransport};
 use crate::invoice::{ChainNet, XChainNet};
 
 const OMITTED: &str = "~";
@@ -353,7 +353,7 @@ impl FromStr for RgbInvoice {
             .unwrap_or((Some(assignment.as_str()), None));
         // TODO: support other state types
         let (beneficiary_str, value) = match (amount, beneficiary) {
-            (Some(a), Some(b)) => (b, InvoiceState::Amount(a.parse::<u64>()?)),
+            (Some(a), Some(b)) => (b, InvoiceState::Amount(a.parse::<Amount>()?)),
             (Some(b), None) => (b, InvoiceState::Void),
             _ => unreachable!(),
         };

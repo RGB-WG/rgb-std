@@ -19,13 +19,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use amplify::confinement::LargeVec;
+use std::collections::HashMap;
+
 use bp::bc::stl::bp_tx_stl;
 use invoice::Amount;
+use rgb::WitnessId;
 use strict_types::{CompileError, LibBuilder, TypeLib};
 
 use super::{
-    AssignIface, GenesisIface, GlobalIface, Iface, OwnedIface, Req, TransitionIface, VerNo,
+    AssignIface, GenesisIface, GlobalIface, Iface, IfaceOp, OwnedIface, Req, StateChange,
+    TransitionIface, VerNo, WitnessFilter,
 };
 use crate::interface::{
     ArgSpec, ContractIface, FungibleAllocation, IfaceId, IfaceWrapper, OutpointFilter,
@@ -233,6 +236,58 @@ pub fn rgb20() -> Iface {
     }
 }
 
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_ID_RGB20, tags = custom)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub enum AmountChange {
+    #[display("-{0}")]
+    #[strict_type(tag = 0xFF)]
+    Dec(Amount),
+
+    #[display("0")]
+    #[strict_type(tag = 0, dumb)]
+    Zero,
+
+    #[display("+{0}")]
+    #[strict_type(tag = 0x01)]
+    Inc(Amount),
+}
+
+impl StateChange for AmountChange {
+    type State = Amount;
+
+    fn from_spent(state: Self::State) -> Self { AmountChange::Dec(state) }
+
+    fn from_received(state: Self::State) -> Self { AmountChange::Inc(state) }
+
+    fn merge_spent(&mut self, sub: Self::State) {
+        *self = match self {
+            AmountChange::Dec(neg) => AmountChange::Dec(*neg + sub),
+            AmountChange::Zero => AmountChange::Dec(sub),
+            AmountChange::Inc(pos) if *pos > sub => AmountChange::Inc(*pos - sub),
+            AmountChange::Inc(pos) if *pos == sub => AmountChange::Zero,
+            AmountChange::Inc(pos) if *pos < sub => AmountChange::Dec(sub - *pos),
+            AmountChange::Inc(_) => unreachable!(),
+        };
+    }
+
+    fn merge_received(&mut self, add: Self::State) {
+        *self = match self {
+            AmountChange::Inc(pos) => AmountChange::Inc(*pos + add),
+            AmountChange::Zero => AmountChange::Inc(add),
+            AmountChange::Dec(neg) if *neg > add => AmountChange::Dec(*neg - add),
+            AmountChange::Dec(neg) if *neg == add => AmountChange::Zero,
+            AmountChange::Dec(neg) if *neg < add => AmountChange::Inc(add - *neg),
+            AmountChange::Dec(_) => unreachable!(),
+        };
+    }
+}
+
 #[derive(Wrapper, WrapperMut, Clone, Eq, PartialEq, Debug)]
 #[wrapper(Deref)]
 #[wrapper_mut(DerefMut)]
@@ -273,14 +328,16 @@ impl Rgb20 {
         Timestamp::from_strict_val_unchecked(strict_val)
     }
 
-    pub fn balance(&self, filter: &impl OutpointFilter) -> Amount {
+    pub fn balance(&self, filter: impl OutpointFilter) -> Amount {
         self.allocations(filter)
-            .iter()
-            .map(|alloc| alloc.value)
+            .map(|alloc| alloc.state)
             .sum::<Amount>()
     }
 
-    pub fn allocations(&self, filter: &impl OutpointFilter) -> LargeVec<FungibleAllocation> {
+    pub fn allocations<'c>(
+        &'c self,
+        filter: impl OutpointFilter + 'c,
+    ) -> impl Iterator<Item = FungibleAllocation> + 'c {
         self.0
             .fungible("assetOwner", filter)
             .expect("RGB20 interface requires `assetOwner` state")
@@ -322,6 +379,16 @@ impl Rgb20 {
     }
 
     pub fn total_supply(&self) -> Amount { self.total_issued_supply() - self.total_burned_supply() }
+
+    pub fn transfer_history(
+        &self,
+        witness_filter: impl WitnessFilter + Copy,
+        outpoint_filter: impl OutpointFilter + Copy,
+    ) -> HashMap<WitnessId, IfaceOp<AmountChange>> {
+        self.0
+            .fungible_ops("assetOwner", witness_filter, outpoint_filter)
+            .expect("state name is not correct")
+    }
 }
 
 #[cfg(test)]

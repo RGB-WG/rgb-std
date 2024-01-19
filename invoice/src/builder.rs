@@ -24,7 +24,9 @@ use std::str::FromStr;
 use rgb::ContractId;
 use strict_encoding::{FieldName, TypeName};
 
-use super::{Beneficiary, InvoiceState, Precision, RgbInvoice, RgbTransport, TransportParseError};
+use super::{
+    Amount, Beneficiary, InvoiceState, Precision, RgbInvoice, RgbTransport, TransportParseError,
+};
 use crate::invoice::XChainNet;
 
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -78,8 +80,8 @@ impl RgbInvoiceBuilder {
         self
     }
 
-    pub fn set_amount_raw(mut self, amount: u64) -> Self {
-        self.0.owned_state = InvoiceState::Amount(amount);
+    pub fn set_amount_raw(mut self, amount: impl Into<Amount>) -> Self {
+        self.0.owned_state = InvoiceState::Amount(amount.into());
         self
     }
 

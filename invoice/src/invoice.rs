@@ -24,6 +24,8 @@ use invoice::{AddressNetwork, AddressPayload, Network};
 use rgb::{AttachId, ContractId, Layer1, SecretSeal};
 use strict_encoding::{FieldName, TypeName};
 
+use crate::Amount;
+
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 #[non_exhaustive]
 pub enum RgbTransport {
@@ -39,7 +41,7 @@ pub enum InvoiceState {
     #[display("")]
     Void,
     #[display("{0}")]
-    Amount(u64),
+    Amount(Amount),
     #[display("...")] // TODO
     Data(Vec<u8> /* StrictVal */),
     #[display(inner)]
