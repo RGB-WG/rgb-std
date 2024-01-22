@@ -34,9 +34,11 @@ mod invoice;
 mod parse;
 mod builder;
 mod amount;
+mod data;
 
 pub use amount::{Amount, CoinAmount, Precision};
 pub use builder::RgbInvoiceBuilder;
+pub use data::{Allocation, NonFungible};
 pub use parse::{InvoiceParseError, TransportParseError};
 
 pub use crate::invoice::{

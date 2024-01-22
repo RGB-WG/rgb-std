@@ -24,10 +24,8 @@ use std::str::FromStr;
 use rgb::ContractId;
 use strict_encoding::{FieldName, TypeName};
 
-use super::{
-    Amount, Beneficiary, InvoiceState, Precision, RgbInvoice, RgbTransport, TransportParseError,
-};
-use crate::invoice::XChainNet;
+use crate::invoice::{Beneficiary, InvoiceState, RgbInvoice, RgbTransport, XChainNet};
+use crate::{Allocation, Amount, NonFungible, Precision, TransportParseError};
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct RgbInvoiceBuilder(RgbInvoice);
@@ -105,6 +103,15 @@ impl RgbInvoiceBuilder {
              decimals has digits at most, so overflow is not possible",
         );
         Ok(self.set_amount_raw(amount))
+    }
+
+    pub fn set_allocation_raw(mut self, allocation: impl Into<Allocation>) -> Self {
+        self.0.owned_state = InvoiceState::Data(NonFungible::RGB21(allocation.into()));
+        self
+    }
+
+    pub fn set_allocation(self, token_index: u32, fraction: u64) -> Result<Self, Self> {
+        Ok(self.set_allocation_raw(Allocation::with(token_index, fraction)))
     }
 
     /// # Safety

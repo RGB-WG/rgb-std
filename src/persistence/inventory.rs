@@ -29,7 +29,7 @@ use bp::seals::txout::CloseMethod;
 use bp::{Txid, Vout};
 use chrono::Utc;
 use commit_verify::{mpc, Conceal};
-use invoice::{Amount, Beneficiary, InvoiceState, RgbInvoice};
+use invoice::{Amount, Beneficiary, InvoiceState, NonFungible, RgbInvoice};
 use rgb::{
     validation, AnchoredBundle, AssignmentType, BlindingFactor, BundleId, ContractId, GraphSeal,
     OpId, Operation, Opout, SchemaId, SecretSeal, SubSchema, Transition, TransitionBundle,
@@ -817,6 +817,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         // 2. Prepare transition
         let mut main_inputs = MediumVec::<XOutputSeal>::new();
         let mut sum_inputs = Amount::ZERO;
+        let mut data_inputs = vec![];
         for ((opout, output), mut state) in
             self.state_for_outpoints(contract_id, prev_outputs.iter().cloned())?
         {
@@ -828,10 +829,12 @@ pub trait Inventory: Deref<Target = Self::Stash> {
                 main_builder = main_builder.add_owned_state_raw(opout.ty, seal, state)?;
             } else if let PresistedState::Amount(value, _, _) = state {
                 sum_inputs += value;
+            } else if let PresistedState::Data(value, _) = state {
+                data_inputs.push(value);
             }
         }
         // Add change
-        let main_transition = match invoice.owned_state {
+        let main_transition = match invoice.owned_state.clone() {
             InvoiceState::Amount(amt) => {
                 match sum_inputs.cmp(&amt) {
                     Ordering::Greater => {
@@ -855,8 +858,24 @@ pub trait Inventory: Deref<Target = Self::Stash> {
                     )?
                     .complete_transition(contract_id)?
             }
+            InvoiceState::Data(data) => match data {
+                NonFungible::RGB21(allocation) => {
+                    if !data_inputs.into_iter().any(|x| x == allocation.into()) {
+                        return Err(ComposeError::InsufficientState);
+                    }
+
+                    main_builder
+                        .add_data_raw(
+                            assignment_id,
+                            beneficiary,
+                            allocation,
+                            seal_blinder(contract_id, assignment_id),
+                        )?
+                        .complete_transition(contract_id)?
+                }
+            },
             _ => {
-                todo!("only TypedState::Amount is currently supported")
+                todo!("only TypedState::Amount and TypedState::Allocation are currently supported")
             }
         };
 

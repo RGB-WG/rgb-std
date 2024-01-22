@@ -33,15 +33,16 @@ use strict_encoding::{
     InvalidIdent, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, TypedWrite,
 };
 use strict_types::stl::std_stl;
-use strict_types::{CompileError, LibBuilder, TypeLib};
+use strict_types::{CompileError, LibBuilder, StrictVal, TypeLib};
 
 use super::{
-    AssignIface, GenesisIface, GlobalIface, Iface, OwnedIface, Req, TransitionIface, VerNo,
+    AssignIface, DataAllocation, GenesisIface, GlobalIface, Iface, OutpointFilter, OwnedIface, Req,
+    TransitionIface, VerNo,
 };
 use crate::interface::{ArgSpec, ContractIface, IfaceId, IfaceWrapper};
 use crate::stl::{
     rgb_contract_stl, Attachment, Details, DivisibleAssetSpec, MediaType, Name, ProofOfReserves,
-    StandardTypes, Ticker,
+    RicardianContract, StandardTypes, Ticker, Timestamp,
 };
 
 pub const LIB_NAME_RGB21: &str = "RGB21";
@@ -91,7 +92,7 @@ pub struct TokenIndex(u32);
 )]
 pub struct OwnedFraction(u64);
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug, Default)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB21)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
@@ -136,6 +137,16 @@ pub struct EmbeddedMedia {
     #[cfg_attr(feature = "serde", serde(rename = "type"))]
     pub ty: MediaType,
     pub data: SmallBlob,
+}
+
+impl EmbeddedMedia {
+    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
+        let ty = MediaType::from_strict_val_unchecked(value.unwrap_struct("type"));
+        let data =
+            SmallBlob::from_collection_unsafe(value.unwrap_struct("data").unwrap_bytes().into());
+
+        Self { ty, data }
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
@@ -236,6 +247,60 @@ pub struct TokenData {
 
 impl StrictSerialize for TokenData {}
 impl StrictDeserialize for TokenData {}
+
+impl TokenData {
+    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
+        let index = TokenIndex(value.unwrap_struct("index").unwrap_num().unwrap_uint());
+        let ticker = value
+            .unwrap_struct("ticker")
+            .unwrap_option()
+            .map(|x| Ticker::from_str(&x.unwrap_string()).expect("invalid uda ticker"));
+
+        let name = value
+            .unwrap_struct("name")
+            .unwrap_option()
+            .map(|x| Name::from_str(&x.unwrap_string()).expect("invalid uda name"));
+
+        let details = value
+            .unwrap_struct("details")
+            .unwrap_option()
+            .map(|x| Details::from_str(&x.unwrap_string()).expect("invalid uda details"));
+
+        let preview = value
+            .unwrap_struct("preview")
+            .unwrap_option()
+            .map(EmbeddedMedia::from_strict_val_unchecked);
+        let media = value
+            .unwrap_struct("media")
+            .unwrap_option()
+            .map(Attachment::from_strict_val_unchecked);
+
+        let attachments = if let StrictVal::Map(list) = value.unwrap_struct("attachments") {
+            Confined::from_collection_unsafe(
+                list.iter()
+                    .map(|(k, v)| (k.unwrap_uint(), Attachment::from_strict_val_unchecked(v)))
+                    .collect(),
+            )
+        } else {
+            Confined::default()
+        };
+
+        let reserves = value
+            .unwrap_struct("reserves")
+            .unwrap_option()
+            .map(ProofOfReserves::from_strict_val_unchecked);
+        Self {
+            index,
+            ticker,
+            name,
+            details,
+            preview,
+            media,
+            attachments,
+            reserves,
+        }
+    }
+}
 
 const FRACTION_OVERFLOW: u8 = 1;
 const NON_EQUAL_VALUES: u8 = 2;
@@ -441,6 +506,39 @@ impl Rgb21 {
             .global("spec")
             .expect("RGB21 interface requires global `spec`")[0];
         DivisibleAssetSpec::from_strict_val_unchecked(strict_val)
+    }
+
+    pub fn terms(&self) -> RicardianContract {
+        let strict_val = &self
+            .0
+            .global("terms")
+            .expect("RGB21 interface requires global `terms`")[0];
+        RicardianContract::from_str(&strict_val.unwrap_string()).expect("invalid asset `terms`")
+    }
+
+    pub fn token_data(&self) -> TokenData {
+        let strict_val = &self
+            .0
+            .global("tokens")
+            .expect("RGB21 interface requires global `tokens`")[0];
+        TokenData::from_strict_val_unchecked(strict_val)
+    }
+
+    pub fn created(&self) -> Timestamp {
+        let strict_val = &self
+            .0
+            .global("created")
+            .expect("RGB21 interface requires global state `created`")[0];
+        Timestamp::from_strict_val_unchecked(strict_val)
+    }
+
+    pub fn allocations<'c>(
+        &'c self,
+        filter: impl OutpointFilter + 'c,
+    ) -> impl Iterator<Item = DataAllocation> + 'c {
+        self.0
+            .data("assetOwner", filter)
+            .expect("RGB21 interface requires `assetOwner` state")
     }
 }
 

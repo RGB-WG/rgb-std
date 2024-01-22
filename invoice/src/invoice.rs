@@ -19,12 +19,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::str::FromStr;
+
 use indexmap::IndexMap;
 use invoice::{AddressNetwork, AddressPayload, Network};
 use rgb::{AttachId, ContractId, Layer1, SecretSeal};
 use strict_encoding::{FieldName, TypeName};
 
-use crate::Amount;
+use crate::{Amount, NonFungible};
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 #[non_exhaustive]
@@ -36,16 +38,41 @@ pub enum RgbTransport {
     UnspecifiedMeans,
 }
 
+#[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
+#[display(inner)]
+pub enum InvoiceStateError {
+    #[display(doc_comments)]
+    /// could not parse as amount, data, or attach: {0}.
+    ParseError(String),
+}
+
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
 pub enum InvoiceState {
     #[display("")]
     Void,
     #[display("{0}")]
     Amount(Amount),
-    #[display("...")] // TODO
-    Data(Vec<u8> /* StrictVal */),
+    #[display(inner)]
+    Data(NonFungible),
     #[display(inner)]
     Attach(AttachId),
+}
+
+impl FromStr for InvoiceState {
+    type Err = InvoiceStateError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.is_empty() {
+            Ok(InvoiceState::Void)
+        } else if let Ok(amount) = Amount::from_str(s) {
+            Ok(InvoiceState::Amount(amount))
+        } else if let Ok(data) = NonFungible::from_str(s) {
+            Ok(InvoiceState::Data(data))
+        } else if let Ok(attach) = AttachId::from_str(s) {
+            Ok(InvoiceState::Attach(attach))
+        } else {
+            Err(InvoiceStateError::ParseError(s.to_owned()))
+        }
+    }
 }
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]

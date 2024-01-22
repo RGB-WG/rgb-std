@@ -22,7 +22,7 @@
 use std::collections::HashMap;
 
 use amplify::confinement::{SmallOrdSet, SmallVec};
-use invoice::Amount;
+use invoice::{Allocation, Amount};
 use rgb::{
     AssignmentWitness, AttachId, ContractId, ContractState, DataState, KnownState, MediaType, OpId,
     OutputAssignment, RevealedAttach, RevealedData, RevealedValue, VoidState, WitnessId, XOutpoint,
@@ -69,6 +69,7 @@ pub enum AllocatedState {
 
     #[from]
     #[from(RevealedData)]
+    #[from(Allocation)]
     #[strict_type(tag = 2)]
     Data(DataState),
 
@@ -368,6 +369,23 @@ impl ContractIface {
                 .cloned()
                 .map(OutputAssignment::transmute),
             self.fungible(name, outpoint_filter)?,
+            witness_filter,
+        ))
+    }
+
+    pub fn data_ops<C: StateChange<State = DataState>>(
+        &self,
+        name: impl Into<FieldName>,
+        witness_filter: impl WitnessFilter + Copy,
+        outpoint_filter: impl OutpointFilter + Copy,
+    ) -> Result<HashMap<WitnessId, IfaceOp<C>>, ContractError> {
+        Ok(self.operations(
+            self.state
+                .data()
+                .iter()
+                .cloned()
+                .map(OutputAssignment::transmute),
+            self.data(name, outpoint_filter)?,
             witness_filter,
         ))
     }
