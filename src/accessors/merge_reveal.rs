@@ -188,12 +188,19 @@ impl MergeReveal for TransitionBundle {
     fn merge_reveal(mut self, other: Self) -> Result<Self, MergeRevealError> {
         debug_assert_eq!(self.commitment_id(), other.commitment_id());
 
-        if self
-            .known_transitions
-            .extend(other.known_transitions)
-            .is_err() ||
-            self.input_map.len() > self.known_transitions.len()
-        {
+        for (opid, transition) in self.known_transitions.keyed_values_mut() {
+            if let Some((_, other_transition)) =
+                other.known_transitions.iter().find(|(o, _)| o == &opid)
+            {
+                transition.assignments = transition
+                    .assignments
+                    .clone()
+                    .merge_reveal(other_transition.assignments.clone())
+                    .unwrap();
+            }
+        }
+
+        if self.input_map.len() > self.known_transitions.len() {
             return Err(MergeRevealError::ExcessiveTransitions);
         }
         Ok(self)
