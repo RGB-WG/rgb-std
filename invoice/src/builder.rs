@@ -126,6 +126,12 @@ impl RgbInvoiceBuilder {
         self
     }
 
+    fn drop_unspecified_transport(&mut self) {
+        if self.0.transports.len() == 1 && self.0.transports[0] == RgbTransport::UnspecifiedMeans {
+            self.0.transports = vec![];
+        }
+    }
+
     pub fn add_transport(self, transport: &str) -> Result<Self, (Self, TransportParseError)> {
         let transport = match RgbTransport::from_str(transport) {
             Err(err) => return Err((self, err)),
@@ -135,6 +141,7 @@ impl RgbInvoiceBuilder {
     }
 
     pub fn add_transport_raw(mut self, transport: RgbTransport) -> Self {
+        self.drop_unspecified_transport();
         self.0.transports.push(transport);
         self
     }
@@ -158,6 +165,7 @@ impl RgbInvoiceBuilder {
         mut self,
         transports: impl IntoIterator<Item = RgbTransport>,
     ) -> Self {
+        self.drop_unspecified_transport();
         self.0.transports.extend(transports);
         self
     }
