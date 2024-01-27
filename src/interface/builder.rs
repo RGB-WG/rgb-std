@@ -23,7 +23,7 @@ use std::collections::{HashMap, HashSet};
 
 use amplify::confinement::{Confined, TinyOrdMap, TinyOrdSet, U16};
 use amplify::{confinement, Wrapper};
-use invoice::Amount;
+use invoice::{Allocation, Amount};
 use rgb::{
     AltLayer1, AltLayer1Set, AssetTag, Assign, AssignmentType, Assignments, BlindingFactor,
     ContractId, DataState, ExposedSeal, FungibleType, Genesis, GenesisSeal, GlobalState, GraphSeal,
@@ -449,6 +449,18 @@ impl TransitionBuilder {
         self.builder = self
             .builder
             .add_data(name, seal, value, Some(self.transition_type))?;
+        Ok(self)
+    }
+
+    pub fn add_data_raw(
+        mut self,
+        type_id: AssignmentType,
+        seal: impl Into<BuilderSeal<GraphSeal>>,
+        allocation: impl Into<Allocation>,
+        blinding: u64,
+    ) -> Result<Self, BuilderError> {
+        let revelead_state = RevealedData::with_salt(allocation.into(), blinding.into());
+        self.builder = self.builder.add_data_raw(type_id, seal, revelead_state)?;
         Ok(self)
     }
 

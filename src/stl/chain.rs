@@ -19,9 +19,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::str::FromStr;
+
 use amplify::confinement::SmallBlob;
 use bp::Outpoint;
 use strict_encoding::{StrictDeserialize, StrictSerialize};
+use strict_types::StrictVal;
 
 use super::LIB_NAME_RGB_CONTRACT;
 
@@ -39,5 +42,14 @@ impl StrictDeserialize for ProofOfReserves {}
 impl ProofOfReserves {
     pub fn new(utxo: Outpoint, proof: SmallBlob) -> ProofOfReserves {
         ProofOfReserves { utxo, proof }
+    }
+
+    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
+        let utxo = Outpoint::from_str(&value.unwrap_struct("utxo").unwrap_string())
+            .expect("invalid outpoint");
+        let proof =
+            SmallBlob::from_collection_unsafe(value.unwrap_struct("proof").unwrap_bytes().into());
+
+        Self { utxo, proof }
     }
 }

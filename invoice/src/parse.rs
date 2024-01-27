@@ -31,8 +31,7 @@ use percent_encoding::{utf8_percent_encode, AsciiSet, CONTROLS};
 use rgb::{ContractId, SecretSeal};
 use strict_encoding::{InvalidIdent, TypeName};
 
-use super::{Amount, Beneficiary, InvoiceState, RgbInvoice, RgbTransport};
-use crate::invoice::{ChainNet, XChainNet};
+use crate::invoice::{Beneficiary, ChainNet, InvoiceState, RgbInvoice, RgbTransport, XChainNet};
 
 const OMITTED: &str = "~";
 const EXPIRY: &str = "expiry";
@@ -117,6 +116,10 @@ pub enum InvoiceParseError {
     #[from]
     #[display(inner)]
     Num(ParseIntError),
+
+    /// can't recognize amount "{0}": it should be valid rgb21 allocation
+    /// data.
+    Data(String),
 
     #[from]
     /// invalid interface name.
@@ -352,14 +355,16 @@ impl FromStr for RgbInvoice {
             .map(|(a, b)| (Some(a), Some(b)))
             .unwrap_or((Some(assignment.as_str()), None));
         // TODO: support other state types
-        let (beneficiary_str, value) = match (amount, beneficiary) {
-            (Some(a), Some(b)) => (b, InvoiceState::Amount(a.parse::<Amount>()?)),
-            (Some(b), None) => (b, InvoiceState::Void),
+        let (beneficiary_str, value) = match (beneficiary, amount) {
+            (Some(b), Some(a)) => (
+                b,
+                InvoiceState::from_str(a).map_err(|_| InvoiceParseError::Data(a.to_string()))?,
+            ),
+            (None, Some(b)) => (b, InvoiceState::Void),
             _ => unreachable!(),
         };
 
         let beneficiary = XChainNet::<Beneficiary>::from_str(beneficiary_str)?;
-
         let mut query_params = map_query_params(&uri)?;
 
         let transports = if let Some(endpoints) = query_params.remove(ENDPOINTS) {
@@ -427,15 +432,28 @@ mod test {
 
     #[test]
     fn parse() {
-        // all path parameters
+        // rgb20/rgb25 parameters
         let invoice_str = "rgb:2WBcas9-yjzEvGufY-9GEgnyMj7-beMNMWA8r-sPHtV1nPU-TMsGMQX/RGB20/\
                            100+bc:utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb";
         let invoice = RgbInvoice::from_str(invoice_str).unwrap();
         assert_eq!(invoice.to_string(), invoice_str);
         assert_eq!(format!("{invoice:#}"), invoice_str.replace('-', ""));
 
+        // rgb21 parameters
+        let invoice_str = "rgb:2WBcas9-yjzEvGufY-9GEgnyMj7-beMNMWA8r-sPHtV1nPU-TMsGMQX/RGB21/1@\
+                           1+bc:utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb";
+        let invoice = RgbInvoice::from_str(invoice_str).unwrap();
+        assert_eq!(invoice.to_string(), invoice_str);
+        assert_eq!(format!("{invoice:#}"), invoice_str.replace('-', ""));
+
         // no amount
         let invoice_str = "rgb:2WBcas9-yjzEvGufY-9GEgnyMj7-beMNMWA8r-sPHtV1nPU-TMsGMQX/RGB20/bc:\
+                           utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb";
+        let invoice = RgbInvoice::from_str(invoice_str).unwrap();
+        assert_eq!(invoice.to_string(), invoice_str);
+
+        // no allocation
+        let invoice_str = "rgb:2WBcas9-yjzEvGufY-9GEgnyMj7-beMNMWA8r-sPHtV1nPU-TMsGMQX/RGB21/bc:\
                            utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb";
         let invoice = RgbInvoice::from_str(invoice_str).unwrap();
         assert_eq!(invoice.to_string(), invoice_str);
