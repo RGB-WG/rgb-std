@@ -43,7 +43,7 @@ pub use iface::{
     ArgMap, ArgSpec, AssignIface, ExtensionIface, GenesisIface, GlobalIface, Iface, IfaceId,
     OwnedIface, Req, TransitionIface, ValencyIface,
 };
-pub use iimpl::{IfaceImpl, IfacePair, ImplId, NamedField, NamedType, SchemaIfaces};
+pub use iimpl::{ContractClass, IfaceImpl, IfacePair, ImplId, NamedField, NamedType, SchemaIfaces};
 pub use rgb20::{rgb20, rgb20_stl, AmountChange, Rgb20, LIB_ID_RGB20, LIB_NAME_RGB20};
 pub use rgb21::{rgb21, rgb21_stl, Rgb21, LIB_ID_RGB21, LIB_NAME_RGB21};
 pub use rgb25::{rgb25, rgb25_stl, Rgb25, LIB_ID_RGB25, LIB_NAME_RGB25};

@@ -19,6 +19,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::BTreeSet;
 use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 
@@ -299,4 +300,11 @@ impl IfacePair {
     pub fn transition_type(&self, name: &TypeName) -> Option<TransitionType> {
         self.iimpl.transition_type(name)
     }
+}
+
+pub trait ContractClass {
+    fn schema() -> SubSchema;
+    fn ifaces() -> BTreeSet<IfaceId>;
+    fn iface(id: IfaceId) -> Iface;
+    fn iface_impl(id: IfaceId) -> IfaceImpl;
 }
