@@ -32,6 +32,7 @@ pub mod rgb21;
 pub mod rgb25;
 mod suppl;
 mod filters;
+pub(crate) mod resolver;
 
 pub use builder::{BuilderError, ContractBuilder, TransitionBuilder};
 pub use contract::{

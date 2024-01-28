@@ -25,16 +25,17 @@ use amplify::confinement::{Confined, TinyOrdMap, TinyOrdSet, U16};
 use amplify::{confinement, Wrapper};
 use invoice::{Allocation, Amount};
 use rgb::{
-    AltLayer1, AltLayer1Set, AssetTag, Assign, AssignmentType, Assignments, BlindingFactor,
-    ContractId, DataState, ExposedSeal, FungibleType, Genesis, GenesisSeal, GlobalState, GraphSeal,
-    Input, Opout, RevealedAttach, RevealedData, RevealedValue, StateSchema, SubSchema, Transition,
-    TransitionType, TypedAssigns,
+    validation, AltLayer1, AltLayer1Set, AssetTag, Assign, AssignmentType, Assignments,
+    BlindingFactor, ContractId, DataState, ExposedSeal, FungibleType, Genesis, GenesisSeal,
+    GlobalState, GraphSeal, Input, Opout, RevealedAttach, RevealedData, RevealedValue, StateSchema,
+    SubSchema, Transition, TransitionType, TypedAssigns,
 };
 use strict_encoding::{FieldName, SerializeError, StrictSerialize, TypeName};
 use strict_types::decode;
 
 use crate::containers::{BuilderSeal, Contract};
 use crate::interface::contract::AttachedState;
+use crate::interface::resolver::DumbResolver;
 use crate::interface::{Iface, IfaceImpl, IfacePair, TransitionIface};
 use crate::persistence::PersistedState;
 
@@ -97,6 +98,10 @@ pub enum BuilderError {
     #[from]
     #[display(inner)]
     Confinement(confinement::Error),
+
+    #[from]
+    #[display(inner)]
+    ContractInconsistency(validation::Status),
 }
 
 #[derive(Clone, Debug)]
@@ -262,12 +267,19 @@ impl ContractBuilder {
             valencies: none!(),
         };
 
-        // TODO: Validate against schema
-
         let mut contract = Contract::new(schema, genesis, asset_tags);
         contract.ifaces = tiny_bmap! { iface_pair.iface_id() => iface_pair };
 
-        Ok(contract)
+        let verified_contract =
+            contract
+                .validate(&mut DumbResolver, self.testnet)
+                .map_err(|consignment| {
+                    consignment
+                        .into_validation_status()
+                        .expect("status always present upon validation")
+                })?;
+
+        Ok(verified_contract)
     }
 }
 

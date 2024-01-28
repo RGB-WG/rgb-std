@@ -512,6 +512,8 @@ impl Rgb20Contract {
         // TODO: Compute sum of all allocations and add to the issue amount
         self.0.issue_contract()
     }
+
+    // TODO: Add secondary issuance and other methods
 }
 
 #[cfg(test)]
