@@ -410,11 +410,10 @@ impl Rgb20Contract {
         precision: Precision,
     ) -> Result<Self, InvalidIdent> {
         let rgb20 = rgb20();
-        let rgb20_id = rgb20.iface_id();
 
         let spec = DivisibleAssetSpec::with(ticker, name, precision, details)?;
 
-        let builder = ContractBuilder::testnet(rgb20, C::schema(), C::iface_impl(rgb20_id))
+        let builder = ContractBuilder::testnet(rgb20, C::schema(), C::main_iface_impl())
             .expect("schema interface mismatch")
             .add_global_state("spec", spec)
             .expect("invalid RGB20 schema (token specification mismatch)");
