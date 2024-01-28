@@ -44,5 +44,5 @@ pub use inventory::{
     InventoryInconsistency,
 };
 pub use stash::{Stash, StashError, StashInconsistency};
-pub use state::PresistedState;
+pub use state::PersistedState;
 pub use stock::Stock;

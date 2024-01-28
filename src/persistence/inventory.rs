@@ -48,7 +48,7 @@ use crate::interface::{
 };
 use crate::persistence::hoard::ConsumeError;
 use crate::persistence::stash::StashInconsistency;
-use crate::persistence::{PresistedState, Stash, StashError};
+use crate::persistence::{PersistedState, Stash, StashError};
 use crate::resolvers::ResolveHeight;
 
 #[derive(Debug, Display, Error, From)]
@@ -566,7 +566,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         &self,
         contract_id: ContractId,
         outpoints: impl IntoIterator<Item = impl Into<XOutpoint>>,
-    ) -> Result<BTreeMap<(Opout, XOutputSeal), PresistedState>, InventoryError<Self::Error>>;
+    ) -> Result<BTreeMap<(Opout, XOutputSeal), PersistedState>, InventoryError<Self::Error>>;
 
     fn store_seal_secret(
         &mut self,
@@ -827,9 +827,9 @@ pub trait Inventory: Deref<Target = Self::Stash> {
                 let seal = output_for_assignment(contract_id, opout.ty)?;
                 state.update_blinding(pedersen_blinder(contract_id, assignment_id));
                 main_builder = main_builder.add_owned_state_raw(opout.ty, seal, state)?;
-            } else if let PresistedState::Amount(value, _, _) = state {
+            } else if let PersistedState::Amount(value, _, _) = state {
                 sum_inputs += value;
-            } else if let PresistedState::Data(value, _) = state {
+            } else if let PersistedState::Data(value, _) = state {
                 data_inputs.push(value);
             }
         }
@@ -882,7 +882,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         // 3. Prepare other transitions
         // Enumerate state
         let mut spent_state =
-            HashMap::<ContractId, BTreeMap<(Opout, XOutputSeal), PresistedState>>::new();
+            HashMap::<ContractId, BTreeMap<(Opout, XOutputSeal), PersistedState>>::new();
         for output in prev_outputs {
             for id in self.contracts_by_outputs([output])? {
                 if id == contract_id {
@@ -902,7 +902,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             for ((opout, output), mut state) in opouts {
                 let seal = output_for_assignment(id, opout.ty)?;
                 outputs.push(output);
-                if let PresistedState::Amount(_, ref mut blinding, _) = state {
+                if let PersistedState::Amount(_, ref mut blinding, _) = state {
                     *blinding = pedersen_blinder(id, opout.ty);
                 }
                 blank_builder = blank_builder

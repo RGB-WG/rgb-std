@@ -39,7 +39,7 @@ use crate::interface::{ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, Sche
 use crate::persistence::hoard::ConsumeError;
 use crate::persistence::inventory::{DataError, IfaceImplError, InventoryInconsistency};
 use crate::persistence::{
-    Hoard, Inventory, InventoryDataError, InventoryError, PresistedState, Stash, StashInconsistency,
+    Hoard, Inventory, InventoryDataError, InventoryError, PersistedState, Stash, StashInconsistency,
 };
 use crate::resolvers::ResolveHeight;
 use crate::LIB_NAME_RGB_STD;
@@ -643,7 +643,7 @@ impl Inventory for Stock {
         &self,
         contract_id: ContractId,
         outputs: impl IntoIterator<Item = impl Into<XOutpoint>>,
-    ) -> Result<BTreeMap<(Opout, XOutputSeal), PresistedState>, InventoryError<Self::Error>> {
+    ) -> Result<BTreeMap<(Opout, XOutputSeal), PersistedState>, InventoryError<Self::Error>> {
         let outputs = outputs
             .into_iter()
             .map(|o| o.into())
@@ -660,7 +660,7 @@ impl Inventory for Stock {
             if outputs.contains(&item.seal.into()) {
                 res.insert(
                     (item.opout, item.seal),
-                    PresistedState::Amount(
+                    PersistedState::Amount(
                         item.state.value.into(),
                         item.state.blinding,
                         item.state.tag,
@@ -673,14 +673,14 @@ impl Inventory for Stock {
             if outputs.contains(&item.seal.into()) {
                 res.insert(
                     (item.opout, item.seal),
-                    PresistedState::Data(item.state.value.clone(), item.state.salt),
+                    PersistedState::Data(item.state.value.clone(), item.state.salt),
                 );
             }
         }
 
         for item in history.rights() {
             if outputs.contains(&item.seal.into()) {
-                res.insert((item.opout, item.seal), PresistedState::Void);
+                res.insert((item.opout, item.seal), PersistedState::Void);
             }
         }
 
@@ -688,7 +688,7 @@ impl Inventory for Stock {
             if outputs.contains(&item.seal.into()) {
                 res.insert(
                     (item.opout, item.seal),
-                    PresistedState::Attachment(item.state.clone().into(), item.state.salt),
+                    PersistedState::Attachment(item.state.clone().into(), item.state.salt),
                 );
             }
         }

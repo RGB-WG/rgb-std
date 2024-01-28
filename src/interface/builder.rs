@@ -36,7 +36,7 @@ use strict_types::decode;
 use crate::containers::{BuilderSeal, Contract};
 use crate::interface::contract::AttachedState;
 use crate::interface::{Iface, IfaceImpl, IfacePair, TransitionIface};
-use crate::persistence::PresistedState;
+use crate::persistence::PersistedState;
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
@@ -175,7 +175,7 @@ impl ContractBuilder {
         mut self,
         type_id: AssignmentType,
         seal: impl Into<BuilderSeal<GenesisSeal>>,
-        state: PresistedState,
+        state: PersistedState,
     ) -> Result<Self, BuilderError> {
         self.builder = self.builder.add_owned_state_raw(type_id, seal, state)?;
         Ok(self)
@@ -270,7 +270,7 @@ impl ContractBuilder {
 pub struct TransitionBuilder {
     builder: OperationBuilder<GraphSeal>,
     transition_type: TransitionType,
-    inputs: TinyOrdMap<Input, PresistedState>,
+    inputs: TinyOrdMap<Input, PersistedState>,
 }
 
 impl TransitionBuilder {
@@ -355,7 +355,7 @@ impl TransitionBuilder {
         Ok(self)
     }
 
-    pub fn add_input(mut self, opout: Opout, state: PresistedState) -> Result<Self, BuilderError> {
+    pub fn add_input(mut self, opout: Opout, state: PersistedState) -> Result<Self, BuilderError> {
         self.inputs.insert(Input::with(opout), state)?;
         Ok(self)
     }
@@ -378,9 +378,9 @@ impl TransitionBuilder {
         mut self,
         type_id: AssignmentType,
         seal: impl Into<BuilderSeal<GraphSeal>>,
-        state: PresistedState,
+        state: PersistedState,
     ) -> Result<Self, BuilderError> {
-        if matches!(state, PresistedState::Amount(_, _, tag) if self.builder.asset_tag(type_id)? != tag)
+        if matches!(state, PersistedState::Amount(_, _, tag) if self.builder.asset_tag(type_id)? != tag)
         {
             return Err(BuilderError::AssetTagInvalid(type_id));
         }
@@ -656,19 +656,19 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         self,
         type_id: AssignmentType,
         seal: impl Into<BuilderSeal<Seal>>,
-        state: PresistedState,
+        state: PersistedState,
     ) -> Result<Self, BuilderError> {
         match state {
-            PresistedState::Void => self.add_rights_raw(type_id, seal),
-            PresistedState::Amount(value, blinding, tag) => self.add_fungible_state_raw(
+            PersistedState::Void => self.add_rights_raw(type_id, seal),
+            PersistedState::Amount(value, blinding, tag) => self.add_fungible_state_raw(
                 type_id,
                 seal,
                 RevealedValue::with_blinding(value, blinding, tag),
             ),
-            PresistedState::Data(data, salt) => {
+            PersistedState::Data(data, salt) => {
                 self.add_data_raw(type_id, seal, RevealedData::with_salt(data, salt))
             }
-            PresistedState::Attachment(attach, salt) => self.add_attachment_raw(
+            PersistedState::Attachment(attach, salt) => self.add_attachment_raw(
                 type_id,
                 seal,
                 RevealedAttach::with_salt(attach.id, attach.media_type, salt),
@@ -844,7 +844,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
 
     fn complete(
         self,
-        inputs: Option<&TinyOrdMap<Input, PresistedState>>,
+        inputs: Option<&TinyOrdMap<Input, PersistedState>>,
     ) -> (SubSchema, IfacePair, GlobalState, Assignments<Seal>, TinyOrdMap<AssignmentType, AssetTag>)
     {
         let owned_state = self.fungible.into_iter().map(|(id, vec)| {
@@ -871,7 +871,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
                         i.iter()
                             .filter(|(out, _)| out.prev_out.ty == id)
                             .map(|(_, ts)| match ts {
-                                PresistedState::Amount(_, blinding, _) => *blinding,
+                                PersistedState::Amount(_, blinding, _) => *blinding,
                                 _ => panic!("previous state has invalid type"),
                             })
                             .collect::<Vec<_>>()

@@ -25,20 +25,20 @@ use rgb::{AssetTag, BlindingFactor, DataState};
 use crate::interface::AttachedState;
 
 #[derive(Clone, Eq, PartialEq, Debug, Hash)]
-pub enum PresistedState {
+pub enum PersistedState {
     Void,
     Amount(Amount, BlindingFactor, AssetTag),
     Data(DataState, u128),
     Attachment(AttachedState, u64),
 }
 
-impl PresistedState {
+impl PersistedState {
     pub(super) fn update_blinding(&mut self, blinding: BlindingFactor) {
         match self {
-            PresistedState::Void => {}
-            PresistedState::Amount(_, b, _) => *b = blinding,
-            PresistedState::Data(_, _) => {}
-            PresistedState::Attachment(_, _) => {}
+            PersistedState::Void => {}
+            PersistedState::Amount(_, b, _) => *b = blinding,
+            PersistedState::Data(_, _) => {}
+            PersistedState::Attachment(_, _) => {}
         }
     }
 }
