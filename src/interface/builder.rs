@@ -152,6 +152,11 @@ impl ContractBuilder {
     }
 
     #[inline]
+    pub fn asset_tag(&self, name: impl Into<FieldName>) -> Result<AssetTag, BuilderError> {
+        self.builder.asset_tag(name)
+    }
+
+    #[inline]
     pub fn add_asset_tag(
         mut self,
         name: impl Into<FieldName>,
@@ -324,6 +329,11 @@ impl TransitionBuilder {
     pub fn transition_type(&self) -> TransitionType { self.transition_type }
 
     #[inline]
+    pub fn asset_tag(&self, name: impl Into<FieldName>) -> Result<AssetTag, BuilderError> {
+        self.builder.asset_tag(name)
+    }
+
+    #[inline]
     pub fn add_asset_tag(
         mut self,
         name: impl Into<FieldName>,
@@ -380,7 +390,7 @@ impl TransitionBuilder {
         seal: impl Into<BuilderSeal<GraphSeal>>,
         state: PersistedState,
     ) -> Result<Self, BuilderError> {
-        if matches!(state, PersistedState::Amount(_, _, tag) if self.builder.asset_tag(type_id)? != tag)
+        if matches!(state, PersistedState::Amount(_, _, tag) if self.builder.asset_tag_raw(type_id)? != tag)
         {
             return Err(BuilderError::AssetTagInvalid(type_id));
         }
@@ -415,7 +425,7 @@ impl TransitionBuilder {
         value: impl Into<Amount>,
         blinding: BlindingFactor,
     ) -> Result<Self, BuilderError> {
-        let tag = self.builder.asset_tag(type_id)?;
+        let tag = self.builder.asset_tag_raw(type_id)?;
         let state = RevealedValue::with_blinding(value.into(), blinding, tag);
         self.builder = self.builder.add_fungible_state_raw(type_id, seal, state)?;
         Ok(self)
@@ -432,7 +442,7 @@ impl TransitionBuilder {
             .builder
             .assignments_type(&name, None)
             .ok_or(BuilderError::AssignmentNotFound(name.clone()))?;
-        let tag = self.builder.asset_tag(type_id)?;
+        let tag = self.builder.asset_tag_raw(type_id)?;
 
         self.builder =
             self.builder
@@ -581,8 +591,16 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             .expect("schema should match interface: must be checked by the constructor")
     }
 
+    pub fn asset_tag(&self, name: impl Into<FieldName>) -> Result<AssetTag, BuilderError> {
+        let name = name.into();
+        let type_id = self
+            .assignments_type(&name, None)
+            .ok_or(BuilderError::AssignmentNotFound(name.clone()))?;
+        self.asset_tag_raw(type_id)
+    }
+
     #[inline]
-    pub fn asset_tag(&self, type_id: AssignmentType) -> Result<AssetTag, BuilderError> {
+    fn asset_tag_raw(&self, type_id: AssignmentType) -> Result<AssetTag, BuilderError> {
         self.asset_tags
             .get(&type_id)
             .ok_or(BuilderError::AssetTagMissed(type_id))
