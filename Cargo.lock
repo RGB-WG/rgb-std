@@ -264,9 +264,8 @@ dependencies = [
 
 [[package]]
 name = "bp-invoice"
-version = "0.11.0-beta.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a40b7fb87b58b2371b7b3b010568baa9ba463007707f9af9bb9b77a63d77e8f"
+version = "0.11.0-beta.3.1"
+source = "git+https://github.com/BP-WG/bp-std?branch=v0.11#b37cdba13786091e6e153add0c2beda9c6650ea1"
 dependencies = [
  "amplify",
  "bech32",
