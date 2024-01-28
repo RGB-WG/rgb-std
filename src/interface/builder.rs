@@ -176,13 +176,13 @@ impl ContractBuilder {
         Ok(self)
     }
 
-    pub fn add_owned_state_raw(
+    pub fn add_owned_state_det(
         mut self,
-        type_id: AssignmentType,
+        name: impl Into<FieldName>,
         seal: impl Into<BuilderSeal<GenesisSeal>>,
         state: PersistedState,
     ) -> Result<Self, BuilderError> {
-        self.builder = self.builder.add_owned_state_raw(type_id, seal, state)?;
+        self.builder = self.builder.add_owned_state_det(name, seal, state)?;
         Ok(self)
     }
 
@@ -382,6 +382,16 @@ impl TransitionBuilder {
     pub fn assignments_type(&self, name: &FieldName) -> Option<AssignmentType> {
         self.builder
             .assignments_type(name, Some(self.transition_type))
+    }
+
+    pub fn add_owned_state_det(
+        mut self,
+        name: impl Into<FieldName>,
+        seal: impl Into<BuilderSeal<GraphSeal>>,
+        state: PersistedState,
+    ) -> Result<Self, BuilderError> {
+        self.builder = self.builder.add_owned_state_det(name, seal, state)?;
+        Ok(self)
     }
 
     pub fn add_owned_state_raw(
@@ -670,6 +680,19 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         Ok(self)
     }
 
+    fn add_owned_state_det(
+        self,
+        name: impl Into<FieldName>,
+        seal: impl Into<BuilderSeal<Seal>>,
+        state: PersistedState,
+    ) -> Result<Self, BuilderError> {
+        let name = name.into();
+        let type_id = self
+            .assignments_type(&name, None)
+            .ok_or(BuilderError::AssignmentNotFound(name.clone()))?;
+        self.add_owned_state_raw(type_id, seal, state)
+    }
+
     fn add_owned_state_raw(
         self,
         type_id: AssignmentType,
@@ -678,11 +701,17 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
     ) -> Result<Self, BuilderError> {
         match state {
             PersistedState::Void => self.add_rights_raw(type_id, seal),
-            PersistedState::Amount(value, blinding, tag) => self.add_fungible_state_raw(
-                type_id,
-                seal,
-                RevealedValue::with_blinding(value, blinding, tag),
-            ),
+            PersistedState::Amount(value, blinding, tag) => {
+                if self.asset_tag_raw(type_id)? != tag {
+                    return Err(BuilderError::AssetTagInvalid(type_id));
+                }
+
+                self.add_fungible_state_raw(
+                    type_id,
+                    seal,
+                    RevealedValue::with_blinding(value, blinding, tag),
+                )
+            }
             PersistedState::Data(data, salt) => {
                 self.add_data_raw(type_id, seal, RevealedData::with_salt(data, salt))
             }
