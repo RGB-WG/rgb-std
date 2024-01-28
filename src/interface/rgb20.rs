@@ -20,20 +20,28 @@
 // limitations under the License.
 
 use std::collections::HashMap;
+use std::str::FromStr;
 
 use bp::bc::stl::bp_tx_stl;
-use invoice::Amount;
-use rgb::WitnessId;
+use bp::dbc::Method;
+use invoice::{Amount, Precision};
+use rgb::{AssetTag, BlindingFactor, GenesisSeal, WitnessId, XOutpoint};
+use strict_encoding::InvalidIdent;
 use strict_types::{CompileError, LibBuilder, TypeLib};
 
 use super::{
-    AssignIface, GenesisIface, GlobalIface, Iface, IfaceOp, OwnedIface, Req, StateChange,
-    TransitionIface, VerNo, WitnessFilter,
+    AssignIface, BuilderError, ContractBuilder, ContractClass, GenesisIface, GlobalIface, Iface,
+    IfaceOp, OwnedIface, Req, StateChange, TransitionIface, VerNo, WitnessFilter,
 };
+use crate::containers::Contract;
 use crate::interface::{
     ArgSpec, ContractIface, FungibleAllocation, IfaceId, IfaceWrapper, OutpointFilter,
 };
-use crate::stl::{rgb_contract_stl, ContractData, DivisibleAssetSpec, StandardTypes, Timestamp};
+use crate::persistence::PersistedState;
+use crate::stl::{
+    rgb_contract_stl, Attachment, ContractData, DivisibleAssetSpec, RicardianContract,
+    StandardTypes, Timestamp,
+};
 
 pub const LIB_NAME_RGB20: &str = "RGB20";
 /// Strict types id for the library providing data types for RGB20 interface.
@@ -388,6 +396,121 @@ impl Rgb20 {
         self.0
             .fungible_ops("assetOwner", witness_filter, outpoint_filter)
             .expect("state name is not correct")
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Rgb20Contract(ContractBuilder);
+
+impl Rgb20Contract {
+    pub fn testnet<C: ContractClass>(
+        ticker: &str,
+        name: &str,
+        details: Option<&str>,
+        precision: Precision,
+    ) -> Result<Self, InvalidIdent> {
+        let rgb20 = rgb20();
+        let rgb20_id = rgb20.iface_id();
+
+        let spec = DivisibleAssetSpec::with(ticker, name, precision, details)?;
+
+        let builder = ContractBuilder::testnet(rgb20, C::schema(), C::iface_impl(rgb20_id))
+            .expect("schema interface mismatch")
+            .add_global_state("spec", spec)
+            .expect("invalid RGB20 schema (token specification mismatch)");
+        Ok(Self(builder))
+    }
+
+    pub fn testnet_det<C: ContractClass>(
+        ticker: &str,
+        name: &str,
+        details: Option<&str>,
+        precision: Precision,
+        timestamp: Timestamp,
+        asset_tag: AssetTag,
+    ) -> Result<Self, InvalidIdent> {
+        let mut builder = Self::testnet::<C>(ticker, name, details, precision)?;
+        builder.0 = builder
+            .0
+            .add_global_state("created", timestamp)
+            .expect("invalid RGB20 schema (creation timestamp mismatch)")
+            .add_asset_tag("assetOwner", asset_tag)
+            .expect("invalid RGB20 schema (assetOwner mismatch)");
+        Ok(builder)
+    }
+
+    pub fn add_terms(
+        mut self,
+        contract: &str,
+        media: Option<Attachment>,
+    ) -> Result<Self, InvalidIdent> {
+        let terms = RicardianContract::from_str(contract)?;
+        let contract_data = ContractData { terms, media };
+        self.0 = self
+            .0
+            .add_global_state("data", contract_data)
+            .expect("invalid RGB20 schema (contract data mismatch)");
+        Ok(self)
+    }
+
+    pub fn allocate(mut self, method: Method, beneficiary: XOutpoint, amount: Amount) -> Self {
+        let beneficiary = beneficiary
+            .map(|outpoint| GenesisSeal::new_random(method, outpoint.txid, outpoint.vout));
+        self.0 = self
+            .0
+            .add_fungible_state("assetOwner", beneficiary, amount.value())
+            .expect("invalid RGB20 schema (assetOwner mismatch)");
+        self
+    }
+
+    pub fn allocate_all(
+        mut self,
+        method: Method,
+        allocations: impl IntoIterator<Item = (XOutpoint, Amount)>,
+    ) -> Self {
+        for (beneficiary, amount) in allocations {
+            self = self.allocate(method, beneficiary, amount);
+        }
+        self
+    }
+
+    /// Add asset allocation in a deterministic way.
+    pub fn allocate_det(
+        mut self,
+        method: Method,
+        beneficiary: XOutpoint,
+        seal_blinding: u64,
+        amount: Amount,
+        amount_blinding: BlindingFactor,
+    ) -> Self {
+        let tag = self.0.asset_tag("assetOwner").expect(
+            "to add asset allocation in deterministic way the contract builder has to be created \
+             using `*_det` constructor",
+        );
+        let beneficiary = beneficiary.map(|outpoint| {
+            GenesisSeal::with_blinding(method, outpoint.txid, outpoint.vout, seal_blinding)
+        });
+        self.0 = self
+            .0
+            .add_owned_state_det(
+                "assetOwner",
+                beneficiary,
+                PersistedState::Amount(amount, amount_blinding, tag),
+            )
+            .expect("invalid RGB20 schema (assetOwner mismatch)");
+        self
+    }
+
+    // TODO: implement when bulletproofs are supported
+    /*
+    pub fn conceal_allocations(mut self) -> Self {
+
+    }
+     */
+
+    pub fn issue_contract(self) -> Result<Contract, BuilderError> {
+        // TODO: Compute sum of all allocations and add to the issue amount
+        self.0.issue_contract()
     }
 }
 
