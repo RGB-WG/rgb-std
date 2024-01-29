@@ -36,20 +36,19 @@ use strict_types::decode;
 use crate::containers::{BuilderSeal, Contract};
 use crate::interface::contract::AttachedState;
 use crate::interface::resolver::DumbResolver;
-use crate::interface::{Iface, IfaceImpl, IfacePair, TransitionIface};
+use crate::interface::{
+    Iface, IfaceClass, IfaceImpl, IfacePair, IssuerTriplet, SchemaIssuer, TransitionIface,
+    WrongImplementation,
+};
 use crate::persistence::PersistedState;
 use crate::Outpoint;
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum BuilderError {
-    /// interface implementation references different interface that the one
-    /// provided to the builder.
-    InterfaceMismatch,
-
-    /// interface implementation references different schema that the one
-    /// provided to the builder.
-    SchemaMismatch,
+    #[from]
+    #[display(inner)]
+    WrongImplementation(WrongImplementation),
 
     /// contract already has too many layers1.
     TooManyLayers1,
@@ -146,7 +145,7 @@ impl ContractBuilder {
         schema: SubSchema,
         iimpl: IfaceImpl,
         testnet: bool,
-    ) -> Result<Self, BuilderError> {
+    ) -> Result<Self, WrongImplementation> {
         Ok(Self {
             builder: OperationBuilder::with(iface, schema, iimpl)?,
             testnet,
@@ -158,7 +157,7 @@ impl ContractBuilder {
         iface: Iface,
         schema: SubSchema,
         iimpl: IfaceImpl,
-    ) -> Result<Self, BuilderError> {
+    ) -> Result<Self, WrongImplementation> {
         Ok(Self {
             builder: OperationBuilder::with(iface, schema, iimpl)?,
             testnet: false,
@@ -170,7 +169,7 @@ impl ContractBuilder {
         iface: Iface,
         schema: SubSchema,
         iimpl: IfaceImpl,
-    ) -> Result<Self, BuilderError> {
+    ) -> Result<Self, WrongImplementation> {
         Ok(Self {
             builder: OperationBuilder::with(iface, schema, iimpl)?,
             testnet: true,
@@ -347,7 +346,7 @@ impl TransitionBuilder {
         iface: Iface,
         schema: SubSchema,
         iimpl: IfaceImpl,
-    ) -> Result<Self, BuilderError> {
+    ) -> Result<Self, WrongImplementation> {
         Self::with(iface, schema, iimpl, TransitionType::BLANK)
     }
 
@@ -361,7 +360,7 @@ impl TransitionBuilder {
             .as_ref()
             .and_then(|name| iimpl.transition_type(name))
             .ok_or(BuilderError::NoOperationSubtype)?;
-        Self::with(iface, schema, iimpl, transition_type)
+        Ok(Self::with(iface, schema, iimpl, transition_type)?)
     }
 
     pub fn named_transition(
@@ -374,7 +373,7 @@ impl TransitionBuilder {
         let transition_type = iimpl
             .transition_type(&transition_name)
             .ok_or(BuilderError::TransitionNotFound(transition_name))?;
-        Self::with(iface, schema, iimpl, transition_type)
+        Ok(Self::with(iface, schema, iimpl, transition_type)?)
     }
 
     fn with(
@@ -382,7 +381,7 @@ impl TransitionBuilder {
         schema: SubSchema,
         iimpl: IfaceImpl,
         transition_type: TransitionType,
-    ) -> Result<Self, BuilderError> {
+    ) -> Result<Self, WrongImplementation> {
         Ok(Self {
             builder: OperationBuilder::with(iface, schema, iimpl)?,
             transition_type,
@@ -609,20 +608,11 @@ pub struct OperationBuilder<Seal: ExposedSeal> {
     // TODO: add valencies
 }
 
-impl<Seal: ExposedSeal> OperationBuilder<Seal> {
-    fn with(iface: Iface, schema: SubSchema, iimpl: IfaceImpl) -> Result<Self, BuilderError> {
-        if iimpl.iface_id != iface.iface_id() {
-            return Err(BuilderError::InterfaceMismatch);
-        }
-        if iimpl.schema_id != schema.schema_id() {
-            return Err(BuilderError::SchemaMismatch);
-        }
+impl<Seal: ExposedSeal> From<IssuerTriplet> for OperationBuilder<Seal> {
+    fn from(triplet: IssuerTriplet) -> Self {
+        let (iface, schema, iimpl) = triplet.into_split();
 
-        // TODO: check schema internal consistency
-        // TODO: check interface internal consistency
-        // TODO: check implementation internal consistency
-
-        Ok(OperationBuilder {
+        OperationBuilder {
             schema,
             iface,
             iimpl,
@@ -633,7 +623,22 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             fungible: none!(),
             attachments: none!(),
             data: none!(),
-        })
+        }
+    }
+}
+
+impl<Seal: ExposedSeal, I: IfaceClass> From<SchemaIssuer<I>> for OperationBuilder<Seal> {
+    fn from(issuer: SchemaIssuer<I>) -> Self { Self::from(issuer.into_triplet()) }
+}
+
+impl<Seal: ExposedSeal> OperationBuilder<Seal> {
+    fn with(
+        iface: Iface,
+        schema: SubSchema,
+        iimpl: IfaceImpl,
+    ) -> Result<Self, WrongImplementation> {
+        let triplet = IssuerTriplet::new(iface, schema, iimpl)?;
+        Ok(Self::from(triplet))
     }
 
     fn transition_iface(&self, ty: TransitionType) -> &TransitionIface {

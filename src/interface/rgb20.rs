@@ -30,8 +30,9 @@ use strict_encoding::InvalidIdent;
 use strict_types::{CompileError, LibBuilder, TypeLib};
 
 use super::{
-    AssignIface, BuilderError, ContractBuilder, ContractClass, GenesisIface, GlobalIface, Iface,
-    IfaceOp, OwnedIface, Req, StateChange, TransitionIface, VerNo, WitnessFilter,
+    AssignIface, BuilderError, ContractBuilder, GenesisIface, GlobalIface, Iface, IfaceClass,
+    IfaceOp, IssuerClass, OwnedIface, Req, SchemaIssuer, StateChange, TransitionIface, VerNo,
+    WitnessFilter,
 };
 use crate::containers::Contract;
 use crate::interface::builder::TxOutpoint;
@@ -320,12 +321,13 @@ impl IfaceWrapper for Rgb20 {
     ]);
 }
 
+impl IfaceClass for Rgb20 {
+    fn iface() -> Iface { rgb20() }
+    fn stl() -> TypeLib { rgb20_stl() }
+}
+
 impl Rgb20 {
-    pub fn iface() -> Iface { rgb20() }
-
-    pub fn stl() -> TypeLib { rgb20_stl() }
-
-    pub fn testnet<C: ContractClass>(
+    pub fn testnet<C: IssuerClass<IssuingIface = Self>>(
         ticker: &str,
         name: &str,
         details: Option<&str>,
@@ -334,7 +336,7 @@ impl Rgb20 {
         PrimaryIssue::testnet::<C>(ticker, name, details, precision)
     }
 
-    pub fn testnet_det<C: ContractClass>(
+    pub fn testnet_det<C: IssuerClass<IssuingIface = Self>>(
         ticker: &str,
         name: &str,
         details: Option<&str>,
@@ -453,7 +455,8 @@ pub struct PrimaryIssue {
 }
 
 impl PrimaryIssue {
-    fn testnet_int<C: ContractClass>(
+    fn testnet_int(
+        issuer: SchemaIssuer<Rgb20>,
         ticker: &str,
         name: &str,
         details: Option<&str>,
@@ -466,7 +469,8 @@ impl PrimaryIssue {
             media: None,
         };
 
-        let builder = ContractBuilder::testnet(rgb20(), C::schema(), C::main_iface_impl())
+        let (schema, main_iface_impl) = issuer.into_split();
+        let builder = ContractBuilder::testnet(rgb20(), schema, main_iface_impl)
             .expect("schema interface mismatch")
             .add_global_state("spec", spec)
             .expect("invalid RGB20 schema (token specification mismatch)")
@@ -481,16 +485,26 @@ impl PrimaryIssue {
         })
     }
 
-    pub fn testnet<C: ContractClass>(
+    pub fn testnet<C: IssuerClass<IssuingIface = Rgb20>>(
         ticker: &str,
         name: &str,
         details: Option<&str>,
         precision: Precision,
     ) -> Result<Self, InvalidIdent> {
-        Self::testnet_int::<C>(ticker, name, details, precision, Timestamp::now())
+        Self::testnet_int(C::issuer(), ticker, name, details, precision, Timestamp::now())
     }
 
-    pub fn testnet_det<C: ContractClass>(
+    pub fn testnet_with(
+        issuer: SchemaIssuer<Rgb20>,
+        ticker: &str,
+        name: &str,
+        details: Option<&str>,
+        precision: Precision,
+    ) -> Result<Self, InvalidIdent> {
+        Self::testnet_int(issuer, ticker, name, details, precision, Timestamp::now())
+    }
+
+    pub fn testnet_det<C: IssuerClass<IssuingIface = Rgb20>>(
         ticker: &str,
         name: &str,
         details: Option<&str>,
@@ -498,7 +512,7 @@ impl PrimaryIssue {
         timestamp: Timestamp,
         asset_tag: AssetTag,
     ) -> Result<Self, InvalidIdent> {
-        let mut me = Self::testnet_int::<C>(ticker, name, details, precision, timestamp)?;
+        let mut me = Self::testnet_int(C::issuer(), ticker, name, details, precision, timestamp)?;
         me.builder = me
             .builder
             .add_asset_tag("assetOwner", asset_tag)

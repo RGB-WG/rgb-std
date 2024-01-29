@@ -20,7 +20,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use rgbstd::interface::{rgb21_stl, rgb25_stl, Rgb20};
+use rgbstd::interface::{rgb21_stl, rgb25_stl, IfaceClass, Rgb20};
 use rgbstd::stl::{rgb_contract_stl, rgb_std_stl};
 use strict_types::parse_args;
 
