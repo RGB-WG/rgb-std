@@ -325,6 +325,26 @@ impl Rgb20 {
 
     pub fn stl() -> TypeLib { rgb20_stl() }
 
+    pub fn testnet<C: ContractClass>(
+        ticker: &str,
+        name: &str,
+        details: Option<&str>,
+        precision: Precision,
+    ) -> Result<PrimaryIssue, InvalidIdent> {
+        PrimaryIssue::testnet::<C>(ticker, name, details, precision)
+    }
+
+    pub fn testnet_det<C: ContractClass>(
+        ticker: &str,
+        name: &str,
+        details: Option<&str>,
+        precision: Precision,
+        timestamp: Timestamp,
+        asset_tag: AssetTag,
+    ) -> Result<PrimaryIssue, InvalidIdent> {
+        PrimaryIssue::testnet_det::<C>(ticker, name, details, precision, timestamp, asset_tag)
+    }
+
     pub fn spec(&self) -> DivisibleAssetSpec {
         let strict_val = &self
             .0
@@ -425,14 +445,14 @@ impl From<BuilderError> for AllocationError {
 }
 
 #[derive(Clone, Debug)]
-pub struct Rgb20Genesis {
+pub struct PrimaryIssue {
     builder: ContractBuilder,
     issued: Amount,
     contract_data: ContractData,
     deterministic: bool,
 }
 
-impl Rgb20Genesis {
+impl PrimaryIssue {
     fn testnet_int<C: ContractClass>(
         ticker: &str,
         name: &str,
