@@ -910,7 +910,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
                     .add_owned_state_raw(opout.ty, seal, state)?;
             }
 
-            let transition = blank_builder.complete_transition(contract_id)?;
+            let transition = blank_builder.complete_transition(id)?;
             blanks.push(TransitionInfo::new(transition, outputs)?)?;
         }
 
