@@ -79,9 +79,9 @@ fn _rgb20_stl() -> Result<TypeLib, CompileError> {
 }
 
 /// Generates strict type library providing data types for RGB20 interface.
-pub fn rgb20_stl() -> TypeLib { _rgb20_stl().expect("invalid strict type RGB20 library") }
+fn rgb20_stl() -> TypeLib { _rgb20_stl().expect("invalid strict type RGB20 library") }
 
-pub fn rgb20() -> Iface {
+fn rgb20() -> Iface {
     let types = StandardTypes::with(rgb20_stl());
 
     Iface {
@@ -320,6 +320,10 @@ impl IfaceWrapper for Rgb20 {
 }
 
 impl Rgb20 {
+    pub fn iface() -> Iface { rgb20() }
+
+    pub fn stl() -> TypeLib { rgb20_stl() }
+
     pub fn spec(&self) -> DivisibleAssetSpec {
         let strict_val = &self
             .0
