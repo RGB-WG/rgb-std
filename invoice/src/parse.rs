@@ -367,7 +367,7 @@ impl FromStr for RgbInvoice {
         let beneficiary = XChainNet::<Beneficiary>::from_str(beneficiary_str)?;
         let mut query_params = map_query_params(&uri)?;
 
-        let transports = if let Some(endpoints) = query_params.remove(ENDPOINTS) {
+        let transports = if let Some(endpoints) = query_params.shift_remove(ENDPOINTS) {
             let tokens = endpoints.split(TRANSPORT_SEP);
             let mut transport_vec: Vec<RgbTransport> = vec![];
             for token in tokens {
@@ -382,7 +382,7 @@ impl FromStr for RgbInvoice {
         };
 
         let mut expiry = None;
-        if let Some(exp) = query_params.remove(EXPIRY) {
+        if let Some(exp) = query_params.shift_remove(EXPIRY) {
             let timestamp = exp
                 .parse::<i64>()
                 .map_err(|e| InvoiceParseError::InvalidExpiration(e.to_string()))?;
