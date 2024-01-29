@@ -412,11 +412,17 @@ impl Rgb20Contract {
         let rgb20 = rgb20();
 
         let spec = DivisibleAssetSpec::with(ticker, name, precision, details)?;
+        let contract_data = ContractData {
+            terms: RicardianContract::default(),
+            media: None,
+        };
 
         let builder = ContractBuilder::testnet(rgb20, C::schema(), C::main_iface_impl())
             .expect("schema interface mismatch")
             .add_global_state("spec", spec)
-            .expect("invalid RGB20 schema (token specification mismatch)");
+            .expect("invalid RGB20 schema (token specification mismatch)")
+            .add_global_state("data", contract_data)
+            .expect("invalid RGB20 schema (contract data mismatch)");
         Ok(Self(builder))
     }
 
