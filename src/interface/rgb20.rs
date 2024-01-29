@@ -428,33 +428,46 @@ impl From<BuilderError> for AllocationError {
 pub struct Rgb20Genesis {
     builder: ContractBuilder,
     issued: Amount,
+    contract_data: ContractData,
+    deterministic: bool,
 }
 
 impl Rgb20Genesis {
-    pub fn testnet<C: ContractClass>(
+    fn testnet_int<C: ContractClass>(
         ticker: &str,
         name: &str,
         details: Option<&str>,
         precision: Precision,
+        timestamp: Timestamp,
     ) -> Result<Self, InvalidIdent> {
-        let rgb20 = rgb20();
-
         let spec = DivisibleAssetSpec::with(ticker, name, precision, details)?;
         let contract_data = ContractData {
             terms: RicardianContract::default(),
             media: None,
         };
 
-        let builder = ContractBuilder::testnet(rgb20, C::schema(), C::main_iface_impl())
+        let builder = ContractBuilder::testnet(rgb20(), C::schema(), C::main_iface_impl())
             .expect("schema interface mismatch")
             .add_global_state("spec", spec)
             .expect("invalid RGB20 schema (token specification mismatch)")
-            .add_global_state("data", contract_data)
-            .expect("invalid RGB20 schema (contract data mismatch)");
+            .add_global_state("created", timestamp)
+            .expect("invalid RGB20 schema (creation timestamp mismatch)");
+
         Ok(Self {
             builder,
+            contract_data,
             issued: Amount::ZERO,
+            deterministic: false,
         })
+    }
+
+    pub fn testnet<C: ContractClass>(
+        ticker: &str,
+        name: &str,
+        details: Option<&str>,
+        precision: Precision,
+    ) -> Result<Self, InvalidIdent> {
+        Self::testnet_int::<C>(ticker, name, details, precision, Timestamp::now())
     }
 
     pub fn testnet_det<C: ContractClass>(
@@ -465,14 +478,13 @@ impl Rgb20Genesis {
         timestamp: Timestamp,
         asset_tag: AssetTag,
     ) -> Result<Self, InvalidIdent> {
-        let mut builder = Self::testnet::<C>(ticker, name, details, precision)?;
-        builder.builder = builder
+        let mut me = Self::testnet_int::<C>(ticker, name, details, precision, timestamp)?;
+        me.builder = me
             .builder
-            .add_global_state("created", timestamp)
-            .expect("invalid RGB20 schema (creation timestamp mismatch)")
             .add_asset_tag("assetOwner", asset_tag)
             .expect("invalid RGB20 schema (assetOwner mismatch)");
-        Ok(builder)
+        me.deterministic = true;
+        Ok(me)
     }
 
     pub fn support_liquid(mut self) -> Self {
@@ -489,11 +501,7 @@ impl Rgb20Genesis {
         media: Option<Attachment>,
     ) -> Result<Self, InvalidIdent> {
         let terms = RicardianContract::from_str(contract)?;
-        let contract_data = ContractData { terms, media };
-        self.builder = self
-            .builder
-            .add_global_state("data", contract_data)
-            .expect("invalid RGB20 schema (contract data mismatch)");
+        self.contract_data = ContractData { terms, media };
         Ok(self)
     }
 
@@ -503,6 +511,11 @@ impl Rgb20Genesis {
         beneficiary: O,
         amount: Amount,
     ) -> Result<Self, AllocationError> {
+        debug_assert!(
+            !self.deterministic,
+            "for creating deterministic contracts please use allocate_det method"
+        );
+
         let beneficiary = beneficiary.map_to_xchain(|outpoint| {
             GenesisSeal::new_random(method, outpoint.txid, outpoint.vout)
         });
@@ -535,10 +548,16 @@ impl Rgb20Genesis {
         amount: Amount,
         amount_blinding: BlindingFactor,
     ) -> Result<Self, AllocationError> {
-        let tag = self.builder.asset_tag("assetOwner").expect(
+        debug_assert!(
+            !self.deterministic,
             "to add asset allocation in deterministic way the contract builder has to be created \
-             using `*_det` constructor",
+             using `*_det` constructor"
         );
+
+        let tag = self
+            .builder
+            .asset_tag("assetOwner")
+            .expect("internal library error: asset tag is unassigned");
         let beneficiary = beneficiary.map_to_xchain(|outpoint| {
             GenesisSeal::with_blinding(method, outpoint.txid, outpoint.vout, seal_blinding)
         });
@@ -564,6 +583,8 @@ impl Rgb20Genesis {
         self.builder
             .add_global_state("issuedSupply", self.issued)
             .expect("invalid RGB20 schema (issued supply mismatch)")
+            .add_global_state("data", self.contract_data)
+            .expect("invalid RGB20 schema (contract data mismatch)")
             .issue_contract()
     }
 
