@@ -25,7 +25,7 @@ use std::str::FromStr;
 use bp::bc::stl::bp_tx_stl;
 use bp::dbc::Method;
 use invoice::{Amount, Precision};
-use rgb::{AssetTag, BlindingFactor, GenesisSeal, WitnessId, XOutpoint};
+use rgb::{AltLayer1, AssetTag, BlindingFactor, GenesisSeal, WitnessId};
 use strict_encoding::InvalidIdent;
 use strict_types::{CompileError, LibBuilder, TypeLib};
 
@@ -34,6 +34,7 @@ use super::{
     IfaceOp, OwnedIface, Req, StateChange, TransitionIface, VerNo, WitnessFilter,
 };
 use crate::containers::Contract;
+use crate::interface::builder::TxOutpoint;
 use crate::interface::{
     ArgSpec, ContractIface, FungibleAllocation, IfaceId, IfaceWrapper, OutpointFilter,
 };
@@ -404,9 +405,9 @@ impl Rgb20 {
 }
 
 #[derive(Clone, Debug)]
-pub struct Rgb20Contract(ContractBuilder);
+pub struct Rgb20Genesis(ContractBuilder);
 
-impl Rgb20Contract {
+impl Rgb20Genesis {
     pub fn testnet<C: ContractClass>(
         ticker: &str,
         name: &str,
@@ -448,6 +449,14 @@ impl Rgb20Contract {
         Ok(builder)
     }
 
+    pub fn support_liquid(mut self) -> Self {
+        self.0 = self
+            .0
+            .add_layer1(AltLayer1::Liquid)
+            .expect("only one layer1 can be added");
+        self
+    }
+
     pub fn add_terms(
         mut self,
         contract: &str,
@@ -462,20 +471,29 @@ impl Rgb20Contract {
         Ok(self)
     }
 
-    pub fn allocate(mut self, method: Method, beneficiary: XOutpoint, amount: Amount) -> Self {
-        let beneficiary = beneficiary
-            .map(|outpoint| GenesisSeal::new_random(method, outpoint.txid, outpoint.vout));
+    pub fn allocate<O: TxOutpoint>(
+        mut self,
+        method: Method,
+        beneficiary: O,
+        amount: Amount,
+    ) -> Self {
+        let beneficiary = beneficiary.map_to_xchain(|outpoint| {
+            GenesisSeal::new_random(method, outpoint.txid, outpoint.vout)
+        });
         self.0 = self
             .0
             .add_fungible_state("assetOwner", beneficiary, amount.value())
-            .expect("invalid RGB20 schema (assetOwner mismatch)");
+            .expect(
+                "add liquid support by calling `support_liquid()` before allocating to liquid \
+                 seals",
+            );
         self
     }
 
-    pub fn allocate_all(
+    pub fn allocate_all<O: TxOutpoint>(
         mut self,
         method: Method,
-        allocations: impl IntoIterator<Item = (XOutpoint, Amount)>,
+        allocations: impl IntoIterator<Item = (O, Amount)>,
     ) -> Self {
         for (beneficiary, amount) in allocations {
             self = self.allocate(method, beneficiary, amount);
@@ -484,10 +502,10 @@ impl Rgb20Contract {
     }
 
     /// Add asset allocation in a deterministic way.
-    pub fn allocate_det(
+    pub fn allocate_det<O: TxOutpoint>(
         mut self,
         method: Method,
-        beneficiary: XOutpoint,
+        beneficiary: O,
         seal_blinding: u64,
         amount: Amount,
         amount_blinding: BlindingFactor,
@@ -496,7 +514,7 @@ impl Rgb20Contract {
             "to add asset allocation in deterministic way the contract builder has to be created \
              using `*_det` constructor",
         );
-        let beneficiary = beneficiary.map(|outpoint| {
+        let beneficiary = beneficiary.map_to_xchain(|outpoint| {
             GenesisSeal::with_blinding(method, outpoint.txid, outpoint.vout, seal_blinding)
         });
         self.0 = self
@@ -506,7 +524,10 @@ impl Rgb20Contract {
                 beneficiary,
                 PersistedState::Amount(amount, amount_blinding, tag),
             )
-            .expect("invalid RGB20 schema (assetOwner mismatch)");
+            .expect(
+                "add liquid support by calling `support_liquid()` before allocating to liquid \
+                 seals",
+            );
         self
     }
 

@@ -27,8 +27,8 @@ use invoice::{Allocation, Amount};
 use rgb::{
     validation, AltLayer1, AltLayer1Set, AssetTag, Assign, AssignmentType, Assignments,
     BlindingFactor, ContractId, DataState, ExposedSeal, FungibleType, Genesis, GenesisSeal,
-    GlobalState, GraphSeal, Input, Opout, RevealedAttach, RevealedData, RevealedValue, StateSchema,
-    SubSchema, Transition, TransitionType, TypedAssigns,
+    GlobalState, GraphSeal, Input, Layer1, Opout, RevealedAttach, RevealedData, RevealedValue,
+    StateSchema, SubSchema, Transition, TransitionType, TypedAssigns, XChain, XOutpoint,
 };
 use strict_encoding::{FieldName, SerializeError, StrictSerialize, TypeName};
 use strict_types::decode;
@@ -38,6 +38,7 @@ use crate::interface::contract::AttachedState;
 use crate::interface::resolver::DumbResolver;
 use crate::interface::{Iface, IfaceImpl, IfacePair, TransitionIface};
 use crate::persistence::PersistedState;
+use crate::Outpoint;
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
@@ -87,6 +88,9 @@ pub enum BuilderError {
     /// interface doesn't have a default assignment type.
     NoDefaultAssignment,
 
+    /// {0} is not supported by the contract genesis.
+    InvalidLayer1(Layer1),
+
     #[from]
     #[display(inner)]
     StrictEncode(SerializeError),
@@ -102,6 +106,31 @@ pub enum BuilderError {
     #[from]
     #[display(inner)]
     ContractInconsistency(validation::Status),
+}
+
+mod private {
+    pub trait Sealed {}
+}
+
+pub trait TxOutpoint: Copy + Eq + private::Sealed {
+    fn is_liquid(&self) -> bool;
+    fn is_bitcoin(&self) -> bool;
+    fn map_to_xchain<U>(self, f: impl FnOnce(Outpoint) -> U) -> XChain<U>;
+}
+
+impl private::Sealed for Outpoint {}
+impl private::Sealed for XOutpoint {}
+impl TxOutpoint for Outpoint {
+    fn is_liquid(&self) -> bool { false }
+    fn is_bitcoin(&self) -> bool { true }
+    fn map_to_xchain<U>(self, f: impl FnOnce(Outpoint) -> U) -> XChain<U> {
+        XChain::Bitcoin(f(self))
+    }
+}
+impl TxOutpoint for XOutpoint {
+    fn is_liquid(&self) -> bool { XChain::is_liquid(self) }
+    fn is_bitcoin(&self) -> bool { XChain::is_bitcoin(self) }
+    fn map_to_xchain<U>(self, f: impl FnOnce(Outpoint) -> U) -> XChain<U> { self.map(f) }
 }
 
 #[derive(Clone, Debug)]
@@ -149,6 +178,19 @@ impl ContractBuilder {
         })
     }
 
+    pub fn has_layer1(&self, layer1: Layer1) -> bool {
+        match layer1 {
+            Layer1::Bitcoin => true,
+            Layer1::Liquid => self.alt_layers1.contains(&AltLayer1::Liquid),
+        }
+    }
+    pub fn check_layer1(&self, layer1: Layer1) -> Result<(), BuilderError> {
+        if !self.has_layer1(layer1) {
+            return Err(BuilderError::InvalidLayer1(layer1));
+        }
+        Ok(())
+    }
+
     pub fn add_layer1(mut self, layer1: AltLayer1) -> Result<Self, BuilderError> {
         self.alt_layers1
             .push(layer1)
@@ -187,6 +229,8 @@ impl ContractBuilder {
         seal: impl Into<BuilderSeal<GenesisSeal>>,
         state: PersistedState,
     ) -> Result<Self, BuilderError> {
+        let seal = seal.into();
+        self.check_layer1(seal.layer1())?;
         self.builder = self.builder.add_owned_state_det(name, seal, state)?;
         Ok(self)
     }
@@ -196,6 +240,8 @@ impl ContractBuilder {
         name: impl Into<FieldName>,
         seal: impl Into<BuilderSeal<GenesisSeal>>,
     ) -> Result<Self, BuilderError> {
+        let seal = seal.into();
+        self.check_layer1(seal.layer1())?;
         self.builder = self.builder.add_rights(name, seal, None)?;
         Ok(self)
     }
@@ -207,6 +253,8 @@ impl ContractBuilder {
         value: u64,
     ) -> Result<Self, BuilderError> {
         let name = name.into();
+        let seal = seal.into();
+        self.check_layer1(seal.layer1())?;
         let type_id = self
             .builder
             .assignments_type(&name, None)
@@ -239,6 +287,8 @@ impl ContractBuilder {
         seal: impl Into<BuilderSeal<GenesisSeal>>,
         value: impl StrictSerialize,
     ) -> Result<Self, BuilderError> {
+        let seal = seal.into();
+        self.check_layer1(seal.layer1())?;
         self.builder = self.builder.add_data(name, seal, value, None)?;
         Ok(self)
     }
@@ -249,6 +299,8 @@ impl ContractBuilder {
         seal: impl Into<BuilderSeal<GenesisSeal>>,
         attachment: AttachedState,
     ) -> Result<Self, BuilderError> {
+        let seal = seal.into();
+        self.check_layer1(seal.layer1())?;
         self.builder = self.builder.add_attachment(name, seal, attachment, None)?;
         Ok(self)
     }
