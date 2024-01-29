@@ -34,7 +34,7 @@ mod suppl;
 mod filters;
 pub(crate) mod resolver;
 
-pub use builder::{BuilderError, ContractBuilder, TransitionBuilder};
+pub use builder::{BuilderError, ContractBuilder, TransitionBuilder, TxOutpoint};
 pub use contract::{
     AllocatedState, AttachAllocation, AttachedState, ContractError, ContractIface, DataAllocation,
     FungibleAllocation, IfaceOp, IfaceWrapper, OwnedAllocation, RightsAllocation, StateChange,
