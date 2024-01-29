@@ -404,8 +404,31 @@ impl Rgb20 {
     }
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display, Error)]
+#[display(doc_comments)]
+pub enum AllocationError {
+    /// contract genesis doesn't support allocating to liquid seals; request
+    /// liquid support first.
+    NoLiquidSupport,
+    /// overflow in the amount of the issued assets: the total amount must not
+    /// exceed 2^64.
+    AmountOverflow,
+}
+
+impl From<BuilderError> for AllocationError {
+    fn from(err: BuilderError) -> Self {
+        match err {
+            BuilderError::InvalidLayer1(_) => AllocationError::NoLiquidSupport,
+            _ => panic!("invalid RGB20 schema (assetOwner mismatch)"),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
-pub struct Rgb20Genesis(ContractBuilder);
+pub struct Rgb20Genesis {
+    builder: ContractBuilder,
+    issued: Amount,
+}
 
 impl Rgb20Genesis {
     pub fn testnet<C: ContractClass>(
@@ -428,7 +451,10 @@ impl Rgb20Genesis {
             .expect("invalid RGB20 schema (token specification mismatch)")
             .add_global_state("data", contract_data)
             .expect("invalid RGB20 schema (contract data mismatch)");
-        Ok(Self(builder))
+        Ok(Self {
+            builder,
+            issued: Amount::ZERO,
+        })
     }
 
     pub fn testnet_det<C: ContractClass>(
@@ -440,8 +466,8 @@ impl Rgb20Genesis {
         asset_tag: AssetTag,
     ) -> Result<Self, InvalidIdent> {
         let mut builder = Self::testnet::<C>(ticker, name, details, precision)?;
-        builder.0 = builder
-            .0
+        builder.builder = builder
+            .builder
             .add_global_state("created", timestamp)
             .expect("invalid RGB20 schema (creation timestamp mismatch)")
             .add_asset_tag("assetOwner", asset_tag)
@@ -450,8 +476,8 @@ impl Rgb20Genesis {
     }
 
     pub fn support_liquid(mut self) -> Self {
-        self.0 = self
-            .0
+        self.builder = self
+            .builder
             .add_layer1(AltLayer1::Liquid)
             .expect("only one layer1 can be added");
         self
@@ -464,8 +490,8 @@ impl Rgb20Genesis {
     ) -> Result<Self, InvalidIdent> {
         let terms = RicardianContract::from_str(contract)?;
         let contract_data = ContractData { terms, media };
-        self.0 = self
-            .0
+        self.builder = self
+            .builder
             .add_global_state("data", contract_data)
             .expect("invalid RGB20 schema (contract data mismatch)");
         Ok(self)
@@ -476,29 +502,28 @@ impl Rgb20Genesis {
         method: Method,
         beneficiary: O,
         amount: Amount,
-    ) -> Self {
+    ) -> Result<Self, AllocationError> {
         let beneficiary = beneficiary.map_to_xchain(|outpoint| {
             GenesisSeal::new_random(method, outpoint.txid, outpoint.vout)
         });
-        self.0 = self
-            .0
-            .add_fungible_state("assetOwner", beneficiary, amount.value())
-            .expect(
-                "add liquid support by calling `support_liquid()` before allocating to liquid \
-                 seals",
-            );
-        self
+        self.issued
+            .checked_add_assign(amount)
+            .ok_or(AllocationError::AmountOverflow)?;
+        self.builder =
+            self.builder
+                .add_fungible_state("assetOwner", beneficiary, amount.value())?;
+        Ok(self)
     }
 
     pub fn allocate_all<O: TxOutpoint>(
         mut self,
         method: Method,
         allocations: impl IntoIterator<Item = (O, Amount)>,
-    ) -> Self {
+    ) -> Result<Self, AllocationError> {
         for (beneficiary, amount) in allocations {
-            self = self.allocate(method, beneficiary, amount);
+            self = self.allocate(method, beneficiary, amount)?;
         }
-        self
+        Ok(self)
     }
 
     /// Add asset allocation in a deterministic way.
@@ -509,26 +534,23 @@ impl Rgb20Genesis {
         seal_blinding: u64,
         amount: Amount,
         amount_blinding: BlindingFactor,
-    ) -> Self {
-        let tag = self.0.asset_tag("assetOwner").expect(
+    ) -> Result<Self, AllocationError> {
+        let tag = self.builder.asset_tag("assetOwner").expect(
             "to add asset allocation in deterministic way the contract builder has to be created \
              using `*_det` constructor",
         );
         let beneficiary = beneficiary.map_to_xchain(|outpoint| {
             GenesisSeal::with_blinding(method, outpoint.txid, outpoint.vout, seal_blinding)
         });
-        self.0 = self
-            .0
-            .add_owned_state_det(
-                "assetOwner",
-                beneficiary,
-                PersistedState::Amount(amount, amount_blinding, tag),
-            )
-            .expect(
-                "add liquid support by calling `support_liquid()` before allocating to liquid \
-                 seals",
-            );
-        self
+        self.issued
+            .checked_add_assign(amount)
+            .ok_or(AllocationError::AmountOverflow)?;
+        self.builder = self.builder.add_owned_state_det(
+            "assetOwner",
+            beneficiary,
+            PersistedState::Amount(amount, amount_blinding, tag),
+        )?;
+        Ok(self)
     }
 
     // TODO: implement when bulletproofs are supported
@@ -539,8 +561,10 @@ impl Rgb20Genesis {
      */
 
     pub fn issue_contract(self) -> Result<Contract, BuilderError> {
-        // TODO: Compute sum of all allocations and add to the issue amount
-        self.0.issue_contract()
+        self.builder
+            .add_global_state("issuedSupply", self.issued)
+            .expect("invalid RGB20 schema (issued supply mismatch)")
+            .issue_contract()
     }
 
     // TODO: Add secondary issuance and other methods
