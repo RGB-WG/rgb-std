@@ -21,7 +21,7 @@
 
 #![allow(clippy::result_large_err)]
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 
 use amplify::confinement::{Confined, TinyOrdMap, TinyOrdSet, U16};
 use amplify::{confinement, Wrapper};
@@ -603,10 +603,10 @@ pub struct OperationBuilder<Seal: ExposedSeal> {
     global: GlobalState,
     rights: TinyOrdMap<AssignmentType, Confined<HashSet<BuilderSeal<Seal>>, 1, U16>>,
     fungible:
-        TinyOrdMap<AssignmentType, Confined<HashMap<BuilderSeal<Seal>, RevealedValue>, 1, U16>>,
-    data: TinyOrdMap<AssignmentType, Confined<HashMap<BuilderSeal<Seal>, RevealedData>, 1, U16>>,
+        TinyOrdMap<AssignmentType, Confined<BTreeMap<BuilderSeal<Seal>, RevealedValue>, 1, U16>>,
+    data: TinyOrdMap<AssignmentType, Confined<BTreeMap<BuilderSeal<Seal>, RevealedData>, 1, U16>>,
     attachments:
-        TinyOrdMap<AssignmentType, Confined<HashMap<BuilderSeal<Seal>, RevealedAttach>, 1, U16>>,
+        TinyOrdMap<AssignmentType, Confined<BTreeMap<BuilderSeal<Seal>, RevealedAttach>, 1, U16>>,
     // TODO: add valencies
 }
 
