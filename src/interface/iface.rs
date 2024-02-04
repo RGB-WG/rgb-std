@@ -26,7 +26,7 @@ use std::str::FromStr;
 use amplify::confinement::{TinyOrdMap, TinyOrdSet};
 use amplify::{ByteArray, Bytes32};
 use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
-use commit_verify::{CommitStrategy, CommitmentId};
+use commit_verify::{CommitId, CommitmentId, DigestExt, Sha256};
 use rgb::Occurrences;
 use strict_encoding::{
     FieldName, StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize,
@@ -39,7 +39,7 @@ use crate::LIB_NAME_RGB_STD;
 
 /// Interface identifier.
 ///
-/// Interface identifier commits to all of the interface data.
+/// Interface identifier commits to all the interface data.
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
 #[wrapper(Deref, BorrowSlice, Hex, Index, RangeOps)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
@@ -54,6 +54,14 @@ pub struct IfaceId(
     #[from([u8; 32])]
     Bytes32,
 );
+
+impl From<Sha256> for IfaceId {
+    fn from(hasher: Sha256) -> Self { hasher.finish().into() }
+}
+
+impl CommitmentId for IfaceId {
+    const TAG: &'static str = "urn:lnpbp:rgb:interface#2024-02-04";
+}
 
 impl ToBaid58<32> for IfaceId {
     const HRI: &'static str = "if";
@@ -325,6 +333,8 @@ pub struct TransitionIface {
 #[derive(Clone, Eq, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
+#[derive(CommitEncode)]
+#[commit_encode(strategy = strict, id = IfaceId)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
@@ -356,19 +366,10 @@ impl PartialOrd for Iface {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
 }
 
-impl CommitStrategy for Iface {
-    type Strategy = commit_verify::strategies::Strict;
-}
-
-impl CommitmentId for Iface {
-    const TAG: [u8; 32] = *b"urn:lnpbp:rgb:interface:v01#2303";
-    type Id = IfaceId;
-}
-
 impl StrictSerialize for Iface {}
 impl StrictDeserialize for Iface {}
 
 impl Iface {
     #[inline]
-    pub fn iface_id(&self) -> IfaceId { self.commitment_id() }
+    pub fn iface_id(&self) -> IfaceId { self.commit_id() }
 }

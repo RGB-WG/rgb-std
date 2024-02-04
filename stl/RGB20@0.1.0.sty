@@ -4,16 +4,18 @@
   Version: 0.1.0
   Description: Types for RGB20 interface
   Author: Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
-  Copyright (C) 2023-2024 LNP/BP Standards Association. All rights reserved.
+  Copyright (C) 2023-2024-2024 LNP/BP Standards Association. All rights reserved.
   License: Apache-2.0
 -}
 
+@context
 typelib RGB20
 
 -- no dependencies
 
--- urn:ubideco:semid:BsYakBZMzKBDfgpfhXt1p81Q1WT27V8U7LvHG4NPmGmM#montana-torso-pierre
-data Error            :: supplyMismatch:1 | nonEqualAmounts:2 | invalidProof:3 | insufficientReserves:4
-                       | insufficientCoverage:5 | issueExceedsAllowance:6
+@mnemonic(montana-torso-pierre)
+data Error             : supplyMismatch#1 | nonEqualAmounts | invalidProof | insufficientReserves
+                       | insufficientCoverage | issueExceedsAllowance
+
 
 

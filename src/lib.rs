@@ -72,6 +72,8 @@ extern crate core;
 extern crate amplify;
 #[macro_use]
 extern crate strict_encoding;
+#[macro_use]
+extern crate commit_verify;
 #[cfg(feature = "serde")]
 #[macro_use]
 extern crate serde_crate as serde;
@@ -85,10 +87,8 @@ pub mod containers;
 pub mod persistence;
 pub mod resolvers;
 pub mod accessors;
-mod reserved;
 
 pub use bp::{Outpoint, Txid};
-pub(crate) use reserved::ReservedBytes;
 pub use rgb::*;
 pub use stl::{LIB_NAME_RGB_CONTRACT, LIB_NAME_RGB_STD};
 

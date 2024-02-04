@@ -33,7 +33,7 @@ use amplify::confinement::{self, Confined, TinyVec, U24};
 use baid58::Baid58ParseError;
 use rgb::{BundleId, ContractId, Schema, SchemaId, SchemaRoot, SubSchema};
 use strict_encoding::{
-    StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictReader, StrictSerialize,
+    StreamReader, StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize,
     StrictType,
 };
 
@@ -289,8 +289,9 @@ impl<C: BindleContent> Bindle<C> {
         if rgb != *b"RGB" || magic != C::MAGIC {
             return Err(LoadError::InvalidMagic);
         }
-        let mut reader = StrictReader::with(usize::MAX, data);
-        let me = Self::strict_decode(&mut reader)?;
+        const USIZE_MAX: usize = usize::MAX;
+        let reader = StreamReader::new::<USIZE_MAX>(data);
+        let me = Self::strict_read(reader)?;
         Ok(me)
     }
 }
@@ -330,13 +331,14 @@ impl UniversalBindle {
         if rgb != *b"RGB" {
             return Err(LoadError::InvalidMagic);
         }
-        let mut reader = StrictReader::with(usize::MAX, data);
+        const USIZE_MAX: usize = usize::MAX;
+        let mut reader = StreamReader::new::<USIZE_MAX>(data);
         Ok(match magic {
-            x if x == Iface::MAGIC => Bindle::<Iface>::strict_decode(&mut reader)?.into(),
-            x if x == SubSchema::MAGIC => Bindle::<SubSchema>::strict_decode(&mut reader)?.into(),
-            x if x == IfaceImpl::MAGIC => Bindle::<IfaceImpl>::strict_decode(&mut reader)?.into(),
-            x if x == Contract::MAGIC => Bindle::<Contract>::strict_decode(&mut reader)?.into(),
-            x if x == Transfer::MAGIC => Bindle::<Transfer>::strict_decode(&mut reader)?.into(),
+            x if x == Iface::MAGIC => Bindle::<Iface>::strict_read(&mut reader)?.into(),
+            x if x == SubSchema::MAGIC => Bindle::<SubSchema>::strict_read(&mut reader)?.into(),
+            x if x == IfaceImpl::MAGIC => Bindle::<IfaceImpl>::strict_read(&mut reader)?.into(),
+            x if x == Contract::MAGIC => Bindle::<Contract>::strict_read(&mut reader)?.into(),
+            x if x == Transfer::MAGIC => Bindle::<Transfer>::strict_read(&mut reader)?.into(),
             _ => return Err(LoadError::InvalidMagic),
         })
     }

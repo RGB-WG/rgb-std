@@ -1,81 +1,96 @@
 {-
-  Id: urn:ubideco:stl:pGtgmYchjsHEdmKzmkc6SX8rDm4qxN472K8vQyLmNGX#polygon-antonio-violet
+  Id: urn:ubideco:stl:6HGkwGWCftsQbHVjp5fyVcmggDzkeBmTktWdaJBQEqwc#hawaii-urgent-balloon
   Name: RGBContract
   Version: 0.1.0
   Description: Types for writing RGB contracts and interfaces
   Author: Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
-  Copyright (C) 2023-2024 LNP/BP Standards Association. All rights reserved.
+  Copyright (C) 2023-2024-2024 LNP/BP Standards Association. All rights reserved.
   License: Apache-2.0
 -}
 
+@context
 typelib RGBContract
 
-import urn:ubideco:stl:9KALDYR8Nyjq4FdMW6kYoL7vdkWnqPqNuFnmE9qHpNjZ#justice-rocket-type as Std
--- Imports:
--- AsciiPrintable := urn:ubideco:semid:mbH4meZSjxky12xHm9pg3rw8VoGxEa6rXtt6dAMZLbt#diet-oxford-window
--- AlphaCapsNum := urn:ubideco:semid:7U5NvJNf343ZzFXsqW2DBYtTSvrb3YdL6oxYd2BaMsVr#magnet-section-latin
+import Std#55f8bsTvyh7zAeYAiNwL9G1DxgwXzDvE8edcTFJz3Q9H#milan-poncho-gray
+  use AsciiPrintable#diet-oxford-window
+  use AlphaCapsNum#magnet-section-latin
 
-import urn:ubideco:stl:HX2UBak8vPsTokug1DGMDvTpzns3xUdwZ7QJdyt4qBA9#speed-atlanta-trilogy as Bitcoin
--- Imports:
--- Vout := urn:ubideco:semid:3HHRtSJW5fnGkdVW1EVDH7B97Y79WhwvKyyfsaBkuQkk#chrome-robin-gallop
--- Txid := urn:ubideco:semid:C1GfCrG7AXu2sFhRBspd7KpJK2YgyTkVy6pty5rZynRs#cowboy-diego-betty
--- Outpoint := urn:ubideco:semid:GeFZHi1RYCrrcH1LG4Fo2SWW5M6KLJ8yvoGkFjRWZaA9#dinner-yoga-danube
+import Bitcoin#HX2UBak8vPsTokug1DGMDvTpzns3xUdwZ7QJdyt4qBA9#speed-atlanta-trilogy
+  use Vout#chrome-robin-gallop
+  use Txid#cowboy-diego-betty
+  use Outpoint#dinner-yoga-danube
 
 
+@mnemonic(burma-picasso-granite)
+data Amount            : U64
 
--- urn:ubideco:semid:AC2a15L721Fw1YSudEvyX7vr8XjPVn4bPUrRhmZS4oJj#burma-picasso-granite
-data Amount           :: U64
--- urn:ubideco:semid:Ep3efqbERhgbus3JbSaKn3Lm9gWtya9xoGYbAjoQhXaB#heavy-public-hostel
-data AssetNaming      :: ticker Ticker
+@mnemonic(heavy-public-hostel)
+data AssetNaming       : ticker Ticker
                        , name Name
                        , details Details?
--- urn:ubideco:semid:9t5kYLUwTpWjwh9eHB1NU3obZnj3qeTZzpZdcfYiqAV4#flame-unicorn-fruit
-data Attachment       :: type MediaType, digest [Byte ^ 32]
--- urn:ubideco:semid:HtN246bWqDBKMgUJf7cKxERW9B2ostpVYPnAG2LVCKCX#gabriel-fiber-oregano
-data BurnMeta         :: burnProofs {ProofOfReserves}
--- urn:ubideco:semid:tZLspSCzoPWcsyhL3Q9Tks45bGupxp9VRtvLzQfsBYS#symbol-medical-marion
-data ContractData     :: terms RicardianContract, media Attachment?
--- urn:ubideco:semid:5Fb7RNdm2jWi7wndRaaU8Lwx76exafTvgQqt9owU9JwM#network-kayak-adam
-data Details          :: [Unicode ^ 1..0xff]
--- urn:ubideco:semid:3p1E6oqjmmGPMHh6H4G3BrQU3iuwr7XRmmytiixPp1oh#elvis-alex-letter
-data DivisibleAssetSpec :: naming AssetNaming, precision Precision
--- urn:ubideco:semid:5r9sYFUJy7Kd9FEZ1pe5v4BUPiy1Bg344pNPsENbb7X#alcohol-moral-needle
-data IssueMeta        :: reserves {ProofOfReserves}
--- urn:ubideco:semid:Bn87eabCqLDccdn1qvtnaxtDrofnw1mBexxR8tSjkN7z#memphis-bicycle-roof
-data MediaRegName     :: [MimeChar ^ 1..0x40]
--- urn:ubideco:semid:AUJnh2sR5dxk1TQRtXr7vYVTorbG4Tiy4LY14eQp9yV2#robert-decide-dispute
-data MediaType        :: type MediaRegName
+
+@mnemonic(flame-unicorn-fruit)
+data Attachment        : type MediaType, digest [Byte ^ 32]
+
+@mnemonic(gabriel-fiber-oregano)
+data BurnMeta          : burnProofs {ProofOfReserves}
+
+@mnemonic(symbol-medical-marion)
+data ContractData      : terms RicardianContract, media Attachment?
+
+@mnemonic(network-kayak-adam)
+data Details           : [Unicode ^ 1..0xff]
+
+@mnemonic(elvis-alex-letter)
+data DivisibleAssetSpec : naming AssetNaming, precision Precision
+
+@mnemonic(alcohol-moral-needle)
+data IssueMeta         : reserves {ProofOfReserves}
+
+@mnemonic(memphis-bicycle-roof)
+data MediaRegName      : [MimeChar ^ 1..0x40]
+
+@mnemonic(robert-decide-dispute)
+data MediaType         : type MediaRegName
                        , subtype MediaRegName?
                        , charset MediaRegName?
--- urn:ubideco:semid:56Qs8Zfm2GAgewu9s7ffVb9xX6QiJhoDskxMhBoz723U#golf-antonio-courage
-data MimeChar         :: excl:33 | hash:35 | dollar:36 | amp:38
-                       | plus:43 | dash:45 | dot:46 | zero:48
-                       | one:49 | two:50 | three:51 | four:52
-                       | five:53 | six:54 | seven:55 | eight:56
-                       | nine:57 | caret:94 | lodash:95 | a:97
-                       | b:98 | c:99 | d:100 | e:101
-                       | f:102 | g:103 | h:104 | i:105
-                       | j:106 | k:107 | l:108 | m:109
-                       | n:110 | o:111 | p:112 | q:113
-                       | r:114 | s:115 | t:116 | u:117
-                       | v:118 | w:119 | x:120 | y:121
-                       | z:122
 
--- urn:ubideco:semid:6PbMuf2YBk8Ff4J15AZ1MBW8XbcAUsprYiF7QjusVrz7#crystal-visitor-tribune
-data Name             :: [Std.AsciiPrintable {- urn:ubideco:semid:mbH4meZSjxky12xHm9pg3rw8VoGxEa6rXtt6dAMZLbt#diet-oxford-window -} ^ 1..0x28]
--- urn:ubideco:semid:7G6FJPNejRtmGZP4NPXXHTTozzH4cwdrwrdkB3gziMa1#union-drum-public
-data Precision        :: indivisible:0 | deci:1 | centi:2 | milli:3
-                       | deciMilli:4 | centiMilli:5 | micro:6 | deciMicro:7
-                       | centiMicro:8 | nano:9 | deciNano:10 | centiNano:11
-                       | pico:12 | deciPico:13 | centiPico:14 | femto:15
-                       | deciFemto:16 | centiFemto:17 | atto:18
+@mnemonic(golf-antonio-courage)
+data MimeChar          : excl#33 | hash#35 | dollar | amp#38
+                       | plus#43 | dash#45 | dot | zero#48
+                       | one | two | three | four
+                       | five | six | seven | eight
+                       | nine | caret#94 | lodash | a#97
+                       | b | c | d | e
+                       | f | g | h | i
+                       | j | k | l | m
+                       | n | o | p | q
+                       | r | s | t | u
+                       | v | w | x | y
+                       | z
 
--- urn:ubideco:semid:zrXMtzeLgFy1NQd46y3CNb549tnukiuMEGJvqxRkyDW#liquid-owner-london
-data ProofOfReserves  :: utxo Bitcoin.Outpoint {- urn:ubideco:semid:GeFZHi1RYCrrcH1LG4Fo2SWW5M6KLJ8yvoGkFjRWZaA9#dinner-yoga-danube -}, proof [Byte]
--- urn:ubideco:semid:2fnqF5VfphtEoAWWEXwqyAZwny3YhkbB5TAh4VpA5JxQ#bundle-turbo-verona
-data RicardianContract :: [Unicode]
--- urn:ubideco:semid:9dzjKz1d9KyoGnEg6WFSAKnWMaCpg1Lh7p66cmFXbH9e#mike-atlas-store
-data Ticker           :: [Std.AlphaCapsNum {- urn:ubideco:semid:7U5NvJNf343ZzFXsqW2DBYtTSvrb3YdL6oxYd2BaMsVr#magnet-section-latin -} ^ 1..0x8]
--- urn:ubideco:semid:7eMrzgjRCf7EFcBBf6evAE75NTerkJ7tBdJAKqNfVGVs#suzuki-castle-saint
-data Timestamp        :: I64
+
+@mnemonic(crystal-visitor-tribune)
+data Name              : [Std.AsciiPrintable#diet-oxford-window ^ 1..0x28]
+
+@mnemonic(union-drum-public)
+data Precision         : indivisible | deci | centi | milli
+                       | deciMilli | centiMilli | micro | deciMicro
+                       | centiMicro | nano | deciNano | centiNano
+                       | pico | deciPico | centiPico | femto
+                       | deciFemto | centiFemto | atto
+
+
+@mnemonic(liquid-owner-london)
+data ProofOfReserves   : utxo Bitcoin.Outpoint#dinner-yoga-danube, proof [Byte]
+
+@mnemonic(bundle-turbo-verona)
+data RicardianContract : [Unicode]
+
+@mnemonic(mike-atlas-store)
+data Ticker            : [Std.AlphaCapsNum#magnet-section-latin ^ 1..0x8]
+
+@mnemonic(suzuki-castle-saint)
+data Timestamp         : I64
+
 

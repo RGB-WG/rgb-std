@@ -41,11 +41,11 @@ use crate::LIB_NAME_RGB_STD;
 /// Strict types id for the library providing standard data types which may be
 /// used in RGB smart contracts.
 pub const LIB_ID_RGB_CONTRACT: &str =
-    "urn:ubideco:stl:pGtgmYchjsHEdmKzmkc6SX8rDm4qxN472K8vQyLmNGX#polygon-antonio-violet";
+    "urn:ubideco:stl:6HGkwGWCftsQbHVjp5fyVcmggDzkeBmTktWdaJBQEqwc#hawaii-urgent-balloon";
 
 /// Strict types id for the library representing of RGB StdLib data types.
 pub const LIB_ID_RGB_STD: &str =
-    "urn:ubideco:stl:GWQoxySX59F4FHGxNdpKN4uKT8bkVyquvk3uz6pyQdP3#profit-escort-karl";
+    "urn:ubideco:stl:6ZqxoNVCfBkZHT5Z7L8DGEUGkhpRshN6oaC2MRvTqmZs#tiger-polaris-neuron";
 
 fn _rgb_std_stl() -> Result<TypeLib, CompileError> {
     LibBuilder::new(libname!(LIB_NAME_RGB_STD), tiny_bset! {
