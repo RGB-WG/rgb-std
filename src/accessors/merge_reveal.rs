@@ -42,8 +42,8 @@ pub enum MergeRevealError {
     #[display(inner)]
     AnchorMismatch(MergeError),
 
-    /// the merged bundles contain excessive transitions.
-    ExcessiveTransitions,
+    /// the merged bundles contain more transitions than inputs.
+    InsufficientInputs,
 
     /// contract id provided for the merge-reveal operation doesn't matches
     /// multi-protocol commitment.
@@ -197,8 +197,8 @@ impl MergeReveal for TransitionBundle {
         }
         self.known_transitions = Confined::from_collection_unsafe(self_transitions);
 
-        if self.input_map.len() > self.known_transitions.len() {
-            return Err(MergeRevealError::ExcessiveTransitions);
+        if self.input_map.len() < self.known_transitions.len() {
+            return Err(MergeRevealError::InsufficientInputs);
         }
         Ok(self)
     }
