@@ -19,35 +19,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![allow(clippy::result_large_err)]
+
 use std::collections::{BTreeMap, HashSet};
 
 use amplify::confinement::{Confined, TinyOrdMap, TinyOrdSet, U16};
 use amplify::{confinement, Wrapper};
 use invoice::{Allocation, Amount};
 use rgb::{
-    AltLayer1, AltLayer1Set, AssetTag, Assign, AssignmentType, Assignments, BlindingFactor,
-    ContractId, DataState, ExposedSeal, FungibleType, Genesis, GenesisSeal, GlobalState, GraphSeal,
-    Input, Opout, RevealedAttach, RevealedData, RevealedValue, StateSchema, SubSchema, Transition,
-    TransitionType, TypedAssigns,
+    validation, AltLayer1, AltLayer1Set, AssetTag, Assign, AssignmentType, Assignments,
+    BlindingFactor, ContractId, DataState, ExposedSeal, FungibleType, Genesis, GenesisSeal,
+    GlobalState, GraphSeal, Input, Layer1, Opout, RevealedAttach, RevealedData, RevealedValue,
+    StateSchema, SubSchema, Transition, TransitionType, TypedAssigns, XChain, XOutpoint,
 };
 use strict_encoding::{FieldName, SerializeError, StrictSerialize, TypeName};
 use strict_types::decode;
 
 use crate::containers::{BuilderSeal, Contract};
 use crate::interface::contract::AttachedState;
-use crate::interface::{Iface, IfaceImpl, IfacePair, TransitionIface};
-use crate::persistence::PresistedState;
+use crate::interface::resolver::DumbResolver;
+use crate::interface::{
+    Iface, IfaceClass, IfaceImpl, IfacePair, IssuerTriplet, SchemaIssuer, TransitionIface,
+    WrongImplementation,
+};
+use crate::persistence::PersistedState;
+use crate::Outpoint;
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum BuilderError {
-    /// interface implementation references different interface that the one
-    /// provided to the builder.
-    InterfaceMismatch,
-
-    /// interface implementation references different schema that the one
-    /// provided to the builder.
-    SchemaMismatch,
+    #[from]
+    #[display(inner)]
+    WrongImplementation(WrongImplementation),
 
     /// contract already has too many layers1.
     TooManyLayers1,
@@ -86,6 +89,9 @@ pub enum BuilderError {
     /// interface doesn't have a default assignment type.
     NoDefaultAssignment,
 
+    /// {0} is not supported by the contract genesis.
+    InvalidLayer1(Layer1),
+
     #[from]
     #[display(inner)]
     StrictEncode(SerializeError),
@@ -97,6 +103,35 @@ pub enum BuilderError {
     #[from]
     #[display(inner)]
     Confinement(confinement::Error),
+
+    #[from]
+    #[display(inner)]
+    ContractInconsistency(validation::Status),
+}
+
+mod private {
+    pub trait Sealed {}
+}
+
+pub trait TxOutpoint: Copy + Eq + private::Sealed {
+    fn is_liquid(&self) -> bool;
+    fn is_bitcoin(&self) -> bool;
+    fn map_to_xchain<U>(self, f: impl FnOnce(Outpoint) -> U) -> XChain<U>;
+}
+
+impl private::Sealed for Outpoint {}
+impl private::Sealed for XOutpoint {}
+impl TxOutpoint for Outpoint {
+    fn is_liquid(&self) -> bool { false }
+    fn is_bitcoin(&self) -> bool { true }
+    fn map_to_xchain<U>(self, f: impl FnOnce(Outpoint) -> U) -> XChain<U> {
+        XChain::Bitcoin(f(self))
+    }
+}
+impl TxOutpoint for XOutpoint {
+    fn is_liquid(&self) -> bool { XChain::is_liquid(self) }
+    fn is_bitcoin(&self) -> bool { XChain::is_bitcoin(self) }
+    fn map_to_xchain<U>(self, f: impl FnOnce(Outpoint) -> U) -> XChain<U> { self.map(f) }
 }
 
 #[derive(Clone, Debug)]
@@ -112,7 +147,7 @@ impl ContractBuilder {
         schema: SubSchema,
         iimpl: IfaceImpl,
         testnet: bool,
-    ) -> Result<Self, BuilderError> {
+    ) -> Result<Self, WrongImplementation> {
         Ok(Self {
             builder: OperationBuilder::with(iface, schema, iimpl)?,
             testnet,
@@ -124,7 +159,7 @@ impl ContractBuilder {
         iface: Iface,
         schema: SubSchema,
         iimpl: IfaceImpl,
-    ) -> Result<Self, BuilderError> {
+    ) -> Result<Self, WrongImplementation> {
         Ok(Self {
             builder: OperationBuilder::with(iface, schema, iimpl)?,
             testnet: false,
@@ -136,7 +171,7 @@ impl ContractBuilder {
         iface: Iface,
         schema: SubSchema,
         iimpl: IfaceImpl,
-    ) -> Result<Self, BuilderError> {
+    ) -> Result<Self, WrongImplementation> {
         Ok(Self {
             builder: OperationBuilder::with(iface, schema, iimpl)?,
             testnet: true,
@@ -144,11 +179,29 @@ impl ContractBuilder {
         })
     }
 
+    pub fn has_layer1(&self, layer1: Layer1) -> bool {
+        match layer1 {
+            Layer1::Bitcoin => true,
+            Layer1::Liquid => self.alt_layers1.contains(&AltLayer1::Liquid),
+        }
+    }
+    pub fn check_layer1(&self, layer1: Layer1) -> Result<(), BuilderError> {
+        if !self.has_layer1(layer1) {
+            return Err(BuilderError::InvalidLayer1(layer1));
+        }
+        Ok(())
+    }
+
     pub fn add_layer1(mut self, layer1: AltLayer1) -> Result<Self, BuilderError> {
         self.alt_layers1
             .push(layer1)
             .map_err(|_| BuilderError::TooManyLayers1)?;
         Ok(self)
+    }
+
+    #[inline]
+    pub fn asset_tag(&self, name: impl Into<FieldName>) -> Result<AssetTag, BuilderError> {
+        self.builder.asset_tag(name)
     }
 
     #[inline]
@@ -171,13 +224,15 @@ impl ContractBuilder {
         Ok(self)
     }
 
-    pub fn add_owned_state_raw(
+    pub fn add_owned_state_det(
         mut self,
-        type_id: AssignmentType,
+        name: impl Into<FieldName>,
         seal: impl Into<BuilderSeal<GenesisSeal>>,
-        state: PresistedState,
+        state: PersistedState,
     ) -> Result<Self, BuilderError> {
-        self.builder = self.builder.add_owned_state_raw(type_id, seal, state)?;
+        let seal = seal.into();
+        self.check_layer1(seal.layer1())?;
+        self.builder = self.builder.add_owned_state_det(name, seal, state)?;
         Ok(self)
     }
 
@@ -186,6 +241,8 @@ impl ContractBuilder {
         name: impl Into<FieldName>,
         seal: impl Into<BuilderSeal<GenesisSeal>>,
     ) -> Result<Self, BuilderError> {
+        let seal = seal.into();
+        self.check_layer1(seal.layer1())?;
         self.builder = self.builder.add_rights(name, seal, None)?;
         Ok(self)
     }
@@ -197,6 +254,8 @@ impl ContractBuilder {
         value: u64,
     ) -> Result<Self, BuilderError> {
         let name = name.into();
+        let seal = seal.into();
+        self.check_layer1(seal.layer1())?;
         let type_id = self
             .builder
             .assignments_type(&name, None)
@@ -229,6 +288,8 @@ impl ContractBuilder {
         seal: impl Into<BuilderSeal<GenesisSeal>>,
         value: impl StrictSerialize,
     ) -> Result<Self, BuilderError> {
+        let seal = seal.into();
+        self.check_layer1(seal.layer1())?;
         self.builder = self.builder.add_data(name, seal, value, None)?;
         Ok(self)
     }
@@ -239,6 +300,8 @@ impl ContractBuilder {
         seal: impl Into<BuilderSeal<GenesisSeal>>,
         attachment: AttachedState,
     ) -> Result<Self, BuilderError> {
+        let seal = seal.into();
+        self.check_layer1(seal.layer1())?;
         self.builder = self.builder.add_attachment(name, seal, attachment, None)?;
         Ok(self)
     }
@@ -257,12 +320,19 @@ impl ContractBuilder {
             valencies: none!(),
         };
 
-        // TODO: Validate against schema
-
         let mut contract = Contract::new(schema, genesis, asset_tags);
         contract.ifaces = tiny_bmap! { iface_pair.iface_id() => iface_pair };
 
-        Ok(contract)
+        let verified_contract =
+            contract
+                .validate(&mut DumbResolver, self.testnet)
+                .map_err(|consignment| {
+                    consignment
+                        .into_validation_status()
+                        .expect("status always present upon validation")
+                })?;
+
+        Ok(verified_contract)
     }
 }
 
@@ -270,7 +340,7 @@ impl ContractBuilder {
 pub struct TransitionBuilder {
     builder: OperationBuilder<GraphSeal>,
     transition_type: TransitionType,
-    inputs: TinyOrdMap<Input, PresistedState>,
+    inputs: TinyOrdMap<Input, PersistedState>,
 }
 
 impl TransitionBuilder {
@@ -278,7 +348,7 @@ impl TransitionBuilder {
         iface: Iface,
         schema: SubSchema,
         iimpl: IfaceImpl,
-    ) -> Result<Self, BuilderError> {
+    ) -> Result<Self, WrongImplementation> {
         Self::with(iface, schema, iimpl, TransitionType::BLANK)
     }
 
@@ -292,7 +362,7 @@ impl TransitionBuilder {
             .as_ref()
             .and_then(|name| iimpl.transition_type(name))
             .ok_or(BuilderError::NoOperationSubtype)?;
-        Self::with(iface, schema, iimpl, transition_type)
+        Ok(Self::with(iface, schema, iimpl, transition_type)?)
     }
 
     pub fn named_transition(
@@ -305,7 +375,7 @@ impl TransitionBuilder {
         let transition_type = iimpl
             .transition_type(&transition_name)
             .ok_or(BuilderError::TransitionNotFound(transition_name))?;
-        Self::with(iface, schema, iimpl, transition_type)
+        Ok(Self::with(iface, schema, iimpl, transition_type)?)
     }
 
     fn with(
@@ -313,7 +383,7 @@ impl TransitionBuilder {
         schema: SubSchema,
         iimpl: IfaceImpl,
         transition_type: TransitionType,
-    ) -> Result<Self, BuilderError> {
+    ) -> Result<Self, WrongImplementation> {
         Ok(Self {
             builder: OperationBuilder::with(iface, schema, iimpl)?,
             transition_type,
@@ -322,6 +392,11 @@ impl TransitionBuilder {
     }
 
     pub fn transition_type(&self) -> TransitionType { self.transition_type }
+
+    #[inline]
+    pub fn asset_tag(&self, name: impl Into<FieldName>) -> Result<AssetTag, BuilderError> {
+        self.builder.asset_tag(name)
+    }
 
     #[inline]
     pub fn add_asset_tag(
@@ -355,7 +430,7 @@ impl TransitionBuilder {
         Ok(self)
     }
 
-    pub fn add_input(mut self, opout: Opout, state: PresistedState) -> Result<Self, BuilderError> {
+    pub fn add_input(mut self, opout: Opout, state: PersistedState) -> Result<Self, BuilderError> {
         self.inputs.insert(Input::with(opout), state)?;
         Ok(self)
     }
@@ -374,13 +449,23 @@ impl TransitionBuilder {
             .assignments_type(name, Some(self.transition_type))
     }
 
+    pub fn add_owned_state_det(
+        mut self,
+        name: impl Into<FieldName>,
+        seal: impl Into<BuilderSeal<GraphSeal>>,
+        state: PersistedState,
+    ) -> Result<Self, BuilderError> {
+        self.builder = self.builder.add_owned_state_det(name, seal, state)?;
+        Ok(self)
+    }
+
     pub fn add_owned_state_raw(
         mut self,
         type_id: AssignmentType,
         seal: impl Into<BuilderSeal<GraphSeal>>,
-        state: PresistedState,
+        state: PersistedState,
     ) -> Result<Self, BuilderError> {
-        if matches!(state, PresistedState::Amount(_, _, tag) if self.builder.asset_tag(type_id)? != tag)
+        if matches!(state, PersistedState::Amount(_, _, tag) if self.builder.asset_tag_raw(type_id)? != tag)
         {
             return Err(BuilderError::AssetTagInvalid(type_id));
         }
@@ -415,7 +500,7 @@ impl TransitionBuilder {
         value: impl Into<Amount>,
         blinding: BlindingFactor,
     ) -> Result<Self, BuilderError> {
-        let tag = self.builder.asset_tag(type_id)?;
+        let tag = self.builder.asset_tag_raw(type_id)?;
         let state = RevealedValue::with_blinding(value.into(), blinding, tag);
         self.builder = self.builder.add_fungible_state_raw(type_id, seal, state)?;
         Ok(self)
@@ -432,7 +517,7 @@ impl TransitionBuilder {
             .builder
             .assignments_type(&name, None)
             .ok_or(BuilderError::AssignmentNotFound(name.clone()))?;
-        let tag = self.builder.asset_tag(type_id)?;
+        let tag = self.builder.asset_tag_raw(type_id)?;
 
         self.builder =
             self.builder
@@ -525,20 +610,11 @@ pub struct OperationBuilder<Seal: ExposedSeal> {
     // TODO: add valencies
 }
 
-impl<Seal: ExposedSeal> OperationBuilder<Seal> {
-    fn with(iface: Iface, schema: SubSchema, iimpl: IfaceImpl) -> Result<Self, BuilderError> {
-        if iimpl.iface_id != iface.iface_id() {
-            return Err(BuilderError::InterfaceMismatch);
-        }
-        if iimpl.schema_id != schema.schema_id() {
-            return Err(BuilderError::SchemaMismatch);
-        }
+impl<Seal: ExposedSeal> From<IssuerTriplet> for OperationBuilder<Seal> {
+    fn from(triplet: IssuerTriplet) -> Self {
+        let (iface, schema, iimpl) = triplet.into_split();
 
-        // TODO: check schema internal consistency
-        // TODO: check interface internal consistency
-        // TODO: check implementation internal consistency
-
-        Ok(OperationBuilder {
+        OperationBuilder {
             schema,
             iface,
             iimpl,
@@ -549,7 +625,22 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             fungible: none!(),
             attachments: none!(),
             data: none!(),
-        })
+        }
+    }
+}
+
+impl<Seal: ExposedSeal, I: IfaceClass> From<SchemaIssuer<I>> for OperationBuilder<Seal> {
+    fn from(issuer: SchemaIssuer<I>) -> Self { Self::from(issuer.into_triplet()) }
+}
+
+impl<Seal: ExposedSeal> OperationBuilder<Seal> {
+    fn with(
+        iface: Iface,
+        schema: SubSchema,
+        iimpl: IfaceImpl,
+    ) -> Result<Self, WrongImplementation> {
+        let triplet = IssuerTriplet::new(iface, schema, iimpl)?;
+        Ok(Self::from(triplet))
     }
 
     fn transition_iface(&self, ty: TransitionType) -> &TransitionIface {
@@ -581,8 +672,16 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             .expect("schema should match interface: must be checked by the constructor")
     }
 
+    pub fn asset_tag(&self, name: impl Into<FieldName>) -> Result<AssetTag, BuilderError> {
+        let name = name.into();
+        let type_id = self
+            .assignments_type(&name, None)
+            .ok_or(BuilderError::AssignmentNotFound(name.clone()))?;
+        self.asset_tag_raw(type_id)
+    }
+
     #[inline]
-    pub fn asset_tag(&self, type_id: AssignmentType) -> Result<AssetTag, BuilderError> {
+    fn asset_tag_raw(&self, type_id: AssignmentType) -> Result<AssetTag, BuilderError> {
         self.asset_tags
             .get(&type_id)
             .ok_or(BuilderError::AssetTagMissed(type_id))
@@ -652,23 +751,42 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         Ok(self)
     }
 
+    fn add_owned_state_det(
+        self,
+        name: impl Into<FieldName>,
+        seal: impl Into<BuilderSeal<Seal>>,
+        state: PersistedState,
+    ) -> Result<Self, BuilderError> {
+        let name = name.into();
+        let type_id = self
+            .assignments_type(&name, None)
+            .ok_or(BuilderError::AssignmentNotFound(name.clone()))?;
+        self.add_owned_state_raw(type_id, seal, state)
+    }
+
     fn add_owned_state_raw(
         self,
         type_id: AssignmentType,
         seal: impl Into<BuilderSeal<Seal>>,
-        state: PresistedState,
+        state: PersistedState,
     ) -> Result<Self, BuilderError> {
         match state {
-            PresistedState::Void => self.add_rights_raw(type_id, seal),
-            PresistedState::Amount(value, blinding, tag) => self.add_fungible_state_raw(
-                type_id,
-                seal,
-                RevealedValue::with_blinding(value, blinding, tag),
-            ),
-            PresistedState::Data(data, salt) => {
+            PersistedState::Void => self.add_rights_raw(type_id, seal),
+            PersistedState::Amount(value, blinding, tag) => {
+                if self.asset_tag_raw(type_id)? != tag {
+                    return Err(BuilderError::AssetTagInvalid(type_id));
+                }
+
+                self.add_fungible_state_raw(
+                    type_id,
+                    seal,
+                    RevealedValue::with_blinding(value, blinding, tag),
+                )
+            }
+            PersistedState::Data(data, salt) => {
                 self.add_data_raw(type_id, seal, RevealedData::with_salt(data, salt))
             }
-            PresistedState::Attachment(attach, salt) => self.add_attachment_raw(
+            PersistedState::Attachment(attach, salt) => self.add_attachment_raw(
                 type_id,
                 seal,
                 RevealedAttach::with_salt(attach.id, attach.media_type, salt),
@@ -844,7 +962,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
 
     fn complete(
         self,
-        inputs: Option<&TinyOrdMap<Input, PresistedState>>,
+        inputs: Option<&TinyOrdMap<Input, PersistedState>>,
     ) -> (SubSchema, IfacePair, GlobalState, Assignments<Seal>, TinyOrdMap<AssignmentType, AssetTag>)
     {
         let owned_state = self.fungible.into_iter().map(|(id, vec)| {
@@ -871,7 +989,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
                         i.iter()
                             .filter(|(out, _)| out.prev_out.ty == id)
                             .map(|(_, ts)| match ts {
-                                PresistedState::Amount(_, blinding, _) => *blinding,
+                                PersistedState::Amount(_, blinding, _) => *blinding,
                                 _ => panic!("previous state has invalid type"),
                             })
                             .collect::<Vec<_>>()

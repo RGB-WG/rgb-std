@@ -25,7 +25,7 @@ use bp::seals::txout::{BlindSeal, CloseMethod, SealTxid};
 use bp::secp256k1::rand::{thread_rng, RngCore};
 use bp::Vout;
 use commit_verify::Conceal;
-use rgb::{GraphSeal, SecretSeal, TxoSeal, XChain};
+use rgb::{GraphSeal, Layer1, SecretSeal, TxoSeal, XChain};
 
 use crate::LIB_NAME_RGB_STD;
 
@@ -174,4 +174,13 @@ pub enum BuilderSeal<Seal: TxoSeal + Ord> {
 
 impl<Id: SealTxid> From<XChain<BlindSeal<Id>>> for BuilderSeal<BlindSeal<Id>> {
     fn from(seal: XChain<BlindSeal<Id>>) -> Self { BuilderSeal::Revealed(seal) }
+}
+
+impl<Seal: TxoSeal + Ord> BuilderSeal<Seal> {
+    pub fn layer1(&self) -> Layer1 {
+        match self {
+            BuilderSeal::Revealed(x) => x.layer1(),
+            BuilderSeal::Concealed(x) => x.layer1(),
+        }
+    }
 }

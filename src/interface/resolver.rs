@@ -19,26 +19,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use invoice::Amount;
-use rgb::{AssetTag, BlindingFactor, DataState};
+use std::convert::Infallible;
 
-use crate::interface::AttachedState;
+use strict_encoding::StrictDumb;
 
-#[derive(Clone, Eq, PartialEq, Debug, Hash)]
-pub enum PersistedState {
-    Void,
-    Amount(Amount, BlindingFactor, AssetTag),
-    Data(DataState, u128),
-    Attachment(AttachedState, u64),
+use crate::resolvers::ResolveHeight;
+use crate::validation::{ResolveWitness, WitnessResolverError};
+use crate::{WitnessAnchor, WitnessId, XAnchor, XPubWitness};
+
+pub(crate) struct DumbResolver;
+
+impl ResolveWitness for DumbResolver {
+    fn resolve_pub_witness(&self, _: WitnessId) -> Result<XPubWitness, WitnessResolverError> {
+        Ok(XPubWitness::strict_dumb())
+    }
 }
 
-impl PersistedState {
-    pub(super) fn update_blinding(&mut self, blinding: BlindingFactor) {
-        match self {
-            PersistedState::Void => {}
-            PersistedState::Amount(_, b, _) => *b = blinding,
-            PersistedState::Data(_, _) => {}
-            PersistedState::Attachment(_, _) => {}
-        }
+impl ResolveHeight for DumbResolver {
+    type Error = Infallible;
+    fn resolve_anchor(&mut self, _: &XAnchor) -> Result<WitnessAnchor, Self::Error> {
+        Ok(WitnessAnchor::strict_dumb())
     }
 }

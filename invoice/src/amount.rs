@@ -137,6 +137,26 @@ impl Amount {
     pub fn saturating_sub_assign(&mut self, other: impl Into<Self>) {
         *self = self.0.saturating_sub(other.into().0).into();
     }
+
+    #[must_use]
+    pub fn checked_add(&self, other: impl Into<Self>) -> Option<Self> {
+        self.0.checked_add(other.into().0).map(Self)
+    }
+    #[must_use]
+    pub fn checked_sub(&self, other: impl Into<Self>) -> Option<Self> {
+        self.0.checked_sub(other.into().0).map(Self)
+    }
+
+    #[must_use]
+    pub fn checked_add_assign(&mut self, other: impl Into<Self>) -> Option<()> {
+        *self = self.0.checked_add(other.into().0).map(Self)?;
+        Some(())
+    }
+    #[must_use]
+    pub fn checked_sub_assign(&mut self, other: impl Into<Self>) -> Option<()> {
+        *self = self.0.checked_sub(other.into().0).map(Self)?;
+        Some(())
+    }
 }
 
 impl Sum<u64> for Amount {

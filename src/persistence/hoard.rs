@@ -36,7 +36,7 @@ use strict_encoding::TypeName;
 use crate::accessors::{MergeReveal, MergeRevealError};
 use crate::containers::{Cert, Consignment, ContentId, ContentSigs};
 use crate::interface::{
-    rgb20, rgb21, rgb25, ContractSuppl, Iface, IfaceId, IfacePair, SchemaIfaces,
+    rgb21, rgb25, ContractSuppl, Iface, IfaceClass, IfaceId, IfacePair, Rgb20, SchemaIfaces,
 };
 use crate::persistence::{InventoryError, Stash, StashError, StashInconsistency};
 use crate::LIB_NAME_RGB_STD;
@@ -86,7 +86,7 @@ pub struct Hoard {
 
 impl Hoard {
     pub fn preset() -> Self {
-        let rgb20 = rgb20();
+        let rgb20 = Rgb20::iface();
         let rgb20_id = rgb20.iface_id();
         let rgb21 = rgb21();
         let rgb21_id = rgb21.iface_id();

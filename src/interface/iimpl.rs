@@ -20,6 +20,7 @@
 // limitations under the License.
 
 use std::fmt::{self, Display, Formatter};
+use std::marker::PhantomData;
 use std::str::FromStr;
 
 use amplify::confinement::{TinyOrdMap, TinyOrdSet};
@@ -34,9 +35,10 @@ use strict_encoding::{FieldName, StrictDumb, TypeName};
 use strict_types::encoding::{
     StrictDecode, StrictDeserialize, StrictEncode, StrictSerialize, StrictType,
 };
+use strict_types::TypeLib;
 
 use crate::interface::iface::IfaceId;
-use crate::interface::{Iface, VerNo};
+use crate::interface::{Iface, IfaceWrapper, VerNo};
 use crate::{ReservedBytes, LIB_NAME_RGB_STD};
 
 pub trait SchemaTypeIndex:
@@ -298,5 +300,132 @@ impl IfacePair {
     }
     pub fn transition_type(&self, name: &TypeName) -> Option<TransitionType> {
         self.iimpl.transition_type(name)
+    }
+}
+
+pub trait IssuerClass {
+    type IssuingIface: IfaceClass;
+
+    fn schema() -> SubSchema;
+    fn issue_impl() -> IfaceImpl;
+
+    fn issuer() -> SchemaIssuer<Self::IssuingIface> {
+        SchemaIssuer::new(Self::schema(), Self::issue_impl())
+            .expect("implementation schema mismatch")
+    }
+}
+
+pub trait IfaceClass: IfaceWrapper {
+    fn iface() -> Iface;
+    fn stl() -> TypeLib;
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display, Error)]
+#[display(doc_comments)]
+pub enum WrongImplementation {
+    /// the provided implementation {impl_id} implements interface {actual}
+    /// instead of {expected} for the schema {schema_id}
+    InterfaceMismatch {
+        schema_id: SchemaId,
+        impl_id: ImplId,
+        expected: IfaceId,
+        actual: IfaceId,
+    },
+
+    /// the provided implementation {impl_id} uses schema {actual} instead of
+    /// {expected}
+    SchemaMismatch {
+        impl_id: ImplId,
+        expected: SchemaId,
+        actual: SchemaId,
+    },
+}
+
+#[derive(Getters, Clone, Eq, PartialEq, Debug)]
+pub struct IssuerTriplet {
+    schema: SubSchema,
+    iface: Iface,
+    iimpl: IfaceImpl,
+}
+
+impl IssuerTriplet {
+    #[allow(clippy::result_large_err)]
+    pub fn new(
+        iface: Iface,
+        schema: SubSchema,
+        iimpl: IfaceImpl,
+    ) -> Result<Self, WrongImplementation> {
+        let expected = iface.iface_id();
+        let actual = iimpl.iface_id;
+
+        if actual != expected {
+            return Err(WrongImplementation::InterfaceMismatch {
+                schema_id: schema.schema_id(),
+                impl_id: iimpl.impl_id(),
+                expected,
+                actual,
+            });
+        }
+
+        let expected = schema.schema_id();
+        let actual = iimpl.schema_id;
+        if actual != expected {
+            return Err(WrongImplementation::SchemaMismatch {
+                impl_id: iimpl.impl_id(),
+                expected,
+                actual,
+            });
+        }
+
+        // TODO: check schema internal consistency
+        // TODO: check interface internal consistency
+        // TODO: check implementation internal consistency
+
+        Ok(Self {
+            iface,
+            schema,
+            iimpl,
+        })
+    }
+
+    #[inline]
+    pub fn into_split(self) -> (Iface, SubSchema, IfaceImpl) {
+        (self.iface, self.schema, self.iimpl)
+    }
+
+    #[inline]
+    pub fn into_issuer(self) -> (SubSchema, IfaceImpl) { (self.schema, self.iimpl) }
+}
+
+#[derive(Getters, Clone, Eq, PartialEq, Debug)]
+pub struct SchemaIssuer<I: IfaceClass> {
+    schema: SubSchema,
+    iimpl: IfaceImpl,
+    phantom: PhantomData<I>,
+}
+
+impl<I: IfaceClass> SchemaIssuer<I> {
+    #[allow(clippy::result_large_err)]
+    pub fn new(schema: SubSchema, iimpl: IfaceImpl) -> Result<Self, WrongImplementation> {
+        let triplet = IssuerTriplet::new(I::iface(), schema, iimpl)?;
+        let (_, schema, iimpl) = triplet.into_split();
+
+        Ok(Self {
+            schema,
+            iimpl,
+            phantom: default!(),
+        })
+    }
+
+    #[inline]
+    pub fn into_split(self) -> (SubSchema, IfaceImpl) { (self.schema, self.iimpl) }
+
+    pub fn into_triplet(self) -> IssuerTriplet {
+        let (schema, iimpl) = self.into_split();
+        IssuerTriplet {
+            schema,
+            iface: I::iface(),
+            iimpl,
+        }
     }
 }

@@ -20,20 +20,30 @@
 // limitations under the License.
 
 use std::collections::HashMap;
+use std::str::FromStr;
 
 use bp::bc::stl::bp_tx_stl;
-use invoice::Amount;
-use rgb::WitnessId;
+use bp::dbc::Method;
+use invoice::{Amount, Precision};
+use rgb::{AltLayer1, AssetTag, BlindingFactor, GenesisSeal, WitnessId};
+use strict_encoding::InvalidIdent;
 use strict_types::{CompileError, LibBuilder, TypeLib};
 
 use super::{
-    AssignIface, GenesisIface, GlobalIface, Iface, IfaceOp, OwnedIface, Req, StateChange,
-    TransitionIface, VerNo, WitnessFilter,
+    AssignIface, BuilderError, ContractBuilder, GenesisIface, GlobalIface, Iface, IfaceClass,
+    IfaceOp, IssuerClass, OwnedIface, Req, SchemaIssuer, StateChange, TransitionIface, VerNo,
+    WitnessFilter,
 };
+use crate::containers::Contract;
+use crate::interface::builder::TxOutpoint;
 use crate::interface::{
     ArgSpec, ContractIface, FungibleAllocation, IfaceId, IfaceWrapper, OutpointFilter,
 };
-use crate::stl::{rgb_contract_stl, ContractData, DivisibleAssetSpec, StandardTypes, Timestamp};
+use crate::persistence::PersistedState;
+use crate::stl::{
+    rgb_contract_stl, Attachment, ContractData, DivisibleAssetSpec, RicardianContract,
+    StandardTypes, Timestamp,
+};
 
 pub const LIB_NAME_RGB20: &str = "RGB20";
 /// Strict types id for the library providing data types for RGB20 interface.
@@ -71,9 +81,9 @@ fn _rgb20_stl() -> Result<TypeLib, CompileError> {
 }
 
 /// Generates strict type library providing data types for RGB20 interface.
-pub fn rgb20_stl() -> TypeLib { _rgb20_stl().expect("invalid strict type RGB20 library") }
+fn rgb20_stl() -> TypeLib { _rgb20_stl().expect("invalid strict type RGB20 library") }
 
-pub fn rgb20() -> Iface {
+fn rgb20() -> Iface {
     let types = StandardTypes::with(rgb20_stl());
 
     Iface {
@@ -311,7 +321,32 @@ impl IfaceWrapper for Rgb20 {
     ]);
 }
 
+impl IfaceClass for Rgb20 {
+    fn iface() -> Iface { rgb20() }
+    fn stl() -> TypeLib { rgb20_stl() }
+}
+
 impl Rgb20 {
+    pub fn testnet<C: IssuerClass<IssuingIface = Self>>(
+        ticker: &str,
+        name: &str,
+        details: Option<&str>,
+        precision: Precision,
+    ) -> Result<PrimaryIssue, InvalidIdent> {
+        PrimaryIssue::testnet::<C>(ticker, name, details, precision)
+    }
+
+    pub fn testnet_det<C: IssuerClass<IssuingIface = Self>>(
+        ticker: &str,
+        name: &str,
+        details: Option<&str>,
+        precision: Precision,
+        timestamp: Timestamp,
+        asset_tag: AssetTag,
+    ) -> Result<PrimaryIssue, InvalidIdent> {
+        PrimaryIssue::testnet_det::<C>(ticker, name, details, precision, timestamp, asset_tag)
+    }
+
     pub fn spec(&self) -> DivisibleAssetSpec {
         let strict_val = &self
             .0
@@ -389,6 +424,206 @@ impl Rgb20 {
             .fungible_ops("assetOwner", witness_filter, outpoint_filter)
             .expect("state name is not correct")
     }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display, Error)]
+#[display(doc_comments)]
+pub enum AllocationError {
+    /// contract genesis doesn't support allocating to liquid seals; request
+    /// liquid support first.
+    NoLiquidSupport,
+    /// overflow in the amount of the issued assets: the total amount must not
+    /// exceed 2^64.
+    AmountOverflow,
+}
+
+impl From<BuilderError> for AllocationError {
+    fn from(err: BuilderError) -> Self {
+        match err {
+            BuilderError::InvalidLayer1(_) => AllocationError::NoLiquidSupport,
+            _ => panic!("invalid RGB20 schema (assetOwner mismatch)"),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct PrimaryIssue {
+    builder: ContractBuilder,
+    issued: Amount,
+    contract_data: ContractData,
+    deterministic: bool,
+}
+
+impl PrimaryIssue {
+    fn testnet_int(
+        issuer: SchemaIssuer<Rgb20>,
+        ticker: &str,
+        name: &str,
+        details: Option<&str>,
+        precision: Precision,
+        timestamp: Timestamp,
+    ) -> Result<Self, InvalidIdent> {
+        let spec = DivisibleAssetSpec::with(ticker, name, precision, details)?;
+        let contract_data = ContractData {
+            terms: RicardianContract::default(),
+            media: None,
+        };
+
+        let (schema, main_iface_impl) = issuer.into_split();
+        let builder = ContractBuilder::testnet(rgb20(), schema, main_iface_impl)
+            .expect("schema interface mismatch")
+            .add_global_state("spec", spec)
+            .expect("invalid RGB20 schema (token specification mismatch)")
+            .add_global_state("created", timestamp)
+            .expect("invalid RGB20 schema (creation timestamp mismatch)");
+
+        Ok(Self {
+            builder,
+            contract_data,
+            issued: Amount::ZERO,
+            deterministic: false,
+        })
+    }
+
+    pub fn testnet<C: IssuerClass<IssuingIface = Rgb20>>(
+        ticker: &str,
+        name: &str,
+        details: Option<&str>,
+        precision: Precision,
+    ) -> Result<Self, InvalidIdent> {
+        Self::testnet_int(C::issuer(), ticker, name, details, precision, Timestamp::now())
+    }
+
+    pub fn testnet_with(
+        issuer: SchemaIssuer<Rgb20>,
+        ticker: &str,
+        name: &str,
+        details: Option<&str>,
+        precision: Precision,
+    ) -> Result<Self, InvalidIdent> {
+        Self::testnet_int(issuer, ticker, name, details, precision, Timestamp::now())
+    }
+
+    pub fn testnet_det<C: IssuerClass<IssuingIface = Rgb20>>(
+        ticker: &str,
+        name: &str,
+        details: Option<&str>,
+        precision: Precision,
+        timestamp: Timestamp,
+        asset_tag: AssetTag,
+    ) -> Result<Self, InvalidIdent> {
+        let mut me = Self::testnet_int(C::issuer(), ticker, name, details, precision, timestamp)?;
+        me.builder = me
+            .builder
+            .add_asset_tag("assetOwner", asset_tag)
+            .expect("invalid RGB20 schema (assetOwner mismatch)");
+        me.deterministic = true;
+        Ok(me)
+    }
+
+    pub fn support_liquid(mut self) -> Self {
+        self.builder = self
+            .builder
+            .add_layer1(AltLayer1::Liquid)
+            .expect("only one layer1 can be added");
+        self
+    }
+
+    pub fn add_terms(
+        mut self,
+        contract: &str,
+        media: Option<Attachment>,
+    ) -> Result<Self, InvalidIdent> {
+        let terms = RicardianContract::from_str(contract)?;
+        self.contract_data = ContractData { terms, media };
+        Ok(self)
+    }
+
+    pub fn allocate<O: TxOutpoint>(
+        mut self,
+        method: Method,
+        beneficiary: O,
+        amount: Amount,
+    ) -> Result<Self, AllocationError> {
+        debug_assert!(
+            !self.deterministic,
+            "for creating deterministic contracts please use allocate_det method"
+        );
+
+        let beneficiary = beneficiary.map_to_xchain(|outpoint| {
+            GenesisSeal::new_random(method, outpoint.txid, outpoint.vout)
+        });
+        self.issued
+            .checked_add_assign(amount)
+            .ok_or(AllocationError::AmountOverflow)?;
+        self.builder =
+            self.builder
+                .add_fungible_state("assetOwner", beneficiary, amount.value())?;
+        Ok(self)
+    }
+
+    pub fn allocate_all<O: TxOutpoint>(
+        mut self,
+        method: Method,
+        allocations: impl IntoIterator<Item = (O, Amount)>,
+    ) -> Result<Self, AllocationError> {
+        for (beneficiary, amount) in allocations {
+            self = self.allocate(method, beneficiary, amount)?;
+        }
+        Ok(self)
+    }
+
+    /// Add asset allocation in a deterministic way.
+    pub fn allocate_det<O: TxOutpoint>(
+        mut self,
+        method: Method,
+        beneficiary: O,
+        seal_blinding: u64,
+        amount: Amount,
+        amount_blinding: BlindingFactor,
+    ) -> Result<Self, AllocationError> {
+        debug_assert!(
+            !self.deterministic,
+            "to add asset allocation in deterministic way the contract builder has to be created \
+             using `*_det` constructor"
+        );
+
+        let tag = self
+            .builder
+            .asset_tag("assetOwner")
+            .expect("internal library error: asset tag is unassigned");
+        let beneficiary = beneficiary.map_to_xchain(|outpoint| {
+            GenesisSeal::with_blinding(method, outpoint.txid, outpoint.vout, seal_blinding)
+        });
+        self.issued
+            .checked_add_assign(amount)
+            .ok_or(AllocationError::AmountOverflow)?;
+        self.builder = self.builder.add_owned_state_det(
+            "assetOwner",
+            beneficiary,
+            PersistedState::Amount(amount, amount_blinding, tag),
+        )?;
+        Ok(self)
+    }
+
+    // TODO: implement when bulletproofs are supported
+    /*
+    pub fn conceal_allocations(mut self) -> Self {
+
+    }
+     */
+
+    #[allow(clippy::result_large_err)]
+    pub fn issue_contract(self) -> Result<Contract, BuilderError> {
+        self.builder
+            .add_global_state("issuedSupply", self.issued)
+            .expect("invalid RGB20 schema (issued supply mismatch)")
+            .add_global_state("data", self.contract_data)
+            .expect("invalid RGB20 schema (contract data mismatch)")
+            .issue_contract()
+    }
+
+    // TODO: Add secondary issuance and other methods
 }
 
 #[cfg(test)]
