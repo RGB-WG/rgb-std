@@ -613,6 +613,7 @@ impl PrimaryIssue {
     }
      */
 
+    #[allow(clippy::result_large_err)]
     pub fn issue_contract(self) -> Result<Contract, BuilderError> {
         self.builder
             .add_global_state("issuedSupply", self.issued)

@@ -349,6 +349,7 @@ pub struct IssuerTriplet {
 }
 
 impl IssuerTriplet {
+    #[allow(clippy::result_large_err)]
     pub fn new(
         iface: Iface,
         schema: SubSchema,
@@ -404,6 +405,7 @@ pub struct SchemaIssuer<I: IfaceClass> {
 }
 
 impl<I: IfaceClass> SchemaIssuer<I> {
+    #[allow(clippy::result_large_err)]
     pub fn new(schema: SubSchema, iimpl: IfaceImpl) -> Result<Self, WrongImplementation> {
         let triplet = IssuerTriplet::new(I::iface(), schema, iimpl)?;
         let (_, schema, iimpl) = triplet.into_split();
