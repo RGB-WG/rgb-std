@@ -29,7 +29,7 @@ use std::io::{self, Read};
 use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
 
-use amplify::confinement::{self, Confined, TinyVec, U24};
+use amplify::confinement::{self, Confined, TinyVec, U24 as U24MAX};
 use baid58::Baid58ParseError;
 use rgb::{BundleId, ContractId, Schema, SchemaId, SchemaRoot, SubSchema};
 use strict_encoding::{
@@ -41,6 +41,8 @@ use crate::containers::transfer::TransferId;
 use crate::containers::{Cert, Contract, Transfer};
 use crate::interface::{Iface, IfaceId, IfaceImpl, ImplId};
 use crate::LIB_NAME_RGB_STD;
+
+pub const BINDLE_MAX_LEN: usize = U24MAX;
 
 // TODO: Move to UBIDECO crate
 pub trait BindleContent: StrictSerialize + StrictDeserialize + StrictDumb {
@@ -229,7 +231,7 @@ impl<C: BindleContent> FromStr for Bindle<C> {
         }
         let armor = lines.filter(|l| !l.is_empty()).collect::<String>();
         let data = base85::decode(&armor)?;
-        let data = C::from_strict_serialized::<U24>(Confined::try_from(data)?)?;
+        let data = C::from_strict_serialized::<BINDLE_MAX_LEN>(Confined::try_from(data)?)?;
         let id = data.bindle_id();
         if let Some(header_id) = header_id {
             if header_id != id {
@@ -265,7 +267,10 @@ impl<C: BindleContent> Display for Bindle<C> {
         writeln!(f)?;
 
         // TODO: Replace with streamed writer
-        let data = self.data.to_strict_serialized::<U24>().expect("in-memory");
+        let data = self
+            .data
+            .to_strict_serialized::<BINDLE_MAX_LEN>()
+            .expect("in-memory");
         let data = base85::encode(&data);
         let mut data = data.as_str();
         while data.len() >= 64 {
@@ -362,7 +367,7 @@ mod _fs {
     use std::path::Path;
     use std::{fs, io};
 
-    use strict_encoding::{StrictEncode, StrictWriter};
+    use strict_encoding::{StreamWriter, StrictEncode};
 
     use super::*;
 
@@ -376,8 +381,8 @@ mod _fs {
             let mut file = fs::File::create(path)?;
             file.write_all(b"RGB")?;
             file.write_all(&C::MAGIC)?;
-            let writer = StrictWriter::with(usize::MAX, file);
-            self.strict_encode(writer)?;
+            let writer = StreamWriter::new::<BINDLE_MAX_LEN>(file);
+            self.strict_write(writer)?;
             Ok(())
         }
     }
