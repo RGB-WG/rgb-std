@@ -21,14 +21,11 @@
 
 use std::str::FromStr;
 
-use amplify::confinement::SmallOrdSet;
 use amplify::{ByteArray, Bytes32};
 use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
-use commit_verify::{
-    CommitEncode, CommitEngine, CommitId, CommitmentId, Conceal, DigestExt, Sha256,
-};
+use commit_verify::{CommitEncode, CommitEngine, CommitId, CommitmentId, DigestExt, Sha256};
 
-use crate::containers::{TerminalSeal, Transfer};
+use super::Transfer;
 use crate::LIB_NAME_RGB_STD;
 
 /// Transfer identifier.
@@ -53,11 +50,11 @@ impl From<Sha256> for TransferId {
 }
 
 impl CommitmentId for TransferId {
-    const TAG: &'static str = "urn:lnpbp:rgb:transfer#2024-02-04";
+    const TAG: &'static str = "urn:lnp-bp:rgb:transfer#2024-02-04";
 }
 
 impl ToBaid58<32> for TransferId {
-    const HRI: &'static str = "consign";
+    const HRI: &'static str = "transfer";
     const CHUNKING: Option<Chunking> = CHUNKING_32;
     fn to_baid58_payload(&self) -> [u8; 32] { self.to_byte_array() }
     fn to_baid58_string(&self) -> String { self.to_string() }
@@ -76,24 +73,7 @@ impl TransferId {
 impl CommitEncode for Transfer {
     type CommitmentId = TransferId;
 
-    fn commit_encode(&self, e: &mut CommitEngine) {
-        e.commit_to(&self.transfer);
-        e.commit_to(&self.commit_id());
-        for (bundle_id, terminal) in &self.terminals {
-            e.commit_to(&bundle_id);
-            let seals = SmallOrdSet::from_iter_unsafe(
-                terminal
-                    .as_reduced_unsafe()
-                    .seals
-                    .iter()
-                    .map(TerminalSeal::conceal),
-            );
-            e.commit_to(&seals);
-        }
-        for attach_id in self.attachments.keys() {
-            e.commit_to(attach_id);
-        }
-    }
+    fn commit_encode(&self, e: &mut CommitEngine) { e.commit_to(self); }
 }
 
 impl Transfer {
