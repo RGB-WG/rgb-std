@@ -21,11 +21,15 @@
 
 #![doc = include_str!("seals.md")]
 
+use std::collections::{btree_set, BTreeSet};
+
+use amplify::confinement::{Confined, U16};
 use bp::seals::txout::{BlindSeal, CloseMethod, SealTxid};
 use bp::secp256k1::rand::{thread_rng, RngCore};
 use bp::Vout;
 use commit_verify::Conceal;
 use rgb::{GraphSeal, Layer1, SecretSeal, TxoSeal, XChain};
+use strict_types::StrictDumb;
 
 use crate::LIB_NAME_RGB_STD;
 
@@ -183,4 +187,32 @@ impl<Seal: TxoSeal + Ord> BuilderSeal<Seal> {
             BuilderSeal::Concealed(x) => x.layer1(),
         }
     }
+}
+
+/// Wrapper type for secret seals
+#[derive(Wrapper, WrapperMut, Clone, PartialEq, Eq, Hash, Debug, From)]
+#[wrapper(Deref)]
+#[wrapper_mut(DerefMut)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", transparent)
+)]
+pub struct SecretSealSet(Confined<BTreeSet<SecretSeal>, 1, U16>);
+
+impl StrictDumb for SecretSealSet {
+    fn strict_dumb() -> Self { Self(confined_bset!(strict_dumb!())) }
+}
+
+impl SecretSealSet {
+    pub fn with(seal: SecretSeal) -> Self { SecretSealSet(Confined::with(seal)) }
+}
+
+impl IntoIterator for SecretSealSet {
+    type Item = SecretSeal;
+    type IntoIter = btree_set::IntoIter<SecretSeal>;
+
+    fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
 }

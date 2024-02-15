@@ -21,13 +21,15 @@
 
 use std::str::FromStr;
 
-use amplify::confinement::SmallOrdSet;
+use amplify::confinement::{Confined, SmallOrdSet};
 use amplify::{ByteArray, Bytes32};
 use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
 use commit_verify::{
     CommitEncode, CommitEngine, CommitId, CommitmentId, Conceal, DigestExt, Sha256,
 };
+use strict_types::StrictDumb;
 
+use crate::containers::seal::SecretSealSet;
 use crate::containers::{TerminalSeal, Transfer};
 use crate::LIB_NAME_RGB_STD;
 
@@ -78,7 +80,6 @@ impl CommitEncode for Transfer {
 
     fn commit_encode(&self, e: &mut CommitEngine) {
         e.commit_to(&self.transfer);
-        e.commit_to(&self.commit_id());
         for (bundle_id, terminal) in &self.terminals {
             e.commit_to(&bundle_id);
             let seals = SmallOrdSet::from_iter_unsafe(
@@ -88,6 +89,10 @@ impl CommitEncode for Transfer {
                     .iter()
                     .map(TerminalSeal::conceal),
             );
+
+            let seals: SecretSealSet = Confined::try_from(seals.into_inner())
+                .expect("invalid secret seals")
+                .into();
             e.commit_to(&seals);
         }
         for attach_id in self.attachments.keys() {
