@@ -90,7 +90,7 @@ pub struct Consignment<const TYPE: bool> {
     pub genesis: Genesis,
 
     /// Set of seals which are history terminals.
-    pub terminals: SmallOrdMap<BundleId, XChain<Terminal>>,
+    pub terminals: SmallOrdMap<BundleId, Terminal>,
 
     /// Data on all anchored state transitions contained in the consignments.
     pub bundles: LargeVec<AnchoredBundle>,

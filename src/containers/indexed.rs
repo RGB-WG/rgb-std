@@ -85,17 +85,8 @@ impl<'c, const TYPE: bool> ConsignmentApi for IndexedConsignment<'c, TYPE> {
     fn terminals(&self) -> BTreeSet<(BundleId, XChain<SecretSeal>)> {
         let mut set = BTreeSet::new();
         for (bundle_id, terminal) in &self.terminals {
-            match terminal {
-                XChain::Bitcoin(term) => {
-                    for seal in &term.seals {
-                        set.push((*bundle_id, XChain::Bitcoin(seal.conceal())));
-                    }
-                }
-                XChain::Liquid(term) => {
-                    for seal in &term.seals {
-                        set.push((*bundle_id, XChain::Liquid(seal.conceal())));
-                    }
-                }
+            for seal in &terminal.seals {
+                set.push((*bundle_id, seal.conceal()));
             }
         }
         set

@@ -20,7 +20,7 @@
 // limitations under the License.
 
 use amplify::confinement::SmallOrdSet;
-use bp::Tx;
+use rgb::{XChain, XPubWitness};
 
 use super::TerminalSeal;
 use crate::LIB_NAME_RGB_STD;
@@ -34,21 +34,21 @@ use crate::LIB_NAME_RGB_STD;
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct Terminal {
-    pub seals: SmallOrdSet<TerminalSeal>,
-    pub tx: Option<Tx>,
+    pub seals: SmallOrdSet<XChain<TerminalSeal>>,
+    pub witness_tx: Option<XPubWitness>,
 }
 
 impl Terminal {
-    pub fn new(seal: TerminalSeal) -> Self {
+    pub fn new(seal: XChain<TerminalSeal>) -> Self {
         Terminal {
             seals: small_bset![seal],
-            tx: None,
+            witness_tx: None,
         }
     }
-    pub fn with(seal: TerminalSeal, tx: Tx) -> Self {
+    pub fn with_witness(seal: XChain<TerminalSeal>, witness_tx: XPubWitness) -> Self {
         Terminal {
             seals: small_bset![seal],
-            tx: Some(tx),
+            witness_tx: Some(witness_tx),
         }
     }
 }
