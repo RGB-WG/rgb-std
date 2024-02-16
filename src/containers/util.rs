@@ -20,10 +20,24 @@
 // limitations under the License.
 
 use amplify::confinement::SmallOrdSet;
-use rgb::{XChain, XPubWitness};
+use rgb::{BundleId, WitnessId, XChain, XPubWitness};
 
 use super::TerminalSeal;
 use crate::LIB_NAME_RGB_STD;
+
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct TerminalDisclose {
+    pub bundle_id: BundleId,
+    pub seal: XChain<TerminalSeal>,
+    pub witness_id: Option<WitnessId>,
+}
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]

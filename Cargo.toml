@@ -101,5 +101,5 @@ bp-dbc = { git = "https://github.com/BP-WG/bp-core", branch = "v0.11" }
 bp-seals = { git = "https://github.com/BP-WG/bp-core", branch = "v0.11" }
 bp-core = { git = "https://github.com/BP-WG/bp-core", branch = "v0.11" }
 bp-invoice = { git = "https://github.com/BP-WG/bp-std", branch = "v0.11" }
-rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "vesper" }
+rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "disclose" }
 aluvm = { git = "https://github.com/AluVM/rust-aluvm", branch = "v0.11" }

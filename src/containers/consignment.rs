@@ -23,6 +23,7 @@ use std::collections::BTreeMap;
 use std::iter;
 
 use amplify::confinement::{LargeVec, MediumBlob, SmallOrdMap, TinyOrdMap, TinyOrdSet};
+use bp::Tx;
 use rgb::validation::{self};
 use rgb::{
     AnchoredBundle, AssetTag, AssignmentType, AttachId, BundleId, ContractHistory, ContractId,
@@ -31,7 +32,9 @@ use rgb::{
 };
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 
-use super::{Bindle, BindleContent, ContainerVer, ContentId, ContentSigs, Terminal};
+use super::{
+    Bindle, BindleContent, ContainerVer, ContentId, ContentSigs, Terminal, TerminalDisclose,
+};
 use crate::accessors::BundleExt;
 use crate::interface::{ContractSuppl, IfaceId, IfacePair};
 use crate::resolvers::ResolveHeight;
@@ -93,9 +96,11 @@ pub struct Consignment<const TYPE: bool> {
     pub terminals: SmallOrdMap<BundleId, Terminal>,
 
     /// Data on all anchored state transitions contained in the consignments.
+    // TODO: Make set
     pub bundles: LargeVec<AnchoredBundle>,
 
     /// Data on all state extensions contained in the consignments.
+    // TODO: Make set
     pub extensions: LargeVec<Extension>,
 
     /// Data containers coming with this consignment. For the purposes of
@@ -165,6 +170,19 @@ impl<const TYPE: bool> Consignment<TYPE> {
         self.extensions
             .iter()
             .find(|&extension| extension.id() == opid)
+    }
+
+    pub fn terminals_disclose(&self) -> impl Iterator<Item = TerminalDisclose> + '_ {
+        self.terminals.iter().flat_map(|(id, term)| {
+            term.seals.iter().map(|seal| TerminalDisclose {
+                bundle_id: *id,
+                seal: seal.clone(),
+                witness_id: term
+                    .witness_tx
+                    .as_ref()
+                    .map(|witness| witness.map_ref(Tx::txid)),
+            })
+        })
     }
 
     pub fn validation_status(&self) -> Option<&validation::Status> {
