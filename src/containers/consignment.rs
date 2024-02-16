@@ -174,7 +174,7 @@ impl<const TYPE: bool> Consignment<TYPE> {
         self.terminals.iter().flat_map(|(id, term)| {
             term.seals.iter().map(|seal| TerminalDisclose {
                 bundle_id: *id,
-                seal: seal.clone(),
+                seal: *seal,
                 witness_id: term
                     .witness_tx
                     .as_ref()
