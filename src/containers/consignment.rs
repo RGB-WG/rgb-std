@@ -22,7 +22,7 @@
 use std::collections::BTreeMap;
 use std::iter;
 
-use amplify::confinement::{LargeVec, MediumBlob, SmallOrdMap, TinyOrdMap, TinyOrdSet};
+use amplify::confinement::{LargeOrdSet, MediumBlob, SmallOrdMap, TinyOrdMap, TinyOrdSet};
 use bp::Tx;
 use rgb::validation::{self};
 use rgb::{
@@ -96,12 +96,10 @@ pub struct Consignment<const TYPE: bool> {
     pub terminals: SmallOrdMap<BundleId, Terminal>,
 
     /// Data on all anchored state transitions contained in the consignments.
-    // TODO: Make set
-    pub bundles: LargeVec<AnchoredBundle>,
+    pub bundles: LargeOrdSet<AnchoredBundle>,
 
     /// Data on all state extensions contained in the consignments.
-    // TODO: Make set
-    pub extensions: LargeVec<Extension>,
+    pub extensions: LargeOrdSet<Extension>,
 
     /// Data containers coming with this consignment. For the purposes of
     /// in-memory consignments we are restricting the size of the containers to
@@ -245,12 +243,17 @@ impl<const TYPE: bool> Consignment<TYPE> {
         Ok(history)
     }
 
-    pub fn reveal_bundle_seal(&mut self, bundle_id: BundleId, revealed: XChain<GraphSeal>) {
-        for anchored_bundle in &mut self.bundles {
+    #[must_use]
+    pub fn reveal_bundle_seal(mut self, bundle_id: BundleId, revealed: XChain<GraphSeal>) -> Self {
+        let mut bundles = LargeOrdSet::with_capacity(self.bundles.len());
+        for mut anchored_bundle in self.bundles {
             if anchored_bundle.bundle.bundle_id() == bundle_id {
                 anchored_bundle.bundle.reveal_seal(revealed);
             }
+            bundles.push(anchored_bundle).ok();
         }
+        self.bundles = bundles;
+        self
     }
 
     pub fn into_contract(self) -> Contract {

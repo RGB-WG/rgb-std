@@ -19,10 +19,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{btree_set, BTreeMap, BTreeSet};
 use std::ops::Deref;
 use std::rc::Rc;
-use std::vec;
 
 use amplify::confinement::Collection;
 use commit_verify::Conceal;
@@ -106,7 +105,7 @@ impl<'c, const TYPE: bool> ConsignmentApi for IndexedConsignment<'c, TYPE> {
 }
 
 #[derive(Debug)]
-pub struct BundleIdIter(vec::IntoIter<AnchoredBundle>);
+pub struct BundleIdIter(btree_set::IntoIter<AnchoredBundle>);
 
 impl Iterator for BundleIdIter {
     type Item = BundleId;
