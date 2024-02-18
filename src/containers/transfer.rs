@@ -76,27 +76,27 @@ impl CommitEncode for Transfer {
     type CommitmentId = TransferId;
 
     fn commit_encode(&self, e: &mut CommitEngine) {
-        e.commit_to(&self.version);
-        e.commit_to(&self.transfer);
+        e.commit_to_serialized(&self.version);
+        e.commit_to_serialized(&self.transfer);
 
-        e.commit_to(&self.contract_id());
-        e.commit_to(&self.genesis.disclose_hash());
-        e.commit_to(&TinyOrdSet::from_iter_unsafe(
+        e.commit_to_serialized(&self.contract_id());
+        e.commit_to_serialized(&self.genesis.disclose_hash());
+        e.commit_to_set(&TinyOrdSet::from_iter_unsafe(
             self.ifaces.values().map(|pair| pair.iimpl.impl_id()),
         ));
 
-        e.commit_to(&LargeOrdSet::from_iter_unsafe(
+        e.commit_to_set(&LargeOrdSet::from_iter_unsafe(
             self.bundles.iter().map(|ab| ab.bundle.disclose_hash()),
         ));
-        e.commit_to(&LargeOrdSet::from_iter_unsafe(
+        e.commit_to_set(&LargeOrdSet::from_iter_unsafe(
             self.extensions.iter().map(Extension::disclose_hash),
         ));
-        e.commit_to(&SmallOrdSet::from_iter_unsafe(self.terminals_disclose()));
+        e.commit_to_set(&SmallOrdSet::from_iter_unsafe(self.terminals_disclose()));
 
-        e.commit_to(&SmallOrdSet::from_iter_unsafe(self.attachments.keys().copied()));
-        e.commit_to(&self.supplements);
-        e.commit_to(&self.asset_tags);
-        e.commit_to(&self.signatures);
+        e.commit_to_set(&SmallOrdSet::from_iter_unsafe(self.attachments.keys().copied()));
+        e.commit_to_set(&self.supplements);
+        e.commit_to_map(&self.asset_tags);
+        e.commit_to_map(&self.signatures);
     }
 }
 

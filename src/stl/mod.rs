@@ -35,6 +35,7 @@ pub use specs::{
     RicardianContract, Ticker, Timestamp,
 };
 pub use stl::{
-    rgb_contract_stl, rgb_std_stl, StandardTypes, LIB_ID_RGB, LIB_ID_RGB_CONTRACT, LIB_ID_RGB_STD,
+    aluvm_stl, bp_core_stl, bp_tx_stl, commit_verify_stl, rgb_contract_stl, rgb_core_stl,
+    rgb_std_stl, StandardTypes, LIB_ID_RGB, LIB_ID_RGB_CONTRACT, LIB_ID_RGB_STD,
 };
 pub const LIB_NAME_RGB_STD: &str = "RGBStd";

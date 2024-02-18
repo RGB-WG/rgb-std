@@ -19,8 +19,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use bp::bc::stl::bp_tx_stl;
-use bp::stl::bp_core_stl;
+pub use bp::bc::stl::bp_tx_stl;
+pub use bp::stl::bp_core_stl;
 #[allow(unused_imports)]
 pub use commit_verify::stl::{commit_verify_stl, LIB_ID_COMMIT_VERIFY};
 use invoice::Amount;
