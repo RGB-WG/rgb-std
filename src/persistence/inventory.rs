@@ -39,8 +39,8 @@ use strict_encoding::TypeName;
 
 use crate::accessors::{BundleExt, MergeRevealError, RevealError};
 use crate::containers::{
-    Batch, Bindle, BuilderSeal, Cert, Consignment, ContentId, Contract, Fascia, Terminal,
-    TerminalSeal, Transfer, TransitionInfo,
+    Batch, Bindle, BindleContent, BuilderSeal, Cert, Consignment, ContentId, Contract, Fascia,
+    Terminal, TerminalSeal, Transfer, TransitionInfo,
 };
 use crate::interface::{
     BuilderError, ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, IfaceWrapper,
@@ -595,14 +595,11 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         contract_id: ContractId,
         outputs: impl AsRef<[XOutputSeal]>,
         secret_seals: impl AsRef<[XChain<SecretSeal>]>,
-    ) -> Result<
-        Bindle<Transfer>,
-        ConsignerError<Self::Error, <<Self as Deref>::Target as Stash>::Error>,
-    > {
+    ) -> Result<Transfer, ConsignerError<Self::Error, <<Self as Deref>::Target as Stash>::Error>>
+    {
         let mut consignment = self.consign(contract_id, outputs, secret_seals)?;
         consignment.transfer = true;
-        Ok(consignment.into())
-        // TODO: Add known sigs to the bindle
+        Ok(consignment)
     }
 
     fn consign<const TYPE: bool>(
@@ -702,6 +699,11 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         // TODO: Add known sigs to the consignment
 
         Ok(consignment)
+    }
+
+    fn bindle<C: BindleContent>(&self, content: C) -> Bindle<C> {
+        // TODO: Add known sigs to the bindle
+        Bindle::from(content)
     }
 
     /// Composes a batch of state transitions updating state for the provided

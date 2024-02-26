@@ -26,7 +26,7 @@
 use std::collections::BTreeMap;
 use std::fmt::{Debug, Display};
 use std::io::{self, Read};
-use std::ops::{Deref, DerefMut};
+use std::ops::Deref;
 use std::str::FromStr;
 
 use amplify::confinement::{self, Confined, TinyVec, U24 as U24MAX};
@@ -155,10 +155,6 @@ pub struct Bindle<C: BindleContent> {
 impl<C: BindleContent> Deref for Bindle<C> {
     type Target = C;
     fn deref(&self) -> &Self::Target { &self.data }
-}
-
-impl<C: BindleContent> DerefMut for Bindle<C> {
-    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.data }
 }
 
 impl<C: BindleContent> From<C> for Bindle<C> {
