@@ -64,7 +64,10 @@ pub use suppl::{ContractSuppl, OwnedStateSuppl, SupplId, TickerSuppl, VelocityHi
 #[repr(u8)]
 #[non_exhaustive]
 pub enum VerNo {
+    #[display("v0")]
+    V0 = 0,
+
     #[default]
     #[display("v1")]
-    V1 = 0,
+    V1 = 1,
 }
