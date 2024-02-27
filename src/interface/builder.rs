@@ -210,7 +210,7 @@ impl ContractBuilder {
         name: impl Into<FieldName>,
         asset_tag: AssetTag,
     ) -> Result<Self, BuilderError> {
-        self.builder = self.builder.add_asset_tag(name, asset_tag, None)?;
+        self.builder = self.builder.add_asset_tag(name, asset_tag)?;
         Ok(self)
     }
 
@@ -243,7 +243,7 @@ impl ContractBuilder {
     ) -> Result<Self, BuilderError> {
         let seal = seal.into();
         self.check_layer1(seal.layer1())?;
-        self.builder = self.builder.add_rights(name, seal, None)?;
+        self.builder = self.builder.add_rights(name, seal)?;
         Ok(self)
     }
 
@@ -258,7 +258,7 @@ impl ContractBuilder {
         self.check_layer1(seal.layer1())?;
         let type_id = self
             .builder
-            .assignments_type(&name, None)
+            .assignments_type(&name)
             .ok_or(BuilderError::AssignmentNotFound(name.clone()))?;
         let tag = match self.builder.asset_tags.get(&type_id) {
             Some(asset_tag) => *asset_tag,
@@ -276,9 +276,7 @@ impl ContractBuilder {
             }
         };
 
-        self.builder = self
-            .builder
-            .add_fungible_state(name, seal, value, tag, None)?;
+        self.builder = self.builder.add_fungible_state(name, seal, value, tag)?;
         Ok(self)
     }
 
@@ -290,7 +288,7 @@ impl ContractBuilder {
     ) -> Result<Self, BuilderError> {
         let seal = seal.into();
         self.check_layer1(seal.layer1())?;
-        self.builder = self.builder.add_data(name, seal, value, None)?;
+        self.builder = self.builder.add_data(name, seal, value)?;
         Ok(self)
     }
 
@@ -302,7 +300,7 @@ impl ContractBuilder {
     ) -> Result<Self, BuilderError> {
         let seal = seal.into();
         self.check_layer1(seal.layer1())?;
-        self.builder = self.builder.add_attachment(name, seal, attachment, None)?;
+        self.builder = self.builder.add_attachment(name, seal, attachment)?;
         Ok(self)
     }
 
@@ -415,9 +413,7 @@ impl TransitionBuilder {
         name: impl Into<FieldName>,
         asset_tag: AssetTag,
     ) -> Result<Self, BuilderError> {
-        self.builder = self
-            .builder
-            .add_asset_tag(name, asset_tag, Some(self.transition_type))?;
+        self.builder = self.builder.add_asset_tag(name, asset_tag)?;
         Ok(self)
     }
 
@@ -456,8 +452,7 @@ impl TransitionBuilder {
 
     #[inline]
     pub fn assignments_type(&self, name: &FieldName) -> Option<AssignmentType> {
-        self.builder
-            .assignments_type(name, Some(self.transition_type))
+        self.builder.assignments_type(name)
     }
 
     pub fn add_owned_state_det(
@@ -489,9 +484,7 @@ impl TransitionBuilder {
         name: impl Into<FieldName>,
         seal: impl Into<BuilderSeal<GraphSeal>>,
     ) -> Result<Self, BuilderError> {
-        self.builder = self
-            .builder
-            .add_rights(name, seal, Some(self.transition_type))?;
+        self.builder = self.builder.add_rights(name, seal)?;
         Ok(self)
     }
 
@@ -526,13 +519,11 @@ impl TransitionBuilder {
         let name = name.into();
         let type_id = self
             .builder
-            .assignments_type(&name, None)
+            .assignments_type(&name)
             .ok_or(BuilderError::AssignmentNotFound(name.clone()))?;
         let tag = self.builder.asset_tag_raw(type_id)?;
 
-        self.builder =
-            self.builder
-                .add_fungible_state(name, seal, value, tag, Some(self.transition_type))?;
+        self.builder = self.builder.add_fungible_state(name, seal, value, tag)?;
         Ok(self)
     }
 
@@ -542,9 +533,7 @@ impl TransitionBuilder {
         seal: impl Into<BuilderSeal<GraphSeal>>,
         value: impl StrictSerialize,
     ) -> Result<Self, BuilderError> {
-        self.builder = self
-            .builder
-            .add_data(name, seal, value, Some(self.transition_type))?;
+        self.builder = self.builder.add_data(name, seal, value)?;
         Ok(self)
     }
 
@@ -575,9 +564,7 @@ impl TransitionBuilder {
         seal: impl Into<BuilderSeal<GraphSeal>>,
         attachment: AttachedState,
     ) -> Result<Self, BuilderError> {
-        self.builder =
-            self.builder
-                .add_attachment(name, seal, attachment, Some(self.transition_type))?;
+        self.builder = self.builder.add_attachment(name, seal, attachment)?;
         Ok(self)
     }
 
@@ -662,16 +649,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             .expect("internal inconsistency")
     }
 
-    fn assignments_type(
-        &self,
-        name: &FieldName,
-        ty: Option<TransitionType>,
-    ) -> Option<AssignmentType> {
-        let assignments = match ty {
-            None => &self.iface.genesis.assignments,
-            Some(ty) => &self.transition_iface(ty).assignments,
-        };
-        let name = assignments.get(name)?.name.as_ref().unwrap_or(name);
+    fn assignments_type(&self, name: &FieldName) -> Option<AssignmentType> {
         self.iimpl.assignments_type(name)
     }
 
@@ -686,7 +664,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
     pub fn asset_tag(&self, name: impl Into<FieldName>) -> Result<AssetTag, BuilderError> {
         let name = name.into();
         let type_id = self
-            .assignments_type(&name, None)
+            .assignments_type(&name)
             .ok_or(BuilderError::AssignmentNotFound(name.clone()))?;
         self.asset_tag_raw(type_id)
     }
@@ -704,11 +682,10 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         self,
         name: impl Into<FieldName>,
         asset_tag: AssetTag,
-        ty: Option<TransitionType>,
     ) -> Result<Self, BuilderError> {
         let name = name.into();
         let type_id = self
-            .assignments_type(&name, ty)
+            .assignments_type(&name)
             .ok_or(BuilderError::AssignmentNotFound(name))?;
 
         self.add_asset_tag_raw(type_id, asset_tag)
@@ -770,7 +747,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
     ) -> Result<Self, BuilderError> {
         let name = name.into();
         let type_id = self
-            .assignments_type(&name, None)
+            .assignments_type(&name)
             .ok_or(BuilderError::AssignmentNotFound(name.clone()))?;
         self.add_owned_state_raw(type_id, seal, state)
     }
@@ -832,12 +809,11 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         self,
         name: impl Into<FieldName>,
         seal: impl Into<BuilderSeal<Seal>>,
-        ty: Option<TransitionType>,
     ) -> Result<Self, BuilderError> {
         let name = name.into();
 
         let type_id = self
-            .assignments_type(&name, ty)
+            .assignments_type(&name)
             .ok_or(BuilderError::AssignmentNotFound(name))?;
 
         self.add_rights_raw(type_id, seal)
@@ -874,12 +850,11 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         seal: impl Into<BuilderSeal<Seal>>,
         value: u64,
         tag: AssetTag,
-        ty: Option<TransitionType>,
     ) -> Result<Self, BuilderError> {
         let name = name.into();
 
         let type_id = self
-            .assignments_type(&name, ty)
+            .assignments_type(&name)
             .ok_or(BuilderError::AssignmentNotFound(name))?;
 
         let state = RevealedValue::new_random_blinding(value, tag);
@@ -914,14 +889,13 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         name: impl Into<FieldName>,
         seal: impl Into<BuilderSeal<Seal>>,
         value: impl StrictSerialize,
-        ty: Option<TransitionType>,
     ) -> Result<Self, BuilderError> {
         let name = name.into();
         let serialized = value.to_strict_serialized::<U16>()?;
         let state = DataState::from(serialized);
 
         let type_id = self
-            .assignments_type(&name, ty)
+            .assignments_type(&name)
             .ok_or(BuilderError::AssignmentNotFound(name))?;
 
         self.add_data_raw(type_id, seal, RevealedData::new_random_salt(state))
@@ -956,12 +930,11 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         name: impl Into<FieldName>,
         seal: impl Into<BuilderSeal<Seal>>,
         state: AttachedState,
-        ty: Option<TransitionType>,
     ) -> Result<Self, BuilderError> {
         let name = name.into();
 
         let type_id = self
-            .assignments_type(&name, ty)
+            .assignments_type(&name)
             .ok_or(BuilderError::AssignmentNotFound(name))?;
 
         self.add_attachment_raw(

@@ -25,7 +25,7 @@ use std::str::FromStr;
 use bp::bc::stl::bp_tx_stl;
 use bp::dbc::Method;
 use invoice::{Amount, Precision};
-use rgb::{AltLayer1, AssetTag, BlindingFactor, GenesisSeal, Types, WitnessId};
+use rgb::{AltLayer1, AssetTag, BlindingFactor, GenesisSeal, Occurrences, Types, WitnessId};
 use strict_encoding::InvalidIdent;
 use strict_types::{CompileError, LibBuilder, TypeLib};
 
@@ -36,9 +36,7 @@ use super::{
 };
 use crate::containers::Contract;
 use crate::interface::builder::TxOutpoint;
-use crate::interface::{
-    ArgSpec, ContractIface, FungibleAllocation, IfaceId, IfaceWrapper, OutpointFilter,
-};
+use crate::interface::{ContractIface, FungibleAllocation, IfaceId, IfaceWrapper, OutpointFilter};
 use crate::persistence::PersistedState;
 use crate::stl::{
     rgb_contract_stl, Attachment, ContractData, DivisibleAssetSpec, RicardianContract,
@@ -108,16 +106,16 @@ fn rgb20() -> Iface {
         genesis: GenesisIface {
             metadata: Some(types.get("RGBContract.IssueMeta")),
             global: tiny_bmap! {
-                fname!("spec") => ArgSpec::required(),
-                fname!("data") => ArgSpec::required(),
-                fname!("created") => ArgSpec::required(),
-                fname!("issuedSupply") => ArgSpec::required(),
+                fname!("spec") => Occurrences::Once,
+                fname!("data") => Occurrences::Once,
+                fname!("created") => Occurrences::Once,
+                fname!("issuedSupply") => Occurrences::Once,
             },
             assignments: tiny_bmap! {
-                fname!("assetOwner") => ArgSpec::many(),
-                fname!("inflationAllowance") => ArgSpec::many(),
-                fname!("updateRight") => ArgSpec::optional(),
-                fname!("burnEpoch") => ArgSpec::optional(),
+                fname!("assetOwner") => Occurrences::NoneOrMore,
+                fname!("inflationAllowance") => Occurrences::NoneOrMore,
+                fname!("updateRight") => Occurrences::NoneOrOnce,
+                fname!("burnEpoch") => Occurrences::NoneOrOnce,
             },
             valencies: none!(),
             errors: tiny_bset! {
@@ -132,29 +130,29 @@ fn rgb20() -> Iface {
                 metadata: None,
                 globals: none!(),
                 inputs: tiny_bmap! {
-                    fname!("previous") => ArgSpec::from_non_empty("assetOwner"),
+                    fname!("assetOwner") => Occurrences::OnceOrMore,
                 },
                 assignments: tiny_bmap! {
-                    fname!("beneficiary") => ArgSpec::from_non_empty("assetOwner"),
+                    fname!("assetOwner") => Occurrences::OnceOrMore,
                 },
                 valencies: none!(),
                 errors: tiny_bset! {
                     NON_EQUAL_AMOUNTS
                 },
-                default_assignment: Some(fname!("beneficiary")),
+                default_assignment: Some(fname!("assetOwner")),
             },
             tn!("Issue") => TransitionIface {
                 optional: true,
                 metadata: Some(types.get("RGBContract.IssueMeta")),
                 globals: tiny_bmap! {
-                    fname!("issuedSupply") => ArgSpec::required(),
+                    fname!("issuedSupply") => Occurrences::Once,
                 },
                 inputs: tiny_bmap! {
-                    fname!("used") => ArgSpec::from_non_empty("inflationAllowance"),
+                    fname!("inflationAllowance") => Occurrences::OnceOrMore,
                 },
                 assignments: tiny_bmap! {
-                    fname!("beneficiary") => ArgSpec::from_many("assetOwner"),
-                    fname!("future") => ArgSpec::from_many("inflationAllowance"),
+                    fname!("assetOwner") => Occurrences::NoneOrMore,
+                    fname!("inflationAllowance") => Occurrences::NoneOrMore,
                 },
                 valencies: none!(),
                 errors: tiny_bset! {
@@ -163,18 +161,18 @@ fn rgb20() -> Iface {
                     ISSUE_EXCEEDS_ALLOWANCE,
                     INSUFFICIENT_RESERVES
                 },
-                default_assignment: Some(fname!("beneficiary")),
+                default_assignment: Some(fname!("assetOwner")),
             },
             tn!("OpenEpoch") => TransitionIface {
                 optional: true,
                 metadata: None,
                 globals: none!(),
                 inputs: tiny_bmap! {
-                    fname!("used") => ArgSpec::from_required("burnEpoch"),
+                    fname!("burnEpoch") => Occurrences::Once,
                 },
                 assignments: tiny_bmap! {
-                    fname!("next") => ArgSpec::from_optional("burnEpoch"),
-                    fname!("burnRight") => ArgSpec::required()
+                    fname!("burnEpoch") => Occurrences::NoneOrOnce,
+                    fname!("burnRight") => Occurrences::Once,
                 },
                 valencies: none!(),
                 errors: none!(),
@@ -184,13 +182,13 @@ fn rgb20() -> Iface {
                 optional: true,
                 metadata: Some(types.get("RGBContract.BurnMeta")),
                 globals: tiny_bmap! {
-                    fname!("burnedSupply") => ArgSpec::required(),
+                    fname!("burnedSupply") => Occurrences::Once,
                 },
                 inputs: tiny_bmap! {
-                    fname!("used") => ArgSpec::from_required("burnRight"),
+                    fname!("burnRight") => Occurrences::Once,
                 },
                 assignments: tiny_bmap! {
-                    fname!("future") => ArgSpec::from_optional("burnRight"),
+                    fname!("burnRight") => Occurrences::NoneOrOnce,
                 },
                 valencies: none!(),
                 errors: tiny_bset! {
@@ -204,14 +202,14 @@ fn rgb20() -> Iface {
                 optional: true,
                 metadata: Some(types.get("RGBContract.BurnMeta")),
                 globals: tiny_bmap! {
-                    fname!("replacedSupply") => ArgSpec::required(),
+                    fname!("replacedSupply") => Occurrences::Once,
                 },
                 inputs: tiny_bmap! {
-                    fname!("used") => ArgSpec::from_required("burnRight"),
+                    fname!("burnRight") => Occurrences::Once,
                 },
                 assignments: tiny_bmap! {
-                    fname!("beneficiary") => ArgSpec::from_many("assetOwner"),
-                    fname!("future") => ArgSpec::from_optional("burnRight"),
+                    fname!("assetOwner") => Occurrences::NoneOrMore,
+                    fname!("burnRight") => Occurrences::NoneOrOnce,
                 },
                 valencies: none!(),
                 errors: tiny_bset! {
@@ -220,23 +218,23 @@ fn rgb20() -> Iface {
                     INVALID_PROOF,
                     INSUFFICIENT_COVERAGE
                 },
-                default_assignment: Some(fname!("beneficiary")),
+                default_assignment: Some(fname!("assetOwner")),
             },
             tn!("Rename") => TransitionIface {
                 optional: true,
                 metadata: None,
                 globals: tiny_bmap! {
-                    fname!("new") => ArgSpec::from_required("spec"),
+                    fname!("spec") => Occurrences::Once,
                 },
                 inputs: tiny_bmap! {
-                    fname!("used") => ArgSpec::from_required("updateRight"),
+                    fname!("updateRight") => Occurrences::Once,
                 },
                 assignments: tiny_bmap! {
-                    fname!("future") => ArgSpec::from_optional("updateRight"),
+                    fname!("updateRight") => Occurrences::NoneOrOnce,
                 },
                 valencies: none!(),
                 errors: none!(),
-                default_assignment: Some(fname!("future")),
+                default_assignment: Some(fname!("updateRight")),
             },
         },
         extensions: none!(),
