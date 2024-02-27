@@ -41,8 +41,8 @@ pub use contract::{
 };
 pub use filters::{FilterExclude, FilterIncludeAll, OutpointFilter, WitnessFilter};
 pub use iface::{
-    ArgMap, ArgSpec, AssignIface, ExtensionIface, GenesisIface, GlobalIface, Iface, IfaceId,
-    OwnedIface, Req, TransitionIface, ValencyIface,
+    ArgMap, AssignIface, ExtensionIface, GenesisIface, GlobalIface, Iface, IfaceId, OwnedIface,
+    Req, TransitionIface, ValencyIface,
 };
 pub use iimpl::{
     IfaceClass, IfaceImpl, IfacePair, ImplId, IssuerClass, IssuerTriplet, NamedField, NamedType,
