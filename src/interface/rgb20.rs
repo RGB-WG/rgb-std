@@ -84,35 +84,75 @@ fn rgb20_stl() -> TypeLib { _rgb20_stl().expect("invalid strict type RGB20 libra
 fn rgb20() -> Iface {
     let types = StandardTypes::with(rgb20_stl());
 
-    /*
     contractum! {
-        interface RGB20
-            types ContractSpecs: *
+        types ContractSpecs: *
 
+        interface RGB20Base
             global spec: AssetSpec
             global terms: ContractTerms
-            global issuedSupply: Amount
-            global burnedSupply: Amount
-            global replacedSupply: Amount
+            global issuedSupply(+): Amount
 
-            private assetOwner[*]: Amount
+            private assetOwner(*): Amount
 
-            public inflationAllowance[*]: Amount
+            error supplyMismatch: claimed Amount
+                """supply specified in the global state (claimed) doesn't equals to the sum of Pedersen commitments
+                of the asset assignments"""
+
+            genesis:
+                globals: spec, terms, issuedSupply
+                assigns: assetOwner(*)
+                errors: supplyMismatch
+
+            transition transfer: required
+                spends: assetOwner(+)
+                assigns: assetOwner(+)
+                errors:
+
+        interface RGB20Renamable: RGB20Base
             public updateRight(?)
+
+            genesis: extension
+                assigns: updateRight(?)
+
+        interface RGB20Inflatible: RGB20Base
+            public inflationAllowance(*): Amount
+
+            genesis: extension
+                assigns: inflationAllowance(*)
+
+            transition issue: optional
+                meta: reserves
+                globals: issuedSupply
+                spends: inflationAllowance(+)
+                assigns: inflationAllowance(*), assetOwner(*)
+                errors: supplyMismatch | overInflated | invalidProof | insufficientReserves
+
+        interface RGB20Reserves: RGB20Inflatible
+            global reserves(*): ProofOfReserves
+
+            genesis: extension
+                globals: reserves(*)
+                errors: insufficientReserves
+
+            transition issue: extension
+                globals: reserves(*)
+                errors: insufficientReserves
+
+        interface RGB20Burnable: RGB20Inflatible
+            global burnedSupply(*): Amount
+
             public burnEpoch(?)
             public burnRight(?)
 
-            meta issueMeta: IssueMeta
+            genesis: extension
+                assigns: burnEpoch(?)
 
-            error supplyMismatch: ""
+        interface RGB20Replacable: RGB20Burnable
+            global replacedSupply(*): Amount
 
-            genesis
-                meta: issueMeta
-                globals: spec, terms, issuedSupply
-                defines: assetOwner[*], inflationAllowance[*], updateRight(?), burnEpoch(?)
-                errors: supplyMismatch | invalidProof | insufficientReserves
+        interface RGB20: RGB20Replacable, RGB20Renamable, RGB20Reserves
+            -- op\globals\issuedSupply =? sum [op\assigns\assetOwner:\amount] !! supplyMismatch
     }
-     */
 
     Iface {
         version: VerNo::V1,
