@@ -84,6 +84,36 @@ fn rgb20_stl() -> TypeLib { _rgb20_stl().expect("invalid strict type RGB20 libra
 fn rgb20() -> Iface {
     let types = StandardTypes::with(rgb20_stl());
 
+    /*
+    contractum! {
+        interface RGB20
+            types ContractSpecs: *
+
+            global spec: AssetSpec
+            global terms: ContractTerms
+            global issuedSupply: Amount
+            global burnedSupply: Amount
+            global replacedSupply: Amount
+
+            private *assetOwner: Amount
+
+            public *inflationAllowance: Amount
+            public ?updateRight
+            public ?burnEpoch
+            public *burnRight
+
+            meta issueMeta: IssueMeta
+
+            error supplyMismatch: ""
+
+            genesis
+                meta: issueMeta
+                globals: spec, terms, issuedSupply
+                defines: many assetOwner, many inflationAllowance, maybe updateRight, maybe burnEpoch
+                errors: supplyMismatch | invalidProof | insufficientReserves
+    }
+     */
+    
     Iface {
         version: VerNo::V1,
         name: tn!("RGB20"),
