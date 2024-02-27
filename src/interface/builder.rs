@@ -338,6 +338,7 @@ impl ContractBuilder {
 
 #[derive(Clone, Debug)]
 pub struct TransitionBuilder {
+    contract_id: ContractId,
     builder: OperationBuilder<GraphSeal>,
     transition_type: TransitionType,
     inputs: TinyOrdMap<Input, PersistedState>,
@@ -345,14 +346,16 @@ pub struct TransitionBuilder {
 
 impl TransitionBuilder {
     pub fn blank_transition(
+        contract_id: ContractId,
         iface: Iface,
         schema: SubSchema,
         iimpl: IfaceImpl,
     ) -> Result<Self, WrongImplementation> {
-        Self::with(iface, schema, iimpl, TransitionType::BLANK)
+        Self::with(contract_id, iface, schema, iimpl, TransitionType::BLANK)
     }
 
     pub fn default_transition(
+        contract_id: ContractId,
         iface: Iface,
         schema: SubSchema,
         iimpl: IfaceImpl,
@@ -362,10 +365,11 @@ impl TransitionBuilder {
             .as_ref()
             .and_then(|name| iimpl.transition_type(name))
             .ok_or(BuilderError::NoOperationSubtype)?;
-        Ok(Self::with(iface, schema, iimpl, transition_type)?)
+        Ok(Self::with(contract_id, iface, schema, iimpl, transition_type)?)
     }
 
     pub fn named_transition(
+        contract_id: ContractId,
         iface: Iface,
         schema: SubSchema,
         iimpl: IfaceImpl,
@@ -375,16 +379,18 @@ impl TransitionBuilder {
         let transition_type = iimpl
             .transition_type(&transition_name)
             .ok_or(BuilderError::TransitionNotFound(transition_name))?;
-        Ok(Self::with(iface, schema, iimpl, transition_type)?)
+        Ok(Self::with(contract_id, iface, schema, iimpl, transition_type)?)
     }
 
     fn with(
+        contract_id: ContractId,
         iface: Iface,
         schema: SubSchema,
         iimpl: IfaceImpl,
         transition_type: TransitionType,
     ) -> Result<Self, WrongImplementation> {
         Ok(Self {
+            contract_id,
             builder: OperationBuilder::with(iface, schema, iimpl)?,
             transition_type,
             inputs: none!(),
@@ -570,18 +576,16 @@ impl TransitionBuilder {
         Ok(self)
     }
 
-    pub fn complete_transition(self, contract_id: ContractId) -> Result<Transition, BuilderError> {
+    pub fn complete_transition(self) -> Result<Transition, BuilderError> {
         let (_, _, global, assignments, _) = self.builder.complete(Some(&self.inputs));
 
         let transition = Transition {
             ffv: none!(),
-            contract_id,
+            contract_id: self.contract_id,
             transition_type: self.transition_type,
             metadata: empty!(),
             globals: global,
-            inputs: TinyOrdSet::try_from_iter(self.inputs.into_keys())
-                .expect("same size iter")
-                .into(),
+            inputs: TinyOrdSet::from_iter_unsafe(self.inputs.into_keys()).into(),
             assignments,
             valencies: none!(),
         };

@@ -478,13 +478,19 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             .ok_or(DataError::NoIfaceImpl(schema.schema_id(), iface.iface_id()))?;
         let mut builder = if let Some(transition_name) = transition_name {
             TransitionBuilder::named_transition(
+                contract_id,
                 iface.clone(),
                 schema.clone(),
                 iimpl.clone(),
                 transition_name.into(),
             )
         } else {
-            TransitionBuilder::default_transition(iface.clone(), schema.clone(), iimpl.clone())
+            TransitionBuilder::default_transition(
+                contract_id,
+                iface.clone(),
+                schema.clone(),
+                iimpl.clone(),
+            )
         }
         .expect("internal inconsistency");
         let tags = self.contract_asset_tags(contract_id)?;
@@ -515,13 +521,19 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         }
 
         let mut builder = if let Some(iimpl) = schema_ifaces.iimpls.get(&iface.iface_id()) {
-            TransitionBuilder::blank_transition(iface.clone(), schema.clone(), iimpl.clone())
-                .expect("internal inconsistency")
+            TransitionBuilder::blank_transition(
+                contract_id,
+                iface.clone(),
+                schema.clone(),
+                iimpl.clone(),
+            )
+            .expect("internal inconsistency")
         } else {
             let (default_iface_id, default_iimpl) = schema_ifaces.iimpls.first_key_value().unwrap();
             let default_iface = self.iface_by_id(*default_iface_id)?;
 
             TransitionBuilder::blank_transition(
+                contract_id,
                 default_iface.clone(),
                 schema.clone(),
                 default_iimpl.clone(),
@@ -856,7 +868,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
                         amt,
                         pedersen_blinder(contract_id, assignment_id),
                     )?
-                    .complete_transition(contract_id)?
+                    .complete_transition()?
             }
             InvoiceState::Data(data) => match data {
                 NonFungible::RGB21(allocation) => {
@@ -871,7 +883,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
                             allocation,
                             seal_blinder(contract_id, assignment_id),
                         )?
-                        .complete_transition(contract_id)?
+                        .complete_transition()?
                 }
             },
             _ => {
@@ -910,7 +922,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
                     .add_owned_state_raw(opout.ty, seal, state)?;
             }
 
-            let transition = blank_builder.complete_transition(id)?;
+            let transition = blank_builder.complete_transition()?;
             blanks.push(TransitionInfo::new(transition, outputs)?)?;
         }
 
