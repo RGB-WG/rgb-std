@@ -95,12 +95,12 @@ fn rgb20() -> Iface {
             global burnedSupply: Amount
             global replacedSupply: Amount
 
-            private *assetOwner: Amount
+            private assetOwner[*]: Amount
 
-            public *inflationAllowance: Amount
-            public ?updateRight
-            public ?burnEpoch
-            public *burnRight
+            public inflationAllowance[*]: Amount
+            public updateRight(?)
+            public burnEpoch(?)
+            public burnRight(?)
 
             meta issueMeta: IssueMeta
 
@@ -109,11 +109,11 @@ fn rgb20() -> Iface {
             genesis
                 meta: issueMeta
                 globals: spec, terms, issuedSupply
-                defines: many assetOwner, many inflationAllowance, maybe updateRight, maybe burnEpoch
+                defines: assetOwner[*], inflationAllowance[*], updateRight(?), burnEpoch(?)
                 errors: supplyMismatch | invalidProof | insufficientReserves
     }
      */
-    
+
     Iface {
         version: VerNo::V1,
         name: tn!("RGB20"),
