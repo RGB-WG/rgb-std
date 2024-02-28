@@ -1,66 +1,73 @@
 {-
-  Id: urn:ubideco:stl:3HCD3uDCC2EmGASKnxPaFUCgRBT59SbmJkHjkXh8Ht7B#compare-ship-voodoo
+  Id: urn:ubideco:stl:7kUn2VT5xKgZWCAYsa7usNsKWtQBrvyg1pdxRGtendf#tarzan-riviera-vampire
   Name: RGB21
   Version: 0.1.0
   Description: Types for RGB21 interface
   Author: Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
-  Copyright (C) 2023-2024 LNP/BP Standards Association. All rights reserved.
+  Copyright (C) 2023-2024-2024 LNP/BP Standards Association. All rights reserved.
   License: Apache-2.0
 -}
 
+@context
 typelib RGB21
 
-import urn:ubideco:stl:pGtgmYchjsHEdmKzmkc6SX8rDm4qxN472K8vQyLmNGX#polygon-antonio-violet as RGBContract
--- Imports:
--- ProofOfReserves := urn:ubideco:semid:zrXMtzeLgFy1NQd46y3CNb549tnukiuMEGJvqxRkyDW#liquid-owner-london
--- MimeChar := urn:ubideco:semid:56Qs8Zfm2GAgewu9s7ffVb9xX6QiJhoDskxMhBoz723U#golf-antonio-courage
--- Details := urn:ubideco:semid:5Fb7RNdm2jWi7wndRaaU8Lwx76exafTvgQqt9owU9JwM#network-kayak-adam
--- Name := urn:ubideco:semid:6PbMuf2YBk8Ff4J15AZ1MBW8XbcAUsprYiF7QjusVrz7#crystal-visitor-tribune
--- MediaType := urn:ubideco:semid:7wXHNN1AHZ71G2gBQZyNSqFtVuarKBHctWkmGesdY5Nx#pixel-venice-grille
--- Ticker := urn:ubideco:semid:9dzjKz1d9KyoGnEg6WFSAKnWMaCpg1Lh7p66cmFXbH9e#mike-atlas-store
--- MediaRegName := urn:ubideco:semid:ATMfUVhmYiQqu4AaPTzvatZqYxWHStE2BMJhr4vYa2Vv#sulfur-chant-vampire
--- Attachment := urn:ubideco:semid:DFwRAzutaWgGPkDzkEvHJoS129xfg4Gnv88Mk9wikpuh#giraffe-carol-carrot
+import Std#DzTvt9gGhPUKD8Dkkjk9PDBhkJ4gtWxXWQjxnmUYLNrs#voyage-kimono-disco
+  use AsciiPrintable#diet-oxford-window
+  use AlphaCapsNum#magnet-section-latin
 
-import urn:ubideco:stl:9KALDYR8Nyjq4FdMW6kYoL7vdkWnqPqNuFnmE9qHpNjZ#justice-rocket-type as Std
--- Imports:
--- AsciiPrintable := urn:ubideco:semid:mbH4meZSjxky12xHm9pg3rw8VoGxEa6rXtt6dAMZLbt#diet-oxford-window
--- AlphaCapsNum := urn:ubideco:semid:7U5NvJNf343ZzFXsqW2DBYtTSvrb3YdL6oxYd2BaMsVr#magnet-section-latin
+import RGBContract#F5EUsi6JPh4SyHevD3pm3C5cJbPjR4kAVjrm7atC83W5#evita-weekend-cotton
+  use ProofOfReserves#liquid-owner-london
+  use MimeChar#golf-antonio-courage
+  use Details#network-kayak-adam
+  use Name#crystal-visitor-tribune
+  use MediaType#pixel-venice-grille
+  use Ticker#mike-atlas-store
+  use MediaRegName#sulfur-chant-vampire
+  use Attachment#giraffe-carol-carrot
 
-import urn:ubideco:stl:HX2UBak8vPsTokug1DGMDvTpzns3xUdwZ7QJdyt4qBA9#speed-atlanta-trilogy as Bitcoin
--- Imports:
--- Vout := urn:ubideco:semid:3HHRtSJW5fnGkdVW1EVDH7B97Y79WhwvKyyfsaBkuQkk#chrome-robin-gallop
--- Txid := urn:ubideco:semid:C1GfCrG7AXu2sFhRBspd7KpJK2YgyTkVy6pty5rZynRs#cowboy-diego-betty
--- Outpoint := urn:ubideco:semid:GeFZHi1RYCrrcH1LG4Fo2SWW5M6KLJ8yvoGkFjRWZaA9#dinner-yoga-danube
+import Bitcoin#HX2UBak8vPsTokug1DGMDvTpzns3xUdwZ7QJdyt4qBA9#speed-atlanta-trilogy
+  use Vout#chrome-robin-gallop
+  use Txid#cowboy-diego-betty
+  use Outpoint#dinner-yoga-danube
 
 
+@mnemonic(break-tunnel-gray)
+data Allocation        : TokenIndex, OwnedFraction
 
--- urn:ubideco:semid:2WhKkjroWkz1aV23HAvvSpMnnCU6XisNvK4nqwmxQMW4#break-tunnel-gray
-data Allocation       :: TokenIndex, OwnedFraction
--- urn:ubideco:semid:DK3kB8HzGhJfYAHnR7cTRDBaEMoi1KLh4g81iE6xhGT5#source-change-period
-data AttachmentName   :: [Std.AsciiPrintable {- urn:ubideco:semid:mbH4meZSjxky12xHm9pg3rw8VoGxEa6rXtt6dAMZLbt#diet-oxford-window -} ^ 1..0x14]
--- urn:ubideco:semid:8GLH9w6vfFE5vyBQpemUGjG1pyHaR6iXBEdANznnUYwZ#boston-cake-susan
-data AttachmentType   :: id U8, name AttachmentName
--- urn:ubideco:semid:3xBeKrXkHho58WzGavLvKu2wVyWLmUf82VVXb7ewgr2n#castle-dynamic-lemon
-data EmbeddedMedia    :: type RGBContract.MediaType {- urn:ubideco:semid:7wXHNN1AHZ71G2gBQZyNSqFtVuarKBHctWkmGesdY5Nx#pixel-venice-grille -}, data [Byte]
--- urn:ubideco:semid:Efm3pLg9ADWDmEuVaEEFFNbnDBnkLuPfWy5Jx68uoKoG#royal-career-axiom
-data EngravingData    :: appliedTo TokenIndex, content EmbeddedMedia
--- urn:ubideco:semid:8EkixzUac6Fc9TXEDGWXKRie3oR1KdZUN9Nqb9B2pNAy#cannon-pardon-octavia
-data Error            :: fractionOverflow:1 | nonEqualValues:2 | invalidProof:3 | insufficientReserves:4
-                       | issueExceedsAllowance:6 | nonFractionalToken:7 | nonEngravableToken:8 | invalidAttachmentType:9
+@mnemonic(source-change-period)
+data AttachmentName    : [Std.AsciiPrintable#diet-oxford-window ^ 1..0x14]
 
--- urn:ubideco:semid:2MGPNB49XX5j9dZYUrjPuCWpmAksgXNUPW7poRjNijFo#capital-conduct-aspect
-data ItemsCount       :: U32
--- urn:ubideco:semid:2kBpp5BpJXno5JqYPJ6zZvmLxMKbq8vPxynek8pkgQkN#vital-edgar-quota
-data OwnedFraction    :: U64
--- urn:ubideco:semid:BnxkL8KtjM7gh29TJJejGGZUdsqSjs6vPXUyUHZGxr1U#cinema-gordon-judo
-data TokenData        :: index TokenIndex
-                       , ticker RGBContract.Ticker {- urn:ubideco:semid:9dzjKz1d9KyoGnEg6WFSAKnWMaCpg1Lh7p66cmFXbH9e#mike-atlas-store -}?
-                       , name RGBContract.Name {- urn:ubideco:semid:6PbMuf2YBk8Ff4J15AZ1MBW8XbcAUsprYiF7QjusVrz7#crystal-visitor-tribune -}?
-                       , details RGBContract.Details {- urn:ubideco:semid:5Fb7RNdm2jWi7wndRaaU8Lwx76exafTvgQqt9owU9JwM#network-kayak-adam -}?
+@mnemonic(boston-cake-susan)
+data AttachmentType    : id U8, name AttachmentName
+
+@mnemonic(castle-dynamic-lemon)
+data EmbeddedMedia     : type RGBContract.MediaType#pixel-venice-grille, data [Byte]
+
+@mnemonic(royal-career-axiom)
+data EngravingData     : appliedTo TokenIndex, content EmbeddedMedia
+
+@mnemonic(cannon-pardon-octavia)
+data Error             : fractionOverflow#1 | nonEqualValues | invalidProof | insufficientReserves
+                       | issueExceedsAllowance#6 | nonFractionalToken | nonEngravableToken | invalidAttachmentType
+
+
+@mnemonic(capital-conduct-aspect)
+data ItemsCount        : U32
+
+@mnemonic(vital-edgar-quota)
+data OwnedFraction     : U64
+
+@mnemonic(cinema-gordon-judo)
+data TokenData         : index TokenIndex
+                       , ticker RGBContract.Ticker#mike-atlas-store?
+                       , name RGBContract.Name#crystal-visitor-tribune?
+                       , details RGBContract.Details#network-kayak-adam?
                        , preview EmbeddedMedia?
-                       , media RGBContract.Attachment {- urn:ubideco:semid:DFwRAzutaWgGPkDzkEvHJoS129xfg4Gnv88Mk9wikpuh#giraffe-carol-carrot -}?
-                       , attachments {U8 -> ^ ..0x14 RGBContract.Attachment {- urn:ubideco:semid:DFwRAzutaWgGPkDzkEvHJoS129xfg4Gnv88Mk9wikpuh#giraffe-carol-carrot -}}
-                       , reserves RGBContract.ProofOfReserves {- urn:ubideco:semid:zrXMtzeLgFy1NQd46y3CNb549tnukiuMEGJvqxRkyDW#liquid-owner-london -}?
--- urn:ubideco:semid:7oHMshog2F42Wh7hCEse1JZV1sFzV1UgyH3mYVfUqXVW#connect-farmer-havana
-data TokenIndex       :: U32
+                       , media RGBContract.Attachment#giraffe-carol-carrot?
+                       , attachments {U8 -> ^ ..0x14 RGBContract.Attachment#giraffe-carol-carrot}
+                       , reserves RGBContract.ProofOfReserves#liquid-owner-london?
+
+@mnemonic(connect-farmer-havana)
+data TokenIndex        : U32
+
 

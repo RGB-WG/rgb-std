@@ -22,7 +22,8 @@
 use std::collections::BTreeMap;
 use std::iter;
 
-use amplify::confinement::{LargeVec, MediumBlob, SmallOrdMap, TinyOrdMap, TinyOrdSet};
+use amplify::confinement::{LargeOrdSet, MediumBlob, SmallOrdMap, TinyOrdMap, TinyOrdSet};
+use bp::Tx;
 use rgb::validation::{self};
 use rgb::{
     AnchoredBundle, AssetTag, AssignmentType, AttachId, BundleId, ContractHistory, ContractId,
@@ -31,7 +32,9 @@ use rgb::{
 };
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 
-use super::{Bindle, BindleContent, ContainerVer, ContentId, ContentSigs, Terminal};
+use super::{
+    Bindle, BindleContent, ContainerVer, ContentId, ContentSigs, Terminal, TerminalDisclose,
+};
 use crate::accessors::BundleExt;
 use crate::interface::{ContractSuppl, IfaceId, IfacePair};
 use crate::resolvers::ResolveHeight;
@@ -90,13 +93,13 @@ pub struct Consignment<const TYPE: bool> {
     pub genesis: Genesis,
 
     /// Set of seals which are history terminals.
-    pub terminals: SmallOrdMap<BundleId, XChain<Terminal>>,
+    pub terminals: SmallOrdMap<BundleId, Terminal>,
 
     /// Data on all anchored state transitions contained in the consignments.
-    pub bundles: LargeVec<AnchoredBundle>,
+    pub bundles: LargeOrdSet<AnchoredBundle>,
 
     /// Data on all state extensions contained in the consignments.
-    pub extensions: LargeVec<Extension>,
+    pub extensions: LargeOrdSet<Extension>,
 
     /// Data containers coming with this consignment. For the purposes of
     /// in-memory consignments we are restricting the size of the containers to
@@ -167,6 +170,19 @@ impl<const TYPE: bool> Consignment<TYPE> {
             .find(|&extension| extension.id() == opid)
     }
 
+    pub fn terminals_disclose(&self) -> impl Iterator<Item = TerminalDisclose> + '_ {
+        self.terminals.iter().flat_map(|(id, term)| {
+            term.seals.iter().map(|seal| TerminalDisclose {
+                bundle_id: *id,
+                seal: *seal,
+                witness_id: term
+                    .witness_tx
+                    .as_ref()
+                    .map(|witness| witness.map_ref(Tx::txid)),
+            })
+        })
+    }
+
     pub fn validation_status(&self) -> Option<&validation::Status> {
         self.validation_status.as_ref()
     }
@@ -227,12 +243,17 @@ impl<const TYPE: bool> Consignment<TYPE> {
         Ok(history)
     }
 
-    pub fn reveal_bundle_seal(&mut self, bundle_id: BundleId, revealed: XChain<GraphSeal>) {
-        for anchored_bundle in &mut self.bundles {
+    #[must_use]
+    pub fn reveal_bundle_seal(mut self, bundle_id: BundleId, revealed: XChain<GraphSeal>) -> Self {
+        let mut bundles = LargeOrdSet::with_capacity(self.bundles.len());
+        for mut anchored_bundle in self.bundles {
             if anchored_bundle.bundle.bundle_id() == bundle_id {
                 anchored_bundle.bundle.reveal_seal(revealed);
             }
+            bundles.push(anchored_bundle).ok();
         }
+        self.bundles = bundles;
+        self
     }
 
     pub fn into_contract(self) -> Contract {

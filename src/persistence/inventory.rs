@@ -39,8 +39,8 @@ use strict_encoding::TypeName;
 
 use crate::accessors::{BundleExt, MergeRevealError, RevealError};
 use crate::containers::{
-    Batch, Bindle, BuilderSeal, Cert, Consignment, ContentId, Contract, Fascia, Terminal,
-    TerminalSeal, Transfer, TransitionInfo,
+    Batch, Bindle, BindleContent, BuilderSeal, Cert, Consignment, ContentId, Contract, Fascia,
+    Terminal, TerminalSeal, Transfer, TransitionInfo,
 };
 use crate::interface::{
     BuilderError, ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, IfaceWrapper,
@@ -607,14 +607,11 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         contract_id: ContractId,
         outputs: impl AsRef<[XOutputSeal]>,
         secret_seals: impl AsRef<[XChain<SecretSeal>]>,
-    ) -> Result<
-        Bindle<Transfer>,
-        ConsignerError<Self::Error, <<Self as Deref>::Target as Stash>::Error>,
-    > {
+    ) -> Result<Transfer, ConsignerError<Self::Error, <<Self as Deref>::Target as Stash>::Error>>
+    {
         let mut consignment = self.consign(contract_id, outputs, secret_seals)?;
         consignment.transfer = true;
-        Ok(consignment.into())
-        // TODO: Add known sigs to the bindle
+        Ok(consignment)
     }
 
     fn consign<const TYPE: bool>(
@@ -640,7 +637,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         // 1.3. Collect all state transitions assigning state to the provided outpoints
         let mut anchored_bundles = BTreeMap::<OpId, AnchoredBundle>::new();
         let mut transitions = BTreeMap::<OpId, Transition>::new();
-        let mut terminals = BTreeMap::<BundleId, XChain<Terminal>>::new();
+        let mut terminals = BTreeMap::<BundleId, Terminal>::new();
         for opout in opouts {
             if opout.op == contract_id {
                 continue; // we skip genesis since it will be present anywhere
@@ -656,19 +653,14 @@ pub trait Inventory: Deref<Target = Self::Stash> {
                 for index in 0..typed_assignments.len_u16() {
                     let seal = typed_assignments.to_confidential_seals()[index as usize];
                     if secret_seals.contains(&seal) {
-                        terminals
-                            .insert(bundle_id, seal.map(TerminalSeal::from).map(Terminal::new));
+                        terminals.insert(bundle_id, Terminal::new(seal.map(TerminalSeal::from)));
                     } else if opout.no == index && opout.ty == *type_id {
                         if let Some(seal) = typed_assignments
                             .revealed_seal_at(index)
                             .expect("index exists")
                         {
-                            terminals.insert(
-                                bundle_id,
-                                seal.map(|s| s.conceal())
-                                    .map(TerminalSeal::from)
-                                    .map(Terminal::new),
-                            );
+                            let seal = seal.map(|s| s.conceal()).map(TerminalSeal::from);
+                            terminals.insert(bundle_id, Terminal::new(seal));
                         } else {
                             return Err(ConsignerError::ConcealedPublicState(opout));
                         }
@@ -719,6 +711,11 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         // TODO: Add known sigs to the consignment
 
         Ok(consignment)
+    }
+
+    fn bindle<C: BindleContent>(&self, content: C) -> Bindle<C> {
+        // TODO: Add known sigs to the bindle
+        Bindle::from(content)
     }
 
     /// Composes a batch of state transitions updating state for the provided

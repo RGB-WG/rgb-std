@@ -26,7 +26,7 @@ use amplify::confinement;
 use amplify::confinement::{Confined, LargeOrdMap, SmallOrdMap, TinyOrdMap, TinyOrdSet};
 use bp::dbc::anchor::MergeError;
 use bp::dbc::tapret::TapretCommitment;
-use commit_verify::{mpc, CommitmentId};
+use commit_verify::{mpc, CommitId};
 use rgb::{
     AnchoredBundle, AssetTag, AssignmentType, BundleId, ContractId, Extension, Genesis, OpId,
     Operation, SchemaId, TransitionBundle, WitnessId, XAnchor,
@@ -366,7 +366,7 @@ impl Stash for Hoard {
             })
             .map(|(witness_id, tapret)| {
                 (witness_id, TapretCommitment {
-                    mpc: tapret.mpc_proof.commitment_id(),
+                    mpc: tapret.mpc_proof.commit_id(),
                     nonce: tapret.dbc_proof.path_proof.nonce(),
                 })
             })

@@ -19,16 +19,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io;
 use std::str::FromStr;
 
-use amplify::confinement::SmallOrdSet;
+use amplify::confinement::{LargeOrdSet, SmallOrdSet, TinyOrdSet};
 use amplify::{ByteArray, Bytes32};
 use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
-use commit_verify::{CommitEncode, CommitmentId, Conceal};
-use strict_encoding::{StrictEncode, StrictWriter};
+use commit_verify::{CommitEncode, CommitEngine, CommitId, CommitmentId, DigestExt, Sha256};
+use rgb::{Extension, Operation};
 
-use crate::containers::{TerminalSeal, Transfer};
+use super::Transfer;
 use crate::LIB_NAME_RGB_STD;
 
 /// Transfer identifier.
@@ -48,8 +47,16 @@ pub struct TransferId(
     Bytes32,
 );
 
+impl From<Sha256> for TransferId {
+    fn from(hasher: Sha256) -> Self { hasher.finish().into() }
+}
+
+impl CommitmentId for TransferId {
+    const TAG: &'static str = "urn:lnp-bp:rgb:transfer#2024-02-04";
+}
+
 impl ToBaid58<32> for TransferId {
-    const HRI: &'static str = "consign";
+    const HRI: &'static str = "transfer";
     const CHUNKING: Option<Chunking> = CHUNKING_32;
     fn to_baid58_payload(&self) -> [u8; 32] { self.to_byte_array() }
     fn to_baid58_string(&self) -> String { self.to_string() }
@@ -66,39 +73,34 @@ impl TransferId {
 }
 
 impl CommitEncode for Transfer {
-    fn commit_encode(&self, e: &mut impl io::Write) {
-        let write = || -> Result<_, io::Error> {
-            let mut writer = StrictWriter::with(usize::MAX, e);
-            writer = self.transfer.strict_encode(writer)?;
-            writer = self.contract_id().strict_encode(writer)?;
-            for (bundle_id, terminal) in &self.terminals {
-                writer = bundle_id.strict_encode(writer)?;
-                let seals = SmallOrdSet::try_from_iter(
-                    terminal
-                        .as_reduced_unsafe()
-                        .seals
-                        .iter()
-                        .map(TerminalSeal::conceal),
-                )
-                .expect("same size iterator");
-                writer = seals.strict_encode(writer)?;
-            }
-            for attach_id in self.attachments.keys() {
-                writer = attach_id.strict_encode(writer)?;
-            }
-            self.signatures.strict_encode(writer)?;
-            Ok(())
-        };
-        write().expect("hashers do not error");
-    }
-}
+    type CommitmentId = TransferId;
 
-impl CommitmentId for Transfer {
-    const TAG: [u8; 32] = *b"urn:lnpbp:rgb:transfer:v01#2303A";
-    type Id = TransferId;
+    fn commit_encode(&self, e: &mut CommitEngine) {
+        e.commit_to_serialized(&self.version);
+        e.commit_to_serialized(&self.transfer);
+
+        e.commit_to_serialized(&self.contract_id());
+        e.commit_to_serialized(&self.genesis.disclose_hash());
+        e.commit_to_set(&TinyOrdSet::from_iter_unsafe(
+            self.ifaces.values().map(|pair| pair.iimpl.impl_id()),
+        ));
+
+        e.commit_to_set(&LargeOrdSet::from_iter_unsafe(
+            self.bundles.iter().map(|ab| ab.bundle.disclose_hash()),
+        ));
+        e.commit_to_set(&LargeOrdSet::from_iter_unsafe(
+            self.extensions.iter().map(Extension::disclose_hash),
+        ));
+        e.commit_to_set(&SmallOrdSet::from_iter_unsafe(self.terminals_disclose()));
+
+        e.commit_to_set(&SmallOrdSet::from_iter_unsafe(self.attachments.keys().copied()));
+        e.commit_to_set(&self.supplements);
+        e.commit_to_map(&self.asset_tags);
+        e.commit_to_map(&self.signatures);
+    }
 }
 
 impl Transfer {
     #[inline]
-    pub fn transfer_id(&self) -> TransferId { self.commitment_id() }
+    pub fn transfer_id(&self) -> TransferId { self.commit_id() }
 }

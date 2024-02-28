@@ -26,14 +26,14 @@
 use std::collections::BTreeMap;
 use std::fmt::{Debug, Display};
 use std::io::{self, Read};
-use std::ops::{Deref, DerefMut};
+use std::ops::Deref;
 use std::str::FromStr;
 
-use amplify::confinement::{self, Confined, TinyVec, U24};
+use amplify::confinement::{self, Confined, TinyVec, U24 as U24MAX};
 use baid58::Baid58ParseError;
 use rgb::{BundleId, ContractId, Schema, SchemaId, SchemaRoot, SubSchema};
 use strict_encoding::{
-    StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictReader, StrictSerialize,
+    StreamReader, StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize,
     StrictType,
 };
 
@@ -41,6 +41,8 @@ use crate::containers::transfer::TransferId;
 use crate::containers::{Cert, Contract, Transfer};
 use crate::interface::{Iface, IfaceId, IfaceImpl, ImplId};
 use crate::LIB_NAME_RGB_STD;
+
+pub const BINDLE_MAX_LEN: usize = U24MAX;
 
 // TODO: Move to UBIDECO crate
 pub trait BindleContent: StrictSerialize + StrictDeserialize + StrictDumb {
@@ -155,10 +157,6 @@ impl<C: BindleContent> Deref for Bindle<C> {
     fn deref(&self) -> &Self::Target { &self.data }
 }
 
-impl<C: BindleContent> DerefMut for Bindle<C> {
-    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.data }
-}
-
 impl<C: BindleContent> From<C> for Bindle<C> {
     fn from(data: C) -> Self { Bindle::new(data) }
 }
@@ -229,7 +227,7 @@ impl<C: BindleContent> FromStr for Bindle<C> {
         }
         let armor = lines.filter(|l| !l.is_empty()).collect::<String>();
         let data = base85::decode(&armor)?;
-        let data = C::from_strict_serialized::<U24>(Confined::try_from(data)?)?;
+        let data = C::from_strict_serialized::<BINDLE_MAX_LEN>(Confined::try_from(data)?)?;
         let id = data.bindle_id();
         if let Some(header_id) = header_id {
             if header_id != id {
@@ -265,7 +263,10 @@ impl<C: BindleContent> Display for Bindle<C> {
         writeln!(f)?;
 
         // TODO: Replace with streamed writer
-        let data = self.data.to_strict_serialized::<U24>().expect("in-memory");
+        let data = self
+            .data
+            .to_strict_serialized::<BINDLE_MAX_LEN>()
+            .expect("in-memory");
         let data = base85::encode(&data);
         let mut data = data.as_str();
         while data.len() >= 64 {
@@ -289,8 +290,9 @@ impl<C: BindleContent> Bindle<C> {
         if rgb != *b"RGB" || magic != C::MAGIC {
             return Err(LoadError::InvalidMagic);
         }
-        let mut reader = StrictReader::with(usize::MAX, data);
-        let me = Self::strict_decode(&mut reader)?;
+        const USIZE_MAX: usize = usize::MAX;
+        let reader = StreamReader::new::<USIZE_MAX>(data);
+        let me = Self::strict_read(reader)?;
         Ok(me)
     }
 }
@@ -330,13 +332,14 @@ impl UniversalBindle {
         if rgb != *b"RGB" {
             return Err(LoadError::InvalidMagic);
         }
-        let mut reader = StrictReader::with(usize::MAX, data);
+        const USIZE_MAX: usize = usize::MAX;
+        let mut reader = StreamReader::new::<USIZE_MAX>(data);
         Ok(match magic {
-            x if x == Iface::MAGIC => Bindle::<Iface>::strict_decode(&mut reader)?.into(),
-            x if x == SubSchema::MAGIC => Bindle::<SubSchema>::strict_decode(&mut reader)?.into(),
-            x if x == IfaceImpl::MAGIC => Bindle::<IfaceImpl>::strict_decode(&mut reader)?.into(),
-            x if x == Contract::MAGIC => Bindle::<Contract>::strict_decode(&mut reader)?.into(),
-            x if x == Transfer::MAGIC => Bindle::<Transfer>::strict_decode(&mut reader)?.into(),
+            x if x == Iface::MAGIC => Bindle::<Iface>::strict_read(&mut reader)?.into(),
+            x if x == SubSchema::MAGIC => Bindle::<SubSchema>::strict_read(&mut reader)?.into(),
+            x if x == IfaceImpl::MAGIC => Bindle::<IfaceImpl>::strict_read(&mut reader)?.into(),
+            x if x == Contract::MAGIC => Bindle::<Contract>::strict_read(&mut reader)?.into(),
+            x if x == Transfer::MAGIC => Bindle::<Transfer>::strict_read(&mut reader)?.into(),
             _ => return Err(LoadError::InvalidMagic),
         })
     }
@@ -360,7 +363,7 @@ mod _fs {
     use std::path::Path;
     use std::{fs, io};
 
-    use strict_encoding::{StrictEncode, StrictWriter};
+    use strict_encoding::{StreamWriter, StrictEncode};
 
     use super::*;
 
@@ -374,8 +377,8 @@ mod _fs {
             let mut file = fs::File::create(path)?;
             file.write_all(b"RGB")?;
             file.write_all(&C::MAGIC)?;
-            let writer = StrictWriter::with(usize::MAX, file);
-            self.strict_encode(writer)?;
+            let writer = StreamWriter::new::<BINDLE_MAX_LEN>(file);
+            self.strict_write(writer)?;
             Ok(())
         }
     }

@@ -19,8 +19,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use bp::bc::stl::bp_tx_stl;
-use bp::stl::bp_core_stl;
+pub use bp::bc::stl::bp_tx_stl;
+pub use bp::stl::bp_core_stl;
 #[allow(unused_imports)]
 pub use commit_verify::stl::{commit_verify_stl, LIB_ID_COMMIT_VERIFY};
 use invoice::Amount;
@@ -41,11 +41,11 @@ use crate::LIB_NAME_RGB_STD;
 /// Strict types id for the library providing standard data types which may be
 /// used in RGB smart contracts.
 pub const LIB_ID_RGB_CONTRACT: &str =
-    "urn:ubideco:stl:pGtgmYchjsHEdmKzmkc6SX8rDm4qxN472K8vQyLmNGX#polygon-antonio-violet";
+    "urn:ubideco:stl:F5EUsi6JPh4SyHevD3pm3C5cJbPjR4kAVjrm7atC83W5#evita-weekend-cotton";
 
 /// Strict types id for the library representing of RGB StdLib data types.
 pub const LIB_ID_RGB_STD: &str =
-    "urn:ubideco:stl:GWQoxySX59F4FHGxNdpKN4uKT8bkVyquvk3uz6pyQdP3#profit-escort-karl";
+    "urn:ubideco:stl:Fh71w3GW2k7oLPDEpNAT7V4BBjjd1EVAmFHiFrn4VEu1#period-bundle-philips";
 
 fn _rgb_std_stl() -> Result<TypeLib, CompileError> {
     LibBuilder::new(libname!(LIB_NAME_RGB_STD), tiny_bset! {

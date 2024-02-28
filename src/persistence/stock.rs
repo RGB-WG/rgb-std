@@ -151,16 +151,13 @@ impl Stock {
 
         // clone needed due to borrow checker
         for (bundle_id, terminal) in consignment.terminals.clone() {
-            let layer1 = terminal.layer1();
             for secret in terminal
-                .as_reduced_unsafe()
                 .seals
                 .iter()
-                .filter_map(TerminalSeal::secret_seal)
+                .filter_map(|seal| seal.map_ref(TerminalSeal::secret_seal).transpose())
             {
-                let secret = XChain::with(layer1, secret);
                 if let Some(seal) = self.seal_secrets.iter().find(|s| s.conceal() == secret) {
-                    consignment.reveal_bundle_seal(bundle_id, *seal);
+                    consignment = consignment.reveal_bundle_seal(bundle_id, *seal);
                 }
             }
         }
@@ -179,7 +176,7 @@ impl Stock {
         for extension in &consignment.extensions {
             self.index_extension(contract_id, extension)?;
         }
-        for AnchoredBundle { anchor, bundle } in &mut consignment.bundles {
+        for AnchoredBundle { anchor, bundle } in &consignment.bundles {
             let bundle_id = bundle.bundle_id();
             let witness_id = anchor
                 .witness_id()

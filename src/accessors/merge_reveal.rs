@@ -24,9 +24,9 @@ use std::collections::BTreeMap;
 use amplify::confinement::Confined;
 use amplify::Wrapper;
 use bp::dbc::anchor::MergeError;
-use commit_verify::{mpc, CommitmentId};
+use commit_verify::mpc;
 use rgb::{
-    AnchorSet, Assign, Assignments, ExposedSeal, ExposedState, Extension, Genesis, OpId,
+    AnchorSet, Assign, Assignments, ExposedSeal, ExposedState, Extension, Genesis, OpId, Operation,
     Transition, TransitionBundle, TypedAssigns, XAnchor,
 };
 
@@ -186,7 +186,7 @@ impl<Seal: ExposedSeal> MergeReveal for Assignments<Seal> {
 
 impl MergeReveal for TransitionBundle {
     fn merge_reveal(mut self, other: Self) -> Result<Self, MergeRevealError> {
-        debug_assert_eq!(self.commitment_id(), other.commitment_id());
+        debug_assert_eq!(self.bundle_id(), other.bundle_id());
 
         let mut self_transitions = self.known_transitions.into_inner();
         for (opid, other_transition) in other.known_transitions {
@@ -264,8 +264,8 @@ impl MergeReveal for AnchorSet<mpc::MerkleBlock> {
 
 impl MergeReveal for Genesis {
     fn merge_reveal(mut self, other: Self) -> Result<Self, MergeRevealError> {
-        let self_id = self.commitment_id();
-        let other_id = other.commitment_id();
+        let self_id = self.id();
+        let other_id = other.id();
         if self_id != other_id {
             return Err(MergeRevealError::OperationMismatch(
                 OpId::from_inner(self_id.into_inner()),
@@ -279,8 +279,8 @@ impl MergeReveal for Genesis {
 
 impl MergeReveal for Transition {
     fn merge_reveal(mut self, other: Self) -> Result<Self, MergeRevealError> {
-        let self_id = self.commitment_id();
-        let other_id = other.commitment_id();
+        let self_id = self.id();
+        let other_id = other.id();
         if self_id != other_id {
             return Err(MergeRevealError::OperationMismatch(self_id, other_id));
         }
@@ -291,8 +291,8 @@ impl MergeReveal for Transition {
 
 impl MergeReveal for Extension {
     fn merge_reveal(mut self, other: Self) -> Result<Self, MergeRevealError> {
-        let self_id = self.commitment_id();
-        let other_id = other.commitment_id();
+        let self_id = self.id();
+        let other_id = other.id();
         if self_id != other_id {
             return Err(MergeRevealError::OperationMismatch(self_id, other_id));
         }

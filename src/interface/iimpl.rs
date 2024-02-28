@@ -26,7 +26,7 @@ use std::str::FromStr;
 use amplify::confinement::{TinyOrdMap, TinyOrdSet};
 use amplify::{ByteArray, Bytes32};
 use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
-use commit_verify::{CommitStrategy, CommitmentId};
+use commit_verify::{CommitId, CommitmentId, DigestExt, Sha256};
 use rgb::{
     AssignmentType, ExtensionType, GlobalStateType, SchemaId, Script, SubSchema, TransitionType,
     ValencyType,
@@ -53,7 +53,7 @@ impl SchemaTypeIndex for TransitionType {}
 
 /// Interface identifier.
 ///
-/// Interface identifier commits to all of the interface data.
+/// Interface identifier commits to all the interface data.
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
 #[wrapper(Deref, BorrowSlice, Hex, Index, RangeOps)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
@@ -68,6 +68,14 @@ pub struct ImplId(
     #[from([u8; 32])]
     Bytes32,
 );
+
+impl From<Sha256> for ImplId {
+    fn from(hasher: Sha256) -> Self { hasher.finish().into() }
+}
+
+impl CommitmentId for ImplId {
+    const TAG: &'static str = "urn:lnpbp:rgb:iface-impl#2024-02-04";
+}
 
 impl ToBaid58<32> for ImplId {
     const HRI: &'static str = "im";
@@ -116,7 +124,7 @@ pub struct NamedField<T: SchemaTypeIndex> {
     pub name: FieldName,
     /// Reserved bytes for storing information about value transformation
     /// procedures
-    pub reserved: ReservedBytes<0u8, 4usize>,
+    pub reserved: ReservedBytes<4usize>,
 }
 
 impl<T> PartialEq for NamedField<T>
@@ -196,6 +204,8 @@ impl SchemaIfaces {
 #[derive(Clone, Eq, PartialEq, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
+#[derive(CommitEncode)]
+#[commit_encode(strategy = strict, id = ImplId)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
@@ -213,21 +223,12 @@ pub struct IfaceImpl {
     pub script: Script,
 }
 
-impl CommitStrategy for IfaceImpl {
-    type Strategy = commit_verify::strategies::Strict;
-}
-
-impl CommitmentId for IfaceImpl {
-    const TAG: [u8; 32] = *b"urn:lnpbp:rgb:ifaceimpl:v01#2303";
-    type Id = ImplId;
-}
-
 impl StrictSerialize for IfaceImpl {}
 impl StrictDeserialize for IfaceImpl {}
 
 impl IfaceImpl {
     #[inline]
-    pub fn impl_id(&self) -> ImplId { self.commitment_id() }
+    pub fn impl_id(&self) -> ImplId { self.commit_id() }
 
     pub fn global_type(&self, name: &FieldName) -> Option<GlobalStateType> {
         self.global_state
