@@ -93,4 +93,5 @@ wasm-bindgen-test = "0.3"
 features = [ "all" ]
 
 [patch.crates-io]
-rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "master" }
+# TODO: Remove this after merge
+rgb-core = { git = "https://github.com/crisdut/rgb-core", branch = "feat/udc" }
