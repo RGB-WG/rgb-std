@@ -23,7 +23,7 @@
 
 use std::collections::{BTreeMap, HashSet};
 
-use amplify::confinement::{Confined, TinyOrdMap, TinyOrdSet, U16};
+use amplify::confinement::{Confined, SmallOrdSet, TinyOrdMap, U16};
 use amplify::{confinement, Wrapper};
 use invoice::{Allocation, Amount};
 use rgb::{
@@ -585,7 +585,7 @@ impl TransitionBuilder {
             transition_type: self.transition_type,
             metadata: empty!(),
             globals: global,
-            inputs: TinyOrdSet::from_iter_unsafe(self.inputs.into_keys()).into(),
+            inputs: SmallOrdSet::from_iter_unsafe(self.inputs.into_keys()).into(),
             assignments,
             valencies: none!(),
         };
