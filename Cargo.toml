@@ -90,8 +90,7 @@ getrandom = { version = "0.2", features = ["js"] }
 wasm-bindgen-test = "0.3"
 
 [package.metadata.docs.rs]
-features = [ "all" ]
+features = ["all"]
 
 [patch.crates-io]
-# TODO: Remove this after merge
-rgb-core = { git = "https://github.com/crisdut/rgb-core", branch = "feat/udc" }
+rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "master" }
