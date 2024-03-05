@@ -32,83 +32,85 @@ TransferId commitment hasher=SHA256 tagged=urn:lnp-bp:rgb:transfer#2024-02-04
     ContentSigs mapValue
 
 Consignmenttrue rec
-  version enum ContainerVer v2=2
-  transfer enum Bool false=0 true=1
-  schema rec SchemaSchema
+  version enum v2=2 -- ContainerVer
+  transfer enum false=0 true=1 -- Bool
+  schema rec -- SchemaSchema
     ffv is U16 aka=Ffv
-      some rec Schema option wrapped tag=1
+    flags bytes len=1 aka=ReservedBytes1
+      some rec option wrapped tag=1 -- Schema
         ffv is U16 aka=Ffv
+        flags bytes len=1 aka=ReservedBytes1
           some is Unit option wrapped tag=1
         globalTypes map len=0..MAX8
           key is U16 aka=GlobalStateType
-          value rec GlobalStateSchema
+          GlobalStateSchema rec -- mapped to
             semId bytes len=32 aka=SemId
             maxItems is U16
         ownedTypes map len=0..MAX8
           key is U16 aka=AssignmentType
-          value union StateSchema
+          StateSchema union -- mapped to
             declarative is Unit tag=0
-            fungible enum FungibleType wrapped unsigned64Bit=8 tag=1
+            fungible enum wrapped unsigned64Bit=8 tag=1 -- FungibleType
             structured bytes len=32 wrapped aka=SemId tag=2
-            attachment enum MediaType wrapped any=255 tag=3
+            attachment enum wrapped any=255 tag=3 -- MediaType
         valencyTypes set len=0..MAX8
           element is U16 aka=ValencyType
-        genesis rec GenesisSchema
+        genesis rec -- GenesisSchema
           metadata bytes len=32 aka=SemId
           globals map len=0..MAX8
             key is U16 aka=GlobalStateType
-            value rec Occurrences
+            Occurrences rec -- mapped to
               min is U16
               max is U16
           assignments map len=0..MAX8
             key is U16 aka=AssignmentType
-            value rec Occurrences
+            Occurrences rec -- mapped to
               min is U16
               max is U16
           valencies set len=0..MAX8
             element is U16 aka=ValencyType
         extensions map len=0..MAX8
           key is U16 aka=ExtensionType
-          value rec ExtensionSchema
+          ExtensionSchema rec -- mapped to
             metadata bytes len=32 aka=SemId
             globals map len=0..MAX8
               key is U16 aka=GlobalStateType
-              value rec Occurrences
+              Occurrences rec -- mapped to
                 min is U16
                 max is U16
             redeems set len=0..MAX8
               element is U16 aka=ValencyType
             assignments map len=0..MAX8
               key is U16 aka=AssignmentType
-              value rec Occurrences
+              Occurrences rec -- mapped to
                 min is U16
                 max is U16
             valencies set len=0..MAX8
               element is U16 aka=ValencyType
         transitions map len=0..MAX8
           key is U16 aka=TransitionType
-          value rec TransitionSchema
+          TransitionSchema rec -- mapped to
             metadata bytes len=32 aka=SemId
             globals map len=0..MAX8
               key is U16 aka=GlobalStateType
-              value rec Occurrences
+              Occurrences rec -- mapped to
                 min is U16
                 max is U16
             inputs map len=0..MAX8
               key is U16 aka=AssignmentType
-              value rec Occurrences
+              Occurrences rec -- mapped to
                 min is U16
                 max is U16
             assignments map len=0..MAX8
               key is U16 aka=AssignmentType
-              value rec Occurrences
+              Occurrences rec -- mapped to
                 min is U16
                 max is U16
             valencies set len=0..MAX8
               element is U16 aka=ValencyType
         typeSystem map len=0..MAX24 aka=TypeSystem
           key bytes len=32 aka=SemId
-          value union TySemId
+          TySemId union -- mapped to
             primitive is U8 wrapped aka=Primitive tag=0
             unicode is Unit tag=1
             enum set len=1..MAX8 wrapped aka=EnumVariants tag=2
@@ -117,7 +119,7 @@ Consignmenttrue rec
                 tag is U8
             union map len=0..MAX8 wrapped aka=UnionVariantsSemId tag=3
               key is U8
-              value rec VariantInfoSemId
+              VariantInfoSemId rec -- mapped to
                 name ascii len=1..100 aka=VariantName aka=Ident charset=AlphaNumLodash
                 ty bytes len=32 aka=SemId
             tuple list len=1..MAX8 wrapped aka=UnnamedFieldsSemId tag=4
@@ -145,86 +147,86 @@ Consignmenttrue rec
               Sizing rec
                 min is U64
                 max is U64
-        script union Script
-          aluVm rec AluScript wrapped tag=0
+        script union -- Script
+          aluVm rec wrapped tag=0 -- AluScript
             libs map len=0..MAX8
               key bytes len=32 aka=LibId
               value bytes len=0..MAX16
             entryPoints map len=0..MAX16
               key bytes len=3
-              value rec LibSite
+              LibSite rec -- mapped to
                 lib bytes len=32 aka=LibId
                 pos is U16
     globalTypes map len=0..MAX8
       key is U16 aka=GlobalStateType
-      value rec GlobalStateSchema
+      GlobalStateSchema rec -- mapped to
         semId bytes len=32 aka=SemId
         maxItems is U16
     ownedTypes map len=0..MAX8
       key is U16 aka=AssignmentType
-      value union StateSchema
+      StateSchema union -- mapped to
         declarative is Unit tag=0
-        fungible enum FungibleType wrapped unsigned64Bit=8 tag=1
+        fungible enum wrapped unsigned64Bit=8 tag=1 -- FungibleType
         structured bytes len=32 wrapped aka=SemId tag=2
-        attachment enum MediaType wrapped any=255 tag=3
+        attachment enum wrapped any=255 tag=3 -- MediaType
     valencyTypes set len=0..MAX8
       element is U16 aka=ValencyType
-    genesis rec GenesisSchema
+    genesis rec -- GenesisSchema
       metadata bytes len=32 aka=SemId
       globals map len=0..MAX8
         key is U16 aka=GlobalStateType
-        value rec Occurrences
+        Occurrences rec -- mapped to
           min is U16
           max is U16
       assignments map len=0..MAX8
         key is U16 aka=AssignmentType
-        value rec Occurrences
+        Occurrences rec -- mapped to
           min is U16
           max is U16
       valencies set len=0..MAX8
         element is U16 aka=ValencyType
     extensions map len=0..MAX8
       key is U16 aka=ExtensionType
-      value rec ExtensionSchema
+      ExtensionSchema rec -- mapped to
         metadata bytes len=32 aka=SemId
         globals map len=0..MAX8
           key is U16 aka=GlobalStateType
-          value rec Occurrences
+          Occurrences rec -- mapped to
             min is U16
             max is U16
         redeems set len=0..MAX8
           element is U16 aka=ValencyType
         assignments map len=0..MAX8
           key is U16 aka=AssignmentType
-          value rec Occurrences
+          Occurrences rec -- mapped to
             min is U16
             max is U16
         valencies set len=0..MAX8
           element is U16 aka=ValencyType
     transitions map len=0..MAX8
       key is U16 aka=TransitionType
-      value rec TransitionSchema
+      TransitionSchema rec -- mapped to
         metadata bytes len=32 aka=SemId
         globals map len=0..MAX8
           key is U16 aka=GlobalStateType
-          value rec Occurrences
+          Occurrences rec -- mapped to
             min is U16
             max is U16
         inputs map len=0..MAX8
           key is U16 aka=AssignmentType
-          value rec Occurrences
+          Occurrences rec -- mapped to
             min is U16
             max is U16
         assignments map len=0..MAX8
           key is U16 aka=AssignmentType
-          value rec Occurrences
+          Occurrences rec -- mapped to
             min is U16
             max is U16
         valencies set len=0..MAX8
           element is U16 aka=ValencyType
     typeSystem map len=0..MAX24 aka=TypeSystem
       key bytes len=32 aka=SemId
-      value union TySemId
+      TySemId union -- mapped to
         primitive is U8 wrapped aka=Primitive tag=0
         unicode is Unit tag=1
         enum set len=1..MAX8 wrapped aka=EnumVariants tag=2
@@ -233,7 +235,7 @@ Consignmenttrue rec
             tag is U8
         union map len=0..MAX8 wrapped aka=UnionVariantsSemId tag=3
           key is U8
-          value rec VariantInfoSemId
+          VariantInfoSemId rec -- mapped to
             name ascii len=1..100 aka=VariantName aka=Ident charset=AlphaNumLodash
             ty bytes len=32 aka=SemId
         tuple list len=1..MAX8 wrapped aka=UnnamedFieldsSemId tag=4
@@ -261,102 +263,102 @@ Consignmenttrue rec
           Sizing rec
             min is U64
             max is U64
-    script union Script
-      aluVm rec AluScript wrapped tag=0
+    script union -- Script
+      aluVm rec wrapped tag=0 -- AluScript
         libs map len=0..MAX8
           key bytes len=32 aka=LibId
           value bytes len=0..MAX16
         entryPoints map len=0..MAX16
           key bytes len=3
-          value rec LibSite
+          LibSite rec -- mapped to
             lib bytes len=32 aka=LibId
             pos is U16
   ifaces map len=0..MAX8
     key bytes len=32 aka=IfaceId
-    value rec IfacePair
-      iface rec Iface
-        version enum VerNo v1=0
+    IfacePair rec -- mapped to
+      iface rec -- Iface
+        version enum v1=0 -- VerNo
         name ascii len=1..100 aka=TypeName aka=Ident charset=AlphaNumLodash
         globalState map len=0..MAX8
           key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-          value rec GlobalIface
+          GlobalIface rec -- mapped to
             some bytes len=32 option wrapped aka=SemId tag=1
-            required enum Bool false=0 true=1
-            multiple enum Bool false=0 true=1
+            required enum false=0 true=1 -- Bool
+            multiple enum false=0 true=1 -- Bool
         assignments map len=0..MAX8
           key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-          value rec AssignIface
-            ownedState union OwnedIface
+          AssignIface rec -- mapped to
+            ownedState union -- OwnedIface
               any is Unit tag=0
               rights is Unit tag=1
               amount is Unit tag=2
               anyData is Unit tag=3
               anyAttach is Unit tag=4
               data bytes len=32 wrapped aka=SemId tag=5
-            public enum Bool false=0 true=1
-            required enum Bool false=0 true=1
-            multiple enum Bool false=0 true=1
+            public enum false=0 true=1 -- Bool
+            required enum false=0 true=1 -- Bool
+            multiple enum false=0 true=1 -- Bool
         valencies map len=0..MAX8
           key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-          value rec ValencyIface
-            required enum Bool false=0 true=1
-            multiple enum Bool false=0 true=1
-        genesis rec GenesisIface
+          ValencyIface rec -- mapped to
+            required enum false=0 true=1 -- Bool
+            multiple enum false=0 true=1 -- Bool
+        genesis rec -- GenesisIface
           some bytes len=32 option wrapped aka=SemId tag=1
           global map len=0..MAX8
             key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-            value rec ArgSpec
+            ArgSpec rec -- mapped to
               some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
-              req rec Occurrences
+              req rec -- Occurrences
                 min is U16
                 max is U16
           assignments map len=0..MAX8
             key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-            value rec ArgSpec
+            ArgSpec rec -- mapped to
               some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
-              req rec Occurrences
+              req rec -- Occurrences
                 min is U16
                 max is U16
           valencies map len=0..MAX8
             key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-            value rec ArgSpec
+            ArgSpec rec -- mapped to
               some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
-              req rec Occurrences
+              req rec -- Occurrences
                 min is U16
                 max is U16
           errors set len=0..MAX8
             element is U8
         transitions map len=0..MAX8
           key ascii len=1..100 aka=TypeName aka=Ident charset=AlphaNumLodash
-          value rec TransitionIface
-            optional enum Bool false=0 true=1
+          TransitionIface rec -- mapped to
+            optional enum false=0 true=1 -- Bool
               some bytes len=32 option wrapped aka=SemId tag=1
             globals map len=0..MAX8
               key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-              value rec ArgSpec
+              ArgSpec rec -- mapped to
                 some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
-                req rec Occurrences
+                req rec -- Occurrences
                   min is U16
                   max is U16
             inputs map len=0..MAX8
               key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-              value rec ArgSpec
+              ArgSpec rec -- mapped to
                 some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
-                req rec Occurrences
+                req rec -- Occurrences
                   min is U16
                   max is U16
             assignments map len=0..MAX8
               key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-              value rec ArgSpec
+              ArgSpec rec -- mapped to
                 some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
-                req rec Occurrences
+                req rec -- Occurrences
                   min is U16
                   max is U16
             valencies map len=0..MAX8
               key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-              value rec ArgSpec
+              ArgSpec rec -- mapped to
                 some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
-                req rec Occurrences
+                req rec -- Occurrences
                   min is U16
                   max is U16
             errors set len=0..MAX8
@@ -364,34 +366,34 @@ Consignmenttrue rec
               some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
         extensions map len=0..MAX8
           key ascii len=1..100 aka=TypeName aka=Ident charset=AlphaNumLodash
-          value rec ExtensionIface
+          ExtensionIface rec -- mapped to
             some bytes len=32 option wrapped aka=SemId tag=1
             globals map len=0..MAX8
               key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-              value rec ArgSpec
+              ArgSpec rec -- mapped to
                 some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
-                req rec Occurrences
+                req rec -- Occurrences
                   min is U16
                   max is U16
             redeems map len=0..MAX8
               key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-              value rec ArgSpec
+              ArgSpec rec -- mapped to
                 some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
-                req rec Occurrences
+                req rec -- Occurrences
                   min is U16
                   max is U16
             assignments map len=0..MAX8
               key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-              value rec ArgSpec
+              ArgSpec rec -- mapped to
                 some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
-                req rec Occurrences
+                req rec -- Occurrences
                   min is U16
                   max is U16
             valencies map len=0..MAX8
               key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-              value rec ArgSpec
+              ArgSpec rec -- mapped to
                 some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
-                req rec Occurrences
+                req rec -- Occurrences
                   min is U16
                   max is U16
             errors set len=0..MAX8
@@ -400,7 +402,7 @@ Consignmenttrue rec
           some ascii len=1..100 option wrapped aka=TypeName aka=Ident charset=AlphaNumLodash tag=1
         typeSystem map len=0..MAX24 aka=TypeSystem
           key bytes len=32 aka=SemId
-          value union TySemId
+          TySemId union -- mapped to
             primitive is U8 wrapped aka=Primitive tag=0
             unicode is Unit tag=1
             enum set len=1..MAX8 wrapped aka=EnumVariants tag=2
@@ -409,7 +411,7 @@ Consignmenttrue rec
                 tag is U8
             union map len=0..MAX8 wrapped aka=UnionVariantsSemId tag=3
               key is U8
-              value rec VariantInfoSemId
+              VariantInfoSemId rec -- mapped to
                 name ascii len=1..100 aka=VariantName aka=Ident charset=AlphaNumLodash
                 ty bytes len=32 aka=SemId
             tuple list len=1..MAX8 wrapped aka=UnnamedFieldsSemId tag=4
@@ -437,8 +439,8 @@ Consignmenttrue rec
               Sizing rec
                 min is U64
                 max is U64
-      iimpl rec IfaceImpl
-        version enum VerNo v1=0
+      iimpl rec -- IfaceImpl
+        version enum v1=0 -- VerNo
         schemaId bytes len=32 aka=SchemaId
         ifaceId bytes len=32 aka=IfaceId
         globalState set len=0..MAX8
@@ -461,20 +463,20 @@ Consignmenttrue rec
           NamedFieldExtensionType rec
             id is U16 aka=ExtensionType
             name ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-        script union Script
-          aluVm rec AluScript wrapped tag=0
+        script union -- Script
+          aluVm rec wrapped tag=0 -- AluScript
             libs map len=0..MAX8
               key bytes len=32 aka=LibId
               value bytes len=0..MAX16
             entryPoints map len=0..MAX16
               key bytes len=3
-              value rec LibSite
+              LibSite rec -- mapped to
                 lib bytes len=32 aka=LibId
                 pos is U16
   supplements set len=0..MAX8
     ContractSuppl rec
       contractId bytes len=32 aka=ContractId
-      ticker union TickerSuppl
+      ticker union -- TickerSuppl
         absent is Unit tag=0
         global tuple tag=1
           _ is U16 aka=GlobalStateType
@@ -483,24 +485,26 @@ Consignmenttrue rec
       mediaKit str len=0..MAX8
       globalState map len=0..MAX8
         key is U16 aka=AssignmentType
-        value rec OwnedStateSuppl
+        OwnedStateSuppl rec -- mapped to
           meaning str len=0..MAX8
-          velocity enum VelocityHint unspecified=0 seldom=15 episodic=31 regular=63 frequent=127 highFrequency=255
+          velocity enum unspecified=0 seldom=15 episodic=31 regular=63 frequent=127 highFrequency=255 -- VelocityHint
       ownedState map len=0..MAX8
         key is U16 aka=AssignmentType
-        value rec OwnedStateSuppl
+        OwnedStateSuppl rec -- mapped to
           meaning str len=0..MAX8
-          velocity enum VelocityHint unspecified=0 seldom=15 episodic=31 regular=63 frequent=127 highFrequency=255
+          velocity enum unspecified=0 seldom=15 episodic=31 regular=63 frequent=127 highFrequency=255 -- VelocityHint
       extensions map len=0..MAX8
         key is U16
         value bytes len=0..MAX16
   assetTags map len=0..MAX8
     key is U16 aka=AssignmentType
     value bytes len=32 aka=AssetTag
-  genesis rec Genesis
+  genesis rec -- Genesis
     ffv is U16 aka=Ffv
     schemaId bytes len=32 aka=SchemaId
-    testnet enum Bool false=0 true=1
+    flags bytes len=1 aka=ReservedBytes1
+    timestamp is I64
+    testnet enum false=0 true=1 -- Bool
     altLayers1 set len=0..MAX8 aka=AltLayer1Set
       AltLayer1 enum liquid=1
     metadata bytes len=0..MAX16 aka=Metadata
@@ -512,282 +516,298 @@ Consignmenttrue rec
           salt is U128
     assignments map len=0..MAX8 aka=AssignmentsBlindSealTxid
       key is U16 aka=AssignmentType
-      value union TypedAssignsBlindSealTxid
+      TypedAssignsBlindSealTxid union -- mapped to
         declarative list len=0..MAX16 wrapped tag=0
           AssignVoidStateBlindSealTxid union
             confidential rec tag=0
-              seal union XChainSecretSeal
+              seal union -- XChainSecretSeal
                 bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                 liquid bytes len=32 wrapped aka=SecretSeal tag=1
               state is Unit aka=VoidState
+              lock bytes len=2 aka=ReservedBytes2
             confidentialState rec tag=1
-              seal union XChainBlindSealTxid
-                bitcoin rec BlindSealTxid wrapped tag=0
-                  method enum Method opretFirst=0 tapretFirst=1
+              seal union -- XChainBlindSealTxid
+                bitcoin rec wrapped tag=0 -- BlindSealTxid
+                  method enum opretFirst=0 tapretFirst=1 -- Method
                   txid bytes len=32 aka=Txid
                   vout is U32 aka=Vout
                   blinding is U64
-                liquid rec BlindSealTxid wrapped tag=1
-                  method enum Method opretFirst=0 tapretFirst=1
+                liquid rec wrapped tag=1 -- BlindSealTxid
+                  method enum opretFirst=0 tapretFirst=1 -- Method
                   txid bytes len=32 aka=Txid
                   vout is U32 aka=Vout
                   blinding is U64
               state is Unit aka=VoidState
+              lock bytes len=2 aka=ReservedBytes2
             confidentialSeal rec tag=2
-              seal union XChainSecretSeal
+              seal union -- XChainSecretSeal
                 bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                 liquid bytes len=32 wrapped aka=SecretSeal tag=1
               state is Unit aka=VoidState
+              lock bytes len=2 aka=ReservedBytes2
             revealed rec tag=3
-              seal union XChainBlindSealTxid
-                bitcoin rec BlindSealTxid wrapped tag=0
-                  method enum Method opretFirst=0 tapretFirst=1
+              seal union -- XChainBlindSealTxid
+                bitcoin rec wrapped tag=0 -- BlindSealTxid
+                  method enum opretFirst=0 tapretFirst=1 -- Method
                   txid bytes len=32 aka=Txid
                   vout is U32 aka=Vout
                   blinding is U64
-                liquid rec BlindSealTxid wrapped tag=1
-                  method enum Method opretFirst=0 tapretFirst=1
+                liquid rec wrapped tag=1 -- BlindSealTxid
+                  method enum opretFirst=0 tapretFirst=1 -- Method
                   txid bytes len=32 aka=Txid
                   vout is U32 aka=Vout
                   blinding is U64
               state is Unit aka=VoidState
+              lock bytes len=2 aka=ReservedBytes2
         fungible list len=0..MAX16 wrapped tag=1
           AssignRevealedValueBlindSealTxid union
             confidential rec tag=0
-              seal union XChainSecretSeal
+              seal union -- XChainSecretSeal
                 bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                 liquid bytes len=32 wrapped aka=SecretSeal tag=1
-              state rec ConcealedFungible
+              state rec -- ConcealedFungible
                 commitment bytes len=33 aka=PedersenCommitment
-                rangeProof union RangeProof
-                  placeholder bytes len=512 wrapped aka=NoiseDumb tag=0
+                rangeProof bytes len=33 aka=PedersenCommitment
+              lock bytes len=2 aka=ReservedBytes2
             confidentialState rec tag=1
-              seal union XChainBlindSealTxid
-                bitcoin rec BlindSealTxid wrapped tag=0
-                  method enum Method opretFirst=0 tapretFirst=1
+              seal union -- XChainBlindSealTxid
+                bitcoin rec wrapped tag=0 -- BlindSealTxid
+                  method enum opretFirst=0 tapretFirst=1 -- Method
                   txid bytes len=32 aka=Txid
                   vout is U32 aka=Vout
                   blinding is U64
-                liquid rec BlindSealTxid wrapped tag=1
-                  method enum Method opretFirst=0 tapretFirst=1
+                liquid rec wrapped tag=1 -- BlindSealTxid
+                  method enum opretFirst=0 tapretFirst=1 -- Method
                   txid bytes len=32 aka=Txid
                   vout is U32 aka=Vout
                   blinding is U64
-              state rec ConcealedFungible
+              state rec -- ConcealedFungible
                 commitment bytes len=33 aka=PedersenCommitment
-                rangeProof union RangeProof
-                  placeholder bytes len=512 wrapped aka=NoiseDumb tag=0
+                rangeProof bytes len=33 aka=PedersenCommitment
+              lock bytes len=2 aka=ReservedBytes2
             confidentialSeal rec tag=2
-              seal union XChainSecretSeal
+              seal union -- XChainSecretSeal
                 bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                 liquid bytes len=32 wrapped aka=SecretSeal tag=1
-              state rec RevealedFungible
-                value union FungibleState
+              state rec -- RevealedFungible
+                value union -- FungibleState
                   bits64 is U64 wrapped tag=0
                 blinding bytes len=32 aka=BlindingFactor
                 tag bytes len=32 aka=AssetTag
+              lock bytes len=2 aka=ReservedBytes2
             revealed rec tag=3
-              seal union XChainBlindSealTxid
-                bitcoin rec BlindSealTxid wrapped tag=0
-                  method enum Method opretFirst=0 tapretFirst=1
+              seal union -- XChainBlindSealTxid
+                bitcoin rec wrapped tag=0 -- BlindSealTxid
+                  method enum opretFirst=0 tapretFirst=1 -- Method
                   txid bytes len=32 aka=Txid
                   vout is U32 aka=Vout
                   blinding is U64
-                liquid rec BlindSealTxid wrapped tag=1
-                  method enum Method opretFirst=0 tapretFirst=1
+                liquid rec wrapped tag=1 -- BlindSealTxid
+                  method enum opretFirst=0 tapretFirst=1 -- Method
                   txid bytes len=32 aka=Txid
                   vout is U32 aka=Vout
                   blinding is U64
-              state rec RevealedFungible
-                value union FungibleState
+              state rec -- RevealedFungible
+                value union -- FungibleState
                   bits64 is U64 wrapped tag=0
                 blinding bytes len=32 aka=BlindingFactor
                 tag bytes len=32 aka=AssetTag
+              lock bytes len=2 aka=ReservedBytes2
         structured list len=0..MAX16 wrapped tag=2
           AssignRevealedDataBlindSealTxid union
             confidential rec tag=0
-              seal union XChainSecretSeal
+              seal union -- XChainSecretSeal
                 bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                 liquid bytes len=32 wrapped aka=SecretSeal tag=1
               state bytes len=32 aka=ConcealedData
+              lock bytes len=2 aka=ReservedBytes2
             confidentialState rec tag=1
-              seal union XChainBlindSealTxid
-                bitcoin rec BlindSealTxid wrapped tag=0
-                  method enum Method opretFirst=0 tapretFirst=1
+              seal union -- XChainBlindSealTxid
+                bitcoin rec wrapped tag=0 -- BlindSealTxid
+                  method enum opretFirst=0 tapretFirst=1 -- Method
                   txid bytes len=32 aka=Txid
                   vout is U32 aka=Vout
                   blinding is U64
-                liquid rec BlindSealTxid wrapped tag=1
-                  method enum Method opretFirst=0 tapretFirst=1
+                liquid rec wrapped tag=1 -- BlindSealTxid
+                  method enum opretFirst=0 tapretFirst=1 -- Method
                   txid bytes len=32 aka=Txid
                   vout is U32 aka=Vout
                   blinding is U64
               state bytes len=32 aka=ConcealedData
+              lock bytes len=2 aka=ReservedBytes2
             confidentialSeal rec tag=2
-              seal union XChainSecretSeal
+              seal union -- XChainSecretSeal
                 bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                 liquid bytes len=32 wrapped aka=SecretSeal tag=1
-              state rec RevealedData
+              state rec -- RevealedData
                 value bytes len=0..MAX16 aka=DataState
                 salt is U128
+              lock bytes len=2 aka=ReservedBytes2
             revealed rec tag=3
-              seal union XChainBlindSealTxid
-                bitcoin rec BlindSealTxid wrapped tag=0
-                  method enum Method opretFirst=0 tapretFirst=1
+              seal union -- XChainBlindSealTxid
+                bitcoin rec wrapped tag=0 -- BlindSealTxid
+                  method enum opretFirst=0 tapretFirst=1 -- Method
                   txid bytes len=32 aka=Txid
                   vout is U32 aka=Vout
                   blinding is U64
-                liquid rec BlindSealTxid wrapped tag=1
-                  method enum Method opretFirst=0 tapretFirst=1
+                liquid rec wrapped tag=1 -- BlindSealTxid
+                  method enum opretFirst=0 tapretFirst=1 -- Method
                   txid bytes len=32 aka=Txid
                   vout is U32 aka=Vout
                   blinding is U64
-              state rec RevealedData
+              state rec -- RevealedData
                 value bytes len=0..MAX16 aka=DataState
                 salt is U128
+              lock bytes len=2 aka=ReservedBytes2
         attachment list len=0..MAX16 wrapped tag=3
           AssignRevealedAttachBlindSealTxid union
             confidential rec tag=0
-              seal union XChainSecretSeal
+              seal union -- XChainSecretSeal
                 bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                 liquid bytes len=32 wrapped aka=SecretSeal tag=1
               state bytes len=32 aka=ConcealedAttach
+              lock bytes len=2 aka=ReservedBytes2
             confidentialState rec tag=1
-              seal union XChainBlindSealTxid
-                bitcoin rec BlindSealTxid wrapped tag=0
-                  method enum Method opretFirst=0 tapretFirst=1
+              seal union -- XChainBlindSealTxid
+                bitcoin rec wrapped tag=0 -- BlindSealTxid
+                  method enum opretFirst=0 tapretFirst=1 -- Method
                   txid bytes len=32 aka=Txid
                   vout is U32 aka=Vout
                   blinding is U64
-                liquid rec BlindSealTxid wrapped tag=1
-                  method enum Method opretFirst=0 tapretFirst=1
+                liquid rec wrapped tag=1 -- BlindSealTxid
+                  method enum opretFirst=0 tapretFirst=1 -- Method
                   txid bytes len=32 aka=Txid
                   vout is U32 aka=Vout
                   blinding is U64
               state bytes len=32 aka=ConcealedAttach
+              lock bytes len=2 aka=ReservedBytes2
             confidentialSeal rec tag=2
-              seal union XChainSecretSeal
+              seal union -- XChainSecretSeal
                 bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                 liquid bytes len=32 wrapped aka=SecretSeal tag=1
-              state rec RevealedAttach
+              state rec -- RevealedAttach
                 id bytes len=32 aka=AttachId
-                mediaType enum MediaType any=255
+                mediaType enum any=255 -- MediaType
                 salt is U64
+              lock bytes len=2 aka=ReservedBytes2
             revealed rec tag=3
-              seal union XChainBlindSealTxid
-                bitcoin rec BlindSealTxid wrapped tag=0
-                  method enum Method opretFirst=0 tapretFirst=1
+              seal union -- XChainBlindSealTxid
+                bitcoin rec wrapped tag=0 -- BlindSealTxid
+                  method enum opretFirst=0 tapretFirst=1 -- Method
                   txid bytes len=32 aka=Txid
                   vout is U32 aka=Vout
                   blinding is U64
-                liquid rec BlindSealTxid wrapped tag=1
-                  method enum Method opretFirst=0 tapretFirst=1
+                liquid rec wrapped tag=1 -- BlindSealTxid
+                  method enum opretFirst=0 tapretFirst=1 -- Method
                   txid bytes len=32 aka=Txid
                   vout is U32 aka=Vout
                   blinding is U64
-              state rec RevealedAttach
+              state rec -- RevealedAttach
                 id bytes len=32 aka=AttachId
-                mediaType enum MediaType any=255
+                mediaType enum any=255 -- MediaType
                 salt is U64
+              lock bytes len=2 aka=ReservedBytes2
     valencies set len=0..MAX8 aka=Valencies
       element is U16 aka=ValencyType
+    issuer bytes len=0..MAX16 aka=Issuer
+    script bytes len=1 aka=ReservedBytes1
   terminals map len=0..MAX16
-    value rec Terminal
+    Terminal rec -- mapped to
       seals set len=0..MAX16
   bundles set len=0..MAX32
     AnchoredBundle rec
-      anchor union XChainAnchorSet
-        bitcoin union AnchorSet wrapped tag=0
-          tapret rec AnchorMerkleProofTapretProof wrapped tag=0
+      anchor union -- XChainAnchorSet
+        bitcoin union wrapped tag=0 -- AnchorSet
+          tapret rec wrapped tag=0 -- AnchorMerkleProofTapretProof
             txid bytes len=32 aka=Txid
-            mpcProof rec MerkleProof
+            mpcProof rec -- MerkleProof
               pos is U32
               cofactor is U16
               path list len=0..32
                 element bytes len=32 aka=MerkleHash
-            dbcProof rec TapretProof
-              pathProof rec TapretPathProof
-                some union TapretNodePartner option wrapped tag=1
-                  rightBranch rec TapretRightBranch wrapped tag=2
+            dbcProof rec -- TapretProof
+              pathProof rec -- TapretPathProof
+                some union option wrapped tag=1 -- TapretNodePartner
+                  rightBranch rec wrapped tag=2 -- TapretRightBranch
                 nonce is U8
-          opret rec AnchorMerkleProofOpretProof wrapped tag=1
+          opret rec wrapped tag=1 -- AnchorMerkleProofOpretProof
             txid bytes len=32 aka=Txid
-            mpcProof rec MerkleProof
+            mpcProof rec -- MerkleProof
               pos is U32
               cofactor is U16
               path list len=0..32
                 element bytes len=32 aka=MerkleHash
             dbcProof is Unit aka=OpretProof
           dual rec tag=2
-            tapret rec AnchorMerkleProofTapretProof
+            tapret rec -- AnchorMerkleProofTapretProof
               txid bytes len=32 aka=Txid
-              mpcProof rec MerkleProof
+              mpcProof rec -- MerkleProof
                 pos is U32
                 cofactor is U16
                 path list len=0..32
                   element bytes len=32 aka=MerkleHash
-              dbcProof rec TapretProof
-                pathProof rec TapretPathProof
-                  some union TapretNodePartner option wrapped tag=1
-                    rightBranch rec TapretRightBranch wrapped tag=2
+              dbcProof rec -- TapretProof
+                pathProof rec -- TapretPathProof
+                  some union option wrapped tag=1 -- TapretNodePartner
+                    rightBranch rec wrapped tag=2 -- TapretRightBranch
                   nonce is U8
-            opret rec AnchorMerkleProofOpretProof
+            opret rec -- AnchorMerkleProofOpretProof
               txid bytes len=32 aka=Txid
-              mpcProof rec MerkleProof
+              mpcProof rec -- MerkleProof
                 pos is U32
                 cofactor is U16
                 path list len=0..32
                   element bytes len=32 aka=MerkleHash
               dbcProof is Unit aka=OpretProof
-        liquid union AnchorSet wrapped tag=1
-          tapret rec AnchorMerkleProofTapretProof wrapped tag=0
+        liquid union wrapped tag=1 -- AnchorSet
+          tapret rec wrapped tag=0 -- AnchorMerkleProofTapretProof
             txid bytes len=32 aka=Txid
-            mpcProof rec MerkleProof
+            mpcProof rec -- MerkleProof
               pos is U32
               cofactor is U16
               path list len=0..32
                 element bytes len=32 aka=MerkleHash
-            dbcProof rec TapretProof
-              pathProof rec TapretPathProof
-                some union TapretNodePartner option wrapped tag=1
-                  rightBranch rec TapretRightBranch wrapped tag=2
+            dbcProof rec -- TapretProof
+              pathProof rec -- TapretPathProof
+                some union option wrapped tag=1 -- TapretNodePartner
+                  rightBranch rec wrapped tag=2 -- TapretRightBranch
                 nonce is U8
-          opret rec AnchorMerkleProofOpretProof wrapped tag=1
+          opret rec wrapped tag=1 -- AnchorMerkleProofOpretProof
             txid bytes len=32 aka=Txid
-            mpcProof rec MerkleProof
+            mpcProof rec -- MerkleProof
               pos is U32
               cofactor is U16
               path list len=0..32
                 element bytes len=32 aka=MerkleHash
             dbcProof is Unit aka=OpretProof
           dual rec tag=2
-            tapret rec AnchorMerkleProofTapretProof
+            tapret rec -- AnchorMerkleProofTapretProof
               txid bytes len=32 aka=Txid
-              mpcProof rec MerkleProof
+              mpcProof rec -- MerkleProof
                 pos is U32
                 cofactor is U16
                 path list len=0..32
                   element bytes len=32 aka=MerkleHash
-              dbcProof rec TapretProof
-                pathProof rec TapretPathProof
-                  some union TapretNodePartner option wrapped tag=1
-                    rightBranch rec TapretRightBranch wrapped tag=2
+              dbcProof rec -- TapretProof
+                pathProof rec -- TapretPathProof
+                  some union option wrapped tag=1 -- TapretNodePartner
+                    rightBranch rec wrapped tag=2 -- TapretRightBranch
                   nonce is U8
-            opret rec AnchorMerkleProofOpretProof
+            opret rec -- AnchorMerkleProofOpretProof
               txid bytes len=32 aka=Txid
-              mpcProof rec MerkleProof
+              mpcProof rec -- MerkleProof
                 pos is U32
                 cofactor is U16
                 path list len=0..32
                   element bytes len=32 aka=MerkleHash
               dbcProof is Unit aka=OpretProof
-      bundle rec TransitionBundle
+      bundle rec -- TransitionBundle
         inputMap map len=1..MAX16 aka=InputMap
           key is U32 aka=Vout
           value bytes len=32 aka=OpId
         knownTransitions map len=1..MAX16
           key bytes len=32 aka=OpId
-          value rec Transition
+          Transition rec -- mapped to
             ffv is U16 aka=Ffv
             contractId bytes len=32 aka=ContractId
             transitionType is U16 aka=TransitionType
@@ -798,226 +818,242 @@ Consignmenttrue rec
                 RevealedData rec
                   value bytes len=0..MAX16 aka=DataState
                   salt is U128
-            inputs set len=0..MAX8 aka=Inputs
+            inputs set len=0..MAX16 aka=Inputs
               Input rec
-                prevOut rec Opout
+                prevOut rec -- Opout
                   op bytes len=32 aka=OpId
                   ty is U16 aka=AssignmentType
                   no is U16
                 reserved bytes len=2 aka=ReservedBytes2
             assignments map len=0..MAX8 aka=AssignmentsBlindSealTxPtr
               key is U16 aka=AssignmentType
-              value union TypedAssignsBlindSealTxPtr
+              TypedAssignsBlindSealTxPtr union -- mapped to
                 declarative list len=0..MAX16 wrapped tag=0
                   AssignVoidStateBlindSealTxPtr union
                     confidential rec tag=0
-                      seal union XChainSecretSeal
+                      seal union -- XChainSecretSeal
                         bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                         liquid bytes len=32 wrapped aka=SecretSeal tag=1
                       state is Unit aka=VoidState
+                      lock bytes len=2 aka=ReservedBytes2
                     confidentialState rec tag=1
-                      seal union XChainBlindSealTxPtr
-                        bitcoin rec BlindSealTxPtr wrapped tag=0
-                          method enum Method opretFirst=0 tapretFirst=1
-                          txid union TxPtr
+                      seal union -- XChainBlindSealTxPtr
+                        bitcoin rec wrapped tag=0 -- BlindSealTxPtr
+                          method enum opretFirst=0 tapretFirst=1 -- Method
+                          txid union -- TxPtr
                             witnessTx is Unit tag=0
                             txid bytes len=32 wrapped aka=Txid tag=1
                           vout is U32 aka=Vout
                           blinding is U64
-                        liquid rec BlindSealTxPtr wrapped tag=1
-                          method enum Method opretFirst=0 tapretFirst=1
-                          txid union TxPtr
+                        liquid rec wrapped tag=1 -- BlindSealTxPtr
+                          method enum opretFirst=0 tapretFirst=1 -- Method
+                          txid union -- TxPtr
                             witnessTx is Unit tag=0
                             txid bytes len=32 wrapped aka=Txid tag=1
                           vout is U32 aka=Vout
                           blinding is U64
                       state is Unit aka=VoidState
+                      lock bytes len=2 aka=ReservedBytes2
                     confidentialSeal rec tag=2
-                      seal union XChainSecretSeal
+                      seal union -- XChainSecretSeal
                         bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                         liquid bytes len=32 wrapped aka=SecretSeal tag=1
                       state is Unit aka=VoidState
+                      lock bytes len=2 aka=ReservedBytes2
                     revealed rec tag=3
-                      seal union XChainBlindSealTxPtr
-                        bitcoin rec BlindSealTxPtr wrapped tag=0
-                          method enum Method opretFirst=0 tapretFirst=1
-                          txid union TxPtr
+                      seal union -- XChainBlindSealTxPtr
+                        bitcoin rec wrapped tag=0 -- BlindSealTxPtr
+                          method enum opretFirst=0 tapretFirst=1 -- Method
+                          txid union -- TxPtr
                             witnessTx is Unit tag=0
                             txid bytes len=32 wrapped aka=Txid tag=1
                           vout is U32 aka=Vout
                           blinding is U64
-                        liquid rec BlindSealTxPtr wrapped tag=1
-                          method enum Method opretFirst=0 tapretFirst=1
-                          txid union TxPtr
+                        liquid rec wrapped tag=1 -- BlindSealTxPtr
+                          method enum opretFirst=0 tapretFirst=1 -- Method
+                          txid union -- TxPtr
                             witnessTx is Unit tag=0
                             txid bytes len=32 wrapped aka=Txid tag=1
                           vout is U32 aka=Vout
                           blinding is U64
                       state is Unit aka=VoidState
+                      lock bytes len=2 aka=ReservedBytes2
                 fungible list len=0..MAX16 wrapped tag=1
                   AssignRevealedValueBlindSealTxPtr union
                     confidential rec tag=0
-                      seal union XChainSecretSeal
+                      seal union -- XChainSecretSeal
                         bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                         liquid bytes len=32 wrapped aka=SecretSeal tag=1
-                      state rec ConcealedFungible
+                      state rec -- ConcealedFungible
                         commitment bytes len=33 aka=PedersenCommitment
-                        rangeProof union RangeProof
-                          placeholder bytes len=512 wrapped aka=NoiseDumb tag=0
+                        rangeProof bytes len=33 aka=PedersenCommitment
+                      lock bytes len=2 aka=ReservedBytes2
                     confidentialState rec tag=1
-                      seal union XChainBlindSealTxPtr
-                        bitcoin rec BlindSealTxPtr wrapped tag=0
-                          method enum Method opretFirst=0 tapretFirst=1
-                          txid union TxPtr
+                      seal union -- XChainBlindSealTxPtr
+                        bitcoin rec wrapped tag=0 -- BlindSealTxPtr
+                          method enum opretFirst=0 tapretFirst=1 -- Method
+                          txid union -- TxPtr
                             witnessTx is Unit tag=0
                             txid bytes len=32 wrapped aka=Txid tag=1
                           vout is U32 aka=Vout
                           blinding is U64
-                        liquid rec BlindSealTxPtr wrapped tag=1
-                          method enum Method opretFirst=0 tapretFirst=1
-                          txid union TxPtr
+                        liquid rec wrapped tag=1 -- BlindSealTxPtr
+                          method enum opretFirst=0 tapretFirst=1 -- Method
+                          txid union -- TxPtr
                             witnessTx is Unit tag=0
                             txid bytes len=32 wrapped aka=Txid tag=1
                           vout is U32 aka=Vout
                           blinding is U64
-                      state rec ConcealedFungible
+                      state rec -- ConcealedFungible
                         commitment bytes len=33 aka=PedersenCommitment
-                        rangeProof union RangeProof
-                          placeholder bytes len=512 wrapped aka=NoiseDumb tag=0
+                        rangeProof bytes len=33 aka=PedersenCommitment
+                      lock bytes len=2 aka=ReservedBytes2
                     confidentialSeal rec tag=2
-                      seal union XChainSecretSeal
+                      seal union -- XChainSecretSeal
                         bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                         liquid bytes len=32 wrapped aka=SecretSeal tag=1
-                      state rec RevealedFungible
-                        value union FungibleState
+                      state rec -- RevealedFungible
+                        value union -- FungibleState
                           bits64 is U64 wrapped tag=0
                         blinding bytes len=32 aka=BlindingFactor
                         tag bytes len=32 aka=AssetTag
+                      lock bytes len=2 aka=ReservedBytes2
                     revealed rec tag=3
-                      seal union XChainBlindSealTxPtr
-                        bitcoin rec BlindSealTxPtr wrapped tag=0
-                          method enum Method opretFirst=0 tapretFirst=1
-                          txid union TxPtr
+                      seal union -- XChainBlindSealTxPtr
+                        bitcoin rec wrapped tag=0 -- BlindSealTxPtr
+                          method enum opretFirst=0 tapretFirst=1 -- Method
+                          txid union -- TxPtr
                             witnessTx is Unit tag=0
                             txid bytes len=32 wrapped aka=Txid tag=1
                           vout is U32 aka=Vout
                           blinding is U64
-                        liquid rec BlindSealTxPtr wrapped tag=1
-                          method enum Method opretFirst=0 tapretFirst=1
-                          txid union TxPtr
+                        liquid rec wrapped tag=1 -- BlindSealTxPtr
+                          method enum opretFirst=0 tapretFirst=1 -- Method
+                          txid union -- TxPtr
                             witnessTx is Unit tag=0
                             txid bytes len=32 wrapped aka=Txid tag=1
                           vout is U32 aka=Vout
                           blinding is U64
-                      state rec RevealedFungible
-                        value union FungibleState
+                      state rec -- RevealedFungible
+                        value union -- FungibleState
                           bits64 is U64 wrapped tag=0
                         blinding bytes len=32 aka=BlindingFactor
                         tag bytes len=32 aka=AssetTag
+                      lock bytes len=2 aka=ReservedBytes2
                 structured list len=0..MAX16 wrapped tag=2
                   AssignRevealedDataBlindSealTxPtr union
                     confidential rec tag=0
-                      seal union XChainSecretSeal
+                      seal union -- XChainSecretSeal
                         bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                         liquid bytes len=32 wrapped aka=SecretSeal tag=1
                       state bytes len=32 aka=ConcealedData
+                      lock bytes len=2 aka=ReservedBytes2
                     confidentialState rec tag=1
-                      seal union XChainBlindSealTxPtr
-                        bitcoin rec BlindSealTxPtr wrapped tag=0
-                          method enum Method opretFirst=0 tapretFirst=1
-                          txid union TxPtr
+                      seal union -- XChainBlindSealTxPtr
+                        bitcoin rec wrapped tag=0 -- BlindSealTxPtr
+                          method enum opretFirst=0 tapretFirst=1 -- Method
+                          txid union -- TxPtr
                             witnessTx is Unit tag=0
                             txid bytes len=32 wrapped aka=Txid tag=1
                           vout is U32 aka=Vout
                           blinding is U64
-                        liquid rec BlindSealTxPtr wrapped tag=1
-                          method enum Method opretFirst=0 tapretFirst=1
-                          txid union TxPtr
+                        liquid rec wrapped tag=1 -- BlindSealTxPtr
+                          method enum opretFirst=0 tapretFirst=1 -- Method
+                          txid union -- TxPtr
                             witnessTx is Unit tag=0
                             txid bytes len=32 wrapped aka=Txid tag=1
                           vout is U32 aka=Vout
                           blinding is U64
                       state bytes len=32 aka=ConcealedData
+                      lock bytes len=2 aka=ReservedBytes2
                     confidentialSeal rec tag=2
-                      seal union XChainSecretSeal
+                      seal union -- XChainSecretSeal
                         bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                         liquid bytes len=32 wrapped aka=SecretSeal tag=1
-                      state rec RevealedData
+                      state rec -- RevealedData
                         value bytes len=0..MAX16 aka=DataState
                         salt is U128
+                      lock bytes len=2 aka=ReservedBytes2
                     revealed rec tag=3
-                      seal union XChainBlindSealTxPtr
-                        bitcoin rec BlindSealTxPtr wrapped tag=0
-                          method enum Method opretFirst=0 tapretFirst=1
-                          txid union TxPtr
+                      seal union -- XChainBlindSealTxPtr
+                        bitcoin rec wrapped tag=0 -- BlindSealTxPtr
+                          method enum opretFirst=0 tapretFirst=1 -- Method
+                          txid union -- TxPtr
                             witnessTx is Unit tag=0
                             txid bytes len=32 wrapped aka=Txid tag=1
                           vout is U32 aka=Vout
                           blinding is U64
-                        liquid rec BlindSealTxPtr wrapped tag=1
-                          method enum Method opretFirst=0 tapretFirst=1
-                          txid union TxPtr
+                        liquid rec wrapped tag=1 -- BlindSealTxPtr
+                          method enum opretFirst=0 tapretFirst=1 -- Method
+                          txid union -- TxPtr
                             witnessTx is Unit tag=0
                             txid bytes len=32 wrapped aka=Txid tag=1
                           vout is U32 aka=Vout
                           blinding is U64
-                      state rec RevealedData
+                      state rec -- RevealedData
                         value bytes len=0..MAX16 aka=DataState
                         salt is U128
+                      lock bytes len=2 aka=ReservedBytes2
                 attachment list len=0..MAX16 wrapped tag=3
                   AssignRevealedAttachBlindSealTxPtr union
                     confidential rec tag=0
-                      seal union XChainSecretSeal
+                      seal union -- XChainSecretSeal
                         bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                         liquid bytes len=32 wrapped aka=SecretSeal tag=1
                       state bytes len=32 aka=ConcealedAttach
+                      lock bytes len=2 aka=ReservedBytes2
                     confidentialState rec tag=1
-                      seal union XChainBlindSealTxPtr
-                        bitcoin rec BlindSealTxPtr wrapped tag=0
-                          method enum Method opretFirst=0 tapretFirst=1
-                          txid union TxPtr
+                      seal union -- XChainBlindSealTxPtr
+                        bitcoin rec wrapped tag=0 -- BlindSealTxPtr
+                          method enum opretFirst=0 tapretFirst=1 -- Method
+                          txid union -- TxPtr
                             witnessTx is Unit tag=0
                             txid bytes len=32 wrapped aka=Txid tag=1
                           vout is U32 aka=Vout
                           blinding is U64
-                        liquid rec BlindSealTxPtr wrapped tag=1
-                          method enum Method opretFirst=0 tapretFirst=1
-                          txid union TxPtr
+                        liquid rec wrapped tag=1 -- BlindSealTxPtr
+                          method enum opretFirst=0 tapretFirst=1 -- Method
+                          txid union -- TxPtr
                             witnessTx is Unit tag=0
                             txid bytes len=32 wrapped aka=Txid tag=1
                           vout is U32 aka=Vout
                           blinding is U64
                       state bytes len=32 aka=ConcealedAttach
+                      lock bytes len=2 aka=ReservedBytes2
                     confidentialSeal rec tag=2
-                      seal union XChainSecretSeal
+                      seal union -- XChainSecretSeal
                         bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                         liquid bytes len=32 wrapped aka=SecretSeal tag=1
-                      state rec RevealedAttach
+                      state rec -- RevealedAttach
                         id bytes len=32 aka=AttachId
-                        mediaType enum MediaType any=255
+                        mediaType enum any=255 -- MediaType
                         salt is U64
+                      lock bytes len=2 aka=ReservedBytes2
                     revealed rec tag=3
-                      seal union XChainBlindSealTxPtr
-                        bitcoin rec BlindSealTxPtr wrapped tag=0
-                          method enum Method opretFirst=0 tapretFirst=1
-                          txid union TxPtr
+                      seal union -- XChainBlindSealTxPtr
+                        bitcoin rec wrapped tag=0 -- BlindSealTxPtr
+                          method enum opretFirst=0 tapretFirst=1 -- Method
+                          txid union -- TxPtr
                             witnessTx is Unit tag=0
                             txid bytes len=32 wrapped aka=Txid tag=1
                           vout is U32 aka=Vout
                           blinding is U64
-                        liquid rec BlindSealTxPtr wrapped tag=1
-                          method enum Method opretFirst=0 tapretFirst=1
-                          txid union TxPtr
+                        liquid rec wrapped tag=1 -- BlindSealTxPtr
+                          method enum opretFirst=0 tapretFirst=1 -- Method
+                          txid union -- TxPtr
                             witnessTx is Unit tag=0
                             txid bytes len=32 wrapped aka=Txid tag=1
                           vout is U32 aka=Vout
                           blinding is U64
-                      state rec RevealedAttach
+                      state rec -- RevealedAttach
                         id bytes len=32 aka=AttachId
-                        mediaType enum MediaType any=255
+                        mediaType enum any=255 -- MediaType
                         salt is U64
+                      lock bytes len=2 aka=ReservedBytes2
             valencies set len=0..MAX8 aka=Valencies
               element is U16 aka=ValencyType
+            witness bytes len=1 aka=ReservedBytes1
+            script bytes len=1 aka=ReservedBytes1
   extensions set len=0..MAX32
     Extension rec
       ffv is U16 aka=Ffv
@@ -1032,193 +1068,209 @@ Consignmenttrue rec
             salt is U128
       assignments map len=0..MAX8 aka=AssignmentsBlindSealTxid
         key is U16 aka=AssignmentType
-        value union TypedAssignsBlindSealTxid
+        TypedAssignsBlindSealTxid union -- mapped to
           declarative list len=0..MAX16 wrapped tag=0
             AssignVoidStateBlindSealTxid union
               confidential rec tag=0
-                seal union XChainSecretSeal
+                seal union -- XChainSecretSeal
                   bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                   liquid bytes len=32 wrapped aka=SecretSeal tag=1
                 state is Unit aka=VoidState
+                lock bytes len=2 aka=ReservedBytes2
               confidentialState rec tag=1
-                seal union XChainBlindSealTxid
-                  bitcoin rec BlindSealTxid wrapped tag=0
-                    method enum Method opretFirst=0 tapretFirst=1
+                seal union -- XChainBlindSealTxid
+                  bitcoin rec wrapped tag=0 -- BlindSealTxid
+                    method enum opretFirst=0 tapretFirst=1 -- Method
                     txid bytes len=32 aka=Txid
                     vout is U32 aka=Vout
                     blinding is U64
-                  liquid rec BlindSealTxid wrapped tag=1
-                    method enum Method opretFirst=0 tapretFirst=1
+                  liquid rec wrapped tag=1 -- BlindSealTxid
+                    method enum opretFirst=0 tapretFirst=1 -- Method
                     txid bytes len=32 aka=Txid
                     vout is U32 aka=Vout
                     blinding is U64
                 state is Unit aka=VoidState
+                lock bytes len=2 aka=ReservedBytes2
               confidentialSeal rec tag=2
-                seal union XChainSecretSeal
+                seal union -- XChainSecretSeal
                   bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                   liquid bytes len=32 wrapped aka=SecretSeal tag=1
                 state is Unit aka=VoidState
+                lock bytes len=2 aka=ReservedBytes2
               revealed rec tag=3
-                seal union XChainBlindSealTxid
-                  bitcoin rec BlindSealTxid wrapped tag=0
-                    method enum Method opretFirst=0 tapretFirst=1
+                seal union -- XChainBlindSealTxid
+                  bitcoin rec wrapped tag=0 -- BlindSealTxid
+                    method enum opretFirst=0 tapretFirst=1 -- Method
                     txid bytes len=32 aka=Txid
                     vout is U32 aka=Vout
                     blinding is U64
-                  liquid rec BlindSealTxid wrapped tag=1
-                    method enum Method opretFirst=0 tapretFirst=1
+                  liquid rec wrapped tag=1 -- BlindSealTxid
+                    method enum opretFirst=0 tapretFirst=1 -- Method
                     txid bytes len=32 aka=Txid
                     vout is U32 aka=Vout
                     blinding is U64
                 state is Unit aka=VoidState
+                lock bytes len=2 aka=ReservedBytes2
           fungible list len=0..MAX16 wrapped tag=1
             AssignRevealedValueBlindSealTxid union
               confidential rec tag=0
-                seal union XChainSecretSeal
+                seal union -- XChainSecretSeal
                   bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                   liquid bytes len=32 wrapped aka=SecretSeal tag=1
-                state rec ConcealedFungible
+                state rec -- ConcealedFungible
                   commitment bytes len=33 aka=PedersenCommitment
-                  rangeProof union RangeProof
-                    placeholder bytes len=512 wrapped aka=NoiseDumb tag=0
+                  rangeProof bytes len=33 aka=PedersenCommitment
+                lock bytes len=2 aka=ReservedBytes2
               confidentialState rec tag=1
-                seal union XChainBlindSealTxid
-                  bitcoin rec BlindSealTxid wrapped tag=0
-                    method enum Method opretFirst=0 tapretFirst=1
+                seal union -- XChainBlindSealTxid
+                  bitcoin rec wrapped tag=0 -- BlindSealTxid
+                    method enum opretFirst=0 tapretFirst=1 -- Method
                     txid bytes len=32 aka=Txid
                     vout is U32 aka=Vout
                     blinding is U64
-                  liquid rec BlindSealTxid wrapped tag=1
-                    method enum Method opretFirst=0 tapretFirst=1
+                  liquid rec wrapped tag=1 -- BlindSealTxid
+                    method enum opretFirst=0 tapretFirst=1 -- Method
                     txid bytes len=32 aka=Txid
                     vout is U32 aka=Vout
                     blinding is U64
-                state rec ConcealedFungible
+                state rec -- ConcealedFungible
                   commitment bytes len=33 aka=PedersenCommitment
-                  rangeProof union RangeProof
-                    placeholder bytes len=512 wrapped aka=NoiseDumb tag=0
+                  rangeProof bytes len=33 aka=PedersenCommitment
+                lock bytes len=2 aka=ReservedBytes2
               confidentialSeal rec tag=2
-                seal union XChainSecretSeal
+                seal union -- XChainSecretSeal
                   bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                   liquid bytes len=32 wrapped aka=SecretSeal tag=1
-                state rec RevealedFungible
-                  value union FungibleState
+                state rec -- RevealedFungible
+                  value union -- FungibleState
                     bits64 is U64 wrapped tag=0
                   blinding bytes len=32 aka=BlindingFactor
                   tag bytes len=32 aka=AssetTag
+                lock bytes len=2 aka=ReservedBytes2
               revealed rec tag=3
-                seal union XChainBlindSealTxid
-                  bitcoin rec BlindSealTxid wrapped tag=0
-                    method enum Method opretFirst=0 tapretFirst=1
+                seal union -- XChainBlindSealTxid
+                  bitcoin rec wrapped tag=0 -- BlindSealTxid
+                    method enum opretFirst=0 tapretFirst=1 -- Method
                     txid bytes len=32 aka=Txid
                     vout is U32 aka=Vout
                     blinding is U64
-                  liquid rec BlindSealTxid wrapped tag=1
-                    method enum Method opretFirst=0 tapretFirst=1
+                  liquid rec wrapped tag=1 -- BlindSealTxid
+                    method enum opretFirst=0 tapretFirst=1 -- Method
                     txid bytes len=32 aka=Txid
                     vout is U32 aka=Vout
                     blinding is U64
-                state rec RevealedFungible
-                  value union FungibleState
+                state rec -- RevealedFungible
+                  value union -- FungibleState
                     bits64 is U64 wrapped tag=0
                   blinding bytes len=32 aka=BlindingFactor
                   tag bytes len=32 aka=AssetTag
+                lock bytes len=2 aka=ReservedBytes2
           structured list len=0..MAX16 wrapped tag=2
             AssignRevealedDataBlindSealTxid union
               confidential rec tag=0
-                seal union XChainSecretSeal
+                seal union -- XChainSecretSeal
                   bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                   liquid bytes len=32 wrapped aka=SecretSeal tag=1
                 state bytes len=32 aka=ConcealedData
+                lock bytes len=2 aka=ReservedBytes2
               confidentialState rec tag=1
-                seal union XChainBlindSealTxid
-                  bitcoin rec BlindSealTxid wrapped tag=0
-                    method enum Method opretFirst=0 tapretFirst=1
+                seal union -- XChainBlindSealTxid
+                  bitcoin rec wrapped tag=0 -- BlindSealTxid
+                    method enum opretFirst=0 tapretFirst=1 -- Method
                     txid bytes len=32 aka=Txid
                     vout is U32 aka=Vout
                     blinding is U64
-                  liquid rec BlindSealTxid wrapped tag=1
-                    method enum Method opretFirst=0 tapretFirst=1
+                  liquid rec wrapped tag=1 -- BlindSealTxid
+                    method enum opretFirst=0 tapretFirst=1 -- Method
                     txid bytes len=32 aka=Txid
                     vout is U32 aka=Vout
                     blinding is U64
                 state bytes len=32 aka=ConcealedData
+                lock bytes len=2 aka=ReservedBytes2
               confidentialSeal rec tag=2
-                seal union XChainSecretSeal
+                seal union -- XChainSecretSeal
                   bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                   liquid bytes len=32 wrapped aka=SecretSeal tag=1
-                state rec RevealedData
+                state rec -- RevealedData
                   value bytes len=0..MAX16 aka=DataState
                   salt is U128
+                lock bytes len=2 aka=ReservedBytes2
               revealed rec tag=3
-                seal union XChainBlindSealTxid
-                  bitcoin rec BlindSealTxid wrapped tag=0
-                    method enum Method opretFirst=0 tapretFirst=1
+                seal union -- XChainBlindSealTxid
+                  bitcoin rec wrapped tag=0 -- BlindSealTxid
+                    method enum opretFirst=0 tapretFirst=1 -- Method
                     txid bytes len=32 aka=Txid
                     vout is U32 aka=Vout
                     blinding is U64
-                  liquid rec BlindSealTxid wrapped tag=1
-                    method enum Method opretFirst=0 tapretFirst=1
+                  liquid rec wrapped tag=1 -- BlindSealTxid
+                    method enum opretFirst=0 tapretFirst=1 -- Method
                     txid bytes len=32 aka=Txid
                     vout is U32 aka=Vout
                     blinding is U64
-                state rec RevealedData
+                state rec -- RevealedData
                   value bytes len=0..MAX16 aka=DataState
                   salt is U128
+                lock bytes len=2 aka=ReservedBytes2
           attachment list len=0..MAX16 wrapped tag=3
             AssignRevealedAttachBlindSealTxid union
               confidential rec tag=0
-                seal union XChainSecretSeal
+                seal union -- XChainSecretSeal
                   bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                   liquid bytes len=32 wrapped aka=SecretSeal tag=1
                 state bytes len=32 aka=ConcealedAttach
+                lock bytes len=2 aka=ReservedBytes2
               confidentialState rec tag=1
-                seal union XChainBlindSealTxid
-                  bitcoin rec BlindSealTxid wrapped tag=0
-                    method enum Method opretFirst=0 tapretFirst=1
+                seal union -- XChainBlindSealTxid
+                  bitcoin rec wrapped tag=0 -- BlindSealTxid
+                    method enum opretFirst=0 tapretFirst=1 -- Method
                     txid bytes len=32 aka=Txid
                     vout is U32 aka=Vout
                     blinding is U64
-                  liquid rec BlindSealTxid wrapped tag=1
-                    method enum Method opretFirst=0 tapretFirst=1
+                  liquid rec wrapped tag=1 -- BlindSealTxid
+                    method enum opretFirst=0 tapretFirst=1 -- Method
                     txid bytes len=32 aka=Txid
                     vout is U32 aka=Vout
                     blinding is U64
                 state bytes len=32 aka=ConcealedAttach
+                lock bytes len=2 aka=ReservedBytes2
               confidentialSeal rec tag=2
-                seal union XChainSecretSeal
+                seal union -- XChainSecretSeal
                   bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                   liquid bytes len=32 wrapped aka=SecretSeal tag=1
-                state rec RevealedAttach
+                state rec -- RevealedAttach
                   id bytes len=32 aka=AttachId
-                  mediaType enum MediaType any=255
+                  mediaType enum any=255 -- MediaType
                   salt is U64
+                lock bytes len=2 aka=ReservedBytes2
               revealed rec tag=3
-                seal union XChainBlindSealTxid
-                  bitcoin rec BlindSealTxid wrapped tag=0
-                    method enum Method opretFirst=0 tapretFirst=1
+                seal union -- XChainBlindSealTxid
+                  bitcoin rec wrapped tag=0 -- BlindSealTxid
+                    method enum opretFirst=0 tapretFirst=1 -- Method
                     txid bytes len=32 aka=Txid
                     vout is U32 aka=Vout
                     blinding is U64
-                  liquid rec BlindSealTxid wrapped tag=1
-                    method enum Method opretFirst=0 tapretFirst=1
+                  liquid rec wrapped tag=1 -- BlindSealTxid
+                    method enum opretFirst=0 tapretFirst=1 -- Method
                     txid bytes len=32 aka=Txid
                     vout is U32 aka=Vout
                     blinding is U64
-                state rec RevealedAttach
+                state rec -- RevealedAttach
                   id bytes len=32 aka=AttachId
-                  mediaType enum MediaType any=255
+                  mediaType enum any=255 -- MediaType
                   salt is U64
+                lock bytes len=2 aka=ReservedBytes2
       redeemed map len=0..MAX8 aka=Redeemed
         key is U16 aka=ValencyType
         value bytes len=32 aka=OpId
       valencies set len=0..MAX8 aka=Valencies
         element is U16 aka=ValencyType
+      witness bytes len=1 aka=ReservedBytes1
+      script bytes len=1 aka=ReservedBytes1
   attachments map len=0..MAX16
     key bytes len=32 aka=AttachId
     value bytes len=0..MAX24
   signatures map len=0..MAX8
-    key union ContentId
+    ContentId union -- mapped from
       schema bytes len=32 wrapped aka=SchemaId tag=0
       genesis bytes len=32 wrapped aka=ContractId tag=1
       iface bytes len=32 wrapped aka=IfaceId tag=2
@@ -1226,7 +1278,7 @@ Consignmenttrue rec
       suppl bytes len=32 wrapped aka=SupplId tag=4
     value set len=1..10 aka=ContentSigs
       Cert rec
-        signer rec Identity
+        signer rec -- Identity
           name str len=0..MAX8
           email list len=0..MAX8
             Ascii enum {
@@ -1247,7 +1299,7 @@ Consignmenttrue rec
               q=113 r=114 s=115 t=116 u=117 v=118 w=119 x=120
               y=121 z=122 cBracketL=123 pipe=124 cBracketR=125 tilde=126 del=127
             }
-          suite enum IdSuite pgp=0 ssh=1 ssi=2
+          suite enum pgp=0 ssh=1 ssi=2 -- IdSuite
           pk bytes len=0..MAX8
         signature bytes len=0..MAX8
 
