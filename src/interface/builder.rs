@@ -753,7 +753,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             .expect("schema should match interface: must be checked by the constructor")
             .sem_id;
         self.schema
-            .type_system
+            .types
             .strict_deserialize_type(sem_id, &serialized)?;
 
         self.global
