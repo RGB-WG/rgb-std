@@ -40,16 +40,20 @@ impl<Seal: ExposedSeal> TypedAssignsExt<Seal> for TypedAssigns<Seal> {
         ) {
             for assign in vec.iter_mut() {
                 match assign {
-                    Assign::ConfidentialSeal { seal, state } if *seal == revealed.conceal() => {
+                    Assign::ConfidentialSeal { seal, state, lock }
+                        if *seal == revealed.conceal() =>
+                    {
                         *assign = Assign::Revealed {
                             seal: revealed,
                             state: state.clone(),
+                            lock: *lock,
                         }
                     }
-                    Assign::Confidential { seal, state } if *seal == revealed.conceal() => {
+                    Assign::Confidential { seal, state, lock } if *seal == revealed.conceal() => {
                         *assign = Assign::ConfidentialState {
                             seal: revealed,
                             state: *state,
+                            lock: *lock,
                         }
                     }
                     _ => {}

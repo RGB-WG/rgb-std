@@ -312,12 +312,17 @@ impl ContractBuilder {
         let genesis = Genesis {
             ffv: none!(),
             schema_id: schema.schema_id(),
+            flags: none!(),
+            timestamp: 0,
             testnet: self.testnet,
             alt_layers1: self.alt_layers1,
             metadata: empty!(),
             globals: global,
             assignments,
             valencies: none!(),
+            // TODO: Add APIs for providing issuer information
+            issuer: none!(),
+            script: none!(),
         };
 
         let mut contract = Contract::new(schema, genesis, asset_tags);
@@ -588,6 +593,8 @@ impl TransitionBuilder {
             inputs: SmallOrdSet::from_iter_unsafe(self.inputs.into_keys()).into(),
             assignments,
             valencies: none!(),
+            witness: none!(),
+            script: none!(),
         };
 
         // TODO: Validate against schema
@@ -976,10 +983,16 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
                 .map(|(seal, value)| {
                     blindings.push(value.blinding);
                     match seal {
-                        BuilderSeal::Revealed(seal) => Assign::Revealed { seal, state: value },
-                        BuilderSeal::Concealed(seal) => {
-                            Assign::ConfidentialSeal { seal, state: value }
-                        }
+                        BuilderSeal::Revealed(seal) => Assign::Revealed {
+                            seal,
+                            state: value,
+                            lock: none!(),
+                        },
+                        BuilderSeal::Concealed(seal) => Assign::ConfidentialSeal {
+                            seal,
+                            state: value,
+                            lock: none!(),
+                        },
                     }
                 })
                 .collect::<Vec<_>>();
@@ -1012,8 +1025,16 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         });
         let owned_data = self.data.into_iter().map(|(id, vec)| {
             let vec_data = vec.into_iter().map(|(seal, value)| match seal {
-                BuilderSeal::Revealed(seal) => Assign::Revealed { seal, state: value },
-                BuilderSeal::Concealed(seal) => Assign::ConfidentialSeal { seal, state: value },
+                BuilderSeal::Revealed(seal) => Assign::Revealed {
+                    seal,
+                    state: value,
+                    lock: none!(),
+                },
+                BuilderSeal::Concealed(seal) => Assign::ConfidentialSeal {
+                    seal,
+                    state: value,
+                    lock: none!(),
+                },
             });
             let state_data = Confined::try_from_iter(vec_data).expect("at least one element");
             let state_data = TypedAssigns::Structured(state_data);
