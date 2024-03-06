@@ -28,6 +28,7 @@ use std::str::FromStr;
 use amplify::ascii::AsciiString;
 use amplify::confinement::{Confined, NonEmptyVec, SmallBlob};
 use bp::bc::stl::bp_tx_stl;
+use rgb::Types;
 use strict_encoding::stl::AsciiPrintable;
 use strict_encoding::{
     InvalidIdent, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, TypedWrite,
@@ -472,7 +473,7 @@ pub fn rgb21() -> Iface {
         extensions: none!(),
         error_type: types.get("RGB21.Error"),
         default_operation: Some(tn!("Transfer")),
-        type_system: types.type_system(),
+        types: Types::Strict(types.type_system()),
     }
 }
 

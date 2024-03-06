@@ -25,7 +25,7 @@ use std::str::FromStr;
 use bp::bc::stl::bp_tx_stl;
 use bp::dbc::Method;
 use invoice::{Amount, Precision};
-use rgb::{AltLayer1, AssetTag, BlindingFactor, GenesisSeal, WitnessId};
+use rgb::{AltLayer1, AssetTag, BlindingFactor, GenesisSeal, Types, WitnessId};
 use strict_encoding::InvalidIdent;
 use strict_types::{CompileError, LibBuilder, TypeLib};
 
@@ -242,7 +242,7 @@ fn rgb20() -> Iface {
         extensions: none!(),
         error_type: types.get("RGB20.Error"),
         default_operation: Some(tn!("Transfer")),
-        type_system: types.type_system(),
+        types: Types::Strict(types.type_system()),
     }
 }
 

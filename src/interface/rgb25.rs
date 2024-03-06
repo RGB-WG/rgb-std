@@ -25,6 +25,7 @@ use std::fmt::Debug;
 
 use bp::bc::stl::bp_tx_stl;
 use invoice::{Amount, Precision};
+use rgb::Types;
 use strict_encoding::{StrictDumb, StrictEncode};
 use strict_types::stl::std_stl;
 use strict_types::{CompileError, LibBuilder, TypeLib};
@@ -153,7 +154,7 @@ pub fn rgb25() -> Iface {
         extensions: none!(),
         error_type: types.get("RGB25.Error"),
         default_operation: Some(tn!("Transfer")),
-        type_system: types.type_system(),
+        types: Types::Strict(types.type_system()),
     }
 }
 
