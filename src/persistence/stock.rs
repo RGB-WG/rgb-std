@@ -47,11 +47,17 @@ use crate::LIB_NAME_RGB_STD;
 #[derive(Clone, Eq, PartialEq, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
 pub struct IndexedBundle(ContractId, BundleId);
 
 #[derive(Clone, Debug, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
 pub struct ContractIndex {
     public_opouts: MediumOrdSet<Opout>,
     outpoint_opouts: MediumOrdMap<XOutputSeal, MediumOrdSet<Opout>>,
