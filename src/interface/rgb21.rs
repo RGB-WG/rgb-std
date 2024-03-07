@@ -400,7 +400,7 @@ pub fn rgb21() -> Iface {
             },
         },
         transitions: tiny_bmap! {
-            tn!("Transfer") => TransitionIface {
+            fname!("transfer") => TransitionIface {
                 optional: false,
                 metadata: None,
                 globals: none!(),
@@ -418,7 +418,7 @@ pub fn rgb21() -> Iface {
                 },
                 default_assignment: Some(fname!("assetOwner")),
             },
-            tn!("Engrave") => TransitionIface {
+            fname!("engrave") => TransitionIface {
                 optional: true,
                 metadata: None,
                 globals: tiny_bmap! {
@@ -439,7 +439,7 @@ pub fn rgb21() -> Iface {
                 },
                 default_assignment: Some(fname!("assetOwner")),
             },
-            tn!("Issue") => TransitionIface {
+            fname!("issue") => TransitionIface {
                 optional: true,
                 metadata: Some(types.get("RGBContract.IssueMeta")),
                 globals: tiny_bmap! {
@@ -463,7 +463,7 @@ pub fn rgb21() -> Iface {
                 },
                 default_assignment: Some(fname!("assetOwner")),
             },
-            tn!("Rename") => TransitionIface {
+            fname!("rename") => TransitionIface {
                 optional: true,
                 metadata: None,
                 globals: tiny_bmap! {
@@ -482,7 +482,7 @@ pub fn rgb21() -> Iface {
         },
         extensions: none!(),
         error_type: types.get("RGB21.Error"),
-        default_operation: Some(tn!("Transfer")),
+        default_operation: Some(fname!("transfer")),
         types: Types::Strict(types.type_system()),
     }
 }
@@ -504,9 +504,9 @@ impl From<ContractIface> for Rgb21 {
 impl IfaceWrapper for Rgb21 {
     const IFACE_NAME: &'static str = LIB_NAME_RGB21;
     const IFACE_ID: IfaceId = IfaceId::from_array([
-        0x34, 0x6e, 0x83, 0xef, 0xe6, 0x38, 0xab, 0xbb, 0xec, 0xb2, 0xf4, 0x68, 0x5e, 0x1b, 0x3b,
-        0x91, 0x9b, 0xea, 0x0a, 0x3a, 0x29, 0x64, 0x22, 0x1e, 0x9e, 0xef, 0x83, 0xb9, 0xfe, 0x3e,
-        0x3b, 0x78,
+        0x97, 0xb8, 0x84, 0xa7, 0x0e, 0xb9, 0xe0, 0x53, 0xb4, 0xc4, 0x0a, 0x87, 0xb8, 0xe5, 0xa6,
+        0xe2, 0xee, 0xa5, 0x9a, 0x33, 0xe0, 0x92, 0xf4, 0xff, 0x20, 0x5e, 0xfb, 0x24, 0x65, 0x30,
+        0x4e, 0x96,
     ]);
 }
 

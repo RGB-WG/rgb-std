@@ -68,7 +68,7 @@ impl RgbInvoiceBuilder {
         self
     }
 
-    pub fn set_operation(mut self, name: impl Into<TypeName>) -> Self {
+    pub fn set_operation(mut self, name: impl Into<FieldName>) -> Self {
         self.0.operation = Some(name.into());
         self
     }

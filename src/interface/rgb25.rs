@@ -112,7 +112,7 @@ pub fn rgb25() -> Iface {
             },
         },
         transitions: tiny_bmap! {
-            tn!("Transfer") => TransitionIface {
+            fname!("transfer") => TransitionIface {
                 optional: false,
                 metadata: None,
                 globals: none!(),
@@ -128,7 +128,7 @@ pub fn rgb25() -> Iface {
                 },
                 default_assignment: Some(fname!("beneficiary")),
             },
-            tn!("Burn") => TransitionIface {
+            fname!("burn") => TransitionIface {
                 optional: true,
                 metadata: Some(types.get("RGBContract.BurnMeta")),
                 globals: tiny_bmap! {
@@ -151,7 +151,7 @@ pub fn rgb25() -> Iface {
         },
         extensions: none!(),
         error_type: types.get("RGB25.Error"),
-        default_operation: Some(tn!("Transfer")),
+        default_operation: Some(fname!("transfer")),
         types: Types::Strict(types.type_system()),
     }
 }
@@ -173,9 +173,9 @@ impl From<ContractIface> for Rgb25 {
 impl IfaceWrapper for Rgb25 {
     const IFACE_NAME: &'static str = LIB_NAME_RGB25;
     const IFACE_ID: IfaceId = IfaceId::from_array([
-        0xbb, 0xe4, 0xc0, 0xb9, 0xac, 0xe7, 0x8b, 0x14, 0x92, 0xfc, 0xc5, 0xfa, 0x39, 0x4d, 0x1a,
-        0x19, 0x8e, 0x15, 0x42, 0x60, 0xb5, 0x14, 0xb1, 0x33, 0x0c, 0xe9, 0x47, 0x2c, 0x60, 0xdb,
-        0x7b, 0x95,
+        0xbf, 0x6a, 0x69, 0x27, 0xd9, 0xdd, 0xa2, 0xe2, 0xd5, 0x9d, 0x42, 0x82, 0x7d, 0x04, 0xd4,
+        0x3d, 0xf7, 0x33, 0xbc, 0x7d, 0x5c, 0xf8, 0x6c, 0xd5, 0xc0, 0x47, 0x7e, 0xac, 0x7c, 0xd6,
+        0x51, 0x31,
     ]);
 }
 

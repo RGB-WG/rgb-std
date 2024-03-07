@@ -32,7 +32,7 @@ use rgb::{
     GlobalState, GraphSeal, Input, Layer1, Opout, RevealedAttach, RevealedData, RevealedValue,
     StateSchema, SubSchema, Transition, TransitionType, TypedAssigns, XChain, XOutpoint,
 };
-use strict_encoding::{FieldName, SerializeError, StrictSerialize, TypeName};
+use strict_encoding::{FieldName, SerializeError, StrictSerialize};
 use strict_types::decode;
 
 use crate::containers::{BuilderSeal, Contract};
@@ -62,7 +62,7 @@ pub enum BuilderError {
     AssignmentNotFound(FieldName),
 
     /// transition `{0}` is not known to the schema.
-    TransitionNotFound(TypeName),
+    TransitionNotFound(FieldName),
 
     /// state `{0}` provided to the builder has invalid name.
     InvalidStateField(FieldName),
@@ -376,7 +376,7 @@ impl TransitionBuilder {
         iface: Iface,
         schema: SubSchema,
         iimpl: IfaceImpl,
-        transition_name: impl Into<TypeName>,
+        transition_name: impl Into<FieldName>,
     ) -> Result<Self, BuilderError> {
         let transition_name = transition_name.into();
         let transition_type = iimpl

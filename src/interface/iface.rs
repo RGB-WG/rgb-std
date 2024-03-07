@@ -297,10 +297,10 @@ pub struct Iface {
     pub assignments: TinyOrdMap<FieldName, AssignIface>,
     pub valencies: TinyOrdMap<FieldName, ValencyIface>,
     pub genesis: GenesisIface,
-    pub transitions: TinyOrdMap<TypeName, TransitionIface>,
-    pub extensions: TinyOrdMap<TypeName, ExtensionIface>,
+    pub transitions: TinyOrdMap<FieldName, TransitionIface>,
+    pub extensions: TinyOrdMap<FieldName, ExtensionIface>,
     pub error_type: SemId,
-    pub default_operation: Option<TypeName>,
+    pub default_operation: Option<FieldName>,
     pub types: Types,
 }
 

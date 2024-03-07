@@ -122,7 +122,7 @@ fn rgb20() -> Iface {
             },
         },
         transitions: tiny_bmap! {
-            tn!("Transfer") => TransitionIface {
+            fname!("transfer") => TransitionIface {
                 optional: false,
                 metadata: None,
                 globals: none!(),
@@ -138,7 +138,7 @@ fn rgb20() -> Iface {
                 },
                 default_assignment: Some(fname!("assetOwner")),
             },
-            tn!("Issue") => TransitionIface {
+            fname!("issue") => TransitionIface {
                 optional: true,
                 metadata: Some(types.get("RGBContract.IssueMeta")),
                 globals: tiny_bmap! {
@@ -160,7 +160,7 @@ fn rgb20() -> Iface {
                 },
                 default_assignment: Some(fname!("assetOwner")),
             },
-            tn!("OpenEpoch") => TransitionIface {
+            fname!("openEpoch") => TransitionIface {
                 optional: true,
                 metadata: None,
                 globals: none!(),
@@ -175,7 +175,7 @@ fn rgb20() -> Iface {
                 errors: none!(),
                 default_assignment: Some(fname!("burnRight")),
             },
-            tn!("Burn") => TransitionIface {
+            fname!("burn") => TransitionIface {
                 optional: true,
                 metadata: Some(types.get("RGBContract.BurnMeta")),
                 globals: tiny_bmap! {
@@ -195,7 +195,7 @@ fn rgb20() -> Iface {
                 },
                 default_assignment: None,
             },
-            tn!("Replace") => TransitionIface {
+            fname!("replace") => TransitionIface {
                 optional: true,
                 metadata: Some(types.get("RGBContract.BurnMeta")),
                 globals: tiny_bmap! {
@@ -217,7 +217,7 @@ fn rgb20() -> Iface {
                 },
                 default_assignment: Some(fname!("assetOwner")),
             },
-            tn!("Rename") => TransitionIface {
+            fname!("rename") => TransitionIface {
                 optional: true,
                 metadata: None,
                 globals: tiny_bmap! {
@@ -236,7 +236,7 @@ fn rgb20() -> Iface {
         },
         extensions: none!(),
         error_type: types.get("RGB20.Error"),
-        default_operation: Some(tn!("Transfer")),
+        default_operation: Some(fname!("transfer")),
         types: Types::Strict(types.type_system()),
     }
 }
@@ -310,9 +310,9 @@ impl From<ContractIface> for Rgb20 {
 impl IfaceWrapper for Rgb20 {
     const IFACE_NAME: &'static str = LIB_NAME_RGB20;
     const IFACE_ID: IfaceId = IfaceId::from_array([
-        0x47, 0x04, 0x8b, 0x22, 0x9c, 0xda, 0xf7, 0x8e, 0x00, 0x7c, 0x77, 0x84, 0x91, 0xbe, 0x85,
-        0x35, 0xbf, 0x24, 0x0b, 0xb4, 0x10, 0x02, 0x5e, 0xd4, 0xf6, 0xf6, 0x8a, 0x98, 0x94, 0x5e,
-        0x8d, 0x02,
+        0xe8, 0x29, 0x3b, 0xb4, 0x56, 0x1a, 0xa3, 0x82, 0xa2, 0xe7, 0x9c, 0x13, 0xb1, 0x17, 0x13,
+        0x8e, 0x1c, 0x69, 0xa0, 0x5d, 0x47, 0x6e, 0x00, 0xbe, 0xf4, 0x31, 0x79, 0xbb, 0x2c, 0x17,
+        0xa8, 0x0e,
     ]);
 }
 
