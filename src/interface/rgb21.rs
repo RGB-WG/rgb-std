@@ -42,14 +42,14 @@ use super::{
 };
 use crate::interface::{ContractIface, IfaceId, IfaceWrapper};
 use crate::stl::{
-    rgb_contract_stl, Attachment, Details, DivisibleAssetSpec, MediaType, Name, ProofOfReserves,
-    RicardianContract, StandardTypes, Ticker, Timestamp,
+    rgb_contract_stl, AssetSpec, Attachment, Details, MediaType, Name, ProofOfReserves,
+    RicardianContract, StandardTypes, Ticker,
 };
 
 pub const LIB_NAME_RGB21: &str = "RGB21";
 /// Strict types id for the library providing data types for RGB21 interface.
 pub const LIB_ID_RGB21: &str =
-    "urn:ubideco:stl:7kUn2VT5xKgZWCAYsa7usNsKWtQBrvyg1pdxRGtendf#tarzan-riviera-vampire";
+    "urn:ubideco:stl:JE6Hb4U3V8kuotj2ct3gSMzCfzj34auiybGv6wPy5GPi#canvas-tempo-bonus";
 
 #[derive(
     Wrapper, WrapperMut, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default, From
@@ -366,9 +366,8 @@ pub fn rgb21() -> Iface {
         version: VerNo::V1,
         name: tn!("RGB21"),
         global_state: tiny_bmap! {
-            fname!("spec") => GlobalIface::required(types.get("RGBContract.DivisibleAssetSpec")),
-            fname!("terms") => GlobalIface::required(types.get("RGBContract.RicardianContract")),
-            fname!("created") => GlobalIface::required(types.get("RGBContract.Timestamp")),
+            fname!("spec") => GlobalIface::required(types.get("RGBContract.AssetSpec")),
+            fname!("terms") => GlobalIface::required(types.get("RGBContract.AssetTerms")),
             fname!("tokens") => GlobalIface::none_or_many(types.get("RGB21.TokenData")),
             fname!("engravings") => GlobalIface::none_or_many(types.get("RGB21.EngravingData")),
             fname!("attachmentTypes") => GlobalIface::none_or_many(types.get("RGB21.AttachmentType")),
@@ -384,7 +383,6 @@ pub fn rgb21() -> Iface {
             global: tiny_bmap! {
                 fname!("spec") => Occurrences::Once,
                 fname!("terms") => Occurrences::Once,
-                fname!("created") => Occurrences::Once,
                 fname!("tokens") => Occurrences::NoneOrMore,
                 fname!("attachmentTypes") => Occurrences::NoneOrMore,
             },
@@ -506,19 +504,19 @@ impl From<ContractIface> for Rgb21 {
 impl IfaceWrapper for Rgb21 {
     const IFACE_NAME: &'static str = LIB_NAME_RGB21;
     const IFACE_ID: IfaceId = IfaceId::from_array([
-        0x04, 0xd6, 0x86, 0xc7, 0x65, 0x78, 0x3c, 0x46, 0xfb, 0x36, 0x30, 0x29, 0x47, 0x55, 0xbf,
-        0xad, 0xc6, 0x0d, 0x9c, 0x33, 0xdf, 0x5b, 0xfc, 0x95, 0xf8, 0x8d, 0x99, 0x71, 0x81, 0xef,
-        0xbc, 0xa3,
+        0x34, 0x6e, 0x83, 0xef, 0xe6, 0x38, 0xab, 0xbb, 0xec, 0xb2, 0xf4, 0x68, 0x5e, 0x1b, 0x3b,
+        0x91, 0x9b, 0xea, 0x0a, 0x3a, 0x29, 0x64, 0x22, 0x1e, 0x9e, 0xef, 0x83, 0xb9, 0xfe, 0x3e,
+        0x3b, 0x78,
     ]);
 }
 
 impl Rgb21 {
-    pub fn spec(&self) -> DivisibleAssetSpec {
+    pub fn spec(&self) -> AssetSpec {
         let strict_val = &self
             .0
             .global("spec")
             .expect("RGB21 interface requires global `spec`")[0];
-        DivisibleAssetSpec::from_strict_val_unchecked(strict_val)
+        AssetSpec::from_strict_val_unchecked(strict_val)
     }
 
     pub fn terms(&self) -> RicardianContract {
@@ -535,14 +533,6 @@ impl Rgb21 {
             .global("tokens")
             .expect("RGB21 interface requires global `tokens`")[0];
         TokenData::from_strict_val_unchecked(strict_val)
-    }
-
-    pub fn created(&self) -> Timestamp {
-        let strict_val = &self
-            .0
-            .global("created")
-            .expect("RGB21 interface requires global state `created`")[0];
-        Timestamp::from_strict_val_unchecked(strict_val)
     }
 
     pub fn engarving_data(&self) -> EngravingData {

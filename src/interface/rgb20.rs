@@ -39,8 +39,7 @@ use crate::interface::builder::TxOutpoint;
 use crate::interface::{ContractIface, FungibleAllocation, IfaceId, IfaceWrapper, OutpointFilter};
 use crate::persistence::PersistedState;
 use crate::stl::{
-    rgb_contract_stl, Attachment, ContractData, DivisibleAssetSpec, RicardianContract,
-    StandardTypes, Timestamp,
+    rgb_contract_stl, AssetSpec, AssetTerms, Attachment, RicardianContract, StandardTypes,
 };
 
 pub const LIB_NAME_RGB20: &str = "RGB20";
@@ -88,9 +87,8 @@ fn rgb20() -> Iface {
         version: VerNo::V1,
         name: tn!("RGB20"),
         global_state: tiny_bmap! {
-            fname!("spec") => GlobalIface::required(types.get("RGBContract.DivisibleAssetSpec")),
-            fname!("data") => GlobalIface::required(types.get("RGBContract.ContractData")),
-            fname!("created") => GlobalIface::required(types.get("RGBContract.Timestamp")),
+            fname!("spec") => GlobalIface::required(types.get("RGBContract.AssetSpec")),
+            fname!("terms") => GlobalIface::required(types.get("RGBContract.AssetTerms")),
             fname!("issuedSupply") => GlobalIface::one_or_many(types.get("RGBContract.Amount")),
             fname!("burnedSupply") => GlobalIface::none_or_many(types.get("RGBContract.Amount")),
             fname!("replacedSupply") => GlobalIface::none_or_many(types.get("RGBContract.Amount")),
@@ -107,8 +105,7 @@ fn rgb20() -> Iface {
             metadata: Some(types.get("RGBContract.IssueMeta")),
             global: tiny_bmap! {
                 fname!("spec") => Occurrences::Once,
-                fname!("data") => Occurrences::Once,
-                fname!("created") => Occurrences::Once,
+                fname!("terms") => Occurrences::Once,
                 fname!("issuedSupply") => Occurrences::Once,
             },
             assignments: tiny_bmap! {
@@ -313,9 +310,9 @@ impl From<ContractIface> for Rgb20 {
 impl IfaceWrapper for Rgb20 {
     const IFACE_NAME: &'static str = LIB_NAME_RGB20;
     const IFACE_ID: IfaceId = IfaceId::from_array([
-        0x7d, 0xdf, 0xc8, 0xc1, 0xcc, 0x65, 0x68, 0x28, 0xa5, 0x38, 0x22, 0x01, 0x8f, 0x4c, 0xbf,
-        0xd4, 0x4a, 0xab, 0xca, 0x3f, 0x86, 0x53, 0xbf, 0x59, 0xda, 0x63, 0xf6, 0xb1, 0xf8, 0x2a,
-        0x0a, 0x8a,
+        0x47, 0x04, 0x8b, 0x22, 0x9c, 0xda, 0xf7, 0x8e, 0x00, 0x7c, 0x77, 0x84, 0x91, 0xbe, 0x85,
+        0x35, 0xbf, 0x24, 0x0b, 0xb4, 0x10, 0x02, 0x5e, 0xd4, 0xf6, 0xf6, 0x8a, 0x98, 0x94, 0x5e,
+        0x8d, 0x02,
     ]);
 }
 
@@ -339,26 +336,17 @@ impl Rgb20 {
         name: &str,
         details: Option<&str>,
         precision: Precision,
-        timestamp: Timestamp,
         asset_tag: AssetTag,
     ) -> Result<PrimaryIssue, InvalidIdent> {
-        PrimaryIssue::testnet_det::<C>(ticker, name, details, precision, timestamp, asset_tag)
+        PrimaryIssue::testnet_det::<C>(ticker, name, details, precision, asset_tag)
     }
 
-    pub fn spec(&self) -> DivisibleAssetSpec {
+    pub fn spec(&self) -> AssetSpec {
         let strict_val = &self
             .0
             .global("spec")
             .expect("RGB20 interface requires global state `spec`")[0];
-        DivisibleAssetSpec::from_strict_val_unchecked(strict_val)
-    }
-
-    pub fn created(&self) -> Timestamp {
-        let strict_val = &self
-            .0
-            .global("created")
-            .expect("RGB20 interface requires global state `created`")[0];
-        Timestamp::from_strict_val_unchecked(strict_val)
+        AssetSpec::from_strict_val_unchecked(strict_val)
     }
 
     pub fn balance(&self, filter: impl OutpointFilter) -> Amount {
@@ -412,12 +400,12 @@ impl Rgb20 {
             .expect("RGB20 interface requires `updateRight` state")
     }
 
-    pub fn contract_data(&self) -> ContractData {
+    pub fn contract_data(&self) -> AssetTerms {
         let strict_val = &self
             .0
             .global("data")
             .expect("RGB20 interface requires global `data`")[0];
-        ContractData::from_strict_val_unchecked(strict_val)
+        AssetTerms::from_strict_val_unchecked(strict_val)
     }
 
     pub fn total_issued_supply(&self) -> Amount {
@@ -484,7 +472,7 @@ impl From<BuilderError> for AllocationError {
 pub struct PrimaryIssue {
     builder: ContractBuilder,
     issued: Amount,
-    contract_data: ContractData,
+    terms: AssetTerms,
     deterministic: bool,
 }
 
@@ -495,11 +483,10 @@ impl PrimaryIssue {
         name: &str,
         details: Option<&str>,
         precision: Precision,
-        timestamp: Timestamp,
     ) -> Result<Self, InvalidIdent> {
-        let spec = DivisibleAssetSpec::with(ticker, name, precision, details)?;
-        let contract_data = ContractData {
-            terms: RicardianContract::default(),
+        let spec = AssetSpec::with(ticker, name, precision, details)?;
+        let terms = AssetTerms {
+            text: RicardianContract::default(),
             media: None,
         };
 
@@ -507,13 +494,11 @@ impl PrimaryIssue {
         let builder = ContractBuilder::testnet(rgb20(), schema, main_iface_impl)
             .expect("schema interface mismatch")
             .add_global_state("spec", spec)
-            .expect("invalid RGB20 schema (token specification mismatch)")
-            .add_global_state("created", timestamp)
-            .expect("invalid RGB20 schema (creation timestamp mismatch)");
+            .expect("invalid RGB20 schema (token specification mismatch)");
 
         Ok(Self {
             builder,
-            contract_data,
+            terms,
             issued: Amount::ZERO,
             deterministic: false,
         })
@@ -525,7 +510,7 @@ impl PrimaryIssue {
         details: Option<&str>,
         precision: Precision,
     ) -> Result<Self, InvalidIdent> {
-        Self::testnet_int(C::issuer(), ticker, name, details, precision, Timestamp::now())
+        Self::testnet_int(C::issuer(), ticker, name, details, precision)
     }
 
     pub fn testnet_with(
@@ -535,7 +520,7 @@ impl PrimaryIssue {
         details: Option<&str>,
         precision: Precision,
     ) -> Result<Self, InvalidIdent> {
-        Self::testnet_int(issuer, ticker, name, details, precision, Timestamp::now())
+        Self::testnet_int(issuer, ticker, name, details, precision)
     }
 
     pub fn testnet_det<C: IssuerClass<IssuingIface = Rgb20>>(
@@ -543,10 +528,9 @@ impl PrimaryIssue {
         name: &str,
         details: Option<&str>,
         precision: Precision,
-        timestamp: Timestamp,
         asset_tag: AssetTag,
     ) -> Result<Self, InvalidIdent> {
-        let mut me = Self::testnet_int(C::issuer(), ticker, name, details, precision, timestamp)?;
+        let mut me = Self::testnet_int(C::issuer(), ticker, name, details, precision)?;
         me.builder = me
             .builder
             .add_asset_tag("assetOwner", asset_tag)
@@ -569,7 +553,7 @@ impl PrimaryIssue {
         media: Option<Attachment>,
     ) -> Result<Self, InvalidIdent> {
         let terms = RicardianContract::from_str(contract)?;
-        self.contract_data = ContractData { terms, media };
+        self.terms = AssetTerms { text: terms, media };
         Ok(self)
     }
 
@@ -652,7 +636,7 @@ impl PrimaryIssue {
         self.builder
             .add_global_state("issuedSupply", self.issued)
             .expect("invalid RGB20 schema (issued supply mismatch)")
-            .add_global_state("data", self.contract_data)
+            .add_global_state("data", self.terms)
             .expect("invalid RGB20 schema (contract data mismatch)")
             .issue_contract()
     }

@@ -34,7 +34,7 @@ use super::{
     AssignIface, GenesisIface, GlobalIface, Iface, OwnedIface, Req, TransitionIface, VerNo,
 };
 use crate::interface::{ContractIface, IfaceId, IfaceWrapper};
-use crate::stl::{rgb_contract_stl, ContractData, Details, Name, StandardTypes};
+use crate::stl::{rgb_contract_stl, AssetTerms, Details, Name, StandardTypes};
 
 pub const LIB_NAME_RGB25: &str = "RGB25";
 /// Strict types id for the library providing data types for RGB25 interface.
@@ -83,8 +83,7 @@ pub fn rgb25() -> Iface {
             fname!("name") => GlobalIface::required(types.get("RGBContract.Name")),
             fname!("details") => GlobalIface::optional(types.get("RGBContract.Details")),
             fname!("precision") => GlobalIface::required(types.get("RGBContract.Precision")),
-            fname!("data") => GlobalIface::required(types.get("RGBContract.ContractData")),
-            fname!("created") => GlobalIface::required(types.get("RGBContract.Timestamp")),
+            fname!("terms") => GlobalIface::required(types.get("RGBContract.AssetTerms")),
             fname!("issuedSupply") => GlobalIface::required(types.get("RGBContract.Amount")),
             fname!("burnedSupply") => GlobalIface::none_or_many(types.get("RGBContract.Amount")),
         },
@@ -99,8 +98,7 @@ pub fn rgb25() -> Iface {
                 fname!("name") => Occurrences::Once,
                 fname!("details") => Occurrences::NoneOrOnce,
                 fname!("precision") => Occurrences::Once,
-                fname!("data") => Occurrences::Once,
-                fname!("created") => Occurrences::Once,
+                fname!("terms") => Occurrences::Once,
                 fname!("issuedSupply") => Occurrences::Once,
             },
             assignments: tiny_bmap! {
@@ -175,9 +173,9 @@ impl From<ContractIface> for Rgb25 {
 impl IfaceWrapper for Rgb25 {
     const IFACE_NAME: &'static str = LIB_NAME_RGB25;
     const IFACE_ID: IfaceId = IfaceId::from_array([
-        0x5a, 0x66, 0x0b, 0x4b, 0x1e, 0x96, 0x4a, 0xc5, 0x25, 0x40, 0x6c, 0x8a, 0x78, 0x1b, 0xf0,
-        0x46, 0xb4, 0xb4, 0xee, 0x98, 0xcf, 0xb6, 0x35, 0x1d, 0xd4, 0x11, 0xeb, 0x0d, 0x25, 0xb5,
-        0xcd, 0x46,
+        0xbb, 0xe4, 0xc0, 0xb9, 0xac, 0xe7, 0x8b, 0x14, 0x92, 0xfc, 0xc5, 0xfa, 0x39, 0x4d, 0x1a,
+        0x19, 0x8e, 0x15, 0x42, 0x60, 0xb5, 0x14, 0xb1, 0x33, 0x0c, 0xe9, 0x47, 0x2c, 0x60, 0xdb,
+        0x7b, 0x95,
     ]);
 }
 
@@ -228,12 +226,12 @@ impl Rgb25 {
             .sum()
     }
 
-    pub fn contract_data(&self) -> ContractData {
+    pub fn contract_data(&self) -> AssetTerms {
         let strict_val = &self
             .0
             .global("data")
             .expect("RGB25 interface requires global `data`")[0];
-        ContractData::from_strict_val_unchecked(strict_val)
+        AssetTerms::from_strict_val_unchecked(strict_val)
     }
 }
 
