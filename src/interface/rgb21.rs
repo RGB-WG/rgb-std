@@ -124,6 +124,19 @@ pub struct EngravingData {
     pub content: EmbeddedMedia,
 }
 
+impl EngravingData {
+    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
+        let index = TokenIndex(value.unwrap_struct("index").unwrap_num().unwrap_uint());
+        let content = EmbeddedMedia::from_strict_val_unchecked(value.unwrap_struct("content"));
+
+        Self { 
+            applied_to: index, 
+            content: content,
+        }
+    }
+}
+
+
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB21)]
@@ -530,6 +543,14 @@ impl Rgb21 {
             .global("created")
             .expect("RGB21 interface requires global state `created`")[0];
         Timestamp::from_strict_val_unchecked(strict_val)
+    }
+
+    pub fn engarving_data(&self) -> EngravingData {
+        let strict_val = &self 
+            .0 
+            .global("engravings")
+            .expect("RGB21 interface requires global state `engravings`")[0];
+        EngravingData::from_strict_val_unchecked(strict_val)
     }
 
     pub fn allocations<'c>(
