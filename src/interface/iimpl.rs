@@ -292,16 +292,33 @@ impl IfacePair {
     pub fn with(iface: Iface, iimpl: IfaceImpl) -> IfacePair { IfacePair { iface, iimpl } }
 
     pub fn iface_id(&self) -> IfaceId { self.iface.iface_id() }
+
     pub fn impl_id(&self) -> ImplId { self.iimpl.impl_id() }
+
     pub fn global_type(&self, name: &FieldName) -> Option<GlobalStateType> {
         self.iimpl.global_type(name)
     }
+
+    pub fn global_name(&self, global_type: &GlobalStateType) -> Option<&FieldName> {
+        self.iimpl.global_name(global_type.to_owned())
+    }
+
     pub fn assignments_type(&self, name: &FieldName) -> Option<AssignmentType> {
         self.iimpl.assignments_type(name)
     }
+
+    pub fn assignment_name(&self, assignment_type: &AssignmentType) -> Option<&FieldName> {
+        self.iimpl.assignment_name(assignment_type.to_owned())
+    }
+
     pub fn transition_type(&self, name: &TypeName) -> Option<TransitionType> {
         self.iimpl.transition_type(name)
     }
+
+    pub fn transition_name(&self, transition_type: &TransitionType) -> Option<&TypeName> {
+        self.iimpl.transition_name(transition_type.to_owned())
+    }
+
 }
 
 pub trait IssuerClass {
