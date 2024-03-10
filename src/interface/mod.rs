@@ -37,7 +37,7 @@ pub(crate) mod resolver;
 pub use builder::{BuilderError, ContractBuilder, TransitionBuilder, TxOutpoint};
 pub use contract::{
     AllocatedState, AttachAllocation, AttachedState, ContractError, ContractIface, DataAllocation,
-    FungibleAllocation, IfaceOp, IfaceWrapper, OwnedAllocation, RightsAllocation, StateChange,
+    FungibleAllocation, UpdateRights, InflationAllowanceAllocation, BurnEpoch, BurnRight, IfaceOp, IfaceWrapper, OwnedAllocation, RightsAllocation, StateChange,
 };
 pub use filters::{FilterExclude, FilterIncludeAll, OutpointFilter, WitnessFilter};
 pub use iface::{
