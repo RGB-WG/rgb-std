@@ -34,7 +34,7 @@ use rgb::{
 };
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 
-use crate::containers::{Bindle, Cert, Consignment, ContentId, Contract, TerminalSeal, Transfer};
+use crate::containers::{Cert, Consignment, ContentId, Contract, TerminalSeal, Transfer};
 use crate::interface::{ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, SchemaIfaces};
 use crate::persistence::hoard::ConsumeError;
 use crate::persistence::inventory::{DataError, IfaceImplError, InventoryInconsistency};
@@ -373,10 +373,8 @@ impl Inventory for Stock {
 
     fn import_schema(
         &mut self,
-        schema: impl Into<Bindle<SubSchema>>,
+        schema: SubSchema,
     ) -> Result<validation::Status, InventoryDataError<Self::Error>> {
-        let bindle = schema.into();
-        let (schema, sigs) = bindle.into_split();
         let id = schema.schema_id();
 
         let mut status = schema.verify();
@@ -390,19 +388,13 @@ impl Inventory for Stock {
             self.schemata.insert(id, schema_ifaces)?;
         }
 
-        let content_id = ContentId::Schema(id);
-        // Do not bother if we can't import all the sigs
-        self.import_sigs_internal(content_id, sigs).ok();
-
         Ok(status)
     }
 
     fn import_iface(
         &mut self,
-        iface: impl Into<Bindle<Iface>>,
+        iface: Iface,
     ) -> Result<validation::Status, InventoryDataError<Self::Error>> {
-        let bindle = iface.into();
-        let (iface, sigs) = bindle.into_split();
         let id = iface.iface_id();
 
         let mut status = validation::Status::new();
@@ -412,19 +404,13 @@ impl Inventory for Stock {
             status.add_warning(Warning::Custom(format!("interface {id::<0} is already known")));
         }
 
-        let content_id = ContentId::Iface(id);
-        // Do not bother if we can't import all the sigs
-        self.import_sigs_internal(content_id, sigs).ok();
-
         Ok(status)
     }
 
     fn import_iface_impl(
         &mut self,
-        iimpl: impl Into<Bindle<IfaceImpl>>,
+        iimpl: IfaceImpl,
     ) -> Result<validation::Status, InventoryDataError<Self::Error>> {
-        let bindle = iimpl.into();
-        let (iimpl, sigs) = bindle.into_split();
         let iface_id = iimpl.iface_id;
         let impl_id = iimpl.impl_id();
 
@@ -442,10 +428,6 @@ impl Inventory for Stock {
                 "interface implementation {impl_id::<0} is already known",
             )));
         }
-
-        let content_id = ContentId::IfaceImpl(impl_id);
-        // Do not bother if we can't import all the sigs
-        self.import_sigs_internal(content_id, sigs).ok();
 
         Ok(status)
     }

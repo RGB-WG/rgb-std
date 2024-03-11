@@ -39,9 +39,7 @@ use rgb::{
 };
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 
-use super::{
-    Bindle, BindleContent, ContainerVer, ContentId, ContentSigs, Terminal, TerminalDisclose,
-};
+use super::{ContainerVer, ContentId, ContentSigs, Terminal, TerminalDisclose};
 use crate::accessors::BundleExt;
 use crate::interface::{ContractSuppl, IfaceId, IfacePair};
 use crate::resolvers::ResolveHeight;
@@ -363,11 +361,5 @@ impl<const TYPE: bool> Consignment<TYPE> {
             attachments: self.attachments,
             signatures: self.signatures,
         }
-    }
-
-    #[inline]
-    pub fn unsigned_bindle(self) -> Bindle<Self>
-    where Self: BindleContent {
-        Bindle::new(self)
     }
 }

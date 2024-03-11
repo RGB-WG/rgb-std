@@ -1,10 +1,10 @@
 -----BEGIN STRICT TYPE LIB-----
-Id: 7kUn2VT5xKgZWCAYsa7usNsKWtQBrvyg1pdxRGtendf#tarzan-riviera-vampire
+Id: urn:ubideco:stl:7kUn2VT5xKgZWCAYsa7usNsKWtQBrvyg1pdxRGtendf#tarzan-riviera-vampire
 Name: RGB21
-Dependencies: 
-  DzTvt9gGhPUKD8Dkkjk9PDBhkJ4gtWxXWQjxnmUYLNrs#voyage-kimono-disco,
-  F5EUsi6JPh4SyHevD3pm3C5cJbPjR4kAVjrm7atC83W5#evita-weekend-cotton,
-  HX2UBak8vPsTokug1DGMDvTpzns3xUdwZ7QJdyt4qBA9#speed-atlanta-trilogy
+Dependency: DzTvt9gGhPUKD8Dkkjk9PDBhkJ4gtWxXWQjxnmUYLNrs#voyage-kimono-disco
+Dependency: F5EUsi6JPh4SyHevD3pm3C5cJbPjR4kAVjrm7atC83W5#evita-weekend-cotton
+Dependency: HX2UBak8vPsTokug1DGMDvTpzns3xUdwZ7QJdyt4qBA9#speed-atlanta-trilogy
+Checksum-SHA256: 923aa7b713ad720695d0942c2c1a5fcbd3b4b054819a3c4a93aed4520c489af8
 
 1yV;sGBE?e1k6TWEM#tEO?YD!yU6acy5+5>Uo2?YlHei-0Jn$(Q*>m}87|2^nKG`
 8%9mME##%%xSR6L+>-R@^URqP@ae>AQQb$5VZ*FvQVPkalY!hN5_Bp3Y36tDMM#=
