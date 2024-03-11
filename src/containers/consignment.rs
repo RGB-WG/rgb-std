@@ -30,7 +30,7 @@ use amplify::confinement::{
 use amplify::{ByteArray, Bytes32};
 use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
 use bp::Tx;
-use commit_verify::{CommitEncode, CommitEngine, CommitmentId, DigestExt, Sha256};
+use commit_verify::{CommitEncode, CommitEngine, CommitId, CommitmentId, DigestExt, Sha256};
 use rgb::validation::{self};
 use rgb::{
     AnchoredBundle, AssetTag, AssignmentType, AttachId, BundleId, ContractHistory, ContractId,
@@ -229,6 +229,9 @@ impl<const TYPE: bool> Consignment<TYPE> {
             signatures: none!(),
         }
     }
+
+    #[inline]
+    pub fn consignment_id(&self) -> ConsignmentId { self.commit_id() }
 
     #[inline]
     pub fn schema_id(&self) -> SchemaId { self.schema.schema_id() }
