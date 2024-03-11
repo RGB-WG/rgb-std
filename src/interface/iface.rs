@@ -60,7 +60,7 @@ impl From<Sha256> for IfaceId {
 }
 
 impl CommitmentId for IfaceId {
-    const TAG: &'static str = "urn:lnpbp:rgb:interface#2024-02-04";
+    const TAG: &'static str = "urn:lnp-bp:rgb:interface#2024-02-04";
 }
 
 impl ToBaid58<32> for IfaceId {
