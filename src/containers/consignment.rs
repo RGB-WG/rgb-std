@@ -28,7 +28,7 @@ use amplify::confinement::{
     LargeOrdSet, MediumBlob, SmallOrdMap, SmallOrdSet, TinyOrdMap, TinyOrdSet,
 };
 use amplify::{ByteArray, Bytes32};
-use armor::AsciiArmor;
+use armor::{AsciiArmor, StrictArmorError};
 use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
 use bp::Tx;
 use commit_verify::{CommitEncode, CommitEngine, CommitId, CommitmentId, DigestExt, Sha256};
@@ -367,4 +367,10 @@ impl<const TYPE: bool> Consignment<TYPE> {
             signatures: self.signatures,
         }
     }
+}
+
+impl<const TYPE: bool> FromStr for Consignment<TYPE> {
+    type Err = StrictArmorError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_ascii_armored_str(s) }
 }
