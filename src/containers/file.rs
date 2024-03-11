@@ -19,11 +19,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::fmt::Debug;
+use std::fmt::{self, Debug, Display, Formatter};
 use std::io::{self, Read, Write};
 
 use amplify::confinement::U32 as FILE_MAX_LEN;
-use armor::StrictArmor;
+use armor::{AsciiArmor, StrictArmor};
 use rgb::{Schema, SchemaRoot, SubSchema};
 use strict_encoding::{StreamReader, StreamWriter, StrictDecode, StrictEncode};
 
@@ -194,5 +194,18 @@ impl UniversalFile {
     pub fn save_file(&self, path: impl AsRef<std::path::Path>) -> Result<(), io::Error> {
         let file = std::fs::File::create(path)?;
         self.save(file)
+    }
+}
+
+impl Display for UniversalFile {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            UniversalFile::Iface(content) => Display::fmt(&content.display_ascii_armored(), f),
+            UniversalFile::Schema(content) => Display::fmt(&content.display_ascii_armored(), f),
+            UniversalFile::Impl(content) => Display::fmt(&content.display_ascii_armored(), f),
+            UniversalFile::Contract(content) => Display::fmt(&content.display_ascii_armored(), f),
+            UniversalFile::Transfer(content) => Display::fmt(&content.display_ascii_armored(), f),
+            UniversalFile::Suppl(content) => Display::fmt(&content.display_ascii_armored(), f),
+        }
     }
 }
