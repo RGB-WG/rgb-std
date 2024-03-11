@@ -22,7 +22,7 @@
 use armor::{ArmorHeader, StrictArmor};
 use commit_verify::CommitId;
 
-use crate::containers::{Consignment, ConsignmentId, Contract, Transfer};
+use crate::containers::{Consignment, ConsignmentId};
 use crate::interface::{ContractSuppl, Iface, IfaceId, IfaceImpl, ImplId, SupplId};
 
 pub const ASCII_ARMOR_NAME: &'static str = "Name";
@@ -31,11 +31,24 @@ pub const ASCII_ARMOR_SCHEMA_ID: &'static str = "Schema-Id";
 pub const ASCII_ARMOR_CONTRACT_ID: &'static str = "Contract-Id";
 pub const ASCII_ARMOR_VERSION: &'static str = "Version";
 pub const ASCII_ARMOR_TERMINAL: &'static str = "Terminal";
+pub const ASCII_ARMOR_TYPE: &'static str = "Type";
 
-impl<const TYPE: bool> Consignment<TYPE> {
-    fn _armor_headers(&self) -> Vec<ArmorHeader> {
+impl<const TYPE: bool> StrictArmor for Consignment<TYPE> {
+    type Id = ConsignmentId;
+    const PLATE_TITLE: &'static str = "RGB CONSIGNMENT";
+
+    fn armor_id(&self) -> Self::Id { self.commit_id() }
+    fn armor_headers(&self) -> Vec<ArmorHeader> {
         let mut headers = vec![
             ArmorHeader::new(ASCII_ARMOR_VERSION, self.version.to_string()),
+            ArmorHeader::new(
+                ASCII_ARMOR_TYPE,
+                if self.transfer {
+                    s!("transfer")
+                } else {
+                    s!("contract")
+                },
+            ),
             ArmorHeader::new(ASCII_ARMOR_CONTRACT_ID, self.contract_id().to_string()),
         ];
         for bundle_id in self.terminals.keys() {
@@ -43,22 +56,6 @@ impl<const TYPE: bool> Consignment<TYPE> {
         }
         headers
     }
-}
-
-impl StrictArmor for Contract {
-    type Id = ConsignmentId;
-    const PLATE_TITLE: &'static str = "RGB CONTRACT";
-
-    fn armor_id(&self) -> Self::Id { self.commit_id() }
-    fn armor_headers(&self) -> Vec<ArmorHeader> { self._armor_headers() }
-}
-
-impl StrictArmor for Transfer {
-    type Id = ConsignmentId;
-    const PLATE_TITLE: &'static str = "RGB STATE TRANSFER";
-
-    fn armor_id(&self) -> Self::Id { self.commit_id() }
-    fn armor_headers(&self) -> Vec<ArmorHeader> { self._armor_headers() }
 }
 
 impl StrictArmor for Iface {
