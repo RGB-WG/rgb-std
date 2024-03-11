@@ -23,6 +23,7 @@ license = "Apache-2.0"
 
 [workspace.dependencies]
 amplify = "4.6.0"
+ascii-armor = "0.2.0"
 baid58 = "0.4.4"
 strict_encoding = "2.7.0-beta.1"
 strict_types = "2.7.0-beta.1"
@@ -53,6 +54,7 @@ crate-type = ["cdylib", "rlib"] # We need this for WASM
 
 [dependencies]
 amplify = { workspace = true }
+ascii-armor = { workspace = true }
 strict_encoding = { workspace = true }
 strict_types = { workspace = true }
 commit_verify = { workspace = true }
@@ -93,4 +95,8 @@ wasm-bindgen-test = "0.3"
 features = ["all"]
 
 [patch.crates-io]
-rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "serde_fix" }
+strict_types = { git = "https://github.com/strict-types/strict-types", branch = "armor" }
+aluvm = { git = "https://github.com/AluVM/rust-aluvm", branch = "armor" }
+commit_verify = { git = "https://github.com/LNP-BP/client_side_validation", branch = "armor" }
+bp-core = { git = "https://github.com/BP-WG/bp-core", branch = "armor" }
+rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "armor" }

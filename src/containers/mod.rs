@@ -37,6 +37,7 @@ mod validate;
 mod certs;
 mod partials;
 mod indexed;
+mod armor;
 
 pub use bindle::{Bindle, BindleContent, BindleParseError, LoadError, UniversalBindle};
 pub use certs::{Cert, ContentId, ContentSigs, Identity};
