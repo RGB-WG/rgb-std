@@ -129,13 +129,12 @@ impl EngravingData {
         let index = TokenIndex(value.unwrap_struct("index").unwrap_num().unwrap_uint());
         let content = EmbeddedMedia::from_strict_val_unchecked(value.unwrap_struct("content"));
 
-        Self { 
-            applied_to: index, 
-            content: content,
+        Self {
+            applied_to: index,
+            content,
         }
     }
 }
-
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
@@ -546,8 +545,8 @@ impl Rgb21 {
     }
 
     pub fn engarving_data(&self) -> EngravingData {
-        let strict_val = &self 
-            .0 
+        let strict_val = &self
+            .0
             .global("engravings")
             .expect("RGB21 interface requires global state `engravings`")[0];
         EngravingData::from_strict_val_unchecked(strict_val)

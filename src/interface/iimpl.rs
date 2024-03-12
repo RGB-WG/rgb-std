@@ -318,7 +318,6 @@ impl IfacePair {
     pub fn transition_name(&self, transition_type: &TransitionType) -> Option<&TypeName> {
         self.iimpl.transition_name(transition_type.to_owned())
     }
-
 }
 
 pub trait IssuerClass {

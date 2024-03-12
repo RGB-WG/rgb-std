@@ -24,7 +24,9 @@ use std::collections::HashMap;
 use amplify::confinement::{SmallOrdSet, SmallVec};
 use invoice::{Allocation, Amount};
 use rgb::{
-    AssignmentWitness, AttachId, ContractId, ContractState, DataState, KnownState, MediaType, OpId, OutputAssignment, RevealedAttach, RevealedData, RevealedValue, VoidState, WitnessId, XOutpoint, XOutputSeal
+    AssignmentWitness, AttachId, ContractId, ContractState, DataState, KnownState, MediaType, OpId,
+    OutputAssignment, RevealedAttach, RevealedData, RevealedValue, VoidState, WitnessId, XOutpoint,
+    XOutputSeal,
 };
 use strict_encoding::{FieldName, StrictDecode, StrictDumb, StrictEncode};
 use strict_types::typify::TypedVal;
