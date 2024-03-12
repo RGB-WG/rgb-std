@@ -31,8 +31,8 @@ use strict_types::{CompileError, LibBuilder, TypeLib};
 
 use super::{
     AssignIface, BuilderError, ContractBuilder, GenesisIface, GlobalIface, Iface, IfaceClass,
-    IfaceOp, IssuerClass, OwnedIface, Req, SchemaIssuer, StateChange, TransitionIface, VerNo,
-    WitnessFilter,
+    IfaceOp, IssuerClass, OwnedIface, Req, RightsAllocation, SchemaIssuer, StateChange,
+    TransitionIface, VerNo, WitnessFilter,
 };
 use crate::containers::Contract;
 use crate::interface::builder::TxOutpoint;
@@ -376,6 +376,42 @@ impl Rgb20 {
         self.0
             .fungible("assetOwner", filter)
             .expect("RGB20 interface requires `assetOwner` state")
+    }
+
+    pub fn inflation_allowance_allocations<'c>(
+        &'c self,
+        filter: impl OutpointFilter + 'c,
+    ) -> impl Iterator<Item = FungibleAllocation> + 'c {
+        self.0
+            .fungible("inflationAllowance", filter)
+            .expect("RGB20 interface requires `inflationAllowance` state")
+    }
+
+    pub fn update_right<'c>(
+        &'c self,
+        filter: impl OutpointFilter + 'c,
+    ) -> impl Iterator<Item = RightsAllocation> + 'c {
+        self.0
+            .rights("updateRight", filter)
+            .expect("RGB20 interface requires `updateRight` state")
+    }
+
+    pub fn burn_epoch<'c>(
+        &'c self,
+        filter: impl OutpointFilter + 'c,
+    ) -> impl Iterator<Item = RightsAllocation> + 'c {
+        self.0
+            .rights("burnEpoch", filter)
+            .expect("RGB20 interface requires `burnEpoch` state")
+    }
+
+    pub fn burn_right<'c>(
+        &'c self,
+        filter: impl OutpointFilter + 'c,
+    ) -> impl Iterator<Item = RightsAllocation> + 'c {
+        self.0
+            .rights("burnRight", filter)
+            .expect("RGB20 interface requires `updateRight` state")
     }
 
     pub fn contract_data(&self) -> ContractData {
