@@ -82,10 +82,6 @@ impl KnownState for AllocatedState {}
 pub type OwnedAllocation = OutputAssignment<AllocatedState>;
 pub type RightsAllocation = OutputAssignment<VoidState>;
 pub type FungibleAllocation = OutputAssignment<Amount>;
-pub type InflationAllowanceAllocation = OutputAssignment<Amount>;
-pub type UpdateRights = OutputAssignment<VoidState>;
-pub type BurnEpoch = OutputAssignment<VoidState>;
-pub type BurnRight = OutputAssignment<VoidState>;
 pub type DataAllocation = OutputAssignment<DataState>;
 pub type AttachAllocation = OutputAssignment<AttachedState>;
 
