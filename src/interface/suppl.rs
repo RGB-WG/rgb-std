@@ -19,9 +19,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::fmt;
+use std::fmt::{Display, Formatter};
+use std::str::FromStr;
+
 use amplify::confinement::{SmallBlob, TinyOrdMap, TinyString};
-use amplify::Bytes32;
+use amplify::{ByteArray, Bytes32};
+use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
+use commit_verify::{CommitId, CommitmentId, DigestExt, Sha256};
 use rgb::{AssignmentType, ContractId, GlobalStateType};
+use strict_encoding::{StrictDeserialize, StrictSerialize};
 use strict_types::value;
 
 use crate::LIB_NAME_RGB_STD;
@@ -44,6 +51,44 @@ pub struct SupplId(
     Bytes32,
 );
 
+impl From<Sha256> for SupplId {
+    fn from(hasher: Sha256) -> Self { hasher.finish().into() }
+}
+
+impl CommitmentId for SupplId {
+    const TAG: &'static str = "urn:lnp-bp:rgb:suppl#2024-03-11";
+}
+
+impl ToBaid58<32> for SupplId {
+    const HRI: &'static str = "suppl";
+    const CHUNKING: Option<Chunking> = CHUNKING_32;
+    fn to_baid58_payload(&self) -> [u8; 32] { self.to_byte_array() }
+    fn to_baid58_string(&self) -> String { self.to_string() }
+}
+impl FromBaid58<32> for SupplId {}
+impl Display for SupplId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        if !f.alternate() {
+            f.write_str("urn:lnp-bp:suppl:")?;
+        }
+        if f.sign_minus() {
+            write!(f, "{:.2}", self.to_baid58())
+        } else {
+            write!(f, "{:#.2}", self.to_baid58())
+        }
+    }
+}
+impl FromStr for SupplId {
+    type Err = Baid58ParseError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_baid58_maybe_chunked_str(s.trim_start_matches("urn:lnp-bp:"), ':', '#')
+    }
+}
+impl SupplId {
+    pub const fn from_array(id: [u8; 32]) -> Self { Self(Bytes32::from_array(id)) }
+    pub fn to_mnemonic(&self) -> String { self.to_baid58().mnemonic() }
+}
+
 /// Contract supplement, providing non-consensus information about standard
 /// way of working with the contract data. Each contract can have only a single
 /// valid supplement; the supplement is attached to the contract via trusted
@@ -51,6 +96,8 @@ pub struct SupplId(
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
+#[derive(CommitEncode)]
+#[commit_encode(strategy = strict, id = SupplId)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
@@ -66,6 +113,13 @@ pub struct ContractSuppl {
     pub owned_state: TinyOrdMap<AssignmentType, OwnedStateSuppl>,
     /// TLV-encoded custom fields.
     pub extensions: TinyOrdMap<u16, SmallBlob>,
+}
+
+impl StrictSerialize for ContractSuppl {}
+impl StrictDeserialize for ContractSuppl {}
+
+impl ContractSuppl {
+    pub fn suppl_id(&self) -> SupplId { self.commit_id() }
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]

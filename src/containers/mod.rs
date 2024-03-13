@@ -30,19 +30,19 @@
 
 mod consignment;
 mod disclosure;
-mod bindle;
-mod transfer;
 mod seal;
 mod util;
 mod validate;
 mod certs;
 mod partials;
 mod indexed;
+mod armor;
+mod file;
 
-pub use bindle::{Bindle, BindleContent, BindleParseError, LoadError, UniversalBindle};
 pub use certs::{Cert, ContentId, ContentSigs, Identity};
-pub use consignment::{Consignment, Contract, Transfer};
+pub use consignment::{Consignment, ConsignmentId, Contract, Transfer};
 pub use disclosure::Disclosure;
+pub use file::{FileContent, LoadError, UniversalFile};
 pub use indexed::IndexedConsignment;
 pub use partials::{Batch, CloseMethodSet, Fascia, TransitionInfo};
 pub use seal::{BuilderSeal, TerminalSeal, VoutSeal};

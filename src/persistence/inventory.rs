@@ -39,8 +39,8 @@ use strict_encoding::TypeName;
 
 use crate::accessors::{BundleExt, MergeRevealError, RevealError};
 use crate::containers::{
-    Batch, Bindle, BindleContent, BuilderSeal, Cert, Consignment, ContentId, Contract, Fascia,
-    Terminal, TerminalSeal, Transfer, TransitionInfo,
+    Batch, BuilderSeal, Cert, Consignment, ContentId, Contract, Fascia, Terminal, TerminalSeal,
+    Transfer, TransitionInfo,
 };
 use crate::interface::{
     BuilderError, ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, IfaceWrapper,
@@ -319,17 +319,17 @@ pub trait Inventory: Deref<Target = Self::Stash> {
 
     fn import_schema(
         &mut self,
-        schema: impl Into<Bindle<SubSchema>>,
+        schema: SubSchema,
     ) -> Result<validation::Status, InventoryDataError<Self::Error>>;
 
     fn import_iface(
         &mut self,
-        iface: impl Into<Bindle<Iface>>,
+        iface: Iface,
     ) -> Result<validation::Status, InventoryDataError<Self::Error>>;
 
     fn import_iface_impl(
         &mut self,
-        iimpl: impl Into<Bindle<IfaceImpl>>,
+        iimpl: IfaceImpl,
     ) -> Result<validation::Status, InventoryDataError<Self::Error>>;
 
     fn import_contract<R: ResolveHeight>(
@@ -591,13 +591,11 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     fn export_contract(
         &self,
         contract_id: ContractId,
-    ) -> Result<
-        Bindle<Contract>,
-        ConsignerError<Self::Error, <<Self as Deref>::Target as Stash>::Error>,
-    > {
+    ) -> Result<Contract, ConsignerError<Self::Error, <<Self as Deref>::Target as Stash>::Error>>
+    {
         let mut consignment = self.consign::<false>(contract_id, [], [])?;
         consignment.transfer = false;
-        Ok(consignment.into())
+        Ok(consignment)
         // TODO: Add known sigs to the bindle
     }
 
@@ -711,11 +709,6 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         // TODO: Add known sigs to the consignment
 
         Ok(consignment)
-    }
-
-    fn bindle<C: BindleContent>(&self, content: C) -> Bindle<C> {
-        // TODO: Add known sigs to the bindle
-        Bindle::from(content)
     }
 
     /// Composes a batch of state transitions updating state for the provided
