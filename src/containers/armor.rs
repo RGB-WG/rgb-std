@@ -25,13 +25,13 @@ use commit_verify::CommitId;
 use crate::containers::{Consignment, ConsignmentId};
 use crate::interface::{ContractSuppl, Iface, IfaceId, IfaceImpl, ImplId, SupplId};
 
-pub const ASCII_ARMOR_NAME: &'static str = "Name";
-pub const ASCII_ARMOR_IFACE_ID: &'static str = "Interface-Id";
-pub const ASCII_ARMOR_SCHEMA_ID: &'static str = "Schema-Id";
-pub const ASCII_ARMOR_CONTRACT_ID: &'static str = "Contract-Id";
-pub const ASCII_ARMOR_VERSION: &'static str = "Version";
-pub const ASCII_ARMOR_TERMINAL: &'static str = "Terminal";
-pub const ASCII_ARMOR_TYPE: &'static str = "Type";
+pub const ASCII_ARMOR_NAME: &str = "Name";
+pub const ASCII_ARMOR_IFACE_ID: &str = "Interface-Id";
+pub const ASCII_ARMOR_SCHEMA_ID: &str = "Schema-Id";
+pub const ASCII_ARMOR_CONTRACT_ID: &str = "Contract-Id";
+pub const ASCII_ARMOR_VERSION: &str = "Version";
+pub const ASCII_ARMOR_TERMINAL: &str = "Terminal";
+pub const ASCII_ARMOR_TYPE: &str = "Type";
 
 impl<const TYPE: bool> StrictArmor for Consignment<TYPE> {
     type Id = ConsignmentId;
