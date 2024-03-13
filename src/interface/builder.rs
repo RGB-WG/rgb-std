@@ -27,7 +27,10 @@ use amplify::confinement::{Confined, TinyOrdMap, TinyOrdSet, U16};
 use amplify::{confinement, Wrapper};
 use invoice::{Allocation, Amount};
 use rgb::{
-    validation, AltLayer1, AltLayer1Set, AssetTag, Assign, AssignmentType, Assignments, BlindingFactor, ContractId, DataState, ExposedSeal, ExtensionType, FungibleType, Genesis, GenesisSeal, GlobalState, GraphSeal, Input, Layer1, Opout, RevealedAttach, RevealedData, RevealedValue, StateSchema, SubSchema, Transition, TransitionType, TypedAssigns, ValencyType, XChain, XOutpoint
+    validation, AltLayer1, AltLayer1Set, AssetTag, Assign, AssignmentType, Assignments,
+    BlindingFactor, ContractId, DataState, ExposedSeal, FungibleType, Genesis, GenesisSeal,
+    GlobalState, GraphSeal, Input, Layer1, Opout, RevealedAttach, RevealedData, RevealedValue,
+    StateSchema, SubSchema, Transition, TransitionType, TypedAssigns, XChain, XOutpoint,
 };
 use strict_encoding::{FieldName, SerializeError, StrictSerialize, TypeName};
 use strict_types::decode;
@@ -41,8 +44,6 @@ use crate::interface::{
 };
 use crate::persistence::PersistedState;
 use crate::Outpoint;
-
-use super::{ExtensionIface, ValencyIface};
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
@@ -650,14 +651,6 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             .expect("internal inconsistency")
     }
 
-    fn extension_iface(&self, ty: ExtensionType) -> &ExtensionIface {
-        let extension_name = self.iimpl.extension_name(ty).expect("reverse type");
-        self.iface
-            .extensions
-            .get(extension_name)
-            .expect("internal inconsistency")
-    }
-
     fn assignments_type(
         &self,
         name: &FieldName,
@@ -666,19 +659,6 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         let assignments = match ty {
             None => &self.iface.genesis.assignments,
             Some(ty) => &self.transition_iface(ty).assignments,
-        };
-        let name = assignments.get(name)?.name.as_ref().unwrap_or(name);
-        self.iimpl.assignments_type(name)
-    }
-
-    fn extension_assignments_type(
-        &self,
-        name: &FieldName,
-        ty: Option<ExtensionType>
-    ) -> Option<AssignmentType> {
-        let assignments = match ty {
-            None => &self.iface.genesis.assignments,
-            Some(ty) => &self.extension_iface(ty).assignments,
         };
         let name = assignments.get(name)?.name.as_ref().unwrap_or(name);
         self.iimpl.assignments_type(name)

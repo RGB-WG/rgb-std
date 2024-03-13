@@ -345,23 +345,6 @@ impl IfacePair {
     pub fn transition_name(&self, transition_type: &TransitionType) -> Option<&TypeName> {
         self.iimpl.transition_name(transition_type.to_owned())
     }
-
-    pub fn valencies_name(&self, valencies_type: &ValencyType) -> Option<&FieldName> {
-        self.iimpl.valencies_name(valencies_type.to_owned())
-    }
-
-    pub fn valencies_type(&self, name: &FieldName) -> Option<ValencyType> {
-        self.iimpl.valencies_type(name)
-    }
-
-    pub fn extension_name(&self, extension_type: &ExtensionType) -> Option<&FieldName> {
-        self.iimpl.extension_name(extension_type.to_owned())
-    }
-
-    pub fn extension_type(&self, name: &FieldName) -> Option<ExtensionType> {
-        self.iimpl.extension_type(name)
-    }
-
 }
 
 pub trait IssuerClass {

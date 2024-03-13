@@ -119,11 +119,10 @@ pub struct ValencyIface {
     pub multiple: bool,
 }
 
-
 impl ValencyIface {
     pub fn any(req: Req) -> Self {
-        ValencyIface { 
-            required: req.is_required(), 
+        ValencyIface {
+            required: req.is_required(),
             multiple: req.is_multiple(),
         }
     }
