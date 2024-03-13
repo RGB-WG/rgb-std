@@ -23,7 +23,7 @@
 
 use std::collections::{BTreeMap, HashSet};
 
-use amplify::confinement::{Confined, TinyOrdMap, TinyOrdSet, U16};
+use amplify::confinement::{Confined, SmallOrdSet, TinyOrdMap, U16};
 use amplify::{confinement, Wrapper};
 use invoice::{Allocation, Amount};
 use rgb::{
@@ -312,12 +312,17 @@ impl ContractBuilder {
         let genesis = Genesis {
             ffv: none!(),
             schema_id: schema.schema_id(),
+            flags: none!(),
+            timestamp: 0,
             testnet: self.testnet,
             alt_layers1: self.alt_layers1,
             metadata: empty!(),
             globals: global,
             assignments,
             valencies: none!(),
+            // TODO: Add APIs for providing issuer information
+            issuer: none!(),
+            script: none!(),
         };
 
         let mut contract = Contract::new(schema, genesis, asset_tags);
@@ -338,6 +343,7 @@ impl ContractBuilder {
 
 #[derive(Clone, Debug)]
 pub struct TransitionBuilder {
+    contract_id: ContractId,
     builder: OperationBuilder<GraphSeal>,
     transition_type: TransitionType,
     inputs: TinyOrdMap<Input, PersistedState>,
@@ -345,14 +351,16 @@ pub struct TransitionBuilder {
 
 impl TransitionBuilder {
     pub fn blank_transition(
+        contract_id: ContractId,
         iface: Iface,
         schema: SubSchema,
         iimpl: IfaceImpl,
     ) -> Result<Self, WrongImplementation> {
-        Self::with(iface, schema, iimpl, TransitionType::BLANK)
+        Self::with(contract_id, iface, schema, iimpl, TransitionType::BLANK)
     }
 
     pub fn default_transition(
+        contract_id: ContractId,
         iface: Iface,
         schema: SubSchema,
         iimpl: IfaceImpl,
@@ -362,10 +370,11 @@ impl TransitionBuilder {
             .as_ref()
             .and_then(|name| iimpl.transition_type(name))
             .ok_or(BuilderError::NoOperationSubtype)?;
-        Ok(Self::with(iface, schema, iimpl, transition_type)?)
+        Ok(Self::with(contract_id, iface, schema, iimpl, transition_type)?)
     }
 
     pub fn named_transition(
+        contract_id: ContractId,
         iface: Iface,
         schema: SubSchema,
         iimpl: IfaceImpl,
@@ -375,16 +384,18 @@ impl TransitionBuilder {
         let transition_type = iimpl
             .transition_type(&transition_name)
             .ok_or(BuilderError::TransitionNotFound(transition_name))?;
-        Ok(Self::with(iface, schema, iimpl, transition_type)?)
+        Ok(Self::with(contract_id, iface, schema, iimpl, transition_type)?)
     }
 
     fn with(
+        contract_id: ContractId,
         iface: Iface,
         schema: SubSchema,
         iimpl: IfaceImpl,
         transition_type: TransitionType,
     ) -> Result<Self, WrongImplementation> {
         Ok(Self {
+            contract_id,
             builder: OperationBuilder::with(iface, schema, iimpl)?,
             transition_type,
             inputs: none!(),
@@ -570,20 +581,20 @@ impl TransitionBuilder {
         Ok(self)
     }
 
-    pub fn complete_transition(self, contract_id: ContractId) -> Result<Transition, BuilderError> {
+    pub fn complete_transition(self) -> Result<Transition, BuilderError> {
         let (_, _, global, assignments, _) = self.builder.complete(Some(&self.inputs));
 
         let transition = Transition {
             ffv: none!(),
-            contract_id,
+            contract_id: self.contract_id,
             transition_type: self.transition_type,
             metadata: empty!(),
             globals: global,
-            inputs: TinyOrdSet::try_from_iter(self.inputs.into_keys())
-                .expect("same size iter")
-                .into(),
+            inputs: SmallOrdSet::from_iter_unsafe(self.inputs.into_keys()).into(),
             assignments,
             valencies: none!(),
+            witness: none!(),
+            script: none!(),
         };
 
         // TODO: Validate against schema
@@ -742,7 +753,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             .expect("schema should match interface: must be checked by the constructor")
             .sem_id;
         self.schema
-            .type_system
+            .types
             .strict_deserialize_type(sem_id, &serialized)?;
 
         self.global
@@ -972,10 +983,16 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
                 .map(|(seal, value)| {
                     blindings.push(value.blinding);
                     match seal {
-                        BuilderSeal::Revealed(seal) => Assign::Revealed { seal, state: value },
-                        BuilderSeal::Concealed(seal) => {
-                            Assign::ConfidentialSeal { seal, state: value }
-                        }
+                        BuilderSeal::Revealed(seal) => Assign::Revealed {
+                            seal,
+                            state: value,
+                            lock: none!(),
+                        },
+                        BuilderSeal::Concealed(seal) => Assign::ConfidentialSeal {
+                            seal,
+                            state: value,
+                            lock: none!(),
+                        },
                     }
                 })
                 .collect::<Vec<_>>();
@@ -1008,8 +1025,16 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         });
         let owned_data = self.data.into_iter().map(|(id, vec)| {
             let vec_data = vec.into_iter().map(|(seal, value)| match seal {
-                BuilderSeal::Revealed(seal) => Assign::Revealed { seal, state: value },
-                BuilderSeal::Concealed(seal) => Assign::ConfidentialSeal { seal, state: value },
+                BuilderSeal::Revealed(seal) => Assign::Revealed {
+                    seal,
+                    state: value,
+                    lock: none!(),
+                },
+                BuilderSeal::Concealed(seal) => Assign::ConfidentialSeal {
+                    seal,
+                    state: value,
+                    lock: none!(),
+                },
             });
             let state_data = Confined::try_from_iter(vec_data).expect("at least one element");
             let state_data = TypedAssigns::Structured(state_data);

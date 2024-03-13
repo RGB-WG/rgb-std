@@ -25,6 +25,7 @@ use std::fmt::Debug;
 
 use bp::bc::stl::bp_tx_stl;
 use invoice::{Amount, Precision};
+use rgb::Types;
 use strict_encoding::{StrictDumb, StrictEncode};
 use strict_types::stl::std_stl;
 use strict_types::{CompileError, LibBuilder, TypeLib};
@@ -153,7 +154,7 @@ pub fn rgb25() -> Iface {
         extensions: none!(),
         error_type: types.get("RGB25.Error"),
         default_operation: Some(tn!("Transfer")),
-        type_system: types.type_system(),
+        types: Types::Strict(types.type_system()),
     }
 }
 
@@ -174,9 +175,9 @@ impl From<ContractIface> for Rgb25 {
 impl IfaceWrapper for Rgb25 {
     const IFACE_NAME: &'static str = LIB_NAME_RGB25;
     const IFACE_ID: IfaceId = IfaceId::from_array([
-        0xef, 0x3f, 0x96, 0xc8, 0x5e, 0xd4, 0xde, 0xa7, 0x07, 0x18, 0x93, 0x61, 0xbf, 0x21, 0x0a,
-        0x47, 0xfe, 0x9b, 0xbf, 0xd1, 0x2f, 0xfa, 0xa8, 0xe8, 0x31, 0x25, 0xb4, 0x72, 0x55, 0x42,
-        0x62, 0xcd,
+        0x64, 0xa3, 0xa8, 0xe8, 0x08, 0x73, 0xd1, 0x0f, 0x2b, 0x59, 0xa0, 0x20, 0xa3, 0x70, 0xb5,
+        0x81, 0xa4, 0x03, 0x8c, 0x06, 0x31, 0x2c, 0x84, 0x17, 0x55, 0x17, 0x16, 0x2c, 0x73, 0xd4,
+        0xf5, 0xbc,
     ]);
 }
 
@@ -251,6 +252,7 @@ mod test {
 
     #[test]
     fn iface_id() {
+        eprintln!("{:#04x?}", rgb25().iface_id().to_byte_array());
         assert_eq!(Rgb25::IFACE_ID, rgb25().iface_id());
     }
 

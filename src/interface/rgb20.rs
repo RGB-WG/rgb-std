@@ -25,7 +25,7 @@ use std::str::FromStr;
 use bp::bc::stl::bp_tx_stl;
 use bp::dbc::Method;
 use invoice::{Amount, Precision};
-use rgb::{AltLayer1, AssetTag, BlindingFactor, GenesisSeal, WitnessId};
+use rgb::{AltLayer1, AssetTag, BlindingFactor, GenesisSeal, Types, WitnessId};
 use strict_encoding::InvalidIdent;
 use strict_types::{CompileError, LibBuilder, TypeLib};
 
@@ -242,7 +242,7 @@ fn rgb20() -> Iface {
         extensions: none!(),
         error_type: types.get("RGB20.Error"),
         default_operation: Some(tn!("Transfer")),
-        type_system: types.type_system(),
+        types: Types::Strict(types.type_system()),
     }
 }
 
@@ -315,9 +315,9 @@ impl From<ContractIface> for Rgb20 {
 impl IfaceWrapper for Rgb20 {
     const IFACE_NAME: &'static str = LIB_NAME_RGB20;
     const IFACE_ID: IfaceId = IfaceId::from_array([
-        0xab, 0xbd, 0xc0, 0x5e, 0x64, 0x29, 0xa7, 0xc7, 0xcf, 0x34, 0xf3, 0xda, 0x8c, 0x03, 0x2a,
-        0xc9, 0x0f, 0xfd, 0xd2, 0x45, 0xd6, 0x38, 0xd7, 0xfc, 0x0e, 0x05, 0x4b, 0x28, 0x4c, 0x62,
-        0x96, 0x7a,
+        0xff, 0x0b, 0x43, 0x38, 0xd2, 0xde, 0x74, 0x92, 0xfd, 0x7f, 0x80, 0x3c, 0xae, 0x5d, 0xb9,
+        0xdc, 0xd6, 0x4d, 0x8a, 0xf9, 0xd5, 0x52, 0xd0, 0x58, 0x70, 0x2a, 0x13, 0x05, 0x12, 0xd8,
+        0x61, 0x39,
     ]);
 }
 
@@ -677,6 +677,7 @@ mod test {
 
     #[test]
     fn iface_id() {
+        eprintln!("{:#04x?}", rgb20().iface_id().to_byte_array());
         assert_eq!(Rgb20::IFACE_ID, rgb20().iface_id());
     }
 

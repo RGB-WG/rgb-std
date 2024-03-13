@@ -77,6 +77,21 @@ pub struct Consignment<const TYPE: bool> {
     /// contract.
     pub transfer: bool,
 
+    /// Confidential asset tags.
+    pub asset_tags: TinyOrdMap<AssignmentType, AssetTag>,
+
+    /// Set of seals which are history terminals.
+    pub terminals: SmallOrdMap<BundleId, Terminal>,
+
+    /// Genesis data.
+    pub genesis: Genesis,
+
+    /// Data on all anchored state transitions contained in the consignments.
+    pub bundles: LargeOrdSet<AnchoredBundle>,
+
+    /// Data on all state extensions contained in the consignments.
+    pub extensions: LargeOrdSet<Extension>,
+
     /// Schema (plus root schema, if any) under which contract is issued.
     pub schema: SubSchema,
 
@@ -85,21 +100,6 @@ pub struct Consignment<const TYPE: bool> {
 
     /// Known supplements.
     pub supplements: TinyOrdSet<ContractSuppl>,
-
-    /// Confidential asset tags.
-    pub asset_tags: TinyOrdMap<AssignmentType, AssetTag>,
-
-    /// Genesis data.
-    pub genesis: Genesis,
-
-    /// Set of seals which are history terminals.
-    pub terminals: SmallOrdMap<BundleId, Terminal>,
-
-    /// Data on all anchored state transitions contained in the consignments.
-    pub bundles: LargeOrdSet<AnchoredBundle>,
-
-    /// Data on all state extensions contained in the consignments.
-    pub extensions: LargeOrdSet<Extension>,
 
     /// Data containers coming with this consignment. For the purposes of
     /// in-memory consignments we are restricting the size of the containers to

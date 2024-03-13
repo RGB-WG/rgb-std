@@ -47,11 +47,17 @@ use crate::LIB_NAME_RGB_STD;
 #[derive(Clone, Eq, PartialEq, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
 pub struct IndexedBundle(ContractId, BundleId);
 
 #[derive(Clone, Debug, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
 pub struct ContractIndex {
     public_opouts: MediumOrdSet<Opout>,
     outpoint_opouts: MediumOrdMap<XOutputSeal, MediumOrdSet<Opout>>,
@@ -641,10 +647,7 @@ impl Inventory for Stock {
         contract_id: ContractId,
         outputs: impl IntoIterator<Item = impl Into<XOutpoint>>,
     ) -> Result<BTreeMap<(Opout, XOutputSeal), PersistedState>, InventoryError<Self::Error>> {
-        let outputs = outputs
-            .into_iter()
-            .map(|o| o.into())
-            .collect::<BTreeSet<_>>();
+        let outputs: BTreeSet<XOutpoint> = outputs.into_iter().map(|o| o.into()).collect();
 
         let history = self
             .history
@@ -654,7 +657,7 @@ impl Inventory for Stock {
         let mut res = BTreeMap::new();
 
         for item in history.fungibles() {
-            if outputs.contains(&item.seal.into()) {
+            if outputs.contains::<XOutpoint>(&item.seal.into()) {
                 res.insert(
                     (item.opout, item.seal),
                     PersistedState::Amount(
@@ -667,7 +670,7 @@ impl Inventory for Stock {
         }
 
         for item in history.data() {
-            if outputs.contains(&item.seal.into()) {
+            if outputs.contains::<XOutpoint>(&item.seal.into()) {
                 res.insert(
                     (item.opout, item.seal),
                     PersistedState::Data(item.state.value.clone(), item.state.salt),
@@ -676,13 +679,13 @@ impl Inventory for Stock {
         }
 
         for item in history.rights() {
-            if outputs.contains(&item.seal.into()) {
+            if outputs.contains::<XOutpoint>(&item.seal.into()) {
                 res.insert((item.opout, item.seal), PersistedState::Void);
             }
         }
 
         for item in history.attach() {
-            if outputs.contains(&item.seal.into()) {
+            if outputs.contains::<XOutpoint>(&item.seal.into()) {
                 res.insert(
                     (item.opout, item.seal),
                     PersistedState::Attachment(item.state.clone().into(), item.state.salt),

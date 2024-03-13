@@ -28,6 +28,7 @@ use std::str::FromStr;
 use amplify::ascii::AsciiString;
 use amplify::confinement::{Confined, NonEmptyVec, SmallBlob};
 use bp::bc::stl::bp_tx_stl;
+use rgb::Types;
 use strict_encoding::stl::AsciiPrintable;
 use strict_encoding::{
     InvalidIdent, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, TypedWrite,
@@ -484,7 +485,7 @@ pub fn rgb21() -> Iface {
         extensions: none!(),
         error_type: types.get("RGB21.Error"),
         default_operation: Some(tn!("Transfer")),
-        type_system: types.type_system(),
+        types: Types::Strict(types.type_system()),
     }
 }
 
@@ -505,9 +506,9 @@ impl From<ContractIface> for Rgb21 {
 impl IfaceWrapper for Rgb21 {
     const IFACE_NAME: &'static str = LIB_NAME_RGB21;
     const IFACE_ID: IfaceId = IfaceId::from_array([
-        0xfc, 0xdb, 0xa8, 0x94, 0x6c, 0x74, 0x8b, 0x4f, 0xe2, 0xbc, 0x84, 0xd0, 0x15, 0x89, 0x64,
-        0xe8, 0xe9, 0xa9, 0xc8, 0x94, 0x89, 0xb8, 0xa2, 0x55, 0x0f, 0xa1, 0x6d, 0x36, 0x05, 0xe0,
-        0x58, 0x24,
+        0xad, 0xbf, 0x75, 0xb3, 0x38, 0xf8, 0x02, 0xd2, 0x84, 0xca, 0x13, 0x21, 0x07, 0x8b, 0xfc,
+        0x06, 0xe4, 0xcc, 0x16, 0xc4, 0x8c, 0x32, 0xe4, 0xed, 0x53, 0xa9, 0xda, 0x92, 0x4f, 0x7c,
+        0x22, 0x57,
     ]);
 }
 
@@ -577,6 +578,7 @@ mod test {
 
     #[test]
     fn iface_id() {
+        eprintln!("{:#04x?}", rgb21().iface_id().to_byte_array());
         assert_eq!(Rgb21::IFACE_ID, rgb21().iface_id());
     }
 

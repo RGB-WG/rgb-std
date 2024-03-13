@@ -192,7 +192,7 @@ impl ContractIface {
     /// implementations.
     pub fn global(&self, name: impl Into<FieldName>) -> Result<SmallVec<StrictVal>, ContractError> {
         let name = name.into();
-        let type_system = &self.state.schema.type_system;
+        let type_system = &self.state.schema.types;
         let type_id = self
             .iface
             .global_type(&name)

@@ -326,24 +326,24 @@ impl IfacePair {
         self.iimpl.global_type(name)
     }
 
-    pub fn global_name(&self, global_type: &GlobalStateType) -> Option<&FieldName> {
-        self.iimpl.global_name(global_type.to_owned())
+    pub fn global_name(&self, global_type: GlobalStateType) -> Option<&FieldName> {
+        self.iimpl.global_name(global_type)
     }
 
     pub fn assignments_type(&self, name: &FieldName) -> Option<AssignmentType> {
         self.iimpl.assignments_type(name)
     }
 
-    pub fn assignment_name(&self, assignment_type: &AssignmentType) -> Option<&FieldName> {
-        self.iimpl.assignment_name(assignment_type.to_owned())
+    pub fn assignment_name(&self, assignment_type: AssignmentType) -> Option<&FieldName> {
+        self.iimpl.assignment_name(assignment_type)
     }
 
     pub fn transition_type(&self, name: &TypeName) -> Option<TransitionType> {
         self.iimpl.transition_type(name)
     }
 
-    pub fn transition_name(&self, transition_type: &TransitionType) -> Option<&TypeName> {
-        self.iimpl.transition_name(transition_type.to_owned())
+    pub fn transition_name(&self, transition_type: TransitionType) -> Option<&TypeName> {
+        self.iimpl.transition_name(transition_type)
     }
 }
 

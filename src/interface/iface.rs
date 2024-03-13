@@ -27,12 +27,12 @@ use amplify::confinement::{TinyOrdMap, TinyOrdSet};
 use amplify::{ByteArray, Bytes32};
 use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
 use commit_verify::{CommitId, CommitmentId, DigestExt, Sha256};
-use rgb::Occurrences;
+use rgb::{Occurrences, Types};
 use strict_encoding::{
     FieldName, StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize,
     StrictType, TypeName,
 };
-use strict_types::{SemId, TypeSystem};
+use strict_types::SemId;
 
 use crate::interface::VerNo;
 use crate::LIB_NAME_RGB_STD;
@@ -359,7 +359,7 @@ pub struct Iface {
     pub extensions: TinyOrdMap<TypeName, ExtensionIface>,
     pub error_type: SemId,
     pub default_operation: Option<TypeName>,
-    pub type_system: TypeSystem,
+    pub types: Types,
 }
 
 impl PartialEq for Iface {

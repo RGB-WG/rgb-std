@@ -24,7 +24,7 @@ use std::collections::BTreeMap;
 use amplify::confinement::Confined;
 use amplify::Wrapper;
 use bp::dbc::anchor::MergeError;
-use commit_verify::mpc;
+use commit_verify::{mpc, Conceal};
 use rgb::{
     AnchorSet, Assign, Assignments, ExposedSeal, ExposedState, Extension, Genesis, OpId, Operation,
     Transition, TransitionBundle, TypedAssigns, XAnchor,
@@ -85,8 +85,7 @@ pub trait MergeRevealContract: Sized {
 
 impl<State: ExposedState, Seal: ExposedSeal> MergeReveal for Assign<State, Seal> {
     fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {
-        // TODO: Uncomment once bulletproofs will be there
-        // debug_assert_eq!(self.commitment_id(), other.commitment_id());
+        debug_assert_eq!(self.conceal(), other.conceal());
         match (self, other) {
             // Anything + Revealed = Revealed
             (_, state @ Assign::Revealed { .. }) | (state @ Assign::Revealed { .. }, _) => {
@@ -94,13 +93,37 @@ impl<State: ExposedState, Seal: ExposedSeal> MergeReveal for Assign<State, Seal>
             }
 
             // ConfidentialAmount + ConfidentialSeal = Revealed
-            (Assign::ConfidentialSeal { state, .. }, Assign::ConfidentialState { seal, .. }) => {
-                Ok(Assign::Revealed { seal, state })
+            (
+                Assign::ConfidentialSeal {
+                    state, lock: lock1, ..
+                },
+                Assign::ConfidentialState {
+                    seal, lock: lock2, ..
+                },
+            ) => {
+                debug_assert_eq!(lock1, lock2);
+                Ok(Assign::Revealed {
+                    seal,
+                    state,
+                    lock: lock1,
+                })
             }
 
             // ConfidentialSeal + ConfidentialAmount = Revealed
-            (Assign::ConfidentialState { seal, .. }, Assign::ConfidentialSeal { state, .. }) => {
-                Ok(Assign::Revealed { seal, state })
+            (
+                Assign::ConfidentialState {
+                    seal, lock: lock1, ..
+                },
+                Assign::ConfidentialSeal {
+                    state, lock: lock2, ..
+                },
+            ) => {
+                debug_assert_eq!(lock1, lock2);
+                Ok(Assign::Revealed {
+                    seal,
+                    state,
+                    lock: lock1,
+                })
             }
 
             // if self and other is of same variant return self
