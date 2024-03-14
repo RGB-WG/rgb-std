@@ -265,14 +265,14 @@ impl IfaceImpl {
             .map(|nt| nt.id)
     }
 
-    pub fn valencies_type(&self, name: &FieldName) -> Option<ValencyType> {
+    pub fn valency_type(&self, name: &FieldName) -> Option<ValencyType> {
         self.valencies
             .iter()
             .find(|nt| &nt.name == name)
             .map(|nt| nt.id)
     }
 
-    pub fn valencies_name(&self, id: ValencyType) -> Option<&FieldName> {
+    pub fn valency_name(&self, id: ValencyType) -> Option<&FieldName> {
         self.valencies
             .iter()
             .find(|nt| nt.id == id)
