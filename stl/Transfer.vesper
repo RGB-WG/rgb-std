@@ -7,7 +7,7 @@
 
 Seals vesper lexicon=types+commitments
 
-TransferId commitment hasher=SHA256 tagged=urn:lnp-bp:rgb:transfer#2024-02-04
+ConsignmentId commitment hasher=SHA256 tagged=urn:lnp-bp:rgb:consignment#2024-03-11
   ContainerVer serialized
   bool serialized
   ContractId serialized
@@ -34,471 +34,12 @@ TransferId commitment hasher=SHA256 tagged=urn:lnp-bp:rgb:transfer#2024-02-04
 Consignmenttrue rec
   version enum v2=2 -- ContainerVer
   transfer enum false=0 true=1 -- Bool
-  schema rec -- SchemaSchema
-    ffv is U16 aka=Ffv
-    flags bytes len=1 aka=ReservedBytes1
-      some rec option wrapped tag=1 -- Schema
-        ffv is U16 aka=Ffv
-        flags bytes len=1 aka=ReservedBytes1
-          some is Unit option wrapped tag=1
-        globalTypes map len=0..MAX8
-          key is U16 aka=GlobalStateType
-          GlobalStateSchema rec -- mapped to
-            semId bytes len=32 aka=SemId
-            maxItems is U16
-        ownedTypes map len=0..MAX8
-          key is U16 aka=AssignmentType
-          StateSchema union -- mapped to
-            declarative is Unit tag=0
-            fungible enum wrapped unsigned64Bit=8 tag=1 -- FungibleType
-            structured bytes len=32 wrapped aka=SemId tag=2
-            attachment enum wrapped any=255 tag=3 -- MediaType
-        valencyTypes set len=0..MAX8
-          element is U16 aka=ValencyType
-        genesis rec -- GenesisSchema
-          metadata bytes len=32 aka=SemId
-          globals map len=0..MAX8
-            key is U16 aka=GlobalStateType
-            Occurrences rec -- mapped to
-              min is U16
-              max is U16
-          assignments map len=0..MAX8
-            key is U16 aka=AssignmentType
-            Occurrences rec -- mapped to
-              min is U16
-              max is U16
-          valencies set len=0..MAX8
-            element is U16 aka=ValencyType
-        extensions map len=0..MAX8
-          key is U16 aka=ExtensionType
-          ExtensionSchema rec -- mapped to
-            metadata bytes len=32 aka=SemId
-            globals map len=0..MAX8
-              key is U16 aka=GlobalStateType
-              Occurrences rec -- mapped to
-                min is U16
-                max is U16
-            redeems set len=0..MAX8
-              element is U16 aka=ValencyType
-            assignments map len=0..MAX8
-              key is U16 aka=AssignmentType
-              Occurrences rec -- mapped to
-                min is U16
-                max is U16
-            valencies set len=0..MAX8
-              element is U16 aka=ValencyType
-        transitions map len=0..MAX8
-          key is U16 aka=TransitionType
-          TransitionSchema rec -- mapped to
-            metadata bytes len=32 aka=SemId
-            globals map len=0..MAX8
-              key is U16 aka=GlobalStateType
-              Occurrences rec -- mapped to
-                min is U16
-                max is U16
-            inputs map len=0..MAX8
-              key is U16 aka=AssignmentType
-              Occurrences rec -- mapped to
-                min is U16
-                max is U16
-            assignments map len=0..MAX8
-              key is U16 aka=AssignmentType
-              Occurrences rec -- mapped to
-                min is U16
-                max is U16
-            valencies set len=0..MAX8
-              element is U16 aka=ValencyType
-        typeSystem map len=0..MAX24 aka=TypeSystem
-          key bytes len=32 aka=SemId
-          TySemId union -- mapped to
-            primitive is U8 wrapped aka=Primitive tag=0
-            unicode is Unit tag=1
-            enum set len=1..MAX8 wrapped aka=EnumVariants tag=2
-              Variant rec
-                name ascii len=1..100 aka=VariantName aka=Ident charset=AlphaNumLodash
-                tag is U8
-            union map len=0..MAX8 wrapped aka=UnionVariantsSemId tag=3
-              key is U8
-              VariantInfoSemId rec -- mapped to
-                name ascii len=1..100 aka=VariantName aka=Ident charset=AlphaNumLodash
-                ty bytes len=32 aka=SemId
-            tuple list len=1..MAX8 wrapped aka=UnnamedFieldsSemId tag=4
-              element bytes len=32 aka=SemId
-            struct list len=1..MAX8 wrapped aka=NamedFieldsSemId tag=5
-              FieldSemId rec
-                name ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-                ty bytes len=32 aka=SemId
-            array tuple tag=6
-              _ bytes len=32 aka=SemId
-              _ is U16
-            list tuple tag=7
-              _ bytes len=32 aka=SemId
-              Sizing rec
-                min is U64
-                max is U64
-            set tuple tag=8
-              _ bytes len=32 aka=SemId
-              Sizing rec
-                min is U64
-                max is U64
-            map tuple tag=9
-              _ bytes len=32 aka=SemId
-              _ bytes len=32 aka=SemId
-              Sizing rec
-                min is U64
-                max is U64
-        script union -- Script
-          aluVm rec wrapped tag=0 -- AluScript
-            libs map len=0..MAX8
-              key bytes len=32 aka=LibId
-              value bytes len=0..MAX16
-            entryPoints map len=0..MAX16
-              key bytes len=3
-              LibSite rec -- mapped to
-                lib bytes len=32 aka=LibId
-                pos is U16
-    globalTypes map len=0..MAX8
-      key is U16 aka=GlobalStateType
-      GlobalStateSchema rec -- mapped to
-        semId bytes len=32 aka=SemId
-        maxItems is U16
-    ownedTypes map len=0..MAX8
-      key is U16 aka=AssignmentType
-      StateSchema union -- mapped to
-        declarative is Unit tag=0
-        fungible enum wrapped unsigned64Bit=8 tag=1 -- FungibleType
-        structured bytes len=32 wrapped aka=SemId tag=2
-        attachment enum wrapped any=255 tag=3 -- MediaType
-    valencyTypes set len=0..MAX8
-      element is U16 aka=ValencyType
-    genesis rec -- GenesisSchema
-      metadata bytes len=32 aka=SemId
-      globals map len=0..MAX8
-        key is U16 aka=GlobalStateType
-        Occurrences rec -- mapped to
-          min is U16
-          max is U16
-      assignments map len=0..MAX8
-        key is U16 aka=AssignmentType
-        Occurrences rec -- mapped to
-          min is U16
-          max is U16
-      valencies set len=0..MAX8
-        element is U16 aka=ValencyType
-    extensions map len=0..MAX8
-      key is U16 aka=ExtensionType
-      ExtensionSchema rec -- mapped to
-        metadata bytes len=32 aka=SemId
-        globals map len=0..MAX8
-          key is U16 aka=GlobalStateType
-          Occurrences rec -- mapped to
-            min is U16
-            max is U16
-        redeems set len=0..MAX8
-          element is U16 aka=ValencyType
-        assignments map len=0..MAX8
-          key is U16 aka=AssignmentType
-          Occurrences rec -- mapped to
-            min is U16
-            max is U16
-        valencies set len=0..MAX8
-          element is U16 aka=ValencyType
-    transitions map len=0..MAX8
-      key is U16 aka=TransitionType
-      TransitionSchema rec -- mapped to
-        metadata bytes len=32 aka=SemId
-        globals map len=0..MAX8
-          key is U16 aka=GlobalStateType
-          Occurrences rec -- mapped to
-            min is U16
-            max is U16
-        inputs map len=0..MAX8
-          key is U16 aka=AssignmentType
-          Occurrences rec -- mapped to
-            min is U16
-            max is U16
-        assignments map len=0..MAX8
-          key is U16 aka=AssignmentType
-          Occurrences rec -- mapped to
-            min is U16
-            max is U16
-        valencies set len=0..MAX8
-          element is U16 aka=ValencyType
-    typeSystem map len=0..MAX24 aka=TypeSystem
-      key bytes len=32 aka=SemId
-      TySemId union -- mapped to
-        primitive is U8 wrapped aka=Primitive tag=0
-        unicode is Unit tag=1
-        enum set len=1..MAX8 wrapped aka=EnumVariants tag=2
-          Variant rec
-            name ascii len=1..100 aka=VariantName aka=Ident charset=AlphaNumLodash
-            tag is U8
-        union map len=0..MAX8 wrapped aka=UnionVariantsSemId tag=3
-          key is U8
-          VariantInfoSemId rec -- mapped to
-            name ascii len=1..100 aka=VariantName aka=Ident charset=AlphaNumLodash
-            ty bytes len=32 aka=SemId
-        tuple list len=1..MAX8 wrapped aka=UnnamedFieldsSemId tag=4
-          element bytes len=32 aka=SemId
-        struct list len=1..MAX8 wrapped aka=NamedFieldsSemId tag=5
-          FieldSemId rec
-            name ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-            ty bytes len=32 aka=SemId
-        array tuple tag=6
-          _ bytes len=32 aka=SemId
-          _ is U16
-        list tuple tag=7
-          _ bytes len=32 aka=SemId
-          Sizing rec
-            min is U64
-            max is U64
-        set tuple tag=8
-          _ bytes len=32 aka=SemId
-          Sizing rec
-            min is U64
-            max is U64
-        map tuple tag=9
-          _ bytes len=32 aka=SemId
-          _ bytes len=32 aka=SemId
-          Sizing rec
-            min is U64
-            max is U64
-    script union -- Script
-      aluVm rec wrapped tag=0 -- AluScript
-        libs map len=0..MAX8
-          key bytes len=32 aka=LibId
-          value bytes len=0..MAX16
-        entryPoints map len=0..MAX16
-          key bytes len=3
-          LibSite rec -- mapped to
-            lib bytes len=32 aka=LibId
-            pos is U16
-  ifaces map len=0..MAX8
-    key bytes len=32 aka=IfaceId
-    IfacePair rec -- mapped to
-      iface rec -- Iface
-        version enum v1=0 -- VerNo
-        name ascii len=1..100 aka=TypeName aka=Ident charset=AlphaNumLodash
-        globalState map len=0..MAX8
-          key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-          GlobalIface rec -- mapped to
-            some bytes len=32 option wrapped aka=SemId tag=1
-            required enum false=0 true=1 -- Bool
-            multiple enum false=0 true=1 -- Bool
-        assignments map len=0..MAX8
-          key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-          AssignIface rec -- mapped to
-            ownedState union -- OwnedIface
-              any is Unit tag=0
-              rights is Unit tag=1
-              amount is Unit tag=2
-              anyData is Unit tag=3
-              anyAttach is Unit tag=4
-              data bytes len=32 wrapped aka=SemId tag=5
-            public enum false=0 true=1 -- Bool
-            required enum false=0 true=1 -- Bool
-            multiple enum false=0 true=1 -- Bool
-        valencies map len=0..MAX8
-          key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-          ValencyIface rec -- mapped to
-            required enum false=0 true=1 -- Bool
-            multiple enum false=0 true=1 -- Bool
-        genesis rec -- GenesisIface
-          some bytes len=32 option wrapped aka=SemId tag=1
-          global map len=0..MAX8
-            key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-            ArgSpec rec -- mapped to
-              some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
-              req rec -- Occurrences
-                min is U16
-                max is U16
-          assignments map len=0..MAX8
-            key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-            ArgSpec rec -- mapped to
-              some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
-              req rec -- Occurrences
-                min is U16
-                max is U16
-          valencies map len=0..MAX8
-            key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-            ArgSpec rec -- mapped to
-              some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
-              req rec -- Occurrences
-                min is U16
-                max is U16
-          errors set len=0..MAX8
-            element is U8
-        transitions map len=0..MAX8
-          key ascii len=1..100 aka=TypeName aka=Ident charset=AlphaNumLodash
-          TransitionIface rec -- mapped to
-            optional enum false=0 true=1 -- Bool
-              some bytes len=32 option wrapped aka=SemId tag=1
-            globals map len=0..MAX8
-              key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-              ArgSpec rec -- mapped to
-                some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
-                req rec -- Occurrences
-                  min is U16
-                  max is U16
-            inputs map len=0..MAX8
-              key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-              ArgSpec rec -- mapped to
-                some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
-                req rec -- Occurrences
-                  min is U16
-                  max is U16
-            assignments map len=0..MAX8
-              key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-              ArgSpec rec -- mapped to
-                some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
-                req rec -- Occurrences
-                  min is U16
-                  max is U16
-            valencies map len=0..MAX8
-              key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-              ArgSpec rec -- mapped to
-                some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
-                req rec -- Occurrences
-                  min is U16
-                  max is U16
-            errors set len=0..MAX8
-              element is U8
-              some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
-        extensions map len=0..MAX8
-          key ascii len=1..100 aka=TypeName aka=Ident charset=AlphaNumLodash
-          ExtensionIface rec -- mapped to
-            some bytes len=32 option wrapped aka=SemId tag=1
-            globals map len=0..MAX8
-              key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-              ArgSpec rec -- mapped to
-                some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
-                req rec -- Occurrences
-                  min is U16
-                  max is U16
-            redeems map len=0..MAX8
-              key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-              ArgSpec rec -- mapped to
-                some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
-                req rec -- Occurrences
-                  min is U16
-                  max is U16
-            assignments map len=0..MAX8
-              key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-              ArgSpec rec -- mapped to
-                some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
-                req rec -- Occurrences
-                  min is U16
-                  max is U16
-            valencies map len=0..MAX8
-              key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-              ArgSpec rec -- mapped to
-                some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
-                req rec -- Occurrences
-                  min is U16
-                  max is U16
-            errors set len=0..MAX8
-              element is U8
-        errorType bytes len=32 aka=SemId
-          some ascii len=1..100 option wrapped aka=TypeName aka=Ident charset=AlphaNumLodash tag=1
-        typeSystem map len=0..MAX24 aka=TypeSystem
-          key bytes len=32 aka=SemId
-          TySemId union -- mapped to
-            primitive is U8 wrapped aka=Primitive tag=0
-            unicode is Unit tag=1
-            enum set len=1..MAX8 wrapped aka=EnumVariants tag=2
-              Variant rec
-                name ascii len=1..100 aka=VariantName aka=Ident charset=AlphaNumLodash
-                tag is U8
-            union map len=0..MAX8 wrapped aka=UnionVariantsSemId tag=3
-              key is U8
-              VariantInfoSemId rec -- mapped to
-                name ascii len=1..100 aka=VariantName aka=Ident charset=AlphaNumLodash
-                ty bytes len=32 aka=SemId
-            tuple list len=1..MAX8 wrapped aka=UnnamedFieldsSemId tag=4
-              element bytes len=32 aka=SemId
-            struct list len=1..MAX8 wrapped aka=NamedFieldsSemId tag=5
-              FieldSemId rec
-                name ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-                ty bytes len=32 aka=SemId
-            array tuple tag=6
-              _ bytes len=32 aka=SemId
-              _ is U16
-            list tuple tag=7
-              _ bytes len=32 aka=SemId
-              Sizing rec
-                min is U64
-                max is U64
-            set tuple tag=8
-              _ bytes len=32 aka=SemId
-              Sizing rec
-                min is U64
-                max is U64
-            map tuple tag=9
-              _ bytes len=32 aka=SemId
-              _ bytes len=32 aka=SemId
-              Sizing rec
-                min is U64
-                max is U64
-      iimpl rec -- IfaceImpl
-        version enum v1=0 -- VerNo
-        schemaId bytes len=32 aka=SchemaId
-        ifaceId bytes len=32 aka=IfaceId
-        globalState set len=0..MAX8
-          NamedFieldGlobalStateType rec
-            id is U16 aka=GlobalStateType
-            name ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-        assignments set len=0..MAX8
-          NamedFieldAssignmentType rec
-            id is U16 aka=AssignmentType
-            name ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-        valencies set len=0..MAX8
-          NamedFieldValencyType rec
-            id is U16 aka=ValencyType
-            name ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-        transitions set len=0..MAX8
-          NamedTypeTransitionType rec
-            id is U16 aka=TransitionType
-            name ascii len=1..100 aka=TypeName aka=Ident charset=AlphaNumLodash
-        extensions set len=0..MAX8
-          NamedFieldExtensionType rec
-            id is U16 aka=ExtensionType
-            name ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-        script union -- Script
-          aluVm rec wrapped tag=0 -- AluScript
-            libs map len=0..MAX8
-              key bytes len=32 aka=LibId
-              value bytes len=0..MAX16
-            entryPoints map len=0..MAX16
-              key bytes len=3
-              LibSite rec -- mapped to
-                lib bytes len=32 aka=LibId
-                pos is U16
-  supplements set len=0..MAX8
-    ContractSuppl rec
-      contractId bytes len=32 aka=ContractId
-      ticker union -- TickerSuppl
-        absent is Unit tag=0
-        global tuple tag=1
-          _ is U16 aka=GlobalStateType
-        owned tuple tag=2
-          _ is U16 aka=AssignmentType
-      mediaKit str len=0..MAX8
-      globalState map len=0..MAX8
-        key is U16 aka=AssignmentType
-        OwnedStateSuppl rec -- mapped to
-          meaning str len=0..MAX8
-          velocity enum unspecified=0 seldom=15 episodic=31 regular=63 frequent=127 highFrequency=255 -- VelocityHint
-      ownedState map len=0..MAX8
-        key is U16 aka=AssignmentType
-        OwnedStateSuppl rec -- mapped to
-          meaning str len=0..MAX8
-          velocity enum unspecified=0 seldom=15 episodic=31 regular=63 frequent=127 highFrequency=255 -- VelocityHint
-      extensions map len=0..MAX8
-        key is U16
-        value bytes len=0..MAX16
   assetTags map len=0..MAX8
     key is U16 aka=AssignmentType
     value bytes len=32 aka=AssetTag
+  terminals map len=0..MAX16
+    Terminal rec -- mapped to
+      seals set len=0..MAX16
   genesis rec -- Genesis
     ffv is U16 aka=Ffv
     schemaId bytes len=32 aka=SchemaId
@@ -711,9 +252,6 @@ Consignmenttrue rec
       element is U16 aka=ValencyType
     issuer bytes len=0..MAX16 aka=Issuer
     script bytes len=1 aka=ReservedBytes1
-  terminals map len=0..MAX16
-    Terminal rec -- mapped to
-      seals set len=0..MAX16
   bundles set len=0..MAX32
     AnchoredBundle rec
       anchor union -- XChainAnchorSet
@@ -1266,6 +804,471 @@ Consignmenttrue rec
         element is U16 aka=ValencyType
       witness bytes len=1 aka=ReservedBytes1
       script bytes len=1 aka=ReservedBytes1
+  schema rec -- SchemaSchema
+    ffv is U16 aka=Ffv
+    flags bytes len=1 aka=ReservedBytes1
+      some rec option wrapped tag=1 -- Schema
+        ffv is U16 aka=Ffv
+        flags bytes len=1 aka=ReservedBytes1
+          some is Unit option wrapped tag=1
+        globalTypes map len=0..MAX8
+          key is U16 aka=GlobalStateType
+          GlobalStateSchema rec -- mapped to
+            semId bytes len=32 aka=SemId
+            maxItems is U16
+        ownedTypes map len=0..MAX8
+          key is U16 aka=AssignmentType
+          StateSchema union -- mapped to
+            declarative is Unit tag=0
+            fungible enum wrapped unsigned64Bit=8 tag=1 -- FungibleType
+            structured bytes len=32 wrapped aka=SemId tag=2
+            attachment enum wrapped any=255 tag=3 -- MediaType
+        valencyTypes set len=0..MAX8
+          element is U16 aka=ValencyType
+        genesis rec -- GenesisSchema
+          metadata bytes len=32 aka=SemId
+          globals map len=0..MAX8
+            key is U16 aka=GlobalStateType
+            Occurrences rec -- mapped to
+              min is U16
+              max is U16
+          assignments map len=0..MAX8
+            key is U16 aka=AssignmentType
+            Occurrences rec -- mapped to
+              min is U16
+              max is U16
+          valencies set len=0..MAX8
+            element is U16 aka=ValencyType
+        extensions map len=0..MAX8
+          key is U16 aka=ExtensionType
+          ExtensionSchema rec -- mapped to
+            metadata bytes len=32 aka=SemId
+            globals map len=0..MAX8
+              key is U16 aka=GlobalStateType
+              Occurrences rec -- mapped to
+                min is U16
+                max is U16
+            redeems set len=0..MAX8
+              element is U16 aka=ValencyType
+            assignments map len=0..MAX8
+              key is U16 aka=AssignmentType
+              Occurrences rec -- mapped to
+                min is U16
+                max is U16
+            valencies set len=0..MAX8
+              element is U16 aka=ValencyType
+        transitions map len=0..MAX8
+          key is U16 aka=TransitionType
+          TransitionSchema rec -- mapped to
+            metadata bytes len=32 aka=SemId
+            globals map len=0..MAX8
+              key is U16 aka=GlobalStateType
+              Occurrences rec -- mapped to
+                min is U16
+                max is U16
+            inputs map len=0..MAX8
+              key is U16 aka=AssignmentType
+              Occurrences rec -- mapped to
+                min is U16
+                max is U16
+            assignments map len=0..MAX8
+              key is U16 aka=AssignmentType
+              Occurrences rec -- mapped to
+                min is U16
+                max is U16
+            valencies set len=0..MAX8
+              element is U16 aka=ValencyType
+        types union -- Types
+          strict map len=0..MAX24 wrapped aka=TypeSystem tag=0
+            key bytes len=32 aka=SemId
+            TySemId union -- mapped to
+              primitive is U8 wrapped aka=Primitive tag=0
+              unicode is Unit tag=1
+              enum set len=1..MAX8 wrapped aka=EnumVariants tag=2
+                Variant rec
+                  name ascii len=1..100 aka=VariantName aka=Ident charset=AlphaNumLodash
+                  tag is U8
+              union map len=0..MAX8 wrapped aka=UnionVariantsSemId tag=3
+                key is U8
+                VariantInfoSemId rec -- mapped to
+                  name ascii len=1..100 aka=VariantName aka=Ident charset=AlphaNumLodash
+                  ty bytes len=32 aka=SemId
+              tuple list len=1..MAX8 wrapped aka=UnnamedFieldsSemId tag=4
+                element bytes len=32 aka=SemId
+              struct list len=1..MAX8 wrapped aka=NamedFieldsSemId tag=5
+                FieldSemId rec
+                  name ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
+                  ty bytes len=32 aka=SemId
+              array tuple tag=6
+                _ bytes len=32 aka=SemId
+                _ is U16
+              list tuple tag=7
+                _ bytes len=32 aka=SemId
+                Sizing rec
+                  min is U64
+                  max is U64
+              set tuple tag=8
+                _ bytes len=32 aka=SemId
+                Sizing rec
+                  min is U64
+                  max is U64
+              map tuple tag=9
+                _ bytes len=32 aka=SemId
+                _ bytes len=32 aka=SemId
+                Sizing rec
+                  min is U64
+                  max is U64
+        script union -- Script
+          aluVm rec wrapped tag=0 -- AluScript
+            libs map len=0..MAX8
+              key bytes len=32 aka=LibId
+              value bytes len=0..MAX16
+            entryPoints map len=0..MAX16
+              key bytes len=3
+              LibSite rec -- mapped to
+                lib bytes len=32 aka=LibId
+                pos is U16
+    globalTypes map len=0..MAX8
+      key is U16 aka=GlobalStateType
+      GlobalStateSchema rec -- mapped to
+        semId bytes len=32 aka=SemId
+        maxItems is U16
+    ownedTypes map len=0..MAX8
+      key is U16 aka=AssignmentType
+      StateSchema union -- mapped to
+        declarative is Unit tag=0
+        fungible enum wrapped unsigned64Bit=8 tag=1 -- FungibleType
+        structured bytes len=32 wrapped aka=SemId tag=2
+        attachment enum wrapped any=255 tag=3 -- MediaType
+    valencyTypes set len=0..MAX8
+      element is U16 aka=ValencyType
+    genesis rec -- GenesisSchema
+      metadata bytes len=32 aka=SemId
+      globals map len=0..MAX8
+        key is U16 aka=GlobalStateType
+        Occurrences rec -- mapped to
+          min is U16
+          max is U16
+      assignments map len=0..MAX8
+        key is U16 aka=AssignmentType
+        Occurrences rec -- mapped to
+          min is U16
+          max is U16
+      valencies set len=0..MAX8
+        element is U16 aka=ValencyType
+    extensions map len=0..MAX8
+      key is U16 aka=ExtensionType
+      ExtensionSchema rec -- mapped to
+        metadata bytes len=32 aka=SemId
+        globals map len=0..MAX8
+          key is U16 aka=GlobalStateType
+          Occurrences rec -- mapped to
+            min is U16
+            max is U16
+        redeems set len=0..MAX8
+          element is U16 aka=ValencyType
+        assignments map len=0..MAX8
+          key is U16 aka=AssignmentType
+          Occurrences rec -- mapped to
+            min is U16
+            max is U16
+        valencies set len=0..MAX8
+          element is U16 aka=ValencyType
+    transitions map len=0..MAX8
+      key is U16 aka=TransitionType
+      TransitionSchema rec -- mapped to
+        metadata bytes len=32 aka=SemId
+        globals map len=0..MAX8
+          key is U16 aka=GlobalStateType
+          Occurrences rec -- mapped to
+            min is U16
+            max is U16
+        inputs map len=0..MAX8
+          key is U16 aka=AssignmentType
+          Occurrences rec -- mapped to
+            min is U16
+            max is U16
+        assignments map len=0..MAX8
+          key is U16 aka=AssignmentType
+          Occurrences rec -- mapped to
+            min is U16
+            max is U16
+        valencies set len=0..MAX8
+          element is U16 aka=ValencyType
+    types union -- Types
+      strict map len=0..MAX24 wrapped aka=TypeSystem tag=0
+        key bytes len=32 aka=SemId
+        TySemId union -- mapped to
+          primitive is U8 wrapped aka=Primitive tag=0
+          unicode is Unit tag=1
+          enum set len=1..MAX8 wrapped aka=EnumVariants tag=2
+            Variant rec
+              name ascii len=1..100 aka=VariantName aka=Ident charset=AlphaNumLodash
+              tag is U8
+          union map len=0..MAX8 wrapped aka=UnionVariantsSemId tag=3
+            key is U8
+            VariantInfoSemId rec -- mapped to
+              name ascii len=1..100 aka=VariantName aka=Ident charset=AlphaNumLodash
+              ty bytes len=32 aka=SemId
+          tuple list len=1..MAX8 wrapped aka=UnnamedFieldsSemId tag=4
+            element bytes len=32 aka=SemId
+          struct list len=1..MAX8 wrapped aka=NamedFieldsSemId tag=5
+            FieldSemId rec
+              name ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
+              ty bytes len=32 aka=SemId
+          array tuple tag=6
+            _ bytes len=32 aka=SemId
+            _ is U16
+          list tuple tag=7
+            _ bytes len=32 aka=SemId
+            Sizing rec
+              min is U64
+              max is U64
+          set tuple tag=8
+            _ bytes len=32 aka=SemId
+            Sizing rec
+              min is U64
+              max is U64
+          map tuple tag=9
+            _ bytes len=32 aka=SemId
+            _ bytes len=32 aka=SemId
+            Sizing rec
+              min is U64
+              max is U64
+    script union -- Script
+      aluVm rec wrapped tag=0 -- AluScript
+        libs map len=0..MAX8
+          key bytes len=32 aka=LibId
+          value bytes len=0..MAX16
+        entryPoints map len=0..MAX16
+          key bytes len=3
+          LibSite rec -- mapped to
+            lib bytes len=32 aka=LibId
+            pos is U16
+  ifaces map len=0..MAX8
+    key bytes len=32 aka=IfaceId
+    IfacePair rec -- mapped to
+      iface rec -- Iface
+        version enum v1=0 -- VerNo
+        name ascii len=1..100 aka=TypeName aka=Ident charset=AlphaNumLodash
+        globalState map len=0..MAX8
+          key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
+          GlobalIface rec -- mapped to
+            some bytes len=32 option wrapped aka=SemId tag=1
+            required enum false=0 true=1 -- Bool
+            multiple enum false=0 true=1 -- Bool
+        assignments map len=0..MAX8
+          key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
+          AssignIface rec -- mapped to
+            ownedState union -- OwnedIface
+              any is Unit tag=0
+              rights is Unit tag=1
+              amount is Unit tag=2
+              anyData is Unit tag=3
+              anyAttach is Unit tag=4
+              data bytes len=32 wrapped aka=SemId tag=5
+            public enum false=0 true=1 -- Bool
+            required enum false=0 true=1 -- Bool
+            multiple enum false=0 true=1 -- Bool
+        valencies map len=0..MAX8
+          key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
+          ValencyIface rec -- mapped to
+            required enum false=0 true=1 -- Bool
+            multiple enum false=0 true=1 -- Bool
+        genesis rec -- GenesisIface
+          some bytes len=32 option wrapped aka=SemId tag=1
+          global map len=0..MAX8
+            key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
+            ArgSpec rec -- mapped to
+              some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
+              req rec -- Occurrences
+                min is U16
+                max is U16
+          assignments map len=0..MAX8
+            key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
+            ArgSpec rec -- mapped to
+              some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
+              req rec -- Occurrences
+                min is U16
+                max is U16
+          valencies map len=0..MAX8
+            key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
+            ArgSpec rec -- mapped to
+              some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
+              req rec -- Occurrences
+                min is U16
+                max is U16
+          errors set len=0..MAX8
+            element is U8
+        transitions map len=0..MAX8
+          key ascii len=1..100 aka=TypeName aka=Ident charset=AlphaNumLodash
+          TransitionIface rec -- mapped to
+            optional enum false=0 true=1 -- Bool
+              some bytes len=32 option wrapped aka=SemId tag=1
+            globals map len=0..MAX8
+              key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
+              ArgSpec rec -- mapped to
+                some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
+                req rec -- Occurrences
+                  min is U16
+                  max is U16
+            inputs map len=0..MAX8
+              key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
+              ArgSpec rec -- mapped to
+                some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
+                req rec -- Occurrences
+                  min is U16
+                  max is U16
+            assignments map len=0..MAX8
+              key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
+              ArgSpec rec -- mapped to
+                some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
+                req rec -- Occurrences
+                  min is U16
+                  max is U16
+            valencies map len=0..MAX8
+              key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
+              ArgSpec rec -- mapped to
+                some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
+                req rec -- Occurrences
+                  min is U16
+                  max is U16
+            errors set len=0..MAX8
+              element is U8
+              some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
+        extensions map len=0..MAX8
+          key ascii len=1..100 aka=TypeName aka=Ident charset=AlphaNumLodash
+          ExtensionIface rec -- mapped to
+            some bytes len=32 option wrapped aka=SemId tag=1
+            globals map len=0..MAX8
+              key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
+              ArgSpec rec -- mapped to
+                some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
+                req rec -- Occurrences
+                  min is U16
+                  max is U16
+            redeems map len=0..MAX8
+              key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
+              ArgSpec rec -- mapped to
+                some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
+                req rec -- Occurrences
+                  min is U16
+                  max is U16
+            assignments map len=0..MAX8
+              key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
+              ArgSpec rec -- mapped to
+                some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
+                req rec -- Occurrences
+                  min is U16
+                  max is U16
+            valencies map len=0..MAX8
+              key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
+              ArgSpec rec -- mapped to
+                some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
+                req rec -- Occurrences
+                  min is U16
+                  max is U16
+            errors set len=0..MAX8
+              element is U8
+        errorType bytes len=32 aka=SemId
+          some ascii len=1..100 option wrapped aka=TypeName aka=Ident charset=AlphaNumLodash tag=1
+        types union -- Types
+          strict map len=0..MAX24 wrapped aka=TypeSystem tag=0
+            key bytes len=32 aka=SemId
+            TySemId union -- mapped to
+              primitive is U8 wrapped aka=Primitive tag=0
+              unicode is Unit tag=1
+              enum set len=1..MAX8 wrapped aka=EnumVariants tag=2
+                Variant rec
+                  name ascii len=1..100 aka=VariantName aka=Ident charset=AlphaNumLodash
+                  tag is U8
+              union map len=0..MAX8 wrapped aka=UnionVariantsSemId tag=3
+                key is U8
+                VariantInfoSemId rec -- mapped to
+                  name ascii len=1..100 aka=VariantName aka=Ident charset=AlphaNumLodash
+                  ty bytes len=32 aka=SemId
+              tuple list len=1..MAX8 wrapped aka=UnnamedFieldsSemId tag=4
+                element bytes len=32 aka=SemId
+              struct list len=1..MAX8 wrapped aka=NamedFieldsSemId tag=5
+                FieldSemId rec
+                  name ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
+                  ty bytes len=32 aka=SemId
+              array tuple tag=6
+                _ bytes len=32 aka=SemId
+                _ is U16
+              list tuple tag=7
+                _ bytes len=32 aka=SemId
+                Sizing rec
+                  min is U64
+                  max is U64
+              set tuple tag=8
+                _ bytes len=32 aka=SemId
+                Sizing rec
+                  min is U64
+                  max is U64
+              map tuple tag=9
+                _ bytes len=32 aka=SemId
+                _ bytes len=32 aka=SemId
+                Sizing rec
+                  min is U64
+                  max is U64
+      iimpl rec -- IfaceImpl
+        version enum v1=0 -- VerNo
+        schemaId bytes len=32 aka=SchemaId
+        ifaceId bytes len=32 aka=IfaceId
+        globalState set len=0..MAX8
+          NamedFieldGlobalStateType rec
+            id is U16 aka=GlobalStateType
+            name ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
+        assignments set len=0..MAX8
+          NamedFieldAssignmentType rec
+            id is U16 aka=AssignmentType
+            name ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
+        valencies set len=0..MAX8
+          NamedFieldValencyType rec
+            id is U16 aka=ValencyType
+            name ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
+        transitions set len=0..MAX8
+          NamedTypeTransitionType rec
+            id is U16 aka=TransitionType
+            name ascii len=1..100 aka=TypeName aka=Ident charset=AlphaNumLodash
+        extensions set len=0..MAX8
+          NamedFieldExtensionType rec
+            id is U16 aka=ExtensionType
+            name ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
+        script union -- Script
+          aluVm rec wrapped tag=0 -- AluScript
+            libs map len=0..MAX8
+              key bytes len=32 aka=LibId
+              value bytes len=0..MAX16
+            entryPoints map len=0..MAX16
+              key bytes len=3
+              LibSite rec -- mapped to
+                lib bytes len=32 aka=LibId
+                pos is U16
+  supplements set len=0..MAX8
+    ContractSuppl rec
+      contractId bytes len=32 aka=ContractId
+      ticker union -- TickerSuppl
+        absent is Unit tag=0
+        global tuple tag=1
+          _ is U16 aka=GlobalStateType
+        owned tuple tag=2
+          _ is U16 aka=AssignmentType
+      mediaKit str len=0..MAX8
+      globalState map len=0..MAX8
+        key is U16 aka=AssignmentType
+        OwnedStateSuppl rec -- mapped to
+          meaning str len=0..MAX8
+          velocity enum unspecified=0 seldom=15 episodic=31 regular=63 frequent=127 highFrequency=255 -- VelocityHint
+      ownedState map len=0..MAX8
+        key is U16 aka=AssignmentType
+        OwnedStateSuppl rec -- mapped to
+          meaning str len=0..MAX8
+          velocity enum unspecified=0 seldom=15 episodic=31 regular=63 frequent=127 highFrequency=255 -- VelocityHint
+      extensions map len=0..MAX8
+        key is U16
+        value bytes len=0..MAX16
   attachments map len=0..MAX16
     key bytes len=32 aka=AttachId
     value bytes len=0..MAX24

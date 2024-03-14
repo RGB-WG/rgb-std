@@ -20,10 +20,18 @@
 // limitations under the License.
 
 use std::collections::BTreeMap;
-use std::iter;
+use std::fmt::{Display, Formatter};
+use std::str::FromStr;
+use std::{fmt, iter};
 
-use amplify::confinement::{LargeOrdSet, MediumBlob, SmallOrdMap, TinyOrdMap, TinyOrdSet};
+use amplify::confinement::{
+    LargeOrdSet, MediumBlob, SmallOrdMap, SmallOrdSet, TinyOrdMap, TinyOrdSet,
+};
+use amplify::{ByteArray, Bytes32};
+use armor::{AsciiArmor, StrictArmorError};
+use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
 use bp::Tx;
+use commit_verify::{CommitEncode, CommitEngine, CommitId, CommitmentId, DigestExt, Sha256};
 use rgb::validation::{self};
 use rgb::{
     AnchoredBundle, AssetTag, AssignmentType, AttachId, BundleId, ContractHistory, ContractId,
@@ -32,9 +40,7 @@ use rgb::{
 };
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 
-use super::{
-    Bindle, BindleContent, ContainerVer, ContentId, ContentSigs, Terminal, TerminalDisclose,
-};
+use super::{ContainerVer, ContentId, ContentSigs, Terminal, TerminalDisclose};
 use crate::accessors::BundleExt;
 use crate::interface::{ContractSuppl, IfaceId, IfacePair};
 use crate::resolvers::ResolveHeight;
@@ -42,6 +48,62 @@ use crate::LIB_NAME_RGB_STD;
 
 pub type Transfer = Consignment<true>;
 pub type Contract = Consignment<false>;
+
+/// Interface identifier.
+///
+/// Interface identifier commits to all the interface data.
+#[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
+#[wrapper(Deref, BorrowSlice, Hex, Index, RangeOps)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", transparent)
+)]
+pub struct ConsignmentId(
+    #[from]
+    #[from([u8; 32])]
+    Bytes32,
+);
+
+impl From<Sha256> for ConsignmentId {
+    fn from(hasher: Sha256) -> Self { hasher.finish().into() }
+}
+
+impl CommitmentId for ConsignmentId {
+    const TAG: &'static str = "urn:lnp-bp:rgb:consignment#2024-03-11";
+}
+
+impl ToBaid58<32> for ConsignmentId {
+    const HRI: &'static str = "con";
+    const CHUNKING: Option<Chunking> = CHUNKING_32;
+    fn to_baid58_payload(&self) -> [u8; 32] { self.to_byte_array() }
+    fn to_baid58_string(&self) -> String { self.to_string() }
+}
+impl FromBaid58<32> for ConsignmentId {}
+impl Display for ConsignmentId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        if !f.alternate() {
+            f.write_str("urn:lnp-bp:consignment:")?;
+        }
+        if f.sign_minus() {
+            write!(f, "{:.2}", self.to_baid58())
+        } else {
+            write!(f, "{:#.2}", self.to_baid58())
+        }
+    }
+}
+impl FromStr for ConsignmentId {
+    type Err = Baid58ParseError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_baid58_maybe_chunked_str(s.trim_start_matches("urn:lnp-bp:"), ':', '#')
+    }
+}
+impl ConsignmentId {
+    pub const fn from_array(id: [u8; 32]) -> Self { Self(Bytes32::from_array(id)) }
+    pub fn to_mnemonic(&self) -> String { self.to_baid58().mnemonic() }
+}
 
 /// Consignment represents contract-specific data, always starting with genesis,
 /// which must be valid under client-side-validation rules (i.e. internally
@@ -51,7 +113,8 @@ pub type Contract = Consignment<false>;
 /// All consignments-related procedures, including validation or merging
 /// consignments data into stash or schema-specific data storage, must start
 /// with `endpoints` and process up to the genesis.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Display)]
+#[display(AsciiArmor::to_ascii_armored_string)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(
@@ -114,6 +177,34 @@ pub struct Consignment<const TYPE: bool> {
 impl<const TYPE: bool> StrictSerialize for Consignment<TYPE> {}
 impl<const TYPE: bool> StrictDeserialize for Consignment<TYPE> {}
 
+impl<const TYPE: bool> CommitEncode for Consignment<TYPE> {
+    type CommitmentId = ConsignmentId;
+
+    fn commit_encode(&self, e: &mut CommitEngine) {
+        e.commit_to_serialized(&self.version);
+        e.commit_to_serialized(&self.transfer);
+
+        e.commit_to_serialized(&self.contract_id());
+        e.commit_to_serialized(&self.genesis.disclose_hash());
+        e.commit_to_set(&TinyOrdSet::from_iter_unsafe(
+            self.ifaces.values().map(|pair| pair.iimpl.impl_id()),
+        ));
+
+        e.commit_to_set(&LargeOrdSet::from_iter_unsafe(
+            self.bundles.iter().map(|ab| ab.bundle.disclose_hash()),
+        ));
+        e.commit_to_set(&LargeOrdSet::from_iter_unsafe(
+            self.extensions.iter().map(Extension::disclose_hash),
+        ));
+        e.commit_to_set(&SmallOrdSet::from_iter_unsafe(self.terminals_disclose()));
+
+        e.commit_to_set(&SmallOrdSet::from_iter_unsafe(self.attachments.keys().copied()));
+        e.commit_to_set(&self.supplements);
+        e.commit_to_map(&self.asset_tags);
+        e.commit_to_map(&self.signatures);
+    }
+}
+
 impl<const TYPE: bool> Consignment<TYPE> {
     /// # Panics
     ///
@@ -140,6 +231,9 @@ impl<const TYPE: bool> Consignment<TYPE> {
             signatures: none!(),
         }
     }
+
+    #[inline]
+    pub fn consignment_id(&self) -> ConsignmentId { self.commit_id() }
 
     #[inline]
     pub fn schema_id(&self) -> SchemaId { self.schema.schema_id() }
@@ -273,10 +367,10 @@ impl<const TYPE: bool> Consignment<TYPE> {
             signatures: self.signatures,
         }
     }
+}
 
-    #[inline]
-    pub fn unsigned_bindle(self) -> Bindle<Self>
-    where Self: BindleContent {
-        Bindle::new(self)
-    }
+impl<const TYPE: bool> FromStr for Consignment<TYPE> {
+    type Err = StrictArmorError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_ascii_armored_str(s) }
 }
