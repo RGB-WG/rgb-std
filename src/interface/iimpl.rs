@@ -19,7 +19,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::cmp::Ordering;
 use std::fmt::{self, Display, Formatter};
+use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::str::FromStr;
 
@@ -35,7 +37,7 @@ use strict_encoding::{FieldName, StrictDumb, TypeName};
 use strict_types::encoding::{
     StrictDecode, StrictDeserialize, StrictEncode, StrictSerialize, StrictType,
 };
-use strict_types::TypeLib;
+use strict_types::{TypeLib, TypeSystem};
 
 use crate::interface::iface::IfaceId;
 use crate::interface::{Iface, IfaceWrapper, VerNo};
@@ -201,7 +203,7 @@ impl SchemaIfaces {
 }
 
 /// Interface implementation for some specific schema.
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[derive(CommitEncode)]
@@ -221,6 +223,22 @@ pub struct IfaceImpl {
     pub transitions: TinyOrdSet<NamedType<TransitionType>>,
     pub extensions: TinyOrdSet<NamedField<ExtensionType>>,
     pub script: Script,
+}
+
+impl Hash for IfaceImpl {
+    fn hash<H: Hasher>(&self, state: &mut H) { self.impl_id().hash(state) }
+}
+
+impl PartialEq for IfaceImpl {
+    fn eq(&self, other: &Self) -> bool { self.impl_id() == other.impl_id() }
+}
+
+impl Ord for IfaceImpl {
+    fn cmp(&self, other: &Self) -> Ordering { self.impl_id().cmp(&other.impl_id()) }
+}
+
+impl PartialOrd for IfaceImpl {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
 }
 
 impl StrictSerialize for IfaceImpl {}
@@ -325,9 +343,10 @@ pub trait IssuerClass {
 
     fn schema() -> SubSchema;
     fn issue_impl() -> IfaceImpl;
+    fn type_system() -> TypeSystem;
 
     fn issuer() -> SchemaIssuer<Self::IssuingIface> {
-        SchemaIssuer::new(Self::schema(), Self::issue_impl())
+        SchemaIssuer::new(Self::schema(), Self::issue_impl(), Self::type_system())
             .expect("implementation schema mismatch")
     }
 }
@@ -359,18 +378,20 @@ pub enum WrongImplementation {
 }
 
 #[derive(Getters, Clone, Eq, PartialEq, Debug)]
-pub struct IssuerTriplet {
+pub struct IssuerKit {
     schema: SubSchema,
     iface: Iface,
     iimpl: IfaceImpl,
+    type_system: TypeSystem,
 }
 
-impl IssuerTriplet {
+impl IssuerKit {
     #[allow(clippy::result_large_err)]
     pub fn new(
         iface: Iface,
         schema: SubSchema,
         iimpl: IfaceImpl,
+        type_system: TypeSystem,
     ) -> Result<Self, WrongImplementation> {
         let expected = iface.iface_id();
         let actual = iimpl.iface_id;
@@ -402,12 +423,13 @@ impl IssuerTriplet {
             iface,
             schema,
             iimpl,
+            type_system,
         })
     }
 
     #[inline]
-    pub fn into_split(self) -> (Iface, SubSchema, IfaceImpl) {
-        (self.iface, self.schema, self.iimpl)
+    pub fn into_split(self) -> (Iface, SubSchema, IfaceImpl, TypeSystem) {
+        (self.iface, self.schema, self.iimpl, self.type_system)
     }
 
     #[inline]
@@ -418,31 +440,40 @@ impl IssuerTriplet {
 pub struct SchemaIssuer<I: IfaceClass> {
     schema: SubSchema,
     iimpl: IfaceImpl,
+    type_system: TypeSystem,
     phantom: PhantomData<I>,
 }
 
 impl<I: IfaceClass> SchemaIssuer<I> {
     #[allow(clippy::result_large_err)]
-    pub fn new(schema: SubSchema, iimpl: IfaceImpl) -> Result<Self, WrongImplementation> {
-        let triplet = IssuerTriplet::new(I::iface(), schema, iimpl)?;
-        let (_, schema, iimpl) = triplet.into_split();
+    pub fn new(
+        schema: SubSchema,
+        iimpl: IfaceImpl,
+        type_system: TypeSystem,
+    ) -> Result<Self, WrongImplementation> {
+        let kit = IssuerKit::new(I::iface(), schema, iimpl, type_system)?;
+        let (_, schema, iimpl, type_system) = kit.into_split();
 
         Ok(Self {
             schema,
             iimpl,
+            type_system,
             phantom: default!(),
         })
     }
 
     #[inline]
-    pub fn into_split(self) -> (SubSchema, IfaceImpl) { (self.schema, self.iimpl) }
+    pub fn into_split(self) -> (SubSchema, IfaceImpl, TypeSystem) {
+        (self.schema, self.iimpl, self.type_system)
+    }
 
-    pub fn into_triplet(self) -> IssuerTriplet {
-        let (schema, iimpl) = self.into_split();
-        IssuerTriplet {
+    pub fn into_kit(self) -> IssuerKit {
+        let (schema, iimpl, type_system) = self.into_split();
+        IssuerKit {
             schema,
             iface: I::iface(),
             iimpl,
+            type_system,
         }
     }
 }

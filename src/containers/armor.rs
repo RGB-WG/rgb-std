@@ -40,7 +40,7 @@ impl<const TYPE: bool> StrictArmor for Consignment<TYPE> {
     fn armor_id(&self) -> Self::Id { self.commit_id() }
     fn armor_headers(&self) -> Vec<ArmorHeader> {
         let mut headers = vec![
-            ArmorHeader::new(ASCII_ARMOR_VERSION, self.version.to_string()),
+            ArmorHeader::new(ASCII_ARMOR_VERSION, self.header.version.to_string()),
             ArmorHeader::new(
                 ASCII_ARMOR_TYPE,
                 if self.transfer {

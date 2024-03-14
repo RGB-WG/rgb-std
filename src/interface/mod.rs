@@ -45,7 +45,7 @@ pub use iface::{
     OwnedIface, Req, TransitionIface, ValencyIface,
 };
 pub use iimpl::{
-    IfaceClass, IfaceImpl, IfacePair, ImplId, IssuerClass, IssuerTriplet, NamedField, NamedType,
+    IfaceClass, IfaceImpl, IfacePair, ImplId, IssuerClass, IssuerKit, NamedField, NamedType,
     SchemaIfaces, SchemaIssuer, SchemaTypeIndex, WrongImplementation,
 };
 pub use rgb20::{AmountChange, Rgb20, LIB_ID_RGB20, LIB_NAME_RGB20};

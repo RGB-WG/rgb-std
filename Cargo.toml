@@ -27,6 +27,7 @@ ascii-armor = "0.2.0"
 baid58 = "0.4.4"
 strict_encoding = "2.7.0-beta.1"
 strict_types = "2.7.0-beta.2"
+aluvm = "0.11.0-beta.5"
 commit_verify = { version = "0.11.0-beta.4", features = ["stl"] }
 bp-core = { version = "0.11.0-beta.4", features = ["stl"] }
 bp-invoice = { version = "0.11.0-beta.4" }
@@ -55,6 +56,7 @@ crate-type = ["cdylib", "rlib"] # We need this for WASM
 [dependencies]
 amplify = { workspace = true }
 ascii-armor = { workspace = true }
+aluvm = { workspace = true }
 strict_encoding = { workspace = true }
 strict_types = { workspace = true }
 commit_verify = { workspace = true }
@@ -95,6 +97,7 @@ wasm-bindgen-test = "0.3"
 features = ["all"]
 
 [patch.crates-io]
+strict_types = { git = "https://github.com/strict-types/strict-types", branch = "typesys" }
 commit_verify = { git = "https://github.com/LNP-BP/client_side_validation", branch = "master" }
 bp-core = { git = "https://github.com/BP-WG/bp-core", branch = "master" }
-rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "master" }
+rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "abstract-libs" }

@@ -28,22 +28,27 @@
 //!    disclosing the concealed state for some other parties, and also for
 //!    performing "change" operations on inventory during state transfers.
 
+mod container;
 mod consignment;
 mod disclosure;
+mod kit;
 mod seal;
-mod util;
+mod terminal;
 mod validate;
-mod certs;
 mod partials;
 mod indexed;
 mod armor;
 mod file;
 
-pub use certs::{Cert, ContentId, ContentSigs, Identity};
 pub use consignment::{Consignment, ConsignmentId, Contract, Transfer};
+pub use container::{
+    Container, ContainerHeader, ContainerVer, ContentId, Identity, IfaceContainer, KitContainer,
+    Sig, SigSet,
+};
 pub use disclosure::Disclosure;
 pub use file::{FileContent, LoadError, UniversalFile};
 pub use indexed::IndexedConsignment;
+pub use kit::Kit;
 pub use partials::{Batch, CloseMethodSet, Fascia, TransitionInfo};
 pub use seal::{BuilderSeal, TerminalSeal, VoutSeal};
-pub use util::{ContainerVer, Terminal, TerminalDisclose};
+pub use terminal::{Terminal, TerminalDisclose};

@@ -34,7 +34,7 @@ use rgb::{
 };
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 
-use crate::containers::{Cert, Consignment, ContentId, Contract, TerminalSeal, Transfer};
+use crate::containers::{Sig, Consignment, ContentId, Contract, TerminalSeal, Transfer};
 use crate::interface::{ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, SchemaIfaces};
 use crate::persistence::hoard::ConsumeError;
 use crate::persistence::inventory::{DataError, IfaceImplError, InventoryInconsistency};
@@ -364,8 +364,8 @@ impl Inventory for Stock {
         sigs: I,
     ) -> Result<(), InventoryDataError<Self::Error>>
     where
-        I: IntoIterator<Item = Cert>,
-        I::IntoIter: ExactSizeIterator<Item = Cert>,
+        I: IntoIterator<Item =Sig>,
+        I::IntoIter: ExactSizeIterator<Item =Sig>,
     {
         self.import_sigs_internal(content_id, sigs)?;
         Ok(())

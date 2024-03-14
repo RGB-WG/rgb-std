@@ -23,6 +23,7 @@ use std::collections::{btree_set, BTreeMap, BTreeSet};
 use std::ops::Deref;
 use std::rc::Rc;
 
+use aluvm::library::LibId;
 use amplify::confinement::Collection;
 use commit_verify::Conceal;
 use rgb::validation::ConsignmentApi;
@@ -30,6 +31,7 @@ use rgb::{
     AnchoredBundle, AssetTag, AssignmentType, BundleId, Genesis, OpId, OpRef, Operation, SubSchema,
     WitnessId, XChain,
 };
+use strict_types::{TypeSysId, TypeSystem};
 
 use super::Consignment;
 use crate::SecretSeal;
@@ -64,6 +66,7 @@ impl<'c, const TYPE: bool> IndexedConsignment<'c, TYPE> {
 
 impl<'c, const TYPE: bool> ConsignmentApi for IndexedConsignment<'c, TYPE> {
     type Iter<'a> = BundleIdIter;
+    type Program = ();
 
     fn schema(&self) -> &SubSchema { &self.schema }
 
@@ -102,6 +105,14 @@ impl<'c, const TYPE: bool> ConsignmentApi for IndexedConsignment<'c, TYPE> {
     fn op_witness_id(&self, opid: OpId) -> Option<WitnessId> {
         self.op_witness_ids.get(&opid).copied()
     }
+
+    fn program<'a>(
+        &self,
+        libs: impl IntoIterator<Item = &'a LibId>,
+    ) -> Result<&Self::Program, LibId> {
+    }
+
+    fn type_system(&self, id: TypeSysId) -> Option<&TypeSystem> { todo!() }
 }
 
 #[derive(Debug)]
