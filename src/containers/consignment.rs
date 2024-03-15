@@ -85,7 +85,7 @@ impl FromBaid58<32> for ConsignmentId {}
 impl Display for ConsignmentId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         if !f.alternate() {
-            f.write_str("urn:lnp-bp:consignment:")?;
+            f.write_str("urn:lnp-bp:con:")?;
         }
         if f.sign_minus() {
             write!(f, "{:.2}", self.to_baid58())
@@ -373,4 +373,23 @@ impl<const TYPE: bool> FromStr for Consignment<TYPE> {
     type Err = StrictArmorError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_ascii_armored_str(s) }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn contract_str_parse() {
+        let contract = Contract::strict_dumb();
+        let contract_str = contract.to_string();
+        Contract::from_str(&contract_str).expect("valid contract string");
+    }
+
+    #[test]
+    fn transfer_str_parse() {
+        let transfer = Transfer::strict_dumb();
+        let transfer_str = transfer.to_string();
+        Transfer::from_str(&transfer_str).expect("valid transfer string");
+    }
 }
