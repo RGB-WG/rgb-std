@@ -674,7 +674,7 @@ dependencies = [
 [[package]]
 name = "rgb-core"
 version = "0.11.0-beta.4"
-source = "git+https://github.com/RGB-WG/rgb-core?branch=master#2e01d873e0f586e48452e2c74debc8d76a7406bd"
+source = "git+https://github.com/RGB-WG/rgb-core?branch=abstract-libs#e3966db607e33b79f9ade756e37d977eabc1c5b8"
 dependencies = [
  "aluvm",
  "amplify",
@@ -714,6 +714,7 @@ dependencies = [
 name = "rgb-std"
 version = "0.11.0-beta.4"
 dependencies = [
+ "aluvm",
  "amplify",
  "ascii-armor",
  "baid58",
@@ -917,8 +918,7 @@ dependencies = [
 [[package]]
 name = "strict_types"
 version = "2.7.0-beta.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "78c32716de4b99b0e8fb0c114e99b6929613e8d7302999c6b8c77251783923ad"
+source = "git+https://github.com/strict-types/strict-types?branch=typesys#01e9dc9fb4e3b43b5ac82dc8ce23cbe6e253d4b3"
 dependencies = [
  "amplify",
  "ascii-armor",

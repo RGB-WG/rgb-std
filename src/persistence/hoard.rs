@@ -34,7 +34,7 @@ use rgb::{
 use strict_encoding::TypeName;
 
 use crate::accessors::{MergeReveal, MergeRevealError};
-use crate::containers::{Cert, Consignment, ContentId, ContentSigs};
+use crate::containers::{Sig, Consignment, ContentId, SigSet};
 use crate::interface::{
     rgb21, rgb25, ContractSuppl, Iface, IfaceClass, IfaceId, IfacePair, Rgb20, SchemaIfaces,
 };
@@ -81,7 +81,7 @@ pub struct Hoard {
     pub(super) bundles: LargeOrdMap<BundleId, TransitionBundle>,
     pub(super) extensions: LargeOrdMap<OpId, Extension>,
     pub(super) anchors: LargeOrdMap<WitnessId, XAnchor<mpc::MerkleBlock>>,
-    pub(super) sigs: SmallOrdMap<ContentId, ContentSigs>,
+    pub(super) sigs: SmallOrdMap<ContentId, SigSet>,
 }
 
 impl Hoard {
@@ -115,8 +115,8 @@ impl Hoard {
         sigs: I,
     ) -> Result<(), confinement::Error>
     where
-        I: IntoIterator<Item = Cert>,
-        I::IntoIter: ExactSizeIterator<Item = Cert>,
+        I: IntoIterator<Item =Sig>,
+        I::IntoIter: ExactSizeIterator<Item =Sig>,
     {
         let sigs = sigs.into_iter();
         if sigs.len() > 0 {
@@ -124,7 +124,7 @@ impl Hoard {
                 prev_sigs.extend(sigs)?;
             } else {
                 let sigs = Confined::try_from_iter(sigs)?;
-                self.sigs.insert(content_id, ContentSigs::from(sigs)).ok();
+                self.sigs.insert(content_id, SigSet::from(sigs)).ok();
             }
         }
         Ok(())

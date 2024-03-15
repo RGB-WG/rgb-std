@@ -117,7 +117,7 @@ impl StandardTypes {
         Ok(Self(sys))
     }
 
-    pub fn type_system(&self) -> TypeSystem { self.0.as_types().clone() }
+    pub fn type_system(&self) -> TypeSystem { self.0.as_type_system().clone() }
 
     pub fn get(&self, name: &'static str) -> SemId {
         *self.0.resolve(name).unwrap_or_else(|| {

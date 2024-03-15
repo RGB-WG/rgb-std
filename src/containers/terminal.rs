@@ -66,20 +66,3 @@ impl Terminal {
         }
     }
 }
-
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, Default)]
-#[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD, tags = repr, into_u8, try_from_u8)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-#[display(lowercase)]
-#[non_exhaustive]
-#[repr(u8)]
-pub enum ContainerVer {
-    // V0 and V1 was a previous version before v0.11, currently not supported.
-    #[default]
-    V2 = 2,
-}

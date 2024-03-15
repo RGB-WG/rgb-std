@@ -485,7 +485,7 @@ pub fn rgb21() -> Iface {
         extensions: none!(),
         error_type: types.get("RGB21.Error"),
         default_operation: Some(tn!("Transfer")),
-        types: Types::Strict(types.type_system()),
+        types: Types::Strict(types.type_system().id()),
     }
 }
 

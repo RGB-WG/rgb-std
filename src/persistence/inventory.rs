@@ -39,7 +39,7 @@ use strict_encoding::TypeName;
 
 use crate::accessors::{BundleExt, MergeRevealError, RevealError};
 use crate::containers::{
-    Batch, BuilderSeal, Cert, Consignment, ContentId, Contract, Fascia, Terminal, TerminalSeal,
+    Batch, BuilderSeal, Sig, Consignment, ContentId, Contract, Fascia, Terminal, TerminalSeal,
     Transfer, TransitionInfo,
 };
 use crate::interface::{
@@ -314,8 +314,8 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         sigs: I,
     ) -> Result<(), InventoryDataError<Self::Error>>
     where
-        I: IntoIterator<Item = Cert>,
-        I::IntoIter: ExactSizeIterator<Item = Cert>;
+        I: IntoIterator<Item =Sig>,
+        I::IntoIter: ExactSizeIterator<Item =Sig>;
 
     fn import_schema(
         &mut self,

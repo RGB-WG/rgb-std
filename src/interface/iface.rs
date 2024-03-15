@@ -21,6 +21,7 @@
 
 use std::cmp::Ordering;
 use std::fmt::{self, Display, Formatter};
+use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 
 use amplify::confinement::{TinyOrdMap, TinyOrdSet};
@@ -352,6 +353,10 @@ pub struct Iface {
     pub error_type: SemId,
     pub default_operation: Option<TypeName>,
     pub types: Types,
+}
+
+impl Hash for Iface {
+    fn hash<H: Hasher>(&self, state: &mut H) { self.iface_id().hash(state) }
 }
 
 impl PartialEq for Iface {

@@ -30,7 +30,7 @@ use rgb::{
 };
 use strict_encoding::{FieldName, StrictDecode, StrictDumb, StrictEncode};
 use strict_types::typify::TypedVal;
-use strict_types::{decode, StrictVal};
+use strict_types::{decode, StrictVal, TypeSystem};
 
 use crate::interface::{IfaceId, IfaceImpl, OutpointFilter, WitnessFilter};
 use crate::LIB_NAME_RGB_STD;
@@ -177,6 +177,7 @@ impl<C: StateChange> IfaceOp<C> {
 /// data from the [`rgb::ContractHistory`].
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct ContractIface {
+    pub type_system: TypeSystem,
     pub state: ContractState,
     pub iface: IfaceImpl,
 }
@@ -192,7 +193,7 @@ impl ContractIface {
     /// implementations.
     pub fn global(&self, name: impl Into<FieldName>) -> Result<SmallVec<StrictVal>, ContractError> {
         let name = name.into();
-        let type_system = &self.state.schema.types;
+        let type_system = &self.type_system;
         let type_id = self
             .iface
             .global_type(&name)

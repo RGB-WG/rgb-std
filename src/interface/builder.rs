@@ -33,13 +33,13 @@ use rgb::{
     StateSchema, SubSchema, Transition, TransitionType, TypedAssigns, XChain, XOutpoint,
 };
 use strict_encoding::{FieldName, SerializeError, StrictSerialize, TypeName};
-use strict_types::decode;
+use strict_types::{decode, TypeSystem};
 
 use crate::containers::{BuilderSeal, Contract};
 use crate::interface::contract::AttachedState;
 use crate::interface::resolver::DumbResolver;
 use crate::interface::{
-    Iface, IfaceClass, IfaceImpl, IfacePair, IssuerTriplet, SchemaIssuer, TransitionIface,
+    Iface, IfaceClass, IfaceImpl, IfacePair, IssuerKit, SchemaIssuer, TransitionIface,
     WrongImplementation,
 };
 use crate::persistence::PersistedState;
@@ -147,9 +147,10 @@ impl ContractBuilder {
         schema: SubSchema,
         iimpl: IfaceImpl,
         testnet: bool,
+        type_system: TypeSystem,
     ) -> Result<Self, WrongImplementation> {
         Ok(Self {
-            builder: OperationBuilder::with(iface, schema, iimpl)?,
+            builder: OperationBuilder::with(iface, schema, iimpl, type_system)?,
             testnet,
             alt_layers1: none!(),
         })
@@ -159,9 +160,10 @@ impl ContractBuilder {
         iface: Iface,
         schema: SubSchema,
         iimpl: IfaceImpl,
+        type_system: TypeSystem,
     ) -> Result<Self, WrongImplementation> {
         Ok(Self {
-            builder: OperationBuilder::with(iface, schema, iimpl)?,
+            builder: OperationBuilder::with(iface, schema, iimpl, type_system)?,
             testnet: false,
             alt_layers1: none!(),
         })
@@ -171,9 +173,10 @@ impl ContractBuilder {
         iface: Iface,
         schema: SubSchema,
         iimpl: IfaceImpl,
+        type_system: TypeSystem,
     ) -> Result<Self, WrongImplementation> {
         Ok(Self {
-            builder: OperationBuilder::with(iface, schema, iimpl)?,
+            builder: OperationBuilder::with(iface, schema, iimpl, type_system)?,
             testnet: true,
             alt_layers1: none!(),
         })
@@ -355,8 +358,9 @@ impl TransitionBuilder {
         iface: Iface,
         schema: SubSchema,
         iimpl: IfaceImpl,
+        type_system: TypeSystem,
     ) -> Result<Self, WrongImplementation> {
-        Self::with(contract_id, iface, schema, iimpl, TransitionType::BLANK)
+        Self::with(contract_id, iface, schema, iimpl, TransitionType::BLANK, type_system)
     }
 
     pub fn default_transition(
@@ -364,13 +368,14 @@ impl TransitionBuilder {
         iface: Iface,
         schema: SubSchema,
         iimpl: IfaceImpl,
+        type_system: TypeSystem,
     ) -> Result<Self, BuilderError> {
         let transition_type = iface
             .default_operation
             .as_ref()
             .and_then(|name| iimpl.transition_type(name))
             .ok_or(BuilderError::NoOperationSubtype)?;
-        Ok(Self::with(contract_id, iface, schema, iimpl, transition_type)?)
+        Ok(Self::with(contract_id, iface, schema, iimpl, transition_type, type_system)?)
     }
 
     pub fn named_transition(
@@ -379,12 +384,13 @@ impl TransitionBuilder {
         schema: SubSchema,
         iimpl: IfaceImpl,
         transition_name: impl Into<TypeName>,
+        type_system: TypeSystem,
     ) -> Result<Self, BuilderError> {
         let transition_name = transition_name.into();
         let transition_type = iimpl
             .transition_type(&transition_name)
             .ok_or(BuilderError::TransitionNotFound(transition_name))?;
-        Ok(Self::with(contract_id, iface, schema, iimpl, transition_type)?)
+        Ok(Self::with(contract_id, iface, schema, iimpl, transition_type, type_system)?)
     }
 
     fn with(
@@ -393,10 +399,11 @@ impl TransitionBuilder {
         schema: SubSchema,
         iimpl: IfaceImpl,
         transition_type: TransitionType,
+        type_system: TypeSystem,
     ) -> Result<Self, WrongImplementation> {
         Ok(Self {
             contract_id,
-            builder: OperationBuilder::with(iface, schema, iimpl)?,
+            builder: OperationBuilder::with(iface, schema, iimpl, type_system)?,
             transition_type,
             inputs: none!(),
         })
@@ -610,6 +617,7 @@ pub struct OperationBuilder<Seal: ExposedSeal> {
     iface: Iface,
     iimpl: IfaceImpl,
     asset_tags: TinyOrdMap<AssignmentType, AssetTag>,
+    type_system: TypeSystem,
 
     global: GlobalState,
     rights: TinyOrdMap<AssignmentType, Confined<HashSet<BuilderSeal<Seal>>, 1, U16>>,
@@ -621,9 +629,9 @@ pub struct OperationBuilder<Seal: ExposedSeal> {
     // TODO: add valencies
 }
 
-impl<Seal: ExposedSeal> From<IssuerTriplet> for OperationBuilder<Seal> {
-    fn from(triplet: IssuerTriplet) -> Self {
-        let (iface, schema, iimpl) = triplet.into_split();
+impl<Seal: ExposedSeal> From<IssuerKit> for OperationBuilder<Seal> {
+    fn from(triplet: IssuerKit) -> Self {
+        let (iface, schema, iimpl, type_system) = triplet.into_split();
 
         OperationBuilder {
             schema,
@@ -631,6 +639,7 @@ impl<Seal: ExposedSeal> From<IssuerTriplet> for OperationBuilder<Seal> {
             iimpl,
             asset_tags: none!(),
 
+            type_system,
             global: none!(),
             rights: none!(),
             fungible: none!(),
@@ -641,7 +650,7 @@ impl<Seal: ExposedSeal> From<IssuerTriplet> for OperationBuilder<Seal> {
 }
 
 impl<Seal: ExposedSeal, I: IfaceClass> From<SchemaIssuer<I>> for OperationBuilder<Seal> {
-    fn from(issuer: SchemaIssuer<I>) -> Self { Self::from(issuer.into_triplet()) }
+    fn from(issuer: SchemaIssuer<I>) -> Self { Self::from(issuer.into_kit()) }
 }
 
 impl<Seal: ExposedSeal> OperationBuilder<Seal> {
@@ -649,8 +658,9 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         iface: Iface,
         schema: SubSchema,
         iimpl: IfaceImpl,
+        type_system: TypeSystem,
     ) -> Result<Self, WrongImplementation> {
-        let triplet = IssuerTriplet::new(iface, schema, iimpl)?;
+        let triplet = IssuerKit::new(iface, schema, iimpl, type_system)?;
         Ok(Self::from(triplet))
     }
 
@@ -752,8 +762,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             .get(&type_id)
             .expect("schema should match interface: must be checked by the constructor")
             .sem_id;
-        self.schema
-            .types
+        self.type_system
             .strict_deserialize_type(sem_id, &serialized)?;
 
         self.global

@@ -242,7 +242,7 @@ fn rgb20() -> Iface {
         extensions: none!(),
         error_type: types.get("RGB20.Error"),
         default_operation: Some(tn!("Transfer")),
-        types: Types::Strict(types.type_system()),
+        types: Types::Strict(types.type_system().id()),
     }
 }
 
@@ -505,8 +505,8 @@ impl PrimaryIssue {
             media: None,
         };
 
-        let (schema, main_iface_impl) = issuer.into_split();
-        let builder = ContractBuilder::testnet(rgb20(), schema, main_iface_impl)
+        let (schema, main_iface_impl, type_system) = issuer.into_split();
+        let builder = ContractBuilder::testnet(rgb20(), schema, main_iface_impl, type_system)
             .expect("schema interface mismatch")
             .add_global_state("spec", spec)
             .expect("invalid RGB20 schema (token specification mismatch)")

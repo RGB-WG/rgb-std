@@ -40,7 +40,7 @@ use rgb::{
 };
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 
-use super::{ContainerVer, ContentId, ContentSigs, Terminal, TerminalDisclose};
+use super::{ContainerHeader, ContainerVer, Terminal, TerminalDisclose};
 use crate::accessors::BundleExt;
 use crate::interface::{ContractSuppl, IfaceId, IfacePair};
 use crate::resolvers::ResolveHeight;
@@ -76,7 +76,7 @@ impl CommitmentId for ConsignmentId {
 }
 
 impl ToBaid58<32> for ConsignmentId {
-    const HRI: &'static str = "con";
+    const HRI: &'static str = "cs";
     const CHUNKING: Option<Chunking> = CHUNKING_32;
     fn to_baid58_payload(&self) -> [u8; 32] { self.to_byte_array() }
     fn to_baid58_string(&self) -> String { self.to_string() }
@@ -85,7 +85,7 @@ impl FromBaid58<32> for ConsignmentId {}
 impl Display for ConsignmentId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         if !f.alternate() {
-            f.write_str("urn:lnp-bp:consignment:")?;
+            f.write_str("urn:lnp-bp:")?;
         }
         if f.sign_minus() {
             write!(f, "{:.2}", self.to_baid58())
@@ -112,7 +112,7 @@ impl ConsignmentId {
 ///
 /// All consignments-related procedures, including validation or merging
 /// consignments data into stash or schema-specific data storage, must start
-/// with `endpoints` and process up to the genesis.
+/// with `terminals` and process up to the genesis.
 #[derive(Clone, Debug, Display)]
 #[display(AsciiArmor::to_ascii_armored_string)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
@@ -132,8 +132,8 @@ pub struct Consignment<const TYPE: bool> {
     #[cfg_attr(feature = "serde", serde(skip))]
     pub(super) validation_status: Option<validation::Status>,
 
-    /// Version.
-    pub version: ContainerVer,
+    /// Container header.
+    pub header: ContainerHeader,
 
     /// Specifies whether the consignment contains information about state
     /// transfer (true), or it is just a consignment with an information about a
@@ -168,10 +168,6 @@ pub struct Consignment<const TYPE: bool> {
     /// in-memory consignments we are restricting the size of the containers to
     /// 24 bit value (RGB allows containers up to 32-bit values in size).
     pub attachments: SmallOrdMap<AttachId, MediumBlob>,
-
-    /// Signatures on the pieces of content which are the part of the
-    /// consignment.
-    pub signatures: TinyOrdMap<ContentId, ContentSigs>,
 }
 
 impl<const TYPE: bool> StrictSerialize for Consignment<TYPE> {}
@@ -181,7 +177,7 @@ impl<const TYPE: bool> CommitEncode for Consignment<TYPE> {
     type CommitmentId = ConsignmentId;
 
     fn commit_encode(&self, e: &mut CommitEngine) {
-        e.commit_to_serialized(&self.version);
+        self.header.commit_encode(e);
         e.commit_to_serialized(&self.transfer);
 
         e.commit_to_serialized(&self.contract_id());
@@ -201,7 +197,6 @@ impl<const TYPE: bool> CommitEncode for Consignment<TYPE> {
         e.commit_to_set(&SmallOrdSet::from_iter_unsafe(self.attachments.keys().copied()));
         e.commit_to_set(&self.supplements);
         e.commit_to_map(&self.asset_tags);
-        e.commit_to_map(&self.signatures);
     }
 }
 
@@ -355,6 +350,8 @@ impl<const TYPE: bool> Consignment<TYPE> {
             validation_status: self.validation_status,
             version: self.version,
             transfer: false,
+            types: self.types,
+            scripts: self.scripts,
             schema: self.schema,
             ifaces: self.ifaces,
             supplements: self.supplements,
