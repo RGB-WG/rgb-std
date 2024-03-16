@@ -251,6 +251,33 @@ impl IfaceImpl {
             .map(|nt| nt.id)
     }
 
+    pub fn extension_name(&self, id: ExtensionType) -> Option<&FieldName> {
+        self.extensions
+            .iter()
+            .find(|nt| nt.id == id)
+            .map(|nt| &nt.name)
+    }
+
+    pub fn extension_type(&self, name: &FieldName) -> Option<ExtensionType> {
+        self.extensions
+            .iter()
+            .find(|nt| &nt.name == name)
+            .map(|nt| nt.id)
+    }
+
+    pub fn valency_type(&self, name: &FieldName) -> Option<ValencyType> {
+        self.valencies
+            .iter()
+            .find(|nt| &nt.name == name)
+            .map(|nt| nt.id)
+    }
+
+    pub fn valency_name(&self, id: ValencyType) -> Option<&FieldName> {
+        self.valencies
+            .iter()
+            .find(|nt| nt.id == id)
+            .map(|nt| &nt.name)
+    }
     pub fn global_name(&self, id: GlobalStateType) -> Option<&FieldName> {
         self.global_state
             .iter()
