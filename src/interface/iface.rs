@@ -119,14 +119,6 @@ pub struct ValencyIface {
     pub multiple: bool,
 }
 
-impl ValencyIface {
-    pub fn any(req: Req) -> Self {
-        ValencyIface {
-            required: req.is_required(),
-            multiple: req.is_multiple(),
-        }
-    }
-}
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
