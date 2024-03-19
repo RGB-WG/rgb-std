@@ -257,7 +257,9 @@ Consignmenttrue rec
       anchor union XChainAnchorSet
         bitcoin union AnchorSet wrapped tag=0
           tapret rec AnchorMerkleProofTapretProof wrapped tag=0
+            reserved1 bytes len=1 aka=ReservedBytes1
             txid bytes len=32 aka=Txid
+            reserved2 bytes len=1 aka=ReservedBytes1
             mpcProof rec MerkleProof
               pos is U32
               cofactor is U16
@@ -269,7 +271,9 @@ Consignmenttrue rec
                   rightBranch rec TapretRightBranch wrapped tag=2
                 nonce is U8
           opret rec AnchorMerkleProofOpretProof wrapped tag=1
+            reserved1 bytes len=1 aka=ReservedBytes1
             txid bytes len=32 aka=Txid
+            reserved2 bytes len=1 aka=ReservedBytes1
             mpcProof rec MerkleProof
               pos is U32
               cofactor is U16
@@ -278,7 +282,9 @@ Consignmenttrue rec
             dbcProof is Unit aka=OpretProof
           dual rec tag=2
             tapret rec AnchorMerkleProofTapretProof
+              reserved1 bytes len=1 aka=ReservedBytes1
               txid bytes len=32 aka=Txid
+              reserved2 bytes len=1 aka=ReservedBytes1
               mpcProof rec MerkleProof
                 pos is U32
                 cofactor is U16
@@ -290,7 +296,9 @@ Consignmenttrue rec
                     rightBranch rec TapretRightBranch wrapped tag=2
                   nonce is U8
             opret rec AnchorMerkleProofOpretProof
+              reserved1 bytes len=1 aka=ReservedBytes1
               txid bytes len=32 aka=Txid
+              reserved2 bytes len=1 aka=ReservedBytes1
               mpcProof rec MerkleProof
                 pos is U32
                 cofactor is U16
@@ -299,7 +307,9 @@ Consignmenttrue rec
               dbcProof is Unit aka=OpretProof
         liquid union AnchorSet wrapped tag=1
           tapret rec AnchorMerkleProofTapretProof wrapped tag=0
+            reserved1 bytes len=1 aka=ReservedBytes1
             txid bytes len=32 aka=Txid
+            reserved2 bytes len=1 aka=ReservedBytes1
             mpcProof rec MerkleProof
               pos is U32
               cofactor is U16
@@ -311,7 +321,9 @@ Consignmenttrue rec
                   rightBranch rec TapretRightBranch wrapped tag=2
                 nonce is U8
           opret rec AnchorMerkleProofOpretProof wrapped tag=1
+            reserved1 bytes len=1 aka=ReservedBytes1
             txid bytes len=32 aka=Txid
+            reserved2 bytes len=1 aka=ReservedBytes1
             mpcProof rec MerkleProof
               pos is U32
               cofactor is U16
@@ -320,7 +332,9 @@ Consignmenttrue rec
             dbcProof is Unit aka=OpretProof
           dual rec tag=2
             tapret rec AnchorMerkleProofTapretProof
+              reserved1 bytes len=1 aka=ReservedBytes1
               txid bytes len=32 aka=Txid
+              reserved2 bytes len=1 aka=ReservedBytes1
               mpcProof rec MerkleProof
                 pos is U32
                 cofactor is U16
@@ -332,7 +346,9 @@ Consignmenttrue rec
                     rightBranch rec TapretRightBranch wrapped tag=2
                   nonce is U8
             opret rec AnchorMerkleProofOpretProof
+              reserved1 bytes len=1 aka=ReservedBytes1
               txid bytes len=32 aka=Txid
+              reserved2 bytes len=1 aka=ReservedBytes1
               mpcProof rec MerkleProof
                 pos is U32
                 cofactor is U16
@@ -1220,14 +1236,17 @@ Consignmenttrue rec
           NamedFieldGlobalStateType rec
             id is U16 aka=GlobalStateType
             name ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
+            reserved bytes len=4 aka=ReservedBytes4
         assignments set len=0..MAX8
           NamedFieldAssignmentType rec
             id is U16 aka=AssignmentType
             name ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
+            reserved bytes len=4 aka=ReservedBytes4
         valencies set len=0..MAX8
           NamedFieldValencyType rec
             id is U16 aka=ValencyType
             name ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
+            reserved bytes len=4 aka=ReservedBytes4
         transitions set len=0..MAX8
           NamedTypeTransitionType rec
             id is U16 aka=TransitionType
@@ -1236,6 +1255,7 @@ Consignmenttrue rec
           NamedFieldExtensionType rec
             id is U16 aka=ExtensionType
             name ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
+            reserved bytes len=4 aka=ReservedBytes4
         script union Script
           aluVm rec AluScript wrapped tag=0
             libs map len=0..MAX8
