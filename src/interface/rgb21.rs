@@ -31,7 +31,7 @@ use bp::bc::stl::bp_tx_stl;
 use rgb::{Occurrences, Types};
 use strict_encoding::stl::AsciiPrintable;
 use strict_encoding::{
-    InvalidIdent, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, TypedWrite,
+    InvalidIdent, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, TypedWrite, Variant,
 };
 use strict_types::stl::std_stl;
 use strict_types::{CompileError, LibBuilder, StrictVal, TypeLib};
@@ -324,23 +324,6 @@ const NON_FRACTIONAL_TOKEN: u8 = 7;
 const NON_ENGRAVABLE_TOKEN: u8 = 8;
 const INVALID_ATTACHMENT_TYPE: u8 = 9;
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB21, tags = repr, into_u8, try_from_u8)]
-#[repr(u8)]
-pub enum Error {
-    #[strict_type(dumb)]
-    /// amount of token > 1
-    FractionOverflow = FRACTION_OVERFLOW,
-    NonEqualValues = NON_EQUAL_VALUES,
-    InvalidProof = INVALID_PROOF,
-    InsufficientReserves = INSUFFICIENT_RESERVES,
-    IssueExceedsAllowance = ISSUE_EXCEEDS_ALLOWANCE,
-    NonFractionalToken = NON_FRACTIONAL_TOKEN,
-    NonEngravableToken = NON_ENGRAVABLE_TOKEN,
-    InvalidAttachmentType = INVALID_ATTACHMENT_TYPE,
-}
-
 fn _rgb21_stl() -> Result<TypeLib, CompileError> {
     LibBuilder::new(libname!(LIB_NAME_RGB21), tiny_bset! {
         std_stl().to_dependency(),
@@ -352,7 +335,6 @@ fn _rgb21_stl() -> Result<TypeLib, CompileError> {
     .transpile::<ItemsCount>()
     .transpile::<Allocation>()
     .transpile::<AttachmentType>()
-    .transpile::<Error>()
     .compile()
 }
 
@@ -380,7 +362,7 @@ pub fn rgb21() -> Iface {
         valencies: none!(),
         genesis: GenesisIface {
             metadata: Some(types.get("RGBContract.IssueMeta")),
-            global: tiny_bmap! {
+            globals: tiny_bmap! {
                 fname!("spec") => Occurrences::Once,
                 fname!("terms") => Occurrences::Once,
                 fname!("tokens") => Occurrences::NoneOrMore,
@@ -481,7 +463,31 @@ pub fn rgb21() -> Iface {
             },
         },
         extensions: none!(),
-        error_type: types.get("RGB21.Error"),
+        errors: tiny_bmap! {
+            Variant::named(FRACTION_OVERFLOW, vname!("fractionOverflow"))
+                => tiny_s!("the amount of fractional token in outputs exceeds 1"),
+
+            Variant::named(NON_EQUAL_VALUES, vname!("nonEqualValues"))
+                => tiny_s!("the sum of spent token fractions doesn't equal to the sum of token fractions in outputs"),
+
+            Variant::named(INVALID_PROOF, vname!("invalidProof"))
+                => tiny_s!("the provided proof is invalid"),
+
+            Variant::named(INSUFFICIENT_RESERVES, vname!("insufficientReserves"))
+                => tiny_s!("reserve is insufficient to cover the issued assets"),
+
+            Variant::named(ISSUE_EXCEEDS_ALLOWANCE, vname!("issueExceedsAllowance"))
+                => tiny_s!("you try to issue more assets than allowed by the contract terms"),
+
+            Variant::named(NON_FRACTIONAL_TOKEN, vname!("nonFractionalToken"))
+                => tiny_s!("attempt to transfer a fraction of non-fractionable token"),
+
+            Variant::named(NON_ENGRAVABLE_TOKEN, vname!("nonEngravableToken"))
+                => tiny_s!("attempt to engrave on a token which prohibit engraving"),
+
+            Variant::named(INVALID_ATTACHMENT_TYPE, vname!("invalidAttachmentType"))
+                => tiny_s!("attachment has a type which is not allowed for the token"),
+        },
         default_operation: Some(fname!("transfer")),
         types: Types::Strict(types.type_system()),
     }
@@ -504,9 +510,9 @@ impl From<ContractIface> for Rgb21 {
 impl IfaceWrapper for Rgb21 {
     const IFACE_NAME: &'static str = LIB_NAME_RGB21;
     const IFACE_ID: IfaceId = IfaceId::from_array([
-        0x97, 0xb8, 0x84, 0xa7, 0x0e, 0xb9, 0xe0, 0x53, 0xb4, 0xc4, 0x0a, 0x87, 0xb8, 0xe5, 0xa6,
-        0xe2, 0xee, 0xa5, 0x9a, 0x33, 0xe0, 0x92, 0xf4, 0xff, 0x20, 0x5e, 0xfb, 0x24, 0x65, 0x30,
-        0x4e, 0x96,
+        0x49, 0x27, 0x9c, 0xf5, 0x99, 0x23, 0x94, 0x36, 0x1c, 0xb0, 0x48, 0x49, 0xa9, 0x01, 0x79,
+        0x96, 0xe8, 0x36, 0xe6, 0x8c, 0x83, 0xe2, 0x6c, 0x1d, 0xc5, 0xce, 0x69, 0xd5, 0x5a, 0x4f,
+        0xdc, 0x33,
     ]);
 }
 

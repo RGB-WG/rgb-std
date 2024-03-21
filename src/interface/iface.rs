@@ -23,18 +23,18 @@ use std::cmp::Ordering;
 use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 
-use amplify::confinement::{TinyOrdMap, TinyOrdSet};
+use amplify::confinement::{TinyOrdMap, TinyOrdSet, TinyString};
 use amplify::{ByteArray, Bytes32};
 use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
 use commit_verify::{CommitId, CommitmentId, DigestExt, Sha256};
 use rgb::{Occurrences, Types};
 use strict_encoding::{
     FieldName, StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize,
-    StrictType, TypeName,
+    StrictType, TypeName, Variant,
 };
-use strict_types::SemId;
+use strict_types::{SemId, SymbolicSys};
 
-use crate::interface::VerNo;
+use crate::interface::{IfaceDisplay, VerNo};
 use crate::LIB_NAME_RGB_STD;
 
 /// Interface identifier.
@@ -236,7 +236,7 @@ pub type ArgMap = TinyOrdMap<FieldName, Occurrences>;
 )]
 pub struct GenesisIface {
     pub metadata: Option<SemId>,
-    pub global: ArgMap,
+    pub globals: ArgMap,
     pub assignments: ArgMap,
     pub valencies: ArgMap,
     pub errors: TinyOrdSet<u8>,
@@ -299,8 +299,8 @@ pub struct Iface {
     pub genesis: GenesisIface,
     pub transitions: TinyOrdMap<FieldName, TransitionIface>,
     pub extensions: TinyOrdMap<FieldName, ExtensionIface>,
-    pub error_type: SemId,
     pub default_operation: Option<FieldName>,
+    pub errors: TinyOrdMap<Variant, TinyString>,
     pub types: Types,
 }
 
@@ -322,4 +322,8 @@ impl StrictDeserialize for Iface {}
 impl Iface {
     #[inline]
     pub fn iface_id(&self) -> IfaceId { self.commit_id() }
+
+    pub fn display<'a>(&'a self, sys: &'a SymbolicSys) -> IfaceDisplay<'a> {
+        IfaceDisplay::new(self, sys)
+    }
 }

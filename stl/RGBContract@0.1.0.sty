@@ -1,5 +1,5 @@
 {-
-  Id: urn:ubideco:stl:F5EUsi6JPh4SyHevD3pm3C5cJbPjR4kAVjrm7atC83W5#evita-weekend-cotton
+  Id: urn:ubideco:stl:pvPyTM1N1rG9HEAvvEgqKonnMdakHreYrvGWfFff8q6#atlanta-adrian-sonata
   Name: RGBContract
   Version: 0.1.0
   Description: Types for writing RGB contracts and interfaces
@@ -24,10 +24,14 @@ import Bitcoin#HX2UBak8vPsTokug1DGMDvTpzns3xUdwZ7QJdyt4qBA9#speed-atlanta-trilog
 @mnemonic(burma-picasso-granite)
 data Amount            : U64
 
-@mnemonic(heavy-public-hostel)
-data AssetNaming       : ticker Ticker
+@mnemonic(xray-giant-nina)
+data AssetSpec         : ticker Ticker
                        , name Name
                        , details Details?
+                       , precision Precision
+
+@mnemonic(flower-anita-austin)
+data AssetTerms        : text RicardianContract, media Attachment?
 
 @mnemonic(flame-unicorn-fruit)
 data Attachment        : type MediaType, digest [Byte ^ 32]
@@ -35,14 +39,8 @@ data Attachment        : type MediaType, digest [Byte ^ 32]
 @mnemonic(gabriel-fiber-oregano)
 data BurnMeta          : burnProofs {ProofOfReserves}
 
-@mnemonic(symbol-medical-marion)
-data ContractData      : terms RicardianContract, media Attachment?
-
 @mnemonic(network-kayak-adam)
 data Details           : [Unicode ^ 1..0xff]
-
-@mnemonic(elvis-alex-letter)
-data DivisibleAssetSpec : naming AssetNaming, precision Precision
 
 @mnemonic(alcohol-moral-needle)
 data IssueMeta         : reserves {ProofOfReserves}
@@ -89,8 +87,5 @@ data RicardianContract : [Unicode]
 
 @mnemonic(mike-atlas-store)
 data Ticker            : [Std.AlphaCapsNum#magnet-section-latin ^ 1..0x8]
-
-@mnemonic(suzuki-castle-saint)
-data Timestamp         : I64
 
 

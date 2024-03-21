@@ -25,21 +25,30 @@ use std::io::Write;
 
 use commit_verify::CommitmentLayout;
 use rgbstd::containers::Transfer;
-use rgbstd::interface::{rgb21_stl, rgb25_stl, IfaceClass, Rgb20};
+use rgbstd::interface;
+use rgbstd::interface::{rgb21_stl, IfaceClass, Rgb20};
 use rgbstd::stl::{
     aluvm_stl, bp_core_stl, bp_tx_stl, commit_verify_stl, rgb_contract_stl, rgb_core_stl,
     rgb_std_stl,
 };
 use strict_types::stl::{std_stl, strict_types_stl};
-use strict_types::{parse_args, SystemBuilder};
+use strict_types::{parse_args, StlFormat, SystemBuilder};
 
 fn main() {
-    let (format, dir) = parse_args();
+    let (_, dir) = parse_args();
+    let dir = dir.unwrap_or_else(|| ".".to_owned());
 
-    rgb_contract_stl()
+    let contract_stl = rgb_contract_stl();
+    contract_stl
+        .serialize(StlFormat::Binary, Some(&dir), "0.1.0", None)
+        .expect("unable to write to the file");
+    contract_stl
+        .serialize(StlFormat::Armored, Some(&dir), "0.1.0", None)
+        .expect("unable to write to the file");
+    contract_stl
         .serialize(
-            format,
-            dir.as_ref(),
+            StlFormat::Source,
+            Some(&dir),
             "0.1.0",
             Some(
                 "
@@ -51,25 +60,17 @@ fn main() {
         )
         .expect("unable to write to the file");
 
-    Rgb20::stl()
-        .serialize(
-            format,
-            dir.as_ref(),
-            "0.1.0",
-            Some(
-                "
-  Description: Types for RGB20 interface
-  Author: Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
-  Copyright (C) 2023-2024-2024 LNP/BP Standards Association. All rights reserved.
-  License: Apache-2.0",
-            ),
-        )
+    let rgb21 = rgb21_stl();
+    rgb21
+        .serialize(StlFormat::Binary, Some(&dir), "0.1.0", None)
         .expect("unable to write to the file");
-
-    rgb21_stl()
+    rgb21
+        .serialize(StlFormat::Armored, Some(&dir), "0.1.0", None)
+        .expect("unable to write to the file");
+    rgb21
         .serialize(
-            format,
-            dir.as_ref(),
+            StlFormat::Source,
+            Some(&dir),
             "0.1.0",
             Some(
                 "
@@ -81,25 +82,17 @@ fn main() {
         )
         .expect("unable to write to the file");
 
-    rgb25_stl()
-        .serialize(
-            format,
-            dir.as_ref(),
-            "0.1.0",
-            Some(
-                "
-  Description: Types for RGB25 interface
-  Author: Zoe Faltibà
-  Copyright (C) 2023-2024-2024 LNP/BP Standards Association. All rights reserved.
-  License: Apache-2.0",
-            ),
-        )
+    let rgb_std = rgb_std_stl();
+    rgb_std
+        .serialize(StlFormat::Binary, Some(&dir), "0.1.0", None)
         .expect("unable to write to the file");
-
-    rgb_std_stl()
+    rgb_std
+        .serialize(StlFormat::Armored, Some(&dir), "0.1.0", None)
+        .expect("unable to write to the file");
+    rgb_std
         .serialize(
-            format,
-            dir.as_ref(),
+            StlFormat::Source,
+            Some(&dir),
             "0.1.0",
             Some(
                 "
@@ -140,7 +133,26 @@ fn main() {
         .finalize()
         .expect("not all libraries present");
 
-    let dir = dir.unwrap_or_else(|| ".".to_owned());
+    let ifsys = SystemBuilder::new()
+        .import(rgb21)
+        .unwrap()
+        .import(rgb_contract_stl())
+        .unwrap()
+        .import(bp_tx_stl())
+        .unwrap()
+        .import(std_stl())
+        .unwrap()
+        .finalize()
+        .expect("not all libraries present");
+
+    let rgb20 = Rgb20::iface();
+    fs::write(format!("{dir}/RGB20.con"), format!("{}", rgb20.display(&ifsys))).unwrap();
+
+    let rgb21 = interface::rgb21();
+    fs::write(format!("{dir}/RGB21.con"), format!("{}", rgb21.display(&ifsys))).unwrap();
+
+    let rgb25 = interface::rgb25();
+    fs::write(format!("{dir}/RGB25.con"), format!("{}", rgb25.display(&ifsys))).unwrap();
 
     let mut file = fs::File::create(format!("{dir}/Transfer.vesper")).unwrap();
     writeln!(

@@ -22,12 +22,11 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
-use bp::bc::stl::bp_tx_stl;
 use bp::dbc::Method;
 use invoice::{Amount, Precision};
 use rgb::{AltLayer1, AssetTag, BlindingFactor, GenesisSeal, Occurrences, Types, WitnessId};
-use strict_encoding::InvalidIdent;
-use strict_types::{CompileError, LibBuilder, TypeLib};
+use strict_encoding::{InvalidIdent, Variant};
+use strict_types::TypeLib;
 
 use super::{
     AssignIface, BuilderError, ContractBuilder, GenesisIface, GlobalIface, Iface, IfaceClass,
@@ -41,11 +40,9 @@ use crate::persistence::PersistedState;
 use crate::stl::{
     rgb_contract_stl, AssetSpec, AssetTerms, Attachment, RicardianContract, StandardTypes,
 };
+use crate::LIB_NAME_RGB_STD;
 
 pub const LIB_NAME_RGB20: &str = "RGB20";
-/// Strict types id for the library providing data types for RGB20 interface.
-pub const LIB_ID_RGB20: &str =
-    "urn:ubideco:stl:GVz4mvYE94aQ9q2HPtV9VuoppcDdduP54BMKffF7YoFH#prince-scarlet-ringo";
 
 const SUPPLY_MISMATCH: u8 = 1;
 const NON_EQUAL_AMOUNTS: u8 = 2;
@@ -54,34 +51,8 @@ const INSUFFICIENT_RESERVES: u8 = 4;
 const INSUFFICIENT_COVERAGE: u8 = 5;
 const ISSUE_EXCEEDS_ALLOWANCE: u8 = 6;
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB20, tags = repr, into_u8, try_from_u8)]
-#[repr(u8)]
-pub enum Error {
-    #[strict_type(dumb)]
-    SupplyMismatch = SUPPLY_MISMATCH,
-    NonEqualAmounts = NON_EQUAL_AMOUNTS,
-    InvalidProof = INVALID_PROOF,
-    InsufficientReserves = INSUFFICIENT_RESERVES,
-    InsufficientCoverage = INSUFFICIENT_COVERAGE,
-    IssueExceedsAllowance = ISSUE_EXCEEDS_ALLOWANCE,
-}
-
-fn _rgb20_stl() -> Result<TypeLib, CompileError> {
-    LibBuilder::new(libname!(LIB_NAME_RGB20), tiny_bset! {
-        bp_tx_stl().to_dependency(),
-        rgb_contract_stl().to_dependency()
-    })
-    .transpile::<Error>()
-    .compile()
-}
-
-/// Generates strict type library providing data types for RGB20 interface.
-fn rgb20_stl() -> TypeLib { _rgb20_stl().expect("invalid strict type RGB20 library") }
-
 fn rgb20() -> Iface {
-    let types = StandardTypes::with(rgb20_stl());
+    let types = StandardTypes::new();
 
     Iface {
         version: VerNo::V1,
@@ -103,7 +74,7 @@ fn rgb20() -> Iface {
         valencies: none!(),
         genesis: GenesisIface {
             metadata: Some(types.get("RGBContract.IssueMeta")),
-            global: tiny_bmap! {
+            globals: tiny_bmap! {
                 fname!("spec") => Occurrences::Once,
                 fname!("terms") => Occurrences::Once,
                 fname!("issuedSupply") => Occurrences::Once,
@@ -235,7 +206,25 @@ fn rgb20() -> Iface {
             },
         },
         extensions: none!(),
-        error_type: types.get("RGB20.Error"),
+        errors: tiny_bmap! {
+            Variant::named(SUPPLY_MISMATCH, vname!("supplyMismatch"))
+                => tiny_s!("supply specified as a global parameter doesn't match the issued supply allocated to the asset owners"),
+
+            Variant::named(NON_EQUAL_AMOUNTS, vname!("nonEqualAmounts"))
+                => tiny_s!("the sum of spent assets doesn't equal to the sum of assets in outputs"),
+
+            Variant::named(INVALID_PROOF, vname!("invalidProof"))
+                => tiny_s!("the provided proof is invalid"),
+
+            Variant::named(INSUFFICIENT_RESERVES, vname!("insufficientReserves"))
+                => tiny_s!("reserve is insufficient to cover the issued assets"),
+
+            Variant::named(INSUFFICIENT_COVERAGE, vname!("insufficientCoverage"))
+                => tiny_s!("the claimed amount of burned assets is not covered by the assets in the operation inputs"),
+
+            Variant::named(ISSUE_EXCEEDS_ALLOWANCE, vname!("issueExceedsAllowance"))
+                => tiny_s!("you try to issue more assets than allowed by the contract terms"),
+        },
         default_operation: Some(fname!("transfer")),
         types: Types::Strict(types.type_system()),
     }
@@ -243,7 +232,7 @@ fn rgb20() -> Iface {
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_ID_RGB20, tags = custom)]
+#[strict_type(lib = LIB_NAME_RGB_STD, tags = custom)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
@@ -310,15 +299,15 @@ impl From<ContractIface> for Rgb20 {
 impl IfaceWrapper for Rgb20 {
     const IFACE_NAME: &'static str = LIB_NAME_RGB20;
     const IFACE_ID: IfaceId = IfaceId::from_array([
-        0xe8, 0x29, 0x3b, 0xb4, 0x56, 0x1a, 0xa3, 0x82, 0xa2, 0xe7, 0x9c, 0x13, 0xb1, 0x17, 0x13,
-        0x8e, 0x1c, 0x69, 0xa0, 0x5d, 0x47, 0x6e, 0x00, 0xbe, 0xf4, 0x31, 0x79, 0xbb, 0x2c, 0x17,
-        0xa8, 0x0e,
+        0x28, 0x75, 0xde, 0xa6, 0x57, 0x6e, 0x80, 0x25, 0x11, 0x0a, 0x35, 0x2d, 0x7c, 0x75, 0x9e,
+        0x8a, 0x3c, 0x9c, 0xbf, 0x7b, 0xa8, 0xa0, 0x26, 0x12, 0x80, 0x2a, 0x46, 0x47, 0x25, 0xce,
+        0xff, 0x75,
     ]);
 }
 
 impl IfaceClass for Rgb20 {
     fn iface() -> Iface { rgb20() }
-    fn stl() -> TypeLib { rgb20_stl() }
+    fn stl() -> TypeLib { rgb_contract_stl() }
 }
 
 impl Rgb20 {
@@ -651,12 +640,6 @@ mod test {
     use super::*;
 
     const RGB20: &str = include_str!("../../tests/data/rgb20.rgba");
-
-    #[test]
-    fn lib_id() {
-        let lib = rgb20_stl();
-        assert_eq!(lib.id().to_string(), LIB_ID_RGB20);
-    }
 
     #[test]
     fn iface_id() {

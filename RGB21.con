@@ -1,0 +1,41 @@
+@version(v1)
+interface RGB21
+	global attachmentTypes(*): RGB21.AttachmentType
+	global engravings(*): RGB21.EngravingData
+	global spec: RGBContract.AssetSpec
+	global terms: RGBContract.AssetTerms
+	global tokens(*): RGB21.TokenData
+
+	owned assetOwner(*): RGB21.Allocation
+	public inflationAllowance(*): RGB21.ItemsCount
+	public updateRight(?): Rights
+
+	genesis
+		meta: RGBContract.IssueMeta
+		globals: attachmentTypes(*), spec, terms, tokens(*)
+		assigns: assetOwner(*), inflationAllowance(*), updateRight(?)
+
+	transition engrave:
+		globals: engravings
+		assigns: assetOwner(+)
+		default: assetOwner
+		inputs: assetOwner(+)
+
+	transition issue:
+		meta: RGBContract.IssueMeta
+		globals: attachmentTypes(*), tokens(*)
+		assigns: assetOwner(*), inflationAllowance(*)
+		default: assetOwner
+		inputs: inflationAllowance(+)
+
+	transition rename:
+		globals: spec
+		assigns: updateRight
+		default: updateRight
+		inputs: updateRight
+
+	transition transfer: required, default
+		assigns: assetOwner(+)
+		default: assetOwner
+		inputs: assetOwner(+)
+

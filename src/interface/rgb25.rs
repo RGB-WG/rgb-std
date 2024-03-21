@@ -23,23 +23,17 @@
 
 use std::fmt::Debug;
 
-use bp::bc::stl::bp_tx_stl;
 use invoice::{Amount, Precision};
 use rgb::{Occurrences, Types};
-use strict_encoding::{StrictDumb, StrictEncode};
-use strict_types::stl::std_stl;
-use strict_types::{CompileError, LibBuilder, TypeLib};
+use strict_encoding::Variant;
 
 use super::{
     AssignIface, GenesisIface, GlobalIface, Iface, OwnedIface, Req, TransitionIface, VerNo,
 };
 use crate::interface::{ContractIface, IfaceId, IfaceWrapper};
-use crate::stl::{rgb_contract_stl, AssetTerms, Details, Name, StandardTypes};
+use crate::stl::{AssetTerms, Details, Name, StandardTypes};
 
 pub const LIB_NAME_RGB25: &str = "RGB25";
-/// Strict types id for the library providing data types for RGB25 interface.
-pub const LIB_ID_RGB25: &str =
-    "urn:ubideco:stl:4JmGrg7oTgwuCQtyC4ezC38ToHMzgMCVS5kMSDPwo2ee#camera-betty-bank";
 
 const SUPPLY_MISMATCH: u8 = 1;
 const NON_EQUAL_AMOUNTS: u8 = 2;
@@ -47,34 +41,8 @@ const INVALID_PROOF: u8 = 3;
 const INSUFFICIENT_RESERVES: u8 = 4;
 const INSUFFICIENT_COVERAGE: u8 = 5;
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB25, tags = repr, into_u8, try_from_u8)]
-#[repr(u8)]
-pub enum Error {
-    #[strict_type(dumb)]
-    SupplyMismatch = SUPPLY_MISMATCH,
-    NonEqualAmounts = NON_EQUAL_AMOUNTS,
-    InvalidProof = INVALID_PROOF,
-    InsufficientReserves = INSUFFICIENT_RESERVES,
-    InsufficientCoverage = INSUFFICIENT_COVERAGE,
-}
-
-fn _rgb25_stl() -> Result<TypeLib, CompileError> {
-    LibBuilder::new(libname!(LIB_NAME_RGB25), tiny_bset! {
-        std_stl().to_dependency(),
-        bp_tx_stl().to_dependency(),
-        rgb_contract_stl().to_dependency(),
-    })
-    .transpile::<Error>()
-    .compile()
-}
-
-/// Generates strict type library providing data types for RGB25 interface.
-pub fn rgb25_stl() -> TypeLib { _rgb25_stl().expect("invalid strict type RGB25 library") }
-
 pub fn rgb25() -> Iface {
-    let types = StandardTypes::with(rgb25_stl());
+    let types = StandardTypes::new();
 
     Iface {
         version: VerNo::V1,
@@ -94,7 +62,7 @@ pub fn rgb25() -> Iface {
         valencies: none!(),
         genesis: GenesisIface {
             metadata: Some(types.get("RGBContract.IssueMeta")),
-            global: tiny_bmap! {
+            globals: tiny_bmap! {
                 fname!("name") => Occurrences::Once,
                 fname!("details") => Occurrences::NoneOrOnce,
                 fname!("precision") => Occurrences::Once,
@@ -150,7 +118,22 @@ pub fn rgb25() -> Iface {
             },
         },
         extensions: none!(),
-        error_type: types.get("RGB25.Error"),
+        errors: tiny_bmap! {
+            Variant::named(SUPPLY_MISMATCH, vname!("supplyMismatch"))
+                => tiny_s!("supply specified as a global parameter doesn't match the issued supply allocated to the asset owners"),
+
+            Variant::named(NON_EQUAL_AMOUNTS, vname!("nonEqualAmounts"))
+                => tiny_s!("the sum of spent assets doesn't equal to the sum of assets in outputs"),
+
+            Variant::named(INVALID_PROOF, vname!("invalidProof"))
+                => tiny_s!("the provided proof is invalid"),
+
+            Variant::named(INSUFFICIENT_RESERVES, vname!("insufficientReserves"))
+                => tiny_s!("reserve is insufficient to cover the issued assets"),
+
+            Variant::named(INSUFFICIENT_COVERAGE, vname!("insufficientCoverage"))
+                => tiny_s!("the claimed amount of burned assets is not covered by the assets in the operation inputs"),
+        },
         default_operation: Some(fname!("transfer")),
         types: Types::Strict(types.type_system()),
     }
@@ -173,9 +156,9 @@ impl From<ContractIface> for Rgb25 {
 impl IfaceWrapper for Rgb25 {
     const IFACE_NAME: &'static str = LIB_NAME_RGB25;
     const IFACE_ID: IfaceId = IfaceId::from_array([
-        0x07, 0x99, 0x79, 0x3e, 0x6d, 0x5d, 0x56, 0xc5, 0xc8, 0x60, 0xff, 0x2b, 0x4e, 0x16, 0xe6,
-        0x38, 0x59, 0x76, 0x35, 0xb0, 0x50, 0x1f, 0xa8, 0x5b, 0xa7, 0x91, 0xa0, 0xbb, 0xc2, 0xff,
-        0x45, 0xb0,
+        0x5d, 0x36, 0x8e, 0x75, 0xa8, 0x2e, 0x15, 0x81, 0x3c, 0x12, 0x39, 0x6b, 0x0e, 0x2b, 0xc0,
+        0x8b, 0xe9, 0x66, 0x82, 0x3f, 0x9e, 0x10, 0x18, 0x8d, 0xf1, 0xd6, 0xfb, 0x24, 0x9b, 0x28,
+        0x28, 0xa5,
     ]);
 }
 
@@ -242,12 +225,6 @@ mod test {
     use super::*;
 
     const RGB25: &str = include_str!("../../tests/data/rgb25.rgba");
-
-    #[test]
-    fn lib_id() {
-        let lib = rgb25_stl();
-        assert_eq!(lib.id().to_string(), LIB_ID_RGB25);
-    }
 
     #[test]
     fn iface_id() {
