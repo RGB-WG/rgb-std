@@ -52,7 +52,7 @@ pub use iimpl::{
 };
 pub use rgb20::{AmountChange, Rgb20, LIB_NAME_RGB20};
 pub use rgb21::{rgb21, rgb21_stl, Rgb21, LIB_ID_RGB21, LIB_NAME_RGB21};
-pub use rgb25::{rgb25, Rgb25, LIB_NAME_RGB25};
+pub use rgb25::{Rgb25, LIB_NAME_RGB25};
 pub use suppl::{ContractSuppl, OwnedStateSuppl, SupplId, TickerSuppl, VelocityHint};
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, Default)]

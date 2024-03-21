@@ -36,7 +36,7 @@ use strict_encoding::TypeName;
 use crate::accessors::{MergeReveal, MergeRevealError};
 use crate::containers::{Cert, Consignment, ContentId, ContentSigs};
 use crate::interface::{
-    rgb21, rgb25, ContractSuppl, Iface, IfaceClass, IfaceId, IfacePair, Rgb20, SchemaIfaces,
+    rgb21, ContractSuppl, Iface, IfaceClass, IfaceId, IfacePair, Rgb20, Rgb25, SchemaIfaces,
 };
 use crate::persistence::{InventoryError, Stash, StashError, StashInconsistency};
 use crate::LIB_NAME_RGB_STD;
@@ -90,7 +90,7 @@ impl Hoard {
         let rgb20_id = rgb20.iface_id();
         let rgb21 = rgb21();
         let rgb21_id = rgb21.iface_id();
-        let rgb25 = rgb25();
+        let rgb25 = Rgb25::iface();
         let rgb25_id = rgb25.iface_id();
         Hoard {
             schemata: none!(),

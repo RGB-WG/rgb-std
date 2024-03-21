@@ -26,7 +26,7 @@ use std::io::Write;
 use commit_verify::CommitmentLayout;
 use rgbstd::containers::Transfer;
 use rgbstd::interface;
-use rgbstd::interface::{rgb21_stl, IfaceClass, Rgb20};
+use rgbstd::interface::{rgb21_stl, IfaceClass, Rgb20, Rgb25};
 use rgbstd::stl::{
     aluvm_stl, bp_core_stl, bp_tx_stl, commit_verify_stl, rgb_contract_stl, rgb_core_stl,
     rgb_std_stl,
@@ -151,7 +151,7 @@ fn main() {
     let rgb21 = interface::rgb21();
     fs::write(format!("{dir}/RGB21.con"), format!("{}", rgb21.display(&ifsys))).unwrap();
 
-    let rgb25 = interface::rgb25();
+    let rgb25 = Rgb25::iface();
     fs::write(format!("{dir}/RGB25.con"), format!("{}", rgb25.display(&ifsys))).unwrap();
 
     let mut file = fs::File::create(format!("{dir}/Transfer.vesper")).unwrap();
