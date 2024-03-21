@@ -37,8 +37,8 @@ use strict_types::stl::std_stl;
 use strict_types::{CompileError, LibBuilder, StrictVal, TypeLib};
 
 use super::{
-    AssignIface, DataAllocation, GenesisIface, GlobalIface, Iface, OutpointFilter, OwnedIface, Req,
-    TransitionIface, VerNo,
+    AssignIface, DataAllocation, GenesisIface, GlobalIface, Iface, IfaceClass, OutpointFilter,
+    OwnedIface, Req, TransitionIface, VerNo,
 };
 use crate::interface::{ContractIface, IfaceId, IfaceWrapper};
 use crate::stl::{
@@ -339,9 +339,9 @@ fn _rgb21_stl() -> Result<TypeLib, CompileError> {
 }
 
 /// Generates strict type library providing data types for RGB21 interface.
-pub fn rgb21_stl() -> TypeLib { _rgb21_stl().expect("invalid strict type RGB21 library") }
+fn rgb21_stl() -> TypeLib { _rgb21_stl().expect("invalid strict type RGB21 library") }
 
-pub fn rgb21() -> Iface {
+fn rgb21() -> Iface {
     let types = StandardTypes::with(rgb21_stl());
 
     Iface {
@@ -501,7 +501,7 @@ pub struct Rgb21(ContractIface);
 impl From<ContractIface> for Rgb21 {
     fn from(iface: ContractIface) -> Self {
         if iface.iface.iface_id != Rgb21::IFACE_ID {
-            panic!("the provided interface is not RGB20 interface");
+            panic!("the provided interface is not RGB21 interface");
         }
         Self(iface)
     }
@@ -514,6 +514,11 @@ impl IfaceWrapper for Rgb21 {
         0x96, 0xe8, 0x36, 0xe6, 0x8c, 0x83, 0xe2, 0x6c, 0x1d, 0xc5, 0xce, 0x69, 0xd5, 0x5a, 0x4f,
         0xdc, 0x33,
     ]);
+}
+
+impl IfaceClass for Rgb21 {
+    fn iface() -> Iface { rgb21() }
+    fn stl() -> TypeLib { rgb21_stl() }
 }
 
 impl Rgb21 {

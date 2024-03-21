@@ -25,8 +25,7 @@ use std::io::Write;
 
 use commit_verify::CommitmentLayout;
 use rgbstd::containers::Transfer;
-use rgbstd::interface;
-use rgbstd::interface::{rgb21_stl, IfaceClass, Rgb20, Rgb25};
+use rgbstd::interface::{IfaceClass, Rgb20, Rgb21, Rgb25};
 use rgbstd::stl::{
     aluvm_stl, bp_core_stl, bp_tx_stl, commit_verify_stl, rgb_contract_stl, rgb_core_stl,
     rgb_std_stl,
@@ -60,7 +59,7 @@ fn main() {
         )
         .expect("unable to write to the file");
 
-    let rgb21 = rgb21_stl();
+    let rgb21 = Rgb21::stl();
     rgb21
         .serialize(StlFormat::Binary, Some(&dir), "0.1.0", None)
         .expect("unable to write to the file");
@@ -148,7 +147,7 @@ fn main() {
     let rgb20 = Rgb20::iface();
     fs::write(format!("{dir}/RGB20.con"), format!("{}", rgb20.display(&ifsys))).unwrap();
 
-    let rgb21 = interface::rgb21();
+    let rgb21 = Rgb21::iface();
     fs::write(format!("{dir}/RGB21.con"), format!("{}", rgb21.display(&ifsys))).unwrap();
 
     let rgb25 = Rgb25::iface();
