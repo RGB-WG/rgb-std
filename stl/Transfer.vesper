@@ -1090,7 +1090,6 @@ Consignmenttrue rec
           key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
           value rec ValencyIface
             required enum Bool false=0 true=1
-            multiple enum Bool false=0 true=1
         genesis rec GenesisIface
           some bytes len=32 option wrapped aka=SemId tag=1
           globals map len=0..MAX8
@@ -1103,11 +1102,8 @@ Consignmenttrue rec
             value rec Occurrences
               min is U16
               max is U16
-          valencies map len=0..MAX8
-            key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-            value rec Occurrences
-              min is U16
-              max is U16
+          valencies set len=0..MAX8
+            element ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
           errors set len=0..MAX8
             element is U8
         transitions map len=0..MAX8
@@ -1130,11 +1126,8 @@ Consignmenttrue rec
               value rec Occurrences
                 min is U16
                 max is U16
-            valencies map len=0..MAX8
-              key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-              value rec Occurrences
-                min is U16
-                max is U16
+            valencies set len=0..MAX8
+              element ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
             errors set len=0..MAX8
               element is U8
               some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
@@ -1147,23 +1140,18 @@ Consignmenttrue rec
               value rec Occurrences
                 min is U16
                 max is U16
-            redeems map len=0..MAX8
-              key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-              value rec Occurrences
-                min is U16
-                max is U16
             assignments map len=0..MAX8
               key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
               value rec Occurrences
                 min is U16
                 max is U16
-            valencies map len=0..MAX8
-              key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-              value rec Occurrences
-                min is U16
-                max is U16
+            redeems set len=0..MAX8
+              element ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
+            valencies set len=0..MAX8
+              element ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
             errors set len=0..MAX8
               element is U8
+              some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
           some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
         errors map len=0..MAX8
           key rec Variant
