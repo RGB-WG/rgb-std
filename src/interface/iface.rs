@@ -326,4 +326,205 @@ impl Iface {
     pub fn display<'a>(&'a self, sys: &'a SymbolicSys) -> IfaceDisplay<'a> {
         IfaceDisplay::new(self, sys)
     }
+
+    pub fn check(&self) -> Result<(), Vec<IfaceInconsistency>> {
+        let proc_globals = |op_name: &OpName,
+                            globals: &ArgMap,
+                            errors: &mut Vec<IfaceInconsistency>| {
+            for (name, occ) in globals {
+                if let Some(g) = self.global_state.get(name) {
+                    if occ.min_value() > 1 && !g.multiple {
+                        errors.push(IfaceInconsistency::MultipleGlobal(
+                            op_name.clone(),
+                            name.clone(),
+                        ));
+                    }
+                } else {
+                    errors.push(IfaceInconsistency::UnknownGlobal(op_name.clone(), name.clone()));
+                }
+            }
+        };
+        let proc_assignments =
+            |op_name: &OpName, assignments: &ArgMap, errors: &mut Vec<IfaceInconsistency>| {
+                for (name, occ) in assignments {
+                    if let Some(a) = self.assignments.get(name) {
+                        if occ.min_value() > 1 && !a.multiple {
+                            errors.push(IfaceInconsistency::MultipleAssignment(
+                                op_name.clone(),
+                                name.clone(),
+                            ));
+                        }
+                    } else {
+                        errors.push(IfaceInconsistency::UnknownAssignment(
+                            op_name.clone(),
+                            name.clone(),
+                        ));
+                    }
+                }
+            };
+        let proc_valencies = |op_name: &OpName,
+                              valencies: &TinyOrdSet<FieldName>,
+                              errors: &mut Vec<IfaceInconsistency>| {
+            for name in valencies {
+                if self.valencies.get(name).is_none() {
+                    errors.push(IfaceInconsistency::UnknownValency(op_name.clone(), name.clone()));
+                }
+            }
+        };
+        let proc_errors =
+            |op_name: &OpName, errs: &TinyOrdSet<u8>, errors: &mut Vec<IfaceInconsistency>| {
+                for tag in errs {
+                    if self.errors.keys().all(|v| v.tag != *tag) {
+                        errors.push(IfaceInconsistency::UnknownErrorTag(op_name.clone(), *tag));
+                    }
+                }
+            };
+
+        let mut errors = vec![];
+
+        proc_globals(&OpName::Genesis, &self.genesis.globals, &mut errors);
+        proc_assignments(&OpName::Genesis, &self.genesis.assignments, &mut errors);
+        proc_valencies(&OpName::Genesis, &self.genesis.valencies, &mut errors);
+        proc_errors(&OpName::Genesis, &self.genesis.errors, &mut errors);
+
+        for (name, t) in &self.transitions {
+            let op_name = OpName::Transition(name.clone());
+            proc_globals(&op_name, &t.globals, &mut errors);
+            proc_assignments(&op_name, &t.assignments, &mut errors);
+            proc_valencies(&op_name, &t.valencies, &mut errors);
+            proc_errors(&op_name, &t.errors, &mut errors);
+
+            for (name, occ) in &t.inputs {
+                if let Some(a) = self.assignments.get(name) {
+                    if occ.min_value() > 1 && !a.multiple {
+                        errors.push(IfaceInconsistency::MultipleInputs(
+                            op_name.clone(),
+                            name.clone(),
+                        ));
+                    }
+                } else {
+                    errors.push(IfaceInconsistency::UnknownInput(op_name.clone(), name.clone()));
+                }
+            }
+            if let Some(ref name) = t.default_assignment {
+                if t.assignments.get(name).is_none() {
+                    errors
+                        .push(IfaceInconsistency::UnknownDefaultAssignment(op_name, name.clone()));
+                }
+            }
+        }
+
+        for (name, e) in &self.extensions {
+            let op_name = OpName::Extension(name.clone());
+            proc_globals(&op_name, &e.globals, &mut errors);
+            proc_assignments(&op_name, &e.assignments, &mut errors);
+            proc_valencies(&op_name, &e.valencies, &mut errors);
+            proc_errors(&op_name, &e.errors, &mut errors);
+
+            for name in &e.redeems {
+                if self.valencies.get(name).is_none() {
+                    errors.push(IfaceInconsistency::UnknownRedeem(op_name.clone(), name.clone()));
+                }
+            }
+            if let Some(ref name) = e.default_assignment {
+                if e.assignments.get(name).is_none() {
+                    errors
+                        .push(IfaceInconsistency::UnknownDefaultAssignment(op_name, name.clone()));
+                }
+            }
+        }
+
+        for name in self.transitions.keys() {
+            if self.extensions.contains_key(name) {
+                errors.push(IfaceInconsistency::RepeatedOperationName(name.clone()));
+            }
+        }
+
+        if let Some(ref name) = self.default_operation {
+            if self.transitions.get(name).is_none() && self.extensions.get(name).is_none() {
+                errors.push(IfaceInconsistency::UnknownDefaultOp(name.clone()));
+            }
+        }
+
+        for (name, g) in &self.global_state {
+            if g.required && self.genesis.globals.get(name).is_none() {
+                errors.push(IfaceInconsistency::RequiredGlobalAbsent(name.clone()));
+            }
+        }
+        for (name, a) in &self.assignments {
+            if a.required && self.genesis.assignments.get(name).is_none() {
+                errors.push(IfaceInconsistency::RequiredAssignmentAbsent(name.clone()));
+            }
+        }
+        for (name, v) in &self.valencies {
+            if v.required && self.genesis.valencies.get(name).is_none() {
+                errors.push(IfaceInconsistency::RequiredValencyAbsent(name.clone()));
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
+
+    // TODO: Implement checking types against presence in a type system.
+    /*
+    pub fn check_types(&self, sys: &SymbolicSys) -> Result<(), Vec<IfaceTypeError>> {
+        for g in self.global_state.values() {
+            if let Some(id) = g.sem_id {
+
+            }
+        }
+    }
+     */
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
+pub enum OpName {
+    #[display("genesis")]
+    Genesis,
+    #[display("transition '{0}'")]
+    Transition(FieldName),
+    #[display("extension '{0}'")]
+    Extension(FieldName),
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug, Display, Error)]
+#[display(doc_comments)]
+pub enum IfaceInconsistency {
+    /// unknown global state '{1}' referenced from {0}.
+    UnknownGlobal(OpName, FieldName),
+    /// unknown valency '{1}' referenced from {0}.
+    UnknownValency(OpName, FieldName),
+    /// unknown input '{1}' referenced from {0}.
+    UnknownRedeem(OpName, FieldName),
+    /// unknown assignment '{1}' referenced from {0}.
+    UnknownAssignment(OpName, FieldName),
+    /// unknown input '{1}' referenced from {0}.
+    UnknownInput(OpName, FieldName),
+    /// unknown error tag '{1}' referenced from {0}.
+    UnknownErrorTag(OpName, u8),
+    /// unknown default assignment '{1}' referenced from {0}.
+    UnknownDefaultAssignment(OpName, FieldName),
+    /// unknown default operation '{0}'.
+    UnknownDefaultOp(FieldName),
+    /// global state '{1}' must have a unique single value, but operation {0}
+    /// defines multiple global state of this type.
+    MultipleGlobal(OpName, FieldName),
+    /// assignment '{1}' must be unique, but operation {0} defines multiple
+    /// assignments of this type.
+    MultipleAssignment(OpName, FieldName),
+    /// assignment '{1}' is unique, but operation {0} defines multiple inputs of
+    /// this type, which is not possible.
+    MultipleInputs(OpName, FieldName),
+    /// operation name '{0}' is used by both state transition and extension.
+    RepeatedOperationName(FieldName),
+    /// global state '{0}' is required, but genesis doesn't define it.
+    RequiredGlobalAbsent(FieldName),
+    /// assignment '{0}' is required, but genesis doesn't define it.
+    RequiredAssignmentAbsent(FieldName),
+    /// valency '{0}' is required, but genesis doesn't define it.
+    RequiredValencyAbsent(FieldName),
 }

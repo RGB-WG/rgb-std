@@ -654,4 +654,14 @@ mod test {
     fn iface_bindle() {
         assert_eq!(format!("{}", rgb20().to_ascii_armored_string()), RGB20);
     }
+
+    #[test]
+    fn iface_check() {
+        if let Err(err) = rgb20().check() {
+            for e in err {
+                eprintln!("{e}");
+            }
+            panic!("invalid RGB20 interface definition");
+        }
+    }
 }

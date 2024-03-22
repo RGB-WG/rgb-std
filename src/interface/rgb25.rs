@@ -430,4 +430,14 @@ mod test {
     fn iface_bindle() {
         assert_eq!(format!("{}", rgb25().to_ascii_armored_string()), RGB25);
     }
+
+    #[test]
+    fn iface_check() {
+        if let Err(err) = rgb25().check() {
+            for e in err {
+                eprintln!("{e}");
+            }
+            panic!("invalid RGB25 interface definition");
+        }
+    }
 }

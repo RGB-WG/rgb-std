@@ -591,4 +591,14 @@ mod test {
     fn iface_bindle() {
         assert_eq!(format!("{}", rgb21().to_ascii_armored_string()), RGB21);
     }
+
+    #[test]
+    fn iface_check() {
+        if let Err(err) = rgb21().check() {
+            for e in err {
+                eprintln!("{e}");
+            }
+            panic!("invalid RGB21 interface definition");
+        }
+    }
 }
