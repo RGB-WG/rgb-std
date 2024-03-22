@@ -116,7 +116,6 @@ impl Req {
 )]
 pub struct ValencyIface {
     pub required: bool,
-    pub multiple: bool,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
@@ -238,7 +237,7 @@ pub struct GenesisIface {
     pub metadata: Option<SemId>,
     pub globals: ArgMap,
     pub assignments: ArgMap,
-    pub valencies: ArgMap,
+    pub valencies: TinyOrdSet<FieldName>,
     pub errors: TinyOrdSet<u8>,
 }
 
@@ -253,10 +252,11 @@ pub struct GenesisIface {
 pub struct ExtensionIface {
     pub metadata: Option<SemId>,
     pub globals: ArgMap,
-    pub redeems: ArgMap,
     pub assignments: ArgMap,
-    pub valencies: ArgMap,
+    pub redeems: TinyOrdSet<FieldName>,
+    pub valencies: TinyOrdSet<FieldName>,
     pub errors: TinyOrdSet<u8>,
+    pub default_assignment: Option<FieldName>,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -274,7 +274,7 @@ pub struct TransitionIface {
     pub globals: ArgMap,
     pub inputs: ArgMap,
     pub assignments: ArgMap,
-    pub valencies: ArgMap,
+    pub valencies: TinyOrdSet<FieldName>,
     pub errors: TinyOrdSet<u8>,
     pub default_assignment: Option<FieldName>,
 }

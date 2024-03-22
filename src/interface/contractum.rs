@@ -24,7 +24,7 @@ use std::fmt::{Display, Formatter};
 
 use amplify::confinement::{TinyOrdMap, TinyOrdSet, TinyString};
 use rgb::Occurrences;
-use strict_encoding::Variant;
+use strict_encoding::{FieldName, Variant};
 use strict_types::{SemId, SymbolicSys};
 
 use crate::interface::{ArgMap, ExtensionIface, GenesisIface, Iface, OwnedIface, TransitionIface};
@@ -57,7 +57,7 @@ struct OpIfaceDisplay<'a> {
     metadata: Option<SemId>,
     globals: &'a ArgMap,
     assignments: &'a ArgMap,
-    valencies: &'a ArgMap,
+    valencies: &'a TinyOrdSet<FieldName>,
     errors: &'a TinyOrdSet<u8>,
     types: &'a SymbolicSys,
     iface_errors: &'a TinyOrdMap<Variant, TinyString>,
@@ -128,7 +128,14 @@ impl<'a> Display for OpIfaceDisplay<'a> {
             writeln!(f, "\t\tglobals: {}", ArgMapDisplay(&self.globals))?;
         }
         if !self.valencies.is_empty() {
-            writeln!(f, "\t\tvalencies: {}", ArgMapDisplay(&self.valencies))?;
+            write!(f, "\t\tvalencies: ")?;
+            for (i, name) in self.valencies.iter().enumerate() {
+                if i > 0 {
+                    f.write_str(", ")?
+                }
+                write!(f, "{name}")?;
+            }
+            writeln!(f)?;
         }
         if !self.assignments.is_empty() {
             writeln!(f, "\t\tassigns: {}", ArgMapDisplay(&self.assignments))?;
@@ -203,7 +210,9 @@ impl<'a> Display for IfaceDisplay<'a> {
 
         for (fname, v) in &self.iface.valencies {
             write!(f, "\tvalency {fname}")?;
-            sugar(f, v.required, v.multiple)?;
+            if !v.required {
+                write!(f, "(?)")?;
+            }
             writeln!(f)?;
         }
         if !self.iface.valencies.is_empty() {
@@ -227,12 +236,12 @@ impl<'a> Display for IfaceDisplay<'a> {
             if !t.optional {
                 f.write_str(" required")?;
                 if self.iface.default_operation.is_some() {
-                    f.write_str(", ")?;
+                    f.write_str(",")?;
                 }
             }
             if let Some(ref d) = self.iface.default_operation {
                 if d == name {
-                    write!(f, "default")?;
+                    write!(f, " default")?;
                 }
             }
             writeln!(f)?;
@@ -250,12 +259,29 @@ impl<'a> Display for IfaceDisplay<'a> {
         }
 
         for (name, e) in &self.iface.extensions {
-            writeln!(f, "\textension {name}:")?;
+            write!(f, "\textension {name}:")?;
+            if let Some(ref d) = self.iface.default_operation {
+                if d == name {
+                    write!(f, " default")?;
+                }
+            }
+            writeln!(f)?;
 
             let op = OpIfaceDisplay::extension(e, self);
             write!(f, "{op}")?;
 
-            writeln!(f, "\t\tredeems: {}", ArgMapDisplay(&e.redeems))?;
+            if let Some(ref d) = e.default_assignment {
+                writeln!(f, "\t\tdefault: {d}")?;
+            }
+
+            write!(f, "\t\tredeems: ")?;
+            for (i, name) in e.redeems.iter().enumerate() {
+                if i > 0 {
+                    f.write_str(", ")?
+                }
+                write!(f, "{name}")?;
+            }
+            writeln!(f)?;
 
             writeln!(f)?;
         }
