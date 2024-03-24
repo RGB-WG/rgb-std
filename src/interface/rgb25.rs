@@ -32,7 +32,7 @@ use strict_types::TypeLib;
 
 use super::{
     AssignIface, BuilderError, ContractBuilder, GenesisIface, GlobalIface, Iface, IfaceClass,
-    IssuerClass, OwnedIface, Req, SchemaIssuer, TransitionIface, TxOutpoint, VerNo,
+    IssuerClass, Modifier, OwnedIface, Req, SchemaIssuer, TransitionIface, TxOutpoint, VerNo,
 };
 use crate::containers::Contract;
 use crate::interface::rgb20::AllocationError;
@@ -71,6 +71,7 @@ fn rgb25() -> Iface {
         },
         valencies: none!(),
         genesis: GenesisIface {
+            modifier: Modifier::Final,
             metadata: Some(types.get("RGBContract.IssueMeta")),
             globals: tiny_bmap! {
                 fname!("name") => Occurrences::Once,
@@ -91,6 +92,7 @@ fn rgb25() -> Iface {
         },
         transitions: tiny_bmap! {
             fname!("transfer") => TransitionIface {
+                modifier: Modifier::Final,
                 optional: false,
                 metadata: None,
                 globals: none!(),
@@ -107,6 +109,7 @@ fn rgb25() -> Iface {
                 default_assignment: Some(fname!("assetOwner")),
             },
             fname!("burn") => TransitionIface {
+                modifier: Modifier::Final,
                 optional: true,
                 metadata: Some(types.get("RGBContract.BurnMeta")),
                 globals: tiny_bmap! {
@@ -166,9 +169,9 @@ impl From<ContractIface> for Rgb25 {
 impl IfaceWrapper for Rgb25 {
     const IFACE_NAME: &'static str = LIB_NAME_RGB25;
     const IFACE_ID: IfaceId = IfaceId::from_array([
-        0x48, 0x77, 0xa2, 0xee, 0x52, 0x4c, 0x84, 0x95, 0xc6, 0x13, 0xd0, 0xcb, 0x6f, 0xb3, 0x4a,
-        0xcd, 0xd7, 0x7a, 0x2a, 0x67, 0xbc, 0x04, 0x89, 0x2c, 0xe8, 0x2f, 0x6f, 0x70, 0x0e, 0x47,
-        0x7c, 0x82,
+        0xa3, 0x99, 0x9c, 0x09, 0xc3, 0x9a, 0xfd, 0x72, 0xd0, 0xdb, 0x4f, 0x39, 0x0a, 0xeb, 0xc7,
+        0xe8, 0xc9, 0x7d, 0x9c, 0x95, 0x4c, 0x7c, 0xca, 0x33, 0x8d, 0x06, 0xca, 0x37, 0x26, 0x2e,
+        0xc6, 0xee,
     ]);
 }
 

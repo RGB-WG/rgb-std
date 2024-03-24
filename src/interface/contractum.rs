@@ -28,8 +28,8 @@ use rgb::Occurrences;
 use strict_encoding::{FieldName, TypeName, Variant};
 use strict_types::{SemId, SymbolicSys};
 
-use crate::interface::{
-    ArgMap, ExtensionIface, GenesisIface, Iface, IfaceId, OwnedIface, TransitionIface,
+use super::{
+    ArgMap, ExtensionIface, GenesisIface, Iface, IfaceId, Modifier, OwnedIface, TransitionIface,
 };
 
 struct ArgMapDisplay<'a>(&'a ArgMap);
@@ -183,6 +183,42 @@ impl<'a> Display for IfaceDisplay<'a> {
                 None => write!(f, "{id:-} -- type name unknown"),
             }
         }
+        fn opsugar(
+            f: &mut Formatter<'_>,
+            pred: &str,
+            name: Option<&FieldName>,
+            modifier: Modifier,
+            optional: bool,
+            default: bool,
+        ) -> fmt::Result {
+            write!(f, "\t{pred}")?;
+            if let Some(name) = name {
+                write!(f, " {name}")?;
+            }
+            let mut modifiers = vec![];
+            if !optional {
+                modifiers.push("required");
+            }
+            if default {
+                modifiers.push("default");
+            }
+            match modifier {
+                Modifier::Final => modifiers.push("final"),
+                Modifier::Abstract => modifiers.push("abstract"),
+                Modifier::Override => modifiers.push("override"),
+            }
+
+            if !modifiers.is_empty() {
+                f.write_str(": ")?;
+            }
+            for (i, name) in modifiers.into_iter().enumerate() {
+                if i > 0 {
+                    f.write_str(", ")?;
+                }
+                f.write_str(name)?;
+            }
+            writeln!(f)
+        }
 
         writeln!(f, "@version({})", self.iface.version)?;
         write!(f, "interface {}", self.iface.name)?;
@@ -255,23 +291,12 @@ impl<'a> Display for IfaceDisplay<'a> {
         }
 
         let op = OpIfaceDisplay::genesis(&self.iface.genesis, self);
-        writeln!(f, "\tgenesis")?;
+        opsugar(f, "genesis", None, self.iface.genesis.modifier, true, false)?;
         writeln!(f, "{op}")?;
 
         for (name, t) in &self.iface.transitions {
-            write!(f, "\ttransition {name}:")?;
-            if !t.optional {
-                f.write_str(" required")?;
-                if self.iface.default_operation.is_some() {
-                    f.write_str(",")?;
-                }
-            }
-            if let Some(ref d) = self.iface.default_operation {
-                if d == name {
-                    write!(f, " default")?;
-                }
-            }
-            writeln!(f)?;
+            let default = self.iface.default_operation.as_ref() == Some(name);
+            opsugar(f, "transition", Some(name), t.modifier, t.optional, default)?;
 
             let op = OpIfaceDisplay::transition(t, self);
             write!(f, "{op}")?;
@@ -286,13 +311,8 @@ impl<'a> Display for IfaceDisplay<'a> {
         }
 
         for (name, e) in &self.iface.extensions {
-            write!(f, "\textension {name}:")?;
-            if let Some(ref d) = self.iface.default_operation {
-                if d == name {
-                    write!(f, " default")?;
-                }
-            }
-            writeln!(f)?;
+            let default = self.iface.default_operation.as_ref() == Some(name);
+            opsugar(f, "extension", Some(name), e.modifier, e.optional, default)?;
 
             let op = OpIfaceDisplay::extension(e, self);
             write!(f, "{op}")?;

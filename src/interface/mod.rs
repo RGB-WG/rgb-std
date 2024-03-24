@@ -44,7 +44,7 @@ pub use contractum::IfaceDisplay;
 pub use filters::{FilterExclude, FilterIncludeAll, OutpointFilter, WitnessFilter};
 pub use iface::{
     ArgMap, AssignIface, ExtensionIface, GenesisIface, GlobalIface, Iface, IfaceId,
-    IfaceInconsistency, OpName, OwnedIface, Req, TransitionIface, ValencyIface,
+    IfaceInconsistency, Modifier, OpName, OwnedIface, Req, TransitionIface, ValencyIface,
 };
 pub use iimpl::{
     IfaceClass, IfaceImpl, IfacePair, ImplId, IssuerClass, IssuerTriplet, NamedField, NamedType,

@@ -25,20 +25,20 @@ interface RGB20
 	error issueExceedsAllowance: 6
 		"you try to issue more assets than allowed by the contract terms"
 
-	genesis
+	genesis: final
 		errors: supplyMismatch, invalidProof, insufficientReserves
 		meta: RGBContract.IssueMeta
 		globals: issuedSupply, spec, terms
 		assigns: assetOwner(*), burnEpoch(?), inflationAllowance(*), updateRight(?)
 
-	transition burn:
+	transition burn: final
 		errors: supplyMismatch, invalidProof, insufficientCoverage
 		meta: RGBContract.BurnMeta
 		globals: burnedSupply
 		assigns: burnRight(?)
 		inputs: burnRight
 
-	transition issue:
+	transition issue: final
 		errors: supplyMismatch, invalidProof, insufficientReserves, issueExceedsAllowance
 		meta: RGBContract.IssueMeta
 		globals: issuedSupply
@@ -46,20 +46,20 @@ interface RGB20
 		default: assetOwner
 		inputs: inflationAllowance(+)
 
-	transition openEpoch:
+	transition openEpoch: final
 		errors: 
 		assigns: burnEpoch(?), burnRight
 		default: burnRight
 		inputs: burnEpoch
 
-	transition rename:
+	transition rename: final
 		errors: 
 		globals: spec
 		assigns: updateRight(?)
 		default: updateRight
 		inputs: updateRight
 
-	transition replace:
+	transition replace: final
 		errors: supplyMismatch, nonEqualAmounts, invalidProof, insufficientCoverage
 		meta: RGBContract.BurnMeta
 		globals: replacedSupply
@@ -67,7 +67,7 @@ interface RGB20
 		default: assetOwner
 		inputs: burnRight
 
-	transition transfer: required, default
+	transition transfer: required, default, final
 		errors: nonEqualAmounts
 		assigns: assetOwner(+)
 		default: assetOwner

@@ -226,6 +226,23 @@ pub enum OwnedIface {
 
 pub type ArgMap = TinyOrdMap<FieldName, Occurrences>;
 
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, Display, Default)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD, into_u8, try_from_u8, tags = repr)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+#[display(lowercase)]
+#[repr(u8)]
+pub enum Modifier {
+    #[default]
+    Final = 0,
+    Abstract = 1,
+    Override = 2,
+}
+
 #[derive(Clone, PartialEq, Eq, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
@@ -235,6 +252,7 @@ pub type ArgMap = TinyOrdMap<FieldName, Occurrences>;
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct GenesisIface {
+    pub modifier: Modifier,
     pub metadata: Option<SemId>,
     pub globals: ArgMap,
     pub assignments: ArgMap,
@@ -251,6 +269,9 @@ pub struct GenesisIface {
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct ExtensionIface {
+    pub modifier: Modifier,
+    /// Defines whence schema may omit providing this operation.
+    pub optional: bool,
     pub metadata: Option<SemId>,
     pub globals: ArgMap,
     pub assignments: ArgMap,
@@ -269,6 +290,7 @@ pub struct ExtensionIface {
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct TransitionIface {
+    pub modifier: Modifier,
     /// Defines whence schema may omit providing this operation.
     pub optional: bool,
     pub metadata: Option<SemId>,

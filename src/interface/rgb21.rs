@@ -37,8 +37,8 @@ use strict_types::stl::std_stl;
 use strict_types::{CompileError, LibBuilder, StrictVal, TypeLib};
 
 use super::{
-    AssignIface, DataAllocation, GenesisIface, GlobalIface, Iface, IfaceClass, OutpointFilter,
-    OwnedIface, Req, TransitionIface, VerNo,
+    AssignIface, DataAllocation, GenesisIface, GlobalIface, Iface, IfaceClass, Modifier,
+    OutpointFilter, OwnedIface, Req, TransitionIface, VerNo,
 };
 use crate::interface::{ContractIface, IfaceId, IfaceWrapper};
 use crate::stl::{
@@ -362,6 +362,7 @@ fn rgb21() -> Iface {
         },
         valencies: none!(),
         genesis: GenesisIface {
+            modifier: Modifier::Final,
             metadata: Some(types.get("RGBContract.IssueMeta")),
             globals: tiny_bmap! {
                 fname!("spec") => Occurrences::Once,
@@ -384,6 +385,7 @@ fn rgb21() -> Iface {
         },
         transitions: tiny_bmap! {
             fname!("transfer") => TransitionIface {
+                modifier: Modifier::Final,
                 optional: false,
                 metadata: None,
                 globals: none!(),
@@ -402,6 +404,7 @@ fn rgb21() -> Iface {
                 default_assignment: Some(fname!("assetOwner")),
             },
             fname!("engrave") => TransitionIface {
+                modifier: Modifier::Final,
                 optional: true,
                 metadata: None,
                 globals: tiny_bmap! {
@@ -423,6 +426,7 @@ fn rgb21() -> Iface {
                 default_assignment: Some(fname!("assetOwner")),
             },
             fname!("issue") => TransitionIface {
+                modifier: Modifier::Final,
                 optional: true,
                 metadata: Some(types.get("RGBContract.IssueMeta")),
                 globals: tiny_bmap! {
@@ -447,6 +451,7 @@ fn rgb21() -> Iface {
                 default_assignment: Some(fname!("assetOwner")),
             },
             fname!("rename") => TransitionIface {
+                modifier: Modifier::Final,
                 optional: true,
                 metadata: None,
                 globals: tiny_bmap! {
@@ -511,9 +516,9 @@ impl From<ContractIface> for Rgb21 {
 impl IfaceWrapper for Rgb21 {
     const IFACE_NAME: &'static str = LIB_NAME_RGB21;
     const IFACE_ID: IfaceId = IfaceId::from_array([
-        0x52, 0xb6, 0x07, 0x7c, 0x68, 0x5b, 0xa2, 0xf7, 0xbc, 0x5a, 0x62, 0x37, 0x05, 0x01, 0xc5,
-        0xfb, 0xcf, 0xc3, 0x62, 0x3b, 0xbf, 0x1d, 0xb8, 0x7a, 0x1f, 0x97, 0x77, 0x1f, 0xed, 0x62,
-        0xfc, 0x94,
+        0xd6, 0xd0, 0x56, 0x50, 0x77, 0x18, 0x65, 0x78, 0x90, 0xf1, 0xce, 0x2f, 0x83, 0x50, 0x1d,
+        0x92, 0xab, 0xfc, 0x13, 0x16, 0xc5, 0x10, 0x88, 0x38, 0x4e, 0x52, 0xd2, 0xdb, 0x4d, 0x9d,
+        0xd3, 0x4f,
     ]);
 }
 

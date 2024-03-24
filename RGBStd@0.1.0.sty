@@ -1,5 +1,5 @@
 {-
-  Id: urn:ubideco:stl:CBYcrv2NR6MTaDpoe7sjz39FV9fJ5TzKNzMQ1NnZTZBy#number-weekend-october
+  Id: urn:ubideco:stl:8utWEM36HEpcHV3bLfJdkzi2N58N9ZGRWcFPyNaWf8Hj#plaster-ramirez-monitor
   Name: RGBStd
   Version: 0.1.0
   Description: RGB standard library
@@ -244,8 +244,10 @@ data ContractSuppl     : contractId RGB.ContractId#alarm-danube-vampire
                        , ownedState {RGB.AssignmentType -> ^ ..0xff OwnedStateSuppl}
                        , extensions {U16 -> ^ ..0xff [Byte]}
 
-@mnemonic(shirt-evident-mailbox)
-data ExtensionIface    : metadata StrictTypes.SemId#cargo-plasma-catalog?
+@mnemonic(press-forum-cake)
+data ExtensionIface    : modifier Modifier
+                       , optional Std.Bool#laser-madam-maxwell
+                       , metadata StrictTypes.SemId#cargo-plasma-catalog?
                        , globals {StrictTypes.FieldName -> ^ ..0xff RGB.Occurrences#unicorn-empire-mama}
                        , assignments {StrictTypes.FieldName -> ^ ..0xff RGB.Occurrences#unicorn-empire-mama}
                        , redeems {StrictTypes.FieldName#orient-spell-talent ^ ..0xff}
@@ -253,8 +255,9 @@ data ExtensionIface    : metadata StrictTypes.SemId#cargo-plasma-catalog?
                        , errors {U8 ^ ..0xff}
                        , defaultAssignment StrictTypes.FieldName#orient-spell-talent?
 
-@mnemonic(yoyo-patriot-everest)
-data GenesisIface      : metadata StrictTypes.SemId#cargo-plasma-catalog?
+@mnemonic(scoop-bagel-stop)
+data GenesisIface      : modifier Modifier
+                       , metadata StrictTypes.SemId#cargo-plasma-catalog?
                        , globals {StrictTypes.FieldName -> ^ ..0xff RGB.Occurrences#unicorn-empire-mama}
                        , assignments {StrictTypes.FieldName -> ^ ..0xff RGB.Occurrences#unicorn-empire-mama}
                        , valencies {StrictTypes.FieldName#orient-spell-talent ^ ..0xff}
@@ -323,6 +326,10 @@ data ImplId            : [Byte ^ 32]
 @mnemonic(natural-spain-alfred)
 data IndexedBundle     : RGB.ContractId#alarm-danube-vampire, RGB.BundleId#desert-divide-visible
 
+@mnemonic(marco-vampire-spoon)
+data Modifier          : final | abstract | override
+
+
 @mnemonic(pedro-isabel-printer)
 data NamedFieldAssignmentType : id RGB.AssignmentType#hunter-hello-retro
                        , name StrictTypes.FieldName#orient-spell-talent
@@ -386,8 +393,9 @@ data TickerSuppl       : absent ()
                        | global (RGB.GlobalStateType#seminar-major-tape, StrictTypes.Path#exotic-western-courage)
                        | owned (RGB.AssignmentType#hunter-hello-retro, StrictTypes.Path#exotic-western-courage)
 
-@mnemonic(oxygen-oliver-rubber)
-data TransitionIface   : optional Std.Bool#laser-madam-maxwell
+@mnemonic(marco-null-plaster)
+data TransitionIface   : modifier Modifier
+                       , optional Std.Bool#laser-madam-maxwell
                        , metadata StrictTypes.SemId#cargo-plasma-catalog?
                        , globals {StrictTypes.FieldName -> ^ ..0xff RGB.Occurrences#unicorn-empire-mama}
                        , inputs {StrictTypes.FieldName -> ^ ..0xff RGB.Occurrences#unicorn-empire-mama}

@@ -30,7 +30,7 @@ use strict_types::TypeLib;
 
 use super::{
     AssignIface, BuilderError, ContractBuilder, GenesisIface, GlobalIface, Iface, IfaceClass,
-    IfaceOp, IssuerClass, OwnedIface, Req, RightsAllocation, SchemaIssuer, StateChange,
+    IfaceOp, IssuerClass, Modifier, OwnedIface, Req, RightsAllocation, SchemaIssuer, StateChange,
     TransitionIface, VerNo, WitnessFilter,
 };
 use crate::containers::Contract;
@@ -74,6 +74,7 @@ fn rgb20() -> Iface {
         },
         valencies: none!(),
         genesis: GenesisIface {
+            modifier: Modifier::Final,
             metadata: Some(types.get("RGBContract.IssueMeta")),
             globals: tiny_bmap! {
                 fname!("spec") => Occurrences::Once,
@@ -95,6 +96,7 @@ fn rgb20() -> Iface {
         },
         transitions: tiny_bmap! {
             fname!("transfer") => TransitionIface {
+                modifier: Modifier::Final,
                 optional: false,
                 metadata: None,
                 globals: none!(),
@@ -111,6 +113,7 @@ fn rgb20() -> Iface {
                 default_assignment: Some(fname!("assetOwner")),
             },
             fname!("issue") => TransitionIface {
+                modifier: Modifier::Final,
                 optional: true,
                 metadata: Some(types.get("RGBContract.IssueMeta")),
                 globals: tiny_bmap! {
@@ -133,6 +136,7 @@ fn rgb20() -> Iface {
                 default_assignment: Some(fname!("assetOwner")),
             },
             fname!("openEpoch") => TransitionIface {
+                modifier: Modifier::Final,
                 optional: true,
                 metadata: None,
                 globals: none!(),
@@ -148,6 +152,7 @@ fn rgb20() -> Iface {
                 default_assignment: Some(fname!("burnRight")),
             },
             fname!("burn") => TransitionIface {
+                modifier: Modifier::Final,
                 optional: true,
                 metadata: Some(types.get("RGBContract.BurnMeta")),
                 globals: tiny_bmap! {
@@ -168,6 +173,7 @@ fn rgb20() -> Iface {
                 default_assignment: None,
             },
             fname!("replace") => TransitionIface {
+                modifier: Modifier::Final,
                 optional: true,
                 metadata: Some(types.get("RGBContract.BurnMeta")),
                 globals: tiny_bmap! {
@@ -190,6 +196,7 @@ fn rgb20() -> Iface {
                 default_assignment: Some(fname!("assetOwner")),
             },
             fname!("rename") => TransitionIface {
+                modifier: Modifier::Final,
                 optional: true,
                 metadata: None,
                 globals: tiny_bmap! {
@@ -300,9 +307,9 @@ impl From<ContractIface> for Rgb20 {
 impl IfaceWrapper for Rgb20 {
     const IFACE_NAME: &'static str = LIB_NAME_RGB20;
     const IFACE_ID: IfaceId = IfaceId::from_array([
-        0x7f, 0x5d, 0xce, 0x04, 0xba, 0x54, 0xd5, 0xbd, 0x2c, 0xa0, 0x60, 0x5d, 0xf5, 0x9b, 0x82,
-        0x71, 0xd7, 0xb1, 0x41, 0x26, 0x45, 0xde, 0xbb, 0x22, 0xbe, 0x4d, 0x0a, 0x54, 0x99, 0xfc,
-        0x12, 0x1e,
+        0xd8, 0x06, 0x97, 0xca, 0xf5, 0xc6, 0x15, 0x59, 0xd9, 0xa1, 0xb9, 0xc9, 0xbd, 0x8f, 0x32,
+        0x0d, 0xf1, 0x30, 0xd4, 0x51, 0x8b, 0xbe, 0x1d, 0x13, 0x0e, 0xf0, 0xf9, 0xab, 0xf5, 0x5f,
+        0x03, 0x83,
     ]);
 }
 

@@ -1093,7 +1093,8 @@ Consignmenttrue rec
           value rec ValencyIface
             required enum Bool false=0 true=1
         genesis rec GenesisIface
-          some bytes len=32 option wrapped aka=SemId tag=1
+          modifier enum Modifier final=0 abstract=1 override=2
+            some bytes len=32 option wrapped aka=SemId tag=1
           globals map len=0..MAX8
             key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
             value rec Occurrences
@@ -1111,6 +1112,7 @@ Consignmenttrue rec
         transitions map len=0..MAX8
           key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
           value rec TransitionIface
+            modifier enum Modifier final=0 abstract=1 override=2
             optional enum Bool false=0 true=1
               some bytes len=32 option wrapped aka=SemId tag=1
             globals map len=0..MAX8
@@ -1136,7 +1138,9 @@ Consignmenttrue rec
         extensions map len=0..MAX8
           key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
           value rec ExtensionIface
-            some bytes len=32 option wrapped aka=SemId tag=1
+            modifier enum Modifier final=0 abstract=1 override=2
+            optional enum Bool false=0 true=1
+              some bytes len=32 option wrapped aka=SemId tag=1
             globals map len=0..MAX8
               key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
               value rec Occurrences
