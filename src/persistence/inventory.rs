@@ -901,12 +901,9 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         for (id, opouts) in spent_state {
             let mut blank_builder = self.blank_builder(id, iface.clone())?;
             let mut outputs = Vec::with_capacity(opouts.len());
-            for ((opout, output), mut state) in opouts {
+            for ((opout, output), state) in opouts {
                 let seal = output_for_assignment(id, opout.ty)?;
                 outputs.push(output);
-                if let PersistedState::Amount(_, ref mut blinding, _) = state {
-                    *blinding = pedersen_blinder(id, opout.ty);
-                }
                 blank_builder = blank_builder
                     .add_input(opout, state.clone())?
                     .add_owned_state_raw(opout.ty, seal, state)?;
