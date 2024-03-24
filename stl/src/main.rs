@@ -20,6 +20,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#[macro_use]
+extern crate amplify;
+
 use std::fs;
 use std::io::Write;
 
@@ -145,13 +148,13 @@ fn main() {
         .expect("not all libraries present");
 
     let rgb20 = Rgb20::iface();
-    fs::write(format!("{dir}/RGB20.con"), format!("{}", rgb20.display(&ifsys))).unwrap();
+    fs::write(format!("{dir}/RGB20.con"), format!("{}", rgb20.display(none!(), &ifsys))).unwrap();
 
     let rgb21 = Rgb21::iface();
-    fs::write(format!("{dir}/RGB21.con"), format!("{}", rgb21.display(&ifsys))).unwrap();
+    fs::write(format!("{dir}/RGB21.con"), format!("{}", rgb21.display(none!(), &ifsys))).unwrap();
 
     let rgb25 = Rgb25::iface();
-    fs::write(format!("{dir}/RGB25.con"), format!("{}", rgb25.display(&ifsys))).unwrap();
+    fs::write(format!("{dir}/RGB25.con"), format!("{}", rgb25.display(none!(), &ifsys))).unwrap();
 
     let mut file = fs::File::create(format!("{dir}/Transfer.vesper")).unwrap();
     writeln!(

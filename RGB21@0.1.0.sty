@@ -1,0 +1,68 @@
+{-
+  Id: urn:ubideco:stl:9GETUAH3q2Aw4JSiCzGy4Z8bTuagKQvPa4hH4mDxcX9d#type-economy-shannon
+  Name: RGB21
+  Version: 0.1.0
+  Description: Types for RGB21 interface
+  Author: Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
+  Copyright (C) 2023-2024-2024 LNP/BP Standards Association. All rights reserved.
+  License: Apache-2.0
+-}
+
+@context
+typelib RGB21
+
+import RGBContract#pvPyTM1N1rG9HEAvvEgqKonnMdakHreYrvGWfFff8q6#atlanta-adrian-sonata
+  use ProofOfReserves#liquid-owner-london
+  use MimeChar#golf-antonio-courage
+  use Details#network-kayak-adam
+  use Name#crystal-visitor-tribune
+  use MediaType#pixel-venice-grille
+  use Ticker#mike-atlas-store
+  use MediaRegName#sulfur-chant-vampire
+  use Attachment#giraffe-carol-carrot
+
+import Std#DzTvt9gGhPUKD8Dkkjk9PDBhkJ4gtWxXWQjxnmUYLNrs#voyage-kimono-disco
+  use AsciiPrintable#diet-oxford-window
+  use AlphaCapsNum#magnet-section-latin
+
+import Bitcoin#HX2UBak8vPsTokug1DGMDvTpzns3xUdwZ7QJdyt4qBA9#speed-atlanta-trilogy
+  use Vout#chrome-robin-gallop
+  use Txid#cowboy-diego-betty
+  use Outpoint#dinner-yoga-danube
+
+
+@mnemonic(break-tunnel-gray)
+data Allocation        : TokenIndex, OwnedFraction
+
+@mnemonic(source-change-period)
+data AttachmentName    : [Std.AsciiPrintable#diet-oxford-window ^ 1..0x14]
+
+@mnemonic(boston-cake-susan)
+data AttachmentType    : id U8, name AttachmentName
+
+@mnemonic(castle-dynamic-lemon)
+data EmbeddedMedia     : type RGBContract.MediaType#pixel-venice-grille, data [Byte]
+
+@mnemonic(royal-career-axiom)
+data EngravingData     : appliedTo TokenIndex, content EmbeddedMedia
+
+@mnemonic(capital-conduct-aspect)
+data ItemsCount        : U32
+
+@mnemonic(vital-edgar-quota)
+data OwnedFraction     : U64
+
+@mnemonic(cinema-gordon-judo)
+data TokenData         : index TokenIndex
+                       , ticker RGBContract.Ticker#mike-atlas-store?
+                       , name RGBContract.Name#crystal-visitor-tribune?
+                       , details RGBContract.Details#network-kayak-adam?
+                       , preview EmbeddedMedia?
+                       , media RGBContract.Attachment#giraffe-carol-carrot?
+                       , attachments {U8 -> ^ ..0x14 RGBContract.Attachment#giraffe-carol-carrot}
+                       , reserves RGBContract.ProofOfReserves#liquid-owner-london?
+
+@mnemonic(connect-farmer-havana)
+data TokenIndex        : U32
+
+

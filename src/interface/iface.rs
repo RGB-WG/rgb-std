@@ -20,6 +20,7 @@
 // limitations under the License.
 
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 
@@ -293,6 +294,7 @@ pub struct TransitionIface {
 pub struct Iface {
     pub version: VerNo,
     pub name: TypeName,
+    pub inherits: TinyOrdSet<IfaceId>,
     pub global_state: TinyOrdMap<FieldName, GlobalIface>,
     pub assignments: TinyOrdMap<FieldName, AssignIface>,
     pub valencies: TinyOrdMap<FieldName, ValencyIface>,
@@ -323,8 +325,12 @@ impl Iface {
     #[inline]
     pub fn iface_id(&self) -> IfaceId { self.commit_id() }
 
-    pub fn display<'a>(&'a self, sys: &'a SymbolicSys) -> IfaceDisplay<'a> {
-        IfaceDisplay::new(self, sys)
+    pub fn display<'a>(
+        &'a self,
+        externals: HashMap<IfaceId, &'a TypeName>,
+        sys: &'a SymbolicSys,
+    ) -> IfaceDisplay<'a> {
+        IfaceDisplay::new(self, externals, sys)
     }
 
     pub fn check(&self) -> Result<(), Vec<IfaceInconsistency>> {
@@ -468,6 +474,13 @@ impl Iface {
             Err(errors)
         }
     }
+
+    // TODO: Implement checking interface inheritance.
+    /*
+    pub fn check_inheritance<'a>(&self, ifaces: impl IntoIterator<Item = (&'a IfaceId, &'a Iface)>) -> Result<(), Vec<InheritanceError>> {
+        // check for the depth
+    }
+     */
 
     // TODO: Implement checking types against presence in a type system.
     /*

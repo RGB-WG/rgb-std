@@ -19,15 +19,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use std::fmt;
 use std::fmt::{Display, Formatter};
 
 use amplify::confinement::{TinyOrdMap, TinyOrdSet, TinyString};
 use rgb::Occurrences;
-use strict_encoding::{FieldName, Variant};
+use strict_encoding::{FieldName, TypeName, Variant};
 use strict_types::{SemId, SymbolicSys};
 
-use crate::interface::{ArgMap, ExtensionIface, GenesisIface, Iface, OwnedIface, TransitionIface};
+use crate::interface::{
+    ArgMap, ExtensionIface, GenesisIface, Iface, IfaceId, OwnedIface, TransitionIface,
+};
 
 struct ArgMapDisplay<'a>(&'a ArgMap);
 
@@ -146,11 +149,22 @@ impl<'a> Display for OpIfaceDisplay<'a> {
 
 pub struct IfaceDisplay<'a> {
     iface: &'a Iface,
+    externals: HashMap<IfaceId, &'a TypeName>,
     types: &'a SymbolicSys,
 }
 
 impl<'a> IfaceDisplay<'a> {
-    pub fn new(iface: &'a Iface, types: &'a SymbolicSys) -> Self { Self { iface, types } }
+    pub fn new(
+        iface: &'a Iface,
+        externals: HashMap<IfaceId, &'a TypeName>,
+        types: &'a SymbolicSys,
+    ) -> Self {
+        Self {
+            iface,
+            types,
+            externals,
+        }
+    }
 }
 
 impl<'a> Display for IfaceDisplay<'a> {
@@ -171,7 +185,20 @@ impl<'a> Display for IfaceDisplay<'a> {
         }
 
         writeln!(f, "@version({})", self.iface.version)?;
-        writeln!(f, "interface {}", self.iface.name)?;
+        write!(f, "interface {}", self.iface.name)?;
+        if !self.externals.is_empty() {
+            f.write_str(": ")?;
+            for (index, id) in self.iface.inherits.iter().enumerate() {
+                if index > 0 {
+                    f.write_str(", ")?;
+                }
+                match self.externals.get(id) {
+                    Some(name) => write!(f, "{name}")?,
+                    None => writeln!(f, "{id:-}")?,
+                }
+            }
+        }
+        writeln!(f)?;
 
         for (fname, g) in &self.iface.global_state {
             write!(f, "\tglobal {fname}")?;
