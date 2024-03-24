@@ -43,7 +43,7 @@ pub use contract::{
 pub use contractum::IfaceDisplay;
 pub use filters::{FilterExclude, FilterIncludeAll, OutpointFilter, WitnessFilter};
 pub use iface::{
-    ArgMap, AssignIface, ExtensionIface, GenesisIface, GlobalIface, Iface, IfaceId,
+    ArgMap, AssignIface, ExtensionIface, GenesisIface, GlobalIface, Iface, IfaceExt, IfaceId,
     IfaceInconsistency, Modifier, OpName, OwnedIface, Req, TransitionIface, ValencyIface,
 };
 pub use iimpl::{

@@ -30,8 +30,8 @@ use strict_types::TypeLib;
 
 use super::{
     AssignIface, BuilderError, ContractBuilder, GenesisIface, GlobalIface, Iface, IfaceClass,
-    IfaceOp, IssuerClass, Modifier, OwnedIface, Req, RightsAllocation, SchemaIssuer, StateChange,
-    TransitionIface, VerNo, WitnessFilter,
+    IfaceExt, IfaceOp, IssuerClass, Modifier, OwnedIface, Req, RightsAllocation, SchemaIssuer,
+    StateChange, TransitionIface, VerNo, WitnessFilter,
 };
 use crate::containers::Contract;
 use crate::interface::builder::TxOutpoint;
@@ -51,7 +51,7 @@ const INSUFFICIENT_RESERVES: u8 = 4;
 const INSUFFICIENT_COVERAGE: u8 = 5;
 const ISSUE_EXCEEDS_ALLOWANCE: u8 = 6;
 
-fn rgb20() -> Iface {
+fn rgb20_simplest() -> Iface {
     let types = StandardTypes::new();
 
     Iface {
@@ -61,20 +61,14 @@ fn rgb20() -> Iface {
         global_state: tiny_bmap! {
             fname!("spec") => GlobalIface::required(types.get("RGBContract.AssetSpec")),
             fname!("terms") => GlobalIface::required(types.get("RGBContract.AssetTerms")),
-            fname!("issuedSupply") => GlobalIface::one_or_many(types.get("RGBContract.Amount")),
-            fname!("burnedSupply") => GlobalIface::none_or_many(types.get("RGBContract.Amount")),
-            fname!("replacedSupply") => GlobalIface::none_or_many(types.get("RGBContract.Amount")),
+            fname!("issuedSupply") => GlobalIface::required(types.get("RGBContract.Amount")),
         },
         assignments: tiny_bmap! {
-            fname!("inflationAllowance") => AssignIface::public(OwnedIface::Amount, Req::NoneOrMore),
-            fname!("updateRight") => AssignIface::public(OwnedIface::Rights, Req::Optional),
-            fname!("burnEpoch") => AssignIface::public(OwnedIface::Rights, Req::Optional),
-            fname!("burnRight") => AssignIface::public(OwnedIface::Rights, Req::NoneOrMore),
             fname!("assetOwner") => AssignIface::private(OwnedIface::Amount, Req::NoneOrMore),
         },
         valencies: none!(),
         genesis: GenesisIface {
-            modifier: Modifier::Final,
+            modifier: Modifier::Abstract,
             metadata: Some(types.get("RGBContract.IssueMeta")),
             globals: tiny_bmap! {
                 fname!("spec") => Occurrences::Once,
@@ -82,10 +76,7 @@ fn rgb20() -> Iface {
                 fname!("issuedSupply") => Occurrences::Once,
             },
             assignments: tiny_bmap! {
-                fname!("assetOwner") => Occurrences::NoneOrMore,
-                fname!("inflationAllowance") => Occurrences::NoneOrMore,
-                fname!("updateRight") => Occurrences::NoneOrOnce,
-                fname!("burnEpoch") => Occurrences::NoneOrOnce,
+                fname!("assetOwner") => Occurrences::OnceOrMore,
             },
             valencies: none!(),
             errors: tiny_bset! {
@@ -112,9 +103,51 @@ fn rgb20() -> Iface {
                 },
                 default_assignment: Some(fname!("assetOwner")),
             },
+        },
+        extensions: none!(),
+        errors: tiny_bmap! {
+            Variant::named(SUPPLY_MISMATCH, vname!("supplyMismatch"))
+                => tiny_s!("supply specified as a global parameter doesn't match the issued supply allocated to the asset owners"),
+
+            Variant::named(NON_EQUAL_AMOUNTS, vname!("nonEqualAmounts"))
+                => tiny_s!("the sum of spent assets doesn't equal to the sum of assets in outputs"),
+
+            Variant::named(INVALID_PROOF, vname!("invalidProof"))
+                => tiny_s!("the provided proof is invalid"),
+
+            Variant::named(INSUFFICIENT_RESERVES, vname!("insufficientReserves"))
+                => tiny_s!("reserve is insufficient to cover the issued assets"),
+        },
+        default_operation: Some(fname!("transfer")),
+        types: Types::Strict(types.type_system()),
+    }
+}
+
+fn rgb20_inflatible() -> Iface {
+    let types = StandardTypes::new();
+    rgb20_simplest().extend(IfaceExt {
+        name: tn!("RGB20Inflatible"),
+        global_state: tiny_bmap! {
+            fname!("issuedSupply") => GlobalIface::one_or_many(types.get("RGBContract.Amount")),
+        },
+        assignments: tiny_bmap! {
+            fname!("inflationAllowance") => AssignIface::public(OwnedIface::Amount, Req::NoneOrMore),
+        },
+        valencies: none!(),
+        genesis: GenesisIface {
+            modifier: Modifier::Abstract,
+            metadata: Some(types.get("RGBContract.IssueMeta")),
+            globals: none!(),
+            assignments: tiny_bmap! {
+                fname!("inflationAllowance") => Occurrences::OnceOrMore,
+            },
+            valencies: none!(),
+            errors: none!(),
+        },
+        transitions: tiny_bmap! {
             fname!("issue") => TransitionIface {
-                modifier: Modifier::Final,
-                optional: true,
+                modifier: Modifier::Override,
+                optional: false,
                 metadata: Some(types.get("RGBContract.IssueMeta")),
                 globals: tiny_bmap! {
                     fname!("issuedSupply") => Occurrences::Once,
@@ -135,9 +168,87 @@ fn rgb20() -> Iface {
                 },
                 default_assignment: Some(fname!("assetOwner")),
             },
+        },
+        extensions: none!(),
+        default_operation: None,
+        errors: tiny_bmap! {
+            Variant::named(ISSUE_EXCEEDS_ALLOWANCE, vname!("issueExceedsAllowance"))
+                => tiny_s!("you try to issue more assets than allowed by the contract terms"),
+        },
+        types: None,
+    })
+}
+
+fn rgb20_renamable() -> Iface {
+    rgb20_simplest().extend(IfaceExt {
+        name: tn!("RGB20Renamable"),
+        global_state: none!(),
+        assignments: tiny_bmap! {
+            fname ! ("updateRight") => AssignIface::public(OwnedIface::Rights, Req::Required),
+        },
+        valencies: none!(),
+        genesis: GenesisIface {
+            modifier: Modifier::Override,
+            metadata: None,
+            globals: none!(),
+            assignments: tiny_bmap! {
+                fname!("updateRight") => Occurrences::Once,
+            },
+            valencies: none!(),
+            errors: none!(),
+        },
+        transitions: tiny_bmap! {
+            fname!("rename") => TransitionIface {
+                modifier: Modifier::Final,
+                optional: false,
+                metadata: None,
+                globals: tiny_bmap! {
+                    fname!("spec") => Occurrences::Once,
+                },
+                inputs: tiny_bmap! {
+                    fname!("updateRight") => Occurrences::Once,
+                },
+                assignments: tiny_bmap! {
+                    fname!("updateRight") => Occurrences::NoneOrOnce,
+                },
+                valencies: none!(),
+                errors: none!(),
+                default_assignment: Some(fname!("updateRight")),
+            },
+        },
+        extensions: none!(),
+        default_operation: None,
+        errors: none!(),
+        types: None,
+    })
+}
+
+fn rgb20_burnable() -> Iface {
+    let types = StandardTypes::new();
+    rgb20_inflatible().extend(IfaceExt {
+        name: tn!("RGB20Reserves"),
+        global_state: tiny_bmap! {
+            fname!("burnedSupply") => GlobalIface::none_or_many(types.get("RGBContract.Amount")),
+        },
+        assignments: tiny_bmap! {
+            fname!("burnEpoch") => AssignIface::public(OwnedIface::Rights, Req::OneOrMore),
+            fname!("burnRight") => AssignIface::public(OwnedIface::Rights, Req::NoneOrMore),
+        },
+        valencies: none!(),
+        genesis: GenesisIface {
+            modifier: Modifier::Override,
+            metadata: None,
+            globals: none!(),
+            assignments: tiny_bmap! {
+                fname!("updateRight") => Occurrences::Once,
+            },
+            valencies: none!(),
+            errors: none!(),
+        },
+        transitions: tiny_bmap! {
             fname!("openEpoch") => TransitionIface {
                 modifier: Modifier::Final,
-                optional: true,
+                optional: false,
                 metadata: None,
                 globals: none!(),
                 inputs: tiny_bmap! {
@@ -153,7 +264,7 @@ fn rgb20() -> Iface {
             },
             fname!("burn") => TransitionIface {
                 modifier: Modifier::Final,
-                optional: true,
+                optional: false,
                 metadata: Some(types.get("RGBContract.BurnMeta")),
                 globals: tiny_bmap! {
                     fname!("burnedSupply") => Occurrences::Once,
@@ -172,9 +283,40 @@ fn rgb20() -> Iface {
                 },
                 default_assignment: None,
             },
+        },
+        extensions: none!(),
+        default_operation: None,
+        errors: tiny_bmap! {
+            Variant::named(INSUFFICIENT_COVERAGE, vname!("insufficientCoverage"))
+                => tiny_s!("the claimed amount of burned assets is not covered by the assets in the operation inputs"),
+        },
+        types: None,
+    })
+}
+
+fn rgb20_replacable() -> Iface {
+    let types = StandardTypes::new();
+    rgb20_burnable().extend(IfaceExt {
+        name: tn!("RGB20Replacable"),
+        global_state: tiny_bmap! {
+            fname!("replacedSupply") => GlobalIface::none_or_many(types.get("RGBContract.Amount")),
+        },
+        assignments: none!(),
+        valencies: none!(),
+        genesis: GenesisIface {
+            modifier: Modifier::Override,
+            metadata: None,
+            globals: none!(),
+            assignments: tiny_bmap! {
+                fname!("updateRight") => Occurrences::Once,
+            },
+            valencies: none!(),
+            errors: none!(),
+        },
+        transitions: tiny_bmap! {
             fname!("replace") => TransitionIface {
                 modifier: Modifier::Final,
-                optional: true,
+                optional: false,
                 metadata: Some(types.get("RGBContract.BurnMeta")),
                 globals: tiny_bmap! {
                     fname!("replacedSupply") => Occurrences::Once,
@@ -195,48 +337,15 @@ fn rgb20() -> Iface {
                 },
                 default_assignment: Some(fname!("assetOwner")),
             },
-            fname!("rename") => TransitionIface {
-                modifier: Modifier::Final,
-                optional: true,
-                metadata: None,
-                globals: tiny_bmap! {
-                    fname!("spec") => Occurrences::Once,
-                },
-                inputs: tiny_bmap! {
-                    fname!("updateRight") => Occurrences::Once,
-                },
-                assignments: tiny_bmap! {
-                    fname!("updateRight") => Occurrences::NoneOrOnce,
-                },
-                valencies: none!(),
-                errors: none!(),
-                default_assignment: Some(fname!("updateRight")),
-            },
         },
         extensions: none!(),
-        errors: tiny_bmap! {
-            Variant::named(SUPPLY_MISMATCH, vname!("supplyMismatch"))
-                => tiny_s!("supply specified as a global parameter doesn't match the issued supply allocated to the asset owners"),
-
-            Variant::named(NON_EQUAL_AMOUNTS, vname!("nonEqualAmounts"))
-                => tiny_s!("the sum of spent assets doesn't equal to the sum of assets in outputs"),
-
-            Variant::named(INVALID_PROOF, vname!("invalidProof"))
-                => tiny_s!("the provided proof is invalid"),
-
-            Variant::named(INSUFFICIENT_RESERVES, vname!("insufficientReserves"))
-                => tiny_s!("reserve is insufficient to cover the issued assets"),
-
-            Variant::named(INSUFFICIENT_COVERAGE, vname!("insufficientCoverage"))
-                => tiny_s!("the claimed amount of burned assets is not covered by the assets in the operation inputs"),
-
-            Variant::named(ISSUE_EXCEEDS_ALLOWANCE, vname!("issueExceedsAllowance"))
-                => tiny_s!("you try to issue more assets than allowed by the contract terms"),
-        },
-        default_operation: Some(fname!("transfer")),
-        types: Types::Strict(types.type_system()),
-    }
+        default_operation: None,
+        errors: none!(),
+        types: None,
+    })
 }
+
+fn rgb20() -> Iface { Iface::inherit([rgb20_inflatible(), rgb20_renamable(), rgb20_replacable()]) }
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
