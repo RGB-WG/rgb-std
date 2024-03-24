@@ -35,8 +35,7 @@ use commit_verify::{CommitEncode, CommitEngine, CommitId, CommitmentId, DigestEx
 use rgb::validation::{self};
 use rgb::{
     AnchoredBundle, AssetTag, AssignmentType, AttachId, BundleId, ContractHistory, ContractId,
-    Extension, Genesis, GraphSeal, OpId, Operation, Schema, SchemaId, SubSchema, Transition,
-    XChain,
+    Extension, Genesis, GraphSeal, OpId, Operation, Schema, SchemaId, Transition, XChain,
 };
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 
@@ -156,7 +155,7 @@ pub struct Consignment<const TYPE: bool> {
     pub extensions: LargeOrdSet<Extension>,
 
     /// Schema (plus root schema, if any) under which contract is issued.
-    pub schema: SubSchema,
+    pub schema: Schema,
 
     /// Interfaces supported by the contract.
     pub ifaces: TinyOrdMap<IfaceId, IfacePair>,
@@ -210,7 +209,7 @@ impl<const TYPE: bool> Consignment<TYPE> {
     ///
     /// If the provided schema is not the one which is used by genesis.
     pub fn new(
-        schema: SubSchema,
+        schema: Schema,
         genesis: Genesis,
         asset_tags: TinyOrdMap<AssignmentType, AssetTag>,
     ) -> Self {
@@ -237,11 +236,6 @@ impl<const TYPE: bool> Consignment<TYPE> {
 
     #[inline]
     pub fn schema_id(&self) -> SchemaId { self.schema.schema_id() }
-
-    #[inline]
-    pub fn root_schema_id(&self) -> Option<SchemaId> {
-        self.schema.subset_of.as_ref().map(Schema::schema_id)
-    }
 
     #[inline]
     pub fn contract_id(&self) -> ContractId { self.genesis.contract_id() }
@@ -289,12 +283,7 @@ impl<const TYPE: bool> Consignment<TYPE> {
         resolver: &mut R,
     ) -> Result<ContractHistory, R::Error> {
         let mut history = history.cloned().unwrap_or_else(|| {
-            ContractHistory::with(
-                self.schema_id(),
-                self.root_schema_id(),
-                self.contract_id(),
-                &self.genesis,
-            )
+            ContractHistory::with(self.schema_id(), self.contract_id(), &self.genesis)
         });
 
         let mut extension_idx = self

@@ -27,7 +27,7 @@ use amplify::confinement::Collection;
 use commit_verify::Conceal;
 use rgb::validation::ConsignmentApi;
 use rgb::{
-    AnchoredBundle, AssetTag, AssignmentType, BundleId, Genesis, OpId, OpRef, Operation, SubSchema,
+    AnchoredBundle, AssetTag, AssignmentType, BundleId, Genesis, OpId, OpRef, Operation, Schema,
     WitnessId, XChain,
 };
 
@@ -65,7 +65,7 @@ impl<'c, const TYPE: bool> IndexedConsignment<'c, TYPE> {
 impl<'c, const TYPE: bool> ConsignmentApi for IndexedConsignment<'c, TYPE> {
     type Iter<'a> = BundleIdIter;
 
-    fn schema(&self) -> &SubSchema { &self.schema }
+    fn schema(&self) -> &Schema { &self.schema }
 
     #[inline]
     fn asset_tags(&self) -> &BTreeMap<AssignmentType, AssetTag> { self.asset_tags.as_inner() }
