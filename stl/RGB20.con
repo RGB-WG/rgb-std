@@ -4,7 +4,7 @@ interface RGB20Base
 	global spec: RGBContract.AssetSpec
 	global terms: RGBContract.AssetTerms
 
-	owned assetOwner(+): Zk64
+	owned assetOwner(*): Zk64
 
 	error supplyMismatch: 1
 		"supply specified as a global parameter doesn't match the issued supply allocated to the asset owners"
@@ -29,7 +29,7 @@ interface RGB20Base
 
 
 @version(v1)
-interface RGB20Renamable
+interface RGB20Renamable: RGB20Base
 
 	public updateRight: Rights
 
@@ -44,7 +44,7 @@ interface RGB20Renamable
 
 
 @version(v1)
-interface RGB20Burnable
+interface RGB20Burnable: RGB20Base
 	global burnedSupply(*): RGBContract.Amount
 
 	public burnRight(+): Rights
@@ -65,10 +65,9 @@ interface RGB20Burnable
 
 
 @version(v1)
-interface RGB20Inflatible
+interface RGB20Inflatible: RGB20Base
 	global issuedSupply(+): RGBContract.Amount
 
-	owned assetOwner(+): Zk64
 	public inflationAllowance(*): Zk64
 
 	error issueExceedsAllowance: 6
@@ -89,7 +88,7 @@ interface RGB20Inflatible
 
 
 @version(v1)
-interface RGB20Replacable
+interface RGB20Replacable: RGB20Inflatible
 	global burnedSupply(*): RGBContract.Amount
 	global replacedSupply(*): RGBContract.Amount
 

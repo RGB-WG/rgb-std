@@ -22,6 +22,8 @@
 
 #[macro_use]
 extern crate amplify;
+#[macro_use]
+extern crate strict_types;
 
 use std::fs;
 use std::io::Write;
@@ -148,11 +150,22 @@ fn main() {
         .expect("not all libraries present");
 
     let mut file = fs::File::create(format!("{dir}/RGB20.con")).unwrap();
-    writeln!(file, "{}", rgb20::base().display(none!(), &ifsys)).unwrap();
-    writeln!(file, "{}", rgb20::renamable().display(none!(), &ifsys)).unwrap();
-    writeln!(file, "{}", rgb20::burnable().display(none!(), &ifsys)).unwrap();
-    writeln!(file, "{}", rgb20::inflatible().display(none!(), &ifsys)).unwrap();
-    writeln!(file, "{}", rgb20::replacable().display(none!(), &ifsys)).unwrap();
+    let base_id = rgb20::base().iface_id();
+    let inflatible_id = rgb20::inflatible().iface_id();
+    writeln!(file, "{}", rgb20::base().display(map! { base_id => tn!("RGB20Base") }, &ifsys))
+        .unwrap();
+    writeln!(file, "{}", rgb20::renamable().display(map! { base_id => tn!("RGB20Base") }, &ifsys))
+        .unwrap();
+    writeln!(file, "{}", rgb20::burnable().display(map! { base_id => tn!("RGB20Base") }, &ifsys))
+        .unwrap();
+    writeln!(file, "{}", rgb20::inflatible().display(map! { base_id => tn!("RGB20Base") }, &ifsys))
+        .unwrap();
+    writeln!(
+        file,
+        "{}",
+        rgb20::replacable().display(map! { inflatible_id => tn!("RGB20Inflatible") }, &ifsys)
+    )
+    .unwrap();
 
     let rgb21 = Rgb21::iface(None);
     fs::write(format!("{dir}/RGB21.con"), format!("{}", rgb21.display(none!(), &ifsys))).unwrap();

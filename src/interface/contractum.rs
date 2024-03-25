@@ -149,14 +149,14 @@ impl<'a> Display for OpIfaceDisplay<'a> {
 
 pub struct IfaceDisplay<'a> {
     iface: &'a Iface,
-    externals: HashMap<IfaceId, &'a TypeName>,
+    externals: HashMap<IfaceId, TypeName>,
     types: &'a SymbolicSys,
 }
 
 impl<'a> IfaceDisplay<'a> {
     pub fn new(
         iface: &'a Iface,
-        externals: HashMap<IfaceId, &'a TypeName>,
+        externals: HashMap<IfaceId, TypeName>,
         types: &'a SymbolicSys,
     ) -> Self {
         Self {
@@ -222,7 +222,7 @@ impl<'a> Display for IfaceDisplay<'a> {
 
         writeln!(f, "@version({})", self.iface.version)?;
         write!(f, "interface {}", self.iface.name)?;
-        if !self.externals.is_empty() {
+        if !self.iface.inherits.is_empty() {
             f.write_str(": ")?;
             for (index, id) in self.iface.inherits.iter().enumerate() {
                 if index > 0 {
