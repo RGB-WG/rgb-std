@@ -19,7 +19,7 @@ interface RGB20Base
 		errors: supplyMismatch, invalidProof, insufficientReserves
 		meta: RGBContract.IssueMeta
 		globals: issuedSupply, spec, terms
-		assigns: assetOwner(+)
+		assigns: assetOwner(*)
 
 	transition transfer: required, default, abstract
 		errors: nonEqualAmounts
