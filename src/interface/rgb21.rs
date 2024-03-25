@@ -28,7 +28,8 @@ use std::str::FromStr;
 use amplify::ascii::AsciiString;
 use amplify::confinement::{Confined, NonEmptyVec, SmallBlob};
 use bp::bc::stl::bp_tx_stl;
-use rgb::Types;
+use bp::dbc::Method;
+use rgb::{AltLayer1, AssetTag, DataState, GenesisSeal, Types};
 use strict_encoding::stl::AsciiPrintable;
 use strict_encoding::{
     InvalidIdent, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, TypedWrite,
@@ -37,10 +38,15 @@ use strict_types::stl::std_stl;
 use strict_types::{CompileError, LibBuilder, StrictVal, TypeLib};
 
 use super::{
-    AssignIface, DataAllocation, GenesisIface, GlobalIface, Iface, OutpointFilter, OwnedIface, Req,
-    TransitionIface, VerNo,
+    AssignIface, ContractBuilder, DataAllocation, GenesisIface, GlobalIface, Iface, IssuerClass,
+    OutpointFilter, OwnedIface, Req, SchemaIssuer, TransitionIface, VerNo,
 };
-use crate::interface::{ArgSpec, ContractIface, IfaceId, IfaceWrapper};
+use crate::containers::Contract;
+use crate::interface::{
+    ArgSpec, BuilderError, ContractIface, IfaceClass, IfaceId, IfaceWrapper, TxOutpoint,
+};
+use crate::invoice::Precision;
+use crate::persistence::PersistedState;
 use crate::stl::{
     rgb_contract_stl, Attachment, Details, DivisibleAssetSpec, MediaType, Name, ProofOfReserves,
     RicardianContract, StandardTypes, Ticker, Timestamp,
@@ -512,7 +518,168 @@ impl IfaceWrapper for Rgb21 {
     ]);
 }
 
+#[derive(Debug, Clone)]
+pub struct Rgb21PrimaryIssue {
+    builder: ContractBuilder,
+    deterministic: bool,
+}
+
+impl Rgb21PrimaryIssue {
+    // init testnet issue uda asset
+    // add all required global state here(just in the current version)
+    fn testnet_init(
+        issuer: SchemaIssuer<Rgb21>,
+        ticker: &str,
+        name: &str,
+        details: Option<&str>,
+        token_index: u32,
+        timestamp: Timestamp,
+    ) -> Result<Self, InvalidIdent> {
+        // we set Precision::Indivisible here, because it's rgb21 uda asset.
+        let spec = DivisibleAssetSpec::with(ticker, name, Precision::Indivisible, details)?;
+        // set default terms, RicardianContract
+        let terms = RicardianContract::default();
+        // set token data here, just set index to 0 now.
+        let token_data = TokenData {
+            index: TokenIndex(token_index),
+            ..Default::default()
+        };
+        // get rgb21 schema, and ifaceimpl
+        let (schema, main_iface_impl) = issuer.into_split();
+        // setup rgb21 contract builder
+        let builder = ContractBuilder::testnet(rgb21(), schema, main_iface_impl)
+            .expect("schema interface mismatch")
+            .add_global_state("spec", spec)
+            .expect("invalid RGB21 schema (token specification mismatch)")
+            .add_global_state("terms", terms)
+            .expect("invalid RGB21 schema (terms mismatch)")
+            .add_global_state("tokens", token_data)
+            .expect("invalid RGB21 schema (tokens data mismatch)")
+            .add_global_state("created", timestamp)
+            .expect("invalid RGB21 schema (creation timestamp mismatch)");
+
+        Ok(Self {
+            builder,
+            deterministic: false,
+        })
+    }
+
+    // issue uda asset with testnet
+    pub fn testnet<C: IssuerClass<IssuingIface = Rgb21>>(
+        ticker: &str,
+        name: &str,
+        details: Option<&str>,
+        token_index: u32,
+    ) -> Result<Self, InvalidIdent> {
+        Self::testnet_init(C::issuer(), ticker, name, details, token_index, Timestamp::now())
+    }
+
+    // issue uda asset with testnet
+    pub fn testnet_with(
+        issuer: SchemaIssuer<Rgb21>,
+        ticker: &str,
+        name: &str,
+        details: Option<&str>,
+        token_index: u32,
+    ) -> Result<Self, InvalidIdent> {
+        Self::testnet_init(issuer, ticker, name, details, token_index, Timestamp::now())
+    }
+
+    // issue testnet uda asset with deterministic asset tag
+    pub fn testnet_det<C: IssuerClass<IssuingIface = Rgb21>>(
+        ticker: &str,
+        name: &str,
+        details: Option<&str>,
+        token_index: u32,
+        timestamp: Timestamp,
+        asset_tag: AssetTag,
+    ) -> Result<Self, InvalidIdent> {
+        let mut rgb21_testnet_issue =
+            Self::testnet_init(C::issuer(), ticker, name, details, token_index, timestamp)?;
+        rgb21_testnet_issue.builder = rgb21_testnet_issue
+            .builder
+            .add_asset_tag("assetOwner", asset_tag)
+            .expect("invalid RGB21 schema (assetOwner mismatch)");
+        rgb21_testnet_issue.deterministic = true;
+        Ok(rgb21_testnet_issue)
+    }
+
+    // add support for Liquid Chain
+    pub fn support_liquid(mut self) -> Self {
+        self.builder = self
+            .builder
+            .add_layer1(AltLayer1::Liquid)
+            .expect("only one layer1 can be added");
+        self
+    }
+
+    // add genesis beneficiary
+    pub fn allocate_det<O: TxOutpoint>(
+        mut self,
+        method: Method,
+        beneficiary: O,
+        allocation: invoice::Allocation,
+    ) -> Result<Self, Error> {
+        debug_assert!(
+            !self.deterministic,
+            "for creating deterministic contracts please use allocate_det method"
+        );
+        // set genesis seal(map genesis beneficiary)
+        let beneficiary = beneficiary.map_to_xchain(|outpoint| {
+            GenesisSeal::new_random(method, outpoint.txid, outpoint.vout)
+        });
+        // not sure the definition of second param of the PersistedState::Data
+        // so we just set 0u128 now.
+        // then add deterministic owned state
+
+        self.builder = self
+            .builder
+            .add_owned_state_det(
+                "assetOwner",
+                beneficiary,
+                PersistedState::Data(DataState::from(allocation), 0u128),
+            )
+            .expect("add owned state for assetOwner failed");
+        Ok(self)
+    }
+
+    #[allow(clippy::result_large_err)]
+    pub fn issue_contract(self) -> Result<Contract, BuilderError> { self.builder.issue_contract() }
+}
+
+impl IfaceClass for Rgb21 {
+    fn iface() -> Iface { rgb21() }
+    fn stl() -> TypeLib { rgb21_stl() }
+}
+
 impl Rgb21 {
+    pub fn testnet<C: IssuerClass<IssuingIface = Self>>(
+        ticker: &str,
+        name: &str,
+        details: Option<&str>,
+        token_index: u32,
+    ) -> Result<Rgb21PrimaryIssue, InvalidIdent> {
+        Rgb21PrimaryIssue::testnet::<C>(ticker, name, details, token_index)
+    }
+
+    pub fn testnet_det<C: IssuerClass<IssuingIface = Self>>(
+        ticker: &str,
+        name: &str,
+        details: Option<&str>,
+        token_index: u32,
+        timestamp: Timestamp,
+        asset_tag: AssetTag,
+    ) -> Result<Rgb21PrimaryIssue, InvalidIdent> {
+        Rgb21PrimaryIssue::testnet_det::<C>(
+            ticker,
+            name,
+            details,
+            token_index,
+            timestamp,
+            asset_tag,
+        )
+    }
+
     pub fn spec(&self) -> DivisibleAssetSpec {
         let strict_val = &self
             .0
@@ -560,6 +727,26 @@ impl Rgb21 {
         self.0
             .data("assetOwner", filter)
             .expect("RGB21 interface requires `assetOwner` state")
+    }
+
+    pub fn balance(&self, filter: impl OutpointFilter) -> Vec<invoice::Allocation> {
+        self.allocations(filter)
+            .map(|alloc| invoice::Allocation::from(alloc.state))
+            .collect::<Vec<invoice::Allocation>>()
+    }
+
+    pub fn owned_token_index(&self, filter: impl OutpointFilter) -> Vec<u32> {
+        self.balance(filter)
+            .iter()
+            .map(|allocation| allocation.token_index())
+            .collect::<Vec<u32>>()
+    }
+
+    pub fn owned_fraction(&self, filter: impl OutpointFilter) -> Vec<u64> {
+        self.balance(filter)
+            .iter()
+            .map(|allocation| allocation.fraction())
+            .collect::<Vec<u64>>()
     }
 }
 
