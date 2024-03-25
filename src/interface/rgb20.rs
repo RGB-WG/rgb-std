@@ -132,6 +132,38 @@ pub fn base() -> Iface {
     }
 }
 
+pub fn fixed() -> Iface {
+    Iface {
+        version: VerNo::V1,
+        name: tn!("RGB20Fixed"),
+        inherits: tiny_bset![BASE_IFACE_ID],
+        global_state: none!(),
+        assignments: tiny_bmap! {
+            fname!("assetOwner") => AssignIface::private(OwnedIface::Amount, Req::OneOrMore),
+        },
+        valencies: none!(),
+        genesis: GenesisIface {
+            modifier: Modifier::Override,
+            metadata: None,
+            globals: none!(),
+            assignments: tiny_bmap! {
+                fname!("assetOwner") => Occurrences::OnceOrMore,
+            },
+            valencies: none!(),
+            errors: tiny_bset! {
+                SUPPLY_MISMATCH,
+                INVALID_PROOF,
+                INSUFFICIENT_RESERVES
+            },
+        },
+        transitions: none!(),
+        extensions: none!(),
+        errors: none!(),
+        default_operation: None,
+        types: StandardTypes::new().type_system().into(),
+    }
+}
+
 pub fn inflatible() -> Iface {
     let types = StandardTypes::new();
     Iface {
@@ -400,6 +432,7 @@ pub enum Inflation {
 }
 
 impl Inflation {
+    pub fn is_fixed(self) -> bool { self == Self::Fixed }
     pub fn is_inflatible(self) -> bool {
         self == Self::Inflatible || self == Self::InflatibleBurnable || self == Self::Replaceable
     }
@@ -510,15 +543,16 @@ impl IfaceClass for Rgb20 {
         if features.renaming {
             iface = iface.expect_extended(renamable());
         }
+        if features.inflation.is_fixed() {
+            iface = iface.expect_extended(fixed());
+        }
         if features.inflation.is_inflatible() {
             iface = iface.expect_extended(inflatible());
         }
         if features.inflation.is_replacable() {
             iface = iface.expect_extended(replacable());
         } else if features.inflation.is_burnable() {
-            {
-                iface = iface.expect_extended(burnable());
-            }
+            iface = iface.expect_extended(burnable());
         }
         iface.name = tn!("RGB20");
         iface

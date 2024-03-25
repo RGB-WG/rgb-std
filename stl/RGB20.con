@@ -29,6 +29,15 @@ interface RGB20Base
 
 
 @version(v1)
+interface RGB20Fixed: RGB20Fixed
+
+	owned assetOwner(+): Zk64
+
+	genesis: override
+		assigns: assetOwner(+)
+
+
+@version(v1)
 interface RGB20Renamable: RGB20Base
 
 	public updateRight: Rights

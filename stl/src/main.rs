@@ -154,6 +154,8 @@ fn main() {
     let inflatible_id = rgb20::inflatible().iface_id();
     writeln!(file, "{}", rgb20::base().display(map! { base_id => tn!("RGB20Base") }, &ifsys))
         .unwrap();
+    writeln!(file, "{}", rgb20::fixed().display(map! { base_id => tn!("RGB20Fixed") }, &ifsys))
+        .unwrap();
     writeln!(file, "{}", rgb20::renamable().display(map! { base_id => tn!("RGB20Base") }, &ifsys))
         .unwrap();
     writeln!(file, "{}", rgb20::burnable().display(map! { base_id => tn!("RGB20Base") }, &ifsys))
