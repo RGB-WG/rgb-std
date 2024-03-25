@@ -28,8 +28,8 @@ use amplify::{ByteArray, Bytes32};
 use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
 use commit_verify::{CommitId, CommitmentId, DigestExt, Sha256};
 use rgb::{
-    AssignmentType, ExtensionType, GlobalStateType, SchemaId, Script, SubSchema, TransitionType,
-    ValencyType,
+    AssignmentType, ExtensionType, GlobalStateType, Issuer, SchemaId, Script, SubSchema,
+    TransitionType, ValencyType,
 };
 use strict_encoding::{FieldName, StrictDumb};
 use strict_types::encoding::{
@@ -215,6 +215,8 @@ pub struct IfaceImpl {
     pub version: VerNo,
     pub schema_id: SchemaId,
     pub iface_id: IfaceId,
+    pub developer: Issuer,
+    pub timestamp: i64,
     pub global_state: TinyOrdSet<NamedField<GlobalStateType>>,
     pub assignments: TinyOrdSet<NamedField<AssignmentType>>,
     pub valencies: TinyOrdSet<NamedField<ValencyType>>,

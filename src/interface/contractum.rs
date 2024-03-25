@@ -214,6 +214,10 @@ impl<'a> Display for IfaceDisplay<'a> {
         }
 
         writeln!(f, "@version({})", self.iface.version)?;
+        if !self.iface.developer.is_empty() {
+            writeln!(f, "@developer({})", self.iface.developer)?;
+        }
+        writeln!(f, "@timestamp({})", self.iface.timestamp)?;
         write!(f, "interface {}", self.iface.name)?;
         if !self.iface.inherits.is_empty() {
             f.write_str(": ")?;

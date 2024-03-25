@@ -28,7 +28,7 @@ use amplify::confinement::{TinyOrdMap, TinyOrdSet, TinyString};
 use amplify::{ByteArray, Bytes32};
 use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
 use commit_verify::{CommitId, CommitmentId, DigestExt, Sha256};
-use rgb::{Occurrences, Types};
+use rgb::{Issuer, Occurrences, Types};
 use strict_encoding::{
     FieldName, StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize,
     StrictType, TypeName, VariantName,
@@ -317,6 +317,8 @@ pub struct Iface {
     pub version: VerNo,
     pub name: TypeName,
     pub inherits: TinyOrdSet<IfaceId>,
+    pub developer: Issuer,
+    pub timestamp: i64,
     pub global_state: TinyOrdMap<FieldName, GlobalIface>,
     pub assignments: TinyOrdMap<FieldName, AssignIface>,
     pub valencies: TinyOrdMap<FieldName, ValencyIface>,

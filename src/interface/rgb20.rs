@@ -60,6 +60,8 @@ pub fn base() -> Iface {
         version: VerNo::V1,
         name: tn!("RGB20Base"),
         inherits: none!(),
+        developer: none!(), // TODO: Add LNP/BP Standards Association
+        timestamp: 1711405444,
         global_state: tiny_bmap! {
             fname!("spec") => GlobalIface::required(types.get("RGBContract.AssetSpec")),
             fname!("terms") => GlobalIface::required(types.get("RGBContract.AssetTerms")),
@@ -130,6 +132,8 @@ pub fn fixed() -> Iface {
         version: VerNo::V1,
         name: tn!("RGB20Fixed"),
         inherits: tiny_bset![BASE_IFACE_ID],
+        developer: none!(), // TODO: Add LNP/BP Standards Association
+        timestamp: 1711405444,
         global_state: none!(),
         assignments: tiny_bmap! {
             fname!("assetOwner") => AssignIface::private(OwnedIface::Amount, Req::OneOrMore),
@@ -162,6 +166,8 @@ pub fn inflatible() -> Iface {
     Iface {
         version: VerNo::V1,
         inherits: tiny_bset![BASE_IFACE_ID],
+        developer: none!(), // TODO: Add LNP/BP Standards Association
+        timestamp: 1711405444,
         name: tn!("RGB20Inflatible"),
         global_state: tiny_bmap! {
             fname!("issuedSupply") => GlobalIface::one_or_many(types.get("RGBContract.Amount")),
@@ -219,6 +225,8 @@ pub fn renamable() -> Iface {
     Iface {
         version: VerNo::V1,
         inherits: tiny_bset![BASE_IFACE_ID],
+        developer: none!(), // TODO: Add LNP/BP Standards Association
+        timestamp: 1711405444,
         name: tn!("RGB20Renamable"),
         global_state: none!(),
         assignments: tiny_bmap! {
@@ -266,6 +274,8 @@ pub fn burnable() -> Iface {
     Iface {
         version: VerNo::V1,
         inherits: tiny_bset![BASE_IFACE_ID],
+        developer: none!(), // TODO: Add LNP/BP Standards Association
+        timestamp: 1711405444,
         name: tn!("RGB20Burnable"),
         global_state: tiny_bmap! {
             fname!("burnedSupply") => GlobalIface::none_or_many(types.get("RGBContract.Amount")),
@@ -322,6 +332,8 @@ pub fn replacable() -> Iface {
     Iface {
         version: VerNo::V1,
         inherits: tiny_bset![INFLATIBLE_IFACE_ID],
+        developer: none!(), // TODO: Add LNP/BP Standards Association
+        timestamp: 1711405444,
         name: tn!("RGB20Replacable"),
         global_state: tiny_bmap! {
             fname!("burnedSupply") => GlobalIface::none_or_many(types.get("RGBContract.Amount")),

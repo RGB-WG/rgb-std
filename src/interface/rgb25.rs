@@ -51,6 +51,8 @@ fn rgb25() -> Iface {
         version: VerNo::V1,
         name: tn!("RGB25"),
         inherits: none!(),
+        developer: none!(), // TODO: Add LNP/BP Standards Association
+        timestamp: 1711405444,
         global_state: tiny_bmap! {
             fname!("name") => GlobalIface::required(types.get("RGBContract.Name")),
             fname!("details") => GlobalIface::optional(types.get("RGBContract.Details")),
