@@ -30,7 +30,7 @@ use crate::interface::{
 use crate::LIB_NAME_RGB_STD;
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display, Error)]
-#[display("{iface} inheritance {err}")]
+#[display("{iface} {err}")]
 pub struct InheritError {
     err: ExtensionError,
     iface: TypeName,
@@ -39,23 +39,43 @@ pub struct InheritError {
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display, Error)]
 #[display(doc_comments)]
 pub enum ExtensionError {
+    /// too many global state types defined.
     GlobalOverflow,
+    /// global state '{0}' has different data type from the parent interface.
     GlobalType(FieldName),
+    /// global state '{0}' has fewer occurrences than in the parent interface.
     GlobalOcc(FieldName),
+    /// too many assignment types defined.
     AssignmentOverflow,
+    /// assignment '{0}' has different data type from the parent interface.
     AssignmentType(FieldName),
+    /// assignment '{0}' has fewer occurrences than in the parent interface.
     AssignmentOcc(FieldName),
+    /// global state '{0}' has lower visibility than in the parent interface.
     AssignmentPublic(FieldName),
+    /// too many valency types defined.
     ValencyOverflow,
+    /// valency '{0}' has fewer occurrences than in the parent interface.
     ValencyOcc(FieldName),
+    /// too many state transitions.
+    TransitionOverflow,
+    /// too many state extensions.
+    ExtensionOverflow,
+    /// too many error types defined.
     ErrorOverflow,
+    /// inherited interface tries to override the parent default operation.
     DefaultOverride,
+    /// '{0}' can't be overridden.
     OpModifier(OpName),
+    /// '{0}' overrides parent metadata type.
     OpMetadata(OpName),
+    /// too many {1} types defined in {0}.
     OpOverflow(OpName, &'static str),
-    OpPresent(OpName, &'static str, String),
+    /// {0} can't be optional.
     OpOptional(OpName),
+    /// {0} tries to override the parent default assignment.
     OpDefaultOverride(OpName),
+    /// {0} tries to override '{2}' {1}.
     OpOcc(OpName, &'static str, FieldName),
 }
 
@@ -114,6 +134,23 @@ impl Iface {
         }
     }
 
+    pub fn expect_inherit(
+        name: impl Into<TypeName>,
+        ifaces: impl IntoIterator<Item = Iface>,
+    ) -> Iface {
+        let name = name.into();
+        match Self::inherit(name.clone(), ifaces) {
+            Ok(iface) => iface,
+            Err(msgs) => {
+                eprintln!("Unable to construct interface {name}:");
+                for msg in msgs {
+                    eprintln!("- {msg}")
+                }
+                panic!();
+            }
+        }
+    }
+
     pub fn inherit(
         name: impl Into<TypeName>,
         ifaces: impl IntoIterator<Item = Iface>,
@@ -122,7 +159,6 @@ impl Iface {
         let mut iface = iter
             .next()
             .expect("at least one interface must be provided for the inheritance");
-        iface.name = name.into();
         for ext in iter {
             let name = ext.name.clone();
             iface = iface.extended(ext.into_extension()).map_err(|err| {
@@ -134,7 +170,22 @@ impl Iface {
                     .collect::<Vec<_>>()
             })?;
         }
+        iface.name = name.into();
         Ok(iface)
+    }
+
+    pub fn expect_extended(self, ext: IfaceExt) -> Iface {
+        let name = self.name.clone();
+        match self.extended(ext) {
+            Ok(iface) => iface,
+            Err(msgs) => {
+                eprintln!("Unable to inherit from {name}:");
+                for msg in msgs {
+                    eprintln!("- {msg}")
+                }
+                panic!();
+            }
+        }
     }
 
     pub fn extended(mut self, ext: IfaceExt) -> Result<Iface, Vec<ExtensionError>> {
@@ -180,7 +231,7 @@ impl Iface {
                         .ok();
                 }
                 Some(orig) => {
-                    if orig.owned_state.is_superset(e.owned_state) {
+                    if !orig.owned_state.is_superset(e.owned_state) {
                         errors.push(ExtensionError::AssignmentType(name));
                     } else if orig.required > e.required || orig.multiple > e.multiple {
                         errors.push(ExtensionError::AssignmentOcc(name));
@@ -216,6 +267,59 @@ impl Iface {
             }
         }
 
+        self.clone()
+            .genesis
+            .extended(ext.genesis)
+            .map(|genesis| self.genesis = genesis)
+            .map_err(|errs| errors.extend(errs))
+            .ok();
+
+        overflow = false;
+        for (name, op) in ext.transitions {
+            match self.transitions.remove(&name) {
+                Ok(None) if overflow => continue,
+                Ok(None) => {
+                    self.transitions
+                        .insert(name, op)
+                        .map_err(|_| {
+                            overflow = true;
+                            errors.push(ExtensionError::TransitionOverflow)
+                        })
+                        .ok();
+                }
+                Ok(Some(orig)) => {
+                    orig.extended(op, name.clone())
+                        .map(|op| self.transitions.insert(name, op).expect("same size"))
+                        .map_err(|errs| errors.extend(errs))
+                        .ok();
+                }
+                Err(_) => unreachable!(),
+            }
+        }
+
+        overflow = false;
+        for (name, op) in ext.extensions {
+            match self.extensions.remove(&name) {
+                Ok(None) if overflow => continue,
+                Ok(None) => {
+                    self.extensions
+                        .insert(name, op)
+                        .map_err(|_| {
+                            overflow = true;
+                            errors.push(ExtensionError::TransitionOverflow)
+                        })
+                        .ok();
+                }
+                Ok(Some(orig)) => {
+                    orig.extended(op, name.clone())
+                        .map(|op| self.extensions.insert(name, op).expect("same size"))
+                        .map_err(|errs| errors.extend(errs))
+                        .ok();
+                }
+                Err(_) => unreachable!(),
+            }
+        }
+
         // We allow replacing error messages
         self.errors
             .extend(ext.errors)
@@ -223,7 +327,7 @@ impl Iface {
             .ok();
 
         if ext.default_operation.is_some() {
-            if self.default_operation.is_some() {
+            if self.default_operation.is_some() && self.default_operation != ext.default_operation {
                 errors.push(ExtensionError::DefaultOverride);
             } else {
                 self.default_operation = ext.default_operation
@@ -279,18 +383,15 @@ fn check_presence<T: Ord + ToString>(
 ) {
     let mut overflow = false;
     for name in ext {
-        if orig.contains(&name) {
-            errors.push(ExtensionError::OpPresent(op.clone(), state, name.to_string()));
-        } else if overflow {
+        if overflow {
             continue;
-        } else {
-            orig.push(name)
-                .map_err(|_| {
-                    overflow = true;
-                    errors.push(ExtensionError::OpOverflow(op.clone(), state))
-                })
-                .ok();
         }
+        orig.push(name)
+            .map_err(|_| {
+                overflow = true;
+                errors.push(ExtensionError::OpOverflow(op.clone(), state))
+            })
+            .ok();
     }
 }
 
@@ -299,10 +400,10 @@ impl GenesisIface {
         let mut errors = vec![];
 
         let op = OpName::Genesis;
-        if self.modifier.is_superset(ext.modifier) {
+        if !self.modifier.is_superset(ext.modifier) {
             errors.push(ExtensionError::OpModifier(op.clone()));
         }
-        if self.metadata.is_some() && ext.metadata.is_some() {
+        if self.metadata.is_some() && ext.metadata.is_some() && self.metadata != ext.metadata {
             errors.push(ExtensionError::OpMetadata(op.clone()));
         }
 
@@ -325,13 +426,13 @@ impl TransitionIface {
         let mut errors = vec![];
 
         let op = OpName::Transition(op_name);
-        if self.modifier.is_superset(ext.modifier) {
+        if !self.modifier.is_superset(ext.modifier) {
             errors.push(ExtensionError::OpModifier(op.clone()));
         }
         if self.optional < ext.optional {
             errors.push(ExtensionError::OpOptional(op.clone()))
         }
-        if self.metadata.is_some() && ext.metadata.is_some() {
+        if self.metadata.is_some() && ext.metadata.is_some() && self.metadata != ext.metadata {
             errors.push(ExtensionError::OpMetadata(op.clone()));
         }
 
@@ -343,7 +444,9 @@ impl TransitionIface {
         check_presence(&mut self.errors, ext.errors, op.clone(), "error", &mut errors);
 
         if ext.default_assignment.is_some() {
-            if self.default_assignment.is_some() {
+            if self.default_assignment.is_some() &&
+                self.default_assignment != ext.default_assignment
+            {
                 errors.push(ExtensionError::OpDefaultOverride(op.clone()));
             } else {
                 self.default_assignment = ext.default_assignment
@@ -363,13 +466,13 @@ impl ExtensionIface {
         let mut errors = vec![];
 
         let op = OpName::Transition(op_name);
-        if self.modifier.is_superset(ext.modifier) {
+        if !self.modifier.is_superset(ext.modifier) {
             errors.push(ExtensionError::OpModifier(op.clone()));
         }
         if self.optional < ext.optional {
             errors.push(ExtensionError::OpOptional(op.clone()))
         }
-        if self.metadata.is_some() && ext.metadata.is_some() {
+        if self.metadata.is_some() && ext.metadata.is_some() && self.metadata != ext.metadata {
             errors.push(ExtensionError::OpMetadata(op.clone()));
         }
 
@@ -381,7 +484,9 @@ impl ExtensionIface {
         check_presence(&mut self.errors, ext.errors, op.clone(), "error", &mut errors);
 
         if ext.default_assignment.is_some() {
-            if self.default_assignment.is_some() {
+            if self.default_assignment.is_some() &&
+                self.default_assignment != ext.default_assignment
+            {
                 errors.push(ExtensionError::OpDefaultOverride(op.clone()));
             } else {
                 self.default_assignment = ext.default_assignment

@@ -38,7 +38,7 @@ use strict_types::{parse_args, StlFormat, SystemBuilder};
 
 fn main() {
     let (_, dir) = parse_args();
-    let dir = dir.unwrap_or_else(|| ".".to_owned());
+    let dir = dir.unwrap_or_else(|| "./stl".to_owned());
 
     let contract_stl = rgb_contract_stl();
     contract_stl
