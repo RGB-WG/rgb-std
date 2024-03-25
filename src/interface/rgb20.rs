@@ -125,7 +125,7 @@ fn rgb20_simplest() -> Iface {
 
 fn rgb20_inflatible() -> Iface {
     let types = StandardTypes::new();
-    rgb20_simplest().extend(IfaceExt {
+    rgb20_simplest().extended(IfaceExt {
         name: tn!("RGB20Inflatible"),
         global_state: tiny_bmap! {
             fname!("issuedSupply") => GlobalIface::one_or_many(types.get("RGBContract.Amount")),
@@ -176,56 +176,58 @@ fn rgb20_inflatible() -> Iface {
                 => tiny_s!("you try to issue more assets than allowed by the contract terms"),
         },
         types: None,
-    })
+    }).expect("invalid interface inheritance")
 }
 
 fn rgb20_renamable() -> Iface {
-    rgb20_simplest().extend(IfaceExt {
-        name: tn!("RGB20Renamable"),
-        global_state: none!(),
-        assignments: tiny_bmap! {
-            fname ! ("updateRight") => AssignIface::public(OwnedIface::Rights, Req::Required),
-        },
-        valencies: none!(),
-        genesis: GenesisIface {
-            modifier: Modifier::Override,
-            metadata: None,
-            globals: none!(),
+    rgb20_simplest()
+        .extended(IfaceExt {
+            name: tn!("RGB20Renamable"),
+            global_state: none!(),
             assignments: tiny_bmap! {
-                fname!("updateRight") => Occurrences::Once,
+                fname ! ("updateRight") => AssignIface::public(OwnedIface::Rights, Req::Required),
             },
             valencies: none!(),
-            errors: none!(),
-        },
-        transitions: tiny_bmap! {
-            fname!("rename") => TransitionIface {
-                modifier: Modifier::Final,
-                optional: false,
+            genesis: GenesisIface {
+                modifier: Modifier::Override,
                 metadata: None,
-                globals: tiny_bmap! {
-                    fname!("spec") => Occurrences::Once,
-                },
-                inputs: tiny_bmap! {
-                    fname!("updateRight") => Occurrences::Once,
-                },
+                globals: none!(),
                 assignments: tiny_bmap! {
-                    fname!("updateRight") => Occurrences::NoneOrOnce,
+                    fname!("updateRight") => Occurrences::Once,
                 },
                 valencies: none!(),
                 errors: none!(),
-                default_assignment: Some(fname!("updateRight")),
             },
-        },
-        extensions: none!(),
-        default_operation: None,
-        errors: none!(),
-        types: None,
-    })
+            transitions: tiny_bmap! {
+                fname!("rename") => TransitionIface {
+                    modifier: Modifier::Final,
+                    optional: false,
+                    metadata: None,
+                    globals: tiny_bmap! {
+                        fname!("spec") => Occurrences::Once,
+                    },
+                    inputs: tiny_bmap! {
+                        fname!("updateRight") => Occurrences::Once,
+                    },
+                    assignments: tiny_bmap! {
+                        fname!("updateRight") => Occurrences::NoneOrOnce,
+                    },
+                    valencies: none!(),
+                    errors: none!(),
+                    default_assignment: Some(fname!("updateRight")),
+                },
+            },
+            extensions: none!(),
+            default_operation: None,
+            errors: none!(),
+            types: None,
+        })
+        .expect("invalid interface inheritance")
 }
 
 fn rgb20_burnable() -> Iface {
     let types = StandardTypes::new();
-    rgb20_inflatible().extend(IfaceExt {
+    rgb20_inflatible().extended(IfaceExt {
         name: tn!("RGB20Reserves"),
         global_state: tiny_bmap! {
             fname!("burnedSupply") => GlobalIface::none_or_many(types.get("RGBContract.Amount")),
@@ -291,12 +293,12 @@ fn rgb20_burnable() -> Iface {
                 => tiny_s!("the claimed amount of burned assets is not covered by the assets in the operation inputs"),
         },
         types: None,
-    })
+    }).expect("invalid interface inheritance")
 }
 
 fn rgb20_replacable() -> Iface {
     let types = StandardTypes::new();
-    rgb20_burnable().extend(IfaceExt {
+    rgb20_burnable().extended(IfaceExt {
         name: tn!("RGB20Replacable"),
         global_state: tiny_bmap! {
             fname!("replacedSupply") => GlobalIface::none_or_many(types.get("RGBContract.Amount")),
@@ -342,10 +344,13 @@ fn rgb20_replacable() -> Iface {
         default_operation: None,
         errors: none!(),
         types: None,
-    })
+    }).expect("invalid interface inheritance")
 }
 
-fn rgb20() -> Iface { Iface::inherit([rgb20_inflatible(), rgb20_renamable(), rgb20_replacable()]) }
+fn rgb20() -> Iface {
+    Iface::inherit("RGB20", [rgb20_inflatible(), rgb20_renamable(), rgb20_replacable()])
+        .expect("invalid interface inheritance")
+}
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]

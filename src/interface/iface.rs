@@ -226,7 +226,7 @@ pub enum OwnedIface {
 
 pub type ArgMap = TinyOrdMap<FieldName, Occurrences>;
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, Display, Default)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Display, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD, into_u8, try_from_u8, tags = repr)]
 #[cfg_attr(
@@ -237,10 +237,10 @@ pub type ArgMap = TinyOrdMap<FieldName, Occurrences>;
 #[display(lowercase)]
 #[repr(u8)]
 pub enum Modifier {
+    Abstract = 0,
+    Override = 1,
     #[default]
-    Final = 0,
-    Abstract = 1,
-    Override = 2,
+    Final = 0xFF,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -302,29 +302,6 @@ pub struct TransitionIface {
     pub default_assignment: Option<FieldName>,
 }
 
-#[derive(Clone, Debug)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD)]
-#[derive(CommitEncode)]
-#[commit_encode(strategy = strict, id = IfaceId)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-pub struct IfaceExt {
-    pub name: TypeName,
-    pub global_state: TinyOrdMap<FieldName, GlobalIface>,
-    pub assignments: TinyOrdMap<FieldName, AssignIface>,
-    pub valencies: TinyOrdMap<FieldName, ValencyIface>,
-    pub genesis: GenesisIface,
-    pub transitions: TinyOrdMap<FieldName, TransitionIface>,
-    pub extensions: TinyOrdMap<FieldName, ExtensionIface>,
-    pub default_operation: Option<FieldName>,
-    pub errors: TinyOrdMap<Variant, TinyString>,
-    pub types: Option<Types>,
-}
-
 /// Interface definition.
 #[derive(Clone, Eq, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
@@ -377,10 +354,6 @@ impl Iface {
     ) -> IfaceDisplay<'a> {
         IfaceDisplay::new(self, externals, sys)
     }
-
-    pub fn inherit(ifaces: impl IntoIterator<Item = Iface>) -> Iface { todo!() }
-
-    pub fn extend(&self, ext: IfaceExt) -> Iface { todo!() }
 
     pub fn check(&self) -> Result<(), Vec<IfaceInconsistency>> {
         let proc_globals = |op_name: &OpName,
