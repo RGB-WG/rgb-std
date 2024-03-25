@@ -353,14 +353,17 @@ pub trait IssuerClass {
     fn schema() -> SubSchema;
     fn issue_impl() -> IfaceImpl;
 
-    fn issuer() -> SchemaIssuer<Self::IssuingIface> {
-        SchemaIssuer::new(Self::schema(), Self::issue_impl())
+    fn issuer(
+        features: <Self::IssuingIface as IfaceClass>::Features,
+    ) -> SchemaIssuer<Self::IssuingIface> {
+        SchemaIssuer::new(Self::schema(), Self::issue_impl(), features)
             .expect("implementation schema mismatch")
     }
 }
 
 pub trait IfaceClass: IfaceWrapper {
-    fn iface() -> Iface;
+    type Features: Sized + Clone + Default;
+    fn iface(features: Self::Features) -> Iface;
     fn stl() -> TypeLib;
 }
 
@@ -445,30 +448,38 @@ impl IssuerTriplet {
 pub struct SchemaIssuer<I: IfaceClass> {
     schema: SubSchema,
     iimpl: IfaceImpl,
+    features: I::Features,
     phantom: PhantomData<I>,
 }
 
 impl<I: IfaceClass> SchemaIssuer<I> {
     #[allow(clippy::result_large_err)]
-    pub fn new(schema: SubSchema, iimpl: IfaceImpl) -> Result<Self, WrongImplementation> {
-        let triplet = IssuerTriplet::new(I::iface(), schema, iimpl)?;
+    pub fn new(
+        schema: SubSchema,
+        iimpl: IfaceImpl,
+        features: I::Features,
+    ) -> Result<Self, WrongImplementation> {
+        let triplet = IssuerTriplet::new(I::iface(features.clone()), schema, iimpl)?;
         let (_, schema, iimpl) = triplet.into_split();
 
         Ok(Self {
             schema,
             iimpl,
+            features,
             phantom: default!(),
         })
     }
 
     #[inline]
-    pub fn into_split(self) -> (SubSchema, IfaceImpl) { (self.schema, self.iimpl) }
+    pub fn into_split(self) -> (SubSchema, IfaceImpl, I::Features) {
+        (self.schema, self.iimpl, self.features)
+    }
 
     pub fn into_triplet(self) -> IssuerTriplet {
-        let (schema, iimpl) = self.into_split();
+        let (schema, iimpl, features) = self.into_split();
         IssuerTriplet {
             schema,
-            iface: I::iface(),
+            iface: I::iface(features),
             iimpl,
         }
     }

@@ -176,7 +176,8 @@ impl IfaceWrapper for Rgb25 {
 }
 
 impl IfaceClass for Rgb25 {
-    fn iface() -> Iface { rgb25() }
+    type Features = Option<()>;
+    fn iface(_: Self::Features) -> Iface { rgb25() }
     fn stl() -> TypeLib { rgb_contract_stl() }
 }
 
@@ -255,7 +256,7 @@ impl Issue {
             media: None,
         };
 
-        let (schema, main_iface_impl) = issuer.into_split();
+        let (schema, main_iface_impl, _) = issuer.into_split();
         let builder = ContractBuilder::testnet(rgb25(), schema, main_iface_impl)
             .expect("schema interface mismatch")
             .add_global_state("name", Name::try_from(name.to_owned())?)
@@ -275,7 +276,7 @@ impl Issue {
         name: &str,
         precision: Precision,
     ) -> Result<Self, InvalidIdent> {
-        Self::testnet_int(C::issuer(), name, precision)
+        Self::testnet_int(C::issuer(None), name, precision)
     }
 
     pub fn testnet_with(
@@ -291,7 +292,7 @@ impl Issue {
         precision: Precision,
         asset_tag: AssetTag,
     ) -> Result<Self, InvalidIdent> {
-        let mut me = Self::testnet_int(C::issuer(), name, precision)?;
+        let mut me = Self::testnet_int(C::issuer(None), name, precision)?;
         me.builder = me
             .builder
             .add_asset_tag("assetOwner", asset_tag)

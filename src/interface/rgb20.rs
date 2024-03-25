@@ -51,7 +51,7 @@ const INSUFFICIENT_RESERVES: u8 = 4;
 const INSUFFICIENT_COVERAGE: u8 = 5;
 const ISSUE_EXCEEDS_ALLOWANCE: u8 = 6;
 
-fn rgb20_simplest() -> Iface {
+pub fn base() -> Iface {
     let types = StandardTypes::new();
 
     Iface {
@@ -87,7 +87,7 @@ fn rgb20_simplest() -> Iface {
         },
         transitions: tiny_bmap! {
             fname!("transfer") => TransitionIface {
-                modifier: Modifier::Final,
+                modifier: Modifier::Abstract,
                 optional: false,
                 metadata: None,
                 globals: none!(),
@@ -123,9 +123,9 @@ fn rgb20_simplest() -> Iface {
     }
 }
 
-fn rgb20_inflatible() -> Iface {
+pub fn inflatible() -> IfaceExt {
     let types = StandardTypes::new();
-    rgb20_simplest().expect_extended(IfaceExt {
+    IfaceExt {
         name: tn!("RGB20Inflatible"),
         global_state: tiny_bmap! {
             fname!("issuedSupply") => GlobalIface::one_or_many(types.get("RGBContract.Amount")),
@@ -146,7 +146,7 @@ fn rgb20_inflatible() -> Iface {
         },
         transitions: tiny_bmap! {
             fname!("issue") => TransitionIface {
-                modifier: Modifier::Final,
+                modifier: Modifier::Abstract,
                 optional: false,
                 metadata: Some(types.get("RGBContract.IssueMeta")),
                 globals: tiny_bmap! {
@@ -176,11 +176,11 @@ fn rgb20_inflatible() -> Iface {
                 => tiny_s!("you try to issue more assets than allowed by the contract terms"),
         },
         types: None,
-    })
+    }
 }
 
-fn rgb20_renamable() -> Iface {
-    rgb20_simplest().expect_extended(IfaceExt {
+pub fn renamable() -> IfaceExt {
+    IfaceExt {
         name: tn!("RGB20Renamable"),
         global_state: none!(),
         assignments: tiny_bmap! {
@@ -220,15 +220,70 @@ fn rgb20_renamable() -> Iface {
         default_operation: None,
         errors: none!(),
         types: None,
-    })
+    }
 }
 
-fn rgb20_burnable() -> Iface {
+pub fn burnable() -> IfaceExt {
     let types = StandardTypes::new();
-    rgb20_inflatible().expect_extended(IfaceExt {
-        name: tn!("RGB20Reserves"),
+    IfaceExt {
+        name: tn!("RGB20Burnable"),
         global_state: tiny_bmap! {
             fname!("burnedSupply") => GlobalIface::none_or_many(types.get("RGBContract.Amount")),
+        },
+        assignments: tiny_bmap! {
+            fname!("burnRight") => AssignIface::public(OwnedIface::Rights, Req::OneOrMore),
+        },
+        valencies: none!(),
+        genesis: GenesisIface {
+            modifier: Modifier::Override,
+            metadata: None,
+            globals: none!(),
+            assignments: tiny_bmap! {
+                fname!("burnRight") => Occurrences::OnceOrMore,
+            },
+            valencies: none!(),
+            errors: none!(),
+        },
+        transitions: tiny_bmap! {
+            fname!("burn") => TransitionIface {
+                modifier: Modifier::Final,
+                optional: false,
+                metadata: Some(types.get("RGBContract.BurnMeta")),
+                globals: tiny_bmap! {
+                    fname!("burnedSupply") => Occurrences::Once,
+                },
+                inputs: tiny_bmap! {
+                    fname!("burnRight") => Occurrences::Once,
+                },
+                assignments: tiny_bmap! {
+                    fname!("burnRight") => Occurrences::NoneOrMore,
+                },
+                valencies: none!(),
+                errors: tiny_bset! {
+                    SUPPLY_MISMATCH,
+                    INVALID_PROOF,
+                    INSUFFICIENT_COVERAGE
+                },
+                default_assignment: None,
+            },
+        },
+        extensions: none!(),
+        default_operation: None,
+        errors: tiny_bmap! {
+            Variant::named(INSUFFICIENT_COVERAGE, vname!("insufficientCoverage"))
+                => tiny_s!("the claimed amount of burned assets is not covered by the assets in the operation inputs"),
+        },
+        types: None,
+    }
+}
+
+pub fn replacable() -> IfaceExt {
+    let types = StandardTypes::new();
+    IfaceExt {
+        name: tn!("RGB20Replacable"),
+        global_state: tiny_bmap! {
+            fname!("burnedSupply") => GlobalIface::none_or_many(types.get("RGBContract.Amount")),
+            fname!("replacedSupply") => GlobalIface::none_or_many(types.get("RGBContract.Amount")),
         },
         assignments: tiny_bmap! {
             fname!("burnEpoch") => AssignIface::public(OwnedIface::Rights, Req::OneOrMore),
@@ -283,35 +338,6 @@ fn rgb20_burnable() -> Iface {
                 },
                 default_assignment: None,
             },
-        },
-        extensions: none!(),
-        default_operation: None,
-        errors: tiny_bmap! {
-            Variant::named(INSUFFICIENT_COVERAGE, vname!("insufficientCoverage"))
-                => tiny_s!("the claimed amount of burned assets is not covered by the assets in the operation inputs"),
-        },
-        types: None,
-    })
-}
-
-fn rgb20_replacable() -> Iface {
-    let types = StandardTypes::new();
-    rgb20_burnable().expect_extended(IfaceExt {
-        name: tn!("RGB20Replacable"),
-        global_state: tiny_bmap! {
-            fname!("replacedSupply") => GlobalIface::none_or_many(types.get("RGBContract.Amount")),
-        },
-        assignments: none!(),
-        valencies: none!(),
-        genesis: GenesisIface {
-            modifier: Modifier::Override,
-            metadata: None,
-            globals: none!(),
-            assignments: none!(),
-            valencies: none!(),
-            errors: none!(),
-        },
-        transitions: tiny_bmap! {
             fname!("replace") => TransitionIface {
                 modifier: Modifier::Final,
                 optional: false,
@@ -338,12 +364,52 @@ fn rgb20_replacable() -> Iface {
         },
         extensions: none!(),
         default_operation: None,
-        errors: none!(),
+        errors: tiny_bmap! {
+            Variant::named(INSUFFICIENT_COVERAGE, vname!("insufficientCoverage"))
+                => tiny_s!("the claimed amount of burned assets is not covered by the assets in the operation inputs"),
+        },
         types: None,
-    })
+    }
 }
 
-fn rgb20() -> Iface { Iface::expect_inherit("RGB20", [rgb20_renamable(), rgb20_replacable()]) }
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default)]
+pub enum Inflation {
+    #[default]
+    Fixed,
+    Burnable,
+    Inflatible,
+    InflatibleBurnable,
+    Replaceable,
+}
+
+impl Inflation {
+    pub fn is_inflatible(self) -> bool {
+        self == Self::Inflatible || self == Self::InflatibleBurnable || self == Self::Replaceable
+    }
+    pub fn is_replacable(self) -> bool { self == Self::Replaceable }
+    pub fn is_burnable(self) -> bool { self == Self::Burnable || self == Self::Replaceable }
+}
+
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default)]
+pub struct Features {
+    renaming: bool,
+    inflation: Inflation,
+}
+
+impl Features {
+    pub fn none() -> Self {
+        Features {
+            renaming: false,
+            inflation: Inflation::Fixed,
+        }
+    }
+    pub fn all() -> Self {
+        Features {
+            renaming: true,
+            inflation: Inflation::Replaceable,
+        }
+    }
+}
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
@@ -414,14 +480,32 @@ impl From<ContractIface> for Rgb20 {
 impl IfaceWrapper for Rgb20 {
     const IFACE_NAME: &'static str = LIB_NAME_RGB20;
     const IFACE_ID: IfaceId = IfaceId::from_array([
-        0xf4, 0xbd, 0x32, 0x68, 0xb3, 0xb1, 0x2a, 0x92, 0x65, 0x61, 0x6a, 0x22, 0xe5, 0xd4, 0xee,
-        0xe0, 0x5b, 0xd9, 0x72, 0x3d, 0x92, 0x79, 0xa3, 0x9e, 0xdf, 0xe9, 0xe7, 0x3a, 0x56, 0x5f,
-        0xa9, 0x5f,
+        0xf0, 0xb1, 0x76, 0x18, 0x99, 0xff, 0x09, 0x44, 0x99, 0x4b, 0xf1, 0x38, 0x8a, 0x19, 0xaa,
+        0x3f, 0xb5, 0x69, 0xd5, 0xa9, 0x4f, 0xa4, 0x46, 0x6d, 0x50, 0x3e, 0x0d, 0x99, 0xbb, 0xb3,
+        0x0c, 0x78,
     ]);
 }
 
 impl IfaceClass for Rgb20 {
-    fn iface() -> Iface { rgb20() }
+    type Features = Features;
+    fn iface(features: Features) -> Iface {
+        let mut iface = base();
+        if features.renaming {
+            iface = iface.expect_extended(renamable());
+        }
+        if features.inflation.is_inflatible() {
+            iface = iface.expect_extended(inflatible());
+        }
+        if features.inflation.is_replacable() {
+            iface = iface.expect_extended(replacable());
+        } else if features.inflation.is_burnable() {
+            {
+                iface = iface.expect_extended(burnable());
+            }
+        }
+        iface.name = tn!("RGB20");
+        iface
+    }
     fn stl() -> TypeLib { rgb_contract_stl() }
 }
 
@@ -431,8 +515,9 @@ impl Rgb20 {
         name: &str,
         details: Option<&str>,
         precision: Precision,
+        features: Features,
     ) -> Result<PrimaryIssue, InvalidIdent> {
-        PrimaryIssue::testnet::<C>(ticker, name, details, precision)
+        PrimaryIssue::testnet::<C>(ticker, name, details, precision, features)
     }
 
     pub fn testnet_det<C: IssuerClass<IssuingIface = Self>>(
@@ -440,9 +525,10 @@ impl Rgb20 {
         name: &str,
         details: Option<&str>,
         precision: Precision,
+        features: Features,
         asset_tag: AssetTag,
     ) -> Result<PrimaryIssue, InvalidIdent> {
-        PrimaryIssue::testnet_det::<C>(ticker, name, details, precision, asset_tag)
+        PrimaryIssue::testnet_det::<C>(ticker, name, details, precision, features, asset_tag)
     }
 
     pub fn spec(&self) -> AssetSpec {
@@ -594,8 +680,8 @@ impl PrimaryIssue {
             media: None,
         };
 
-        let (schema, main_iface_impl) = issuer.into_split();
-        let builder = ContractBuilder::testnet(rgb20(), schema, main_iface_impl)
+        let (schema, main_iface_impl, features) = issuer.into_split();
+        let builder = ContractBuilder::testnet(Rgb20::iface(features), schema, main_iface_impl)
             .expect("schema interface mismatch")
             .add_global_state("spec", spec)
             .expect("invalid RGB20 schema (token specification mismatch)");
@@ -613,8 +699,9 @@ impl PrimaryIssue {
         name: &str,
         details: Option<&str>,
         precision: Precision,
+        features: Features,
     ) -> Result<Self, InvalidIdent> {
-        Self::testnet_int(C::issuer(), ticker, name, details, precision)
+        Self::testnet_int(C::issuer(features), ticker, name, details, precision)
     }
 
     pub fn testnet_with(
@@ -632,9 +719,10 @@ impl PrimaryIssue {
         name: &str,
         details: Option<&str>,
         precision: Precision,
+        features: Features,
         asset_tag: AssetTag,
     ) -> Result<Self, InvalidIdent> {
-        let mut me = Self::testnet_int(C::issuer(), ticker, name, details, precision)?;
+        let mut me = Self::testnet_int(C::issuer(features), ticker, name, details, precision)?;
         me.builder = me
             .builder
             .add_asset_tag("assetOwner", asset_tag)
@@ -758,21 +846,19 @@ mod test {
 
     #[test]
     fn iface_id() {
-        eprintln!("{:#04x?}", rgb20().iface_id().to_byte_array());
-        assert_eq!(Rgb20::IFACE_ID, rgb20().iface_id());
+        eprintln!("{:#04x?}", Rgb20::iface(Features::all()).iface_id().to_byte_array());
+        assert_eq!(Rgb20::IFACE_ID, Rgb20::iface(Features::all()).iface_id());
     }
 
     #[test]
-    fn iface_creation() { rgb20(); }
-
-    #[test]
     fn iface_bindle() {
-        assert_eq!(format!("{}", rgb20().to_ascii_armored_string()), RGB20);
+        assert_eq!(format!("{}", Rgb20::iface(Features::all()).to_ascii_armored_string()), RGB20);
     }
 
     #[test]
     fn iface_check() {
-        if let Err(err) = rgb20().check() {
+        // TODO: test other features
+        if let Err(err) = Rgb20::iface(Features::all()).check() {
             for e in err {
                 eprintln!("{e}");
             }

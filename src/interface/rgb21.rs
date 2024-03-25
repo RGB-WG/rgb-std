@@ -523,7 +523,8 @@ impl IfaceWrapper for Rgb21 {
 }
 
 impl IfaceClass for Rgb21 {
-    fn iface() -> Iface { rgb21() }
+    type Features = Option<()>;
+    fn iface(_: Self::Features) -> Iface { rgb21() }
     fn stl() -> TypeLib { rgb21_stl() }
 }
 
