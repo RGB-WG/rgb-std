@@ -359,6 +359,7 @@ impl Stash for Hoard {
             .filter_map(|(witness_id, anchor)| {
                 match anchor {
                     XAnchor::Bitcoin(set) | XAnchor::Liquid(set) => set,
+                    XAnchor::Other(_) => unreachable!(),
                 }
                 .as_split()
                 .0
