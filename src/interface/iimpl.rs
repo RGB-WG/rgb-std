@@ -220,6 +220,7 @@ pub struct IfaceImpl {
     pub valencies: TinyOrdSet<NamedField<ValencyType>>,
     pub transitions: TinyOrdSet<NamedType<TransitionType>>,
     pub extensions: TinyOrdSet<NamedField<ExtensionType>>,
+    // TODO: Add error tags
     pub script: Script,
 }
 

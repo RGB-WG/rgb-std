@@ -1108,7 +1108,7 @@ Consignmenttrue rec
           valencies set len=0..MAX8
             element ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
           errors set len=0..MAX8
-            element is U8
+            element ascii len=1..100 aka=VariantName aka=Ident charset=AlphaNumLodash
         transitions map len=0..MAX8
           key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
           value rec TransitionIface
@@ -1133,7 +1133,7 @@ Consignmenttrue rec
             valencies set len=0..MAX8
               element ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
             errors set len=0..MAX8
-              element is U8
+              element ascii len=1..100 aka=VariantName aka=Ident charset=AlphaNumLodash
               some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
         extensions map len=0..MAX8
           key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
@@ -1156,13 +1156,11 @@ Consignmenttrue rec
             valencies set len=0..MAX8
               element ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
             errors set len=0..MAX8
-              element is U8
+              element ascii len=1..100 aka=VariantName aka=Ident charset=AlphaNumLodash
               some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
           some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
         errors map len=0..MAX8
-          key rec Variant
-            name ascii len=1..100 aka=VariantName aka=Ident charset=AlphaNumLodash
-            tag is U8
+          key ascii len=1..100 aka=VariantName aka=Ident charset=AlphaNumLodash
           value str len=0..MAX8
         types union Types
           strict map len=0..MAX24 wrapped aka=TypeSystem tag=0

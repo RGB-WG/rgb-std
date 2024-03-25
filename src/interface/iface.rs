@@ -31,7 +31,7 @@ use commit_verify::{CommitId, CommitmentId, DigestExt, Sha256};
 use rgb::{Occurrences, Types};
 use strict_encoding::{
     FieldName, StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize,
-    StrictType, TypeName, Variant,
+    StrictType, TypeName, VariantName,
 };
 use strict_types::{SemId, SymbolicSys};
 
@@ -257,7 +257,7 @@ pub struct GenesisIface {
     pub globals: ArgMap,
     pub assignments: ArgMap,
     pub valencies: TinyOrdSet<FieldName>,
-    pub errors: TinyOrdSet<u8>,
+    pub errors: TinyOrdSet<VariantName>,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -277,7 +277,7 @@ pub struct ExtensionIface {
     pub assignments: ArgMap,
     pub redeems: TinyOrdSet<FieldName>,
     pub valencies: TinyOrdSet<FieldName>,
-    pub errors: TinyOrdSet<u8>,
+    pub errors: TinyOrdSet<VariantName>,
     pub default_assignment: Option<FieldName>,
 }
 
@@ -298,7 +298,7 @@ pub struct TransitionIface {
     pub inputs: ArgMap,
     pub assignments: ArgMap,
     pub valencies: TinyOrdSet<FieldName>,
-    pub errors: TinyOrdSet<u8>,
+    pub errors: TinyOrdSet<VariantName>,
     pub default_assignment: Option<FieldName>,
 }
 
@@ -324,7 +324,7 @@ pub struct Iface {
     pub transitions: TinyOrdMap<FieldName, TransitionIface>,
     pub extensions: TinyOrdMap<FieldName, ExtensionIface>,
     pub default_operation: Option<FieldName>,
-    pub errors: TinyOrdMap<Variant, TinyString>,
+    pub errors: TinyOrdMap<VariantName, TinyString>,
     pub types: Types,
 }
 
@@ -399,14 +399,15 @@ impl Iface {
                 }
             }
         };
-        let proc_errors =
-            |op_name: &OpName, errs: &TinyOrdSet<u8>, errors: &mut Vec<IfaceInconsistency>| {
-                for tag in errs {
-                    if self.errors.keys().all(|v| v.tag != *tag) {
-                        errors.push(IfaceInconsistency::UnknownErrorTag(op_name.clone(), *tag));
-                    }
+        let proc_errors = |op_name: &OpName,
+                           errs: &TinyOrdSet<VariantName>,
+                           errors: &mut Vec<IfaceInconsistency>| {
+            for name in errs {
+                if !self.errors.contains_key(name) {
+                    errors.push(IfaceInconsistency::UnknownError(op_name.clone(), name.clone()));
                 }
-            };
+            }
+        };
 
         let mut errors = vec![];
 
@@ -539,8 +540,8 @@ pub enum IfaceInconsistency {
     UnknownAssignment(OpName, FieldName),
     /// unknown input '{1}' referenced from {0}.
     UnknownInput(OpName, FieldName),
-    /// unknown error tag '{1}' referenced from {0}.
-    UnknownErrorTag(OpName, u8),
+    /// unknown error '{1}' referenced from {0}.
+    UnknownError(OpName, VariantName),
     /// unknown default assignment '{1}' referenced from {0}.
     UnknownDefaultAssignment(OpName, FieldName),
     /// unknown default operation '{0}'.

@@ -25,7 +25,7 @@ use std::str::FromStr;
 use bp::dbc::Method;
 use invoice::{Amount, Precision};
 use rgb::{AltLayer1, AssetTag, BlindingFactor, GenesisSeal, Occurrences, Types, WitnessId};
-use strict_encoding::{InvalidIdent, Variant};
+use strict_encoding::InvalidIdent;
 use strict_types::TypeLib;
 
 use super::{
@@ -44,21 +44,14 @@ use crate::LIB_NAME_RGB_STD;
 
 pub const LIB_NAME_RGB20: &str = "RGB20";
 
-const SUPPLY_MISMATCH: u8 = 1;
-const NON_EQUAL_AMOUNTS: u8 = 2;
-const INVALID_PROOF: u8 = 3;
-const INSUFFICIENT_RESERVES: u8 = 4;
-const INSUFFICIENT_COVERAGE: u8 = 5;
-const ISSUE_EXCEEDS_ALLOWANCE: u8 = 6;
-
 const BASE_IFACE_ID: IfaceId = IfaceId::from_array([
-    0x4b, 0x7e, 0xe2, 0x12, 0x52, 0xee, 0x26, 0xd3, 0x6e, 0x96, 0xd9, 0x67, 0x9c, 0x2e, 0xe0, 0x4c,
-    0x5e, 0x89, 0x84, 0x5b, 0x00, 0x68, 0xe3, 0x41, 0x00, 0x03, 0x8d, 0xb4, 0x41, 0x30, 0x47, 0x55,
+    0x35, 0x32, 0x12, 0xc6, 0x87, 0x48, 0x43, 0x59, 0x83, 0xf2, 0x0f, 0xbd, 0xb9, 0x3c, 0x8b, 0x40,
+    0x31, 0xbc, 0x1f, 0x10, 0xa4, 0xaf, 0x1d, 0x2e, 0x36, 0x68, 0x12, 0x74, 0xf7, 0x43, 0x85, 0xe9,
 ]);
 
 const INFLATIBLE_IFACE_ID: IfaceId = IfaceId::from_array([
-    0xa9, 0x77, 0x86, 0x18, 0x5a, 0x5c, 0x37, 0x64, 0xcf, 0xa5, 0xbc, 0x2a, 0x4b, 0x88, 0xde, 0xa7,
-    0x8a, 0x6a, 0xeb, 0xa2, 0xde, 0x0d, 0x25, 0x52, 0x57, 0x42, 0xf4, 0x5a, 0x37, 0xaf, 0xff, 0xfb,
+    0xa9, 0x6a, 0x43, 0x19, 0x62, 0x66, 0x4d, 0xc7, 0xc5, 0x2f, 0x3c, 0x21, 0x82, 0x5a, 0x05, 0x6b,
+    0x78, 0xed, 0x90, 0xb0, 0x91, 0x5b, 0xea, 0x41, 0x95, 0xe2, 0xe5, 0xde, 0x66, 0xcc, 0x25, 0xee,
 ]);
 
 pub fn base() -> Iface {
@@ -89,9 +82,9 @@ pub fn base() -> Iface {
             },
             valencies: none!(),
             errors: tiny_bset! {
-                SUPPLY_MISMATCH,
-                INVALID_PROOF,
-                INSUFFICIENT_RESERVES
+                vname!("supplyMismatch"),
+                vname!("invalidProof"),
+                vname!("insufficientReserves")
             },
         },
         transitions: tiny_bmap! {
@@ -108,23 +101,23 @@ pub fn base() -> Iface {
                 },
                 valencies: none!(),
                 errors: tiny_bset! {
-                    NON_EQUAL_AMOUNTS
+                    vname!("nonEqualAmounts")
                 },
                 default_assignment: Some(fname!("assetOwner")),
             },
         },
         extensions: none!(),
         errors: tiny_bmap! {
-            Variant::named(SUPPLY_MISMATCH, vname!("supplyMismatch"))
+            vname!("supplyMismatch")
                 => tiny_s!("supply specified as a global parameter doesn't match the issued supply allocated to the asset owners"),
 
-            Variant::named(NON_EQUAL_AMOUNTS, vname!("nonEqualAmounts"))
+            vname!("nonEqualAmounts")
                 => tiny_s!("the sum of spent assets doesn't equal to the sum of assets in outputs"),
 
-            Variant::named(INVALID_PROOF, vname!("invalidProof"))
+            vname!("invalidProof")
                 => tiny_s!("the provided proof is invalid"),
 
-            Variant::named(INSUFFICIENT_RESERVES, vname!("insufficientReserves"))
+            vname!("insufficientReserves")
                 => tiny_s!("reserve is insufficient to cover the issued assets"),
         },
         default_operation: Some(fname!("transfer")),
@@ -151,9 +144,9 @@ pub fn fixed() -> Iface {
             },
             valencies: none!(),
             errors: tiny_bset! {
-                SUPPLY_MISMATCH,
-                INVALID_PROOF,
-                INSUFFICIENT_RESERVES
+                vname!("supplyMismatch"),
+                vname!("invalidProof"),
+                vname!("insufficientReserves")
             },
         },
         transitions: none!(),
@@ -204,10 +197,10 @@ pub fn inflatible() -> Iface {
                 },
                 valencies: none!(),
                 errors: tiny_bset! {
-                    SUPPLY_MISMATCH,
-                    INVALID_PROOF,
-                    ISSUE_EXCEEDS_ALLOWANCE,
-                    INSUFFICIENT_RESERVES
+                    vname!("supplyMismatch"),
+                    vname!("invalidProof"),
+                    vname!("issueExceedsAllowance"),
+                    vname!("insufficientReserves")
                 },
                 default_assignment: Some(fname!("assetOwner")),
             },
@@ -215,7 +208,7 @@ pub fn inflatible() -> Iface {
         extensions: none!(),
         default_operation: None,
         errors: tiny_bmap! {
-            Variant::named(ISSUE_EXCEEDS_ALLOWANCE, vname!("issueExceedsAllowance"))
+            vname!("issueExceedsAllowance")
                 => tiny_s!("you try to issue more assets than allowed by the contract terms"),
         },
         types: Types::Strict(types.type_system()),
@@ -307,9 +300,9 @@ pub fn burnable() -> Iface {
                 },
                 valencies: none!(),
                 errors: tiny_bset! {
-                    SUPPLY_MISMATCH,
-                    INVALID_PROOF,
-                    INSUFFICIENT_COVERAGE
+                    vname!("supplyMismatch"),
+                    vname!("invalidProof"),
+                    vname!("insufficientCoverage")
                 },
                 default_assignment: None,
             },
@@ -317,7 +310,7 @@ pub fn burnable() -> Iface {
         extensions: none!(),
         default_operation: None,
         errors: tiny_bmap! {
-            Variant::named(INSUFFICIENT_COVERAGE, vname!("insufficientCoverage"))
+            vname!("insufficientCoverage")
                 => tiny_s!("the claimed amount of burned assets is not covered by the assets in the operation inputs"),
         },
         types: Types::Strict(types.type_system()),
@@ -381,9 +374,9 @@ pub fn replacable() -> Iface {
                 },
                 valencies: none!(),
                 errors: tiny_bset! {
-                    SUPPLY_MISMATCH,
-                    INVALID_PROOF,
-                    INSUFFICIENT_COVERAGE
+                    vname!("supplyMismatch"),
+                    vname!("invalidProof"),
+                    vname!("insufficientCoverage")
                 },
                 default_assignment: None,
             },
@@ -403,10 +396,10 @@ pub fn replacable() -> Iface {
                 },
                 valencies: none!(),
                 errors: tiny_bset! {
-                    NON_EQUAL_AMOUNTS,
-                    SUPPLY_MISMATCH,
-                    INVALID_PROOF,
-                    INSUFFICIENT_COVERAGE
+                    vname!("nonEqualAmounts"),
+                    vname!("supplyMismatch"),
+                    vname!("invalidProof"),
+                    vname!("insufficientCoverage")
                 },
                 default_assignment: Some(fname!("assetOwner")),
             },
@@ -414,7 +407,7 @@ pub fn replacable() -> Iface {
         extensions: none!(),
         default_operation: None,
         errors: tiny_bmap! {
-            Variant::named(INSUFFICIENT_COVERAGE, vname!("insufficientCoverage"))
+            vname!("insufficientCoverage")
                 => tiny_s!("the claimed amount of burned assets is not covered by the assets in the operation inputs"),
         },
         types: Types::Strict(types.type_system()),
@@ -530,9 +523,9 @@ impl From<ContractIface> for Rgb20 {
 impl IfaceWrapper for Rgb20 {
     const IFACE_NAME: &'static str = LIB_NAME_RGB20;
     const IFACE_ID: IfaceId = IfaceId::from_array([
-        0x19, 0x47, 0x64, 0xcf, 0xa2, 0xbf, 0x67, 0x35, 0x80, 0x9a, 0x9d, 0x53, 0x27, 0xb1, 0xf6,
-        0xba, 0x21, 0x14, 0xd4, 0x97, 0xbd, 0x74, 0x50, 0x00, 0xa2, 0x9a, 0x7e, 0x1e, 0xec, 0x50,
-        0x9b, 0xd4,
+        0xd1, 0x6c, 0xc2, 0x4d, 0xab, 0xa6, 0xd1, 0xd1, 0x7e, 0xda, 0xee, 0x30, 0xa2, 0x98, 0xcc,
+        0xb7, 0x64, 0xa8, 0xed, 0x6d, 0x4a, 0xa1, 0xdb, 0x10, 0x1f, 0x70, 0x95, 0x0e, 0xcc, 0x25,
+        0xc9, 0x6e,
     ]);
 }
 

@@ -31,7 +31,7 @@ use bp::bc::stl::bp_tx_stl;
 use rgb::{Occurrences, Types};
 use strict_encoding::stl::AsciiPrintable;
 use strict_encoding::{
-    InvalidIdent, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, TypedWrite, Variant,
+    InvalidIdent, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, TypedWrite,
 };
 use strict_types::stl::std_stl;
 use strict_types::{CompileError, LibBuilder, StrictVal, TypeLib};
@@ -315,15 +315,6 @@ impl TokenData {
     }
 }
 
-const FRACTION_OVERFLOW: u8 = 1;
-const NON_EQUAL_VALUES: u8 = 2;
-const INVALID_PROOF: u8 = 3;
-const INSUFFICIENT_RESERVES: u8 = 4;
-const ISSUE_EXCEEDS_ALLOWANCE: u8 = 6;
-const NON_FRACTIONAL_TOKEN: u8 = 7;
-const NON_ENGRAVABLE_TOKEN: u8 = 8;
-const INVALID_ATTACHMENT_TYPE: u8 = 9;
-
 fn _rgb21_stl() -> Result<TypeLib, CompileError> {
     LibBuilder::new(libname!(LIB_NAME_RGB21), tiny_bset! {
         std_stl().to_dependency(),
@@ -377,10 +368,10 @@ fn rgb21() -> Iface {
             },
             valencies: none!(),
             errors: tiny_bset! {
-                FRACTION_OVERFLOW,
-                INVALID_PROOF,
-                INSUFFICIENT_RESERVES,
-                INVALID_ATTACHMENT_TYPE
+                vname!("fractionOverflow"),
+                vname!("invalidProof"),
+                vname!("insufficientReserves"),
+                vname!("invalidAttachmentType")
             },
         },
         transitions: tiny_bmap! {
@@ -397,9 +388,9 @@ fn rgb21() -> Iface {
                 },
                 valencies: none!(),
                 errors: tiny_bset! {
-                    NON_EQUAL_VALUES,
-                    FRACTION_OVERFLOW,
-                    NON_FRACTIONAL_TOKEN
+                    vname!("nonEqualValues"),
+                    vname!("fractionOverflow"),
+                    vname!("nonFractionalToken")
                 },
                 default_assignment: Some(fname!("assetOwner")),
             },
@@ -418,10 +409,10 @@ fn rgb21() -> Iface {
                 },
                 valencies: none!(),
                 errors: tiny_bset! {
-                    NON_EQUAL_VALUES,
-                    FRACTION_OVERFLOW,
-                    NON_FRACTIONAL_TOKEN,
-                    NON_ENGRAVABLE_TOKEN
+                    vname!("nonEqualValues"),
+                    vname!("fractionOverflow"),
+                    vname!("nonFractionalToken"),
+                    vname!("nonEngravableToken")
                 },
                 default_assignment: Some(fname!("assetOwner")),
             },
@@ -442,11 +433,11 @@ fn rgb21() -> Iface {
                 },
                 valencies: none!(),
                 errors: tiny_bset! {
-                    FRACTION_OVERFLOW,
-                    INVALID_PROOF,
-                    INSUFFICIENT_RESERVES,
-                    INVALID_ATTACHMENT_TYPE,
-                    ISSUE_EXCEEDS_ALLOWANCE,
+                    vname!("fractionOverflow"),
+                    vname!("invalidProof"),
+                    vname!("insufficientReserves"),
+                    vname!("invalidAttachmentType"),
+                    vname!("issueExceedsAllowance"),
                 },
                 default_assignment: Some(fname!("assetOwner")),
             },
@@ -470,28 +461,28 @@ fn rgb21() -> Iface {
         },
         extensions: none!(),
         errors: tiny_bmap! {
-            Variant::named(FRACTION_OVERFLOW, vname!("fractionOverflow"))
+            vname!("fractionOverflow")
                 => tiny_s!("the amount of fractional token in outputs exceeds 1"),
 
-            Variant::named(NON_EQUAL_VALUES, vname!("nonEqualValues"))
+            vname!("nonEqualValues")
                 => tiny_s!("the sum of spent token fractions doesn't equal to the sum of token fractions in outputs"),
 
-            Variant::named(INVALID_PROOF, vname!("invalidProof"))
+            vname!("invalidProof")
                 => tiny_s!("the provided proof is invalid"),
 
-            Variant::named(INSUFFICIENT_RESERVES, vname!("insufficientReserves"))
+            vname!("insufficientReserves")
                 => tiny_s!("reserve is insufficient to cover the issued assets"),
 
-            Variant::named(ISSUE_EXCEEDS_ALLOWANCE, vname!("issueExceedsAllowance"))
+            vname!("issueExceedsAllowance")
                 => tiny_s!("you try to issue more assets than allowed by the contract terms"),
 
-            Variant::named(NON_FRACTIONAL_TOKEN, vname!("nonFractionalToken"))
+            vname!("nonFractionalToken")
                 => tiny_s!("attempt to transfer a fraction of non-fractionable token"),
 
-            Variant::named(NON_ENGRAVABLE_TOKEN, vname!("nonEngravableToken"))
+            vname!("nonEngravableToken")
                 => tiny_s!("attempt to engrave on a token which prohibit engraving"),
 
-            Variant::named(INVALID_ATTACHMENT_TYPE, vname!("invalidAttachmentType"))
+            vname!("invalidAttachmentType")
                 => tiny_s!("attachment has a type which is not allowed for the token"),
         },
         default_operation: Some(fname!("transfer")),
@@ -516,9 +507,9 @@ impl From<ContractIface> for Rgb21 {
 impl IfaceWrapper for Rgb21 {
     const IFACE_NAME: &'static str = LIB_NAME_RGB21;
     const IFACE_ID: IfaceId = IfaceId::from_array([
-        0xa8, 0xe6, 0x56, 0x88, 0x07, 0x96, 0xa0, 0x71, 0x26, 0x39, 0x81, 0xc7, 0xaa, 0x6f, 0x81,
-        0x7d, 0xb3, 0x8e, 0x9b, 0xa5, 0x97, 0xd9, 0x63, 0x0e, 0x62, 0x05, 0xf7, 0x35, 0xea, 0x57,
-        0xa9, 0x71,
+        0x7b, 0x8a, 0x11, 0xcd, 0xe0, 0x98, 0xbf, 0x9a, 0x87, 0x88, 0xc8, 0x43, 0x4d, 0x32, 0xf3,
+        0x63, 0x88, 0x19, 0x2b, 0xc9, 0xc4, 0x81, 0x6a, 0xa7, 0x94, 0x11, 0x86, 0xff, 0x76, 0xf1,
+        0xbc, 0x00,
     ]);
 }
 
