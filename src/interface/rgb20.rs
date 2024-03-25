@@ -30,8 +30,8 @@ use strict_types::TypeLib;
 
 use super::{
     AssignIface, BuilderError, ContractBuilder, GenesisIface, GlobalIface, Iface, IfaceClass,
-    IfaceExt, IfaceOp, IssuerClass, Modifier, OwnedIface, Req, RightsAllocation, SchemaIssuer,
-    StateChange, TransitionIface, VerNo, WitnessFilter,
+    IfaceOp, IssuerClass, Modifier, OwnedIface, Req, RightsAllocation, SchemaIssuer, StateChange,
+    TransitionIface, VerNo, WitnessFilter,
 };
 use crate::containers::Contract;
 use crate::interface::builder::TxOutpoint;
@@ -51,12 +51,21 @@ const INSUFFICIENT_RESERVES: u8 = 4;
 const INSUFFICIENT_COVERAGE: u8 = 5;
 const ISSUE_EXCEEDS_ALLOWANCE: u8 = 6;
 
+const BASE_IFACE_ID: IfaceId = IfaceId::from_array([
+    0x8d, 0xc2, 0x19, 0x4f, 0x07, 0x7a, 0xb8, 0xf0, 0x40, 0xae, 0x1a, 0xbb, 0x59, 0x49, 0x1b, 0x13,
+    0x1b, 0x11, 0x80, 0xa5, 0x06, 0x8e, 0x40, 0xa0, 0x16, 0x09, 0x43, 0x0e, 0x25, 0x6c, 0xf6, 0xf9,
+]);
+
+const INFLATIBLE_IFACE_ID: IfaceId = IfaceId::from_array([
+    0x1f, 0x2e, 0xbc, 0xd8, 0xfa, 0x2c, 0x3b, 0xa9, 0xc3, 0x56, 0x76, 0xa2, 0x6e, 0xbf, 0x3e, 0xb6,
+    0x61, 0xfa, 0x8f, 0x11, 0x96, 0x5d, 0x97, 0xed, 0xf6, 0xa1, 0x86, 0x15, 0xe2, 0x71, 0x3f, 0x62,
+]);
+
 pub fn base() -> Iface {
     let types = StandardTypes::new();
-
     Iface {
         version: VerNo::V1,
-        name: tn!("RGB20"),
+        name: tn!("RGB20Base"),
         inherits: none!(),
         global_state: tiny_bmap! {
             fname!("spec") => GlobalIface::required(types.get("RGBContract.AssetSpec")),
@@ -123,9 +132,11 @@ pub fn base() -> Iface {
     }
 }
 
-pub fn inflatible() -> IfaceExt {
+pub fn inflatible() -> Iface {
     let types = StandardTypes::new();
-    IfaceExt {
+    Iface {
+        version: VerNo::V1,
+        inherits: tiny_bset![BASE_IFACE_ID],
         name: tn!("RGB20Inflatible"),
         global_state: tiny_bmap! {
             fname!("issuedSupply") => GlobalIface::one_or_many(types.get("RGBContract.Amount")),
@@ -175,12 +186,14 @@ pub fn inflatible() -> IfaceExt {
             Variant::named(ISSUE_EXCEEDS_ALLOWANCE, vname!("issueExceedsAllowance"))
                 => tiny_s!("you try to issue more assets than allowed by the contract terms"),
         },
-        types: None,
+        types: Types::Strict(types.type_system()),
     }
 }
 
-pub fn renamable() -> IfaceExt {
-    IfaceExt {
+pub fn renamable() -> Iface {
+    Iface {
+        version: VerNo::V1,
+        inherits: tiny_bset![BASE_IFACE_ID],
         name: tn!("RGB20Renamable"),
         global_state: none!(),
         assignments: tiny_bmap! {
@@ -219,13 +232,15 @@ pub fn renamable() -> IfaceExt {
         extensions: none!(),
         default_operation: None,
         errors: none!(),
-        types: None,
+        types: StandardTypes::new().type_system().into(),
     }
 }
 
-pub fn burnable() -> IfaceExt {
+pub fn burnable() -> Iface {
     let types = StandardTypes::new();
-    IfaceExt {
+    Iface {
+        version: VerNo::V1,
+        inherits: tiny_bset![BASE_IFACE_ID],
         name: tn!("RGB20Burnable"),
         global_state: tiny_bmap! {
             fname!("burnedSupply") => GlobalIface::none_or_many(types.get("RGBContract.Amount")),
@@ -273,13 +288,15 @@ pub fn burnable() -> IfaceExt {
             Variant::named(INSUFFICIENT_COVERAGE, vname!("insufficientCoverage"))
                 => tiny_s!("the claimed amount of burned assets is not covered by the assets in the operation inputs"),
         },
-        types: None,
+        types: Types::Strict(types.type_system()),
     }
 }
 
-pub fn replacable() -> IfaceExt {
+pub fn replacable() -> Iface {
     let types = StandardTypes::new();
-    IfaceExt {
+    Iface {
+        version: VerNo::V1,
+        inherits: tiny_bset![INFLATIBLE_IFACE_ID],
         name: tn!("RGB20Replacable"),
         global_state: tiny_bmap! {
             fname!("burnedSupply") => GlobalIface::none_or_many(types.get("RGBContract.Amount")),
@@ -368,7 +385,7 @@ pub fn replacable() -> IfaceExt {
             Variant::named(INSUFFICIENT_COVERAGE, vname!("insufficientCoverage"))
                 => tiny_s!("the claimed amount of burned assets is not covered by the assets in the operation inputs"),
         },
-        types: None,
+        types: Types::Strict(types.type_system()),
     }
 }
 
@@ -845,9 +862,24 @@ mod test {
     const RGB20: &str = include_str!("../../tests/data/rgb20.rgba");
 
     #[test]
-    fn iface_id() {
-        eprintln!("{:#04x?}", Rgb20::iface(Features::all()).iface_id().to_byte_array());
-        assert_eq!(Rgb20::IFACE_ID, Rgb20::iface(Features::all()).iface_id());
+    fn iface_id_all() {
+        let iface_id = Rgb20::iface(Features::all()).iface_id();
+        eprintln!("{:#04x?}", iface_id.to_byte_array());
+        assert_eq!(Rgb20::IFACE_ID, iface_id);
+    }
+
+    #[test]
+    fn iface_id_base() {
+        let iface_id = base().iface_id();
+        eprintln!("{:#04x?}", iface_id.to_byte_array());
+        assert_eq!(BASE_IFACE_ID, iface_id);
+    }
+
+    #[test]
+    fn iface_id_inflatible() {
+        let iface_id = inflatible().iface_id();
+        eprintln!("{:#04x?}", iface_id.to_byte_array());
+        assert_eq!(INFLATIBLE_IFACE_ID, iface_id);
     }
 
     #[test]

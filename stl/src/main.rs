@@ -28,7 +28,7 @@ use std::io::Write;
 
 use commit_verify::CommitmentLayout;
 use rgbstd::containers::Transfer;
-use rgbstd::interface::{rgb20, IfaceClass, Rgb20, Rgb21, Rgb25};
+use rgbstd::interface::{rgb20, IfaceClass, Rgb21, Rgb25};
 use rgbstd::stl::{
     aluvm_stl, bp_core_stl, bp_tx_stl, commit_verify_stl, rgb_contract_stl, rgb_core_stl,
     rgb_std_stl,
@@ -149,10 +149,10 @@ fn main() {
 
     let mut file = fs::File::create(format!("{dir}/RGB20.con")).unwrap();
     writeln!(file, "{}", rgb20::base().display(none!(), &ifsys)).unwrap();
-    //writeln!(file, "{}", rgb20::renamable().display(none!(), &ifsys)).unwrap();
-    //writeln!(file, "{}", rgb20::burnable().display(none!(), &ifsys)).unwrap();
-    //writeln!(file, "{}", rgb20::inflatible().display(none!(), &ifsys)).unwrap();
-    //writeln!(file, "{}", rgb20::replacable().display(none!(), &ifsys)).unwrap();
+    writeln!(file, "{}", rgb20::renamable().display(none!(), &ifsys)).unwrap();
+    writeln!(file, "{}", rgb20::burnable().display(none!(), &ifsys)).unwrap();
+    writeln!(file, "{}", rgb20::inflatible().display(none!(), &ifsys)).unwrap();
+    writeln!(file, "{}", rgb20::replacable().display(none!(), &ifsys)).unwrap();
 
     let rgb21 = Rgb21::iface(None);
     fs::write(format!("{dir}/RGB21.con"), format!("{}", rgb21.display(none!(), &ifsys))).unwrap();

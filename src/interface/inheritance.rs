@@ -19,15 +19,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use amplify::confinement::{TinyOrdMap, TinyOrdSet, TinyString};
-use rgb::{Occurrences, Types};
-use strict_encoding::{FieldName, TypeName, Variant};
+use amplify::confinement::{TinyOrdMap, TinyOrdSet};
+use rgb::Occurrences;
+use strict_encoding::{FieldName, TypeName};
 
 use crate::interface::{
-    AssignIface, ExtensionIface, GenesisIface, GlobalIface, Iface, IfaceId, Modifier, OpName,
-    OwnedIface, TransitionIface, ValencyIface,
+    ExtensionIface, GenesisIface, Iface, Modifier, OpName, OwnedIface, TransitionIface,
 };
-use crate::LIB_NAME_RGB_STD;
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display, Error)]
 #[display("{iface} {err}")]
@@ -77,6 +75,9 @@ pub enum ExtensionError {
     OpDefaultOverride(OpName),
     /// {0} tries to override '{2}' {1}.
     OpOcc(OpName, &'static str, FieldName),
+    /// interface uses different type system from its parent. While in the
+    /// future it is expected to be supported, right now this is prohibited.
+    DifferentTypes,
 }
 
 impl OwnedIface {
@@ -95,45 +96,7 @@ impl Modifier {
     pub fn is_superset(self, other: Modifier) -> bool { self <= other }
 }
 
-#[derive(Clone, Debug)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD)]
-#[derive(CommitEncode)]
-#[commit_encode(strategy = strict, id = IfaceId)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-pub struct IfaceExt {
-    pub name: TypeName,
-    pub global_state: TinyOrdMap<FieldName, GlobalIface>,
-    pub assignments: TinyOrdMap<FieldName, AssignIface>,
-    pub valencies: TinyOrdMap<FieldName, ValencyIface>,
-    pub genesis: GenesisIface,
-    pub transitions: TinyOrdMap<FieldName, TransitionIface>,
-    pub extensions: TinyOrdMap<FieldName, ExtensionIface>,
-    pub default_operation: Option<FieldName>,
-    pub errors: TinyOrdMap<Variant, TinyString>,
-    pub types: Option<Types>,
-}
-
 impl Iface {
-    pub fn into_extension(self) -> IfaceExt {
-        IfaceExt {
-            name: self.name,
-            global_state: self.global_state,
-            assignments: self.assignments,
-            valencies: self.valencies,
-            genesis: self.genesis,
-            transitions: self.transitions,
-            extensions: self.extensions,
-            default_operation: self.default_operation,
-            errors: self.errors,
-            types: None, // TODO: check it
-        }
-    }
-
     pub fn expect_inherit(
         name: impl Into<TypeName>,
         ifaces: impl IntoIterator<Item = Iface>,
@@ -161,7 +124,7 @@ impl Iface {
             .expect("at least one interface must be provided for the inheritance");
         for ext in iter {
             let name = ext.name.clone();
-            iface = iface.extended(ext.into_extension()).map_err(|err| {
+            iface = iface.extended(ext).map_err(|err| {
                 err.into_iter()
                     .map(|e| InheritError {
                         err: e,
@@ -174,7 +137,7 @@ impl Iface {
         Ok(iface)
     }
 
-    pub fn expect_extended(self, ext: IfaceExt) -> Iface {
+    pub fn expect_extended(self, ext: Iface) -> Iface {
         let name = self.name.clone();
         match self.extended(ext) {
             Ok(iface) => iface,
@@ -188,7 +151,7 @@ impl Iface {
         }
     }
 
-    pub fn extended(mut self, ext: IfaceExt) -> Result<Iface, Vec<ExtensionError>> {
+    pub fn extended(mut self, ext: Iface) -> Result<Iface, Vec<ExtensionError>> {
         let mut errors = vec![];
         self.name = ext.name;
 
@@ -334,7 +297,9 @@ impl Iface {
             }
         }
 
-        debug_assert_eq!(ext.types, None, "inheritance with types is not yet supported");
+        if self.types != ext.types {
+            errors.push(ExtensionError::DifferentTypes);
+        }
 
         if errors.is_empty() {
             Ok(self)

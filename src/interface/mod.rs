@@ -51,7 +51,7 @@ pub use iimpl::{
     IfaceClass, IfaceImpl, IfacePair, ImplId, IssuerClass, IssuerTriplet, NamedField, NamedType,
     SchemaIfaces, SchemaIssuer, SchemaTypeIndex, WrongImplementation,
 };
-pub use inheritance::{ExtensionError, IfaceExt};
+pub use inheritance::ExtensionError;
 pub use rgb20::{AmountChange, Rgb20, LIB_NAME_RGB20};
 pub use rgb21::{Rgb21, LIB_ID_RGB21, LIB_NAME_RGB21};
 pub use rgb25::{Rgb25, LIB_NAME_RGB25};
