@@ -42,8 +42,6 @@ use crate::stl::{
 };
 use crate::LIB_NAME_RGB_STD;
 
-pub const LIB_NAME_RGB20: &str = "RGB20";
-
 const BASE_IFACE_ID: IfaceId = IfaceId::from_array([
     0xa9, 0xc9, 0xe4, 0xe7, 0x72, 0xda, 0x9f, 0x7b, 0x49, 0x33, 0x1b, 0x1c, 0x02, 0x3c, 0x06, 0x61,
     0x6f, 0x5c, 0xf6, 0xb4, 0x88, 0x22, 0xd5, 0x7d, 0xe8, 0x1d, 0x47, 0x5c, 0xe0, 0xd3, 0xef, 0xbc,
@@ -54,17 +52,96 @@ const INFLATIBLE_IFACE_ID: IfaceId = IfaceId::from_array([
     0x53, 0x53, 0xcd, 0xf5, 0x1e, 0x58, 0x3c, 0x13, 0x4b, 0xec, 0x62, 0xa8, 0x0d, 0x83, 0x4b, 0xc5,
 ]);
 
-pub fn base() -> Iface {
+pub fn named_asset() -> Iface {
     let types = StandardTypes::new();
     Iface {
         version: VerNo::V1,
-        name: tn!("RGB20Base"),
+        name: tn!("NamedAsset"),
         inherits: none!(),
         developer: none!(), // TODO: Add LNP/BP Standards Association
         timestamp: 1711405444,
         global_state: tiny_bmap! {
             fname!("spec") => GlobalIface::required(types.get("RGBContract.AssetSpec")),
             fname!("terms") => GlobalIface::required(types.get("RGBContract.AssetTerms")),
+        },
+        assignments: none!(),
+        valencies: none!(),
+        genesis: GenesisIface {
+            modifier: Modifier::Abstract,
+            metadata: None,
+            globals: tiny_bmap! {
+                fname!("spec") => Occurrences::Once,
+                fname!("terms") => Occurrences::Once,
+            },
+            assignments: none!(),
+            valencies: none!(),
+            errors: none!(),
+        },
+        transitions: none!(),
+        extensions: none!(),
+        errors: none!(),
+        default_operation: None,
+        types: Types::Strict(types.type_system()),
+    }
+}
+
+pub fn renameable() -> Iface {
+    Iface {
+        version: VerNo::V1,
+        inherits: none!(),
+        developer: none!(), // TODO: Add LNP/BP Standards Association
+        timestamp: 1711405444,
+        name: tn!("RenameableAsset"),
+        global_state: none!(),
+        assignments: tiny_bmap! {
+            fname!("updateRight") => AssignIface::public(OwnedIface::Rights, Req::Required),
+        },
+        valencies: none!(),
+        genesis: GenesisIface {
+            modifier: Modifier::Override,
+            metadata: None,
+            globals: none!(),
+            assignments: tiny_bmap! {
+                fname!("updateRight") => Occurrences::Once,
+            },
+            valencies: none!(),
+            errors: none!(),
+        },
+        transitions: tiny_bmap! {
+            fname!("rename") => TransitionIface {
+                modifier: Modifier::Final,
+                optional: false,
+                metadata: None,
+                globals: tiny_bmap! {
+                    fname!("spec") => Occurrences::Once,
+                },
+                inputs: tiny_bmap! {
+                    fname!("updateRight") => Occurrences::Once,
+                },
+                assignments: tiny_bmap! {
+                    fname!("updateRight") => Occurrences::NoneOrOnce,
+                },
+                valencies: none!(),
+                errors: none!(),
+                default_assignment: Some(fname!("updateRight")),
+            },
+        },
+        extensions: none!(),
+        default_operation: None,
+        errors: none!(),
+        types: StandardTypes::new().type_system().into(),
+    }
+}
+
+pub fn fungible() -> Iface {
+    let types = StandardTypes::new();
+    Iface {
+        version: VerNo::V1,
+        name: tn!("FungibleAsset"),
+        inherits: none!(),
+        developer: none!(), // TODO: Add LNP/BP Standards Association
+        timestamp: 1711405444,
+        global_state: tiny_bmap! {
             fname!("issuedSupply") => GlobalIface::required(types.get("RGBContract.Amount")),
         },
         assignments: tiny_bmap! {
@@ -72,11 +149,9 @@ pub fn base() -> Iface {
         },
         valencies: none!(),
         genesis: GenesisIface {
-            modifier: Modifier::Abstract,
-            metadata: Some(types.get("RGBContract.IssueMeta")),
+            modifier: Modifier::Override,
+            metadata: None,
             globals: tiny_bmap! {
-                fname!("spec") => Occurrences::Once,
-                fname!("terms") => Occurrences::Once,
                 fname!("issuedSupply") => Occurrences::Once,
             },
             assignments: tiny_bmap! {
@@ -115,14 +190,59 @@ pub fn base() -> Iface {
 
             vname!("nonEqualAmounts")
                 => tiny_s!("the sum of spent assets doesn't equal to the sum of assets in outputs"),
+        },
+        default_operation: Some(fname!("transfer")),
+        types: Types::Strict(types.type_system()),
+    }
+}
 
+pub fn reservable() -> Iface {
+    let types = StandardTypes::new();
+    Iface {
+        version: VerNo::V1,
+        name: tn!("ReservableAsset"),
+        inherits: none!(),
+        developer: none!(), // TODO: Add LNP/BP Standards Association
+        timestamp: 1711405444,
+        global_state: none!(),
+        assignments: none!(),
+        valencies: none!(),
+        genesis: GenesisIface {
+            modifier: Modifier::Override,
+            metadata: Some(types.get("RGBContract.IssueMeta")),
+            globals: none!(),
+            assignments: none!(),
+            valencies: none!(),
+            errors: tiny_bset! {
+                vname!("invalidProof"),
+                vname!("insufficientReserves")
+            },
+        },
+        transitions: tiny_bmap! {
+            fname!("issue") => TransitionIface {
+                modifier: Modifier::Override,
+                optional: true,
+                metadata: Some(types.get("RGBContract.IssueMeta")),
+                globals: none!(),
+                inputs: none!(),
+                assignments: none!(),
+                valencies: none!(),
+                errors: tiny_bset! {
+                    vname!("invalidProof"),
+                    vname!("insufficientReserves")
+                },
+                default_assignment: Some(fname!("assetOwner")),
+            },
+        },
+        extensions: none!(),
+        errors: tiny_bmap! {
             vname!("invalidProof")
                 => tiny_s!("the provided proof is invalid"),
 
             vname!("insufficientReserves")
                 => tiny_s!("reserve is insufficient to cover the issued assets"),
         },
-        default_operation: Some(fname!("transfer")),
+        default_operation: None,
         types: Types::Strict(types.type_system()),
     }
 }
@@ -178,7 +298,7 @@ pub fn inflatable() -> Iface {
         valencies: none!(),
         genesis: GenesisIface {
             modifier: Modifier::Override,
-            metadata: Some(types.get("RGBContract.IssueMeta")),
+            metadata: None,
             globals: none!(),
             assignments: tiny_bmap! {
                 fname!("inflationAllowance") => Occurrences::OnceOrMore,
@@ -190,7 +310,7 @@ pub fn inflatable() -> Iface {
             fname!("issue") => TransitionIface {
                 modifier: Modifier::Abstract,
                 optional: false,
-                metadata: Some(types.get("RGBContract.IssueMeta")),
+                metadata: None,
                 globals: tiny_bmap! {
                     fname!("issuedSupply") => Occurrences::Once,
                 },
@@ -204,9 +324,7 @@ pub fn inflatable() -> Iface {
                 valencies: none!(),
                 errors: tiny_bset! {
                     vname!("supplyMismatch"),
-                    vname!("invalidProof"),
                     vname!("issueExceedsAllowance"),
-                    vname!("insufficientReserves")
                 },
                 default_assignment: Some(fname!("assetOwner")),
             },
@@ -221,54 +339,6 @@ pub fn inflatable() -> Iface {
     }
 }
 
-pub fn renameable() -> Iface {
-    Iface {
-        version: VerNo::V1,
-        inherits: tiny_bset![BASE_IFACE_ID],
-        developer: none!(), // TODO: Add LNP/BP Standards Association
-        timestamp: 1711405444,
-        name: tn!("RGB20Renameable"),
-        global_state: none!(),
-        assignments: tiny_bmap! {
-            fname!("updateRight") => AssignIface::public(OwnedIface::Rights, Req::Required),
-        },
-        valencies: none!(),
-        genesis: GenesisIface {
-            modifier: Modifier::Override,
-            metadata: None,
-            globals: none!(),
-            assignments: tiny_bmap! {
-                fname!("updateRight") => Occurrences::Once,
-            },
-            valencies: none!(),
-            errors: none!(),
-        },
-        transitions: tiny_bmap! {
-            fname!("rename") => TransitionIface {
-                modifier: Modifier::Final,
-                optional: false,
-                metadata: None,
-                globals: tiny_bmap! {
-                    fname!("spec") => Occurrences::Once,
-                },
-                inputs: tiny_bmap! {
-                    fname!("updateRight") => Occurrences::Once,
-                },
-                assignments: tiny_bmap! {
-                    fname!("updateRight") => Occurrences::NoneOrOnce,
-                },
-                valencies: none!(),
-                errors: none!(),
-                default_assignment: Some(fname!("updateRight")),
-            },
-        },
-        extensions: none!(),
-        default_operation: None,
-        errors: none!(),
-        types: StandardTypes::new().type_system().into(),
-    }
-}
-
 pub fn burnable() -> Iface {
     let types = StandardTypes::new();
     Iface {
@@ -276,7 +346,7 @@ pub fn burnable() -> Iface {
         inherits: tiny_bset![BASE_IFACE_ID],
         developer: none!(), // TODO: Add LNP/BP Standards Association
         timestamp: 1711405444,
-        name: tn!("RGB20Burnable"),
+        name: tn!("BurnableAsset"),
         global_state: tiny_bmap! {
             fname!("burnedSupply") => GlobalIface::none_or_many(types.get("RGBContract.Amount")),
         },
@@ -447,20 +517,23 @@ impl Inflation {
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default)]
 pub struct Features {
-    renaming: bool,
-    inflation: Inflation,
+    pub renaming: bool,
+    pub reserves: bool,
+    pub inflation: Inflation,
 }
 
 impl Features {
     pub fn none() -> Self {
         Features {
             renaming: false,
+            reserves: false,
             inflation: Inflation::Fixed,
         }
     }
     pub fn all() -> Self {
         Features {
             renaming: true,
+            reserves: true,
             inflation: Inflation::Replaceable,
         }
     }
@@ -533,7 +606,7 @@ impl From<ContractIface> for Rgb20 {
 }
 
 impl IfaceWrapper for Rgb20 {
-    const IFACE_NAME: &'static str = LIB_NAME_RGB20;
+    const IFACE_NAME: &'static str = "RGB20";
     const IFACE_ID: IfaceId = IfaceId::from_array([
         0x37, 0x2c, 0x73, 0x56, 0xdb, 0x37, 0xdb, 0x90, 0xe8, 0xdb, 0xf3, 0x6e, 0x05, 0xcf, 0x1f,
         0xad, 0x5b, 0x96, 0x82, 0x9f, 0x36, 0x86, 0x26, 0x1a, 0x2a, 0x3e, 0x09, 0x17, 0x70, 0xaf,
@@ -544,7 +617,7 @@ impl IfaceWrapper for Rgb20 {
 impl IfaceClass for Rgb20 {
     type Features = Features;
     fn iface(features: Features) -> Iface {
-        let mut iface = base();
+        let mut iface = named_asset().expect_extended(fungible());
         if features.renaming {
             iface = iface.expect_extended(renameable());
         }
@@ -559,7 +632,10 @@ impl IfaceClass for Rgb20 {
         } else if features.inflation.is_burnable() {
             iface = iface.expect_extended(burnable());
         }
-        iface.name = tn!("RGB20");
+        if features.reserves {
+            iface = iface.expect_extended(reservable());
+        }
+        iface.name = Self::IFACE_NAME.into();
         iface
     }
     fn stl() -> TypeLib { rgb_contract_stl() }
@@ -909,7 +985,7 @@ mod test {
 
     #[test]
     fn iface_id_base() {
-        let iface_id = base().iface_id();
+        let iface_id = fungible().iface_id();
         eprintln!("{:#04x?}", iface_id.to_byte_array());
         assert_eq!(BASE_IFACE_ID, iface_id);
     }

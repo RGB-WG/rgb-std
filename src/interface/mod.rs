@@ -52,9 +52,9 @@ pub use iimpl::{
     SchemaIfaces, SchemaIssuer, SchemaTypeIndex, WrongImplementation,
 };
 pub use inheritance::ExtensionError;
-pub use rgb20::{AmountChange, Rgb20, LIB_NAME_RGB20};
+pub use rgb20::{AmountChange, Rgb20};
 pub use rgb21::{Rgb21, LIB_ID_RGB21, LIB_NAME_RGB21};
-pub use rgb25::{Rgb25, LIB_NAME_RGB25};
+pub use rgb25::Rgb25;
 pub use suppl::{ContractSuppl, OwnedStateSuppl, SupplId, TickerSuppl, VelocityHint};
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, Default)]

@@ -30,7 +30,7 @@ use std::io::Write;
 
 use commit_verify::CommitmentLayout;
 use rgbstd::containers::Transfer;
-use rgbstd::interface::{rgb20, IfaceClass, Rgb21, Rgb25};
+use rgbstd::interface::{rgb20, rgb21, rgb25, IfaceClass, Rgb21, Rgb25};
 use rgbstd::stl::{
     aluvm_stl, bp_core_stl, bp_tx_stl, commit_verify_stl, rgb_contract_stl, rgb_core_stl,
     rgb_std_stl,
@@ -150,9 +150,9 @@ fn main() {
         .expect("not all libraries present");
 
     let mut file = fs::File::create(format!("{dir}/RGB20.con")).unwrap();
-    let base_id = rgb20::base().iface_id();
+    let base_id = rgb20::fungible().iface_id();
     let inflatible_id = rgb20::inflatable().iface_id();
-    writeln!(file, "{}", rgb20::base().display(map! { base_id => tn!("RGB20Base") }, &ifsys))
+    writeln!(file, "{}", rgb20::fungible().display(map! { base_id => tn!("RGB20Base") }, &ifsys))
         .unwrap();
     writeln!(file, "{}", rgb20::fixed().display(map! { base_id => tn!("RGB20Fixed") }, &ifsys))
         .unwrap();
@@ -169,10 +169,10 @@ fn main() {
     )
     .unwrap();
 
-    let rgb21 = Rgb21::iface(None);
+    let rgb21 = Rgb21::iface(rgb21::Features::all());
     fs::write(format!("{dir}/RGB21.con"), format!("{}", rgb21.display(none!(), &ifsys))).unwrap();
 
-    let rgb25 = Rgb25::iface(None);
+    let rgb25 = Rgb25::iface(rgb25::Features::all());
     fs::write(format!("{dir}/RGB25.con"), format!("{}", rgb25.display(none!(), &ifsys))).unwrap();
 
     let mut file = fs::File::create(format!("{dir}/Transfer.vesper")).unwrap();
