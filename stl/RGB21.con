@@ -1,4 +1,5 @@
-@version(v1)
+@version(1)
+@timestamp(1711405444)
 interface RGB21
 	global attachmentTypes(*): RGB21.AttachmentType
 	global engravings(*): RGB21.EngravingData

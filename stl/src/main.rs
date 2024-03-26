@@ -151,21 +151,21 @@ fn main() {
 
     let mut file = fs::File::create(format!("{dir}/RGB20.con")).unwrap();
     let base_id = rgb20::base().iface_id();
-    let inflatible_id = rgb20::inflatible().iface_id();
+    let inflatible_id = rgb20::inflatable().iface_id();
     writeln!(file, "{}", rgb20::base().display(map! { base_id => tn!("RGB20Base") }, &ifsys))
         .unwrap();
     writeln!(file, "{}", rgb20::fixed().display(map! { base_id => tn!("RGB20Fixed") }, &ifsys))
         .unwrap();
-    writeln!(file, "{}", rgb20::renamable().display(map! { base_id => tn!("RGB20Base") }, &ifsys))
+    writeln!(file, "{}", rgb20::renameable().display(map! { base_id => tn!("RGB20Base") }, &ifsys))
         .unwrap();
     writeln!(file, "{}", rgb20::burnable().display(map! { base_id => tn!("RGB20Base") }, &ifsys))
         .unwrap();
-    writeln!(file, "{}", rgb20::inflatible().display(map! { base_id => tn!("RGB20Base") }, &ifsys))
+    writeln!(file, "{}", rgb20::inflatable().display(map! { base_id => tn!("RGB20Base") }, &ifsys))
         .unwrap();
     writeln!(
         file,
         "{}",
-        rgb20::replacable().display(map! { inflatible_id => tn!("RGB20Inflatible") }, &ifsys)
+        rgb20::replaceable().display(map! { inflatible_id => tn!("RGB20Inflatible") }, &ifsys)
     )
     .unwrap();
 

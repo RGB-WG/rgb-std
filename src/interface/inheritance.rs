@@ -63,8 +63,10 @@ pub enum ExtensionError {
     ErrorOverflow,
     /// inherited interface tries to override the parent default operation.
     DefaultOverride,
-    /// '{0}' can't be overridden.
-    OpModifier(OpName),
+    /// '{0}' in the parent interface is final and can't be overridden.
+    OpFinal(OpName),
+    /// '{0}' must use `override` keyword to modify the parent version.
+    OpNoOverride(OpName),
     /// '{0}' overrides parent metadata type.
     OpMetadata(OpName),
     /// too many {1} types defined in {0}.
@@ -96,7 +98,13 @@ impl OwnedIface {
 }
 
 impl Modifier {
-    pub fn is_superset(self, other: Modifier) -> bool { self <= other }
+    pub fn is_final(self) -> bool { self == Self::Final }
+    pub fn can_be_overriden_by(self, other: Modifier) -> bool {
+        match (self, other) {
+            (Self::Abstract | Self::Override, Self::Override | Self::Final) => true,
+            _ => false,
+        }
+    }
 }
 
 impl Iface {
@@ -376,8 +384,10 @@ impl GenesisIface {
         let mut errors = vec![];
 
         let op = OpName::Genesis;
-        if !self.modifier.is_superset(ext.modifier) {
-            errors.push(ExtensionError::OpModifier(op.clone()));
+        if self.modifier.is_final() {
+            errors.push(ExtensionError::OpFinal(op.clone()));
+        } else if !self.modifier.can_be_overriden_by(ext.modifier) {
+            errors.push(ExtensionError::OpNoOverride(op.clone()));
         }
         if self.metadata.is_some() && ext.metadata.is_some() && self.metadata != ext.metadata {
             errors.push(ExtensionError::OpMetadata(op.clone()));
@@ -402,8 +412,10 @@ impl TransitionIface {
         let mut errors = vec![];
 
         let op = OpName::Transition(op_name);
-        if !self.modifier.is_superset(ext.modifier) {
-            errors.push(ExtensionError::OpModifier(op.clone()));
+        if self.modifier.is_final() {
+            errors.push(ExtensionError::OpFinal(op.clone()));
+        } else if !self.modifier.can_be_overriden_by(ext.modifier) {
+            errors.push(ExtensionError::OpNoOverride(op.clone()));
         }
         if self.optional < ext.optional {
             errors.push(ExtensionError::OpOptional(op.clone()))
@@ -442,8 +454,10 @@ impl ExtensionIface {
         let mut errors = vec![];
 
         let op = OpName::Transition(op_name);
-        if !self.modifier.is_superset(ext.modifier) {
-            errors.push(ExtensionError::OpModifier(op.clone()));
+        if self.modifier.is_final() {
+            errors.push(ExtensionError::OpFinal(op.clone()));
+        } else if !self.modifier.can_be_overriden_by(ext.modifier) {
+            errors.push(ExtensionError::OpNoOverride(op.clone()));
         }
         if self.optional < ext.optional {
             errors.push(ExtensionError::OpOptional(op.clone()))

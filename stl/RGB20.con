@@ -1,4 +1,5 @@
-@version(v1)
+@version(1)
+@timestamp(1711405444)
 interface RGB20Base
 	global issuedSupply: RGBContract.Amount
 	global spec: RGBContract.AssetSpec
@@ -28,7 +29,8 @@ interface RGB20Base
 		inputs: assetOwner(+)
 
 
-@version(v1)
+@version(1)
+@timestamp(1711405444)
 interface RGB20Fixed: RGB20Fixed
 
 	owned assetOwner(+): Zk64
@@ -38,8 +40,9 @@ interface RGB20Fixed: RGB20Fixed
 		assigns: assetOwner(+)
 
 
-@version(v1)
-interface RGB20Renamable: RGB20Base
+@version(1)
+@timestamp(1711405444)
+interface RGB20Renameable: RGB20Base
 
 	public updateRight: Rights
 
@@ -53,7 +56,8 @@ interface RGB20Renamable: RGB20Base
 		inputs: updateRight
 
 
-@version(v1)
+@version(1)
+@timestamp(1711405444)
 interface RGB20Burnable: RGB20Base
 	global burnedSupply(*): RGBContract.Amount
 
@@ -73,8 +77,9 @@ interface RGB20Burnable: RGB20Base
 		inputs: burnRight
 
 
-@version(v1)
-interface RGB20Inflatible: RGB20Base
+@version(1)
+@timestamp(1711405444)
+interface RGB20Inflatable: RGB20Base
 	global issuedSupply(+): RGBContract.Amount
 
 	public inflationAllowance(*): Zk64
@@ -82,7 +87,7 @@ interface RGB20Inflatible: RGB20Base
 	error issueExceedsAllowance
 		"you try to issue more assets than allowed by the contract terms"
 
-	genesis: abstract
+	genesis: override
 		meta: RGBContract.IssueMeta
 		assigns: inflationAllowance(+)
 
@@ -95,8 +100,10 @@ interface RGB20Inflatible: RGB20Base
 		inputs: inflationAllowance(+)
 
 
-@version(v1)
-interface RGB20Replacable: RGB20Inflatible
+@version(1)
+@timestamp(1711405444)
+interface RGB20Replaceable: urn:lnp-bp:if:8S2Vw4-saa1Qz3e-QWVZLzus-idBCo7os-Rg8yWJaR-2n8xP6
+
 	global burnedSupply(*): RGBContract.Amount
 	global replacedSupply(*): RGBContract.Amount
 

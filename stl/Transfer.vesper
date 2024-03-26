@@ -1069,6 +1069,8 @@ Consignmenttrue rec
         name ascii len=1..100 aka=TypeName aka=Ident charset=AlphaNumLodash
         inherits set len=0..MAX8
           element bytes len=32 aka=IfaceId
+        developer bytes len=0..MAX16 aka=Issuer
+        timestamp is I64
         globalState map len=0..MAX8
           key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
           value rec GlobalIface
@@ -1206,6 +1208,8 @@ Consignmenttrue rec
         version enum VerNo v0=0 v1=1
         schemaId bytes len=32 aka=SchemaId
         ifaceId bytes len=32 aka=IfaceId
+        developer bytes len=0..MAX16 aka=Issuer
+        timestamp is I64
         globalState set len=0..MAX8
           NamedFieldGlobalStateType rec
             id is U16 aka=GlobalStateType

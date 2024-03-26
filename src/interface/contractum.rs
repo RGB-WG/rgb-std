@@ -213,7 +213,7 @@ impl<'a> Display for IfaceDisplay<'a> {
             writeln!(f)
         }
 
-        writeln!(f, "@version({})", self.iface.version)?;
+        writeln!(f, "@version({:#})", self.iface.version)?;
         if !self.iface.developer.is_empty() {
             writeln!(f, "@developer({})", self.iface.developer)?;
         }

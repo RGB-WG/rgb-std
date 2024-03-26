@@ -1,5 +1,5 @@
 {-
-  Id: urn:ubideco:stl:CPAjh72Y5KKdZytstewandX8JmcE4585tDHV3Q7XRGTq#center-silicon-neutral
+  Id: urn:ubideco:stl:jJQUaD5yHnh9kKzSNFjHgQPVTtHy3iDvCdwieNZFT9h#anvil-orchid-yogurt
   Name: RGBStd
   Version: 0.1.0
   Description: RGB standard library
@@ -289,10 +289,12 @@ data Identity          : name [Unicode ^ ..0xff]
                        , suite IdSuite
                        , pk [Byte ^ ..0xff]
 
-@mnemonic(elite-mission-super)
+@mnemonic(product-cosmos-igor)
 data Iface             : version VerNo
                        , name StrictTypes.TypeName#jamaica-capsule-chance
                        , inherits {IfaceId ^ ..0xff}
+                       , developer RGB.Issuer#veteran-tango-content
+                       , timestamp I64
                        , globalState {StrictTypes.FieldName -> ^ ..0xff GlobalIface}
                        , assignments {StrictTypes.FieldName -> ^ ..0xff AssignIface}
                        , valencies {StrictTypes.FieldName -> ^ ..0xff ValencyIface}
@@ -306,10 +308,12 @@ data Iface             : version VerNo
 @mnemonic(vendor-polite-gong)
 data IfaceId           : [Byte ^ 32]
 
-@mnemonic(everest-analyze-native)
+@mnemonic(chicken-ecology-pacific)
 data IfaceImpl         : version VerNo
                        , schemaId RGB.SchemaId#garcia-smoke-ozone
                        , ifaceId IfaceId
+                       , developer RGB.Issuer#veteran-tango-content
+                       , timestamp I64
                        , globalState {NamedFieldGlobalStateType ^ ..0xff}
                        , assignments {NamedFieldAssignmentType ^ ..0xff}
                        , valencies {NamedFieldValencyType ^ ..0xff}

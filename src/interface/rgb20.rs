@@ -161,14 +161,14 @@ pub fn fixed() -> Iface {
     }
 }
 
-pub fn inflatible() -> Iface {
+pub fn inflatable() -> Iface {
     let types = StandardTypes::new();
     Iface {
         version: VerNo::V1,
         inherits: tiny_bset![BASE_IFACE_ID],
         developer: none!(), // TODO: Add LNP/BP Standards Association
         timestamp: 1711405444,
-        name: tn!("RGB20Inflatible"),
+        name: tn!("RGB20Inflatable"),
         global_state: tiny_bmap! {
             fname!("issuedSupply") => GlobalIface::one_or_many(types.get("RGBContract.Amount")),
         },
@@ -177,7 +177,7 @@ pub fn inflatible() -> Iface {
         },
         valencies: none!(),
         genesis: GenesisIface {
-            modifier: Modifier::Abstract,
+            modifier: Modifier::Override,
             metadata: Some(types.get("RGBContract.IssueMeta")),
             globals: none!(),
             assignments: tiny_bmap! {
@@ -221,13 +221,13 @@ pub fn inflatible() -> Iface {
     }
 }
 
-pub fn renamable() -> Iface {
+pub fn renameable() -> Iface {
     Iface {
         version: VerNo::V1,
         inherits: tiny_bset![BASE_IFACE_ID],
         developer: none!(), // TODO: Add LNP/BP Standards Association
         timestamp: 1711405444,
-        name: tn!("RGB20Renamable"),
+        name: tn!("RGB20Renameable"),
         global_state: none!(),
         assignments: tiny_bmap! {
             fname!("updateRight") => AssignIface::public(OwnedIface::Rights, Req::Required),
@@ -327,14 +327,14 @@ pub fn burnable() -> Iface {
     }
 }
 
-pub fn replacable() -> Iface {
+pub fn replaceable() -> Iface {
     let types = StandardTypes::new();
     Iface {
         version: VerNo::V1,
         inherits: tiny_bset![INFLATIBLE_IFACE_ID],
         developer: none!(), // TODO: Add LNP/BP Standards Association
         timestamp: 1711405444,
-        name: tn!("RGB20Replacable"),
+        name: tn!("RGB20Replaceable"),
         global_state: tiny_bmap! {
             fname!("burnedSupply") => GlobalIface::none_or_many(types.get("RGBContract.Amount")),
             fname!("replacedSupply") => GlobalIface::none_or_many(types.get("RGBContract.Amount")),
@@ -546,16 +546,16 @@ impl IfaceClass for Rgb20 {
     fn iface(features: Features) -> Iface {
         let mut iface = base();
         if features.renaming {
-            iface = iface.expect_extended(renamable());
+            iface = iface.expect_extended(renameable());
         }
         if features.inflation.is_fixed() {
             iface = iface.expect_extended(fixed());
         }
         if features.inflation.is_inflatible() {
-            iface = iface.expect_extended(inflatible());
+            iface = iface.expect_extended(inflatable());
         }
         if features.inflation.is_replacable() {
-            iface = iface.expect_extended(replacable());
+            iface = iface.expect_extended(replaceable());
         } else if features.inflation.is_burnable() {
             iface = iface.expect_extended(burnable());
         }
@@ -916,7 +916,7 @@ mod test {
 
     #[test]
     fn iface_id_inflatible() {
-        let iface_id = inflatible().iface_id();
+        let iface_id = inflatable().iface_id();
         eprintln!("{:#04x?}", iface_id.to_byte_array());
         assert_eq!(INFLATIBLE_IFACE_ID, iface_id);
     }
