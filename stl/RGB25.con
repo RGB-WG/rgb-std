@@ -21,20 +21,20 @@ interface RGB25
 	error insufficientCoverage: 5
 		"the claimed amount of burned assets is not covered by the assets in the operation inputs"
 
-	genesis
+	genesis: final
 		errors: supplyMismatch, invalidProof, insufficientReserves
 		meta: RGBContract.IssueMeta
 		globals: details(?), issuedSupply, name, precision, terms
 		assigns: assetOwner(+)
 
-	transition burn:
+	transition burn: final
 		errors: supplyMismatch, invalidProof, insufficientCoverage
 		meta: RGBContract.BurnMeta
 		globals: burnedSupply
 		assigns: burnRight(?)
 		inputs: burnRight
 
-	transition transfer: required, default
+	transition transfer: required, default, final
 		errors: nonEqualAmounts
 		assigns: assetOwner(+)
 		default: assetOwner

@@ -27,20 +27,20 @@ interface RGB21
 	error invalidAttachmentType: 9
 		"attachment has a type which is not allowed for the token"
 
-	genesis
+	genesis: final
 		errors: fractionOverflow, invalidProof, insufficientReserves, invalidAttachmentType
 		meta: RGBContract.IssueMeta
 		globals: attachmentTypes(*), spec, terms, tokens(*)
 		assigns: assetOwner(*), inflationAllowance(*), updateRight(?)
 
-	transition engrave:
+	transition engrave: final
 		errors: fractionOverflow, nonEqualValues, nonFractionalToken, nonEngravableToken
 		globals: engravings
 		assigns: assetOwner(+)
 		default: assetOwner
 		inputs: assetOwner(+)
 
-	transition issue:
+	transition issue: final
 		errors: fractionOverflow, invalidProof, insufficientReserves, issueExceedsAllowance, invalidAttachmentType
 		meta: RGBContract.IssueMeta
 		globals: attachmentTypes(*), tokens(*)
@@ -48,14 +48,14 @@ interface RGB21
 		default: assetOwner
 		inputs: inflationAllowance(+)
 
-	transition rename:
+	transition rename: final
 		errors: 
 		globals: spec
 		assigns: updateRight
 		default: updateRight
 		inputs: updateRight
 
-	transition transfer: required, default
+	transition transfer: required, default, final
 		errors: fractionOverflow, nonEqualValues, nonFractionalToken
 		assigns: assetOwner(+)
 		default: assetOwner
