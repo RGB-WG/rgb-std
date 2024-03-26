@@ -142,14 +142,14 @@ impl<'a> Display for OpIfaceDisplay<'a> {
 
 pub struct IfaceDisplay<'a> {
     iface: &'a Iface,
-    externals: HashMap<IfaceId, TypeName>,
+    externals: &'a HashMap<IfaceId, TypeName>,
     types: &'a SymbolicSys,
 }
 
 impl<'a> IfaceDisplay<'a> {
     pub fn new(
         iface: &'a Iface,
-        externals: HashMap<IfaceId, TypeName>,
+        externals: &'a HashMap<IfaceId, TypeName>,
         types: &'a SymbolicSys,
     ) -> Self {
         Self {

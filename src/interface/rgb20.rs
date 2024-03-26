@@ -42,16 +42,6 @@ use crate::stl::{
 };
 use crate::LIB_NAME_RGB_STD;
 
-const BASE_IFACE_ID: IfaceId = IfaceId::from_array([
-    0xa9, 0xc9, 0xe4, 0xe7, 0x72, 0xda, 0x9f, 0x7b, 0x49, 0x33, 0x1b, 0x1c, 0x02, 0x3c, 0x06, 0x61,
-    0x6f, 0x5c, 0xf6, 0xb4, 0x88, 0x22, 0xd5, 0x7d, 0xe8, 0x1d, 0x47, 0x5c, 0xe0, 0xd3, 0xef, 0xbc,
-]);
-
-const INFLATIBLE_IFACE_ID: IfaceId = IfaceId::from_array([
-    0x6e, 0x6b, 0x06, 0x00, 0x79, 0x06, 0xaf, 0xa2, 0xa1, 0x1d, 0x31, 0xe5, 0xd1, 0x0e, 0xfa, 0xf0,
-    0x53, 0x53, 0xcd, 0xf5, 0x1e, 0x58, 0x3c, 0x13, 0x4b, 0xec, 0x62, 0xa8, 0x0d, 0x83, 0x4b, 0xc5,
-]);
-
 pub fn named_asset() -> Iface {
     let types = StandardTypes::new();
     Iface {
@@ -88,7 +78,7 @@ pub fn named_asset() -> Iface {
 pub fn renameable() -> Iface {
     Iface {
         version: VerNo::V1,
-        inherits: none!(),
+        inherits: tiny_bset![named_asset().iface_id()],
         developer: none!(), // TODO: Add LNP/BP Standards Association
         timestamp: 1711405444,
         name: tn!("RenameableAsset"),
@@ -250,8 +240,8 @@ pub fn reservable() -> Iface {
 pub fn fixed() -> Iface {
     Iface {
         version: VerNo::V1,
-        name: tn!("RGB20Fixed"),
-        inherits: tiny_bset![BASE_IFACE_ID],
+        name: tn!("FixedAsset"),
+        inherits: tiny_bset![fungible().iface_id()],
         developer: none!(), // TODO: Add LNP/BP Standards Association
         timestamp: 1711405444,
         global_state: none!(),
@@ -285,10 +275,10 @@ pub fn inflatable() -> Iface {
     let types = StandardTypes::new();
     Iface {
         version: VerNo::V1,
-        inherits: tiny_bset![BASE_IFACE_ID],
+        inherits: tiny_bset![fungible().iface_id()],
         developer: none!(), // TODO: Add LNP/BP Standards Association
         timestamp: 1711405444,
-        name: tn!("RGB20Inflatable"),
+        name: tn!("InflatableAsset"),
         global_state: tiny_bmap! {
             fname!("issuedSupply") => GlobalIface::one_or_many(types.get("RGBContract.Amount")),
         },
@@ -343,7 +333,7 @@ pub fn burnable() -> Iface {
     let types = StandardTypes::new();
     Iface {
         version: VerNo::V1,
-        inherits: tiny_bset![BASE_IFACE_ID],
+        inherits: tiny_bset![fungible().iface_id()],
         developer: none!(), // TODO: Add LNP/BP Standards Association
         timestamp: 1711405444,
         name: tn!("BurnableAsset"),
@@ -401,10 +391,10 @@ pub fn replaceable() -> Iface {
     let types = StandardTypes::new();
     Iface {
         version: VerNo::V1,
-        inherits: tiny_bset![INFLATIBLE_IFACE_ID],
+        inherits: tiny_bset![inflatable().iface_id()],
         developer: none!(), // TODO: Add LNP/BP Standards Association
         timestamp: 1711405444,
-        name: tn!("RGB20Replaceable"),
+        name: tn!("ReplaceableAsset"),
         global_state: tiny_bmap! {
             fname!("burnedSupply") => GlobalIface::none_or_many(types.get("RGBContract.Amount")),
             fname!("replacedSupply") => GlobalIface::none_or_many(types.get("RGBContract.Amount")),
@@ -608,9 +598,9 @@ impl From<ContractIface> for Rgb20 {
 impl IfaceWrapper for Rgb20 {
     const IFACE_NAME: &'static str = "RGB20";
     const IFACE_ID: IfaceId = IfaceId::from_array([
-        0x37, 0x2c, 0x73, 0x56, 0xdb, 0x37, 0xdb, 0x90, 0xe8, 0xdb, 0xf3, 0x6e, 0x05, 0xcf, 0x1f,
-        0xad, 0x5b, 0x96, 0x82, 0x9f, 0x36, 0x86, 0x26, 0x1a, 0x2a, 0x3e, 0x09, 0x17, 0x70, 0xaf,
-        0x40, 0x9a,
+        0xd3, 0xa5, 0x1e, 0x8c, 0x19, 0xad, 0x05, 0x4f, 0xc8, 0x95, 0x0d, 0x13, 0x0f, 0xc9, 0x54,
+        0xbd, 0xba, 0x2b, 0x27, 0xe9, 0x08, 0x6d, 0xf3, 0xcd, 0x7e, 0x34, 0x18, 0x60, 0xf9, 0x4f,
+        0x73, 0x8e,
     ]);
 }
 
@@ -981,20 +971,6 @@ mod test {
         let iface_id = Rgb20::iface(Features::all()).iface_id();
         eprintln!("{:#04x?}", iface_id.to_byte_array());
         assert_eq!(Rgb20::IFACE_ID, iface_id);
-    }
-
-    #[test]
-    fn iface_id_base() {
-        let iface_id = fungible().iface_id();
-        eprintln!("{:#04x?}", iface_id.to_byte_array());
-        assert_eq!(BASE_IFACE_ID, iface_id);
-    }
-
-    #[test]
-    fn iface_id_inflatible() {
-        let iface_id = inflatable().iface_id();
-        eprintln!("{:#04x?}", iface_id.to_byte_array());
-        assert_eq!(INFLATIBLE_IFACE_ID, iface_id);
     }
 
     #[test]

@@ -1,6 +1,6 @@
 @version(1)
 @timestamp(1711405444)
-interface RGB21
+interface RGB21: EngravableNft, NamedAsset, RenameableAsset, IssuableNft, NonFungibleToken, ReservableAsset
 	global attachmentTypes(*): RGB21.AttachmentType
 	global engravings(*): RGB21.EngravingData
 	global spec: RGBContract.AssetSpec
@@ -8,8 +8,8 @@ interface RGB21
 	global tokens(*): RGB21.TokenData
 
 	owned assetOwner(*): RGB21.Allocation
-	public inflationAllowance(*): RGB21.ItemsCount
-	public updateRight(?): Rights
+	public inflationAllowance(+): RGB21.ItemsCount
+	public updateRight: Rights
 
 	error fractionOverflow
 		"the amount of fractional token in outputs exceeds 1"
@@ -28,30 +28,28 @@ interface RGB21
 	error nonFractionalToken
 		"attempt to transfer a fraction of non-fractionable token"
 
-	genesis: final
+	genesis: abstract
 		errors: fractionOverflow, insufficientReserves, invalidAttachmentType, invalidProof
-		meta: RGBContract.IssueMeta
 		globals: attachmentTypes(*), spec, terms, tokens(*)
-		assigns: assetOwner(*), inflationAllowance(*), updateRight(?)
+		assigns: assetOwner(*), inflationAllowance(+), updateRight
 
-	transition engrave: final
+	transition engrave: required, final
 		errors: fractionOverflow, nonEngravableToken, nonEqualValues, nonFractionalToken
 		globals: engravings
 		assigns: assetOwner(+)
 		default: assetOwner
 		inputs: assetOwner(+)
 
-	transition issue: final
+	transition issue: abstract
 		errors: fractionOverflow, insufficientReserves, invalidAttachmentType, invalidProof, issueExceedsAllowance
-		meta: RGBContract.IssueMeta
 		globals: attachmentTypes(*), tokens(*)
 		assigns: assetOwner(*), inflationAllowance(*)
 		default: assetOwner
 		inputs: inflationAllowance(+)
 
-	transition rename: final
+	transition rename: required, final
 		globals: spec
-		assigns: updateRight
+		assigns: updateRight(?)
 		default: updateRight
 		inputs: updateRight
 

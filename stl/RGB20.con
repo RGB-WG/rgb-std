@@ -1,16 +1,26 @@
 @version(1)
 @timestamp(1711405444)
-interface RGB20Base
-	global issuedSupply: RGBContract.Amount
+interface RGB20: FungibleAsset, NamedAsset, RenameableAsset, ReplaceableAsset, ReservableAsset, InflatableAsset
+	global burnedSupply(*): RGBContract.Amount
+	global issuedSupply(+): RGBContract.Amount
+	global replacedSupply(*): RGBContract.Amount
 	global spec: RGBContract.AssetSpec
 	global terms: RGBContract.AssetTerms
 
 	owned assetOwner(*): Zk64
+	public burnEpoch(+): Rights
+	public burnRight(*): Rights
+	public inflationAllowance(*): Zk64
+	public updateRight: Rights
 
+	error insufficientCoverage
+		"the claimed amount of burned assets is not covered by the assets in the operation inputs"
 	error insufficientReserves
 		"reserve is insufficient to cover the issued assets"
 	error invalidProof
 		"the provided proof is invalid"
+	error issueExceedsAllowance
+		"you try to issue more assets than allowed by the contract terms"
 	error nonEqualAmounts
 		"the sum of spent assets doesn't equal to the sum of assets in outputs"
 	error supplyMismatch
@@ -18,103 +28,8 @@ interface RGB20Base
 
 	genesis: abstract
 		errors: insufficientReserves, invalidProof, supplyMismatch
-		meta: RGBContract.IssueMeta
 		globals: issuedSupply, spec, terms
-		assigns: assetOwner(*)
-
-	transition transfer: required, default, abstract
-		errors: nonEqualAmounts
-		assigns: assetOwner(+)
-		default: assetOwner
-		inputs: assetOwner(+)
-
-
-@version(1)
-@timestamp(1711405444)
-interface RGB20Fixed: RGB20Fixed
-
-	owned assetOwner(+): Zk64
-
-	genesis: override
-		errors: insufficientReserves, invalidProof, supplyMismatch
-		assigns: assetOwner(+)
-
-
-@version(1)
-@timestamp(1711405444)
-interface RGB20Renameable: RGB20Base
-
-	public updateRight: Rights
-
-	genesis: override
-		assigns: updateRight
-
-	transition rename: required, final
-		globals: spec
-		assigns: updateRight(?)
-		default: updateRight
-		inputs: updateRight
-
-
-@version(1)
-@timestamp(1711405444)
-interface RGB20Burnable: RGB20Base
-	global burnedSupply(*): RGBContract.Amount
-
-	public burnRight(+): Rights
-
-	error insufficientCoverage
-		"the claimed amount of burned assets is not covered by the assets in the operation inputs"
-
-	genesis: override
-		assigns: burnRight(+)
-
-	transition burn: required, final
-		errors: insufficientCoverage, invalidProof, supplyMismatch
-		meta: RGBContract.BurnMeta
-		globals: burnedSupply
-		assigns: burnRight(*)
-		inputs: burnRight
-
-
-@version(1)
-@timestamp(1711405444)
-interface RGB20Inflatable: RGB20Base
-	global issuedSupply(+): RGBContract.Amount
-
-	public inflationAllowance(*): Zk64
-
-	error issueExceedsAllowance
-		"you try to issue more assets than allowed by the contract terms"
-
-	genesis: override
-		meta: RGBContract.IssueMeta
-		assigns: inflationAllowance(+)
-
-	transition issue: required, abstract
-		errors: insufficientReserves, invalidProof, issueExceedsAllowance, supplyMismatch
-		meta: RGBContract.IssueMeta
-		globals: issuedSupply
-		assigns: assetOwner(*), inflationAllowance(*)
-		default: assetOwner
-		inputs: inflationAllowance(+)
-
-
-@version(1)
-@timestamp(1711405444)
-interface RGB20Replaceable: urn:lnp-bp:if:8S2Vw4-saa1Qz3e-QWVZLzus-idBCo7os-Rg8yWJaR-2n8xP6
-
-	global burnedSupply(*): RGBContract.Amount
-	global replacedSupply(*): RGBContract.Amount
-
-	public burnEpoch(+): Rights
-	public burnRight(*): Rights
-
-	error insufficientCoverage
-		"the claimed amount of burned assets is not covered by the assets in the operation inputs"
-
-	genesis: override
-		assigns: burnEpoch
+		assigns: assetOwner(*), burnEpoch, inflationAllowance(+), updateRight
 
 	transition burn: required, final
 		errors: insufficientCoverage, invalidProof, supplyMismatch
@@ -123,10 +38,23 @@ interface RGB20Replaceable: urn:lnp-bp:if:8S2Vw4-saa1Qz3e-QWVZLzus-idBCo7os-Rg8y
 		assigns: burnRight(?)
 		inputs: burnRight
 
+	transition issue: abstract
+		errors: insufficientReserves, invalidProof, issueExceedsAllowance, supplyMismatch
+		globals: issuedSupply
+		assigns: assetOwner(*), inflationAllowance(*)
+		default: assetOwner
+		inputs: inflationAllowance(+)
+
 	transition openEpoch: required, final
 		assigns: burnEpoch(?), burnRight
 		default: burnRight
 		inputs: burnEpoch
+
+	transition rename: required, final
+		globals: spec
+		assigns: updateRight(?)
+		default: updateRight
+		inputs: updateRight
 
 	transition replace: required, final
 		errors: insufficientCoverage, invalidProof, nonEqualAmounts, supplyMismatch
@@ -136,4 +64,9 @@ interface RGB20Replaceable: urn:lnp-bp:if:8S2Vw4-saa1Qz3e-QWVZLzus-idBCo7os-Rg8y
 		default: assetOwner
 		inputs: burnRight
 
+	transition transfer: required, default, abstract
+		errors: nonEqualAmounts
+		assigns: assetOwner(+)
+		default: assetOwner
+		inputs: assetOwner(+)
 

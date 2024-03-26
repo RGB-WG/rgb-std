@@ -34,7 +34,9 @@ use super::{
     BuilderError, ContractBuilder, Iface, IfaceClass, IssuerClass, SchemaIssuer, TxOutpoint,
 };
 use crate::containers::Contract;
-use crate::interface::rgb20::{burnable, fungible, renameable, reservable, AllocationError};
+use crate::interface::rgb20::{
+    burnable, fungible, named_asset, renameable, reservable, AllocationError,
+};
 use crate::interface::{ContractIface, IfaceId, IfaceWrapper};
 use crate::persistence::PersistedState;
 use crate::stl::{rgb_contract_stl, AssetTerms, Attachment, Details, Name, RicardianContract};
@@ -80,16 +82,16 @@ impl From<ContractIface> for Rgb25 {
 impl IfaceWrapper for Rgb25 {
     const IFACE_NAME: &'static str = "RGB25";
     const IFACE_ID: IfaceId = IfaceId::from_array([
-        0x26, 0x87, 0xbf, 0x77, 0x0c, 0x18, 0x4d, 0x7d, 0x01, 0xc4, 0x9c, 0xd3, 0xc7, 0xbc, 0x78,
-        0x3e, 0x64, 0xca, 0x44, 0x6e, 0x71, 0xad, 0x28, 0xdd, 0xe0, 0xc8, 0x29, 0x91, 0x46, 0xf3,
-        0xd1, 0x1c,
+        0x45, 0xfd, 0xf1, 0x0d, 0xd2, 0xdd, 0x36, 0x11, 0x1a, 0xfb, 0x5b, 0xe5, 0xcb, 0x98, 0xab,
+        0xbf, 0x64, 0x06, 0x71, 0x7a, 0xec, 0xa7, 0x36, 0xa6, 0xf6, 0x6e, 0xb8, 0x7f, 0x6d, 0x18,
+        0x3f, 0x82,
     ]);
 }
 
 impl IfaceClass for Rgb25 {
     type Features = Features;
     fn iface(features: Features) -> Iface {
-        let mut iface = fungible();
+        let mut iface = named_asset().expect_extended(fungible());
         if features.renaming {
             iface = iface.expect_extended(renameable());
         }
@@ -364,7 +366,7 @@ mod test {
     fn iface_check() {
         if let Err(err) = Rgb25::iface(Features::all()).check() {
             for e in err {
-                eprintln!("{e}");
+                eprintln!("- {e}");
             }
             panic!("invalid RGB25 interface definition");
         }

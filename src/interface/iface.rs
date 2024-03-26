@@ -351,7 +351,7 @@ impl Iface {
 
     pub fn display<'a>(
         &'a self,
-        externals: HashMap<IfaceId, TypeName>,
+        externals: &'a HashMap<IfaceId, TypeName>,
         sys: &'a SymbolicSys,
     ) -> IfaceDisplay<'a> {
         IfaceDisplay::new(self, externals, sys)

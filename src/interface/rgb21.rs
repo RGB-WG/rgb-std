@@ -333,7 +333,7 @@ fn _rgb21_stl() -> Result<TypeLib, CompileError> {
 /// Generates strict type library providing data types for RGB21 interface.
 fn rgb21_stl() -> TypeLib { _rgb21_stl().expect("invalid strict type RGB21 library") }
 
-fn nft() -> Iface {
+pub fn nft() -> Iface {
     let types = StandardTypes::with(rgb21_stl());
     Iface {
         version: VerNo::V1,
@@ -405,12 +405,12 @@ fn nft() -> Iface {
     }
 }
 
-fn unique() -> Iface {
+pub fn unique() -> Iface {
     let types = StandardTypes::with(rgb21_stl());
     Iface {
         version: VerNo::V1,
-        name: tn!("NonFungibleToken"),
-        inherits: none!(),
+        name: tn!("UniqueNft"),
+        inherits: tiny_bset![nft().iface_id()],
         developer: none!(), // TODO: Add LNP/BP Standards Association
         timestamp: 1711405444,
         global_state: tiny_bmap! {
@@ -442,12 +442,12 @@ fn unique() -> Iface {
     }
 }
 
-fn limited() -> Iface {
+pub fn limited() -> Iface {
     let types = StandardTypes::with(rgb21_stl());
     Iface {
         version: VerNo::V1,
-        name: tn!("NonFungibleToken"),
-        inherits: none!(),
+        name: tn!("LimitedNft"),
+        inherits: tiny_bset![nft().iface_id()],
         developer: none!(), // TODO: Add LNP/BP Standards Association
         timestamp: 1711405444,
         global_state: tiny_bmap! {
@@ -479,12 +479,12 @@ fn limited() -> Iface {
     }
 }
 
-fn engravable() -> Iface {
+pub fn engravable() -> Iface {
     let types = StandardTypes::with(rgb21_stl());
     Iface {
         version: VerNo::V1,
-        name: tn!("RGB21Engravable"),
-        inherits: none!(),
+        name: tn!("EngravableNft"),
+        inherits: tiny_bset![nft().iface_id()],
         developer: none!(), // TODO: Add LNP/BP Standards Association
         timestamp: 1711405444,
         global_state: tiny_bmap! {
@@ -534,12 +534,12 @@ fn engravable() -> Iface {
     }
 }
 
-fn issuable() -> Iface {
+pub fn issuable() -> Iface {
     let types = StandardTypes::with(rgb21_stl());
     Iface {
         version: VerNo::V1,
-        name: tn!("RGB21"),
-        inherits: none!(),
+        name: tn!("IssuableNft"),
+        inherits: tiny_bset![nft().iface_id()],
         developer: none!(), // TODO: Add LNP/BP Standards Association
         timestamp: 1711405444,
         global_state: none!(),
@@ -559,8 +559,8 @@ fn issuable() -> Iface {
         },
         transitions: tiny_bmap! {
             fname!("issue") => TransitionIface {
-                modifier: Modifier::Final,
-                optional: true,
+                modifier: Modifier::Abstract,
+                optional: false,
                 metadata: None,
                 globals: tiny_bmap! {
                     fname!("tokens") => Occurrences::NoneOrMore,
@@ -646,9 +646,9 @@ impl From<ContractIface> for Rgb21 {
 impl IfaceWrapper for Rgb21 {
     const IFACE_NAME: &'static str = LIB_NAME_RGB21;
     const IFACE_ID: IfaceId = IfaceId::from_array([
-        0xd8, 0xfe, 0x56, 0xe4, 0x2a, 0xae, 0x34, 0xd4, 0xe1, 0xdf, 0xb5, 0x9f, 0x1a, 0x20, 0xff,
-        0x4c, 0xb1, 0xce, 0x86, 0x40, 0xfd, 0x72, 0xff, 0x87, 0x6d, 0xee, 0x19, 0x89, 0x11, 0xbb,
-        0xf8, 0x27,
+        0x98, 0x2b, 0x4e, 0xc1, 0xc8, 0x8a, 0xbc, 0xa3, 0x9f, 0x93, 0xa1, 0x4f, 0x1c, 0x1c, 0xfa,
+        0x80, 0x5c, 0x81, 0x54, 0xb0, 0x29, 0x5b, 0xf3, 0x98, 0xbf, 0xcb, 0xa1, 0x60, 0xe9, 0xad,
+        0x57, 0xe9,
     ]);
 }
 

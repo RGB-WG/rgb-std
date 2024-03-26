@@ -22,15 +22,13 @@
 
 #[macro_use]
 extern crate amplify;
-#[macro_use]
-extern crate strict_types;
 
 use std::fs;
 use std::io::Write;
 
 use commit_verify::CommitmentLayout;
 use rgbstd::containers::Transfer;
-use rgbstd::interface::{rgb20, rgb21, rgb25, IfaceClass, Rgb21, Rgb25};
+use rgbstd::interface::{rgb20, rgb21, rgb25, IfaceClass, Rgb20, Rgb21, Rgb25};
 use rgbstd::stl::{
     aluvm_stl, bp_core_stl, bp_tx_stl, commit_verify_stl, rgb_contract_stl, rgb_core_stl,
     rgb_std_stl,
@@ -149,31 +147,38 @@ fn main() {
         .finalize()
         .expect("not all libraries present");
 
-    let mut file = fs::File::create(format!("{dir}/RGB20.con")).unwrap();
-    let base_id = rgb20::fungible().iface_id();
-    let inflatible_id = rgb20::inflatable().iface_id();
-    writeln!(file, "{}", rgb20::fungible().display(map! { base_id => tn!("RGB20Base") }, &ifsys))
-        .unwrap();
-    writeln!(file, "{}", rgb20::fixed().display(map! { base_id => tn!("RGB20Fixed") }, &ifsys))
-        .unwrap();
-    writeln!(file, "{}", rgb20::renameable().display(map! { base_id => tn!("RGB20Base") }, &ifsys))
-        .unwrap();
-    writeln!(file, "{}", rgb20::burnable().display(map! { base_id => tn!("RGB20Base") }, &ifsys))
-        .unwrap();
-    writeln!(file, "{}", rgb20::inflatable().display(map! { base_id => tn!("RGB20Base") }, &ifsys))
-        .unwrap();
-    writeln!(
-        file,
-        "{}",
-        rgb20::replaceable().display(map! { inflatible_id => tn!("RGB20Inflatible") }, &ifsys)
-    )
-    .unwrap();
+    let mut map = map![];
+    let ifaces = [
+        rgb20::named_asset(),
+        rgb20::renameable(),
+        rgb20::fungible(),
+        rgb20::fixed(),
+        rgb20::burnable(),
+        rgb20::inflatable(),
+        rgb20::replaceable(),
+        rgb20::reservable(),
+        rgb21::nft(),
+        rgb21::engravable(),
+        rgb21::unique(),
+        rgb21::limited(),
+        rgb21::issuable(),
+    ];
+    for iface in &ifaces {
+        map.insert(iface.iface_id(), iface.name.clone());
+    }
+    let mut file = fs::File::create(format!("{dir}/IfaceStd.con")).unwrap();
+    for iface in ifaces {
+        writeln!(file, "{}", iface.display(&map, &ifsys)).unwrap();
+    }
+
+    let rgb20 = Rgb20::iface(rgb20::Features::all());
+    fs::write(format!("{dir}/RGB20.con"), format!("{}", rgb20.display(&map, &ifsys))).unwrap();
 
     let rgb21 = Rgb21::iface(rgb21::Features::all());
-    fs::write(format!("{dir}/RGB21.con"), format!("{}", rgb21.display(none!(), &ifsys))).unwrap();
+    fs::write(format!("{dir}/RGB21.con"), format!("{}", rgb21.display(&map, &ifsys))).unwrap();
 
     let rgb25 = Rgb25::iface(rgb25::Features::all());
-    fs::write(format!("{dir}/RGB25.con"), format!("{}", rgb25.display(none!(), &ifsys))).unwrap();
+    fs::write(format!("{dir}/RGB25.con"), format!("{}", rgb25.display(&map, &ifsys))).unwrap();
 
     let mut file = fs::File::create(format!("{dir}/Transfer.vesper")).unwrap();
     writeln!(

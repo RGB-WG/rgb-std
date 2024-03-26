@@ -63,23 +63,21 @@ pub enum ExtensionError {
     ErrorOverflow,
     /// inherited interface tries to override the parent default operation.
     DefaultOverride,
-    /// '{0}' in the parent interface is final and can't be overridden.
+    /// {0} in the parent interface is final and can't be overridden.
     OpFinal(OpName),
-    /// '{0}' must use `override` keyword to modify the parent version.
+    /// {0} must use `override` keyword to modify the parent version.
     OpNoOverride(OpName),
-    /// '{0}' overrides parent metadata type.
+    /// {0} overrides parent metadata type.
     OpMetadata(OpName),
     /// too many {1} types defined in {0}.
     OpOverflow(OpName, &'static str),
-    /// {0} can't be optional.
-    OpOptional(OpName),
     /// {0} tries to override the parent default assignment.
     OpDefaultOverride(OpName),
     /// {0} tries to override '{2}' {1}.
     OpOcc(OpName, &'static str, FieldName),
-    /// interface uses different type system from its parent. While in the
-    /// future it is expected to be supported, right now this is prohibited.
-    DifferentTypes,
+    /// interface can't inherit from the given parents since the number of data
+    /// types used by all of them exceeds maximum number.
+    TypesOverflow,
     /// too deep inheritance; it is not allowed for any interface to have more
     /// than 255 parents it inherits from, including all grandparents.
     InheritanceOverflow,
@@ -254,6 +252,7 @@ impl Iface {
         for (name, op) in ext.transitions {
             match self.transitions.remove(&name) {
                 Ok(None) if overflow => continue,
+                Ok(None) if op.optional => continue,
                 Ok(None) => {
                     self.transitions
                         .insert(name, op)
@@ -277,6 +276,7 @@ impl Iface {
         for (name, op) in ext.extensions {
             match self.extensions.remove(&name) {
                 Ok(None) if overflow => continue,
+                Ok(None) if op.optional => continue,
                 Ok(None) => {
                     self.extensions
                         .insert(name, op)
@@ -311,7 +311,10 @@ impl Iface {
         }
 
         if self.types != ext.types {
-            errors.push(ExtensionError::DifferentTypes);
+            self.types
+                .extend(ext.types.into_strict())
+                .map_err(|_| errors.push(ExtensionError::TypesOverflow))
+                .ok();
         }
 
         self.inherits
@@ -417,9 +420,7 @@ impl TransitionIface {
         } else if !self.modifier.can_be_overriden_by(ext.modifier) {
             errors.push(ExtensionError::OpNoOverride(op.clone()));
         }
-        if self.optional < ext.optional {
-            errors.push(ExtensionError::OpOptional(op.clone()))
-        }
+        self.optional = self.optional.max(ext.optional);
         if self.metadata.is_some() && ext.metadata.is_some() && self.metadata != ext.metadata {
             errors.push(ExtensionError::OpMetadata(op.clone()));
         }
@@ -459,9 +460,7 @@ impl ExtensionIface {
         } else if !self.modifier.can_be_overriden_by(ext.modifier) {
             errors.push(ExtensionError::OpNoOverride(op.clone()));
         }
-        if self.optional < ext.optional {
-            errors.push(ExtensionError::OpOptional(op.clone()))
-        }
+        self.optional = self.optional.max(ext.optional);
         if self.metadata.is_some() && ext.metadata.is_some() && self.metadata != ext.metadata {
             errors.push(ExtensionError::OpMetadata(op.clone()));
         }

@@ -95,4 +95,5 @@ wasm-bindgen-test = "0.3"
 features = ["all"]
 
 [patch.crates-io]
+strict_types = { git = "https://github.com/strict-types/strict-types", branch = "master" }
 rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "master" }
