@@ -78,6 +78,9 @@ pub enum ExtensionError {
     /// interface uses different type system from its parent. While in the
     /// future it is expected to be supported, right now this is prohibited.
     DifferentTypes,
+    /// too deep inheritance; it is not allowed for any interface to have more
+    /// than 255 parents it inherits from, including all grandparents.
+    InheritanceOverflow,
 }
 
 impl OwnedIface {
@@ -152,6 +155,8 @@ impl Iface {
     }
 
     pub fn extended(mut self, ext: Iface) -> Result<Iface, Vec<ExtensionError>> {
+        let parent_id = ext.iface_id();
+
         let mut errors = vec![];
         self.name = ext.name;
 
@@ -300,6 +305,12 @@ impl Iface {
         if self.types != ext.types {
             errors.push(ExtensionError::DifferentTypes);
         }
+
+        self.inherits
+            .extend(ext.inherits)
+            .and_then(|_| self.inherits.push(parent_id))
+            .map_err(|_| errors.push(ExtensionError::InheritanceOverflow))
+            .ok();
 
         if errors.is_empty() {
             Ok(self)
