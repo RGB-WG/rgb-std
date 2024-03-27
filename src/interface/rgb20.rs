@@ -635,8 +635,7 @@ impl PrimaryIssue {
             !self.deterministic,
             "to add asset allocation in deterministic way you must use issue_contract_det method"
         );
-
-        self.issue_contract_det(Utc::now().timestamp())
+        self.issue_contract_int(Utc::now().timestamp())
     }
 
     #[allow(clippy::result_large_err)]
@@ -646,7 +645,11 @@ impl PrimaryIssue {
             "to add asset allocation in deterministic way the contract builder has to be created \
              using `*_det` constructor"
         );
+        self.issue_contract_int(timestamp)
+    }
 
+    #[allow(clippy::result_large_err)]
+    fn issue_contract_int(self, timestamp: i64) -> Result<Contract, BuilderError> {
         self.builder
             .add_global_state("issuedSupply", self.issued)
             .expect("invalid RGB20 schema (issued supply mismatch)")
