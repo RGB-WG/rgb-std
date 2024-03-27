@@ -1065,8 +1065,10 @@ Consignmenttrue rec
     key bytes len=32 aka=IfaceId
     value rec IfacePair
       iface rec Iface
-        version enum VerNo v1=0
+        version enum VerNo v0=0 v1=1
         name ascii len=1..100 aka=TypeName aka=Ident charset=AlphaNumLodash
+        inherits set len=0..MAX8
+          element bytes len=32 aka=IfaceId
         globalState map len=0..MAX8
           key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
           value rec GlobalIface
@@ -1090,104 +1092,78 @@ Consignmenttrue rec
           key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
           value rec ValencyIface
             required enum Bool false=0 true=1
-            multiple enum Bool false=0 true=1
         genesis rec GenesisIface
-          some bytes len=32 option wrapped aka=SemId tag=1
-          global map len=0..MAX8
+          modifier enum Modifier final=0 abstract=1 override=2
+            some bytes len=32 option wrapped aka=SemId tag=1
+          globals map len=0..MAX8
             key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-            value rec ArgSpec
-              some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
-              req rec Occurrences
-                min is U16
-                max is U16
+            value rec Occurrences
+              min is U16
+              max is U16
           assignments map len=0..MAX8
             key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-            value rec ArgSpec
-              some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
-              req rec Occurrences
-                min is U16
-                max is U16
-          valencies map len=0..MAX8
-            key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-            value rec ArgSpec
-              some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
-              req rec Occurrences
-                min is U16
-                max is U16
+            value rec Occurrences
+              min is U16
+              max is U16
+          valencies set len=0..MAX8
+            element ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
           errors set len=0..MAX8
             element is U8
         transitions map len=0..MAX8
-          key ascii len=1..100 aka=TypeName aka=Ident charset=AlphaNumLodash
+          key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
           value rec TransitionIface
+            modifier enum Modifier final=0 abstract=1 override=2
             optional enum Bool false=0 true=1
               some bytes len=32 option wrapped aka=SemId tag=1
             globals map len=0..MAX8
               key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-              value rec ArgSpec
-                some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
-                req rec Occurrences
-                  min is U16
-                  max is U16
+              value rec Occurrences
+                min is U16
+                max is U16
             inputs map len=0..MAX8
               key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-              value rec ArgSpec
-                some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
-                req rec Occurrences
-                  min is U16
-                  max is U16
+              value rec Occurrences
+                min is U16
+                max is U16
             assignments map len=0..MAX8
               key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-              value rec ArgSpec
-                some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
-                req rec Occurrences
-                  min is U16
-                  max is U16
-            valencies map len=0..MAX8
-              key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-              value rec ArgSpec
-                some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
-                req rec Occurrences
-                  min is U16
-                  max is U16
+              value rec Occurrences
+                min is U16
+                max is U16
+            valencies set len=0..MAX8
+              element ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
             errors set len=0..MAX8
               element is U8
               some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
         extensions map len=0..MAX8
-          key ascii len=1..100 aka=TypeName aka=Ident charset=AlphaNumLodash
+          key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
           value rec ExtensionIface
-            some bytes len=32 option wrapped aka=SemId tag=1
+            modifier enum Modifier final=0 abstract=1 override=2
+            optional enum Bool false=0 true=1
+              some bytes len=32 option wrapped aka=SemId tag=1
             globals map len=0..MAX8
               key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-              value rec ArgSpec
-                some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
-                req rec Occurrences
-                  min is U16
-                  max is U16
-            redeems map len=0..MAX8
-              key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-              value rec ArgSpec
-                some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
-                req rec Occurrences
-                  min is U16
-                  max is U16
+              value rec Occurrences
+                min is U16
+                max is U16
             assignments map len=0..MAX8
               key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-              value rec ArgSpec
-                some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
-                req rec Occurrences
-                  min is U16
-                  max is U16
-            valencies map len=0..MAX8
-              key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
-              value rec ArgSpec
-                some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
-                req rec Occurrences
-                  min is U16
-                  max is U16
+              value rec Occurrences
+                min is U16
+                max is U16
+            redeems set len=0..MAX8
+              element ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
+            valencies set len=0..MAX8
+              element ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
             errors set len=0..MAX8
               element is U8
-        errorType bytes len=32 aka=SemId
-          some ascii len=1..100 option wrapped aka=TypeName aka=Ident charset=AlphaNumLodash tag=1
+              some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
+          some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
+        errors map len=0..MAX8
+          key rec Variant
+            name ascii len=1..100 aka=VariantName aka=Ident charset=AlphaNumLodash
+            tag is U8
+          value str len=0..MAX8
         types union Types
           strict map len=0..MAX24 wrapped aka=TypeSystem tag=0
             key bytes len=32 aka=SemId
@@ -1229,7 +1205,7 @@ Consignmenttrue rec
                   min is U64
                   max is U64
       iimpl rec IfaceImpl
-        version enum VerNo v1=0
+        version enum VerNo v0=0 v1=1
         schemaId bytes len=32 aka=SchemaId
         ifaceId bytes len=32 aka=IfaceId
         globalState set len=0..MAX8
@@ -1250,7 +1226,7 @@ Consignmenttrue rec
         transitions set len=0..MAX8
           NamedTypeTransitionType rec
             id is U16 aka=TransitionType
-            name ascii len=1..100 aka=TypeName aka=Ident charset=AlphaNumLodash
+            name ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
         extensions set len=0..MAX8
           NamedFieldExtensionType rec
             id is U16 aka=ExtensionType

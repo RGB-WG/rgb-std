@@ -22,24 +22,28 @@
 #![allow(unused_braces)]
 
 use std::fmt::Debug;
+use std::str::FromStr;
 
-use bp::bc::stl::bp_tx_stl;
+use bp::dbc::Method;
+use chrono::Utc;
 use invoice::{Amount, Precision};
-use rgb::Types;
-use strict_encoding::{StrictDumb, StrictEncode};
-use strict_types::stl::std_stl;
-use strict_types::{CompileError, LibBuilder, TypeLib};
+use rgb::{AltLayer1, AssetTag, BlindingFactor, GenesisSeal, Occurrences, Types};
+use strict_encoding::{InvalidIdent, Variant};
+use strict_types::TypeLib;
 
 use super::{
-    AssignIface, GenesisIface, GlobalIface, Iface, OwnedIface, Req, TransitionIface, VerNo,
+    AssignIface, BuilderError, ContractBuilder, GenesisIface, GlobalIface, Iface, IfaceClass,
+    IssuerClass, Modifier, OwnedIface, Req, SchemaIssuer, TransitionIface, TxOutpoint, VerNo,
 };
-use crate::interface::{ArgSpec, ContractIface, IfaceId, IfaceWrapper};
-use crate::stl::{rgb_contract_stl, ContractData, Details, Name, StandardTypes};
+use crate::containers::Contract;
+use crate::interface::rgb20::AllocationError;
+use crate::interface::{ContractIface, IfaceId, IfaceWrapper};
+use crate::persistence::PersistedState;
+use crate::stl::{
+    rgb_contract_stl, AssetTerms, Attachment, Details, Name, RicardianContract, StandardTypes,
+};
 
 pub const LIB_NAME_RGB25: &str = "RGB25";
-/// Strict types id for the library providing data types for RGB25 interface.
-pub const LIB_ID_RGB25: &str =
-    "urn:ubideco:stl:4JmGrg7oTgwuCQtyC4ezC38ToHMzgMCVS5kMSDPwo2ee#camera-betty-bank";
 
 const SUPPLY_MISMATCH: u8 = 1;
 const NON_EQUAL_AMOUNTS: u8 = 2;
@@ -47,44 +51,18 @@ const INVALID_PROOF: u8 = 3;
 const INSUFFICIENT_RESERVES: u8 = 4;
 const INSUFFICIENT_COVERAGE: u8 = 5;
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB25, tags = repr, into_u8, try_from_u8)]
-#[repr(u8)]
-pub enum Error {
-    #[strict_type(dumb)]
-    SupplyMismatch = SUPPLY_MISMATCH,
-    NonEqualAmounts = NON_EQUAL_AMOUNTS,
-    InvalidProof = INVALID_PROOF,
-    InsufficientReserves = INSUFFICIENT_RESERVES,
-    InsufficientCoverage = INSUFFICIENT_COVERAGE,
-}
-
-fn _rgb25_stl() -> Result<TypeLib, CompileError> {
-    LibBuilder::new(libname!(LIB_NAME_RGB25), tiny_bset! {
-        std_stl().to_dependency(),
-        bp_tx_stl().to_dependency(),
-        rgb_contract_stl().to_dependency(),
-    })
-    .transpile::<Error>()
-    .compile()
-}
-
-/// Generates strict type library providing data types for RGB25 interface.
-pub fn rgb25_stl() -> TypeLib { _rgb25_stl().expect("invalid strict type RGB25 library") }
-
-pub fn rgb25() -> Iface {
-    let types = StandardTypes::with(rgb25_stl());
+fn rgb25() -> Iface {
+    let types = StandardTypes::new();
 
     Iface {
         version: VerNo::V1,
         name: tn!("RGB25"),
+        inherits: none!(),
         global_state: tiny_bmap! {
             fname!("name") => GlobalIface::required(types.get("RGBContract.Name")),
             fname!("details") => GlobalIface::optional(types.get("RGBContract.Details")),
             fname!("precision") => GlobalIface::required(types.get("RGBContract.Precision")),
-            fname!("data") => GlobalIface::required(types.get("RGBContract.ContractData")),
-            fname!("created") => GlobalIface::required(types.get("RGBContract.Timestamp")),
+            fname!("terms") => GlobalIface::required(types.get("RGBContract.AssetTerms")),
             fname!("issuedSupply") => GlobalIface::required(types.get("RGBContract.Amount")),
             fname!("burnedSupply") => GlobalIface::none_or_many(types.get("RGBContract.Amount")),
         },
@@ -94,17 +72,17 @@ pub fn rgb25() -> Iface {
         },
         valencies: none!(),
         genesis: GenesisIface {
+            modifier: Modifier::Final,
             metadata: Some(types.get("RGBContract.IssueMeta")),
-            global: tiny_bmap! {
-                fname!("name") => ArgSpec::required(),
-                fname!("details") => ArgSpec::optional(),
-                fname!("precision") => ArgSpec::required(),
-                fname!("data") => ArgSpec::required(),
-                fname!("created") => ArgSpec::required(),
-                fname!("issuedSupply") => ArgSpec::required(),
+            globals: tiny_bmap! {
+                fname!("name") => Occurrences::Once,
+                fname!("details") => Occurrences::NoneOrOnce,
+                fname!("precision") => Occurrences::Once,
+                fname!("terms") => Occurrences::Once,
+                fname!("issuedSupply") => Occurrences::Once,
             },
             assignments: tiny_bmap! {
-                fname!("assetOwner") => ArgSpec::non_empty(),
+                fname!("assetOwner") => Occurrences::OnceOrMore,
             },
             valencies: none!(),
             errors: tiny_bset! {
@@ -114,33 +92,35 @@ pub fn rgb25() -> Iface {
             },
         },
         transitions: tiny_bmap! {
-            tn!("Transfer") => TransitionIface {
+            fname!("transfer") => TransitionIface {
+                modifier: Modifier::Final,
                 optional: false,
                 metadata: None,
                 globals: none!(),
                 inputs: tiny_bmap! {
-                    fname!("previous") => ArgSpec::from_non_empty("assetOwner"),
+                    fname!("assetOwner") => Occurrences::OnceOrMore,
                 },
                 assignments: tiny_bmap! {
-                    fname!("beneficiary") => ArgSpec::from_non_empty("assetOwner"),
+                    fname!("assetOwner") => Occurrences::OnceOrMore,
                 },
                 valencies: none!(),
                 errors: tiny_bset! {
                     NON_EQUAL_AMOUNTS
                 },
-                default_assignment: Some(fname!("beneficiary")),
+                default_assignment: Some(fname!("assetOwner")),
             },
-            tn!("Burn") => TransitionIface {
+            fname!("burn") => TransitionIface {
+                modifier: Modifier::Final,
                 optional: true,
                 metadata: Some(types.get("RGBContract.BurnMeta")),
                 globals: tiny_bmap! {
-                    fname!("burnedSupply") => ArgSpec::required(),
+                    fname!("burnedSupply") => Occurrences::Once,
                 },
                 inputs: tiny_bmap! {
-                    fname!("used") => ArgSpec::from_required("burnRight"),
+                    fname!("burnRight") => Occurrences::Once,
                 },
                 assignments: tiny_bmap! {
-                    fname!("future") => ArgSpec::from_optional("burnRight"),
+                    fname!("burnRight") => Occurrences::NoneOrOnce,
                 },
                 valencies: none!(),
                 errors: tiny_bset! {
@@ -152,8 +132,23 @@ pub fn rgb25() -> Iface {
             },
         },
         extensions: none!(),
-        error_type: types.get("RGB25.Error"),
-        default_operation: Some(tn!("Transfer")),
+        errors: tiny_bmap! {
+            Variant::named(SUPPLY_MISMATCH, vname!("supplyMismatch"))
+                => tiny_s!("supply specified as a global parameter doesn't match the issued supply allocated to the asset owners"),
+
+            Variant::named(NON_EQUAL_AMOUNTS, vname!("nonEqualAmounts"))
+                => tiny_s!("the sum of spent assets doesn't equal to the sum of assets in outputs"),
+
+            Variant::named(INVALID_PROOF, vname!("invalidProof"))
+                => tiny_s!("the provided proof is invalid"),
+
+            Variant::named(INSUFFICIENT_RESERVES, vname!("insufficientReserves"))
+                => tiny_s!("reserve is insufficient to cover the issued assets"),
+
+            Variant::named(INSUFFICIENT_COVERAGE, vname!("insufficientCoverage"))
+                => tiny_s!("the claimed amount of burned assets is not covered by the assets in the operation inputs"),
+        },
+        default_operation: Some(fname!("transfer")),
         types: Types::Strict(types.type_system()),
     }
 }
@@ -175,10 +170,15 @@ impl From<ContractIface> for Rgb25 {
 impl IfaceWrapper for Rgb25 {
     const IFACE_NAME: &'static str = LIB_NAME_RGB25;
     const IFACE_ID: IfaceId = IfaceId::from_array([
-        0x5a, 0x66, 0x0b, 0x4b, 0x1e, 0x96, 0x4a, 0xc5, 0x25, 0x40, 0x6c, 0x8a, 0x78, 0x1b, 0xf0,
-        0x46, 0xb4, 0xb4, 0xee, 0x98, 0xcf, 0xb6, 0x35, 0x1d, 0xd4, 0x11, 0xeb, 0x0d, 0x25, 0xb5,
-        0xcd, 0x46,
+        0xa3, 0x99, 0x9c, 0x09, 0xc3, 0x9a, 0xfd, 0x72, 0xd0, 0xdb, 0x4f, 0x39, 0x0a, 0xeb, 0xc7,
+        0xe8, 0xc9, 0x7d, 0x9c, 0x95, 0x4c, 0x7c, 0xca, 0x33, 0x8d, 0x06, 0xca, 0x37, 0x26, 0x2e,
+        0xc6, 0xee,
     ]);
+}
+
+impl IfaceClass for Rgb25 {
+    fn iface() -> Iface { rgb25() }
+    fn stl() -> TypeLib { rgb_contract_stl() }
 }
 
 impl Rgb25 {
@@ -228,13 +228,209 @@ impl Rgb25 {
             .sum()
     }
 
-    pub fn contract_data(&self) -> ContractData {
+    pub fn contract_terms(&self) -> AssetTerms {
         let strict_val = &self
             .0
-            .global("data")
-            .expect("RGB25 interface requires global `data`")[0];
-        ContractData::from_strict_val_unchecked(strict_val)
+            .global("terms")
+            .expect("RGB25 interface requires global `terms`")[0];
+        AssetTerms::from_strict_val_unchecked(strict_val)
     }
+}
+
+#[derive(Clone, Debug)]
+pub struct Issue {
+    builder: ContractBuilder,
+    issued: Amount,
+    terms: AssetTerms,
+    deterministic: bool,
+}
+
+impl Issue {
+    fn testnet_int(
+        issuer: SchemaIssuer<Rgb25>,
+        name: &str,
+        precision: Precision,
+    ) -> Result<Self, InvalidIdent> {
+        let terms = AssetTerms {
+            text: RicardianContract::default(),
+            media: None,
+        };
+
+        let (schema, main_iface_impl) = issuer.into_split();
+        let builder = ContractBuilder::testnet(rgb25(), schema, main_iface_impl)
+            .expect("schema interface mismatch")
+            .add_global_state("name", Name::try_from(name.to_owned())?)
+            .expect("invalid RGB25 schema (name mismatch)")
+            .add_global_state("name", precision)
+            .expect("invalid RGB25 schema (precision mismatch)");
+
+        Ok(Self {
+            builder,
+            terms,
+            issued: Amount::ZERO,
+            deterministic: false,
+        })
+    }
+
+    pub fn testnet<C: IssuerClass<IssuingIface = Rgb25>>(
+        name: &str,
+        precision: Precision,
+    ) -> Result<Self, InvalidIdent> {
+        Self::testnet_int(C::issuer(), name, precision)
+    }
+
+    pub fn testnet_with(
+        issuer: SchemaIssuer<Rgb25>,
+        name: &str,
+        precision: Precision,
+    ) -> Result<Self, InvalidIdent> {
+        Self::testnet_int(issuer, name, precision)
+    }
+
+    pub fn testnet_det<C: IssuerClass<IssuingIface = Rgb25>>(
+        name: &str,
+        precision: Precision,
+        asset_tag: AssetTag,
+    ) -> Result<Self, InvalidIdent> {
+        let mut me = Self::testnet_int(C::issuer(), name, precision)?;
+        me.builder = me
+            .builder
+            .add_asset_tag("assetOwner", asset_tag)
+            .expect("invalid RGB25 schema (assetOwner mismatch)");
+        me.deterministic = true;
+        Ok(me)
+    }
+
+    pub fn support_liquid(mut self) -> Self {
+        self.builder = self
+            .builder
+            .add_layer1(AltLayer1::Liquid)
+            .expect("only one layer1 can be added");
+        self
+    }
+
+    pub fn add_details(mut self, details: &str) -> Result<Self, InvalidIdent> {
+        self.builder = self
+            .builder
+            .add_global_state("details", Details::try_from(details.to_owned())?)
+            .expect("invalid RGB25 schema (details mismatch)");
+        Ok(self)
+    }
+
+    pub fn add_terms(
+        mut self,
+        contract: &str,
+        media: Option<Attachment>,
+    ) -> Result<Self, InvalidIdent> {
+        let terms = RicardianContract::from_str(contract)?;
+        self.terms = AssetTerms { text: terms, media };
+        Ok(self)
+    }
+
+    pub fn allocate<O: TxOutpoint>(
+        mut self,
+        method: Method,
+        beneficiary: O,
+        amount: Amount,
+    ) -> Result<Self, AllocationError> {
+        debug_assert!(
+            !self.deterministic,
+            "for creating deterministic contracts please use allocate_det method"
+        );
+
+        let beneficiary = beneficiary.map_to_xchain(|outpoint| {
+            GenesisSeal::new_random(method, outpoint.txid, outpoint.vout)
+        });
+        self.issued
+            .checked_add_assign(amount)
+            .ok_or(AllocationError::AmountOverflow)?;
+        self.builder =
+            self.builder
+                .add_fungible_state("assetOwner", beneficiary, amount.value())?;
+        Ok(self)
+    }
+
+    pub fn allocate_all<O: TxOutpoint>(
+        mut self,
+        method: Method,
+        allocations: impl IntoIterator<Item = (O, Amount)>,
+    ) -> Result<Self, AllocationError> {
+        for (beneficiary, amount) in allocations {
+            self = self.allocate(method, beneficiary, amount)?;
+        }
+        Ok(self)
+    }
+
+    /// Add asset allocation in a deterministic way.
+    pub fn allocate_det<O: TxOutpoint>(
+        mut self,
+        method: Method,
+        beneficiary: O,
+        seal_blinding: u64,
+        amount: Amount,
+        amount_blinding: BlindingFactor,
+    ) -> Result<Self, AllocationError> {
+        debug_assert!(
+            self.deterministic,
+            "to add asset allocation in deterministic way the contract builder has to be created \
+             using `*_det` constructor"
+        );
+
+        let tag = self
+            .builder
+            .asset_tag("assetOwner")
+            .expect("internal library error: asset tag is unassigned");
+        let beneficiary = beneficiary.map_to_xchain(|outpoint| {
+            GenesisSeal::with_blinding(method, outpoint.txid, outpoint.vout, seal_blinding)
+        });
+        self.issued
+            .checked_add_assign(amount)
+            .ok_or(AllocationError::AmountOverflow)?;
+        self.builder = self.builder.add_owned_state_det(
+            "assetOwner",
+            beneficiary,
+            PersistedState::Amount(amount, amount_blinding, tag),
+        )?;
+        Ok(self)
+    }
+
+    // TODO: implement when bulletproofs are supported
+    /*
+    pub fn conceal_allocations(mut self) -> Self {
+
+    }
+     */
+
+    #[allow(clippy::result_large_err)]
+    pub fn issue_contract(self) -> Result<Contract, BuilderError> {
+        debug_assert!(
+            !self.deterministic,
+            "to add asset allocation in deterministic way you must use issue_contract_det method"
+        );
+        self.issue_contract_det(Utc::now().timestamp())
+    }
+
+    #[allow(clippy::result_large_err)]
+    pub fn issue_contract_det(self, timestamp: i64) -> Result<Contract, BuilderError> {
+        debug_assert!(
+            self.deterministic,
+            "to add asset allocation in deterministic way the contract builder has to be created \
+             using `*_det` constructor"
+        );
+        self.issue_contract_int(timestamp)
+    }
+
+    #[allow(clippy::result_large_err)]
+    fn issue_contract_int(self, timestamp: i64) -> Result<Contract, BuilderError> {
+        self.builder
+            .add_global_state("issuedSupply", self.issued)
+            .expect("invalid RGB25 schema (issued supply mismatch)")
+            .add_global_state("terms", self.terms)
+            .expect("invalid RGB25 schema (contract terms mismatch)")
+            .issue_contract_det(timestamp)
+    }
+
+    // TODO: Add secondary issuance and other methods
 }
 
 #[cfg(test)]
@@ -244,12 +440,6 @@ mod test {
     use super::*;
 
     const RGB25: &str = include_str!("../../tests/data/rgb25.rgba");
-
-    #[test]
-    fn lib_id() {
-        let lib = rgb25_stl();
-        assert_eq!(lib.id().to_string(), LIB_ID_RGB25);
-    }
 
     #[test]
     fn iface_id() {
@@ -263,5 +453,15 @@ mod test {
     #[test]
     fn iface_bindle() {
         assert_eq!(format!("{}", rgb25().to_ascii_armored_string()), RGB25);
+    }
+
+    #[test]
+    fn iface_check() {
+        if let Err(err) = rgb25().check() {
+            for e in err {
+                eprintln!("{e}");
+            }
+            panic!("invalid RGB25 interface definition");
+        }
     }
 }

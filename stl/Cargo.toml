@@ -17,6 +17,7 @@ name = "rgb-stl"
 path = "src/main.rs"
 
 [dependencies]
+amplify = { workspace = true }
 strict_types = { workspace = true }
 commit_verify = { workspace = true }
 rgb-std = { version = "0.11.0-beta.4", path = ".." }

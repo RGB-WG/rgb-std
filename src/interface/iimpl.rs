@@ -31,7 +31,7 @@ use rgb::{
     AssignmentType, ExtensionType, GlobalStateType, SchemaId, Script, SubSchema, TransitionType,
     ValencyType,
 };
-use strict_encoding::{FieldName, StrictDumb, TypeName};
+use strict_encoding::{FieldName, StrictDumb};
 use strict_types::encoding::{
     StrictDecode, StrictDeserialize, StrictEncode, StrictSerialize, StrictType,
 };
@@ -157,7 +157,7 @@ impl<T: SchemaTypeIndex> NamedField<T> {
 )]
 pub struct NamedType<T: SchemaTypeIndex> {
     pub id: T,
-    pub name: TypeName,
+    pub name: FieldName,
     /// Reserved bytes for storing information about adaptor procedures
     pub reserved: ReservedBytes<0, 4>,
 }
@@ -169,10 +169,10 @@ where T: SchemaTypeIndex
 }
 
 impl<T: SchemaTypeIndex> NamedType<T> {
-    pub fn with(id: T, name: TypeName) -> NamedType<T> {
+    pub fn with(id: T, name: impl Into<FieldName>) -> NamedType<T> {
         NamedType {
             id,
-            name,
+            name: name.into(),
             reserved: default!(),
         }
     }
@@ -218,7 +218,7 @@ pub struct IfaceImpl {
     pub global_state: TinyOrdSet<NamedField<GlobalStateType>>,
     pub assignments: TinyOrdSet<NamedField<AssignmentType>>,
     pub valencies: TinyOrdSet<NamedField<ValencyType>>,
-    pub transitions: TinyOrdSet<NamedType<TransitionType>>,
+    pub transitions: TinyOrdSet<NamedField<TransitionType>>,
     pub extensions: TinyOrdSet<NamedField<ExtensionType>>,
     pub script: Script,
 }
@@ -244,7 +244,7 @@ impl IfaceImpl {
             .map(|nt| nt.id)
     }
 
-    pub fn transition_type(&self, name: &TypeName) -> Option<TransitionType> {
+    pub fn transition_type(&self, name: &FieldName) -> Option<TransitionType> {
         self.transitions
             .iter()
             .find(|nt| &nt.name == name)
@@ -292,7 +292,7 @@ impl IfaceImpl {
             .map(|nt| &nt.name)
     }
 
-    pub fn transition_name(&self, id: TransitionType) -> Option<&TypeName> {
+    pub fn transition_name(&self, id: TransitionType) -> Option<&FieldName> {
         self.transitions
             .iter()
             .find(|nt| nt.id == id)
@@ -338,11 +338,11 @@ impl IfacePair {
         self.iimpl.assignment_name(assignment_type)
     }
 
-    pub fn transition_type(&self, name: &TypeName) -> Option<TransitionType> {
+    pub fn transition_type(&self, name: &FieldName) -> Option<TransitionType> {
         self.iimpl.transition_type(name)
     }
 
-    pub fn transition_name(&self, transition_type: TransitionType) -> Option<&TypeName> {
+    pub fn transition_name(&self, transition_type: TransitionType) -> Option<&FieldName> {
         self.iimpl.transition_name(transition_type)
     }
 }

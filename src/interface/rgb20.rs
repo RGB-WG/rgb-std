@@ -22,33 +22,28 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
-use bp::bc::stl::bp_tx_stl;
 use bp::dbc::Method;
+use chrono::Utc;
 use invoice::{Amount, Precision};
-use rgb::{AltLayer1, AssetTag, BlindingFactor, GenesisSeal, Types, WitnessId};
-use strict_encoding::InvalidIdent;
-use strict_types::{CompileError, LibBuilder, TypeLib};
+use rgb::{AltLayer1, AssetTag, BlindingFactor, GenesisSeal, Occurrences, Types, WitnessId};
+use strict_encoding::{InvalidIdent, Variant};
+use strict_types::TypeLib;
 
 use super::{
     AssignIface, BuilderError, ContractBuilder, GenesisIface, GlobalIface, Iface, IfaceClass,
-    IfaceOp, IssuerClass, OwnedIface, Req, RightsAllocation, SchemaIssuer, StateChange,
+    IfaceOp, IssuerClass, Modifier, OwnedIface, Req, RightsAllocation, SchemaIssuer, StateChange,
     TransitionIface, VerNo, WitnessFilter,
 };
 use crate::containers::Contract;
 use crate::interface::builder::TxOutpoint;
-use crate::interface::{
-    ArgSpec, ContractIface, FungibleAllocation, IfaceId, IfaceWrapper, OutpointFilter,
-};
+use crate::interface::{ContractIface, FungibleAllocation, IfaceId, IfaceWrapper, OutpointFilter};
 use crate::persistence::PersistedState;
 use crate::stl::{
-    rgb_contract_stl, Attachment, ContractData, DivisibleAssetSpec, RicardianContract,
-    StandardTypes, Timestamp,
+    rgb_contract_stl, AssetSpec, AssetTerms, Attachment, RicardianContract, StandardTypes,
 };
+use crate::LIB_NAME_RGB_STD;
 
 pub const LIB_NAME_RGB20: &str = "RGB20";
-/// Strict types id for the library providing data types for RGB20 interface.
-pub const LIB_ID_RGB20: &str =
-    "urn:ubideco:stl:GVz4mvYE94aQ9q2HPtV9VuoppcDdduP54BMKffF7YoFH#prince-scarlet-ringo";
 
 const SUPPLY_MISMATCH: u8 = 1;
 const NON_EQUAL_AMOUNTS: u8 = 2;
@@ -57,42 +52,16 @@ const INSUFFICIENT_RESERVES: u8 = 4;
 const INSUFFICIENT_COVERAGE: u8 = 5;
 const ISSUE_EXCEEDS_ALLOWANCE: u8 = 6;
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB20, tags = repr, into_u8, try_from_u8)]
-#[repr(u8)]
-pub enum Error {
-    #[strict_type(dumb)]
-    SupplyMismatch = SUPPLY_MISMATCH,
-    NonEqualAmounts = NON_EQUAL_AMOUNTS,
-    InvalidProof = INVALID_PROOF,
-    InsufficientReserves = INSUFFICIENT_RESERVES,
-    InsufficientCoverage = INSUFFICIENT_COVERAGE,
-    IssueExceedsAllowance = ISSUE_EXCEEDS_ALLOWANCE,
-}
-
-fn _rgb20_stl() -> Result<TypeLib, CompileError> {
-    LibBuilder::new(libname!(LIB_NAME_RGB20), tiny_bset! {
-        bp_tx_stl().to_dependency(),
-        rgb_contract_stl().to_dependency()
-    })
-    .transpile::<Error>()
-    .compile()
-}
-
-/// Generates strict type library providing data types for RGB20 interface.
-fn rgb20_stl() -> TypeLib { _rgb20_stl().expect("invalid strict type RGB20 library") }
-
 fn rgb20() -> Iface {
-    let types = StandardTypes::with(rgb20_stl());
+    let types = StandardTypes::new();
 
     Iface {
         version: VerNo::V1,
         name: tn!("RGB20"),
+        inherits: none!(),
         global_state: tiny_bmap! {
-            fname!("spec") => GlobalIface::required(types.get("RGBContract.DivisibleAssetSpec")),
-            fname!("data") => GlobalIface::required(types.get("RGBContract.ContractData")),
-            fname!("created") => GlobalIface::required(types.get("RGBContract.Timestamp")),
+            fname!("spec") => GlobalIface::required(types.get("RGBContract.AssetSpec")),
+            fname!("terms") => GlobalIface::required(types.get("RGBContract.AssetTerms")),
             fname!("issuedSupply") => GlobalIface::one_or_many(types.get("RGBContract.Amount")),
             fname!("burnedSupply") => GlobalIface::none_or_many(types.get("RGBContract.Amount")),
             fname!("replacedSupply") => GlobalIface::none_or_many(types.get("RGBContract.Amount")),
@@ -106,18 +75,18 @@ fn rgb20() -> Iface {
         },
         valencies: none!(),
         genesis: GenesisIface {
+            modifier: Modifier::Final,
             metadata: Some(types.get("RGBContract.IssueMeta")),
-            global: tiny_bmap! {
-                fname!("spec") => ArgSpec::required(),
-                fname!("data") => ArgSpec::required(),
-                fname!("created") => ArgSpec::required(),
-                fname!("issuedSupply") => ArgSpec::required(),
+            globals: tiny_bmap! {
+                fname!("spec") => Occurrences::Once,
+                fname!("terms") => Occurrences::Once,
+                fname!("issuedSupply") => Occurrences::Once,
             },
             assignments: tiny_bmap! {
-                fname!("assetOwner") => ArgSpec::many(),
-                fname!("inflationAllowance") => ArgSpec::many(),
-                fname!("updateRight") => ArgSpec::optional(),
-                fname!("burnEpoch") => ArgSpec::optional(),
+                fname!("assetOwner") => Occurrences::NoneOrMore,
+                fname!("inflationAllowance") => Occurrences::NoneOrMore,
+                fname!("updateRight") => Occurrences::NoneOrOnce,
+                fname!("burnEpoch") => Occurrences::NoneOrOnce,
             },
             valencies: none!(),
             errors: tiny_bset! {
@@ -127,34 +96,36 @@ fn rgb20() -> Iface {
             },
         },
         transitions: tiny_bmap! {
-            tn!("Transfer") => TransitionIface {
+            fname!("transfer") => TransitionIface {
+                modifier: Modifier::Final,
                 optional: false,
                 metadata: None,
                 globals: none!(),
                 inputs: tiny_bmap! {
-                    fname!("previous") => ArgSpec::from_non_empty("assetOwner"),
+                    fname!("assetOwner") => Occurrences::OnceOrMore,
                 },
                 assignments: tiny_bmap! {
-                    fname!("beneficiary") => ArgSpec::from_non_empty("assetOwner"),
+                    fname!("assetOwner") => Occurrences::OnceOrMore,
                 },
                 valencies: none!(),
                 errors: tiny_bset! {
                     NON_EQUAL_AMOUNTS
                 },
-                default_assignment: Some(fname!("beneficiary")),
+                default_assignment: Some(fname!("assetOwner")),
             },
-            tn!("Issue") => TransitionIface {
+            fname!("issue") => TransitionIface {
+                modifier: Modifier::Final,
                 optional: true,
                 metadata: Some(types.get("RGBContract.IssueMeta")),
                 globals: tiny_bmap! {
-                    fname!("issuedSupply") => ArgSpec::required(),
+                    fname!("issuedSupply") => Occurrences::Once,
                 },
                 inputs: tiny_bmap! {
-                    fname!("used") => ArgSpec::from_non_empty("inflationAllowance"),
+                    fname!("inflationAllowance") => Occurrences::OnceOrMore,
                 },
                 assignments: tiny_bmap! {
-                    fname!("beneficiary") => ArgSpec::from_many("assetOwner"),
-                    fname!("future") => ArgSpec::from_many("inflationAllowance"),
+                    fname!("assetOwner") => Occurrences::NoneOrMore,
+                    fname!("inflationAllowance") => Occurrences::NoneOrMore,
                 },
                 valencies: none!(),
                 errors: tiny_bset! {
@@ -163,34 +134,36 @@ fn rgb20() -> Iface {
                     ISSUE_EXCEEDS_ALLOWANCE,
                     INSUFFICIENT_RESERVES
                 },
-                default_assignment: Some(fname!("beneficiary")),
+                default_assignment: Some(fname!("assetOwner")),
             },
-            tn!("OpenEpoch") => TransitionIface {
+            fname!("openEpoch") => TransitionIface {
+                modifier: Modifier::Final,
                 optional: true,
                 metadata: None,
                 globals: none!(),
                 inputs: tiny_bmap! {
-                    fname!("used") => ArgSpec::from_required("burnEpoch"),
+                    fname!("burnEpoch") => Occurrences::Once,
                 },
                 assignments: tiny_bmap! {
-                    fname!("next") => ArgSpec::from_optional("burnEpoch"),
-                    fname!("burnRight") => ArgSpec::required()
+                    fname!("burnEpoch") => Occurrences::NoneOrOnce,
+                    fname!("burnRight") => Occurrences::Once,
                 },
                 valencies: none!(),
                 errors: none!(),
                 default_assignment: Some(fname!("burnRight")),
             },
-            tn!("Burn") => TransitionIface {
+            fname!("burn") => TransitionIface {
+                modifier: Modifier::Final,
                 optional: true,
                 metadata: Some(types.get("RGBContract.BurnMeta")),
                 globals: tiny_bmap! {
-                    fname!("burnedSupply") => ArgSpec::required(),
+                    fname!("burnedSupply") => Occurrences::Once,
                 },
                 inputs: tiny_bmap! {
-                    fname!("used") => ArgSpec::from_required("burnRight"),
+                    fname!("burnRight") => Occurrences::Once,
                 },
                 assignments: tiny_bmap! {
-                    fname!("future") => ArgSpec::from_optional("burnRight"),
+                    fname!("burnRight") => Occurrences::NoneOrOnce,
                 },
                 valencies: none!(),
                 errors: tiny_bset! {
@@ -200,18 +173,19 @@ fn rgb20() -> Iface {
                 },
                 default_assignment: None,
             },
-            tn!("Replace") => TransitionIface {
+            fname!("replace") => TransitionIface {
+                modifier: Modifier::Final,
                 optional: true,
                 metadata: Some(types.get("RGBContract.BurnMeta")),
                 globals: tiny_bmap! {
-                    fname!("replacedSupply") => ArgSpec::required(),
+                    fname!("replacedSupply") => Occurrences::Once,
                 },
                 inputs: tiny_bmap! {
-                    fname!("used") => ArgSpec::from_required("burnRight"),
+                    fname!("burnRight") => Occurrences::Once,
                 },
                 assignments: tiny_bmap! {
-                    fname!("beneficiary") => ArgSpec::from_many("assetOwner"),
-                    fname!("future") => ArgSpec::from_optional("burnRight"),
+                    fname!("assetOwner") => Occurrences::NoneOrMore,
+                    fname!("burnRight") => Occurrences::NoneOrOnce,
                 },
                 valencies: none!(),
                 errors: tiny_bset! {
@@ -220,35 +194,54 @@ fn rgb20() -> Iface {
                     INVALID_PROOF,
                     INSUFFICIENT_COVERAGE
                 },
-                default_assignment: Some(fname!("beneficiary")),
+                default_assignment: Some(fname!("assetOwner")),
             },
-            tn!("Rename") => TransitionIface {
+            fname!("rename") => TransitionIface {
+                modifier: Modifier::Final,
                 optional: true,
                 metadata: None,
                 globals: tiny_bmap! {
-                    fname!("new") => ArgSpec::from_required("spec"),
+                    fname!("spec") => Occurrences::Once,
                 },
                 inputs: tiny_bmap! {
-                    fname!("used") => ArgSpec::from_required("updateRight"),
+                    fname!("updateRight") => Occurrences::Once,
                 },
                 assignments: tiny_bmap! {
-                    fname!("future") => ArgSpec::from_optional("updateRight"),
+                    fname!("updateRight") => Occurrences::NoneOrOnce,
                 },
                 valencies: none!(),
                 errors: none!(),
-                default_assignment: Some(fname!("future")),
+                default_assignment: Some(fname!("updateRight")),
             },
         },
         extensions: none!(),
-        error_type: types.get("RGB20.Error"),
-        default_operation: Some(tn!("Transfer")),
+        errors: tiny_bmap! {
+            Variant::named(SUPPLY_MISMATCH, vname!("supplyMismatch"))
+                => tiny_s!("supply specified as a global parameter doesn't match the issued supply allocated to the asset owners"),
+
+            Variant::named(NON_EQUAL_AMOUNTS, vname!("nonEqualAmounts"))
+                => tiny_s!("the sum of spent assets doesn't equal to the sum of assets in outputs"),
+
+            Variant::named(INVALID_PROOF, vname!("invalidProof"))
+                => tiny_s!("the provided proof is invalid"),
+
+            Variant::named(INSUFFICIENT_RESERVES, vname!("insufficientReserves"))
+                => tiny_s!("reserve is insufficient to cover the issued assets"),
+
+            Variant::named(INSUFFICIENT_COVERAGE, vname!("insufficientCoverage"))
+                => tiny_s!("the claimed amount of burned assets is not covered by the assets in the operation inputs"),
+
+            Variant::named(ISSUE_EXCEEDS_ALLOWANCE, vname!("issueExceedsAllowance"))
+                => tiny_s!("you try to issue more assets than allowed by the contract terms"),
+        },
+        default_operation: Some(fname!("transfer")),
         types: Types::Strict(types.type_system()),
     }
 }
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_ID_RGB20, tags = custom)]
+#[strict_type(lib = LIB_NAME_RGB_STD, tags = custom)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
@@ -315,15 +308,15 @@ impl From<ContractIface> for Rgb20 {
 impl IfaceWrapper for Rgb20 {
     const IFACE_NAME: &'static str = LIB_NAME_RGB20;
     const IFACE_ID: IfaceId = IfaceId::from_array([
-        0x7d, 0xdf, 0xc8, 0xc1, 0xcc, 0x65, 0x68, 0x28, 0xa5, 0x38, 0x22, 0x01, 0x8f, 0x4c, 0xbf,
-        0xd4, 0x4a, 0xab, 0xca, 0x3f, 0x86, 0x53, 0xbf, 0x59, 0xda, 0x63, 0xf6, 0xb1, 0xf8, 0x2a,
-        0x0a, 0x8a,
+        0xd8, 0x06, 0x97, 0xca, 0xf5, 0xc6, 0x15, 0x59, 0xd9, 0xa1, 0xb9, 0xc9, 0xbd, 0x8f, 0x32,
+        0x0d, 0xf1, 0x30, 0xd4, 0x51, 0x8b, 0xbe, 0x1d, 0x13, 0x0e, 0xf0, 0xf9, 0xab, 0xf5, 0x5f,
+        0x03, 0x83,
     ]);
 }
 
 impl IfaceClass for Rgb20 {
     fn iface() -> Iface { rgb20() }
-    fn stl() -> TypeLib { rgb20_stl() }
+    fn stl() -> TypeLib { rgb_contract_stl() }
 }
 
 impl Rgb20 {
@@ -341,26 +334,17 @@ impl Rgb20 {
         name: &str,
         details: Option<&str>,
         precision: Precision,
-        timestamp: Timestamp,
         asset_tag: AssetTag,
     ) -> Result<PrimaryIssue, InvalidIdent> {
-        PrimaryIssue::testnet_det::<C>(ticker, name, details, precision, timestamp, asset_tag)
+        PrimaryIssue::testnet_det::<C>(ticker, name, details, precision, asset_tag)
     }
 
-    pub fn spec(&self) -> DivisibleAssetSpec {
+    pub fn spec(&self) -> AssetSpec {
         let strict_val = &self
             .0
             .global("spec")
             .expect("RGB20 interface requires global state `spec`")[0];
-        DivisibleAssetSpec::from_strict_val_unchecked(strict_val)
-    }
-
-    pub fn created(&self) -> Timestamp {
-        let strict_val = &self
-            .0
-            .global("created")
-            .expect("RGB20 interface requires global state `created`")[0];
-        Timestamp::from_strict_val_unchecked(strict_val)
+        AssetSpec::from_strict_val_unchecked(strict_val)
     }
 
     pub fn balance(&self, filter: impl OutpointFilter) -> Amount {
@@ -414,12 +398,12 @@ impl Rgb20 {
             .expect("RGB20 interface requires `updateRight` state")
     }
 
-    pub fn contract_data(&self) -> ContractData {
+    pub fn contract_terms(&self) -> AssetTerms {
         let strict_val = &self
             .0
-            .global("data")
-            .expect("RGB20 interface requires global `data`")[0];
-        ContractData::from_strict_val_unchecked(strict_val)
+            .global("terms")
+            .expect("RGB20 interface requires global `terms`")[0];
+        AssetTerms::from_strict_val_unchecked(strict_val)
     }
 
     pub fn total_issued_supply(&self) -> Amount {
@@ -486,7 +470,7 @@ impl From<BuilderError> for AllocationError {
 pub struct PrimaryIssue {
     builder: ContractBuilder,
     issued: Amount,
-    contract_data: ContractData,
+    terms: AssetTerms,
     deterministic: bool,
 }
 
@@ -497,11 +481,10 @@ impl PrimaryIssue {
         name: &str,
         details: Option<&str>,
         precision: Precision,
-        timestamp: Timestamp,
     ) -> Result<Self, InvalidIdent> {
-        let spec = DivisibleAssetSpec::with(ticker, name, precision, details)?;
-        let contract_data = ContractData {
-            terms: RicardianContract::default(),
+        let spec = AssetSpec::with(ticker, name, precision, details)?;
+        let terms = AssetTerms {
+            text: RicardianContract::default(),
             media: None,
         };
 
@@ -509,13 +492,11 @@ impl PrimaryIssue {
         let builder = ContractBuilder::testnet(rgb20(), schema, main_iface_impl)
             .expect("schema interface mismatch")
             .add_global_state("spec", spec)
-            .expect("invalid RGB20 schema (token specification mismatch)")
-            .add_global_state("created", timestamp)
-            .expect("invalid RGB20 schema (creation timestamp mismatch)");
+            .expect("invalid RGB20 schema (token specification mismatch)");
 
         Ok(Self {
             builder,
-            contract_data,
+            terms,
             issued: Amount::ZERO,
             deterministic: false,
         })
@@ -527,7 +508,7 @@ impl PrimaryIssue {
         details: Option<&str>,
         precision: Precision,
     ) -> Result<Self, InvalidIdent> {
-        Self::testnet_int(C::issuer(), ticker, name, details, precision, Timestamp::now())
+        Self::testnet_int(C::issuer(), ticker, name, details, precision)
     }
 
     pub fn testnet_with(
@@ -537,7 +518,7 @@ impl PrimaryIssue {
         details: Option<&str>,
         precision: Precision,
     ) -> Result<Self, InvalidIdent> {
-        Self::testnet_int(issuer, ticker, name, details, precision, Timestamp::now())
+        Self::testnet_int(issuer, ticker, name, details, precision)
     }
 
     pub fn testnet_det<C: IssuerClass<IssuingIface = Rgb20>>(
@@ -545,10 +526,9 @@ impl PrimaryIssue {
         name: &str,
         details: Option<&str>,
         precision: Precision,
-        timestamp: Timestamp,
         asset_tag: AssetTag,
     ) -> Result<Self, InvalidIdent> {
-        let mut me = Self::testnet_int(C::issuer(), ticker, name, details, precision, timestamp)?;
+        let mut me = Self::testnet_int(C::issuer(), ticker, name, details, precision)?;
         me.builder = me
             .builder
             .add_asset_tag("assetOwner", asset_tag)
@@ -571,7 +551,7 @@ impl PrimaryIssue {
         media: Option<Attachment>,
     ) -> Result<Self, InvalidIdent> {
         let terms = RicardianContract::from_str(contract)?;
-        self.contract_data = ContractData { terms, media };
+        self.terms = AssetTerms { text: terms, media };
         Ok(self)
     }
 
@@ -619,7 +599,7 @@ impl PrimaryIssue {
         amount_blinding: BlindingFactor,
     ) -> Result<Self, AllocationError> {
         debug_assert!(
-            !self.deterministic,
+            self.deterministic,
             "to add asset allocation in deterministic way the contract builder has to be created \
              using `*_det` constructor"
         );
@@ -651,12 +631,31 @@ impl PrimaryIssue {
 
     #[allow(clippy::result_large_err)]
     pub fn issue_contract(self) -> Result<Contract, BuilderError> {
+        debug_assert!(
+            !self.deterministic,
+            "to add asset allocation in deterministic way you must use issue_contract_det method"
+        );
+        self.issue_contract_int(Utc::now().timestamp())
+    }
+
+    #[allow(clippy::result_large_err)]
+    pub fn issue_contract_det(self, timestamp: i64) -> Result<Contract, BuilderError> {
+        debug_assert!(
+            self.deterministic,
+            "to add asset allocation in deterministic way the contract builder has to be created \
+             using `*_det` constructor"
+        );
+        self.issue_contract_int(timestamp)
+    }
+
+    #[allow(clippy::result_large_err)]
+    fn issue_contract_int(self, timestamp: i64) -> Result<Contract, BuilderError> {
         self.builder
             .add_global_state("issuedSupply", self.issued)
             .expect("invalid RGB20 schema (issued supply mismatch)")
-            .add_global_state("data", self.contract_data)
-            .expect("invalid RGB20 schema (contract data mismatch)")
-            .issue_contract()
+            .add_global_state("terms", self.terms)
+            .expect("invalid RGB20 schema (contract terms mismatch)")
+            .issue_contract_det(timestamp)
     }
 
     // TODO: Add secondary issuance and other methods
@@ -671,12 +670,6 @@ mod test {
     const RGB20: &str = include_str!("../../tests/data/rgb20.rgba");
 
     #[test]
-    fn lib_id() {
-        let lib = rgb20_stl();
-        assert_eq!(lib.id().to_string(), LIB_ID_RGB20);
-    }
-
-    #[test]
     fn iface_id() {
         eprintln!("{:#04x?}", rgb20().iface_id().to_byte_array());
         assert_eq!(Rgb20::IFACE_ID, rgb20().iface_id());
@@ -688,5 +681,15 @@ mod test {
     #[test]
     fn iface_bindle() {
         assert_eq!(format!("{}", rgb20().to_ascii_armored_string()), RGB20);
+    }
+
+    #[test]
+    fn iface_check() {
+        if let Err(err) = rgb20().check() {
+            for e in err {
+                eprintln!("{e}");
+            }
+            panic!("invalid RGB20 interface definition");
+        }
     }
 }

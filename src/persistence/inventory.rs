@@ -35,7 +35,7 @@ use rgb::{
     OpId, Operation, Opout, SchemaId, SecretSeal, SubSchema, Transition, TransitionBundle,
     WitnessId, XAnchor, XChain, XOutpoint, XOutputSeal,
 };
-use strict_encoding::TypeName;
+use strict_encoding::{FieldName, TypeName};
 
 use crate::accessors::{BundleExt, MergeRevealError, RevealError};
 use crate::containers::{
@@ -464,7 +464,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         &self,
         contract_id: ContractId,
         iface: impl Into<TypeName>,
-        transition_name: Option<impl Into<TypeName>>,
+        transition_name: Option<impl Into<FieldName>>,
     ) -> Result<TransitionBuilder, InventoryError<Self::Error>>
     where
         Self::Error: From<<Self::Stash as Stash>::Error>,
