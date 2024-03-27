@@ -228,11 +228,11 @@ impl Rgb25 {
             .sum()
     }
 
-    pub fn contract_data(&self) -> AssetTerms {
+    pub fn contract_terms(&self) -> AssetTerms {
         let strict_val = &self
             .0
-            .global("data")
-            .expect("RGB25 interface requires global `data`")[0];
+            .global("terms")
+            .expect("RGB25 interface requires global `terms`")[0];
         AssetTerms::from_strict_val_unchecked(strict_val)
     }
 }
@@ -425,8 +425,8 @@ impl Issue {
         self.builder
             .add_global_state("issuedSupply", self.issued)
             .expect("invalid RGB25 schema (issued supply mismatch)")
-            .add_global_state("data", self.terms)
-            .expect("invalid RGB25 schema (contract data mismatch)")
+            .add_global_state("terms", self.terms)
+            .expect("invalid RGB25 schema (contract terms mismatch)")
             .issue_contract_det(timestamp)
     }
 

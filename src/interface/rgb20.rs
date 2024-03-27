@@ -398,11 +398,11 @@ impl Rgb20 {
             .expect("RGB20 interface requires `updateRight` state")
     }
 
-    pub fn contract_data(&self) -> AssetTerms {
+    pub fn contract_terms(&self) -> AssetTerms {
         let strict_val = &self
             .0
-            .global("data")
-            .expect("RGB20 interface requires global `data`")[0];
+            .global("terms")
+            .expect("RGB20 interface requires global `terms`")[0];
         AssetTerms::from_strict_val_unchecked(strict_val)
     }
 
@@ -653,8 +653,8 @@ impl PrimaryIssue {
         self.builder
             .add_global_state("issuedSupply", self.issued)
             .expect("invalid RGB20 schema (issued supply mismatch)")
-            .add_global_state("data", self.terms)
-            .expect("invalid RGB20 schema (contract data mismatch)")
+            .add_global_state("terms", self.terms)
+            .expect("invalid RGB20 schema (contract terms mismatch)")
             .issue_contract_det(timestamp)
     }
 

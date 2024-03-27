@@ -156,7 +156,7 @@ impl EmbeddedMedia {
     pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
         let ty = MediaType::from_strict_val_unchecked(value.unwrap_struct("type"));
         let data =
-            SmallBlob::from_collection_unsafe(value.unwrap_struct("data").unwrap_bytes().into());
+            SmallBlob::from_collection_unsafe(value.unwrap_struct("terms").unwrap_bytes().into());
 
         Self { ty, data }
     }
