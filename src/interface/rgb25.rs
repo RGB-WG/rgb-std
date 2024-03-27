@@ -370,7 +370,7 @@ impl Issue {
         amount_blinding: BlindingFactor,
     ) -> Result<Self, AllocationError> {
         debug_assert!(
-            !self.deterministic,
+            self.deterministic,
             "to add asset allocation in deterministic way the contract builder has to be created \
              using `*_det` constructor"
         );
