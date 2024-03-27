@@ -24,7 +24,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::error::Error;
 use std::ops::Deref;
 
-use amplify::confinement::{self, Confined, MediumVec, U24};
+use amplify::confinement::{self, Confined, U24};
 use bp::seals::txout::CloseMethod;
 use bp::{Txid, Vout};
 use chrono::Utc;
@@ -817,14 +817,14 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         };
 
         // 2. Prepare transition
-        let mut main_inputs = MediumVec::<XOutputSeal>::new();
+        let mut main_inputs = Vec::<XOutputSeal>::new();
         let mut sum_inputs = Amount::ZERO;
         let mut data_inputs = vec![];
         for ((opout, output), mut state) in
             self.state_for_outpoints(contract_id, prev_outputs.iter().cloned())?
         {
             main_builder = main_builder.add_input(opout, state.clone())?;
-            main_inputs.push(output)?;
+            main_inputs.push(output);
             if opout.ty != assignment_id {
                 let seal = output_for_assignment(contract_id, opout.ty)?;
                 state.update_blinding(pedersen_blinder(contract_id, assignment_id));
