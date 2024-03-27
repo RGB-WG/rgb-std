@@ -20,7 +20,7 @@
 // limitations under the License.
 
 use std::cmp::Ordering;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::hash::{Hash, Hasher};
 use std::ops::{BitOr, BitOrAssign};
 use std::vec;
@@ -122,7 +122,7 @@ impl CloseMethodSet {
 )]
 pub struct TransitionInfo {
     pub id: OpId,
-    pub inputs: Confined<Vec<XOutpoint>, 1, U24>,
+    pub inputs: Confined<BTreeSet<XOutpoint>, 1, U24>,
     pub transition: Transition,
     pub methods: CloseMethodSet,
 }
@@ -152,7 +152,7 @@ impl TransitionInfo {
         transition: Transition,
         seals: impl AsRef<[XOutputSeal]>,
     ) -> Result<Self, confinement::Error> {
-        let inputs = Confined::<Vec<_>, 1, U24>::try_from_iter(
+        let inputs = Confined::<BTreeSet<_>, 1, U24>::try_from_iter(
             seals.as_ref().iter().copied().map(XOutpoint::from),
         )?;
         let methods = seals
