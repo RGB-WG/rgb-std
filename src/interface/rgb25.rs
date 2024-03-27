@@ -25,6 +25,7 @@ use std::fmt::Debug;
 use std::str::FromStr;
 
 use bp::dbc::Method;
+use chrono::Utc;
 use invoice::{Amount, Precision};
 use rgb::{AltLayer1, AssetTag, BlindingFactor, GenesisSeal, Occurrences, Types};
 use strict_encoding::{InvalidIdent, Variant};
@@ -402,12 +403,28 @@ impl Issue {
 
     #[allow(clippy::result_large_err)]
     pub fn issue_contract(self) -> Result<Contract, BuilderError> {
+        debug_assert!(
+            !self.deterministic,
+            "to add asset allocation in deterministic way you must use issue_contract_det method"
+        );
+
+        self.issue_contract_det(Utc::now().timestamp())
+    }
+
+    #[allow(clippy::result_large_err)]
+    pub fn issue_contract_det(self, timestamp: i64) -> Result<Contract, BuilderError> {
+        debug_assert!(
+            self.deterministic,
+            "to add asset allocation in deterministic way the contract builder has to be created \
+             using `*_det` constructor"
+        );
+
         self.builder
             .add_global_state("issuedSupply", self.issued)
             .expect("invalid RGB25 schema (issued supply mismatch)")
             .add_global_state("data", self.terms)
             .expect("invalid RGB25 schema (contract data mismatch)")
-            .issue_contract()
+            .issue_contract_det(timestamp)
     }
 
     // TODO: Add secondary issuance and other methods
