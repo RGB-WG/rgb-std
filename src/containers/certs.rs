@@ -27,22 +27,6 @@ use rgb::{ContractId, SchemaId};
 use crate::interface::{IfaceId, ImplId, SupplId};
 use crate::LIB_NAME_RGB_STD;
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD, tags = order, dumb = ContentId::Schema(strict_dumb!()))]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-pub enum ContentId {
-    Schema(SchemaId),
-    Genesis(ContractId),
-    Iface(IfaceId),
-    IfaceImpl(ImplId),
-    Suppl(SupplId),
-}
-
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Display)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]

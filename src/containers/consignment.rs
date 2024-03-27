@@ -42,7 +42,7 @@ use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 
 use super::{ContainerVer, ContentId, ContentSigs, Terminal, TerminalDisclose};
 use crate::accessors::BundleExt;
-use crate::interface::{ContractSuppl, IfaceId, IfacePair};
+use crate::interface::{ContractSuppl, Iface, IfaceId, IfaceImpl, IfacePair};
 use crate::resolvers::ResolveHeight;
 use crate::LIB_NAME_RGB_STD;
 
@@ -158,8 +158,11 @@ pub struct Consignment<const TYPE: bool> {
     /// Schema (plus root schema, if any) under which contract is issued.
     pub schema: SubSchema,
 
-    /// Interfaces supported by the contract.
-    pub ifaces: TinyOrdMap<IfaceId, IfacePair>,
+    /// Interfaces used by the contract.
+    pub ifaces: TinyOrdSet<Iface>,
+
+    /// Interface implementations.
+    pub impls: TinyOrdSet<IfaceImpl>,
 
     /// Known supplements.
     pub supplements: TinyOrdSet<ContractSuppl>,

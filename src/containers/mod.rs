@@ -38,6 +38,7 @@ mod partials;
 mod indexed;
 mod armor;
 mod file;
+mod container;
 
 pub use certs::{Cert, ContentId, ContentSigs, Identity};
 pub use consignment::{Consignment, ConsignmentId, Contract, Transfer};
