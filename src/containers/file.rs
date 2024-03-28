@@ -24,7 +24,7 @@ use std::io::{self, Read, Write};
 
 use amplify::confinement::U32 as FILE_MAX_LEN;
 use armor::{AsciiArmor, StrictArmor};
-use rgb::{Schema, SchemaRoot, SubSchema};
+use rgb::Schema;
 use strict_encoding::{StreamReader, StreamWriter, StrictDecode, StrictEncode};
 
 use crate::containers::{Contract, Transfer};
@@ -86,7 +86,7 @@ pub trait FileContent: StrictArmor {
     }
 }
 
-impl<Root: SchemaRoot> FileContent for Schema<Root> {
+impl FileContent for Schema {
     const MAGIC: [u8; 4] = *b"SEMA";
 }
 
@@ -122,7 +122,7 @@ pub enum UniversalFile {
     Iface(Iface),
 
     #[from]
-    Schema(SubSchema),
+    Schema(Schema),
 
     #[from]
     #[cfg_attr(feature = "serde", serde(rename = "implementation"))]
@@ -151,7 +151,7 @@ impl UniversalFile {
         let mut reader = StreamReader::new::<FILE_MAX_LEN>(data);
         Ok(match magic {
             x if x == Iface::MAGIC => Iface::strict_read(&mut reader)?.into(),
-            x if x == SubSchema::MAGIC => SubSchema::strict_read(&mut reader)?.into(),
+            x if x == Schema::MAGIC => Schema::strict_read(&mut reader)?.into(),
             x if x == IfaceImpl::MAGIC => IfaceImpl::strict_read(&mut reader)?.into(),
             x if x == Contract::MAGIC => Contract::strict_read(&mut reader)?.into(),
             x if x == Transfer::MAGIC => Transfer::strict_read(&mut reader)?.into(),
@@ -164,7 +164,7 @@ impl UniversalFile {
         writer.write_all(&RGB_PREFIX)?;
         let magic = match self {
             UniversalFile::Iface(_) => Iface::MAGIC,
-            UniversalFile::Schema(_) => SubSchema::MAGIC,
+            UniversalFile::Schema(_) => Schema::MAGIC,
             UniversalFile::Impl(_) => IfaceImpl::MAGIC,
             UniversalFile::Contract(_) => Contract::MAGIC,
             UniversalFile::Transfer(_) => Transfer::MAGIC,

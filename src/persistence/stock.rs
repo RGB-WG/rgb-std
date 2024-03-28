@@ -29,7 +29,7 @@ use rgb::validation::{Status, Validity, Warning};
 use rgb::{
     validation, AnchoredBundle, Assign, AssignmentType, BundleId, ContractHistory, ContractId,
     ContractState, ExposedState, Extension, Genesis, GenesisSeal, GraphSeal, OpId, Operation,
-    Opout, SecretSeal, SubSchema, Transition, TransitionBundle, TypedAssigns, WitnessAnchor,
+    Opout, Schema, SecretSeal, Transition, TransitionBundle, TypedAssigns, WitnessAnchor,
     WitnessId, XAnchor, XChain, XOutpoint, XOutputSeal,
 };
 use strict_encoding::{StrictDeserialize, StrictSerialize};
@@ -373,7 +373,7 @@ impl Inventory for Stock {
 
     fn import_schema(
         &mut self,
-        schema: SubSchema,
+        schema: Schema,
     ) -> Result<validation::Status, InventoryDataError<Self::Error>> {
         let id = schema.schema_id();
 
