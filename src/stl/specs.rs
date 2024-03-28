@@ -430,12 +430,12 @@ impl StrictDeserialize for AssetTerms {}
 
 impl AssetTerms {
     pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
-        let terms = RicardianContract::from_str(&value.unwrap_struct("terms").unwrap_string())
-            .expect("invalid terms");
+        let text = RicardianContract::from_str(&value.unwrap_struct("text").unwrap_string())
+            .expect("invalid text");
         let media = value
             .unwrap_struct("media")
             .unwrap_option()
             .map(Attachment::from_strict_val_unchecked);
-        Self { text: terms, media }
+        Self { text, media }
     }
 }
