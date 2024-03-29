@@ -1,0 +1,91 @@
+{-
+  Id: urn:ubideco:stl:pvPyTM1N1rG9HEAvvEgqKonnMdakHreYrvGWfFff8q6#atlanta-adrian-sonata
+  Name: RGBContract
+  Version: 0.1.0
+  Description: Types for writing RGB contracts and interfaces
+  Author: Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
+  Copyright (C) 2023-2024-2024 LNP/BP Standards Association. All rights reserved.
+  License: Apache-2.0
+-}
+
+@context
+typelib RGBContract
+
+import Std#DzTvt9gGhPUKD8Dkkjk9PDBhkJ4gtWxXWQjxnmUYLNrs#voyage-kimono-disco
+  use AsciiPrintable#diet-oxford-window
+  use AlphaCapsNum#magnet-section-latin
+
+import Bitcoin#HX2UBak8vPsTokug1DGMDvTpzns3xUdwZ7QJdyt4qBA9#speed-atlanta-trilogy
+  use Vout#chrome-robin-gallop
+  use Txid#cowboy-diego-betty
+  use Outpoint#dinner-yoga-danube
+
+
+@mnemonic(burma-picasso-granite)
+data Amount            : U64
+
+@mnemonic(xray-giant-nina)
+data AssetSpec         : ticker Ticker
+                       , name Name
+                       , details Details?
+                       , precision Precision
+
+@mnemonic(flower-anita-austin)
+data AssetTerms        : text RicardianContract, media Attachment?
+
+@mnemonic(flame-unicorn-fruit)
+data Attachment        : type MediaType, digest [Byte ^ 32]
+
+@mnemonic(gabriel-fiber-oregano)
+data BurnMeta          : burnProofs {ProofOfReserves}
+
+@mnemonic(network-kayak-adam)
+data Details           : [Unicode ^ 1..0xff]
+
+@mnemonic(alcohol-moral-needle)
+data IssueMeta         : reserves {ProofOfReserves}
+
+@mnemonic(memphis-bicycle-roof)
+data MediaRegName      : [MimeChar ^ 1..0x40]
+
+@mnemonic(robert-decide-dispute)
+data MediaType         : type MediaRegName
+                       , subtype MediaRegName?
+                       , charset MediaRegName?
+
+@mnemonic(golf-antonio-courage)
+data MimeChar          : excl#33 | hash#35 | dollar | amp#38
+                       | plus#43 | dash#45 | dot | zero#48
+                       | one | two | three | four
+                       | five | six | seven | eight
+                       | nine | caret#94 | lodash | a#97
+                       | b | c | d | e
+                       | f | g | h | i
+                       | j | k | l | m
+                       | n | o | p | q
+                       | r | s | t | u
+                       | v | w | x | y
+                       | z
+
+
+@mnemonic(crystal-visitor-tribune)
+data Name              : [Std.AsciiPrintable#diet-oxford-window ^ 1..0x28]
+
+@mnemonic(union-drum-public)
+data Precision         : indivisible | deci | centi | milli
+                       | deciMilli | centiMilli | micro | deciMicro
+                       | centiMicro | nano | deciNano | centiNano
+                       | pico | deciPico | centiPico | femto
+                       | deciFemto | centiFemto | atto
+
+
+@mnemonic(liquid-owner-london)
+data ProofOfReserves   : utxo Bitcoin.Outpoint#dinner-yoga-danube, proof [Byte]
+
+@mnemonic(bundle-turbo-verona)
+data RicardianContract : [Unicode]
+
+@mnemonic(mike-atlas-store)
+data Ticker            : [Std.AlphaCapsNum#magnet-section-latin ^ 1..0x8]
+
+
