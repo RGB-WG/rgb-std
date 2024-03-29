@@ -121,7 +121,7 @@ impl<'a> Display for OpIfaceDisplay<'a> {
             }?;
         }
         if !self.globals.is_empty() {
-            writeln!(f, "\t\tglobals: {}", ArgMapDisplay(&self.globals))?;
+            writeln!(f, "\t\tglobals: {}", ArgMapDisplay(self.globals))?;
         }
         if !self.valencies.is_empty() {
             write!(f, "\t\tvalencies: ")?;
@@ -134,7 +134,7 @@ impl<'a> Display for OpIfaceDisplay<'a> {
             writeln!(f)?;
         }
         if !self.assignments.is_empty() {
-            writeln!(f, "\t\tassigns: {}", ArgMapDisplay(&self.assignments))?;
+            writeln!(f, "\t\tassigns: {}", ArgMapDisplay(self.assignments))?;
         }
         Ok(())
     }

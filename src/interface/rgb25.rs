@@ -25,6 +25,7 @@ use std::fmt::Debug;
 use std::str::FromStr;
 
 use bp::dbc::Method;
+use chrono::Utc;
 use invoice::{Amount, Precision};
 use rgb::{AltLayer1, AssetTag, BlindingFactor, GenesisSeal};
 use strict_encoding::InvalidIdent;
@@ -154,11 +155,11 @@ impl Rgb25 {
             .sum()
     }
 
-    pub fn contract_data(&self) -> AssetTerms {
+    pub fn contract_terms(&self) -> AssetTerms {
         let strict_val = &self
             .0
-            .global("data")
-            .expect("RGB25 interface requires global `data`")[0];
+            .global("terms")
+            .expect("RGB25 interface requires global `terms`")[0];
         AssetTerms::from_strict_val_unchecked(strict_val)
     }
 }
@@ -299,7 +300,7 @@ impl Issue {
         amount_blinding: BlindingFactor,
     ) -> Result<Self, AllocationError> {
         debug_assert!(
-            !self.deterministic,
+            self.deterministic,
             "to add asset allocation in deterministic way the contract builder has to be created \
              using `*_det` constructor"
         );
@@ -331,12 +332,31 @@ impl Issue {
 
     #[allow(clippy::result_large_err)]
     pub fn issue_contract(self) -> Result<Contract, BuilderError> {
+        debug_assert!(
+            !self.deterministic,
+            "to add asset allocation in deterministic way you must use issue_contract_det method"
+        );
+        self.issue_contract_det(Utc::now().timestamp())
+    }
+
+    #[allow(clippy::result_large_err)]
+    pub fn issue_contract_det(self, timestamp: i64) -> Result<Contract, BuilderError> {
+        debug_assert!(
+            self.deterministic,
+            "to add asset allocation in deterministic way the contract builder has to be created \
+             using `*_det` constructor"
+        );
+        self.issue_contract_int(timestamp)
+    }
+
+    #[allow(clippy::result_large_err)]
+    fn issue_contract_int(self, timestamp: i64) -> Result<Contract, BuilderError> {
         self.builder
             .add_global_state("issuedSupply", self.issued)
             .expect("invalid RGB25 schema (issued supply mismatch)")
-            .add_global_state("data", self.terms)
-            .expect("invalid RGB25 schema (contract data mismatch)")
-            .issue_contract()
+            .add_global_state("terms", self.terms)
+            .expect("invalid RGB25 schema (contract terms mismatch)")
+            .issue_contract_det(timestamp)
     }
 
     // TODO: Add secondary issuance and other methods

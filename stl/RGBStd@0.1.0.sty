@@ -1,5 +1,5 @@
 {-
-  Id: urn:ubideco:stl:jJQUaD5yHnh9kKzSNFjHgQPVTtHy3iDvCdwieNZFT9h#anvil-orchid-yogurt
+  Id: urn:ubideco:stl:3hs2zwYkLMGcqqocKVPY9MfhygMKJzZyP3odeCw8Ngcr#gram-british-acid
   Name: RGBStd
   Version: 0.1.0
   Description: RGB standard library
@@ -128,7 +128,6 @@ import CommitVerify#7EpM1uymEteG4g4xmF5ntKYX1wXXpbQj5iLiDreH4jWa#protein-donald-
   use MerkleProof#labor-hilton-magenta
   use ReservedBytes1#joker-lemon-mental
   use ReservedBytes2#pocket-habitat-soviet
-  use ReservedBytes04#dollar-falcon-analyze
   use TreeNode#risk-opinion-orca
   use ReservedBytes4#claudia-drink-digital
 
@@ -308,7 +307,7 @@ data Iface             : version VerNo
 @mnemonic(vendor-polite-gong)
 data IfaceId           : [Byte ^ 32]
 
-@mnemonic(chicken-ecology-pacific)
+@mnemonic(gilbert-ivory-binary)
 data IfaceImpl         : version VerNo
                        , schemaId RGB.SchemaId#garcia-smoke-ozone
                        , ifaceId IfaceId
@@ -317,7 +316,7 @@ data IfaceImpl         : version VerNo
                        , globalState {NamedFieldGlobalStateType ^ ..0xff}
                        , assignments {NamedFieldAssignmentType ^ ..0xff}
                        , valencies {NamedFieldValencyType ^ ..0xff}
-                       , transitions {NamedTypeTransitionType ^ ..0xff}
+                       , transitions {NamedFieldTransitionType ^ ..0xff}
                        , extensions {NamedFieldExtensionType ^ ..0xff}
                        , script RGB.Script#import-scorpio-evening
 
@@ -349,15 +348,15 @@ data NamedFieldGlobalStateType : id RGB.GlobalStateType#seminar-major-tape
                        , name StrictTypes.FieldName#orient-spell-talent
                        , reserved CommitVerify.ReservedBytes4#claudia-drink-digital
 
+@mnemonic(presto-baron-profile)
+data NamedFieldTransitionType : id RGB.TransitionType#puma-joshua-evita
+                       , name StrictTypes.FieldName#orient-spell-talent
+                       , reserved CommitVerify.ReservedBytes4#claudia-drink-digital
+
 @mnemonic(caravan-buzzer-cockpit)
 data NamedFieldValencyType : id RGB.ValencyType#palma-exit-pupil
                        , name StrictTypes.FieldName#orient-spell-talent
                        , reserved CommitVerify.ReservedBytes4#claudia-drink-digital
-
-@mnemonic(tower-factor-gabriel)
-data NamedTypeTransitionType : id RGB.TransitionType#puma-joshua-evita
-                       , name StrictTypes.FieldName#orient-spell-talent
-                       , reserved CommitVerify.ReservedBytes04#dollar-falcon-analyze
 
 @mnemonic(contact-remote-popular)
 data OwnedIface        : any ()

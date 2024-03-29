@@ -1226,9 +1226,10 @@ Consignmenttrue rec
             name ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
             reserved bytes len=4 aka=ReservedBytes4
         transitions set len=0..MAX8
-          NamedTypeTransitionType rec
+          NamedFieldTransitionType rec
             id is U16 aka=TransitionType
             name ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
+            reserved bytes len=4 aka=ReservedBytes4
         extensions set len=0..MAX8
           NamedFieldExtensionType rec
             id is U16 aka=ExtensionType

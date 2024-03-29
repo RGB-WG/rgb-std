@@ -220,7 +220,7 @@ pub struct IfaceImpl {
     pub global_state: TinyOrdSet<NamedField<GlobalStateType>>,
     pub assignments: TinyOrdSet<NamedField<AssignmentType>>,
     pub valencies: TinyOrdSet<NamedField<ValencyType>>,
-    pub transitions: TinyOrdSet<NamedType<TransitionType>>,
+    pub transitions: TinyOrdSet<NamedField<TransitionType>>,
     pub extensions: TinyOrdSet<NamedField<ExtensionType>>,
     // TODO: Add error tags
     pub script: Script,

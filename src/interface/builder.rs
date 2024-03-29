@@ -25,6 +25,7 @@ use std::collections::{BTreeMap, HashSet};
 
 use amplify::confinement::{Confined, SmallOrdSet, TinyOrdMap, U16};
 use amplify::{confinement, Wrapper};
+use chrono::Utc;
 use invoice::{Allocation, Amount};
 use rgb::{
     validation, AltLayer1, AltLayer1Set, AssetTag, Assign, AssignmentType, Assignments,
@@ -305,13 +306,17 @@ impl ContractBuilder {
     }
 
     pub fn issue_contract(self) -> Result<Contract, BuilderError> {
+        self.issue_contract_det(Utc::now().timestamp())
+    }
+
+    pub fn issue_contract_det(self, timestamp: i64) -> Result<Contract, BuilderError> {
         let (schema, iface_pair, global, assignments, asset_tags) = self.builder.complete(None);
 
         let genesis = Genesis {
             ffv: none!(),
             schema_id: schema.schema_id(),
             flags: none!(),
-            timestamp: 0,
+            timestamp,
             testnet: self.testnet,
             alt_layers1: self.alt_layers1,
             metadata: empty!(),
