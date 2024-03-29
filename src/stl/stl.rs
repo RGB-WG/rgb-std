@@ -29,10 +29,7 @@ use strict_types::stl::{std_stl, strict_types_stl};
 use strict_types::typesys::SystemBuilder;
 use strict_types::{CompileError, LibBuilder, SemId, SymbolicSys, TypeLib, TypeSystem};
 
-use super::{
-    BurnMeta, ContractData, DivisibleAssetSpec, Error, IssueMeta, MediaType, RicardianContract,
-    Timestamp, LIB_NAME_RGB_CONTRACT,
-};
+use super::{AssetSpec, AssetTerms, BurnMeta, Error, IssueMeta, MediaType, LIB_NAME_RGB_CONTRACT};
 use crate::containers::{Contract, Transfer};
 use crate::persistence::Stock;
 use crate::stl::ProofOfReserves;
@@ -41,11 +38,11 @@ use crate::LIB_NAME_RGB_STD;
 /// Strict types id for the library providing standard data types which may be
 /// used in RGB smart contracts.
 pub const LIB_ID_RGB_CONTRACT: &str =
-    "urn:ubideco:stl:F5EUsi6JPh4SyHevD3pm3C5cJbPjR4kAVjrm7atC83W5#evita-weekend-cotton";
+    "urn:ubideco:stl:pvPyTM1N1rG9HEAvvEgqKonnMdakHreYrvGWfFff8q6#atlanta-adrian-sonata";
 
 /// Strict types id for the library representing of RGB StdLib data types.
 pub const LIB_ID_RGB_STD: &str =
-    "urn:ubideco:stl:H3hoAebtfhXnFED8rrGJtyDLM3Bpd4FcyosCURo1tWJB#buenos-delta-alex";
+    "urn:ubideco:stl:K4PwUS8f7zqaDaKNVF1Cr23grxJwjoZrZZ6sYbrXRL3#market-senior-product";
 
 fn _rgb_std_stl() -> Result<TypeLib, CompileError> {
     LibBuilder::new(libname!(LIB_NAME_RGB_STD), tiny_bset! {
@@ -69,10 +66,8 @@ fn _rgb_contract_stl() -> Result<TypeLib, CompileError> {
         bp_tx_stl().to_dependency()
     })
     .transpile::<Amount>()
-    .transpile::<Timestamp>()
-    .transpile::<DivisibleAssetSpec>()
-    .transpile::<RicardianContract>()
-    .transpile::<ContractData>()
+    .transpile::<AssetSpec>()
+    .transpile::<AssetTerms>()
     .transpile::<MediaType>()
     .transpile::<ProofOfReserves>()
     .transpile::<BurnMeta>()

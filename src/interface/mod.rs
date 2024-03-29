@@ -33,24 +33,26 @@ pub mod rgb25;
 mod suppl;
 mod filters;
 pub(crate) mod resolver;
+mod contractum;
 
 pub use builder::{BuilderError, ContractBuilder, TransitionBuilder, TxOutpoint};
 pub use contract::{
     AllocatedState, AttachAllocation, AttachedState, ContractError, ContractIface, DataAllocation,
     FungibleAllocation, IfaceOp, IfaceWrapper, OwnedAllocation, RightsAllocation, StateChange,
 };
+pub use contractum::IfaceDisplay;
 pub use filters::{FilterExclude, FilterIncludeAll, OutpointFilter, WitnessFilter};
 pub use iface::{
-    ArgMap, ArgSpec, AssignIface, ExtensionIface, GenesisIface, GlobalIface, Iface, IfaceId,
-    OwnedIface, Req, TransitionIface, ValencyIface,
+    ArgMap, AssignIface, ExtensionIface, GenesisIface, GlobalIface, Iface, IfaceId,
+    IfaceInconsistency, Modifier, OpName, OwnedIface, Req, TransitionIface, ValencyIface,
 };
 pub use iimpl::{
     IfaceClass, IfaceImpl, IfacePair, ImplId, IssuerClass, IssuerTriplet, NamedField, NamedType,
     SchemaIfaces, SchemaIssuer, SchemaTypeIndex, WrongImplementation,
 };
-pub use rgb20::{AmountChange, Rgb20, LIB_ID_RGB20, LIB_NAME_RGB20};
-pub use rgb21::{rgb21, rgb21_stl, Rgb21, LIB_ID_RGB21, LIB_NAME_RGB21};
-pub use rgb25::{rgb25, rgb25_stl, Rgb25, LIB_ID_RGB25, LIB_NAME_RGB25};
+pub use rgb20::{AmountChange, Rgb20, LIB_NAME_RGB20};
+pub use rgb21::{Rgb21, LIB_ID_RGB21, LIB_NAME_RGB21};
+pub use rgb25::{Rgb25, LIB_NAME_RGB25};
 pub use suppl::{ContractSuppl, OwnedStateSuppl, SupplId, TickerSuppl, VelocityHint};
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, Default)]
@@ -64,7 +66,10 @@ pub use suppl::{ContractSuppl, OwnedStateSuppl, SupplId, TickerSuppl, VelocityHi
 #[repr(u8)]
 #[non_exhaustive]
 pub enum VerNo {
+    #[display("v0")]
+    V0 = 0,
+
     #[default]
     #[display("v1")]
-    V1 = 0,
+    V1 = 1,
 }

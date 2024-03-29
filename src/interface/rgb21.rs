@@ -28,28 +28,28 @@ use std::str::FromStr;
 use amplify::ascii::AsciiString;
 use amplify::confinement::{Confined, NonEmptyVec, SmallBlob};
 use bp::bc::stl::bp_tx_stl;
-use rgb::Types;
+use rgb::{Occurrences, Types};
 use strict_encoding::stl::AsciiPrintable;
 use strict_encoding::{
-    InvalidIdent, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, TypedWrite,
+    InvalidIdent, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, TypedWrite, Variant,
 };
 use strict_types::stl::std_stl;
 use strict_types::{CompileError, LibBuilder, StrictVal, TypeLib};
 
 use super::{
-    AssignIface, DataAllocation, GenesisIface, GlobalIface, Iface, OutpointFilter, OwnedIface, Req,
-    TransitionIface, VerNo,
+    AssignIface, DataAllocation, GenesisIface, GlobalIface, Iface, IfaceClass, Modifier,
+    OutpointFilter, OwnedIface, Req, TransitionIface, VerNo,
 };
-use crate::interface::{ArgSpec, ContractIface, IfaceId, IfaceWrapper};
+use crate::interface::{ContractIface, IfaceId, IfaceWrapper};
 use crate::stl::{
-    rgb_contract_stl, Attachment, Details, DivisibleAssetSpec, MediaType, Name, ProofOfReserves,
-    RicardianContract, StandardTypes, Ticker, Timestamp,
+    rgb_contract_stl, AssetSpec, Attachment, Details, MediaType, Name, ProofOfReserves,
+    RicardianContract, StandardTypes, Ticker,
 };
 
 pub const LIB_NAME_RGB21: &str = "RGB21";
 /// Strict types id for the library providing data types for RGB21 interface.
 pub const LIB_ID_RGB21: &str =
-    "urn:ubideco:stl:7kUn2VT5xKgZWCAYsa7usNsKWtQBrvyg1pdxRGtendf#tarzan-riviera-vampire";
+    "urn:ubideco:stl:9GETUAH3q2Aw4JSiCzGy4Z8bTuagKQvPa4hH4mDxcX9d#type-economy-shannon";
 
 #[derive(
     Wrapper, WrapperMut, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default, From
@@ -156,7 +156,7 @@ impl EmbeddedMedia {
     pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
         let ty = MediaType::from_strict_val_unchecked(value.unwrap_struct("type"));
         let data =
-            SmallBlob::from_collection_unsafe(value.unwrap_struct("data").unwrap_bytes().into());
+            SmallBlob::from_collection_unsafe(value.unwrap_struct("terms").unwrap_bytes().into());
 
         Self { ty, data }
     }
@@ -324,23 +324,6 @@ const NON_FRACTIONAL_TOKEN: u8 = 7;
 const NON_ENGRAVABLE_TOKEN: u8 = 8;
 const INVALID_ATTACHMENT_TYPE: u8 = 9;
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB21, tags = repr, into_u8, try_from_u8)]
-#[repr(u8)]
-pub enum Error {
-    #[strict_type(dumb)]
-    /// amount of token > 1
-    FractionOverflow = FRACTION_OVERFLOW,
-    NonEqualValues = NON_EQUAL_VALUES,
-    InvalidProof = INVALID_PROOF,
-    InsufficientReserves = INSUFFICIENT_RESERVES,
-    IssueExceedsAllowance = ISSUE_EXCEEDS_ALLOWANCE,
-    NonFractionalToken = NON_FRACTIONAL_TOKEN,
-    NonEngravableToken = NON_ENGRAVABLE_TOKEN,
-    InvalidAttachmentType = INVALID_ATTACHMENT_TYPE,
-}
-
 fn _rgb21_stl() -> Result<TypeLib, CompileError> {
     LibBuilder::new(libname!(LIB_NAME_RGB21), tiny_bset! {
         std_stl().to_dependency(),
@@ -352,23 +335,22 @@ fn _rgb21_stl() -> Result<TypeLib, CompileError> {
     .transpile::<ItemsCount>()
     .transpile::<Allocation>()
     .transpile::<AttachmentType>()
-    .transpile::<Error>()
     .compile()
 }
 
 /// Generates strict type library providing data types for RGB21 interface.
-pub fn rgb21_stl() -> TypeLib { _rgb21_stl().expect("invalid strict type RGB21 library") }
+fn rgb21_stl() -> TypeLib { _rgb21_stl().expect("invalid strict type RGB21 library") }
 
-pub fn rgb21() -> Iface {
+fn rgb21() -> Iface {
     let types = StandardTypes::with(rgb21_stl());
 
     Iface {
         version: VerNo::V1,
         name: tn!("RGB21"),
+        inherits: none!(),
         global_state: tiny_bmap! {
-            fname!("spec") => GlobalIface::required(types.get("RGBContract.DivisibleAssetSpec")),
-            fname!("terms") => GlobalIface::required(types.get("RGBContract.RicardianContract")),
-            fname!("created") => GlobalIface::required(types.get("RGBContract.Timestamp")),
+            fname!("spec") => GlobalIface::required(types.get("RGBContract.AssetSpec")),
+            fname!("terms") => GlobalIface::required(types.get("RGBContract.AssetTerms")),
             fname!("tokens") => GlobalIface::none_or_many(types.get("RGB21.TokenData")),
             fname!("engravings") => GlobalIface::none_or_many(types.get("RGB21.EngravingData")),
             fname!("attachmentTypes") => GlobalIface::none_or_many(types.get("RGB21.AttachmentType")),
@@ -380,18 +362,18 @@ pub fn rgb21() -> Iface {
         },
         valencies: none!(),
         genesis: GenesisIface {
+            modifier: Modifier::Final,
             metadata: Some(types.get("RGBContract.IssueMeta")),
-            global: tiny_bmap! {
-                fname!("spec") => ArgSpec::required(),
-                fname!("terms") => ArgSpec::required(),
-                fname!("created") => ArgSpec::required(),
-                fname!("tokens") => ArgSpec::many(),
-                fname!("attachmentTypes") => ArgSpec::many(),
+            globals: tiny_bmap! {
+                fname!("spec") => Occurrences::Once,
+                fname!("terms") => Occurrences::Once,
+                fname!("tokens") => Occurrences::NoneOrMore,
+                fname!("attachmentTypes") => Occurrences::NoneOrMore,
             },
             assignments: tiny_bmap! {
-                fname!("assetOwner") => ArgSpec::many(),
-                fname!("inflationAllowance") => ArgSpec::many(),
-                fname!("updateRight") => ArgSpec::optional(),
+                fname!("assetOwner") => Occurrences::NoneOrMore,
+                fname!("inflationAllowance") => Occurrences::NoneOrMore,
+                fname!("updateRight") => Occurrences::NoneOrOnce,
             },
             valencies: none!(),
             errors: tiny_bset! {
@@ -402,15 +384,16 @@ pub fn rgb21() -> Iface {
             },
         },
         transitions: tiny_bmap! {
-            tn!("Transfer") => TransitionIface {
+            fname!("transfer") => TransitionIface {
+                modifier: Modifier::Final,
                 optional: false,
                 metadata: None,
                 globals: none!(),
                 inputs: tiny_bmap! {
-                    fname!("previous") => ArgSpec::from_non_empty("assetOwner"),
+                    fname!("assetOwner") => Occurrences::OnceOrMore,
                 },
                 assignments: tiny_bmap! {
-                    fname!("beneficiary") => ArgSpec::from_non_empty("assetOwner"),
+                    fname!("assetOwner") => Occurrences::OnceOrMore,
                 },
                 valencies: none!(),
                 errors: tiny_bset! {
@@ -418,19 +401,20 @@ pub fn rgb21() -> Iface {
                     FRACTION_OVERFLOW,
                     NON_FRACTIONAL_TOKEN
                 },
-                default_assignment: Some(fname!("beneficiary")),
+                default_assignment: Some(fname!("assetOwner")),
             },
-            tn!("Engrave") => TransitionIface {
+            fname!("engrave") => TransitionIface {
+                modifier: Modifier::Final,
                 optional: true,
                 metadata: None,
                 globals: tiny_bmap! {
-                    fname!("engravings") => ArgSpec::required(),
+                    fname!("engravings") => Occurrences::Once,
                 },
                 inputs: tiny_bmap! {
-                    fname!("previous") => ArgSpec::from_non_empty("assetOwner"),
+                    fname!("assetOwner") => Occurrences::OnceOrMore,
                 },
                 assignments: tiny_bmap! {
-                    fname!("beneficiary") => ArgSpec::from_non_empty("assetOwner"),
+                    fname!("assetOwner") => Occurrences::OnceOrMore,
                 },
                 valencies: none!(),
                 errors: tiny_bset! {
@@ -439,21 +423,22 @@ pub fn rgb21() -> Iface {
                     NON_FRACTIONAL_TOKEN,
                     NON_ENGRAVABLE_TOKEN
                 },
-                default_assignment: Some(fname!("beneficiary")),
+                default_assignment: Some(fname!("assetOwner")),
             },
-            tn!("Issue") => TransitionIface {
+            fname!("issue") => TransitionIface {
+                modifier: Modifier::Final,
                 optional: true,
                 metadata: Some(types.get("RGBContract.IssueMeta")),
                 globals: tiny_bmap! {
-                    fname!("newTokens") => ArgSpec::from_many("tokens"),
-                    fname!("newAttachmentTypes") => ArgSpec::from_many("attachmentTypes"),
+                    fname!("tokens") => Occurrences::NoneOrMore,
+                    fname!("attachmentTypes") => Occurrences::NoneOrMore,
                 },
                 inputs: tiny_bmap! {
-                    fname!("used") => ArgSpec::from_non_empty("inflationAllowance"),
+                    fname!("inflationAllowance") => Occurrences::OnceOrMore,
                 },
                 assignments: tiny_bmap! {
-                    fname!("beneficiary") => ArgSpec::from_many("assetOwner"),
-                    fname!("future") => ArgSpec::from_many("inflationAllowance"),
+                    fname!("assetOwner") => Occurrences::NoneOrMore,
+                    fname!("inflationAllowance") => Occurrences::NoneOrMore,
                 },
                 valencies: none!(),
                 errors: tiny_bset! {
@@ -463,28 +448,53 @@ pub fn rgb21() -> Iface {
                     INVALID_ATTACHMENT_TYPE,
                     ISSUE_EXCEEDS_ALLOWANCE,
                 },
-                default_assignment: Some(fname!("beneficiary")),
+                default_assignment: Some(fname!("assetOwner")),
             },
-            tn!("Rename") => TransitionIface {
+            fname!("rename") => TransitionIface {
+                modifier: Modifier::Final,
                 optional: true,
                 metadata: None,
                 globals: tiny_bmap! {
-                    fname!("new") => ArgSpec::from_required("spec"),
+                    fname!("spec") => Occurrences::Once,
                 },
                 inputs: tiny_bmap! {
-                    fname!("used") => ArgSpec::from_required("updateRight"),
+                    fname!("updateRight") => Occurrences::Once,
                 },
                 assignments: tiny_bmap! {
-                    fname!("future") => ArgSpec::from_optional("updateRight"),
+                    fname!("updateRight") => Occurrences::Once,
                 },
                 valencies: none!(),
                 errors: none!(),
-                default_assignment: Some(fname!("future")),
+                default_assignment: Some(fname!("updateRight")),
             },
         },
         extensions: none!(),
-        error_type: types.get("RGB21.Error"),
-        default_operation: Some(tn!("Transfer")),
+        errors: tiny_bmap! {
+            Variant::named(FRACTION_OVERFLOW, vname!("fractionOverflow"))
+                => tiny_s!("the amount of fractional token in outputs exceeds 1"),
+
+            Variant::named(NON_EQUAL_VALUES, vname!("nonEqualValues"))
+                => tiny_s!("the sum of spent token fractions doesn't equal to the sum of token fractions in outputs"),
+
+            Variant::named(INVALID_PROOF, vname!("invalidProof"))
+                => tiny_s!("the provided proof is invalid"),
+
+            Variant::named(INSUFFICIENT_RESERVES, vname!("insufficientReserves"))
+                => tiny_s!("reserve is insufficient to cover the issued assets"),
+
+            Variant::named(ISSUE_EXCEEDS_ALLOWANCE, vname!("issueExceedsAllowance"))
+                => tiny_s!("you try to issue more assets than allowed by the contract terms"),
+
+            Variant::named(NON_FRACTIONAL_TOKEN, vname!("nonFractionalToken"))
+                => tiny_s!("attempt to transfer a fraction of non-fractionable token"),
+
+            Variant::named(NON_ENGRAVABLE_TOKEN, vname!("nonEngravableToken"))
+                => tiny_s!("attempt to engrave on a token which prohibit engraving"),
+
+            Variant::named(INVALID_ATTACHMENT_TYPE, vname!("invalidAttachmentType"))
+                => tiny_s!("attachment has a type which is not allowed for the token"),
+        },
+        default_operation: Some(fname!("transfer")),
         types: Types::Strict(types.type_system()),
     }
 }
@@ -497,7 +507,7 @@ pub struct Rgb21(ContractIface);
 impl From<ContractIface> for Rgb21 {
     fn from(iface: ContractIface) -> Self {
         if iface.iface.iface_id != Rgb21::IFACE_ID {
-            panic!("the provided interface is not RGB20 interface");
+            panic!("the provided interface is not RGB21 interface");
         }
         Self(iface)
     }
@@ -506,19 +516,24 @@ impl From<ContractIface> for Rgb21 {
 impl IfaceWrapper for Rgb21 {
     const IFACE_NAME: &'static str = LIB_NAME_RGB21;
     const IFACE_ID: IfaceId = IfaceId::from_array([
-        0x04, 0xd6, 0x86, 0xc7, 0x65, 0x78, 0x3c, 0x46, 0xfb, 0x36, 0x30, 0x29, 0x47, 0x55, 0xbf,
-        0xad, 0xc6, 0x0d, 0x9c, 0x33, 0xdf, 0x5b, 0xfc, 0x95, 0xf8, 0x8d, 0x99, 0x71, 0x81, 0xef,
-        0xbc, 0xa3,
+        0xd6, 0xd0, 0x56, 0x50, 0x77, 0x18, 0x65, 0x78, 0x90, 0xf1, 0xce, 0x2f, 0x83, 0x50, 0x1d,
+        0x92, 0xab, 0xfc, 0x13, 0x16, 0xc5, 0x10, 0x88, 0x38, 0x4e, 0x52, 0xd2, 0xdb, 0x4d, 0x9d,
+        0xd3, 0x4f,
     ]);
 }
 
+impl IfaceClass for Rgb21 {
+    fn iface() -> Iface { rgb21() }
+    fn stl() -> TypeLib { rgb21_stl() }
+}
+
 impl Rgb21 {
-    pub fn spec(&self) -> DivisibleAssetSpec {
+    pub fn spec(&self) -> AssetSpec {
         let strict_val = &self
             .0
             .global("spec")
             .expect("RGB21 interface requires global `spec`")[0];
-        DivisibleAssetSpec::from_strict_val_unchecked(strict_val)
+        AssetSpec::from_strict_val_unchecked(strict_val)
     }
 
     pub fn terms(&self) -> RicardianContract {
@@ -535,14 +550,6 @@ impl Rgb21 {
             .global("tokens")
             .expect("RGB21 interface requires global `tokens`")[0];
         TokenData::from_strict_val_unchecked(strict_val)
-    }
-
-    pub fn created(&self) -> Timestamp {
-        let strict_val = &self
-            .0
-            .global("created")
-            .expect("RGB21 interface requires global state `created`")[0];
-        Timestamp::from_strict_val_unchecked(strict_val)
     }
 
     pub fn engarving_data(&self) -> EngravingData {
@@ -589,5 +596,15 @@ mod test {
     #[test]
     fn iface_bindle() {
         assert_eq!(format!("{}", rgb21().to_ascii_armored_string()), RGB21);
+    }
+
+    #[test]
+    fn iface_check() {
+        if let Err(err) = rgb21().check() {
+            for e in err {
+                eprintln!("{e}");
+            }
+            panic!("invalid RGB21 interface definition");
+        }
     }
 }

@@ -26,14 +26,12 @@ use std::str::FromStr;
 
 use amplify::ascii::AsciiString;
 use amplify::confinement::{Confined, NonEmptyString, NonEmptyVec, SmallOrdSet, SmallString, U8};
-use chrono::{DateTime, Local, NaiveDateTime, Utc};
 use invoice::Precision;
 use strict_encoding::stl::{AlphaCapsNum, AsciiPrintable};
 use strict_encoding::{
     InvalidIdent, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, StrictType,
     TypedWrite,
 };
-use strict_types::value::StrictNum;
 use strict_types::StrictVal;
 
 use super::{MediaType, ProofOfReserves, LIB_NAME_RGB_CONTRACT};
@@ -299,32 +297,36 @@ impl Debug for Details {
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-pub struct AssetNaming {
+pub struct AssetSpec {
     pub ticker: Ticker,
     pub name: Name,
     pub details: Option<Details>,
+    pub precision: Precision,
 }
-impl StrictSerialize for AssetNaming {}
-impl StrictDeserialize for AssetNaming {}
+impl StrictSerialize for AssetSpec {}
+impl StrictDeserialize for AssetSpec {}
 
-impl AssetNaming {
-    pub fn new(ticker: &'static str, name: &'static str) -> AssetNaming {
-        AssetNaming {
+impl AssetSpec {
+    pub fn new(ticker: &'static str, name: &'static str, precision: Precision) -> AssetSpec {
+        AssetSpec {
             ticker: Ticker::from(ticker),
             name: Name::from(name),
             details: None,
+            precision,
         }
     }
 
     pub fn with(
         ticker: &str,
         name: &str,
+        precision: Precision,
         details: Option<&str>,
-    ) -> Result<AssetNaming, InvalidIdent> {
-        Ok(AssetNaming {
+    ) -> Result<AssetSpec, InvalidIdent> {
+        Ok(AssetSpec {
             ticker: Ticker::try_from(ticker.to_owned())?,
             name: Name::try_from(name.to_owned())?,
             details: details.map(Details::from_str).transpose()?,
+            precision,
         })
     }
 
@@ -335,7 +337,8 @@ impl AssetNaming {
             .unwrap_struct("details")
             .unwrap_option()
             .map(StrictVal::unwrap_string);
-        AssetNaming {
+        let precision = value.unwrap_struct("precision").unwrap_enum();
+        Self {
             ticker: Ticker::from_str(&ticker).expect("invalid asset ticker"),
             name: Name::from_str(&name).expect("invalid asset name"),
             details: details
@@ -343,60 +346,15 @@ impl AssetNaming {
                 .map(Details::from_str)
                 .transpose()
                 .expect("invalid asset details"),
-        }
-    }
-}
-
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
-#[derive(StrictDumb, StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_CONTRACT)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-pub struct DivisibleAssetSpec {
-    pub naming: AssetNaming,
-    pub precision: Precision,
-}
-impl StrictSerialize for DivisibleAssetSpec {}
-impl StrictDeserialize for DivisibleAssetSpec {}
-
-impl DivisibleAssetSpec {
-    pub fn new(
-        ticker: &'static str,
-        name: &'static str,
-        precision: Precision,
-    ) -> DivisibleAssetSpec {
-        DivisibleAssetSpec {
-            naming: AssetNaming::new(ticker, name),
             precision,
         }
     }
 
-    pub fn with(
-        ticker: &str,
-        name: &str,
-        precision: Precision,
-        details: Option<&str>,
-    ) -> Result<DivisibleAssetSpec, InvalidIdent> {
-        Ok(DivisibleAssetSpec {
-            naming: AssetNaming::with(ticker, name, details)?,
-            precision,
-        })
-    }
+    pub fn ticker(&self) -> &str { self.ticker.as_str() }
 
-    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
-        let naming = AssetNaming::from_strict_val_unchecked(value.unwrap_struct("naming"));
-        let precision = value.unwrap_struct("precision").unwrap_enum();
-        Self { naming, precision }
-    }
+    pub fn name(&self) -> &str { self.name.as_str() }
 
-    pub fn ticker(&self) -> &str { self.naming.ticker.as_str() }
-
-    pub fn name(&self) -> &str { self.naming.name.as_str() }
-
-    pub fn details(&self) -> Option<&str> { self.naming.details.as_ref().map(|d| d.as_str()) }
+    pub fn details(&self) -> Option<&str> { self.details.as_ref().map(|d| d.as_str()) }
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display, Default)]
@@ -423,41 +381,6 @@ impl FromStr for RicardianContract {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = Confined::try_from_iter(s.chars())?;
         Ok(Self(s))
-    }
-}
-
-#[derive(Wrapper, WrapperMut, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
-#[wrapper(Deref, Display, FromStr, MathOps)]
-#[wrapper_mut(DerefMut, MathAssign)]
-#[derive(StrictDumb, StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_CONTRACT, dumb = Timestamp::start_of_epoch())]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", transparent)
-)]
-pub struct Timestamp(i64);
-impl StrictSerialize for Timestamp {}
-impl StrictDeserialize for Timestamp {}
-
-impl Timestamp {
-    pub fn start_of_epoch() -> Self { Timestamp(0) }
-
-    pub fn now() -> Self { Timestamp(Local::now().timestamp()) }
-
-    pub fn to_utc(self) -> Option<DateTime<Utc>> {
-        NaiveDateTime::from_timestamp_opt(self.0, 0)
-            .map(|naive| DateTime::from_naive_utc_and_offset(naive, Utc))
-    }
-
-    pub fn to_local(self) -> Option<DateTime<Local>> { self.to_utc().map(DateTime::<Local>::from) }
-
-    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
-        // TODO: Move this logic to strict_types StrictVal::unwrap_int method
-        let StrictVal::Number(StrictNum::Int(val)) = value.skip_wrapper() else {
-            panic!("required integer number");
-        };
-        Self(*val as i64)
     }
 }
 
@@ -498,21 +421,21 @@ impl Attachment {
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-pub struct ContractData {
-    pub terms: RicardianContract,
+pub struct AssetTerms {
+    pub text: RicardianContract,
     pub media: Option<Attachment>,
 }
-impl StrictSerialize for ContractData {}
-impl StrictDeserialize for ContractData {}
+impl StrictSerialize for AssetTerms {}
+impl StrictDeserialize for AssetTerms {}
 
-impl ContractData {
+impl AssetTerms {
     pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
-        let terms = RicardianContract::from_str(&value.unwrap_struct("terms").unwrap_string())
-            .expect("invalid terms");
+        let text = RicardianContract::from_str(&value.unwrap_struct("text").unwrap_string())
+            .expect("invalid text");
         let media = value
             .unwrap_struct("media")
             .unwrap_option()
             .map(Attachment::from_strict_val_unchecked);
-        Self { terms, media }
+        Self { text, media }
     }
 }

@@ -198,7 +198,7 @@ pub struct RgbInvoice {
     pub transports: Vec<RgbTransport>,
     pub contract: Option<ContractId>,
     pub iface: Option<TypeName>,
-    pub operation: Option<TypeName>,
+    pub operation: Option<FieldName>,
     pub assignment: Option<FieldName>,
     pub beneficiary: XChainNet<Beneficiary>,
     pub owned_state: InvoiceState,
