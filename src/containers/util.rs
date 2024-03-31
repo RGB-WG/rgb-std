@@ -20,7 +20,7 @@
 // limitations under the License.
 
 use amplify::confinement::SmallOrdSet;
-use rgb::{BundleId, WitnessId, XChain, XPubWitness};
+use rgb::{BundleId, XChain, XPubWitness, XWitnessId};
 
 use super::TerminalSeal;
 use crate::LIB_NAME_RGB_STD;
@@ -36,7 +36,7 @@ use crate::LIB_NAME_RGB_STD;
 pub struct TerminalDisclose {
     pub bundle_id: BundleId,
     pub seal: XChain<TerminalSeal>,
-    pub witness_id: Option<WitnessId>,
+    pub witness_id: Option<XWitnessId>,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]

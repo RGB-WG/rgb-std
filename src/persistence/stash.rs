@@ -29,7 +29,7 @@ use bp::dbc::tapret::TapretCommitment;
 use commit_verify::mpc;
 use rgb::{
     AssetTag, AssignmentType, BundleId, ContractId, Extension, Genesis, OpId, SchemaId,
-    TransitionBundle, WitnessId, XAnchor,
+    TransitionBundle, XGrip, XWitnessId,
 };
 use strict_encoding::TypeName;
 
@@ -78,7 +78,7 @@ pub enum StashInconsistency {
     ///
     /// It may happen due to RGB standard library bug, or indicate internal
     /// stash inconsistency and compromised stash data storage.
-    AnchorAbsent(WitnessId),
+    AnchorAbsent(XWitnessId),
 
     /// bundle {0} is absent.
     ///
@@ -123,7 +123,7 @@ pub trait Stash {
 
     fn genesis(&self, contract_id: ContractId) -> Result<&Genesis, StashError<Self::Error>>;
 
-    fn witness_ids(&self) -> Result<BTreeSet<WitnessId>, Self::Error>;
+    fn witness_ids(&self) -> Result<BTreeSet<XWitnessId>, Self::Error>;
 
     fn bundle_ids(&self) -> Result<BTreeSet<BundleId>, Self::Error>;
 
@@ -133,10 +133,10 @@ pub trait Stash {
 
     fn extension(&self, op_id: OpId) -> Result<&Extension, StashError<Self::Error>>;
 
-    fn anchor(
+    fn grip(
         &self,
-        witness_id: WitnessId,
-    ) -> Result<&XAnchor<mpc::MerkleBlock>, StashError<Self::Error>>;
+        witness_id: XWitnessId,
+    ) -> Result<XGrip<mpc::MerkleBlock>, StashError<Self::Error>>;
 
-    fn taprets(&self) -> Result<BTreeMap<WitnessId, TapretCommitment>, StashError<Self::Error>>;
+    fn taprets(&self) -> Result<BTreeMap<XWitnessId, TapretCommitment>, StashError<Self::Error>>;
 }

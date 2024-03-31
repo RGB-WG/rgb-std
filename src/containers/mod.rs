@@ -28,9 +28,10 @@
 //!    disclosing the concealed state for some other parties, and also for
 //!    performing "change" operations on inventory during state transfers.
 
+mod seal;
+mod anchors;
 mod consignment;
 mod disclosure;
-mod seal;
 mod util;
 mod validate;
 mod certs;
@@ -39,6 +40,7 @@ mod indexed;
 mod armor;
 mod file;
 
+pub use anchors::{AnchoredBundle, ToMerkleBlock, ToMerkleProof};
 pub use certs::{Cert, ContentId, ContentSigs, Identity};
 pub use consignment::{Consignment, ConsignmentId, Contract, Transfer};
 pub use disclosure::Disclosure;

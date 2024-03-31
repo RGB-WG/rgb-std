@@ -25,8 +25,8 @@ use amplify::confinement::{SmallOrdSet, SmallVec};
 use invoice::{Allocation, Amount};
 use rgb::{
     AssignmentWitness, AttachId, ContractId, ContractState, DataState, KnownState, MediaType, OpId,
-    OutputAssignment, RevealedAttach, RevealedData, RevealedValue, VoidState, WitnessId, XOutpoint,
-    XOutputSeal,
+    OutputAssignment, RevealedAttach, RevealedData, RevealedValue, VoidState, XOutpoint,
+    XOutputSeal, XWitnessId,
 };
 use strict_encoding::{FieldName, StrictDecode, StrictDumb, StrictEncode};
 use strict_types::typify::TypedVal;
@@ -311,7 +311,7 @@ impl ContractIface {
         allocations: impl Iterator<Item = OutputAssignment<C::State>> + 'c,
         witness_filter: impl WitnessFilter + Copy,
         // resolver: impl WitnessCheck + 'c,
-    ) -> HashMap<WitnessId, IfaceOp<C>>
+    ) -> HashMap<XWitnessId, IfaceOp<C>>
     where
         C::State: 'c,
     {
@@ -330,7 +330,7 @@ impl ContractIface {
         }
 
         let spent = f::<_, C::State>(witness_filter, state).map(OutputAssignment::from);
-        let mut ops = HashMap::<WitnessId, IfaceOp<C>>::new();
+        let mut ops = HashMap::<XWitnessId, IfaceOp<C>>::new();
         for alloc in spent {
             let AssignmentWitness::Present(witness_id) = alloc.witness else {
                 continue;
@@ -361,7 +361,7 @@ impl ContractIface {
         name: impl Into<FieldName>,
         witness_filter: impl WitnessFilter + Copy,
         outpoint_filter: impl OutpointFilter + Copy,
-    ) -> Result<HashMap<WitnessId, IfaceOp<C>>, ContractError> {
+    ) -> Result<HashMap<XWitnessId, IfaceOp<C>>, ContractError> {
         Ok(self.operations(
             self.state
                 .fungibles()
@@ -378,7 +378,7 @@ impl ContractIface {
         name: impl Into<FieldName>,
         witness_filter: impl WitnessFilter + Copy,
         outpoint_filter: impl OutpointFilter + Copy,
-    ) -> Result<HashMap<WitnessId, IfaceOp<C>>, ContractError> {
+    ) -> Result<HashMap<XWitnessId, IfaceOp<C>>, ContractError> {
         Ok(self.operations(
             self.state
                 .data()
