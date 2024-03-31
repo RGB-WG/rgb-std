@@ -28,8 +28,8 @@ use amplify::{ByteArray, Bytes32};
 use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
 use commit_verify::{CommitId, CommitmentId, DigestExt, Sha256};
 use rgb::{
-    AssignmentType, ExtensionType, GlobalStateType, Schema, SchemaId, Script, TransitionType,
-    ValencyType,
+    AssignmentType, ExtensionType, GlobalStateType, Issuer, Schema, SchemaId, Script,
+    TransitionType, ValencyType,
 };
 use strict_encoding::{FieldName, StrictDumb};
 use strict_types::encoding::{
@@ -215,11 +215,14 @@ pub struct IfaceImpl {
     pub version: VerNo,
     pub schema_id: SchemaId,
     pub iface_id: IfaceId,
+    pub developer: Issuer,
+    pub timestamp: i64,
     pub global_state: TinyOrdSet<NamedField<GlobalStateType>>,
     pub assignments: TinyOrdSet<NamedField<AssignmentType>>,
     pub valencies: TinyOrdSet<NamedField<ValencyType>>,
     pub transitions: TinyOrdSet<NamedField<TransitionType>>,
     pub extensions: TinyOrdSet<NamedField<ExtensionType>>,
+    // TODO: Add error tags
     pub script: Script,
 }
 
@@ -353,14 +356,17 @@ pub trait IssuerClass {
     fn schema() -> Schema;
     fn issue_impl() -> IfaceImpl;
 
-    fn issuer() -> SchemaIssuer<Self::IssuingIface> {
-        SchemaIssuer::new(Self::schema(), Self::issue_impl())
+    fn issuer(
+        features: <Self::IssuingIface as IfaceClass>::Features,
+    ) -> SchemaIssuer<Self::IssuingIface> {
+        SchemaIssuer::new(Self::schema(), Self::issue_impl(), features)
             .expect("implementation schema mismatch")
     }
 }
 
 pub trait IfaceClass: IfaceWrapper {
-    fn iface() -> Iface;
+    type Features: Sized + Clone + Default;
+    fn iface(features: Self::Features) -> Iface;
     fn stl() -> TypeLib;
 }
 
@@ -443,30 +449,38 @@ impl IssuerTriplet {
 pub struct SchemaIssuer<I: IfaceClass> {
     schema: Schema,
     iimpl: IfaceImpl,
+    features: I::Features,
     phantom: PhantomData<I>,
 }
 
 impl<I: IfaceClass> SchemaIssuer<I> {
     #[allow(clippy::result_large_err)]
-    pub fn new(schema: Schema, iimpl: IfaceImpl) -> Result<Self, WrongImplementation> {
-        let triplet = IssuerTriplet::new(I::iface(), schema, iimpl)?;
+    pub fn new(
+        schema: Schema,
+        iimpl: IfaceImpl,
+        features: I::Features,
+    ) -> Result<Self, WrongImplementation> {
+        let triplet = IssuerTriplet::new(I::iface(features.clone()), schema, iimpl)?;
         let (_, schema, iimpl) = triplet.into_split();
 
         Ok(Self {
             schema,
             iimpl,
+            features,
             phantom: default!(),
         })
     }
 
     #[inline]
-    pub fn into_split(self) -> (Schema, IfaceImpl) { (self.schema, self.iimpl) }
+    pub fn into_split(self) -> (Schema, IfaceImpl, I::Features) {
+        (self.schema, self.iimpl, self.features)
+    }
 
     pub fn into_triplet(self) -> IssuerTriplet {
-        let (schema, iimpl) = self.into_split();
+        let (schema, iimpl, features) = self.into_split();
         IssuerTriplet {
             schema,
-            iface: I::iface(),
+            iface: I::iface(features),
             iimpl,
         }
     }

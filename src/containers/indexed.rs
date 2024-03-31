@@ -27,8 +27,8 @@ use amplify::confinement::Collection;
 use commit_verify::Conceal;
 use rgb::validation::ConsignmentApi;
 use rgb::{
-    AssetTag, AssignmentType, BundleId, Genesis, OpId, OpRef, Operation, Schema,
-    TransitionBundle, XChain, XGrip, XWitnessId,
+    AssetTag, AssignmentType, BundleId, Genesis, OpId, OpRef, Operation, Schema, TransitionBundle,
+    XChain, XGrip, XWitnessId,
 };
 
 use super::{AnchoredBundle, Consignment};

@@ -1,5 +1,6 @@
-@version(v1)
-interface RGB21
+@version(1)
+@timestamp(1711405444)
+interface RGB21: EngravableNft, NamedAsset, RenameableAsset, IssuableNft, NonFungibleToken, ReservableAsset
 	global attachmentTypes(*): RGB21.AttachmentType
 	global engravings(*): RGB21.EngravingData
 	global spec: RGBContract.AssetSpec
@@ -7,51 +8,48 @@ interface RGB21
 	global tokens(*): RGB21.TokenData
 
 	owned assetOwner(*): RGB21.Allocation
-	public inflationAllowance(*): RGB21.ItemsCount
-	public updateRight(?): Rights
+	public inflationAllowance(+): RGB21.ItemsCount
+	public updateRight: Rights
 
-	error fractionOverflow: 1
+	error fractionOverflow
 		"the amount of fractional token in outputs exceeds 1"
-	error nonEqualValues: 2
-		"the sum of spent token fractions doesn't equal to the sum of token fractions in outputs"
-	error invalidProof: 3
-		"the provided proof is invalid"
-	error insufficientReserves: 4
+	error insufficientReserves
 		"reserve is insufficient to cover the issued assets"
-	error issueExceedsAllowance: 6
-		"you try to issue more assets than allowed by the contract terms"
-	error nonFractionalToken: 7
-		"attempt to transfer a fraction of non-fractionable token"
-	error nonEngravableToken: 8
-		"attempt to engrave on a token which prohibit engraving"
-	error invalidAttachmentType: 9
+	error invalidAttachmentType
 		"attachment has a type which is not allowed for the token"
+	error invalidProof
+		"the provided proof is invalid"
+	error issueExceedsAllowance
+		"you try to issue more assets than allowed by the contract terms"
+	error nonEngravableToken
+		"attempt to engrave on a token which prohibit engraving"
+	error nonEqualValues
+		"the sum of spent token fractions doesn't equal to the sum of token fractions in outputs"
+	error nonFractionalToken
+		"attempt to transfer a fraction of non-fractionable token"
 
-	genesis: final
-		errors: fractionOverflow, invalidProof, insufficientReserves, invalidAttachmentType
-		meta: RGBContract.IssueMeta
+	genesis: abstract
+		errors: fractionOverflow, insufficientReserves, invalidAttachmentType, invalidProof
 		globals: attachmentTypes(*), spec, terms, tokens(*)
-		assigns: assetOwner(*), inflationAllowance(*), updateRight(?)
+		assigns: assetOwner(*), inflationAllowance(+), updateRight
 
-	transition engrave: final
-		errors: fractionOverflow, nonEqualValues, nonFractionalToken, nonEngravableToken
+	transition engrave: required, final
+		errors: fractionOverflow, nonEngravableToken, nonEqualValues, nonFractionalToken
 		globals: engravings
 		assigns: assetOwner(+)
 		default: assetOwner
 		inputs: assetOwner(+)
 
-	transition issue: final
-		errors: fractionOverflow, invalidProof, insufficientReserves, issueExceedsAllowance, invalidAttachmentType
-		meta: RGBContract.IssueMeta
+	transition issue: abstract
+		errors: fractionOverflow, insufficientReserves, invalidAttachmentType, invalidProof, issueExceedsAllowance
 		globals: attachmentTypes(*), tokens(*)
 		assigns: assetOwner(*), inflationAllowance(*)
 		default: assetOwner
 		inputs: inflationAllowance(+)
 
-	transition rename: final
-		errors: 
+	transition rename: required, final
 		globals: spec
-		assigns: updateRight
+		assigns: updateRight(?)
 		default: updateRight
 		inputs: updateRight
 

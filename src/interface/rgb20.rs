@@ -26,7 +26,7 @@ use bp::dbc::Method;
 use chrono::Utc;
 use invoice::{Amount, Precision};
 use rgb::{AltLayer1, AssetTag, BlindingFactor, GenesisSeal, Occurrences, Types, XWitnessId};
-use strict_encoding::{InvalidIdent, Variant};
+use strict_encoding::InvalidIdent;
 use strict_types::TypeLib;
 
 use super::{
@@ -43,162 +43,65 @@ use crate::stl::{
 };
 use crate::LIB_NAME_RGB_STD;
 
-pub const LIB_NAME_RGB20: &str = "RGB20";
-
-const SUPPLY_MISMATCH: u8 = 1;
-const NON_EQUAL_AMOUNTS: u8 = 2;
-const INVALID_PROOF: u8 = 3;
-const INSUFFICIENT_RESERVES: u8 = 4;
-const INSUFFICIENT_COVERAGE: u8 = 5;
-const ISSUE_EXCEEDS_ALLOWANCE: u8 = 6;
-
-fn rgb20() -> Iface {
+pub fn named_asset() -> Iface {
     let types = StandardTypes::new();
-
     Iface {
         version: VerNo::V1,
-        name: tn!("RGB20"),
+        name: tn!("NamedAsset"),
         inherits: none!(),
+        developer: none!(), // TODO: Add LNP/BP Standards Association
+        timestamp: 1711405444,
         global_state: tiny_bmap! {
             fname!("spec") => GlobalIface::required(types.get("RGBContract.AssetSpec")),
             fname!("terms") => GlobalIface::required(types.get("RGBContract.AssetTerms")),
-            fname!("issuedSupply") => GlobalIface::one_or_many(types.get("RGBContract.Amount")),
-            fname!("burnedSupply") => GlobalIface::none_or_many(types.get("RGBContract.Amount")),
-            fname!("replacedSupply") => GlobalIface::none_or_many(types.get("RGBContract.Amount")),
         },
-        assignments: tiny_bmap! {
-            fname!("inflationAllowance") => AssignIface::public(OwnedIface::Amount, Req::NoneOrMore),
-            fname!("updateRight") => AssignIface::public(OwnedIface::Rights, Req::Optional),
-            fname!("burnEpoch") => AssignIface::public(OwnedIface::Rights, Req::Optional),
-            fname!("burnRight") => AssignIface::public(OwnedIface::Rights, Req::NoneOrMore),
-            fname!("assetOwner") => AssignIface::private(OwnedIface::Amount, Req::NoneOrMore),
-        },
+        assignments: none!(),
         valencies: none!(),
         genesis: GenesisIface {
-            modifier: Modifier::Final,
-            metadata: Some(types.get("RGBContract.IssueMeta")),
+            modifier: Modifier::Abstract,
+            metadata: None,
             globals: tiny_bmap! {
                 fname!("spec") => Occurrences::Once,
                 fname!("terms") => Occurrences::Once,
-                fname!("issuedSupply") => Occurrences::Once,
             },
+            assignments: none!(),
+            valencies: none!(),
+            errors: none!(),
+        },
+        transitions: none!(),
+        extensions: none!(),
+        errors: none!(),
+        default_operation: None,
+        types: Types::Strict(types.type_system()),
+    }
+}
+
+pub fn renameable() -> Iface {
+    Iface {
+        version: VerNo::V1,
+        inherits: tiny_bset![named_asset().iface_id()],
+        developer: none!(), // TODO: Add LNP/BP Standards Association
+        timestamp: 1711405444,
+        name: tn!("RenameableAsset"),
+        global_state: none!(),
+        assignments: tiny_bmap! {
+            fname!("updateRight") => AssignIface::public(OwnedIface::Rights, Req::Required),
+        },
+        valencies: none!(),
+        genesis: GenesisIface {
+            modifier: Modifier::Override,
+            metadata: None,
+            globals: none!(),
             assignments: tiny_bmap! {
-                fname!("assetOwner") => Occurrences::NoneOrMore,
-                fname!("inflationAllowance") => Occurrences::NoneOrMore,
-                fname!("updateRight") => Occurrences::NoneOrOnce,
-                fname!("burnEpoch") => Occurrences::NoneOrOnce,
+                fname!("updateRight") => Occurrences::Once,
             },
             valencies: none!(),
-            errors: tiny_bset! {
-                SUPPLY_MISMATCH,
-                INVALID_PROOF,
-                INSUFFICIENT_RESERVES
-            },
+            errors: none!(),
         },
         transitions: tiny_bmap! {
-            fname!("transfer") => TransitionIface {
-                modifier: Modifier::Final,
-                optional: false,
-                metadata: None,
-                globals: none!(),
-                inputs: tiny_bmap! {
-                    fname!("assetOwner") => Occurrences::OnceOrMore,
-                },
-                assignments: tiny_bmap! {
-                    fname!("assetOwner") => Occurrences::OnceOrMore,
-                },
-                valencies: none!(),
-                errors: tiny_bset! {
-                    NON_EQUAL_AMOUNTS
-                },
-                default_assignment: Some(fname!("assetOwner")),
-            },
-            fname!("issue") => TransitionIface {
-                modifier: Modifier::Final,
-                optional: true,
-                metadata: Some(types.get("RGBContract.IssueMeta")),
-                globals: tiny_bmap! {
-                    fname!("issuedSupply") => Occurrences::Once,
-                },
-                inputs: tiny_bmap! {
-                    fname!("inflationAllowance") => Occurrences::OnceOrMore,
-                },
-                assignments: tiny_bmap! {
-                    fname!("assetOwner") => Occurrences::NoneOrMore,
-                    fname!("inflationAllowance") => Occurrences::NoneOrMore,
-                },
-                valencies: none!(),
-                errors: tiny_bset! {
-                    SUPPLY_MISMATCH,
-                    INVALID_PROOF,
-                    ISSUE_EXCEEDS_ALLOWANCE,
-                    INSUFFICIENT_RESERVES
-                },
-                default_assignment: Some(fname!("assetOwner")),
-            },
-            fname!("openEpoch") => TransitionIface {
-                modifier: Modifier::Final,
-                optional: true,
-                metadata: None,
-                globals: none!(),
-                inputs: tiny_bmap! {
-                    fname!("burnEpoch") => Occurrences::Once,
-                },
-                assignments: tiny_bmap! {
-                    fname!("burnEpoch") => Occurrences::NoneOrOnce,
-                    fname!("burnRight") => Occurrences::Once,
-                },
-                valencies: none!(),
-                errors: none!(),
-                default_assignment: Some(fname!("burnRight")),
-            },
-            fname!("burn") => TransitionIface {
-                modifier: Modifier::Final,
-                optional: true,
-                metadata: Some(types.get("RGBContract.BurnMeta")),
-                globals: tiny_bmap! {
-                    fname!("burnedSupply") => Occurrences::Once,
-                },
-                inputs: tiny_bmap! {
-                    fname!("burnRight") => Occurrences::Once,
-                },
-                assignments: tiny_bmap! {
-                    fname!("burnRight") => Occurrences::NoneOrOnce,
-                },
-                valencies: none!(),
-                errors: tiny_bset! {
-                    SUPPLY_MISMATCH,
-                    INVALID_PROOF,
-                    INSUFFICIENT_COVERAGE
-                },
-                default_assignment: None,
-            },
-            fname!("replace") => TransitionIface {
-                modifier: Modifier::Final,
-                optional: true,
-                metadata: Some(types.get("RGBContract.BurnMeta")),
-                globals: tiny_bmap! {
-                    fname!("replacedSupply") => Occurrences::Once,
-                },
-                inputs: tiny_bmap! {
-                    fname!("burnRight") => Occurrences::Once,
-                },
-                assignments: tiny_bmap! {
-                    fname!("assetOwner") => Occurrences::NoneOrMore,
-                    fname!("burnRight") => Occurrences::NoneOrOnce,
-                },
-                valencies: none!(),
-                errors: tiny_bset! {
-                    NON_EQUAL_AMOUNTS,
-                    SUPPLY_MISMATCH,
-                    INVALID_PROOF,
-                    INSUFFICIENT_COVERAGE
-                },
-                default_assignment: Some(fname!("assetOwner")),
-            },
             fname!("rename") => TransitionIface {
                 modifier: Modifier::Final,
-                optional: true,
+                optional: false,
                 metadata: None,
                 globals: tiny_bmap! {
                     fname!("spec") => Occurrences::Once,
@@ -215,27 +118,415 @@ fn rgb20() -> Iface {
             },
         },
         extensions: none!(),
+        default_operation: None,
+        errors: none!(),
+        types: StandardTypes::new().type_system().into(),
+    }
+}
+
+pub fn fungible() -> Iface {
+    let types = StandardTypes::new();
+    Iface {
+        version: VerNo::V1,
+        name: tn!("FungibleAsset"),
+        inherits: none!(),
+        developer: none!(), // TODO: Add LNP/BP Standards Association
+        timestamp: 1711405444,
+        global_state: tiny_bmap! {
+            fname!("issuedSupply") => GlobalIface::required(types.get("RGBContract.Amount")),
+        },
+        assignments: tiny_bmap! {
+            fname!("assetOwner") => AssignIface::private(OwnedIface::Amount, Req::NoneOrMore),
+        },
+        valencies: none!(),
+        genesis: GenesisIface {
+            modifier: Modifier::Override,
+            metadata: None,
+            globals: tiny_bmap! {
+                fname!("issuedSupply") => Occurrences::Once,
+            },
+            assignments: tiny_bmap! {
+                fname!("assetOwner") => Occurrences::NoneOrMore,
+            },
+            valencies: none!(),
+            errors: tiny_bset! {
+                vname!("supplyMismatch"),
+                vname!("invalidProof"),
+                vname!("insufficientReserves")
+            },
+        },
+        transitions: tiny_bmap! {
+            fname!("transfer") => TransitionIface {
+                modifier: Modifier::Abstract,
+                optional: false,
+                metadata: None,
+                globals: none!(),
+                inputs: tiny_bmap! {
+                    fname!("assetOwner") => Occurrences::OnceOrMore,
+                },
+                assignments: tiny_bmap! {
+                    fname!("assetOwner") => Occurrences::OnceOrMore,
+                },
+                valencies: none!(),
+                errors: tiny_bset! {
+                    vname!("nonEqualAmounts")
+                },
+                default_assignment: Some(fname!("assetOwner")),
+            },
+        },
+        extensions: none!(),
         errors: tiny_bmap! {
-            Variant::named(SUPPLY_MISMATCH, vname!("supplyMismatch"))
+            vname!("supplyMismatch")
                 => tiny_s!("supply specified as a global parameter doesn't match the issued supply allocated to the asset owners"),
 
-            Variant::named(NON_EQUAL_AMOUNTS, vname!("nonEqualAmounts"))
+            vname!("nonEqualAmounts")
                 => tiny_s!("the sum of spent assets doesn't equal to the sum of assets in outputs"),
-
-            Variant::named(INVALID_PROOF, vname!("invalidProof"))
-                => tiny_s!("the provided proof is invalid"),
-
-            Variant::named(INSUFFICIENT_RESERVES, vname!("insufficientReserves"))
-                => tiny_s!("reserve is insufficient to cover the issued assets"),
-
-            Variant::named(INSUFFICIENT_COVERAGE, vname!("insufficientCoverage"))
-                => tiny_s!("the claimed amount of burned assets is not covered by the assets in the operation inputs"),
-
-            Variant::named(ISSUE_EXCEEDS_ALLOWANCE, vname!("issueExceedsAllowance"))
-                => tiny_s!("you try to issue more assets than allowed by the contract terms"),
         },
         default_operation: Some(fname!("transfer")),
         types: Types::Strict(types.type_system()),
+    }
+}
+
+pub fn reservable() -> Iface {
+    let types = StandardTypes::new();
+    Iface {
+        version: VerNo::V1,
+        name: tn!("ReservableAsset"),
+        inherits: none!(),
+        developer: none!(), // TODO: Add LNP/BP Standards Association
+        timestamp: 1711405444,
+        global_state: none!(),
+        assignments: none!(),
+        valencies: none!(),
+        genesis: GenesisIface {
+            modifier: Modifier::Override,
+            metadata: Some(types.get("RGBContract.IssueMeta")),
+            globals: none!(),
+            assignments: none!(),
+            valencies: none!(),
+            errors: tiny_bset! {
+                vname!("invalidProof"),
+                vname!("insufficientReserves")
+            },
+        },
+        transitions: tiny_bmap! {
+            fname!("issue") => TransitionIface {
+                modifier: Modifier::Override,
+                optional: true,
+                metadata: Some(types.get("RGBContract.IssueMeta")),
+                globals: none!(),
+                inputs: none!(),
+                assignments: none!(),
+                valencies: none!(),
+                errors: tiny_bset! {
+                    vname!("invalidProof"),
+                    vname!("insufficientReserves")
+                },
+                default_assignment: Some(fname!("assetOwner")),
+            },
+        },
+        extensions: none!(),
+        errors: tiny_bmap! {
+            vname!("invalidProof")
+                => tiny_s!("the provided proof is invalid"),
+
+            vname!("insufficientReserves")
+                => tiny_s!("reserve is insufficient to cover the issued assets"),
+        },
+        default_operation: None,
+        types: Types::Strict(types.type_system()),
+    }
+}
+
+pub fn fixed() -> Iface {
+    Iface {
+        version: VerNo::V1,
+        name: tn!("FixedAsset"),
+        inherits: tiny_bset![fungible().iface_id()],
+        developer: none!(), // TODO: Add LNP/BP Standards Association
+        timestamp: 1711405444,
+        global_state: none!(),
+        assignments: tiny_bmap! {
+            fname!("assetOwner") => AssignIface::private(OwnedIface::Amount, Req::OneOrMore),
+        },
+        valencies: none!(),
+        genesis: GenesisIface {
+            modifier: Modifier::Override,
+            metadata: None,
+            globals: none!(),
+            assignments: tiny_bmap! {
+                fname!("assetOwner") => Occurrences::OnceOrMore,
+            },
+            valencies: none!(),
+            errors: tiny_bset! {
+                vname!("supplyMismatch"),
+                vname!("invalidProof"),
+                vname!("insufficientReserves")
+            },
+        },
+        transitions: none!(),
+        extensions: none!(),
+        errors: none!(),
+        default_operation: None,
+        types: StandardTypes::new().type_system().into(),
+    }
+}
+
+pub fn inflatable() -> Iface {
+    let types = StandardTypes::new();
+    Iface {
+        version: VerNo::V1,
+        inherits: tiny_bset![fungible().iface_id()],
+        developer: none!(), // TODO: Add LNP/BP Standards Association
+        timestamp: 1711405444,
+        name: tn!("InflatableAsset"),
+        global_state: tiny_bmap! {
+            fname!("issuedSupply") => GlobalIface::one_or_many(types.get("RGBContract.Amount")),
+        },
+        assignments: tiny_bmap! {
+            fname!("inflationAllowance") => AssignIface::public(OwnedIface::Amount, Req::NoneOrMore),
+        },
+        valencies: none!(),
+        genesis: GenesisIface {
+            modifier: Modifier::Override,
+            metadata: None,
+            globals: none!(),
+            assignments: tiny_bmap! {
+                fname!("inflationAllowance") => Occurrences::OnceOrMore,
+            },
+            valencies: none!(),
+            errors: none!(),
+        },
+        transitions: tiny_bmap! {
+            fname!("issue") => TransitionIface {
+                modifier: Modifier::Abstract,
+                optional: false,
+                metadata: None,
+                globals: tiny_bmap! {
+                    fname!("issuedSupply") => Occurrences::Once,
+                },
+                inputs: tiny_bmap! {
+                    fname!("inflationAllowance") => Occurrences::OnceOrMore,
+                },
+                assignments: tiny_bmap! {
+                    fname!("assetOwner") => Occurrences::NoneOrMore,
+                    fname!("inflationAllowance") => Occurrences::NoneOrMore,
+                },
+                valencies: none!(),
+                errors: tiny_bset! {
+                    vname!("supplyMismatch"),
+                    vname!("issueExceedsAllowance"),
+                },
+                default_assignment: Some(fname!("assetOwner")),
+            },
+        },
+        extensions: none!(),
+        default_operation: None,
+        errors: tiny_bmap! {
+            vname!("issueExceedsAllowance")
+                => tiny_s!("you try to issue more assets than allowed by the contract terms"),
+        },
+        types: Types::Strict(types.type_system()),
+    }
+}
+
+pub fn burnable() -> Iface {
+    let types = StandardTypes::new();
+    Iface {
+        version: VerNo::V1,
+        inherits: tiny_bset![fungible().iface_id()],
+        developer: none!(), // TODO: Add LNP/BP Standards Association
+        timestamp: 1711405444,
+        name: tn!("BurnableAsset"),
+        global_state: tiny_bmap! {
+            fname!("burnedSupply") => GlobalIface::none_or_many(types.get("RGBContract.Amount")),
+        },
+        assignments: tiny_bmap! {
+            fname!("burnRight") => AssignIface::public(OwnedIface::Rights, Req::OneOrMore),
+        },
+        valencies: none!(),
+        genesis: GenesisIface {
+            modifier: Modifier::Override,
+            metadata: None,
+            globals: none!(),
+            assignments: tiny_bmap! {
+                fname!("burnRight") => Occurrences::OnceOrMore,
+            },
+            valencies: none!(),
+            errors: none!(),
+        },
+        transitions: tiny_bmap! {
+            fname!("burn") => TransitionIface {
+                modifier: Modifier::Final,
+                optional: false,
+                metadata: Some(types.get("RGBContract.BurnMeta")),
+                globals: tiny_bmap! {
+                    fname!("burnedSupply") => Occurrences::Once,
+                },
+                inputs: tiny_bmap! {
+                    fname!("burnRight") => Occurrences::Once,
+                },
+                assignments: tiny_bmap! {
+                    fname!("burnRight") => Occurrences::NoneOrMore,
+                },
+                valencies: none!(),
+                errors: tiny_bset! {
+                    vname!("supplyMismatch"),
+                    vname!("invalidProof"),
+                    vname!("insufficientCoverage")
+                },
+                default_assignment: None,
+            },
+        },
+        extensions: none!(),
+        default_operation: None,
+        errors: tiny_bmap! {
+            vname!("insufficientCoverage")
+                => tiny_s!("the claimed amount of burned assets is not covered by the assets in the operation inputs"),
+        },
+        types: Types::Strict(types.type_system()),
+    }
+}
+
+pub fn replaceable() -> Iface {
+    let types = StandardTypes::new();
+    Iface {
+        version: VerNo::V1,
+        inherits: tiny_bset![inflatable().iface_id()],
+        developer: none!(), // TODO: Add LNP/BP Standards Association
+        timestamp: 1711405444,
+        name: tn!("ReplaceableAsset"),
+        global_state: tiny_bmap! {
+            fname!("burnedSupply") => GlobalIface::none_or_many(types.get("RGBContract.Amount")),
+            fname!("replacedSupply") => GlobalIface::none_or_many(types.get("RGBContract.Amount")),
+        },
+        assignments: tiny_bmap! {
+            fname!("burnEpoch") => AssignIface::public(OwnedIface::Rights, Req::OneOrMore),
+            fname!("burnRight") => AssignIface::public(OwnedIface::Rights, Req::NoneOrMore),
+        },
+        valencies: none!(),
+        genesis: GenesisIface {
+            modifier: Modifier::Override,
+            metadata: None,
+            globals: none!(),
+            assignments: tiny_bmap! {
+                fname!("burnEpoch") => Occurrences::Once,
+            },
+            valencies: none!(),
+            errors: none!(),
+        },
+        transitions: tiny_bmap! {
+            fname!("openEpoch") => TransitionIface {
+                modifier: Modifier::Final,
+                optional: false,
+                metadata: None,
+                globals: none!(),
+                inputs: tiny_bmap! {
+                    fname!("burnEpoch") => Occurrences::Once,
+                },
+                assignments: tiny_bmap! {
+                    fname!("burnEpoch") => Occurrences::NoneOrOnce,
+                    fname!("burnRight") => Occurrences::Once,
+                },
+                valencies: none!(),
+                errors: none!(),
+                default_assignment: Some(fname!("burnRight")),
+            },
+            fname!("burn") => TransitionIface {
+                modifier: Modifier::Final,
+                optional: false,
+                metadata: Some(types.get("RGBContract.BurnMeta")),
+                globals: tiny_bmap! {
+                    fname!("burnedSupply") => Occurrences::Once,
+                },
+                inputs: tiny_bmap! {
+                    fname!("burnRight") => Occurrences::Once,
+                },
+                assignments: tiny_bmap! {
+                    fname!("burnRight") => Occurrences::NoneOrOnce,
+                },
+                valencies: none!(),
+                errors: tiny_bset! {
+                    vname!("supplyMismatch"),
+                    vname!("invalidProof"),
+                    vname!("insufficientCoverage")
+                },
+                default_assignment: None,
+            },
+            fname!("replace") => TransitionIface {
+                modifier: Modifier::Final,
+                optional: false,
+                metadata: Some(types.get("RGBContract.BurnMeta")),
+                globals: tiny_bmap! {
+                    fname!("replacedSupply") => Occurrences::Once,
+                },
+                inputs: tiny_bmap! {
+                    fname!("burnRight") => Occurrences::Once,
+                },
+                assignments: tiny_bmap! {
+                    fname!("assetOwner") => Occurrences::NoneOrMore,
+                    fname!("burnRight") => Occurrences::NoneOrOnce,
+                },
+                valencies: none!(),
+                errors: tiny_bset! {
+                    vname!("nonEqualAmounts"),
+                    vname!("supplyMismatch"),
+                    vname!("invalidProof"),
+                    vname!("insufficientCoverage")
+                },
+                default_assignment: Some(fname!("assetOwner")),
+            },
+        },
+        extensions: none!(),
+        default_operation: None,
+        errors: tiny_bmap! {
+            vname!("insufficientCoverage")
+                => tiny_s!("the claimed amount of burned assets is not covered by the assets in the operation inputs"),
+        },
+        types: Types::Strict(types.type_system()),
+    }
+}
+
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default)]
+pub enum Inflation {
+    #[default]
+    Fixed,
+    Burnable,
+    Inflatible,
+    InflatibleBurnable,
+    Replaceable,
+}
+
+impl Inflation {
+    pub fn is_fixed(self) -> bool { self == Self::Fixed }
+    pub fn is_inflatible(self) -> bool {
+        self == Self::Inflatible || self == Self::InflatibleBurnable || self == Self::Replaceable
+    }
+    pub fn is_replacable(self) -> bool { self == Self::Replaceable }
+    pub fn is_burnable(self) -> bool { self == Self::Burnable || self == Self::Replaceable }
+}
+
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default)]
+pub struct Features {
+    pub renaming: bool,
+    pub reserves: bool,
+    pub inflation: Inflation,
+}
+
+impl Features {
+    pub fn none() -> Self {
+        Features {
+            renaming: false,
+            reserves: false,
+            inflation: Inflation::Fixed,
+        }
+    }
+    pub fn all() -> Self {
+        Features {
+            renaming: true,
+            reserves: true,
+            inflation: Inflation::Replaceable,
+        }
     }
 }
 
@@ -306,16 +597,38 @@ impl From<ContractIface> for Rgb20 {
 }
 
 impl IfaceWrapper for Rgb20 {
-    const IFACE_NAME: &'static str = LIB_NAME_RGB20;
+    const IFACE_NAME: &'static str = "RGB20";
     const IFACE_ID: IfaceId = IfaceId::from_array([
-        0xd8, 0x06, 0x97, 0xca, 0xf5, 0xc6, 0x15, 0x59, 0xd9, 0xa1, 0xb9, 0xc9, 0xbd, 0x8f, 0x32,
-        0x0d, 0xf1, 0x30, 0xd4, 0x51, 0x8b, 0xbe, 0x1d, 0x13, 0x0e, 0xf0, 0xf9, 0xab, 0xf5, 0x5f,
-        0x03, 0x83,
+        0xd3, 0xa5, 0x1e, 0x8c, 0x19, 0xad, 0x05, 0x4f, 0xc8, 0x95, 0x0d, 0x13, 0x0f, 0xc9, 0x54,
+        0xbd, 0xba, 0x2b, 0x27, 0xe9, 0x08, 0x6d, 0xf3, 0xcd, 0x7e, 0x34, 0x18, 0x60, 0xf9, 0x4f,
+        0x73, 0x8e,
     ]);
 }
 
 impl IfaceClass for Rgb20 {
-    fn iface() -> Iface { rgb20() }
+    type Features = Features;
+    fn iface(features: Features) -> Iface {
+        let mut iface = named_asset().expect_extended(fungible());
+        if features.renaming {
+            iface = iface.expect_extended(renameable());
+        }
+        if features.inflation.is_fixed() {
+            iface = iface.expect_extended(fixed());
+        }
+        if features.inflation.is_inflatible() {
+            iface = iface.expect_extended(inflatable());
+        }
+        if features.inflation.is_replacable() {
+            iface = iface.expect_extended(replaceable());
+        } else if features.inflation.is_burnable() {
+            iface = iface.expect_extended(burnable());
+        }
+        if features.reserves {
+            iface = iface.expect_extended(reservable());
+        }
+        iface.name = Self::IFACE_NAME.into();
+        iface
+    }
     fn stl() -> TypeLib { rgb_contract_stl() }
 }
 
@@ -325,8 +638,9 @@ impl Rgb20 {
         name: &str,
         details: Option<&str>,
         precision: Precision,
+        features: Features,
     ) -> Result<PrimaryIssue, InvalidIdent> {
-        PrimaryIssue::testnet::<C>(ticker, name, details, precision)
+        PrimaryIssue::testnet::<C>(ticker, name, details, precision, features)
     }
 
     pub fn testnet_det<C: IssuerClass<IssuingIface = Self>>(
@@ -334,9 +648,10 @@ impl Rgb20 {
         name: &str,
         details: Option<&str>,
         precision: Precision,
+        features: Features,
         asset_tag: AssetTag,
     ) -> Result<PrimaryIssue, InvalidIdent> {
-        PrimaryIssue::testnet_det::<C>(ticker, name, details, precision, asset_tag)
+        PrimaryIssue::testnet_det::<C>(ticker, name, details, precision, features, asset_tag)
     }
 
     pub fn spec(&self) -> AssetSpec {
@@ -488,8 +803,8 @@ impl PrimaryIssue {
             media: None,
         };
 
-        let (schema, main_iface_impl) = issuer.into_split();
-        let builder = ContractBuilder::testnet(rgb20(), schema, main_iface_impl)
+        let (schema, main_iface_impl, features) = issuer.into_split();
+        let builder = ContractBuilder::testnet(Rgb20::iface(features), schema, main_iface_impl)
             .expect("schema interface mismatch")
             .add_global_state("spec", spec)
             .expect("invalid RGB20 schema (token specification mismatch)");
@@ -507,8 +822,9 @@ impl PrimaryIssue {
         name: &str,
         details: Option<&str>,
         precision: Precision,
+        features: Features,
     ) -> Result<Self, InvalidIdent> {
-        Self::testnet_int(C::issuer(), ticker, name, details, precision)
+        Self::testnet_int(C::issuer(features), ticker, name, details, precision)
     }
 
     pub fn testnet_with(
@@ -526,9 +842,10 @@ impl PrimaryIssue {
         name: &str,
         details: Option<&str>,
         precision: Precision,
+        features: Features,
         asset_tag: AssetTag,
     ) -> Result<Self, InvalidIdent> {
-        let mut me = Self::testnet_int(C::issuer(), ticker, name, details, precision)?;
+        let mut me = Self::testnet_int(C::issuer(features), ticker, name, details, precision)?;
         me.builder = me
             .builder
             .add_asset_tag("assetOwner", asset_tag)
@@ -670,22 +987,21 @@ mod test {
     const RGB20: &str = include_str!("../../tests/data/rgb20.rgba");
 
     #[test]
-    fn iface_id() {
-        eprintln!("{:#04x?}", rgb20().iface_id().to_byte_array());
-        assert_eq!(Rgb20::IFACE_ID, rgb20().iface_id());
+    fn iface_id_all() {
+        let iface_id = Rgb20::iface(Features::all()).iface_id();
+        eprintln!("{:#04x?}", iface_id.to_byte_array());
+        assert_eq!(Rgb20::IFACE_ID, iface_id);
     }
 
     #[test]
-    fn iface_creation() { rgb20(); }
-
-    #[test]
     fn iface_bindle() {
-        assert_eq!(format!("{}", rgb20().to_ascii_armored_string()), RGB20);
+        assert_eq!(format!("{}", Rgb20::iface(Features::all()).to_ascii_armored_string()), RGB20);
     }
 
     #[test]
     fn iface_check() {
-        if let Err(err) = rgb20().check() {
+        // TODO: test other features
+        if let Err(err) = Rgb20::iface(Features::all()).check() {
             for e in err {
                 eprintln!("{e}");
             }

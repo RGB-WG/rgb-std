@@ -1,5 +1,6 @@
-@version(v1)
-interface RGB20
+@version(1)
+@timestamp(1711405444)
+interface RGB20: FungibleAsset, NamedAsset, RenameableAsset, ReplaceableAsset, ReservableAsset, InflatableAsset
 	global burnedSupply(*): RGBContract.Amount
 	global issuedSupply(+): RGBContract.Amount
 	global replacedSupply(*): RGBContract.Amount
@@ -7,67 +8,63 @@ interface RGB20
 	global terms: RGBContract.AssetTerms
 
 	owned assetOwner(*): Zk64
-	public burnEpoch(?): Rights
+	public burnEpoch(+): Rights
 	public burnRight(*): Rights
 	public inflationAllowance(*): Zk64
-	public updateRight(?): Rights
+	public updateRight: Rights
 
-	error supplyMismatch: 1
-		"supply specified as a global parameter doesn't match the issued supply allocated to the asset owners"
-	error nonEqualAmounts: 2
-		"the sum of spent assets doesn't equal to the sum of assets in outputs"
-	error invalidProof: 3
-		"the provided proof is invalid"
-	error insufficientReserves: 4
-		"reserve is insufficient to cover the issued assets"
-	error insufficientCoverage: 5
+	error insufficientCoverage
 		"the claimed amount of burned assets is not covered by the assets in the operation inputs"
-	error issueExceedsAllowance: 6
+	error insufficientReserves
+		"reserve is insufficient to cover the issued assets"
+	error invalidProof
+		"the provided proof is invalid"
+	error issueExceedsAllowance
 		"you try to issue more assets than allowed by the contract terms"
+	error nonEqualAmounts
+		"the sum of spent assets doesn't equal to the sum of assets in outputs"
+	error supplyMismatch
+		"supply specified as a global parameter doesn't match the issued supply allocated to the asset owners"
 
-	genesis: final
-		errors: supplyMismatch, invalidProof, insufficientReserves
-		meta: RGBContract.IssueMeta
+	genesis: abstract
+		errors: insufficientReserves, invalidProof, supplyMismatch
 		globals: issuedSupply, spec, terms
-		assigns: assetOwner(*), burnEpoch(?), inflationAllowance(*), updateRight(?)
+		assigns: assetOwner(*), burnEpoch, inflationAllowance(+), updateRight
 
-	transition burn: final
-		errors: supplyMismatch, invalidProof, insufficientCoverage
+	transition burn: required, final
+		errors: insufficientCoverage, invalidProof, supplyMismatch
 		meta: RGBContract.BurnMeta
 		globals: burnedSupply
 		assigns: burnRight(?)
 		inputs: burnRight
 
-	transition issue: final
-		errors: supplyMismatch, invalidProof, insufficientReserves, issueExceedsAllowance
-		meta: RGBContract.IssueMeta
+	transition issue: abstract
+		errors: insufficientReserves, invalidProof, issueExceedsAllowance, supplyMismatch
 		globals: issuedSupply
 		assigns: assetOwner(*), inflationAllowance(*)
 		default: assetOwner
 		inputs: inflationAllowance(+)
 
-	transition openEpoch: final
-		errors: 
+	transition openEpoch: required, final
 		assigns: burnEpoch(?), burnRight
 		default: burnRight
 		inputs: burnEpoch
 
-	transition rename: final
-		errors: 
+	transition rename: required, final
 		globals: spec
 		assigns: updateRight(?)
 		default: updateRight
 		inputs: updateRight
 
-	transition replace: final
-		errors: supplyMismatch, nonEqualAmounts, invalidProof, insufficientCoverage
+	transition replace: required, final
+		errors: insufficientCoverage, invalidProof, nonEqualAmounts, supplyMismatch
 		meta: RGBContract.BurnMeta
 		globals: replacedSupply
 		assigns: assetOwner(*), burnRight(?)
 		default: assetOwner
 		inputs: burnRight
 
-	transition transfer: required, default, final
+	transition transfer: required, default, abstract
 		errors: nonEqualAmounts
 		assigns: assetOwner(+)
 		default: assetOwner

@@ -28,9 +28,9 @@ use commit_verify::{mpc, Conceal};
 use rgb::validation::{Status, Validity, Warning};
 use rgb::{
     validation, Assign, AssignmentType, BundleId, ContractHistory, ContractId, ContractState,
-    ExposedState, Extension, Genesis, GenesisSeal, GraphSeal, OpId, Operation, Opout, SecretSeal,
-    Schema, Transition, TransitionBundle, TypedAssigns, WitnessAnchor, XChain, XGrip, XOutpoint,
-    XOutputSeal, XWitnessId,
+    ExposedState, Extension, Genesis, GenesisSeal, GraphSeal, OpId, Operation, Opout, Schema,
+    SecretSeal, Transition, TransitionBundle, TypedAssigns, WitnessAnchor, XChain, XGrip,
+    XOutpoint, XOutputSeal, XWitnessId,
 };
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 

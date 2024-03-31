@@ -51,10 +51,10 @@ pub use iimpl::{
     IfaceClass, IfaceImpl, IfacePair, ImplId, IssuerClass, IssuerTriplet, NamedField, NamedType,
     SchemaIfaces, SchemaIssuer, SchemaTypeIndex, WrongImplementation,
 };
-pub use inheritance::{CheckInheritance, InheritanceFailure};
-pub use rgb20::{AmountChange, Rgb20, LIB_NAME_RGB20};
+pub use inheritance::{CheckInheritance, ExtensionError, InheritanceFailure};
+pub use rgb20::{AmountChange, Rgb20};
 pub use rgb21::{Rgb21, LIB_ID_RGB21, LIB_NAME_RGB21};
-pub use rgb25::{Rgb25, LIB_NAME_RGB25};
+pub use rgb25::Rgb25;
 pub use suppl::{ContractSuppl, OwnedStateSuppl, SupplId, TickerSuppl, VelocityHint};
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, Default)]
@@ -68,10 +68,10 @@ pub use suppl::{ContractSuppl, OwnedStateSuppl, SupplId, TickerSuppl, VelocityHi
 #[repr(u8)]
 #[non_exhaustive]
 pub enum VerNo {
-    #[display("v0")]
+    #[display("v0", alt = "0")]
     V0 = 0,
 
     #[default]
-    #[display("v1")]
+    #[display("v1", alt = "1")]
     V1 = 1,
 }

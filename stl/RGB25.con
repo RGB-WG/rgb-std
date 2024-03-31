@@ -1,40 +1,45 @@
-@version(v1)
-interface RGB25
+@version(1)
+@timestamp(1711405444)
+interface RGB25: FungibleAsset, BurnableAsset, NamedAsset, RenameableAsset, ReservableAsset
 	global burnedSupply(*): RGBContract.Amount
-	global details(?): RGBContract.Details
 	global issuedSupply: RGBContract.Amount
-	global name: RGBContract.Name
-	global precision: RGBContract.Precision
+	global spec: RGBContract.AssetSpec
 	global terms: RGBContract.AssetTerms
 
-	owned assetOwner(+): Zk64
-	public burnRight(*): Rights
+	owned assetOwner(*): Zk64
+	public burnRight(+): Rights
+	public updateRight: Rights
 
-	error supplyMismatch: 1
-		"supply specified as a global parameter doesn't match the issued supply allocated to the asset owners"
-	error nonEqualAmounts: 2
-		"the sum of spent assets doesn't equal to the sum of assets in outputs"
-	error invalidProof: 3
-		"the provided proof is invalid"
-	error insufficientReserves: 4
-		"reserve is insufficient to cover the issued assets"
-	error insufficientCoverage: 5
+	error insufficientCoverage
 		"the claimed amount of burned assets is not covered by the assets in the operation inputs"
+	error insufficientReserves
+		"reserve is insufficient to cover the issued assets"
+	error invalidProof
+		"the provided proof is invalid"
+	error nonEqualAmounts
+		"the sum of spent assets doesn't equal to the sum of assets in outputs"
+	error supplyMismatch
+		"supply specified as a global parameter doesn't match the issued supply allocated to the asset owners"
 
-	genesis: final
-		errors: supplyMismatch, invalidProof, insufficientReserves
-		meta: RGBContract.IssueMeta
-		globals: details(?), issuedSupply, name, precision, terms
-		assigns: assetOwner(+)
+	genesis: abstract
+		errors: insufficientReserves, invalidProof, supplyMismatch
+		globals: issuedSupply, spec, terms
+		assigns: assetOwner(*), burnRight(+), updateRight
 
-	transition burn: final
-		errors: supplyMismatch, invalidProof, insufficientCoverage
+	transition burn: required, final
+		errors: insufficientCoverage, invalidProof, supplyMismatch
 		meta: RGBContract.BurnMeta
 		globals: burnedSupply
-		assigns: burnRight(?)
+		assigns: burnRight(*)
 		inputs: burnRight
 
-	transition transfer: required, default, final
+	transition rename: required, final
+		globals: spec
+		assigns: updateRight(?)
+		default: updateRight
+		inputs: updateRight
+
+	transition transfer: required, default, abstract
 		errors: nonEqualAmounts
 		assigns: assetOwner(+)
 		default: assetOwner

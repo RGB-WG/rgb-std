@@ -1,5 +1,5 @@
 {-
-  Id: urn:ubideco:stl:fj553z4DHnwgghCcxrP8CQc9ZgPpygUM1r4Ys9GmdBo#light-spring-mentor
+  Id: urn:ubideco:stl:9ckm15QYX2T9qUMbqw3mQaVu5VwYNw5VRYj6WiMZDETw#alias-crystal-subject
   Name: RGBStd
   Version: 0.1.0
   Description: RGB standard library
@@ -244,7 +244,7 @@ data ContractSuppl     : contractId RGB.ContractId#alarm-danube-vampire
                        , ownedState {RGB.AssignmentType -> ^ ..0xff OwnedStateSuppl}
                        , extensions {U16 -> ^ ..0xff [Byte]}
 
-@mnemonic(press-forum-cake)
+@mnemonic(alias-circle-linda)
 data ExtensionIface    : modifier Modifier
                        , optional Std.Bool#laser-madam-maxwell
                        , metadata StrictTypes.SemId#cargo-plasma-catalog?
@@ -252,16 +252,16 @@ data ExtensionIface    : modifier Modifier
                        , assignments {StrictTypes.FieldName -> ^ ..0xff RGB.Occurrences#unicorn-empire-mama}
                        , redeems {StrictTypes.FieldName#orient-spell-talent ^ ..0xff}
                        , valencies {StrictTypes.FieldName#orient-spell-talent ^ ..0xff}
-                       , errors {U8 ^ ..0xff}
+                       , errors {StrictTypes.VariantName#snow-gray-extreme ^ ..0xff}
                        , defaultAssignment StrictTypes.FieldName#orient-spell-talent?
 
-@mnemonic(scoop-bagel-stop)
+@mnemonic(direct-arthur-courage)
 data GenesisIface      : modifier Modifier
                        , metadata StrictTypes.SemId#cargo-plasma-catalog?
                        , globals {StrictTypes.FieldName -> ^ ..0xff RGB.Occurrences#unicorn-empire-mama}
                        , assignments {StrictTypes.FieldName -> ^ ..0xff RGB.Occurrences#unicorn-empire-mama}
                        , valencies {StrictTypes.FieldName#orient-spell-talent ^ ..0xff}
-                       , errors {U8 ^ ..0xff}
+                       , errors {StrictTypes.VariantName#snow-gray-extreme ^ ..0xff}
 
 @mnemonic(garbo-justice-atomic)
 data GlobalIface       : semId StrictTypes.SemId#cargo-plasma-catalog?
@@ -289,10 +289,12 @@ data Identity          : name [Unicode ^ ..0xff]
                        , suite IdSuite
                        , pk [Byte ^ ..0xff]
 
-@mnemonic(delta-star-element)
+@mnemonic(product-cosmos-igor)
 data Iface             : version VerNo
                        , name StrictTypes.TypeName#jamaica-capsule-chance
                        , inherits {IfaceId ^ ..0xff}
+                       , developer RGB.Issuer#veteran-tango-content
+                       , timestamp I64
                        , globalState {StrictTypes.FieldName -> ^ ..0xff GlobalIface}
                        , assignments {StrictTypes.FieldName -> ^ ..0xff AssignIface}
                        , valencies {StrictTypes.FieldName -> ^ ..0xff ValencyIface}
@@ -300,16 +302,18 @@ data Iface             : version VerNo
                        , transitions {StrictTypes.FieldName -> ^ ..0xff TransitionIface}
                        , extensions {StrictTypes.FieldName -> ^ ..0xff ExtensionIface}
                        , defaultOperation StrictTypes.FieldName#orient-spell-talent?
-                       , errors {StrictTypes.Variant -> ^ ..0xff [Unicode ^ ..0xff]}
+                       , errors {StrictTypes.VariantName -> ^ ..0xff [Unicode ^ ..0xff]}
                        , types RGB.Types#titanic-front-courage
 
 @mnemonic(vendor-polite-gong)
 data IfaceId           : [Byte ^ 32]
 
-@mnemonic(hazard-export-phrase)
+@mnemonic(gilbert-ivory-binary)
 data IfaceImpl         : version VerNo
                        , schemaId RGB.SchemaId#garcia-smoke-ozone
                        , ifaceId IfaceId
+                       , developer RGB.Issuer#veteran-tango-content
+                       , timestamp I64
                        , globalState {NamedFieldGlobalStateType ^ ..0xff}
                        , assignments {NamedFieldAssignmentType ^ ..0xff}
                        , valencies {NamedFieldValencyType ^ ..0xff}
@@ -326,8 +330,8 @@ data ImplId            : [Byte ^ 32]
 @mnemonic(natural-spain-alfred)
 data IndexedBundle     : RGB.ContractId#alarm-danube-vampire, RGB.BundleId#desert-divide-visible
 
-@mnemonic(marco-vampire-spoon)
-data Modifier          : final | abstract | override
+@mnemonic(recycle-field-hope)
+data Modifier          : abstract | override | final#255
 
 
 @mnemonic(pedro-isabel-printer)
@@ -393,7 +397,7 @@ data TickerSuppl       : absent ()
                        | global (RGB.GlobalStateType#seminar-major-tape, StrictTypes.Path#exotic-western-courage)
                        | owned (RGB.AssignmentType#hunter-hello-retro, StrictTypes.Path#exotic-western-courage)
 
-@mnemonic(marco-null-plaster)
+@mnemonic(choice-valery-pardon)
 data TransitionIface   : modifier Modifier
                        , optional Std.Bool#laser-madam-maxwell
                        , metadata StrictTypes.SemId#cargo-plasma-catalog?
@@ -401,7 +405,7 @@ data TransitionIface   : modifier Modifier
                        , inputs {StrictTypes.FieldName -> ^ ..0xff RGB.Occurrences#unicorn-empire-mama}
                        , assignments {StrictTypes.FieldName -> ^ ..0xff RGB.Occurrences#unicorn-empire-mama}
                        , valencies {StrictTypes.FieldName#orient-spell-talent ^ ..0xff}
-                       , errors {U8 ^ ..0xff}
+                       , errors {StrictTypes.VariantName#snow-gray-extreme ^ ..0xff}
                        , defaultAssignment StrictTypes.FieldName#orient-spell-talent?
 
 @mnemonic(input-tripod-oscar)

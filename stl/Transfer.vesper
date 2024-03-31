@@ -928,6 +928,8 @@ Consignmenttrue rec
         name ascii len=1..100 aka=TypeName aka=Ident charset=AlphaNumLodash
         inherits set len=0..MAX8
           element bytes len=32 aka=IfaceId
+        developer bytes len=0..MAX16 aka=Issuer
+        timestamp is I64
         globalState map len=0..MAX8
           key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
           value rec GlobalIface
@@ -952,7 +954,7 @@ Consignmenttrue rec
           value rec ValencyIface
             required enum Bool false=0 true=1
         genesis rec GenesisIface
-          modifier enum Modifier final=0 abstract=1 override=2
+          modifier enum Modifier abstract=0 override=1 final=255
             some bytes len=32 option wrapped aka=SemId tag=1
           globals map len=0..MAX8
             key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
@@ -967,11 +969,11 @@ Consignmenttrue rec
           valencies set len=0..MAX8
             element ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
           errors set len=0..MAX8
-            element is U8
+            element ascii len=1..100 aka=VariantName aka=Ident charset=AlphaNumLodash
         transitions map len=0..MAX8
           key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
           value rec TransitionIface
-            modifier enum Modifier final=0 abstract=1 override=2
+            modifier enum Modifier abstract=0 override=1 final=255
             optional enum Bool false=0 true=1
               some bytes len=32 option wrapped aka=SemId tag=1
             globals map len=0..MAX8
@@ -992,12 +994,12 @@ Consignmenttrue rec
             valencies set len=0..MAX8
               element ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
             errors set len=0..MAX8
-              element is U8
+              element ascii len=1..100 aka=VariantName aka=Ident charset=AlphaNumLodash
               some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
         extensions map len=0..MAX8
           key ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
           value rec ExtensionIface
-            modifier enum Modifier final=0 abstract=1 override=2
+            modifier enum Modifier abstract=0 override=1 final=255
             optional enum Bool false=0 true=1
               some bytes len=32 option wrapped aka=SemId tag=1
             globals map len=0..MAX8
@@ -1015,13 +1017,11 @@ Consignmenttrue rec
             valencies set len=0..MAX8
               element ascii len=1..100 aka=FieldName aka=Ident charset=AlphaNumLodash
             errors set len=0..MAX8
-              element is U8
+              element ascii len=1..100 aka=VariantName aka=Ident charset=AlphaNumLodash
               some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
           some ascii len=1..100 option wrapped aka=FieldName aka=Ident charset=AlphaNumLodash tag=1
         errors map len=0..MAX8
-          key rec Variant
-            name ascii len=1..100 aka=VariantName aka=Ident charset=AlphaNumLodash
-            tag is U8
+          key ascii len=1..100 aka=VariantName aka=Ident charset=AlphaNumLodash
           value str len=0..MAX8
         types union Types
           strict map len=0..MAX24 wrapped aka=TypeSystem tag=0
@@ -1067,6 +1067,8 @@ Consignmenttrue rec
         version enum VerNo v0=0 v1=1
         schemaId bytes len=32 aka=SchemaId
         ifaceId bytes len=32 aka=IfaceId
+        developer bytes len=0..MAX16 aka=Issuer
+        timestamp is I64
         globalState set len=0..MAX8
           NamedFieldGlobalStateType rec
             id is U16 aka=GlobalStateType

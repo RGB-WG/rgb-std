@@ -23,9 +23,9 @@ use std::collections::HashMap;
 use std::fmt;
 use std::fmt::{Display, Formatter};
 
-use amplify::confinement::{TinyOrdMap, TinyOrdSet, TinyString};
+use amplify::confinement::TinyOrdSet;
 use rgb::Occurrences;
-use strict_encoding::{FieldName, TypeName, Variant};
+use strict_encoding::{FieldName, TypeName, VariantName};
 use strict_types::{SemId, SymbolicSys};
 
 use super::{
@@ -61,9 +61,8 @@ struct OpIfaceDisplay<'a> {
     globals: &'a ArgMap,
     assignments: &'a ArgMap,
     valencies: &'a TinyOrdSet<FieldName>,
-    errors: &'a TinyOrdSet<u8>,
+    errors: &'a TinyOrdSet<VariantName>,
     types: &'a SymbolicSys,
-    iface_errors: &'a TinyOrdMap<Variant, TinyString>,
 }
 
 impl<'a> OpIfaceDisplay<'a> {
@@ -75,7 +74,6 @@ impl<'a> OpIfaceDisplay<'a> {
             valencies: &op.valencies,
             errors: &op.errors,
             types: iface.types,
-            iface_errors: &iface.iface.errors,
         }
     }
 
@@ -87,7 +85,6 @@ impl<'a> OpIfaceDisplay<'a> {
             valencies: &op.valencies,
             errors: &op.errors,
             types: iface.types,
-            iface_errors: &iface.iface.errors,
         }
     }
 
@@ -99,23 +96,19 @@ impl<'a> OpIfaceDisplay<'a> {
             valencies: &op.valencies,
             errors: &op.errors,
             types: iface.types,
-            iface_errors: &iface.iface.errors,
         }
     }
 }
 
 impl<'a> Display for OpIfaceDisplay<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        if !self.iface_errors.is_empty() {
+        if !self.errors.is_empty() {
             write!(f, "\t\terrors: ")?;
-            for (i, tag) in self.errors.iter().enumerate() {
+            for (i, name) in self.errors.iter().enumerate() {
                 if i > 0 {
                     f.write_str(", ")?;
                 }
-                match self.iface_errors.keys().find(|v| v.tag == *tag) {
-                    Some(var) => write!(f, "{var}")?,
-                    None => write!(f, "{tag}")?,
-                }
+                write!(f, "{name}")?;
             }
             writeln!(f)?;
         }
@@ -149,14 +142,14 @@ impl<'a> Display for OpIfaceDisplay<'a> {
 
 pub struct IfaceDisplay<'a> {
     iface: &'a Iface,
-    externals: HashMap<IfaceId, &'a TypeName>,
+    externals: &'a HashMap<IfaceId, TypeName>,
     types: &'a SymbolicSys,
 }
 
 impl<'a> IfaceDisplay<'a> {
     pub fn new(
         iface: &'a Iface,
-        externals: HashMap<IfaceId, &'a TypeName>,
+        externals: &'a HashMap<IfaceId, TypeName>,
         types: &'a SymbolicSys,
     ) -> Self {
         Self {
@@ -220,9 +213,13 @@ impl<'a> Display for IfaceDisplay<'a> {
             writeln!(f)
         }
 
-        writeln!(f, "@version({})", self.iface.version)?;
+        writeln!(f, "@version({:#})", self.iface.version)?;
+        if !self.iface.developer.is_empty() {
+            writeln!(f, "@developer({})", self.iface.developer)?;
+        }
+        writeln!(f, "@timestamp({})", self.iface.timestamp)?;
         write!(f, "interface {}", self.iface.name)?;
-        if !self.externals.is_empty() {
+        if !self.iface.inherits.is_empty() {
             f.write_str(": ")?;
             for (index, id) in self.iface.inherits.iter().enumerate() {
                 if index > 0 {
@@ -282,8 +279,8 @@ impl<'a> Display for IfaceDisplay<'a> {
             writeln!(f)?;
         }
 
-        for (variant, descr) in &self.iface.errors {
-            writeln!(f, "\terror {}: {}", variant.name, variant.tag)?;
+        for (name, descr) in &self.iface.errors {
+            writeln!(f, "\terror {name}")?;
             writeln!(f, "\t\t\"{descr}\"")?;
         }
         if !self.iface.errors.is_empty() {

@@ -34,8 +34,7 @@ use bp::Tx;
 use commit_verify::{CommitEncode, CommitEngine, CommitId, CommitmentId, DigestExt, Sha256};
 use rgb::{
     validation, AssetTag, AssignmentType, AttachId, BundleId, ContractHistory, ContractId,
-    Extension, Genesis, GraphSeal, OpId, Operation, Schema, SchemaId, Transition,
-    XChain,
+    Extension, Genesis, GraphSeal, OpId, Operation, Schema, SchemaId, Transition, XChain,
 };
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 

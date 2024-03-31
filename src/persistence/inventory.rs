@@ -32,7 +32,7 @@ use commit_verify::{mpc, Conceal};
 use invoice::{Amount, Beneficiary, InvoiceState, NonFungible, RgbInvoice};
 use rgb::{
     validation, AssignmentType, BlindingFactor, BundleId, ContractId, GraphSeal, OpId, Operation,
-    Opout, SchemaId, SecretSeal, Schema, Transition, TransitionBundle, XChain, XGrip, XOutpoint,
+    Opout, Schema, SchemaId, SecretSeal, Transition, TransitionBundle, XChain, XGrip, XOutpoint,
     XOutputSeal, XWitnessId,
 };
 use strict_encoding::{FieldName, TypeName};

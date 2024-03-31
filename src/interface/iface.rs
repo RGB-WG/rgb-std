@@ -28,10 +28,10 @@ use amplify::confinement::{TinyOrdMap, TinyOrdSet, TinyString};
 use amplify::{ByteArray, Bytes32};
 use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
 use commit_verify::{CommitId, CommitmentId, DigestExt, Sha256};
-use rgb::{Occurrences, Types};
+use rgb::{Issuer, Occurrences, Types};
 use strict_encoding::{
     FieldName, StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize,
-    StrictType, TypeName, Variant,
+    StrictType, TypeName, VariantName,
 };
 use strict_types::{SemId, SymbolicSys};
 
@@ -226,7 +226,7 @@ pub enum OwnedIface {
 
 pub type ArgMap = TinyOrdMap<FieldName, Occurrences>;
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, Display, Default)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Display, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD, into_u8, try_from_u8, tags = repr)]
 #[cfg_attr(
@@ -237,10 +237,10 @@ pub type ArgMap = TinyOrdMap<FieldName, Occurrences>;
 #[display(lowercase)]
 #[repr(u8)]
 pub enum Modifier {
+    Abstract = 0,
+    Override = 1,
     #[default]
-    Final = 0,
-    Abstract = 1,
-    Override = 2,
+    Final = 0xFF,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -257,7 +257,7 @@ pub struct GenesisIface {
     pub globals: ArgMap,
     pub assignments: ArgMap,
     pub valencies: TinyOrdSet<FieldName>,
-    pub errors: TinyOrdSet<u8>,
+    pub errors: TinyOrdSet<VariantName>,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -277,7 +277,7 @@ pub struct ExtensionIface {
     pub assignments: ArgMap,
     pub redeems: TinyOrdSet<FieldName>,
     pub valencies: TinyOrdSet<FieldName>,
-    pub errors: TinyOrdSet<u8>,
+    pub errors: TinyOrdSet<VariantName>,
     pub default_assignment: Option<FieldName>,
 }
 
@@ -298,7 +298,7 @@ pub struct TransitionIface {
     pub inputs: ArgMap,
     pub assignments: ArgMap,
     pub valencies: TinyOrdSet<FieldName>,
-    pub errors: TinyOrdSet<u8>,
+    pub errors: TinyOrdSet<VariantName>,
     pub default_assignment: Option<FieldName>,
 }
 
@@ -317,6 +317,8 @@ pub struct Iface {
     pub version: VerNo,
     pub name: TypeName,
     pub inherits: TinyOrdSet<IfaceId>,
+    pub developer: Issuer,
+    pub timestamp: i64,
     pub global_state: TinyOrdMap<FieldName, GlobalIface>,
     pub assignments: TinyOrdMap<FieldName, AssignIface>,
     pub valencies: TinyOrdMap<FieldName, ValencyIface>,
@@ -324,7 +326,7 @@ pub struct Iface {
     pub transitions: TinyOrdMap<FieldName, TransitionIface>,
     pub extensions: TinyOrdMap<FieldName, ExtensionIface>,
     pub default_operation: Option<FieldName>,
-    pub errors: TinyOrdMap<Variant, TinyString>,
+    pub errors: TinyOrdMap<VariantName, TinyString>,
     pub types: Types,
 }
 
@@ -349,7 +351,7 @@ impl Iface {
 
     pub fn display<'a>(
         &'a self,
-        externals: HashMap<IfaceId, &'a TypeName>,
+        externals: &'a HashMap<IfaceId, TypeName>,
         sys: &'a SymbolicSys,
     ) -> IfaceDisplay<'a> {
         IfaceDisplay::new(self, externals, sys)
@@ -399,14 +401,15 @@ impl Iface {
                 }
             }
         };
-        let proc_errors =
-            |op_name: &OpName, errs: &TinyOrdSet<u8>, errors: &mut Vec<IfaceInconsistency>| {
-                for tag in errs {
-                    if self.errors.keys().all(|v| v.tag != *tag) {
-                        errors.push(IfaceInconsistency::UnknownErrorTag(op_name.clone(), *tag));
-                    }
+        let proc_errors = |op_name: &OpName,
+                           errs: &TinyOrdSet<VariantName>,
+                           errors: &mut Vec<IfaceInconsistency>| {
+            for name in errs {
+                if !self.errors.contains_key(name) {
+                    errors.push(IfaceInconsistency::UnknownError(op_name.clone(), name.clone()));
                 }
-            };
+            }
+        };
 
         let mut errors = vec![];
 
@@ -539,8 +542,8 @@ pub enum IfaceInconsistency {
     UnknownAssignment(OpName, FieldName),
     /// unknown input '{1}' referenced from {0}.
     UnknownInput(OpName, FieldName),
-    /// unknown error tag '{1}' referenced from {0}.
-    UnknownErrorTag(OpName, u8),
+    /// unknown error '{1}' referenced from {0}.
+    UnknownError(OpName, VariantName),
     /// unknown default assignment '{1}' referenced from {0}.
     UnknownDefaultAssignment(OpName, FieldName),
     /// unknown default operation '{0}'.

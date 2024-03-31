@@ -891,8 +891,7 @@ dependencies = [
 [[package]]
 name = "strict_types"
 version = "2.7.0-beta.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "78c32716de4b99b0e8fb0c114e99b6929613e8d7302999c6b8c77251783923ad"
+source = "git+https://github.com/strict-types/strict-types?branch=master#2350162c6a6fda6a7f74373e0a08d8e3a70c37b4"
 dependencies = [
  "amplify",
  "ascii-armor",
