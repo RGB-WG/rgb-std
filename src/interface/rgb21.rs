@@ -42,8 +42,8 @@ use super::{
 };
 use crate::interface::{ContractIface, IfaceId, IfaceWrapper};
 use crate::stl::{
-    rgb_contract_stl, AssetSpec, Attachment, Details, MediaType, Name, ProofOfReserves,
-    RicardianContract, StandardTypes, Ticker,
+    rgb_contract_stl, AssetSpec, AssetTerms, Attachment, Details, MediaType, Name, ProofOfReserves,
+    StandardTypes, Ticker,
 };
 
 pub const LIB_NAME_RGB21: &str = "RGB21";
@@ -156,7 +156,7 @@ impl EmbeddedMedia {
     pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
         let ty = MediaType::from_strict_val_unchecked(value.unwrap_struct("type"));
         let data =
-            SmallBlob::from_collection_unsafe(value.unwrap_struct("terms").unwrap_bytes().into());
+            SmallBlob::from_collection_unsafe(value.unwrap_struct("data").unwrap_bytes().into());
 
         Self { ty, data }
     }
@@ -536,12 +536,12 @@ impl Rgb21 {
         AssetSpec::from_strict_val_unchecked(strict_val)
     }
 
-    pub fn terms(&self) -> RicardianContract {
+    pub fn contract_terms(&self) -> AssetTerms {
         let strict_val = &self
             .0
             .global("terms")
             .expect("RGB21 interface requires global `terms`")[0];
-        RicardianContract::from_str(&strict_val.unwrap_string()).expect("invalid asset `terms`")
+        AssetTerms::from_strict_val_unchecked(strict_val)
     }
 
     pub fn token_data(&self) -> TokenData {
