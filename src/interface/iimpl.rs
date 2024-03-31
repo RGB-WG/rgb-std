@@ -28,7 +28,7 @@ use amplify::{ByteArray, Bytes32};
 use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
 use commit_verify::{CommitId, CommitmentId, DigestExt, Sha256};
 use rgb::{
-    AssignmentType, ExtensionType, GlobalStateType, SchemaId, Script, SubSchema, TransitionType,
+    AssignmentType, ExtensionType, GlobalStateType, Schema, SchemaId, Script, TransitionType,
     ValencyType,
 };
 use strict_encoding::{FieldName, StrictDumb};
@@ -187,12 +187,12 @@ impl<T: SchemaTypeIndex> NamedType<T> {
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct SchemaIfaces {
-    pub schema: SubSchema,
+    pub schema: Schema,
     pub iimpls: TinyOrdMap<IfaceId, IfaceImpl>,
 }
 
 impl SchemaIfaces {
-    pub fn new(schema: SubSchema) -> Self {
+    pub fn new(schema: Schema) -> Self {
         SchemaIfaces {
             schema,
             iimpls: none!(),
@@ -350,7 +350,7 @@ impl IfacePair {
 pub trait IssuerClass {
     type IssuingIface: IfaceClass;
 
-    fn schema() -> SubSchema;
+    fn schema() -> Schema;
     fn issue_impl() -> IfaceImpl;
 
     fn issuer() -> SchemaIssuer<Self::IssuingIface> {
@@ -387,7 +387,7 @@ pub enum WrongImplementation {
 
 #[derive(Getters, Clone, Eq, PartialEq, Debug)]
 pub struct IssuerTriplet {
-    schema: SubSchema,
+    schema: Schema,
     iface: Iface,
     iimpl: IfaceImpl,
 }
@@ -396,7 +396,7 @@ impl IssuerTriplet {
     #[allow(clippy::result_large_err)]
     pub fn new(
         iface: Iface,
-        schema: SubSchema,
+        schema: Schema,
         iimpl: IfaceImpl,
     ) -> Result<Self, WrongImplementation> {
         let expected = iface.iface_id();
@@ -433,24 +433,22 @@ impl IssuerTriplet {
     }
 
     #[inline]
-    pub fn into_split(self) -> (Iface, SubSchema, IfaceImpl) {
-        (self.iface, self.schema, self.iimpl)
-    }
+    pub fn into_split(self) -> (Iface, Schema, IfaceImpl) { (self.iface, self.schema, self.iimpl) }
 
     #[inline]
-    pub fn into_issuer(self) -> (SubSchema, IfaceImpl) { (self.schema, self.iimpl) }
+    pub fn into_issuer(self) -> (Schema, IfaceImpl) { (self.schema, self.iimpl) }
 }
 
 #[derive(Getters, Clone, Eq, PartialEq, Debug)]
 pub struct SchemaIssuer<I: IfaceClass> {
-    schema: SubSchema,
+    schema: Schema,
     iimpl: IfaceImpl,
     phantom: PhantomData<I>,
 }
 
 impl<I: IfaceClass> SchemaIssuer<I> {
     #[allow(clippy::result_large_err)]
-    pub fn new(schema: SubSchema, iimpl: IfaceImpl) -> Result<Self, WrongImplementation> {
+    pub fn new(schema: Schema, iimpl: IfaceImpl) -> Result<Self, WrongImplementation> {
         let triplet = IssuerTriplet::new(I::iface(), schema, iimpl)?;
         let (_, schema, iimpl) = triplet.into_split();
 
@@ -462,7 +460,7 @@ impl<I: IfaceClass> SchemaIssuer<I> {
     }
 
     #[inline]
-    pub fn into_split(self) -> (SubSchema, IfaceImpl) { (self.schema, self.iimpl) }
+    pub fn into_split(self) -> (Schema, IfaceImpl) { (self.schema, self.iimpl) }
 
     pub fn into_triplet(self) -> IssuerTriplet {
         let (schema, iimpl) = self.into_split();

@@ -31,7 +31,7 @@ use rgb::{
     validation, AltLayer1, AltLayer1Set, AssetTag, Assign, AssignmentType, Assignments,
     BlindingFactor, ContractId, DataState, ExposedSeal, FungibleType, Genesis, GenesisSeal,
     GlobalState, GraphSeal, Input, Layer1, Opout, RevealedAttach, RevealedData, RevealedValue,
-    StateSchema, SubSchema, Transition, TransitionType, TypedAssigns, XChain, XOutpoint,
+    Schema, StateSchema, Transition, TransitionType, TypedAssigns, XChain, XOutpoint,
 };
 use strict_encoding::{FieldName, SerializeError, StrictSerialize};
 use strict_types::decode;
@@ -145,7 +145,7 @@ pub struct ContractBuilder {
 impl ContractBuilder {
     pub fn with(
         iface: Iface,
-        schema: SubSchema,
+        schema: Schema,
         iimpl: IfaceImpl,
         testnet: bool,
     ) -> Result<Self, WrongImplementation> {
@@ -158,7 +158,7 @@ impl ContractBuilder {
 
     pub fn mainnet(
         iface: Iface,
-        schema: SubSchema,
+        schema: Schema,
         iimpl: IfaceImpl,
     ) -> Result<Self, WrongImplementation> {
         Ok(Self {
@@ -170,7 +170,7 @@ impl ContractBuilder {
 
     pub fn testnet(
         iface: Iface,
-        schema: SubSchema,
+        schema: Schema,
         iimpl: IfaceImpl,
     ) -> Result<Self, WrongImplementation> {
         Ok(Self {
@@ -356,7 +356,7 @@ impl TransitionBuilder {
     pub fn blank_transition(
         contract_id: ContractId,
         iface: Iface,
-        schema: SubSchema,
+        schema: Schema,
         iimpl: IfaceImpl,
     ) -> Result<Self, WrongImplementation> {
         Self::with(contract_id, iface, schema, iimpl, TransitionType::BLANK)
@@ -365,7 +365,7 @@ impl TransitionBuilder {
     pub fn default_transition(
         contract_id: ContractId,
         iface: Iface,
-        schema: SubSchema,
+        schema: Schema,
         iimpl: IfaceImpl,
     ) -> Result<Self, BuilderError> {
         let transition_type = iface
@@ -379,7 +379,7 @@ impl TransitionBuilder {
     pub fn named_transition(
         contract_id: ContractId,
         iface: Iface,
-        schema: SubSchema,
+        schema: Schema,
         iimpl: IfaceImpl,
         transition_name: impl Into<FieldName>,
     ) -> Result<Self, BuilderError> {
@@ -393,7 +393,7 @@ impl TransitionBuilder {
     fn with(
         contract_id: ContractId,
         iface: Iface,
-        schema: SubSchema,
+        schema: Schema,
         iimpl: IfaceImpl,
         transition_type: TransitionType,
     ) -> Result<Self, WrongImplementation> {
@@ -598,7 +598,7 @@ impl TransitionBuilder {
 #[derive(Clone, Debug)]
 pub struct OperationBuilder<Seal: ExposedSeal> {
     // TODO: use references instead of owned values
-    schema: SubSchema,
+    schema: Schema,
     iface: Iface,
     iimpl: IfaceImpl,
     asset_tags: TinyOrdMap<AssignmentType, AssetTag>,
@@ -637,11 +637,7 @@ impl<Seal: ExposedSeal, I: IfaceClass> From<SchemaIssuer<I>> for OperationBuilde
 }
 
 impl<Seal: ExposedSeal> OperationBuilder<Seal> {
-    fn with(
-        iface: Iface,
-        schema: SubSchema,
-        iimpl: IfaceImpl,
-    ) -> Result<Self, WrongImplementation> {
+    fn with(iface: Iface, schema: Schema, iimpl: IfaceImpl) -> Result<Self, WrongImplementation> {
         let triplet = IssuerTriplet::new(iface, schema, iimpl)?;
         Ok(Self::from(triplet))
     }
@@ -952,7 +948,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
     fn complete(
         self,
         inputs: Option<&TinyOrdMap<Input, PersistedState>>,
-    ) -> (SubSchema, IfacePair, GlobalState, Assignments<Seal>, TinyOrdMap<AssignmentType, AssetTag>)
+    ) -> (Schema, IfacePair, GlobalState, Assignments<Seal>, TinyOrdMap<AssignmentType, AssetTag>)
     {
         let owned_state = self.fungible.into_iter().map(|(id, vec)| {
             let mut blindings = Vec::with_capacity(vec.len());

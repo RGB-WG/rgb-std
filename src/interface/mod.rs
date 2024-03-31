@@ -34,6 +34,7 @@ mod suppl;
 mod filters;
 pub(crate) mod resolver;
 mod contractum;
+mod inheritance;
 
 pub use builder::{BuilderError, ContractBuilder, TransitionBuilder, TxOutpoint};
 pub use contract::{
@@ -50,6 +51,7 @@ pub use iimpl::{
     IfaceClass, IfaceImpl, IfacePair, ImplId, IssuerClass, IssuerTriplet, NamedField, NamedType,
     SchemaIfaces, SchemaIssuer, SchemaTypeIndex, WrongImplementation,
 };
+pub use inheritance::{CheckInheritance, InheritanceFailure};
 pub use rgb20::{AmountChange, Rgb20, LIB_NAME_RGB20};
 pub use rgb21::{Rgb21, LIB_ID_RGB21, LIB_NAME_RGB21};
 pub use rgb25::{Rgb25, LIB_NAME_RGB25};

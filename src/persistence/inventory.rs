@@ -32,7 +32,7 @@ use commit_verify::{mpc, Conceal};
 use invoice::{Amount, Beneficiary, InvoiceState, NonFungible, RgbInvoice};
 use rgb::{
     validation, AssignmentType, BlindingFactor, BundleId, ContractId, GraphSeal, OpId, Operation,
-    Opout, SchemaId, SecretSeal, SubSchema, Transition, TransitionBundle, XChain, XGrip, XOutpoint,
+    Opout, SchemaId, SecretSeal, Schema, Transition, TransitionBundle, XChain, XGrip, XOutpoint,
     XOutputSeal, XWitnessId,
 };
 use strict_encoding::{FieldName, TypeName};
@@ -319,7 +319,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
 
     fn import_schema(
         &mut self,
-        schema: SubSchema,
+        schema: Schema,
     ) -> Result<validation::Status, InventoryDataError<Self::Error>>;
 
     fn import_iface(
