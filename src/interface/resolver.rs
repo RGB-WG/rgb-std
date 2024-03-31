@@ -21,23 +21,24 @@
 
 use std::convert::Infallible;
 
+use rgb::XGrip;
 use strict_encoding::StrictDumb;
 
 use crate::resolvers::ResolveHeight;
 use crate::validation::{ResolveWitness, WitnessResolverError};
-use crate::{WitnessAnchor, WitnessId, XAnchor, XPubWitness};
+use crate::{WitnessAnchor, XPubWitness, XWitnessId};
 
 pub(crate) struct DumbResolver;
 
 impl ResolveWitness for DumbResolver {
-    fn resolve_pub_witness(&self, _: WitnessId) -> Result<XPubWitness, WitnessResolverError> {
+    fn resolve_pub_witness(&self, _: XWitnessId) -> Result<XPubWitness, WitnessResolverError> {
         Ok(XPubWitness::strict_dumb())
     }
 }
 
 impl ResolveHeight for DumbResolver {
     type Error = Infallible;
-    fn resolve_anchor(&mut self, _: &XAnchor) -> Result<WitnessAnchor, Self::Error> {
+    fn resolve_grip(&mut self, _: &XGrip) -> Result<WitnessAnchor, Self::Error> {
         Ok(WitnessAnchor::strict_dumb())
     }
 }

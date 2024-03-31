@@ -24,10 +24,11 @@ use std::collections::BTreeMap;
 use amplify::confinement::Confined;
 use amplify::Wrapper;
 use bp::dbc::anchor::MergeError;
+use bp::Txid;
 use commit_verify::{mpc, Conceal};
 use rgb::{
-    AnchorSet, Assign, Assignments, ExposedSeal, ExposedState, Extension, Genesis, OpId, Operation,
-    Transition, TransitionBundle, TypedAssigns, XAnchor,
+    AnchorSet, Assign, Assignments, ExposedSeal, ExposedState, Extension, Genesis, Grip, OpId,
+    Operation, Transition, TransitionBundle, TypedAssigns, XGrip,
 };
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error, From)]
@@ -37,6 +38,14 @@ pub enum MergeRevealError {
     /// merge-revealed. This usually means internal application business logic
     /// error which should be reported to the software vendor.
     OperationMismatch(OpId, OpId),
+
+    /// mismatch in anchor chains: one grip references bitcoin transaction
+    /// {bitcoin} and the other merged part references liquid transaction
+    /// {liquid}.
+    ChainMismatch { bitcoin: Txid, liquid: Txid },
+
+    /// mismatching transaction id for merge-revealed grips: {0} and {1}.
+    TxidMismatch(Txid, Txid),
 
     #[from]
     #[display(inner)]
@@ -247,17 +256,33 @@ impl MergeRevealContract for AnchoredBundle {
 }
  */
 
-impl MergeReveal for XAnchor<mpc::MerkleBlock> {
+impl MergeReveal for XGrip<mpc::MerkleBlock> {
     fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {
         match (self, other) {
-            (XAnchor::Bitcoin(anchor), XAnchor::Bitcoin(other)) => {
-                anchor.merge_reveal(other).map(XAnchor::Bitcoin)
+            (XGrip::Bitcoin(grip), XGrip::Bitcoin(other)) => {
+                grip.merge_reveal(other).map(XGrip::Bitcoin)
             }
-            (XAnchor::Liquid(anchor), XAnchor::Liquid(other)) => {
-                anchor.merge_reveal(other).map(XAnchor::Liquid)
+            (XGrip::Liquid(grip), XGrip::Liquid(other)) => {
+                grip.merge_reveal(other).map(XGrip::Liquid)
             }
-            _ => Err(MergeError::TxidMismatch.into()),
+            (XGrip::Bitcoin(bc), XGrip::Liquid(lq)) | (XGrip::Liquid(lq), XGrip::Bitcoin(bc)) => {
+                Err(MergeRevealError::ChainMismatch {
+                    bitcoin: bc.id,
+                    liquid: lq.id,
+                })
+            }
+            _ => unreachable!(),
         }
+    }
+}
+
+impl MergeReveal for Grip<mpc::MerkleBlock> {
+    fn merge_reveal(mut self, other: Self) -> Result<Self, MergeRevealError> {
+        if self.id != other.id {
+            return Err(MergeRevealError::TxidMismatch(self.id, other.id));
+        }
+        self.anchors = self.anchors.merge_reveal(other.anchors)?;
+        Ok(self)
     }
 }
 

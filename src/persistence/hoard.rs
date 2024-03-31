@@ -28,13 +28,15 @@ use bp::dbc::anchor::MergeError;
 use bp::dbc::tapret::TapretCommitment;
 use commit_verify::{mpc, CommitId};
 use rgb::{
-    AnchoredBundle, AssetTag, AssignmentType, BundleId, ContractId, Extension, Genesis, OpId,
-    Operation, SchemaId, TransitionBundle, WitnessId, XAnchor,
+    AnchorSet, AssetTag, AssignmentType, BundleId, ContractId, Extension, Genesis, Grip, OpId,
+    Operation, SchemaId, TransitionBundle, XGrip, XWitnessId,
 };
 use strict_encoding::TypeName;
 
 use crate::accessors::{MergeReveal, MergeRevealError};
-use crate::containers::{Cert, Consignment, ContentId, ContentSigs};
+use crate::containers::{
+    AnchoredBundle, Cert, Consignment, ContentId, ContentSigs, ToMerkleBlock, ToMerkleProof,
+};
 use crate::interface::{
     ContractSuppl, Iface, IfaceClass, IfaceId, IfacePair, Rgb20, Rgb21, Rgb25, SchemaIfaces,
 };
@@ -49,9 +51,6 @@ pub enum ConsumeError {
 
     #[from]
     Anchor(mpc::InvalidProof),
-
-    #[display("anchor set {0} contains inconsistent information on witness id")]
-    AnchorInconsistent(WitnessId),
 
     #[from]
     Merge(MergeError),
@@ -80,7 +79,7 @@ pub struct Hoard {
     pub(super) asset_tags: TinyOrdMap<ContractId, TinyOrdMap<AssignmentType, AssetTag>>,
     pub(super) bundles: LargeOrdMap<BundleId, TransitionBundle>,
     pub(super) extensions: LargeOrdMap<OpId, Extension>,
-    pub(super) anchors: LargeOrdMap<WitnessId, XAnchor<mpc::MerkleBlock>>,
+    pub(super) anchors: LargeOrdMap<XWitnessId, AnchorSet<mpc::MerkleBlock>>,
     pub(super) sigs: SmallOrdMap<ContentId, ContentSigs>,
 }
 
@@ -188,10 +187,10 @@ impl Hoard {
             }
         }
 
-        for AnchoredBundle { anchor, bundle } in consignment.bundles {
+        for AnchoredBundle { grip, bundle } in consignment.bundles {
             let bundle_id = bundle.bundle_id();
-            let anchor = anchor.into_merkle_block(contract_id, bundle_id)?;
-            self.consume_anchor(anchor)?;
+            let grip = grip.into_merkle_block(contract_id, bundle_id)?;
+            self.consume_grip(grip)?;
             self.consume_bundle(bundle)?;
         }
 
@@ -220,17 +219,12 @@ impl Hoard {
     }
 
     // TODO: Move into Stash trait and re-implement using trait accessor methods
-    pub fn consume_anchor(
-        &mut self,
-        anchor: XAnchor<mpc::MerkleBlock>,
-    ) -> Result<(), ConsumeError> {
-        let witness_id = anchor
-            .witness_id()
-            .ok_or_else(|| ConsumeError::AnchorInconsistent(anchor.witness_id_unchecked()))?;
+    pub fn consume_grip(&mut self, grip: XGrip<mpc::MerkleBlock>) -> Result<(), ConsumeError> {
+        let (witness_id, anchors) = grip.split();
         match self.anchors.get_mut(&witness_id) {
-            Some(a) => *a = a.clone().merge_reveal(anchor)?,
+            Some(a) => *a = a.clone().merge_reveal(anchors)?,
             None => {
-                self.anchors.insert(witness_id, anchor)?;
+                self.anchors.insert(witness_id, anchors)?;
             }
         }
         Ok(())
@@ -309,7 +303,7 @@ impl Stash for Hoard {
             .ok_or(StashInconsistency::ContractAbsent(contract_id).into())
     }
 
-    fn witness_ids(&self) -> Result<BTreeSet<WitnessId>, Self::Error> {
+    fn witness_ids(&self) -> Result<BTreeSet<XWitnessId>, Self::Error> {
         Ok(self.anchors.keys().copied().collect())
     }
 
@@ -333,13 +327,16 @@ impl Stash for Hoard {
             .ok_or(StashInconsistency::OperationAbsent(op_id).into())
     }
 
-    fn anchor(
+    fn grip(
         &self,
-        witness_id: WitnessId,
-    ) -> Result<&XAnchor<mpc::MerkleBlock>, StashError<Self::Error>> {
-        self.anchors
+        witness_id: XWitnessId,
+    ) -> Result<XGrip<mpc::MerkleBlock>, StashError<Self::Error>> {
+        let anchors = self
+            .anchors
             .get(&witness_id)
-            .ok_or(StashInconsistency::AnchorAbsent(witness_id).into())
+            .ok_or(StashInconsistency::AnchorAbsent(witness_id))?
+            .clone();
+        Ok(witness_id.map(|id| Grip { id, anchors }))
     }
 
     fn contract_asset_tags(
@@ -352,19 +349,11 @@ impl Stash for Hoard {
             .map_err(StashError::from)
     }
 
-    fn taprets(&self) -> Result<BTreeMap<WitnessId, TapretCommitment>, StashError<Self::Error>> {
+    fn taprets(&self) -> Result<BTreeMap<XWitnessId, TapretCommitment>, StashError<Self::Error>> {
         Ok(self
             .anchors
             .iter()
-            .filter_map(|(witness_id, anchor)| {
-                match anchor {
-                    XAnchor::Bitcoin(set) | XAnchor::Liquid(set) => set,
-                    XAnchor::Other(_) => unreachable!(),
-                }
-                .as_split()
-                .0
-                .map(|a| (*witness_id, a))
-            })
+            .filter_map(|(witness_id, anchors)| anchors.as_split().0.map(|a| (*witness_id, a)))
             .map(|(witness_id, tapret)| {
                 (witness_id, TapretCommitment {
                     mpc: tapret.mpc_proof.commit_id(),

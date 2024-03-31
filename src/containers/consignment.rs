@@ -32,15 +32,14 @@ use armor::{AsciiArmor, StrictArmorError};
 use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
 use bp::Tx;
 use commit_verify::{CommitEncode, CommitEngine, CommitId, CommitmentId, DigestExt, Sha256};
-use rgb::validation::{self};
 use rgb::{
-    AnchoredBundle, AssetTag, AssignmentType, AttachId, BundleId, ContractHistory, ContractId,
+    validation, AssetTag, AssignmentType, AttachId, BundleId, ContractHistory, ContractId,
     Extension, Genesis, GraphSeal, OpId, Operation, Schema, SchemaId, SubSchema, Transition,
     XChain,
 };
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 
-use super::{ContainerVer, ContentId, ContentSigs, Terminal, TerminalDisclose};
+use super::{AnchoredBundle, ContainerVer, ContentId, ContentSigs, Terminal, TerminalDisclose};
 use crate::accessors::BundleExt;
 use crate::interface::{ContractSuppl, IfaceId, IfacePair};
 use crate::resolvers::ResolveHeight;
@@ -149,10 +148,10 @@ pub struct Consignment<const TYPE: bool> {
     /// Genesis data.
     pub genesis: Genesis,
 
-    /// Data on all anchored state transitions contained in the consignments.
+    /// All bundled state transitions contained in the consignment.
     pub bundles: LargeOrdSet<AnchoredBundle>,
 
-    /// Data on all state extensions contained in the consignments.
+    /// All state extensions contained in the consignment.
     pub extensions: LargeOrdSet<Extension>,
 
     /// Schema (plus root schema, if any) under which contract is issued.
@@ -249,7 +248,7 @@ impl<const TYPE: bool> Consignment<TYPE> {
     pub fn anchored_bundle(&self, bundle_id: BundleId) -> Option<&AnchoredBundle> {
         self.bundles
             .iter()
-            .find(|anchored_bundle| anchored_bundle.bundle.bundle_id() == bundle_id)
+            .find(|anchored_bundle| anchored_bundle.bundle_id() == bundle_id)
     }
 
     pub(super) fn transition(&self, opid: OpId) -> Option<&Transition> {
@@ -306,7 +305,7 @@ impl<const TYPE: bool> Consignment<TYPE> {
         let mut ordered_extensions = BTreeMap::new();
         for anchored_bundle in &self.bundles {
             for transition in anchored_bundle.bundle.known_transitions.values() {
-                let witness_anchor = resolver.resolve_anchor(&anchored_bundle.anchor)?;
+                let witness_anchor = resolver.resolve_grip(&anchored_bundle.grip)?;
 
                 history.add_transition(transition, witness_anchor);
                 for (id, used) in &mut extension_idx {

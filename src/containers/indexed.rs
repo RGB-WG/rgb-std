@@ -27,18 +27,18 @@ use amplify::confinement::Collection;
 use commit_verify::Conceal;
 use rgb::validation::ConsignmentApi;
 use rgb::{
-    AnchoredBundle, AssetTag, AssignmentType, BundleId, Genesis, OpId, OpRef, Operation, SubSchema,
-    WitnessId, XChain,
+    AssetTag, AssignmentType, BundleId, Genesis, OpId, OpRef, Operation, SubSchema,
+    TransitionBundle, XChain, XGrip, XWitnessId,
 };
 
-use super::Consignment;
+use super::{AnchoredBundle, Consignment};
 use crate::SecretSeal;
 
-// TODO: Add more indexes
+// TODO: Transform consignment into this type instead of composing over it
 #[derive(Clone, Debug)]
 pub struct IndexedConsignment<'c, const TYPE: bool> {
     consignment: &'c Consignment<TYPE>,
-    op_witness_ids: BTreeMap<OpId, WitnessId>,
+    op_witness_idx: BTreeMap<OpId, XWitnessId>,
 }
 
 impl<'c, const TYPE: bool> Deref for IndexedConsignment<'c, TYPE> {
@@ -49,15 +49,15 @@ impl<'c, const TYPE: bool> Deref for IndexedConsignment<'c, TYPE> {
 
 impl<'c, const TYPE: bool> IndexedConsignment<'c, TYPE> {
     pub fn new(consignment: &'c Consignment<TYPE>) -> Self {
-        let mut op_witness_ids = BTreeMap::new();
+        let mut op_witness_idx = BTreeMap::new();
         for ab in &consignment.bundles {
             for opid in ab.bundle.known_transitions.keys() {
-                op_witness_ids.insert(*opid, ab.anchor.witness_id_unchecked());
+                op_witness_idx.insert(*opid, ab.grip.witness_id());
             }
         }
         Self {
             consignment,
-            op_witness_ids,
+            op_witness_idx,
         }
     }
 }
@@ -93,14 +93,17 @@ impl<'c, const TYPE: bool> ConsignmentApi for IndexedConsignment<'c, TYPE> {
 
     fn bundle_ids<'a>(&self) -> Self::Iter<'a> { BundleIdIter(self.bundles.clone().into_iter()) }
 
-    fn anchored_bundle(&self, bundle_id: BundleId) -> Option<Rc<AnchoredBundle>> {
-        self.consignment
-            .anchored_bundle(bundle_id)
-            .map(|ab| Rc::new(ab.clone()))
+    fn bundle(&self, bundle_id: BundleId) -> Option<Rc<TransitionBundle>> {
+        self.anchored_bundle(bundle_id)
+            .map(|ab| Rc::new(ab.bundle.clone()))
     }
 
-    fn op_witness_id(&self, opid: OpId) -> Option<WitnessId> {
-        self.op_witness_ids.get(&opid).copied()
+    fn grip(&self, bundle_id: BundleId) -> Option<XGrip> {
+        self.anchored_bundle(bundle_id).map(|ab| ab.grip.clone())
+    }
+
+    fn op_witness_id(&self, opid: OpId) -> Option<XWitnessId> {
+        self.op_witness_idx.get(&opid).copied()
     }
 }
 

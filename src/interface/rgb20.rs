@@ -25,7 +25,7 @@ use std::str::FromStr;
 use bp::dbc::Method;
 use chrono::Utc;
 use invoice::{Amount, Precision};
-use rgb::{AltLayer1, AssetTag, BlindingFactor, GenesisSeal, Occurrences, Types, WitnessId};
+use rgb::{AltLayer1, AssetTag, BlindingFactor, GenesisSeal, Occurrences, Types, XWitnessId};
 use strict_encoding::{InvalidIdent, Variant};
 use strict_types::TypeLib;
 
@@ -439,7 +439,7 @@ impl Rgb20 {
         &self,
         witness_filter: impl WitnessFilter + Copy,
         outpoint_filter: impl OutpointFilter + Copy,
-    ) -> HashMap<WitnessId, IfaceOp<AmountChange>> {
+    ) -> HashMap<XWitnessId, IfaceOp<AmountChange>> {
         self.0
             .fungible_ops("assetOwner", witness_filter, outpoint_filter)
             .expect("state name is not correct")

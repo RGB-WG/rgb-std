@@ -31,16 +31,16 @@ use chrono::Utc;
 use commit_verify::{mpc, Conceal};
 use invoice::{Amount, Beneficiary, InvoiceState, NonFungible, RgbInvoice};
 use rgb::{
-    validation, AnchoredBundle, AssignmentType, BlindingFactor, BundleId, ContractId, GraphSeal,
-    OpId, Operation, Opout, SchemaId, SecretSeal, SubSchema, Transition, TransitionBundle,
-    WitnessId, XAnchor, XChain, XOutpoint, XOutputSeal,
+    validation, AssignmentType, BlindingFactor, BundleId, ContractId, GraphSeal, OpId, Operation,
+    Opout, SchemaId, SecretSeal, SubSchema, Transition, TransitionBundle, XChain, XGrip, XOutpoint,
+    XOutputSeal, XWitnessId,
 };
 use strict_encoding::{FieldName, TypeName};
 
 use crate::accessors::{BundleExt, MergeRevealError, RevealError};
 use crate::containers::{
-    Batch, BuilderSeal, Cert, Consignment, ContentId, Contract, Fascia, Terminal, TerminalSeal,
-    Transfer, TransitionInfo,
+    AnchoredBundle, Batch, BuilderSeal, Cert, Consignment, ContentId, Contract, Fascia, Terminal,
+    TerminalSeal, Transfer, TransitionInfo,
 };
 use crate::interface::{
     BuilderError, ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, IfaceWrapper,
@@ -358,10 +358,8 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     /// Must be called before the consignment is created, when witness
     /// transaction is not yet mined.
     fn consume(&mut self, fascia: Fascia) -> Result<(), InventoryError<Self::Error>> {
-        let witness_id = fascia.anchor.witness_id().ok_or_else(|| {
-            ConsumeError::AnchorInconsistent(fascia.anchor.witness_id_unchecked())
-        })?;
-        unsafe { self.consume_anchor(fascia.anchor)? };
+        let witness_id = fascia.grip.witness_id();
+        unsafe { self.consume_grip(fascia.grip)? };
         for (contract_id, bundle) in fascia.bundles {
             let ids1 = bundle
                 .known_transitions
@@ -378,9 +376,9 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     }
 
     #[doc(hidden)]
-    unsafe fn consume_anchor(
+    unsafe fn consume_grip(
         &mut self,
-        anchor: XAnchor<mpc::MerkleBlock>,
+        grip: XGrip<mpc::MerkleBlock>,
     ) -> Result<(), InventoryError<Self::Error>>;
 
     #[doc(hidden)]
@@ -388,7 +386,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         &mut self,
         contract_id: ContractId,
         bundle: TransitionBundle,
-        witness_id: WitnessId,
+        witness_id: XWitnessId,
     ) -> Result<(), InventoryError<Self::Error>>;
 
     /// # Safety
