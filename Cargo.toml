@@ -99,4 +99,4 @@ bp-consensus = { git = "https://github.com/BP-WG/bp-core", branch = "deanchor" }
 bp-dbc = { git = "https://github.com/BP-WG/bp-core", branch = "deanchor" }
 bp-seals = { git = "https://github.com/BP-WG/bp-core", branch = "deanchor" }
 bp-core = { git = "https://github.com/BP-WG/bp-core", branch = "deanchor" }
-rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "grip" }
+rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "v0.11" }
