@@ -475,13 +475,17 @@ pub struct PrimaryIssue {
 }
 
 impl PrimaryIssue {
-    fn testnet_int(
+    fn init<F>(
         issuer: SchemaIssuer<Rgb20>,
         ticker: &str,
         name: &str,
         details: Option<&str>,
         precision: Precision,
-    ) -> Result<Self, InvalidIdent> {
+        int_fn: F,
+    ) -> Result<Self, InvalidIdent>
+    where
+        F: Fn(Iface, SubSchema, IfaceImpl) -> Result<ContractBuilder, WrongImplementation>,
+    {
         let spec = AssetSpec::with(ticker, name, precision, details)?;
         let terms = AssetTerms {
             text: RicardianContract::default(),
@@ -489,7 +493,7 @@ impl PrimaryIssue {
         };
 
         let (schema, main_iface_impl) = issuer.into_split();
-        let builder = ContractBuilder::testnet(rgb20(), schema, main_iface_impl)
+        let builder = int_fn(rgb20(), schema, main_iface_impl)
             .expect("schema interface mismatch")
             .add_global_state("spec", spec)
             .expect("invalid RGB20 schema (token specification mismatch)");
@@ -502,6 +506,35 @@ impl PrimaryIssue {
         })
     }
 
+    fn mainnet_int(
+        issuer: SchemaIssuer<Rgb20>,
+        ticker: &str,
+        name: &str,
+        details: Option<&str>,
+        precision: Precision,
+    ) -> Result<Self, InvalidIdent> {
+        Self::init(issuer, ticker, name, details, precision, ContractBuilder::mainnet)
+    }
+
+    fn testnet_int(
+        issuer: SchemaIssuer<Rgb20>,
+        ticker: &str,
+        name: &str,
+        details: Option<&str>,
+        precision: Precision,
+    ) -> Result<Self, InvalidIdent> {
+        Self::init(issuer, ticker, name, details, precision, ContractBuilder::testnet)
+    }
+
+    pub fn mainnet<C: IssuerClass<IssuingIface = Rgb20>>(
+        ticker: &str,
+        name: &str,
+        details: Option<&str>,
+        precision: Precision,
+    ) -> Result<Self, InvalidIdent> {
+        Self::mainnet_int(C::issuer(), ticker, name, details, precision)
+    }
+
     pub fn testnet<C: IssuerClass<IssuingIface = Rgb20>>(
         ticker: &str,
         name: &str,
@@ -509,6 +542,16 @@ impl PrimaryIssue {
         precision: Precision,
     ) -> Result<Self, InvalidIdent> {
         Self::testnet_int(C::issuer(), ticker, name, details, precision)
+    }
+
+    pub fn mainnet_with(
+        issuer: SchemaIssuer<Rgb20>,
+        ticker: &str,
+        name: &str,
+        details: Option<&str>,
+        precision: Precision,
+    ) -> Result<Self, InvalidIdent> {
+        Self::mainnet_int(issuer, ticker, name, details, precision)
     }
 
     pub fn testnet_with(
@@ -519,6 +562,22 @@ impl PrimaryIssue {
         precision: Precision,
     ) -> Result<Self, InvalidIdent> {
         Self::testnet_int(issuer, ticker, name, details, precision)
+    }
+
+    pub fn mainnet_det<C: IssuerClass<IssuingIface = Rgb20>>(
+        ticker: &str,
+        name: &str,
+        details: Option<&str>,
+        precision: Precision,
+        asset_tag: AssetTag,
+    ) -> Result<Self, InvalidIdent> {
+        let mut me = Self::mainnet_int(C::issuer(), ticker, name, details, precision)?;
+        me.builder = me
+            .builder
+            .add_asset_tag("assetOwner", asset_tag)
+            .expect("invalid RGB20 schema (assetOwner mismatch)");
+        me.deterministic = true;
+        Ok(me)
     }
 
     pub fn testnet_det<C: IssuerClass<IssuingIface = Rgb20>>(
