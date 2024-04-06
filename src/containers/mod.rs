@@ -40,7 +40,10 @@ mod indexed;
 mod armor;
 mod file;
 
-pub use anchors::{AnchoredBundle, ToMerkleBlock, ToMerkleProof};
+pub use anchors::{
+    AnchoredBundle, BundledWitness, BundledWitnessDisclosure, PubWitness, ToMerkleBlock,
+    ToMerkleProof, XPubWitness,
+};
 pub use certs::{Cert, ContentId, ContentSigs, Identity};
 pub use consignment::{Consignment, ConsignmentId, Contract, Transfer};
 pub use disclosure::Disclosure;

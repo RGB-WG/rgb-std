@@ -20,12 +20,30 @@
 // limitations under the License.
 
 use std::cmp::Ordering;
+use std::vec;
 
-use commit_verify::mpc;
-use rgb::{AnchorSet, BundleId, ContractId, Grip, TransitionBundle, XGrip, XWitnessId};
+use bp::dbc::opret::OpretProof;
+use bp::dbc::tapret::TapretProof;
+use bp::dbc::Anchor;
+use bp::{Tx, Txid};
+use commit_verify::{mpc, CommitId, ReservedBytes};
+use rgb::{
+    AnchorSet, BundleDisclosure, BundleId, ContractId, DiscloseHash, Grip, TransitionBundle,
+    XChain, XGrip, XWitnessId,
+};
 use strict_encoding::StrictDumb;
 
 use crate::LIB_NAME_RGB_STD;
+
+pub type XPubWitness = XChain<PubWitness>;
+
+pub trait ToWitnessId {
+    fn to_witness_id(&self) -> XWitnessId;
+}
+
+impl ToWitnessId for XPubWitness {
+    fn to_witness_id(&self) -> XWitnessId { self.map_ref(|w| w.txid) }
+}
 
 #[derive(Clone, Eq, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
@@ -35,26 +53,152 @@ use crate::LIB_NAME_RGB_STD;
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-pub struct AnchoredBundle {
-    pub grip: XGrip,
-    pub bundle: TransitionBundle,
+pub struct PubWitness {
+    pub txid: Txid,
+    pub tx: Option<Tx>,
+    pub spv: ReservedBytes<1>,
 }
 
-impl AnchoredBundle {
-    #[inline]
-    pub fn bundle_id(&self) -> BundleId { self.bundle.bundle_id() }
+impl PartialEq for PubWitness {
+    fn eq(&self, other: &Self) -> bool { self.txid == other.txid }
 }
 
-impl PartialEq for AnchoredBundle {
-    fn eq(&self, other: &Self) -> bool { self.bundle_id() == other.bundle_id() }
+impl Ord for PubWitness {
+    fn cmp(&self, other: &Self) -> Ordering { self.txid.cmp(&other.txid) }
 }
 
-impl Ord for AnchoredBundle {
-    fn cmp(&self, other: &Self) -> Ordering { self.bundle_id().cmp(&other.bundle_id()) }
-}
-
-impl PartialOrd for AnchoredBundle {
+impl PartialOrd for PubWitness {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
+}
+
+#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[derive(CommitEncode)]
+#[commit_encode(strategy = strict, id = DiscloseHash)]
+pub struct BundledWitnessDisclosure {
+    pub pub_witness: XPubWitness,
+    pub anchors: AnchorSet,
+    pub bundle1: BundleDisclosure,
+    pub bundle2: Option<BundleDisclosure>,
+}
+
+#[derive(Clone, Eq, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct BundledWitness<P: mpc::Proof + StrictDumb = mpc::MerkleProof> {
+    pub pub_witness: XPubWitness,
+    pub anchored_bundle: AnchoredBundle<P>,
+}
+
+impl<P: mpc::Proof + StrictDumb> PartialEq for BundledWitness<P> {
+    fn eq(&self, other: &Self) -> bool { self.pub_witness == other.pub_witness }
+}
+
+impl<P: mpc::Proof + StrictDumb> Ord for BundledWitness<P> {
+    fn cmp(&self, other: &Self) -> Ordering { self.pub_witness.cmp(&other.pub_witness) }
+}
+
+impl<P: mpc::Proof + StrictDumb> PartialOrd for BundledWitness<P> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
+}
+
+impl<P: mpc::Proof + StrictDumb> BundledWitness<P> {
+    pub fn bundles(&self) -> vec::IntoIter<&TransitionBundle> { self.anchored_bundle.bundles() }
+}
+
+impl BundledWitness<mpc::MerkleProof> {
+    pub fn disclose(&self) -> BundledWitnessDisclosure {
+        let mut bundles = self.anchored_bundle.bundles();
+        BundledWitnessDisclosure {
+            pub_witness: self.pub_witness.clone(),
+            anchors: self.anchored_bundle.to_anchor_set(),
+            bundle1: bundles
+                .next()
+                .expect("anchored bundle always has at least one bundle")
+                .disclose(),
+            bundle2: bundles.next().map(TransitionBundle::disclose),
+        }
+    }
+
+    pub fn disclose_hash(&self) -> DiscloseHash { self.disclose().commit_id() }
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD, tags = custom)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub enum AnchoredBundle<P: mpc::Proof + StrictDumb = mpc::MerkleProof> {
+    #[strict_type(tag = 0x01)]
+    Tapret(Anchor<P, TapretProof>, TransitionBundle),
+    #[strict_type(tag = 0x02)]
+    Opret(Anchor<P, OpretProof>, TransitionBundle),
+    #[strict_type(tag = 0x03)]
+    Dual(Anchor<P, TapretProof>, Anchor<P, OpretProof>, TransitionBundle),
+    #[strict_type(tag = 0x00)]
+    Double {
+        tapret_anchor: Anchor<P, TapretProof>,
+        tapret_bundle: TransitionBundle,
+        opret_anchor: Anchor<P, OpretProof>,
+        opret_bundle: TransitionBundle,
+    },
+}
+
+impl<P: mpc::Proof + StrictDumb> StrictDumb for AnchoredBundle<P> {
+    fn strict_dumb() -> Self { Self::Opret(strict_dumb!(), strict_dumb!()) }
+}
+
+impl<P: mpc::Proof + StrictDumb> AnchoredBundle<P> {
+    pub fn bundles(&self) -> vec::IntoIter<&TransitionBundle> {
+        match self {
+            AnchoredBundle::Tapret(_, bundle) |
+            AnchoredBundle::Opret(_, bundle) |
+            AnchoredBundle::Dual(_, _, bundle) => vec![bundle],
+            AnchoredBundle::Double {
+                tapret_bundle,
+                opret_bundle,
+                ..
+            } => vec![tapret_bundle, opret_bundle],
+        }
+        .into_iter()
+    }
+
+    pub fn bundles_mut(&mut self) -> vec::IntoIter<&mut TransitionBundle> {
+        match self {
+            AnchoredBundle::Tapret(_, bundle) |
+            AnchoredBundle::Opret(_, bundle) |
+            AnchoredBundle::Dual(_, _, bundle) => vec![bundle],
+            AnchoredBundle::Double {
+                tapret_bundle,
+                opret_bundle,
+                ..
+            } => vec![tapret_bundle, opret_bundle],
+        }
+        .into_iter()
+    }
+
+    pub fn to_anchor_set(&self) -> AnchorSet<P>
+    where P: Clone {
+        match self.clone() {
+            AnchoredBundle::Tapret(tapret, _) => AnchorSet::Tapret(tapret),
+            AnchoredBundle::Opret(opret, _) => AnchorSet::Opret(opret),
+            AnchoredBundle::Dual(tapret, opret, _) |
+            AnchoredBundle::Double {
+                tapret_anchor: tapret,
+                opret_anchor: opret,
+                ..
+            } => AnchorSet::Dual { tapret, opret },
+        }
+    }
 }
 
 pub trait ToMerkleProof {
