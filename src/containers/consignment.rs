@@ -272,7 +272,7 @@ impl<const TYPE: bool> Consignment<TYPE> {
             .collect::<BTreeMap<_, _>>();
         let mut ordered_extensions = BTreeMap::new();
         for bundled_witness in &self.bundles {
-            for bundle in bundled_witness.anchored_bundle.bundles() {
+            for bundle in bundled_witness.anchored_bundles.bundles() {
                 for transition in bundle.known_transitions.values() {
                     let witness_anchor =
                         resolver.resolve_height(&bundled_witness.pub_witness.to_witness_id())?;
@@ -312,7 +312,7 @@ impl<const TYPE: bool> Consignment<TYPE> {
         // We need to clone since ordered set does not allow us to mutate members.
         let mut bundles = LargeOrdSet::with_capacity(self.bundles.len());
         for mut bundled_witness in self.bundles {
-            for bundle in bundled_witness.anchored_bundle.bundles_mut() {
+            for bundle in bundled_witness.anchored_bundles.bundles_mut() {
                 if bundle.bundle_id() == bundle_id {
                     bundle.reveal_seal(revealed);
                 }

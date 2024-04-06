@@ -41,8 +41,8 @@ mod armor;
 mod file;
 
 pub use anchors::{
-    AnchoredBundle, BundledWitness, BundledWitnessDisclosure, PubWitness, ToMerkleBlock,
-    ToMerkleProof, XPubWitness,
+    AnchoredBundles, BundledWitness, BundledWitnessDisclosure, PubWitness, SealWitness,
+    ToWitnessId, XPubWitness,
 };
 pub use certs::{Cert, ContentId, ContentSigs, Identity};
 pub use consignment::{Consignment, ConsignmentId, Contract, Transfer};

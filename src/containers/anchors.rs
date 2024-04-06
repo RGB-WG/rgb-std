@@ -28,12 +28,37 @@ use bp::dbc::Anchor;
 use bp::{Tx, Txid};
 use commit_verify::{mpc, CommitId, ReservedBytes};
 use rgb::{
-    AnchorSet, BundleDisclosure, BundleId, ContractId, DiscloseHash, Grip, TransitionBundle,
-    XChain, XGrip, XWitnessId,
+    AnchorSet, BundleDisclosure, DiscloseHash, Operation, Transition, TransitionBundle, XChain,
+    XWitnessId,
 };
 use strict_encoding::StrictDumb;
 
+use crate::accessors::{BundleExt, MergeReveal, MergeRevealError, RevealError};
 use crate::LIB_NAME_RGB_STD;
+
+#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct SealWitness {
+    pub public: XPubWitness,
+    pub anchor: AnchorSet<mpc::MerkleBlock>,
+}
+
+impl SealWitness {
+    pub fn new(witness_id: XWitnessId, anchor: AnchorSet<mpc::MerkleBlock>) -> Self {
+        SealWitness {
+            public: witness_id.map(PubWitness::new),
+            anchor,
+        }
+    }
+
+    pub fn witness_id(&self) -> XWitnessId { self.public.to_witness_id() }
+}
 
 pub type XPubWitness = XChain<PubWitness>;
 
@@ -43,6 +68,25 @@ pub trait ToWitnessId {
 
 impl ToWitnessId for XPubWitness {
     fn to_witness_id(&self) -> XWitnessId { self.map_ref(|w| w.txid) }
+}
+
+impl MergeReveal for XPubWitness {
+    fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {
+        match (self, other) {
+            (XChain::Bitcoin(one), XChain::Bitcoin(two)) => {
+                one.merge_reveal(two).map(XChain::Bitcoin)
+            }
+            (XChain::Liquid(one), XChain::Liquid(two)) => one.merge_reveal(two).map(XChain::Liquid),
+            (XChain::Bitcoin(bitcoin), XChain::Liquid(liquid)) |
+            (XChain::Liquid(liquid), XChain::Bitcoin(bitcoin)) => {
+                Err(MergeRevealError::ChainMismatch {
+                    bitcoin: bitcoin.txid,
+                    liquid: liquid.txid,
+                })
+            }
+            _ => unreachable!(),
+        }
+    }
 }
 
 #[derive(Clone, Eq, Debug)]
@@ -71,6 +115,27 @@ impl PartialOrd for PubWitness {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
 }
 
+impl PubWitness {
+    pub fn new(txid: Txid) -> Self {
+        PubWitness {
+            txid,
+            tx: None,
+            spv: none!(),
+        }
+    }
+}
+
+impl MergeReveal for PubWitness {
+    fn merge_reveal(mut self, other: Self) -> Result<Self, MergeRevealError> {
+        if self.txid != other.txid {
+            return Err(MergeRevealError::TxidMismatch(self.txid, other.txid));
+        }
+        self.tx = self.tx.or(other.tx);
+        // TODO: process SPV
+        Ok(self)
+    }
+}
+
 #[derive(Clone, Eq, PartialEq, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
@@ -93,7 +158,7 @@ pub struct BundledWitnessDisclosure {
 )]
 pub struct BundledWitness<P: mpc::Proof + StrictDumb = mpc::MerkleProof> {
     pub pub_witness: XPubWitness,
-    pub anchored_bundle: AnchoredBundle<P>,
+    pub anchored_bundles: AnchoredBundles<P>,
 }
 
 impl<P: mpc::Proof + StrictDumb> PartialEq for BundledWitness<P> {
@@ -109,15 +174,15 @@ impl<P: mpc::Proof + StrictDumb> PartialOrd for BundledWitness<P> {
 }
 
 impl<P: mpc::Proof + StrictDumb> BundledWitness<P> {
-    pub fn bundles(&self) -> vec::IntoIter<&TransitionBundle> { self.anchored_bundle.bundles() }
+    pub fn bundles(&self) -> vec::IntoIter<&TransitionBundle> { self.anchored_bundles.bundles() }
 }
 
 impl BundledWitness<mpc::MerkleProof> {
     pub fn disclose(&self) -> BundledWitnessDisclosure {
-        let mut bundles = self.anchored_bundle.bundles();
+        let mut bundles = self.anchored_bundles.bundles();
         BundledWitnessDisclosure {
             pub_witness: self.pub_witness.clone(),
-            anchors: self.anchored_bundle.to_anchor_set(),
+            anchors: self.anchored_bundles.to_anchor_set(),
             bundle1: bundles
                 .next()
                 .expect("anchored bundle always has at least one bundle")
@@ -137,7 +202,7 @@ impl BundledWitness<mpc::MerkleProof> {
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-pub enum AnchoredBundle<P: mpc::Proof + StrictDumb = mpc::MerkleProof> {
+pub enum AnchoredBundles<P: mpc::Proof + StrictDumb = mpc::MerkleProof> {
     #[strict_type(tag = 0x01)]
     Tapret(Anchor<P, TapretProof>, TransitionBundle),
     #[strict_type(tag = 0x02)]
@@ -153,17 +218,39 @@ pub enum AnchoredBundle<P: mpc::Proof + StrictDumb = mpc::MerkleProof> {
     },
 }
 
-impl<P: mpc::Proof + StrictDumb> StrictDumb for AnchoredBundle<P> {
+impl<P: mpc::Proof + StrictDumb> StrictDumb for AnchoredBundles<P> {
     fn strict_dumb() -> Self { Self::Opret(strict_dumb!(), strict_dumb!()) }
 }
 
-impl<P: mpc::Proof + StrictDumb> AnchoredBundle<P> {
+impl<P: mpc::Proof + StrictDumb> AnchoredBundles<P> {
+    pub fn with(anchor: AnchorSet<P>, bundle: TransitionBundle) -> Option<Self> {
+        match anchor {
+            AnchorSet::Tapret(tapret) => Some(Self::Tapret(tapret, bundle)),
+            AnchorSet::Opret(opret) => Some(Self::Opret(opret, bundle)),
+            AnchorSet::Dual { .. } => None,
+        }
+    }
+
+    pub fn into_bundles(self) -> vec::IntoIter<TransitionBundle> {
+        match self {
+            AnchoredBundles::Tapret(_, bundle) |
+            AnchoredBundles::Opret(_, bundle) |
+            AnchoredBundles::Dual(_, _, bundle) => vec![bundle],
+            AnchoredBundles::Double {
+                tapret_bundle,
+                opret_bundle,
+                ..
+            } => vec![tapret_bundle, opret_bundle],
+        }
+        .into_iter()
+    }
+
     pub fn bundles(&self) -> vec::IntoIter<&TransitionBundle> {
         match self {
-            AnchoredBundle::Tapret(_, bundle) |
-            AnchoredBundle::Opret(_, bundle) |
-            AnchoredBundle::Dual(_, _, bundle) => vec![bundle],
-            AnchoredBundle::Double {
+            AnchoredBundles::Tapret(_, bundle) |
+            AnchoredBundles::Opret(_, bundle) |
+            AnchoredBundles::Dual(_, _, bundle) => vec![bundle],
+            AnchoredBundles::Double {
                 tapret_bundle,
                 opret_bundle,
                 ..
@@ -174,10 +261,10 @@ impl<P: mpc::Proof + StrictDumb> AnchoredBundle<P> {
 
     pub fn bundles_mut(&mut self) -> vec::IntoIter<&mut TransitionBundle> {
         match self {
-            AnchoredBundle::Tapret(_, bundle) |
-            AnchoredBundle::Opret(_, bundle) |
-            AnchoredBundle::Dual(_, _, bundle) => vec![bundle],
-            AnchoredBundle::Double {
+            AnchoredBundles::Tapret(_, bundle) |
+            AnchoredBundles::Opret(_, bundle) |
+            AnchoredBundles::Dual(_, _, bundle) => vec![bundle],
+            AnchoredBundles::Double {
                 tapret_bundle,
                 opret_bundle,
                 ..
@@ -189,101 +276,30 @@ impl<P: mpc::Proof + StrictDumb> AnchoredBundle<P> {
     pub fn to_anchor_set(&self) -> AnchorSet<P>
     where P: Clone {
         match self.clone() {
-            AnchoredBundle::Tapret(tapret, _) => AnchorSet::Tapret(tapret),
-            AnchoredBundle::Opret(opret, _) => AnchorSet::Opret(opret),
-            AnchoredBundle::Dual(tapret, opret, _) |
-            AnchoredBundle::Double {
+            AnchoredBundles::Tapret(tapret, _) => AnchorSet::Tapret(tapret),
+            AnchoredBundles::Opret(opret, _) => AnchorSet::Opret(opret),
+            AnchoredBundles::Dual(tapret, opret, _) |
+            AnchoredBundles::Double {
                 tapret_anchor: tapret,
                 opret_anchor: opret,
                 ..
             } => AnchorSet::Dual { tapret, opret },
         }
     }
-}
 
-pub trait ToMerkleProof {
-    fn known_bundle_ids(&self) -> impl Iterator<Item = (BundleId, ContractId)> + '_;
-    fn split(self) -> (XWitnessId, AnchorSet<mpc::MerkleBlock>);
-    fn to_merkle_proof(
-        &self,
-        contract_id: ContractId,
-    ) -> Result<XGrip<mpc::MerkleProof>, mpc::LeafNotKnown>;
-    fn into_merkle_proof(
-        self,
-        contract_id: ContractId,
-    ) -> Result<XGrip<mpc::MerkleProof>, mpc::LeafNotKnown>;
-}
-
-impl ToMerkleProof for XGrip<mpc::MerkleBlock> {
-    fn known_bundle_ids(&self) -> impl Iterator<Item = (BundleId, ContractId)> + '_ {
-        match self {
-            XGrip::Bitcoin(grip) | XGrip::Liquid(grip) => grip.anchors.known_bundle_ids(),
-            _ => unreachable!(),
+    /// Ensures that the transition is revealed inside the anchored bundle.
+    ///
+    /// # Returns
+    ///
+    /// `true` if the transition was previously concealed; `false` if it was
+    /// already revealed; error if the transition is unrelated to the bundle.
+    pub fn reveal_transition(&mut self, mut transition: Transition) -> Result<bool, RevealError> {
+        for bundle in self.bundles_mut() {
+            match bundle.reveal_transition(transition) {
+                Ok(known) => return Ok(known),
+                Err(RevealError::UnrelatedTransition(_, t)) => transition = t,
+            }
         }
-    }
-
-    fn split(self) -> (XWitnessId, AnchorSet<mpc::MerkleBlock>) {
-        match self {
-            XGrip::Bitcoin(grip) => (XWitnessId::Bitcoin(grip.id), grip.anchors),
-            XGrip::Liquid(grip) => (XWitnessId::Liquid(grip.id), grip.anchors),
-            _ => unreachable!(),
-        }
-    }
-
-    fn to_merkle_proof(
-        &self,
-        contract_id: ContractId,
-    ) -> Result<XGrip<mpc::MerkleProof>, mpc::LeafNotKnown> {
-        self.clone().into_merkle_proof(contract_id)
-    }
-
-    fn into_merkle_proof(
-        self,
-        contract_id: ContractId,
-    ) -> Result<XGrip<mpc::MerkleProof>, mpc::LeafNotKnown> {
-        self.try_map(|grip| {
-            let anchors = grip.anchors.into_merkle_proof(contract_id)?;
-            Ok(Grip {
-                id: grip.id,
-                anchors,
-            })
-        })
-    }
-}
-
-pub trait ToMerkleBlock {
-    fn to_merkle_block(
-        &self,
-        contract_id: ContractId,
-        bundle_id: BundleId,
-    ) -> Result<XGrip<mpc::MerkleBlock>, mpc::InvalidProof>;
-    fn into_merkle_block(
-        self,
-        contract_id: ContractId,
-        bundle_id: BundleId,
-    ) -> Result<XGrip<mpc::MerkleBlock>, mpc::InvalidProof>;
-}
-
-impl ToMerkleBlock for XGrip<mpc::MerkleProof> {
-    fn to_merkle_block(
-        &self,
-        contract_id: ContractId,
-        bundle_id: BundleId,
-    ) -> Result<XGrip<mpc::MerkleBlock>, mpc::InvalidProof> {
-        self.clone().into_merkle_block(contract_id, bundle_id)
-    }
-
-    fn into_merkle_block(
-        self,
-        contract_id: ContractId,
-        bundle_id: BundleId,
-    ) -> Result<XGrip<mpc::MerkleBlock>, mpc::InvalidProof> {
-        self.try_map(|grip| {
-            let anchors = grip.anchors.into_merkle_block(contract_id, bundle_id)?;
-            Ok(Grip {
-                id: grip.id,
-                anchors,
-            })
-        })
+        Err(RevealError::UnrelatedTransition(transition.id(), transition))
     }
 }

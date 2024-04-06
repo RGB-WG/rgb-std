@@ -24,18 +24,19 @@ use std::convert::Infallible;
 use std::ops::{Deref, DerefMut};
 
 use amplify::confinement::{MediumOrdMap, MediumOrdSet, TinyOrdMap};
-use commit_verify::{mpc, Conceal};
-use rgb::validation::{Status, Validity, Warning};
+use commit_verify::Conceal;
+use rgb::validation::{Validity, Warning};
 use rgb::{
     validation, Assign, AssignmentType, BundleId, ContractHistory, ContractId, ContractState,
     ExposedState, Extension, Genesis, GenesisSeal, GraphSeal, OpId, Operation, Opout, Schema,
-    SecretSeal, Transition, TransitionBundle, TypedAssigns, WitnessAnchor, XChain, XGrip,
-    XOutpoint, XOutputSeal, XWitnessId,
+    SecretSeal, Transition, TransitionBundle, TypedAssigns, WitnessAnchor, XChain, XOutpoint,
+    XOutputSeal, XWitnessId,
 };
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 
 use crate::containers::{
-    AnchoredBundle, Cert, Consignment, ContentId, Contract, TerminalSeal, ToMerkleProof, Transfer,
+    AnchoredBundles, BundledWitness, Cert, Consignment, ContentId, Contract, PubWitness,
+    SealWitness, TerminalSeal, ToWitnessId, Transfer,
 };
 use crate::interface::{ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, SchemaIfaces};
 use crate::persistence::inventory::{DataError, IfaceImplError, InventoryInconsistency};
@@ -44,12 +45,6 @@ use crate::persistence::{
 };
 use crate::resolvers::ResolveHeight;
 use crate::LIB_NAME_RGB_STD;
-
-#[derive(Clone, Eq, PartialEq, Debug)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
-pub struct IndexedBundle(ContractId, BundleId);
 
 #[derive(Clone, Debug, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
@@ -78,7 +73,8 @@ pub struct Stock {
     // state
     history: TinyOrdMap<ContractId, ContractHistory>,
     // index
-    op_bundle_index: MediumOrdMap<OpId, IndexedBundle>,
+    op_bundle_index: MediumOrdMap<OpId, BundleId>,
+    bundle_contract_index: MediumOrdMap<BundleId, ContractId>,
     bundle_witness_index: MediumOrdMap<BundleId, XWitnessId>,
     contract_index: TinyOrdMap<ContractId, ContractIndex>,
     terminal_index: MediumOrdMap<XChain<SecretSeal>, Opout>,
@@ -93,6 +89,7 @@ impl Default for Stock {
             history: empty!(),
             op_bundle_index: empty!(),
             bundle_witness_index: empty!(),
+            bundle_contract_index: empty!(),
             contract_index: empty!(),
             terminal_index: empty!(),
             seal_secrets: empty!(),
@@ -183,11 +180,17 @@ impl Stock {
         for extension in &consignment.extensions {
             self.index_extension(contract_id, extension)?;
         }
-        for AnchoredBundle { grip, bundle } in &consignment.bundles {
-            let bundle_id = bundle.bundle_id();
-            let witness_id = grip.witness_id();
-            self.bundle_witness_index.insert(bundle_id, witness_id)?;
-            self.index_bundle(contract_id, bundle, witness_id)?;
+        for BundledWitness {
+            pub_witness,
+            anchored_bundles,
+        } in &consignment.bundles
+        {
+            let witness_id = pub_witness.to_witness_id();
+            for bundle in anchored_bundles.bundles() {
+                self.bundle_witness_index
+                    .insert(bundle.bundle_id(), witness_id)?;
+                self.index_bundle(contract_id, bundle, witness_id)?;
+            }
         }
 
         self.hoard.consume_consignment(consignment)?;
@@ -253,8 +256,8 @@ impl Stock {
     ) -> Result<(), InventoryError<<Self as Inventory>::Error>> {
         let bundle_id = bundle.bundle_id();
         for (opid, transition) in &bundle.known_transitions {
-            self.op_bundle_index
-                .insert(*opid, IndexedBundle(id, bundle_id))?;
+            self.op_bundle_index.insert(*opid, bundle_id)?;
+            self.bundle_contract_index.insert(bundle_id, id)?;
             for (type_id, assign) in transition.assignments.iter() {
                 match assign {
                     TypedAssigns::Declarative(vec) => {
@@ -447,22 +450,22 @@ impl Inventory for Stock {
         transfer: Transfer,
         resolver: &mut R,
         force: bool,
-    ) -> Result<Status, InventoryError<Self::Error>>
+    ) -> Result<validation::Status, InventoryError<Self::Error>>
     where
         R::Error: 'static,
     {
         self.consume_consignment(transfer, resolver, force)
     }
 
-    unsafe fn consume_grip(
+    unsafe fn consume_witness(
         &mut self,
-        grip: XGrip<mpc::MerkleBlock>,
+        witness: SealWitness,
     ) -> Result<(), InventoryError<Self::Error>> {
-        let witness_id = grip.witness_id();
-        for (bundle_id, _) in grip.known_bundle_ids() {
-            self.bundle_witness_index.insert(bundle_id, witness_id)?;
+        for (bundle_id, _) in witness.anchor.known_bundle_ids() {
+            self.bundle_witness_index
+                .insert(bundle_id, witness.witness_id())?;
         }
-        self.hoard.consume_grip(grip)?;
+        self.hoard.consume_witness(witness)?;
         Ok(())
     }
 
@@ -527,7 +530,7 @@ impl Inventory for Stock {
     }
 
     fn transition(&self, opid: OpId) -> Result<&Transition, InventoryError<Self::Error>> {
-        let IndexedBundle(_, bundle_id) = self
+        let bundle_id = self
             .op_bundle_index
             .get(&opid)
             .ok_or(InventoryInconsistency::BundleAbsent(opid))?;
@@ -539,23 +542,38 @@ impl Inventory for Stock {
         Ok(transition)
     }
 
-    fn anchored_bundle(&self, opid: OpId) -> Result<AnchoredBundle, InventoryError<Self::Error>> {
-        let IndexedBundle(contract_id, bundle_id) = self
-            .op_bundle_index
+    fn op_bundle_id(&self, opid: OpId) -> Result<BundleId, InventoryError<Self::Error>> {
+        self.op_bundle_index
             .get(&opid)
-            .ok_or(InventoryInconsistency::BundleAbsent(opid))?;
+            .copied()
+            .ok_or(InventoryInconsistency::BundleAbsent(opid).into())
+    }
 
-        let anchor_id = self
+    fn bundled_witness(
+        &self,
+        bundle_id: BundleId,
+    ) -> Result<BundledWitness, InventoryError<Self::Error>> {
+        let witness_id = self
             .bundle_witness_index
-            .get(bundle_id)
-            .ok_or(InventoryInconsistency::NoBundleAnchor(*bundle_id))?;
+            .get(&bundle_id)
+            .ok_or(InventoryInconsistency::NoBundleAnchor(bundle_id))?;
+        let contract_id = self
+            .bundle_contract_index
+            .get(&bundle_id)
+            .ok_or(InventoryInconsistency::BundleContractUnknown(bundle_id))?;
 
-        let bundle = self.bundle(*bundle_id)?.clone();
-        let grip = self.grip(*anchor_id)?;
-        let grip = grip.to_merkle_proof(*contract_id)?;
+        let bundle = self.bundle(bundle_id)?.clone();
+        let anchor = self.anchor(*witness_id)?;
+        let anchor = anchor.to_merkle_proof(*contract_id)?;
+        let anchored_bundles =
+            AnchoredBundles::with(anchor, bundle).ok_or(DataError::DoubleAnchor(bundle_id))?;
         // TODO: Conceal all transitions except the one we need
 
-        Ok(AnchoredBundle { grip, bundle })
+        // TODO: recover Tx and SPV
+        Ok(BundledWitness {
+            pub_witness: witness_id.map(PubWitness::new),
+            anchored_bundles,
+        })
     }
 
     fn contracts_by_outputs(

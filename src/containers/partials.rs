@@ -30,8 +30,8 @@ use amplify::confinement::{Confined, U24};
 use bp::seals::txout::CloseMethod;
 use commit_verify::mpc;
 use rgb::{
-    ContractId, OpId, Operation, Transition, TransitionBundle, TxoSeal, XGrip, XOutpoint,
-    XOutputSeal,
+    AnchorSet, ContractId, OpId, Operation, Transition, TransitionBundle, TxoSeal, XOutpoint,
+    XOutputSeal, XWitnessId,
 };
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 
@@ -226,14 +226,16 @@ impl Batch {
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct Fascia {
-    pub grip: XGrip<mpc::MerkleBlock>,
+    pub witness_id: XWitnessId,
+    pub anchor: AnchorSet<mpc::MerkleBlock>,
     pub bundles: Confined<BTreeMap<ContractId, TransitionBundle>, 1, U24>,
 }
 
 impl StrictDumb for Fascia {
     fn strict_dumb() -> Self {
         Fascia {
-            grip: strict_dumb!(),
+            witness_id: strict_dumb!(),
+            anchor: strict_dumb!(),
             bundles: confined_bmap![strict_dumb!() => strict_dumb!()],
         }
     }
