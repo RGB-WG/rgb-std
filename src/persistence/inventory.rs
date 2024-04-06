@@ -37,7 +37,7 @@ use rgb::{
 };
 use strict_encoding::{FieldName, TypeName};
 
-use crate::accessors::{MergeRevealError, RevealError};
+use crate::accessors::{MergeReveal, MergeRevealError, RevealError};
 use crate::containers::{
     Batch, BuilderSeal, BundledWitness, Cert, Consignment, ContentId, Contract, Fascia,
     SealWitness, Terminal, TerminalSeal, Transfer, TransitionInfo,
@@ -63,6 +63,10 @@ pub enum ConsignerError<E1: Error, E2: Error> {
 
     /// public state at operation output {0} is concealed.
     ConcealedPublicState(Opout),
+
+    #[from]
+    #[display(inner)]
+    MergeReveal(MergeRevealError),
 
     #[from]
     #[display(inner)]
@@ -714,7 +718,19 @@ pub trait Inventory: Deref<Target = Self::Stash> {
                 .insert(*iface_id, IfacePair::with(iface.clone(), iimpl.clone()))
                 .expect("same collection size");
         }
-        consignment.bundles = Confined::try_from_iter(bundled_witnesses.into_values())
+        let mut bundles = BTreeMap::<XWitnessId, BundledWitness>::new();
+        for bw in bundled_witnesses.into_values() {
+            let witness_id = bw.witness_id();
+            match bundles.get_mut(&witness_id) {
+                Some(prev) => {
+                    *prev = prev.clone().merge_reveal(bw)?;
+                }
+                None => {
+                    bundles.insert(witness_id, bw);
+                }
+            }
+        }
+        consignment.bundles = Confined::try_from_iter(bundles.into_values())
             .map_err(|_| ConsignerError::TooManyBundles)?;
         consignment.terminals =
             Confined::try_from(terminals).map_err(|_| ConsignerError::TooManyTerminals)?;

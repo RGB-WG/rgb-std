@@ -178,6 +178,8 @@ impl<P: mpc::Proof + StrictDumb> BundledWitness<P> {
 }
 
 impl BundledWitness<mpc::MerkleProof> {
+    pub fn witness_id(&self) -> XWitnessId { self.pub_witness.to_witness_id() }
+
     pub fn disclose(&self) -> BundledWitnessDisclosure {
         let mut bundles = self.anchored_bundles.bundles();
         BundledWitnessDisclosure {
@@ -192,6 +194,14 @@ impl BundledWitness<mpc::MerkleProof> {
     }
 
     pub fn disclose_hash(&self) -> DiscloseHash { self.disclose().commit_id() }
+}
+
+impl MergeReveal for BundledWitness {
+    fn merge_reveal(mut self, other: Self) -> Result<Self, MergeRevealError> {
+        self.pub_witness = self.pub_witness.merge_reveal(other.pub_witness)?;
+        self.anchored_bundles = self.anchored_bundles.merge_reveal(other.anchored_bundles)?;
+        Ok(self)
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -301,5 +311,102 @@ impl<P: mpc::Proof + StrictDumb> AnchoredBundles<P> {
             }
         }
         Err(RevealError::UnrelatedTransition(transition.id(), transition))
+    }
+}
+
+impl MergeReveal for AnchoredBundles {
+    fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {
+        match (self, other) {
+            (AnchoredBundles::Tapret(anchor1, bundle), AnchoredBundles::Tapret(anchor2, _))
+                if anchor1 != anchor2 =>
+            {
+                Err(MergeRevealError::AnchorsNonEqual(bundle.bundle_id()))
+            }
+
+            (AnchoredBundles::Opret(anchor1, bundle), AnchoredBundles::Opret(anchor2, _))
+                if anchor1 != anchor2 =>
+            {
+                Err(MergeRevealError::AnchorsNonEqual(bundle.bundle_id()))
+            }
+
+            (AnchoredBundles::Tapret(anchor, bundle1), AnchoredBundles::Tapret(_, bundle2)) => {
+                Ok(AnchoredBundles::Tapret(anchor, bundle1.merge_reveal(bundle2)?))
+            }
+
+            (AnchoredBundles::Opret(anchor, bundle1), AnchoredBundles::Opret(_, bundle2)) => {
+                Ok(AnchoredBundles::Opret(anchor, bundle1.merge_reveal(bundle2)?))
+            }
+
+            (
+                AnchoredBundles::Tapret(tapret_anchor, tapret_bundle),
+                AnchoredBundles::Opret(opret_anchor, opret_bundle),
+            ) if tapret_bundle.bundle_id() == opret_bundle.bundle_id() => {
+                Ok(AnchoredBundles::Dual(
+                    tapret_anchor,
+                    opret_anchor,
+                    tapret_bundle.merge_reveal(opret_bundle)?,
+                ))
+            }
+            (
+                AnchoredBundles::Tapret(tapret_anchor, tapret_bundle),
+                AnchoredBundles::Opret(opret_anchor, opret_bundle),
+            ) => Ok(AnchoredBundles::Double {
+                tapret_anchor,
+                tapret_bundle,
+                opret_anchor,
+                opret_bundle,
+            }),
+
+            (
+                AnchoredBundles::Dual(anchor11, anchor12, bundle),
+                AnchoredBundles::Dual(anchor21, anchor22, _),
+            ) |
+            (
+                AnchoredBundles::Double {
+                    tapret_anchor: anchor11,
+                    opret_anchor: anchor12,
+                    tapret_bundle: bundle,
+                    ..
+                },
+                AnchoredBundles::Double {
+                    tapret_anchor: anchor21,
+                    opret_anchor: anchor22,
+                    ..
+                },
+            ) if anchor11 != anchor21 || anchor12 != anchor22 => {
+                Err(MergeRevealError::AnchorsNonEqual(bundle.bundle_id()))
+            }
+
+            (
+                AnchoredBundles::Dual(anchor1, anchor2, bundle1),
+                AnchoredBundles::Dual(_, _, bundle2),
+            ) => Ok(AnchoredBundles::Dual(anchor1, anchor2, bundle1.merge_reveal(bundle2)?)),
+
+            (
+                AnchoredBundles::Double {
+                    tapret_anchor,
+                    tapret_bundle: tapret1,
+                    opret_anchor,
+                    opret_bundle: opret1,
+                },
+                AnchoredBundles::Double {
+                    tapret_bundle: tapret2,
+                    opret_bundle: opret2,
+                    ..
+                },
+            ) => Ok(AnchoredBundles::Double {
+                tapret_anchor,
+                opret_anchor,
+                tapret_bundle: tapret1.merge_reveal(tapret2)?,
+                opret_bundle: opret1.merge_reveal(opret2)?,
+            }),
+
+            (me, _) => Err(MergeRevealError::AnchorsNonEqual(
+                me.bundles()
+                    .next()
+                    .expect("at least one bundle")
+                    .bundle_id(),
+            )),
+        }
     }
 }

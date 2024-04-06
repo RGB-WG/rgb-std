@@ -27,8 +27,8 @@ use bp::dbc::anchor::MergeError;
 use bp::Txid;
 use commit_verify::{mpc, Conceal};
 use rgb::{
-    AnchorSet, Assign, Assignments, ExposedSeal, ExposedState, Extension, Genesis, OpId, Operation,
-    Transition, TransitionBundle, TypedAssigns,
+    AnchorSet, Assign, Assignments, BundleId, ExposedSeal, ExposedState, Extension, Genesis, OpId,
+    Operation, Transition, TransitionBundle, TypedAssigns,
 };
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error, From)]
@@ -46,6 +46,9 @@ pub enum MergeRevealError {
 
     /// mismatching transaction id for merge-revealed: {0} and {1}.
     TxidMismatch(Txid, Txid),
+
+    /// anchors in anchored bundle are not equal for bundle {0}.
+    AnchorsNonEqual(BundleId),
 
     #[from]
     #[display(inner)]
