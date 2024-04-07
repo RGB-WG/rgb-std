@@ -269,6 +269,7 @@ Consignmenttrue rec
                   some union TapretNodePartner option wrapped tag=1
                     rightBranch rec TapretRightBranch wrapped tag=2
                   nonce is U8
+              method enum Method opretFirst=0 tapretFirst=1
             opret rec AnchorMerkleProofOpretProof wrapped tag=1
               mpcProof rec MerkleProof
                 pos is U32
@@ -276,6 +277,7 @@ Consignmenttrue rec
                 path list len=0..32
                   element bytes len=32 aka=MerkleHash
               dbcProof is Unit aka=OpretProof
+              method enum Method opretFirst=0 tapretFirst=1
             dual rec tag=2
               tapret rec AnchorMerkleProofTapretProof
                 mpcProof rec MerkleProof
@@ -288,6 +290,7 @@ Consignmenttrue rec
                     some union TapretNodePartner option wrapped tag=1
                       rightBranch rec TapretRightBranch wrapped tag=2
                     nonce is U8
+                method enum Method opretFirst=0 tapretFirst=1
               opret rec AnchorMerkleProofOpretProof
                 mpcProof rec MerkleProof
                   pos is U32
@@ -295,6 +298,7 @@ Consignmenttrue rec
                   path list len=0..32
                     element bytes len=32 aka=MerkleHash
                 dbcProof is Unit aka=OpretProof
+                method enum Method opretFirst=0 tapretFirst=1
         liquid rec Grip wrapped tag=1
           id bytes len=32 aka=Txid
           anchors union AnchorSet
@@ -309,6 +313,7 @@ Consignmenttrue rec
                   some union TapretNodePartner option wrapped tag=1
                     rightBranch rec TapretRightBranch wrapped tag=2
                   nonce is U8
+              method enum Method opretFirst=0 tapretFirst=1
             opret rec AnchorMerkleProofOpretProof wrapped tag=1
               mpcProof rec MerkleProof
                 pos is U32
@@ -316,6 +321,7 @@ Consignmenttrue rec
                 path list len=0..32
                   element bytes len=32 aka=MerkleHash
               dbcProof is Unit aka=OpretProof
+              method enum Method opretFirst=0 tapretFirst=1
             dual rec tag=2
               tapret rec AnchorMerkleProofTapretProof
                 mpcProof rec MerkleProof
@@ -328,6 +334,7 @@ Consignmenttrue rec
                     some union TapretNodePartner option wrapped tag=1
                       rightBranch rec TapretRightBranch wrapped tag=2
                     nonce is U8
+                method enum Method opretFirst=0 tapretFirst=1
               opret rec AnchorMerkleProofOpretProof
                 mpcProof rec MerkleProof
                   pos is U32
@@ -335,6 +342,7 @@ Consignmenttrue rec
                   path list len=0..32
                     element bytes len=32 aka=MerkleHash
                 dbcProof is Unit aka=OpretProof
+                method enum Method opretFirst=0 tapretFirst=1
       bundle rec TransitionBundle
         inputMap map len=1..MAX16 aka=InputMap
           key is U32 aka=Vout
