@@ -1,5 +1,5 @@
 {-
-  Id: urn:ubideco:stl:Hj6L1YEQ9B9zmrsMeSyyVZ3R8oQW4pwua1AwisE9fmR4#africa-folio-adios
+  Id: urn:ubideco:stl:GGCFsnvHrTSWU1pLEDmJEdNQY6ffmxwA7zGb5NSC6siF#evening-easy-direct
   Name: RGBStd
   Version: 0.1.0
   Description: RGB standard library
@@ -35,7 +35,6 @@ import StrictTypes#5teCJyjMWaxbQK8vdga2soWh2U7waERS3ev8KHShJcgv#trumpet-scratch-
 import BPCore#6skrch4mJzDzVaTYnCgCxFJLw23SSUxNhK7PKgPdSapR#roof-parent-reunion
   use TapretNodePartner#iceberg-poker-active
   use ExplicitSealTxid#antenna-darwin-emotion
-  use AnchorMerkleBlockDbcProof#sunset-rider-junior
   use TapretProof#forum-paint-tunnel
   use TapretPathProof#stage-element-update
   use Method#trilogy-tahiti-valid
@@ -43,6 +42,8 @@ import BPCore#6skrch4mJzDzVaTYnCgCxFJLw23SSUxNhK7PKgPdSapR#roof-parent-reunion
   use BlindSealTxPtr#austria-icon-waiter
   use OpretProof#segment-ambient-totem
   use AnchorMerkleProofTapretProof#hotel-telecom-politic
+  use AnchorMerkleBlockTapretProof#culture-tina-pluto
+  use AnchorMerkleBlockOpretProof#flower-bonjour-import
   use SecretSeal#santana-domingo-needle
   use BlindSealTxid#kimono-golf-price
   use TxPtr#strange-source-father
@@ -63,7 +64,6 @@ import RGB#CpiRnYcWXa6vzULgHPdTQiXyGq2yUiJNKvqGMXZVePf8#castle-crystal-chicken
   use BundleId#desert-divide-visible
   use AssignmentWitness#hobby-client-remark
   use GlobalOrd#sofia-perfect-kinetic
-  use DbcProof#fidel-swim-chicago
   use WitnessPos#robert-average-artist
   use InputMap#ravioli-rudolf-inch
   use OutputAssignmentVoidState#traffic-karate-stella
@@ -175,13 +175,18 @@ import Bitcoin#HX2UBak8vPsTokug1DGMDvTpzns3xUdwZ7QJdyt4qBA9#speed-atlanta-trilog
   use XOnlyPk#evident-finance-promo
 
 
-@mnemonic(script-evening-speed)
-data AnchoredBundles   : double (tapretAnchor BPCore.AnchorMerkleProofTapretProof#hotel-telecom-politic
+@mnemonic(frog-bermuda-elite)
+data AnchorSet         : tapret#1 BPCore.AnchorMerkleBlockTapretProof#culture-tina-pluto
+                       | opret BPCore.AnchorMerkleBlockOpretProof#flower-bonjour-import
+                       | double (tapret BPCore.AnchorMerkleBlockTapretProof#culture-tina-pluto, opret BPCore.AnchorMerkleBlockOpretProof#flower-bonjour-import)
+
+@mnemonic(france-exact-saga)
+data AnchoredBundles   : tapret#1 (BPCore.AnchorMerkleProofTapretProof#hotel-telecom-politic, RGB.TransitionBundle#sample-machine-chef)
+                       | opret (BPCore.AnchorMerkleProofOpretProof#miranda-chance-extreme, RGB.TransitionBundle#sample-machine-chef)
+                       | double (tapretAnchor BPCore.AnchorMerkleProofTapretProof#hotel-telecom-politic
                        , tapretBundle RGB.TransitionBundle#sample-machine-chef
                        , opretAnchor BPCore.AnchorMerkleProofOpretProof#miranda-chance-extreme
                        , opretBundle RGB.TransitionBundle#sample-machine-chef)
-                       | tapret (BPCore.AnchorMerkleProofTapretProof#hotel-telecom-politic, RGB.TransitionBundle#sample-machine-chef)
-                       | opret (BPCore.AnchorMerkleProofOpretProof#miranda-chance-extreme, RGB.TransitionBundle#sample-machine-chef)
 
 @mnemonic(galileo-stuart-night)
 data AssignIface       : ownedState OwnedIface
@@ -379,8 +384,8 @@ data PubWitness        : txid Bitcoin.Txid#cowboy-diego-betty
 @mnemonic(campus-justice-volume)
 data SchemaIfaces      : schema RGB.Schema#angel-emotion-conduct, iimpls {IfaceId -> ^ ..0xff IfaceImpl}
 
-@mnemonic(empty-july-anvil)
-data SealWitness       : public RGB.XChainPubWitness#animal-pretend-exile, anchor BPCore.AnchorMerkleBlockDbcProof#sunset-rider-junior
+@mnemonic(detail-barbara-polite)
+data SealWitness       : public RGB.XChainPubWitness#animal-pretend-exile, anchors AnchorSet
 
 @mnemonic(calypso-topic-kinetic)
 data Stock             : hoard Hoard

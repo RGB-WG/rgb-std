@@ -28,13 +28,15 @@ use bp::dbc::anchor::MergeError;
 use bp::dbc::tapret::TapretCommitment;
 use commit_verify::{mpc, CommitId};
 use rgb::{
-    AssetTag, AssignmentType, BundleId, ContractId, DbcProof, EAnchor, Extension, Genesis, OpId,
-    Operation, SchemaId, TransitionBundle, XWitnessId,
+    AssetTag, AssignmentType, BundleId, ContractId, Extension, Genesis, OpId, Operation, SchemaId,
+    TransitionBundle, XWitnessId,
 };
 use strict_encoding::TypeName;
 
 use crate::accessors::{MergeReveal, MergeRevealError};
-use crate::containers::{BundledWitness, Cert, Consignment, ContentId, ContentSigs, SealWitness};
+use crate::containers::{
+    AnchorSet, BundledWitness, Cert, Consignment, ContentId, ContentSigs, SealWitness,
+};
 use crate::interface::{
     rgb20, rgb21, rgb25, ContractSuppl, Iface, IfaceClass, IfaceId, IfacePair, Rgb20, Rgb21, Rgb25,
     SchemaIfaces,
@@ -192,13 +194,12 @@ impl Hoard {
         } in consignment.bundles
         {
             // TODO: Save pub witness transaction and SPVs
-            for (anchor_set, bundle) in anchored_bundles.into_pairs() {
-                let bundle_id = bundle.bundle_id();
-                self.consume_bundle(bundle)?;
-                let anchor = anchor_set.to_merkle_block(contract_id, bundle_id)?;
+            for bundle in anchored_bundles.bundles() {
+                self.consume_bundle(bundle.clone())?;
+                let anchors = anchored_bundles.to_anchor_set(contract_id, bundle.bundle_id())?;
                 self.consume_witness(SealWitness {
                     public: pub_witness.clone(),
-                    anchor,
+                    anchors,
                 })?;
             }
         }
@@ -233,7 +234,7 @@ impl Hoard {
         match self.witnesses.get_mut(&witness_id) {
             Some(w) => {
                 w.public = w.public.clone().merge_reveal(witness.public)?;
-                w.anchor = w.anchor.clone().merge_reveal(witness.anchor)?;
+                w.anchors = w.anchors.clone().merge_reveal(witness.anchors)?;
             }
             None => {
                 self.witnesses.insert(witness_id, witness)?;
@@ -339,16 +340,12 @@ impl Stash for Hoard {
             .ok_or(StashInconsistency::OperationAbsent(op_id).into())
     }
 
-    fn anchor(
-        &self,
-        witness_id: XWitnessId,
-    ) -> Result<EAnchor<mpc::MerkleBlock>, StashError<Self::Error>> {
+    fn anchors(&self, witness_id: XWitnessId) -> Result<AnchorSet, StashError<Self::Error>> {
         let witness = self
             .witnesses
             .get(&witness_id)
-            .ok_or(StashInconsistency::AnchorAbsent(witness_id))?
-            .clone();
-        Ok(witness.anchor)
+            .ok_or(StashInconsistency::AnchorAbsent(witness_id))?;
+        Ok(witness.anchors.clone())
     }
 
     fn contract_asset_tags(
@@ -365,12 +362,16 @@ impl Stash for Hoard {
         Ok(self
             .witnesses
             .iter()
-            .filter_map(|(witness_id, witness)| match &witness.anchor.dbc_proof {
-                DbcProof::Tapret(tapret) => Some((*witness_id, TapretCommitment {
-                    mpc: witness.anchor.mpc_proof.commit_id(),
-                    nonce: tapret.path_proof.nonce(),
+            .filter_map(|(witness_id, witness)| match &witness.anchors {
+                AnchorSet::Tapret(anchor) |
+                AnchorSet::Double {
+                    tapret: anchor,
+                    opret: _,
+                } => Some((*witness_id, TapretCommitment {
+                    mpc: anchor.mpc_proof.commit_id(),
+                    nonce: anchor.dbc_proof.path_proof.nonce(),
                 })),
-                DbcProof::Opret(_) => None,
+                _ => None,
             })
             .collect())
     }

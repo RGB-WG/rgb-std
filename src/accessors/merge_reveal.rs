@@ -52,6 +52,9 @@ pub enum MergeRevealError {
     /// anchors in anchored bundle are not equal for bundle {0}.
     AnchorsNonEqual(BundleId),
 
+    /// anchors for the same witness do not match each other.
+    AnchorsMismatch,
+
     #[from]
     #[display(inner)]
     AnchorMismatch(mpc::MergeError),

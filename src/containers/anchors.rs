@@ -22,14 +22,15 @@
 use std::cmp::Ordering;
 use std::vec;
 
+use amplify::ByteArray;
 use bp::dbc::opret::OpretProof;
 use bp::dbc::tapret::TapretProof;
 use bp::dbc::Anchor;
 use bp::{Tx, Txid};
 use commit_verify::{mpc, CommitId, ReservedBytes};
 use rgb::{
-    BundleDisclosure, DbcProof, DiscloseHash, EAnchor, Operation, Transition, TransitionBundle,
-    XChain, XWitnessId,
+    BundleDisclosure, BundleId, ContractId, DbcProof, DiscloseHash, EAnchor, Operation, Transition,
+    TransitionBundle, XChain, XWitnessId,
 };
 use strict_encoding::StrictDumb;
 
@@ -46,14 +47,14 @@ use crate::LIB_NAME_RGB_STD;
 )]
 pub struct SealWitness {
     pub public: XPubWitness,
-    pub anchor: EAnchor<mpc::MerkleBlock>,
+    pub anchors: AnchorSet,
 }
 
 impl SealWitness {
-    pub fn new(witness_id: XWitnessId, anchor: EAnchor<mpc::MerkleBlock>) -> Self {
+    pub fn new(witness_id: XWitnessId, anchors: AnchorSet) -> Self {
         SealWitness {
             public: witness_id.map(PubWitness::new),
-            anchor,
+            anchors,
         }
     }
 
@@ -125,8 +126,8 @@ impl PubWitness {
     }
 }
 
-impl MergeReveal for PubWitness {
-    fn merge_reveal(mut self, other: Self) -> Result<Self, MergeRevealError> {
+impl PubWitness {
+    pub fn merge_reveal(mut self, other: Self) -> Result<Self, MergeRevealError> {
         if self.txid != other.txid {
             return Err(MergeRevealError::TxidMismatch(self.txid, other.txid));
         }
@@ -212,11 +213,86 @@ impl BundledWitness<mpc::MerkleProof> {
     pub fn disclose_hash(&self) -> DiscloseHash { self.disclose().commit_id() }
 }
 
-impl MergeReveal for BundledWitness {
-    fn merge_reveal(mut self, other: Self) -> Result<Self, MergeRevealError> {
+impl BundledWitness {
+    pub fn merge_reveal(mut self, other: Self) -> Result<Self, MergeRevealError> {
         self.pub_witness = self.pub_witness.merge_reveal(other.pub_witness)?;
         self.anchored_bundles = self.anchored_bundles.merge_reveal(other.anchored_bundles)?;
         Ok(self)
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD, tags = custom)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub enum AnchorSet {
+    #[strict_type(tag = 0x01)]
+    Tapret(Anchor<mpc::MerkleBlock, TapretProof>),
+    #[strict_type(tag = 0x02)]
+    Opret(Anchor<mpc::MerkleBlock, OpretProof>),
+    #[strict_type(tag = 0x03)]
+    Double {
+        tapret: Anchor<mpc::MerkleBlock, TapretProof>,
+        opret: Anchor<mpc::MerkleBlock, OpretProof>,
+    },
+}
+
+impl StrictDumb for AnchorSet {
+    fn strict_dumb() -> Self { Self::Opret(strict_dumb!()) }
+}
+
+impl AnchorSet {
+    pub fn known_bundle_ids(&self) -> impl Iterator<Item = BundleId> {
+        let map = match self {
+            AnchorSet::Tapret(tapret) => tapret.mpc_proof.to_known_message_map().into_inner(),
+            AnchorSet::Opret(opret) => opret.mpc_proof.to_known_message_map().into_inner(),
+            AnchorSet::Double { tapret, opret } => {
+                let mut map = tapret.mpc_proof.to_known_message_map().into_inner();
+                map.extend(opret.mpc_proof.to_known_message_map().into_inner());
+                map
+            }
+        };
+        map.into_values()
+            .map(|msg| BundleId::from_byte_array(msg.to_byte_array()))
+    }
+}
+
+impl AnchorSet {
+    pub fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {
+        match (self, other) {
+            (Self::Tapret(anchor), Self::Tapret(a)) if a == anchor => Ok(Self::Tapret(anchor)),
+            (Self::Opret(anchor), Self::Opret(a)) if a == anchor => Ok(Self::Opret(anchor)),
+            (Self::Tapret(tapret), Self::Opret(opret)) |
+            (Self::Opret(opret), Self::Tapret(tapret)) => Ok(Self::Double { tapret, opret }),
+
+            (Self::Double { tapret, opret }, Self::Tapret(t)) |
+            (Self::Tapret(t), Self::Double { tapret, opret })
+                if tapret == t =>
+            {
+                Ok(Self::Double { tapret, opret })
+            }
+
+            (Self::Double { tapret, opret }, Self::Opret(o)) |
+            (Self::Opret(o), Self::Double { tapret, opret })
+                if opret == o =>
+            {
+                Ok(Self::Double { tapret, opret })
+            }
+
+            (
+                Self::Double { tapret, opret },
+                Self::Double {
+                    tapret: t,
+                    opret: o,
+                },
+            ) if tapret == t && opret == o => Ok(Self::Double { tapret, opret }),
+
+            _ => Err(MergeRevealError::AnchorsMismatch),
+        }
     }
 }
 
@@ -233,7 +309,7 @@ pub enum AnchoredBundles<P: mpc::Proof + StrictDumb = mpc::MerkleProof> {
     Tapret(Anchor<P, TapretProof>, TransitionBundle),
     #[strict_type(tag = 0x02)]
     Opret(Anchor<P, OpretProof>, TransitionBundle),
-    #[strict_type(tag = 0x00)]
+    #[strict_type(tag = 0x03)]
     Double {
         tapret_anchor: Anchor<P, TapretProof>,
         tapret_bundle: TransitionBundle,
@@ -288,30 +364,6 @@ impl<P: mpc::Proof + StrictDumb> AnchoredBundles<P> {
         .into_iter()
     }
 
-    pub fn into_pairs(self) -> vec::IntoIter<(EAnchor<P>, TransitionBundle)> {
-        match self {
-            AnchoredBundles::Tapret(anchor, bundle) => {
-                vec![(EAnchor::new(anchor.mpc_proof, anchor.dbc_proof.into()), bundle)]
-            }
-            AnchoredBundles::Opret(anchor, bundle) => {
-                vec![(EAnchor::new(anchor.mpc_proof, anchor.dbc_proof.into()), bundle)]
-            }
-            AnchoredBundles::Double {
-                tapret_anchor,
-                tapret_bundle,
-                opret_anchor,
-                opret_bundle,
-            } => vec![
-                (
-                    EAnchor::new(tapret_anchor.mpc_proof, tapret_anchor.dbc_proof.into()),
-                    tapret_bundle,
-                ),
-                (EAnchor::new(opret_anchor.mpc_proof, opret_anchor.dbc_proof.into()), opret_bundle),
-            ],
-        }
-        .into_iter()
-    }
-
     pub fn bundles(&self) -> vec::IntoIter<&TransitionBundle> {
         match self {
             AnchoredBundles::Tapret(_, bundle) | AnchoredBundles::Opret(_, bundle) => vec![bundle],
@@ -353,32 +405,51 @@ impl<P: mpc::Proof + StrictDumb> AnchoredBundles<P> {
     }
 }
 
-impl MergeReveal for AnchoredBundles {
-    fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {
+impl AnchoredBundles {
+    pub fn to_anchor_set(
+        &self,
+        contract_id: ContractId,
+        bundle_id: BundleId,
+    ) -> Result<AnchorSet, mpc::InvalidProof> {
+        let proto = mpc::ProtocolId::from_byte_array(contract_id.to_byte_array());
+        let msg = mpc::Message::from_byte_array(bundle_id.to_byte_array());
+        match self.clone() {
+            Self::Tapret(anchor, _) => anchor.to_merkle_block(proto, msg).map(AnchorSet::Tapret),
+            Self::Opret(anchor, _) => anchor.to_merkle_block(proto, msg).map(AnchorSet::Opret),
+            Self::Double {
+                tapret_anchor,
+                opret_anchor,
+                ..
+            } => Ok(AnchorSet::Double {
+                tapret: tapret_anchor.to_merkle_block(proto, msg)?,
+                opret: opret_anchor.to_merkle_block(proto, msg)?,
+            }),
+        }
+    }
+}
+
+impl AnchoredBundles {
+    pub fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {
         match (self, other) {
-            (AnchoredBundles::Tapret(anchor1, bundle), AnchoredBundles::Tapret(anchor2, _))
-                if anchor1 != anchor2 =>
+            (AnchoredBundles::Tapret(anchor, bundle1), AnchoredBundles::Tapret(a, bundle2))
+                if a == anchor =>
             {
-                Err(MergeRevealError::AnchorsNonEqual(bundle.bundle_id()))
-            }
-
-            (AnchoredBundles::Opret(anchor1, bundle), AnchoredBundles::Opret(anchor2, _))
-                if anchor1 != anchor2 =>
-            {
-                Err(MergeRevealError::AnchorsNonEqual(bundle.bundle_id()))
-            }
-
-            (AnchoredBundles::Tapret(anchor, bundle1), AnchoredBundles::Tapret(_, bundle2)) => {
                 Ok(AnchoredBundles::Tapret(anchor, bundle1.merge_reveal(bundle2)?))
             }
 
-            (AnchoredBundles::Opret(anchor, bundle1), AnchoredBundles::Opret(_, bundle2)) => {
+            (AnchoredBundles::Opret(anchor, bundle1), AnchoredBundles::Opret(a, bundle2))
+                if a == anchor =>
+            {
                 Ok(AnchoredBundles::Opret(anchor, bundle1.merge_reveal(bundle2)?))
             }
 
             (
                 AnchoredBundles::Tapret(tapret_anchor, tapret_bundle),
                 AnchoredBundles::Opret(opret_anchor, opret_bundle),
+            ) |
+            (
+                AnchoredBundles::Opret(opret_anchor, opret_bundle),
+                AnchoredBundles::Tapret(tapret_anchor, tapret_bundle),
             ) => Ok(AnchoredBundles::Double {
                 tapret_anchor,
                 tapret_bundle,
@@ -388,19 +459,51 @@ impl MergeReveal for AnchoredBundles {
 
             (
                 AnchoredBundles::Double {
-                    tapret_anchor: anchor11,
-                    opret_anchor: anchor12,
-                    tapret_bundle: bundle,
-                    ..
+                    tapret_anchor,
+                    tapret_bundle,
+                    opret_anchor,
+                    opret_bundle,
                 },
+                AnchoredBundles::Tapret(t, bundle),
+            ) |
+            (
+                AnchoredBundles::Tapret(t, bundle),
                 AnchoredBundles::Double {
-                    tapret_anchor: anchor21,
-                    opret_anchor: anchor22,
-                    ..
+                    tapret_anchor,
+                    tapret_bundle,
+                    opret_anchor,
+                    opret_bundle,
                 },
-            ) if anchor11 != anchor21 || anchor12 != anchor22 => {
-                Err(MergeRevealError::AnchorsNonEqual(bundle.bundle_id()))
-            }
+            ) if tapret_anchor == t => Ok(AnchoredBundles::Double {
+                tapret_anchor,
+                opret_anchor,
+                tapret_bundle: tapret_bundle.merge_reveal(bundle)?,
+                opret_bundle,
+            }),
+
+            (
+                AnchoredBundles::Double {
+                    tapret_anchor,
+                    tapret_bundle,
+                    opret_anchor,
+                    opret_bundle,
+                },
+                AnchoredBundles::Opret(o, bundle),
+            ) |
+            (
+                AnchoredBundles::Opret(o, bundle),
+                AnchoredBundles::Double {
+                    tapret_anchor,
+                    tapret_bundle,
+                    opret_anchor,
+                    opret_bundle,
+                },
+            ) if opret_anchor == o => Ok(AnchoredBundles::Double {
+                tapret_anchor,
+                opret_anchor,
+                tapret_bundle: tapret_bundle.merge_reveal(bundle)?,
+                opret_bundle,
+            }),
 
             (
                 AnchoredBundles::Double {
@@ -410,11 +513,13 @@ impl MergeReveal for AnchoredBundles {
                     opret_bundle: opret1,
                 },
                 AnchoredBundles::Double {
+                    tapret_anchor: t,
+                    opret_anchor: o,
                     tapret_bundle: tapret2,
                     opret_bundle: opret2,
                     ..
                 },
-            ) => Ok(AnchoredBundles::Double {
+            ) if tapret_anchor == t && opret_anchor == o => Ok(AnchoredBundles::Double {
                 tapret_anchor,
                 opret_anchor,
                 tapret_bundle: tapret1.merge_reveal(tapret2)?,

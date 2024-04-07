@@ -24,19 +24,18 @@ use std::convert::Infallible;
 use std::ops::{Deref, DerefMut};
 
 use amplify::confinement::{MediumOrdMap, MediumOrdSet, TinyOrdMap};
-use amplify::ByteArray;
 use commit_verify::Conceal;
 use rgb::validation::{Validity, Warning};
 use rgb::{
     validation, Assign, AssignmentType, BundleId, ContractHistory, ContractId, ContractState,
-    ExposedState, Extension, Genesis, GenesisSeal, GraphSeal, OpId, Operation, Opout, Schema,
-    SecretSeal, Transition, TransitionBundle, TypedAssigns, WitnessAnchor, XChain, XOutpoint,
-    XOutputSeal, XWitnessId,
+    DbcProof, EAnchor, ExposedState, Extension, Genesis, GenesisSeal, GraphSeal, OpId, Operation,
+    Opout, Schema, SecretSeal, Transition, TransitionBundle, TypedAssigns, WitnessAnchor, XChain,
+    XOutpoint, XOutputSeal, XWitnessId,
 };
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 
 use crate::containers::{
-    AnchoredBundles, BundledWitness, Cert, Consignment, ContentId, Contract, PubWitness,
+    AnchorSet, AnchoredBundles, BundledWitness, Cert, Consignment, ContentId, Contract, PubWitness,
     SealWitness, TerminalSeal, ToWitnessId, Transfer,
 };
 use crate::interface::{ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, SchemaIfaces};
@@ -462,8 +461,7 @@ impl Inventory for Stock {
         &mut self,
         witness: SealWitness,
     ) -> Result<(), InventoryError<Self::Error>> {
-        for (proto, _) in witness.anchor.mpc_proof.to_known_message_map() {
-            let bundle_id = BundleId::from_byte_array(proto.to_byte_array());
+        for bundle_id in witness.anchors.known_bundle_ids() {
             self.bundle_witness_index
                 .insert(bundle_id, witness.witness_id())?;
         }
@@ -565,8 +563,31 @@ impl Inventory for Stock {
             .ok_or(InventoryInconsistency::BundleContractUnknown(bundle_id))?;
 
         let bundle = self.bundle(bundle_id)?.clone();
-        let anchor = self.anchor(*witness_id)?;
-        let anchor = anchor.to_merkle_proof(*contract_id)?;
+        let anchor = self.anchors(*witness_id)?;
+        let (tapret, opret) = match anchor {
+            AnchorSet::Tapret(tapret) => (Some(tapret), None),
+            AnchorSet::Opret(opret) => (None, Some(opret)),
+            AnchorSet::Double { tapret, opret } => (Some(tapret), Some(opret)),
+        };
+        let mut anchor = None;
+        if let Some(a) = tapret {
+            if let Ok(a) = a.to_merkle_proof(*contract_id) {
+                anchor = Some(EAnchor::new(a.mpc_proof, DbcProof::Tapret(a.dbc_proof)));
+            }
+        }
+        if anchor.is_none() {
+            if let Some(a) = opret {
+                if let Ok(a) = a.to_merkle_proof(*contract_id) {
+                    anchor = Some(EAnchor::new(a.mpc_proof, DbcProof::Opret(a.dbc_proof)));
+                }
+            }
+        }
+        let Some(anchor) = anchor else {
+            return Err(
+                InventoryInconsistency::BundleMissedInAnchors(bundle_id, *contract_id).into()
+            );
+        };
+
         let anchored_bundles = AnchoredBundles::with(anchor, bundle);
         // TODO: Conceal all transitions except the one we need
 

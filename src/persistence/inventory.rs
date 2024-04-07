@@ -37,7 +37,7 @@ use rgb::{
 };
 use strict_encoding::{FieldName, TypeName};
 
-use crate::accessors::{MergeReveal, MergeRevealError, RevealError};
+use crate::accessors::{MergeRevealError, RevealError};
 use crate::containers::{
     Batch, BuilderSeal, BundledWitness, Cert, Consignment, ContentId, Contract, Fascia,
     SealWitness, Terminal, TerminalSeal, Transfer, TransitionInfo,
@@ -143,7 +143,6 @@ pub enum InventoryError<E: Error> {
     /// Permanent errors caused by bugs in the business logic of this library.
     /// Must be reported to LNP/BP Standards Association.
     #[from]
-    #[from(mpc::LeafNotKnown)]
     #[from(mpc::InvalidProof)]
     #[from(RevealError)]
     #[from(StashInconsistency)]
@@ -278,6 +277,13 @@ pub enum InventoryInconsistency {
     /// inconsistency and compromised inventory data storage.
     BundleContractUnknown(BundleId),
 
+    /// none of known anchors contain information on bundle {0} under contract
+    /// {1}.
+    ///
+    /// It may happen due to RGB library bug, or indicate internal inventory
+    /// inconsistency and compromised inventory data storage.
+    BundleMissedInAnchors(BundleId, ContractId),
+
     /// absent information about anchor for bundle {0}.
     ///
     /// It may happen due to RGB library bug, or indicate internal inventory
@@ -288,7 +294,6 @@ pub enum InventoryInconsistency {
     ///
     /// It may happen due to RGB library bug, or indicate internal inventory
     /// inconsistency and compromised inventory data storage.
-    #[from(mpc::LeafNotKnown)]
     #[from(mpc::InvalidProof)]
     UnrelatedAnchor,
 

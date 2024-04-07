@@ -28,13 +28,13 @@ use std::vec;
 use amplify::confinement;
 use amplify::confinement::{Confined, U24};
 use bp::seals::txout::CloseMethod;
-use commit_verify::mpc;
 use rgb::{
-    ContractId, EAnchor, OpId, Operation, Transition, TransitionBundle, TxoSeal, XOutpoint,
-    XOutputSeal, XWitnessId,
+    ContractId, OpId, Operation, Transition, TransitionBundle, TxoSeal, XOutpoint, XOutputSeal,
+    XWitnessId,
 };
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 
+use crate::containers::AnchorSet;
 use crate::LIB_NAME_RGB_STD;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
@@ -227,7 +227,7 @@ impl Batch {
 )]
 pub struct Fascia {
     pub witness_id: XWitnessId,
-    pub anchor: EAnchor<mpc::MerkleBlock>,
+    pub anchor: AnchorSet,
     pub bundles: Confined<BTreeMap<ContractId, TransitionBundle>, 1, U24>,
 }
 
