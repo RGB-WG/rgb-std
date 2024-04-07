@@ -30,7 +30,7 @@ use amplify::confinement::{Confined, U24};
 use bp::seals::txout::CloseMethod;
 use commit_verify::mpc;
 use rgb::{
-    AnchorSet, ContractId, OpId, Operation, Transition, TransitionBundle, TxoSeal, XOutpoint,
+    ContractId, EAnchor, OpId, Operation, Transition, TransitionBundle, TxoSeal, XOutpoint,
     XOutputSeal, XWitnessId,
 };
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
@@ -227,7 +227,7 @@ impl Batch {
 )]
 pub struct Fascia {
     pub witness_id: XWitnessId,
-    pub anchor: AnchorSet<mpc::MerkleBlock>,
+    pub anchor: EAnchor<mpc::MerkleBlock>,
     pub bundles: Confined<BTreeMap<ContractId, TransitionBundle>, 1, U24>,
 }
 

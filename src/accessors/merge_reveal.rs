@@ -23,11 +23,10 @@ use std::collections::BTreeMap;
 
 use amplify::confinement::Confined;
 use amplify::Wrapper;
-use bp::dbc::anchor::MergeError;
 use bp::Txid;
 use commit_verify::{mpc, Conceal};
 use rgb::{
-    AnchorSet, Assign, Assignments, BundleId, ExposedSeal, ExposedState, Extension, Genesis, OpId,
+    Assign, Assignments, BundleId, EAnchor, ExposedSeal, ExposedState, Extension, Genesis, OpId,
     Operation, Transition, TransitionBundle, TypedAssigns,
 };
 
@@ -55,7 +54,7 @@ pub enum MergeRevealError {
 
     #[from]
     #[display(inner)]
-    AnchorMismatch(MergeError),
+    AnchorMismatch(mpc::MergeError),
 
     /// the merged bundles contain more transitions than inputs.
     InsufficientInputs,
@@ -262,19 +261,13 @@ impl MergeRevealContract for AnchoredBundle {
 }
  */
 
-impl MergeReveal for AnchorSet<mpc::MerkleBlock> {
-    fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {
-        match (self, other) {
-            (Self::Tapret(tapret1), Self::Tapret(tapret2)) => tapret1
-                .merge_reveal(tapret2)
-                .map(Self::Tapret)
-                .map_err(MergeRevealError::AnchorMismatch),
-            (Self::Opret(opret1), Self::Opret(opret2)) => opret1
-                .merge_reveal(opret2)
-                .map(Self::Opret)
-                .map_err(MergeRevealError::AnchorMismatch),
-            _ => Err(MergeRevealError::DbcMismatch),
+impl MergeReveal for EAnchor<mpc::MerkleBlock> {
+    fn merge_reveal(mut self, other: Self) -> Result<Self, MergeRevealError> {
+        self.mpc_proof.merge_reveal(other.mpc_proof)?;
+        if self.dbc_proof != other.dbc_proof {
+            return Err(MergeRevealError::DbcMismatch);
         }
+        Ok(self)
     }
 }
 

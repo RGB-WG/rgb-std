@@ -26,7 +26,7 @@ use amplify::confinement::Collection;
 use commit_verify::Conceal;
 use rgb::validation::ConsignmentApi;
 use rgb::{
-    AnchorSet, AssetTag, AssignmentType, BundleId, Extension, Genesis, OpId, OpRef, Operation,
+    AssetTag, AssignmentType, BundleId, EAnchor, Extension, Genesis, OpId, OpRef, Operation,
     Schema, Transition, TransitionBundle, XChain, XWitnessId,
 };
 
@@ -38,7 +38,7 @@ use crate::SecretSeal;
 #[derive(Clone, Debug)]
 pub struct IndexedConsignment<'c, const TYPE: bool> {
     consignment: &'c Consignment<TYPE>,
-    anchor_idx: BTreeMap<BundleId, (XWitnessId, AnchorSet)>,
+    anchor_idx: BTreeMap<BundleId, (XWitnessId, EAnchor)>,
     bundle_idx: BTreeMap<BundleId, &'c TransitionBundle>,
     op_witness_idx: BTreeMap<OpId, XWitnessId>,
     op_bundle_idx: BTreeMap<OpId, BundleId>,
@@ -134,7 +134,7 @@ impl<'c, const TYPE: bool> ConsignmentApi for IndexedConsignment<'c, TYPE> {
         self.bundle_idx.get(&bundle_id).copied()
     }
 
-    fn anchors(&self, bundle_id: BundleId) -> Option<(XWitnessId, &AnchorSet)> {
+    fn anchor(&self, bundle_id: BundleId) -> Option<(XWitnessId, &EAnchor)> {
         self.anchor_idx.get(&bundle_id).map(|(id, set)| (*id, set))
     }
 

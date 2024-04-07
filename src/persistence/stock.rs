@@ -24,6 +24,7 @@ use std::convert::Infallible;
 use std::ops::{Deref, DerefMut};
 
 use amplify::confinement::{MediumOrdMap, MediumOrdSet, TinyOrdMap};
+use amplify::ByteArray;
 use commit_verify::Conceal;
 use rgb::validation::{Validity, Warning};
 use rgb::{
@@ -461,7 +462,8 @@ impl Inventory for Stock {
         &mut self,
         witness: SealWitness,
     ) -> Result<(), InventoryError<Self::Error>> {
-        for (bundle_id, _) in witness.anchor.known_bundle_ids() {
+        for (proto, _) in witness.anchor.mpc_proof.to_known_message_map() {
+            let bundle_id = BundleId::from_byte_array(proto.to_byte_array());
             self.bundle_witness_index
                 .insert(bundle_id, witness.witness_id())?;
         }

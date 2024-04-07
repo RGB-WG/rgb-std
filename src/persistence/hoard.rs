@@ -28,8 +28,8 @@ use bp::dbc::anchor::MergeError;
 use bp::dbc::tapret::TapretCommitment;
 use commit_verify::{mpc, CommitId};
 use rgb::{
-    AnchorSet, AssetTag, AssignmentType, BundleId, ContractId, Extension, Genesis, OpId, Operation,
-    SchemaId, TransitionBundle, XWitnessId,
+    AssetTag, AssignmentType, BundleId, ContractId, DbcProof, EAnchor, Extension, Genesis, OpId,
+    Operation, SchemaId, TransitionBundle, XWitnessId,
 };
 use strict_encoding::TypeName;
 
@@ -342,7 +342,7 @@ impl Stash for Hoard {
     fn anchor(
         &self,
         witness_id: XWitnessId,
-    ) -> Result<AnchorSet<mpc::MerkleBlock>, StashError<Self::Error>> {
+    ) -> Result<EAnchor<mpc::MerkleBlock>, StashError<Self::Error>> {
         let witness = self
             .witnesses
             .get(&witness_id)
@@ -365,15 +365,12 @@ impl Stash for Hoard {
         Ok(self
             .witnesses
             .iter()
-            .filter_map(|(witness_id, witness)| match &witness.anchor {
-                AnchorSet::Tapret(tapret) => Some((*witness_id, tapret)),
-                AnchorSet::Opret(_) => None,
-            })
-            .map(|(witness_id, tapret)| {
-                (witness_id, TapretCommitment {
-                    mpc: tapret.mpc_proof.commit_id(),
-                    nonce: tapret.dbc_proof.path_proof.nonce(),
-                })
+            .filter_map(|(witness_id, witness)| match &witness.anchor.dbc_proof {
+                DbcProof::Tapret(tapret) => Some((*witness_id, TapretCommitment {
+                    mpc: witness.anchor.mpc_proof.commit_id(),
+                    nonce: tapret.path_proof.nonce(),
+                })),
+                DbcProof::Opret(_) => None,
             })
             .collect())
     }

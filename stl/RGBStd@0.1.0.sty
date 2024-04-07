@@ -1,5 +1,5 @@
 {-
-  Id: urn:ubideco:stl:BgsgQ8PrV6hF3tmJjrxcEVKr8TfCzUP76XxSq7saJxDb#roger-picture-alamo
+  Id: urn:ubideco:stl:Hj6L1YEQ9B9zmrsMeSyyVZ3R8oQW4pwua1AwisE9fmR4#africa-folio-adios
   Name: RGBStd
   Version: 0.1.0
   Description: RGB standard library
@@ -35,6 +35,7 @@ import StrictTypes#5teCJyjMWaxbQK8vdga2soWh2U7waERS3ev8KHShJcgv#trumpet-scratch-
 import BPCore#6skrch4mJzDzVaTYnCgCxFJLw23SSUxNhK7PKgPdSapR#roof-parent-reunion
   use TapretNodePartner#iceberg-poker-active
   use ExplicitSealTxid#antenna-darwin-emotion
+  use AnchorMerkleBlockDbcProof#sunset-rider-junior
   use TapretProof#forum-paint-tunnel
   use TapretPathProof#stage-element-update
   use Method#trilogy-tahiti-valid
@@ -42,8 +43,6 @@ import BPCore#6skrch4mJzDzVaTYnCgCxFJLw23SSUxNhK7PKgPdSapR#roof-parent-reunion
   use BlindSealTxPtr#austria-icon-waiter
   use OpretProof#segment-ambient-totem
   use AnchorMerkleProofTapretProof#hotel-telecom-politic
-  use AnchorMerkleBlockTapretProof#culture-tina-pluto
-  use AnchorMerkleBlockOpretProof#flower-bonjour-import
   use SecretSeal#santana-domingo-needle
   use BlindSealTxid#kimono-golf-price
   use TxPtr#strange-source-father
@@ -60,14 +59,11 @@ import CommitVerify#7EpM1uymEteG4g4xmF5ntKYX1wXXpbQj5iLiDreH4jWa#protein-donald-
   use TreeNode#risk-opinion-orca
   use ReservedBytes4#claudia-drink-digital
 
-import AluVM#DVtm25LRKU4TjbyZmVxPhvCmctZ6vKkPKqfpU2QsDNUo#exodus-axiom-tommy
-  use LibSite#mission-papa-mercy
-  use LibId#rebel-factor-rodeo
-
-import RGB#DrbuGvUZWK777emjDL5MqAmEeQ2ai93sysVeC2oPidve#canyon-switch-manual
+import RGB#CpiRnYcWXa6vzULgHPdTQiXyGq2yUiJNKvqGMXZVePf8#castle-crystal-chicken
   use BundleId#desert-divide-visible
   use AssignmentWitness#hobby-client-remark
   use GlobalOrd#sofia-perfect-kinetic
+  use DbcProof#fidel-swim-chicago
   use WitnessPos#robert-average-artist
   use InputMap#ravioli-rudolf-inch
   use OutputAssignmentVoidState#traffic-karate-stella
@@ -108,7 +104,6 @@ import RGB#DrbuGvUZWK777emjDL5MqAmEeQ2ai93sysVeC2oPidve#canyon-switch-manual
   use Opout#india-joshua-adam
   use AssignVoidStateBlindSealTxid#noise-veteran-gloria
   use SchemaId#garcia-smoke-ozone
-  use AnchorSetMerkleBlock#modest-ohio-chef
   use OpId#slow-samuel-ceramic
   use Script#import-scorpio-evening
   use ContractId#alarm-danube-vampire
@@ -146,6 +141,10 @@ import RGB#DrbuGvUZWK777emjDL5MqAmEeQ2ai93sysVeC2oPidve#canyon-switch-manual
   use ConcealedAttach#pizza-natural-cyclone
   use RevealedData#switch-enigma-ruby
   use AssignRevealedValueBlindSealTxid#colony-miguel-olga
+
+import AluVM#DVtm25LRKU4TjbyZmVxPhvCmctZ6vKkPKqfpU2QsDNUo#exodus-axiom-tommy
+  use LibSite#mission-papa-mercy
+  use LibId#rebel-factor-rodeo
 
 import Std#DzTvt9gGhPUKD8Dkkjk9PDBhkJ4gtWxXWQjxnmUYLNrs#voyage-kimono-disco
   use Ascii#aloha-lunar-felix
@@ -380,8 +379,8 @@ data PubWitness        : txid Bitcoin.Txid#cowboy-diego-betty
 @mnemonic(campus-justice-volume)
 data SchemaIfaces      : schema RGB.Schema#angel-emotion-conduct, iimpls {IfaceId -> ^ ..0xff IfaceImpl}
 
-@mnemonic(silk-capsule-moment)
-data SealWitness       : public RGB.XChainPubWitness#animal-pretend-exile, anchor RGB.AnchorSetMerkleBlock#modest-ohio-chef
+@mnemonic(empty-july-anvil)
+data SealWitness       : public RGB.XChainPubWitness#animal-pretend-exile, anchor BPCore.AnchorMerkleBlockDbcProof#sunset-rider-junior
 
 @mnemonic(calypso-topic-kinetic)
 data Stock             : hoard Hoard

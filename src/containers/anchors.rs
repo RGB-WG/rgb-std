@@ -28,8 +28,8 @@ use bp::dbc::Anchor;
 use bp::{Tx, Txid};
 use commit_verify::{mpc, CommitId, ReservedBytes};
 use rgb::{
-    AnchorSet, BundleDisclosure, DiscloseHash, Operation, Transition, TransitionBundle, XChain,
-    XWitnessId,
+    BundleDisclosure, DbcProof, DiscloseHash, EAnchor, Operation, Transition, TransitionBundle,
+    XChain, XWitnessId,
 };
 use strict_encoding::StrictDumb;
 
@@ -46,11 +46,11 @@ use crate::LIB_NAME_RGB_STD;
 )]
 pub struct SealWitness {
     pub public: XPubWitness,
-    pub anchor: AnchorSet<mpc::MerkleBlock>,
+    pub anchor: EAnchor<mpc::MerkleBlock>,
 }
 
 impl SealWitness {
-    pub fn new(witness_id: XWitnessId, anchor: AnchorSet<mpc::MerkleBlock>) -> Self {
+    pub fn new(witness_id: XWitnessId, anchor: EAnchor<mpc::MerkleBlock>) -> Self {
         SealWitness {
             public: witness_id.map(PubWitness::new),
             anchor,
@@ -140,12 +140,12 @@ impl MergeReveal for PubWitness {
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 pub(crate) struct AnchoredBundleDisclosure {
-    pub anchor: AnchorSet,
+    pub anchor: EAnchor,
     pub bundle: BundleDisclosure,
 }
 
 impl AnchoredBundleDisclosure {
-    pub fn new(anchor: AnchorSet, bundle: &TransitionBundle) -> Self {
+    pub fn new(anchor: EAnchor, bundle: &TransitionBundle) -> Self {
         Self {
             anchor,
             bundle: bundle.disclose(),
@@ -247,47 +247,66 @@ impl<P: mpc::Proof + StrictDumb> StrictDumb for AnchoredBundles<P> {
 }
 
 impl<P: mpc::Proof + StrictDumb> AnchoredBundles<P> {
-    pub fn with(anchor: AnchorSet<P>, bundle: TransitionBundle) -> Self {
-        match anchor {
-            AnchorSet::Tapret(tapret) => Self::Tapret(tapret, bundle),
-            AnchorSet::Opret(opret) => Self::Opret(opret, bundle),
+    pub fn with(anchor: EAnchor<P>, bundle: TransitionBundle) -> Self {
+        match anchor.dbc_proof {
+            DbcProof::Tapret(tapret) => Self::Tapret(Anchor::new(anchor.mpc_proof, tapret), bundle),
+            DbcProof::Opret(opret) => Self::Opret(Anchor::new(anchor.mpc_proof, opret), bundle),
         }
     }
 
-    pub fn pairs(&self) -> vec::IntoIter<(AnchorSet<P>, &TransitionBundle)>
+    pub fn pairs(&self) -> vec::IntoIter<(EAnchor<P>, &TransitionBundle)>
     where P: Clone {
         match self {
-            AnchoredBundles::Tapret(tapret, bundle) => {
-                vec![(AnchorSet::Tapret(tapret.clone()), bundle)]
+            AnchoredBundles::Tapret(anchor, bundle) => {
+                let anchor = anchor.clone();
+                vec![(EAnchor::new(anchor.mpc_proof, anchor.dbc_proof.into()), bundle)]
             }
-            AnchoredBundles::Opret(opret, bundle) => {
-                vec![(AnchorSet::Opret(opret.clone()), bundle)]
+            AnchoredBundles::Opret(anchor, bundle) => {
+                let anchor = anchor.clone();
+                vec![(EAnchor::new(anchor.mpc_proof, anchor.dbc_proof.into()), bundle)]
             }
             AnchoredBundles::Double {
                 tapret_anchor,
                 tapret_bundle,
                 opret_anchor,
                 opret_bundle,
-            } => vec![
-                (AnchorSet::Tapret(tapret_anchor.clone()), tapret_bundle),
-                (AnchorSet::Opret(opret_anchor.clone()), opret_bundle),
-            ],
+            } => {
+                let tapret_anchor = tapret_anchor.clone();
+                let opret_anchor = opret_anchor.clone();
+                vec![
+                    (
+                        EAnchor::new(tapret_anchor.mpc_proof, tapret_anchor.dbc_proof.into()),
+                        tapret_bundle,
+                    ),
+                    (
+                        EAnchor::new(opret_anchor.mpc_proof, opret_anchor.dbc_proof.into()),
+                        opret_bundle,
+                    ),
+                ]
+            }
         }
         .into_iter()
     }
 
-    pub fn into_pairs(self) -> vec::IntoIter<(AnchorSet<P>, TransitionBundle)> {
+    pub fn into_pairs(self) -> vec::IntoIter<(EAnchor<P>, TransitionBundle)> {
         match self {
-            AnchoredBundles::Tapret(tapret, bundle) => vec![(AnchorSet::Tapret(tapret), bundle)],
-            AnchoredBundles::Opret(opret, bundle) => vec![(AnchorSet::Opret(opret), bundle)],
+            AnchoredBundles::Tapret(anchor, bundle) => {
+                vec![(EAnchor::new(anchor.mpc_proof, anchor.dbc_proof.into()), bundle)]
+            }
+            AnchoredBundles::Opret(anchor, bundle) => {
+                vec![(EAnchor::new(anchor.mpc_proof, anchor.dbc_proof.into()), bundle)]
+            }
             AnchoredBundles::Double {
                 tapret_anchor,
                 tapret_bundle,
                 opret_anchor,
                 opret_bundle,
             } => vec![
-                (AnchorSet::Tapret(tapret_anchor), tapret_bundle),
-                (AnchorSet::Opret(opret_anchor), opret_bundle),
+                (
+                    EAnchor::new(tapret_anchor.mpc_proof, tapret_anchor.dbc_proof.into()),
+                    tapret_bundle,
+                ),
+                (EAnchor::new(opret_anchor.mpc_proof, opret_anchor.dbc_proof.into()), opret_bundle),
             ],
         }
         .into_iter()
