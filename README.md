@@ -56,7 +56,7 @@ by default.
 
 ### MSRV
 
-Minimum supported rust compiler version (MSRV) is shown in `msrv-toolchain.toml`.
+Minimum supported rust compiler version (MSRV) is shown in `rust-version` of `Cargo.toml`.
 
 ## Contributing
 

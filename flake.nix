@@ -24,8 +24,8 @@
           inherit system overlays;
         };
 
-        msrv = builtins.fromTOML (builtins.readFile ./msrv-toolchain.toml);
-        rust = pkgs.rust-bin.stable."${msrv.toolchain.channel}".default;
+        cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
+        rust = pkgs.rust-bin.stable."${cargoToml.workspace.package."rust-version"}".default;
         craneLib = (crane.mkLib pkgs).overrideToolchain rust;
       in
       with pkgs;
