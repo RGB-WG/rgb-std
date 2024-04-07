@@ -139,13 +139,29 @@ impl MergeReveal for PubWitness {
 #[derive(Clone, Eq, PartialEq, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
+pub(crate) struct AnchoredBundleDisclosure {
+    pub anchor: AnchorSet,
+    pub bundle: BundleDisclosure,
+}
+
+impl AnchoredBundleDisclosure {
+    pub fn new(anchor: AnchorSet, bundle: &TransitionBundle) -> Self {
+        Self {
+            anchor,
+            bundle: bundle.disclose(),
+        }
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
 #[derive(CommitEncode)]
 #[commit_encode(strategy = strict, id = DiscloseHash)]
-pub struct BundledWitnessDisclosure {
+pub(crate) struct BundledWitnessDisclosure {
     pub pub_witness: XPubWitness,
-    pub anchors: AnchorSet,
-    pub bundle1: BundleDisclosure,
-    pub bundle2: Option<BundleDisclosure>,
+    pub first: AnchoredBundleDisclosure,
+    pub second: Option<AnchoredBundleDisclosure>,
 }
 
 #[derive(Clone, Eq, Debug)]
@@ -180,16 +196,16 @@ impl<P: mpc::Proof + StrictDumb> BundledWitness<P> {
 impl BundledWitness<mpc::MerkleProof> {
     pub fn witness_id(&self) -> XWitnessId { self.pub_witness.to_witness_id() }
 
-    pub fn disclose(&self) -> BundledWitnessDisclosure {
-        let mut bundles = self.anchored_bundles.bundles();
+    pub(crate) fn disclose(&self) -> BundledWitnessDisclosure {
+        let mut pairs = self.anchored_bundles.pairs();
+        let (a1, b1) = pairs.next().expect("there always at least one bundle");
+        let second = pairs
+            .next()
+            .map(|(a, b)| AnchoredBundleDisclosure::new(a, b));
         BundledWitnessDisclosure {
             pub_witness: self.pub_witness.clone(),
-            anchors: self.anchored_bundles.to_anchor_set(),
-            bundle1: bundles
-                .next()
-                .expect("anchored bundle always has at least one bundle")
-                .disclose(),
-            bundle2: bundles.next().map(TransitionBundle::disclose),
+            first: AnchoredBundleDisclosure::new(a1, b1),
+            second,
         }
     }
 
@@ -217,8 +233,6 @@ pub enum AnchoredBundles<P: mpc::Proof + StrictDumb = mpc::MerkleProof> {
     Tapret(Anchor<P, TapretProof>, TransitionBundle),
     #[strict_type(tag = 0x02)]
     Opret(Anchor<P, OpretProof>, TransitionBundle),
-    #[strict_type(tag = 0x03)]
-    Dual(Anchor<P, TapretProof>, Anchor<P, OpretProof>, TransitionBundle),
     #[strict_type(tag = 0x00)]
     Double {
         tapret_anchor: Anchor<P, TapretProof>,
@@ -233,33 +247,55 @@ impl<P: mpc::Proof + StrictDumb> StrictDumb for AnchoredBundles<P> {
 }
 
 impl<P: mpc::Proof + StrictDumb> AnchoredBundles<P> {
-    pub fn with(anchor: AnchorSet<P>, bundle: TransitionBundle) -> Option<Self> {
+    pub fn with(anchor: AnchorSet<P>, bundle: TransitionBundle) -> Self {
         match anchor {
-            AnchorSet::Tapret(tapret) => Some(Self::Tapret(tapret, bundle)),
-            AnchorSet::Opret(opret) => Some(Self::Opret(opret, bundle)),
-            AnchorSet::Dual { .. } => None,
+            AnchorSet::Tapret(tapret) => Self::Tapret(tapret, bundle),
+            AnchorSet::Opret(opret) => Self::Opret(opret, bundle),
         }
     }
 
-    pub fn into_bundles(self) -> vec::IntoIter<TransitionBundle> {
+    pub fn pairs(&self) -> vec::IntoIter<(AnchorSet<P>, &TransitionBundle)>
+    where P: Clone {
         match self {
-            AnchoredBundles::Tapret(_, bundle) |
-            AnchoredBundles::Opret(_, bundle) |
-            AnchoredBundles::Dual(_, _, bundle) => vec![bundle],
+            AnchoredBundles::Tapret(tapret, bundle) => {
+                vec![(AnchorSet::Tapret(tapret.clone()), bundle)]
+            }
+            AnchoredBundles::Opret(opret, bundle) => {
+                vec![(AnchorSet::Opret(opret.clone()), bundle)]
+            }
             AnchoredBundles::Double {
+                tapret_anchor,
                 tapret_bundle,
+                opret_anchor,
                 opret_bundle,
-                ..
-            } => vec![tapret_bundle, opret_bundle],
+            } => vec![
+                (AnchorSet::Tapret(tapret_anchor.clone()), tapret_bundle),
+                (AnchorSet::Opret(opret_anchor.clone()), opret_bundle),
+            ],
+        }
+        .into_iter()
+    }
+
+    pub fn into_pairs(self) -> vec::IntoIter<(AnchorSet<P>, TransitionBundle)> {
+        match self {
+            AnchoredBundles::Tapret(tapret, bundle) => vec![(AnchorSet::Tapret(tapret), bundle)],
+            AnchoredBundles::Opret(opret, bundle) => vec![(AnchorSet::Opret(opret), bundle)],
+            AnchoredBundles::Double {
+                tapret_anchor,
+                tapret_bundle,
+                opret_anchor,
+                opret_bundle,
+            } => vec![
+                (AnchorSet::Tapret(tapret_anchor), tapret_bundle),
+                (AnchorSet::Opret(opret_anchor), opret_bundle),
+            ],
         }
         .into_iter()
     }
 
     pub fn bundles(&self) -> vec::IntoIter<&TransitionBundle> {
         match self {
-            AnchoredBundles::Tapret(_, bundle) |
-            AnchoredBundles::Opret(_, bundle) |
-            AnchoredBundles::Dual(_, _, bundle) => vec![bundle],
+            AnchoredBundles::Tapret(_, bundle) | AnchoredBundles::Opret(_, bundle) => vec![bundle],
             AnchoredBundles::Double {
                 tapret_bundle,
                 opret_bundle,
@@ -271,9 +307,7 @@ impl<P: mpc::Proof + StrictDumb> AnchoredBundles<P> {
 
     pub fn bundles_mut(&mut self) -> vec::IntoIter<&mut TransitionBundle> {
         match self {
-            AnchoredBundles::Tapret(_, bundle) |
-            AnchoredBundles::Opret(_, bundle) |
-            AnchoredBundles::Dual(_, _, bundle) => vec![bundle],
+            AnchoredBundles::Tapret(_, bundle) | AnchoredBundles::Opret(_, bundle) => vec![bundle],
             AnchoredBundles::Double {
                 tapret_bundle,
                 opret_bundle,
@@ -281,20 +315,6 @@ impl<P: mpc::Proof + StrictDumb> AnchoredBundles<P> {
             } => vec![tapret_bundle, opret_bundle],
         }
         .into_iter()
-    }
-
-    pub fn to_anchor_set(&self) -> AnchorSet<P>
-    where P: Clone {
-        match self.clone() {
-            AnchoredBundles::Tapret(tapret, _) => AnchorSet::Tapret(tapret),
-            AnchoredBundles::Opret(opret, _) => AnchorSet::Opret(opret),
-            AnchoredBundles::Dual(tapret, opret, _) |
-            AnchoredBundles::Double {
-                tapret_anchor: tapret,
-                opret_anchor: opret,
-                ..
-            } => AnchorSet::Dual { tapret, opret },
-        }
     }
 
     /// Ensures that the transition is revealed inside the anchored bundle.
@@ -340,16 +360,6 @@ impl MergeReveal for AnchoredBundles {
             (
                 AnchoredBundles::Tapret(tapret_anchor, tapret_bundle),
                 AnchoredBundles::Opret(opret_anchor, opret_bundle),
-            ) if tapret_bundle.bundle_id() == opret_bundle.bundle_id() => {
-                Ok(AnchoredBundles::Dual(
-                    tapret_anchor,
-                    opret_anchor,
-                    tapret_bundle.merge_reveal(opret_bundle)?,
-                ))
-            }
-            (
-                AnchoredBundles::Tapret(tapret_anchor, tapret_bundle),
-                AnchoredBundles::Opret(opret_anchor, opret_bundle),
             ) => Ok(AnchoredBundles::Double {
                 tapret_anchor,
                 tapret_bundle,
@@ -357,10 +367,6 @@ impl MergeReveal for AnchoredBundles {
                 opret_bundle,
             }),
 
-            (
-                AnchoredBundles::Dual(anchor11, anchor12, bundle),
-                AnchoredBundles::Dual(anchor21, anchor22, _),
-            ) |
             (
                 AnchoredBundles::Double {
                     tapret_anchor: anchor11,
@@ -376,11 +382,6 @@ impl MergeReveal for AnchoredBundles {
             ) if anchor11 != anchor21 || anchor12 != anchor22 => {
                 Err(MergeRevealError::AnchorsNonEqual(bundle.bundle_id()))
             }
-
-            (
-                AnchoredBundles::Dual(anchor1, anchor2, bundle1),
-                AnchoredBundles::Dual(_, _, bundle2),
-            ) => Ok(AnchoredBundles::Dual(anchor1, anchor2, bundle1.merge_reveal(bundle2)?)),
 
             (
                 AnchoredBundles::Double {

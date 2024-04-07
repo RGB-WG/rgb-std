@@ -59,11 +59,11 @@ impl<'c, const TYPE: bool> IndexedConsignment<'c, TYPE> {
         let mut op_bundle_idx = BTreeMap::new();
         let mut extension_idx = BTreeMap::new();
         for bw in &consignment.bundles {
-            for bundle in bw.anchored_bundles.bundles() {
+            for (anchor, bundle) in bw.anchored_bundles.pairs() {
                 let bundle_id = bundle.bundle_id();
                 let witness_id = bw.pub_witness.to_witness_id();
                 bundle_idx.insert(bundle_id, bundle);
-                anchor_idx.insert(bundle_id, (witness_id, bw.anchored_bundles.to_anchor_set()));
+                anchor_idx.insert(bundle_id, (witness_id, anchor));
                 for opid in bundle.known_transitions.keys() {
                     op_witness_idx.insert(*opid, witness_id);
                     op_bundle_idx.insert(*opid, bundle_id);

@@ -565,8 +565,7 @@ impl Inventory for Stock {
         let bundle = self.bundle(bundle_id)?.clone();
         let anchor = self.anchor(*witness_id)?;
         let anchor = anchor.to_merkle_proof(*contract_id)?;
-        let anchored_bundles =
-            AnchoredBundles::with(anchor, bundle).ok_or(DataError::DoubleAnchor(bundle_id))?;
+        let anchored_bundles = AnchoredBundles::with(anchor, bundle);
         // TODO: Conceal all transitions except the one we need
 
         // TODO: recover Tx and SPV

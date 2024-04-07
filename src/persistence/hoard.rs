@@ -192,8 +192,7 @@ impl Hoard {
         } in consignment.bundles
         {
             // TODO: Save pub witness transaction and SPVs
-            let anchor_set = anchored_bundles.to_anchor_set();
-            for bundle in anchored_bundles.into_bundles() {
+            for (anchor_set, bundle) in anchored_bundles.into_pairs() {
                 let bundle_id = bundle.bundle_id();
                 self.consume_bundle(bundle)?;
                 let anchor = anchor_set.to_merkle_block(contract_id, bundle_id)?;
@@ -367,9 +366,7 @@ impl Stash for Hoard {
             .witnesses
             .iter()
             .filter_map(|(witness_id, witness)| match &witness.anchor {
-                AnchorSet::Tapret(tapret) | AnchorSet::Dual { tapret, .. } => {
-                    Some((*witness_id, tapret))
-                }
+                AnchorSet::Tapret(tapret) => Some((*witness_id, tapret)),
                 AnchorSet::Opret(_) => None,
             })
             .map(|(witness_id, tapret)| {

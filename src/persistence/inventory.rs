@@ -211,9 +211,6 @@ pub enum DataError {
     /// mismatch between witness seal chain and anchor chain.
     ChainMismatch,
 
-    /// bundle {0} has both tapret and opret anchors.
-    DoubleAnchor(BundleId),
-
     #[from]
     #[display(inner)]
     Reveal(RevealError),

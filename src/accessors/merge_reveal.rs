@@ -39,6 +39,9 @@ pub enum MergeRevealError {
     /// error which should be reported to the software vendor.
     OperationMismatch(OpId, OpId),
 
+    /// mismatch between anchor DBC commitment schemes.
+    DbcMismatch,
+
     /// mismatch in anchor chains: one grip references bitcoin transaction
     /// {bitcoin} and the other merged part references liquid transaction
     /// {liquid}.
@@ -261,25 +264,17 @@ impl MergeRevealContract for AnchoredBundle {
 
 impl MergeReveal for AnchorSet<mpc::MerkleBlock> {
     fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {
-        let (tapret1, opret1) = self.into_split();
-        let (tapret2, opret2) = other.into_split();
-
-        let tapret = match (tapret1, tapret2) {
-            (Some(tr), None) | (None, Some(tr)) => Some(tr),
-            (Some(tapret1), Some(tapret2)) => Some(tapret1.merge_reveal(tapret2)?),
-            (None, None) => None,
-        };
-        let opret = match (opret1, opret2) {
-            (Some(or), None) | (None, Some(or)) => Some(or),
-            (Some(opret1), Some(opret2)) => Some(opret1.merge_reveal(opret2)?),
-            (None, None) => None,
-        };
-        Ok(match (tapret, opret) {
-            (Some(tapret), None) => Self::Tapret(tapret),
-            (None, Some(opret)) => Self::Opret(opret),
-            (Some(tapret), Some(opret)) => Self::Dual { tapret, opret },
-            _ => unreachable!(),
-        })
+        match (self, other) {
+            (Self::Tapret(tapret1), Self::Tapret(tapret2)) => tapret1
+                .merge_reveal(tapret2)
+                .map(Self::Tapret)
+                .map_err(MergeRevealError::AnchorMismatch),
+            (Self::Opret(opret1), Self::Opret(opret2)) => opret1
+                .merge_reveal(opret2)
+                .map(Self::Opret)
+                .map_err(MergeRevealError::AnchorMismatch),
+            _ => Err(MergeRevealError::DbcMismatch),
+        }
     }
 }
 
