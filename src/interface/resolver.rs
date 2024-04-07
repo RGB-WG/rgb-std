@@ -38,7 +38,7 @@ impl ResolveWitness for DumbResolver {
 
 impl ResolveHeight for DumbResolver {
     type Error = Infallible;
-    fn resolve_height(&mut self, _: &XWitnessId) -> Result<WitnessAnchor, Self::Error> {
+    fn resolve_height(&mut self, _: XWitnessId) -> Result<WitnessAnchor, Self::Error> {
         Ok(WitnessAnchor::strict_dumb())
     }
 }

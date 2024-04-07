@@ -275,7 +275,7 @@ impl<const TYPE: bool> Consignment<TYPE> {
             for bundle in bundled_witness.anchored_bundles.bundles() {
                 for transition in bundle.known_transitions.values() {
                     let witness_anchor =
-                        resolver.resolve_height(&bundled_witness.pub_witness.to_witness_id())?;
+                        resolver.resolve_height(bundled_witness.pub_witness.to_witness_id())?;
 
                     history.add_transition(transition, witness_anchor);
                     for (id, used) in &mut extension_idx {

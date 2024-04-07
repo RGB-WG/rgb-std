@@ -24,5 +24,5 @@ use rgb::{WitnessAnchor, XWitnessId};
 pub trait ResolveHeight {
     type Error: std::error::Error;
 
-    fn resolve_height(&mut self, witness_id: &XWitnessId) -> Result<WitnessAnchor, Self::Error>;
+    fn resolve_height(&mut self, witness_id: XWitnessId) -> Result<WitnessAnchor, Self::Error>;
 }
