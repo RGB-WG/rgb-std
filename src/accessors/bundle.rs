@@ -23,11 +23,11 @@ use rgb::{GraphSeal, OpId, Operation, Transition, TransitionBundle, XChain};
 
 use crate::accessors::TypedAssignsExt;
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error)]
+#[derive(Clone, Eq, PartialEq, Debug, Display, Error)]
 #[display(doc_comments)]
 pub enum RevealError {
     /// the provided state transition is not a part of the bundle
-    UnrelatedTransition(OpId),
+    UnrelatedTransition(OpId, Transition),
 }
 
 pub trait BundleExt {
@@ -54,10 +54,9 @@ impl BundleExt for TransitionBundle {
 
     fn reveal_transition(&mut self, transition: Transition) -> Result<bool, RevealError> {
         let opid = transition.id();
-        self.input_map
-            .values()
-            .find(|id| *id == &opid)
-            .ok_or(RevealError::UnrelatedTransition(opid))?;
+        if self.input_map.values().find(|id| *id == &opid).is_none() {
+            return Err(RevealError::UnrelatedTransition(opid, transition));
+        }
         if self.known_transitions.contains_key(&opid) {
             return Ok(false);
         }

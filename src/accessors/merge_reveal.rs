@@ -27,8 +27,8 @@ use bp::dbc::anchor::MergeError;
 use bp::Txid;
 use commit_verify::{mpc, Conceal};
 use rgb::{
-    AnchorSet, Assign, Assignments, ExposedSeal, ExposedState, Extension, Genesis, Grip, OpId,
-    Operation, Transition, TransitionBundle, TypedAssigns, XGrip,
+    AnchorSet, Assign, Assignments, BundleId, ExposedSeal, ExposedState, Extension, Genesis, OpId,
+    Operation, Transition, TransitionBundle, TypedAssigns,
 };
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error, From)]
@@ -44,8 +44,11 @@ pub enum MergeRevealError {
     /// {liquid}.
     ChainMismatch { bitcoin: Txid, liquid: Txid },
 
-    /// mismatching transaction id for merge-revealed grips: {0} and {1}.
+    /// mismatching transaction id for merge-revealed: {0} and {1}.
     TxidMismatch(Txid, Txid),
+
+    /// anchors in anchored bundle are not equal for bundle {0}.
+    AnchorsNonEqual(BundleId),
 
     #[from]
     #[display(inner)]
@@ -54,7 +57,7 @@ pub enum MergeRevealError {
     /// the merged bundles contain more transitions than inputs.
     InsufficientInputs,
 
-    /// contract id provided for the merge-reveal operation doesn't matches
+    /// contract id provided for the merge-reveal operation doesn't match
     /// multi-protocol commitment.
     #[from(mpc::InvalidProof)]
     #[from(mpc::LeafNotKnown)]
@@ -255,36 +258,6 @@ impl MergeRevealContract for AnchoredBundle {
     }
 }
  */
-
-impl MergeReveal for XGrip<mpc::MerkleBlock> {
-    fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {
-        match (self, other) {
-            (XGrip::Bitcoin(grip), XGrip::Bitcoin(other)) => {
-                grip.merge_reveal(other).map(XGrip::Bitcoin)
-            }
-            (XGrip::Liquid(grip), XGrip::Liquid(other)) => {
-                grip.merge_reveal(other).map(XGrip::Liquid)
-            }
-            (XGrip::Bitcoin(bc), XGrip::Liquid(lq)) | (XGrip::Liquid(lq), XGrip::Bitcoin(bc)) => {
-                Err(MergeRevealError::ChainMismatch {
-                    bitcoin: bc.id,
-                    liquid: lq.id,
-                })
-            }
-            _ => unreachable!(),
-        }
-    }
-}
-
-impl MergeReveal for Grip<mpc::MerkleBlock> {
-    fn merge_reveal(mut self, other: Self) -> Result<Self, MergeRevealError> {
-        if self.id != other.id {
-            return Err(MergeRevealError::TxidMismatch(self.id, other.id));
-        }
-        self.anchors = self.anchors.merge_reveal(other.anchors)?;
-        Ok(self)
-    }
-}
 
 impl MergeReveal for AnchorSet<mpc::MerkleBlock> {
     fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {

@@ -28,15 +28,13 @@ use bp::dbc::anchor::MergeError;
 use bp::dbc::tapret::TapretCommitment;
 use commit_verify::{mpc, CommitId};
 use rgb::{
-    AnchorSet, AssetTag, AssignmentType, BundleId, ContractId, Extension, Genesis, Grip, OpId,
-    Operation, SchemaId, TransitionBundle, XGrip, XWitnessId,
+    AnchorSet, AssetTag, AssignmentType, BundleId, ContractId, Extension, Genesis, OpId, Operation,
+    SchemaId, TransitionBundle, XWitnessId,
 };
 use strict_encoding::TypeName;
 
 use crate::accessors::{MergeReveal, MergeRevealError};
-use crate::containers::{
-    AnchoredBundle, Cert, Consignment, ContentId, ContentSigs, ToMerkleBlock, ToMerkleProof,
-};
+use crate::containers::{BundledWitness, Cert, Consignment, ContentId, ContentSigs, SealWitness};
 use crate::interface::{
     rgb20, rgb21, rgb25, ContractSuppl, Iface, IfaceClass, IfaceId, IfacePair, Rgb20, Rgb21, Rgb25,
     SchemaIfaces,
@@ -80,7 +78,7 @@ pub struct Hoard {
     pub(super) asset_tags: TinyOrdMap<ContractId, TinyOrdMap<AssignmentType, AssetTag>>,
     pub(super) bundles: LargeOrdMap<BundleId, TransitionBundle>,
     pub(super) extensions: LargeOrdMap<OpId, Extension>,
-    pub(super) anchors: LargeOrdMap<XWitnessId, AnchorSet<mpc::MerkleBlock>>,
+    pub(super) witnesses: LargeOrdMap<XWitnessId, SealWitness>,
     pub(super) sigs: SmallOrdMap<ContentId, ContentSigs>,
 }
 
@@ -104,7 +102,7 @@ impl Hoard {
             asset_tags: none!(),
             bundles: none!(),
             extensions: none!(),
-            anchors: none!(),
+            witnesses: none!(),
             sigs: none!(),
         }
     }
@@ -188,11 +186,22 @@ impl Hoard {
             }
         }
 
-        for AnchoredBundle { grip, bundle } in consignment.bundles {
-            let bundle_id = bundle.bundle_id();
-            let grip = grip.into_merkle_block(contract_id, bundle_id)?;
-            self.consume_grip(grip)?;
-            self.consume_bundle(bundle)?;
+        for BundledWitness {
+            pub_witness,
+            anchored_bundles,
+        } in consignment.bundles
+        {
+            // TODO: Save pub witness transaction and SPVs
+            let anchor_set = anchored_bundles.to_anchor_set();
+            for bundle in anchored_bundles.into_bundles() {
+                let bundle_id = bundle.bundle_id();
+                self.consume_bundle(bundle)?;
+                let anchor = anchor_set.to_merkle_block(contract_id, bundle_id)?;
+                self.consume_witness(SealWitness {
+                    public: pub_witness.clone(),
+                    anchor,
+                })?;
+            }
         }
 
         for (content_id, sigs) in consignment.signatures {
@@ -220,12 +229,15 @@ impl Hoard {
     }
 
     // TODO: Move into Stash trait and re-implement using trait accessor methods
-    pub fn consume_grip(&mut self, grip: XGrip<mpc::MerkleBlock>) -> Result<(), ConsumeError> {
-        let (witness_id, anchors) = grip.split();
-        match self.anchors.get_mut(&witness_id) {
-            Some(a) => *a = a.clone().merge_reveal(anchors)?,
+    pub fn consume_witness(&mut self, witness: SealWitness) -> Result<(), ConsumeError> {
+        let witness_id = witness.witness_id();
+        match self.witnesses.get_mut(&witness_id) {
+            Some(w) => {
+                w.public = w.public.clone().merge_reveal(witness.public)?;
+                w.anchor = w.anchor.clone().merge_reveal(witness.anchor)?;
+            }
             None => {
-                self.anchors.insert(witness_id, anchors)?;
+                self.witnesses.insert(witness_id, witness)?;
             }
         }
         Ok(())
@@ -305,7 +317,7 @@ impl Stash for Hoard {
     }
 
     fn witness_ids(&self) -> Result<BTreeSet<XWitnessId>, Self::Error> {
-        Ok(self.anchors.keys().copied().collect())
+        Ok(self.witnesses.keys().copied().collect())
     }
 
     fn bundle_ids(&self) -> Result<BTreeSet<BundleId>, Self::Error> {
@@ -328,16 +340,16 @@ impl Stash for Hoard {
             .ok_or(StashInconsistency::OperationAbsent(op_id).into())
     }
 
-    fn grip(
+    fn anchor(
         &self,
         witness_id: XWitnessId,
-    ) -> Result<XGrip<mpc::MerkleBlock>, StashError<Self::Error>> {
-        let anchors = self
-            .anchors
+    ) -> Result<AnchorSet<mpc::MerkleBlock>, StashError<Self::Error>> {
+        let witness = self
+            .witnesses
             .get(&witness_id)
             .ok_or(StashInconsistency::AnchorAbsent(witness_id))?
             .clone();
-        Ok(witness_id.map(|id| Grip { id, anchors }))
+        Ok(witness.anchor)
     }
 
     fn contract_asset_tags(
@@ -352,9 +364,14 @@ impl Stash for Hoard {
 
     fn taprets(&self) -> Result<BTreeMap<XWitnessId, TapretCommitment>, StashError<Self::Error>> {
         Ok(self
-            .anchors
+            .witnesses
             .iter()
-            .filter_map(|(witness_id, anchors)| anchors.as_split().0.map(|a| (*witness_id, a)))
+            .filter_map(|(witness_id, witness)| match &witness.anchor {
+                AnchorSet::Tapret(tapret) | AnchorSet::Dual { tapret, .. } => {
+                    Some((*witness_id, tapret))
+                }
+                AnchorSet::Opret(_) => None,
+            })
             .map(|(witness_id, tapret)| {
                 (witness_id, TapretCommitment {
                     mpc: tapret.mpc_proof.commit_id(),

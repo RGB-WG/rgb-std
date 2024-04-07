@@ -20,7 +20,7 @@
 // limitations under the License.
 
 use amplify::confinement::SmallOrdSet;
-use rgb::{BundleId, XChain, XPubWitness, XWitnessId};
+use rgb::{BundleId, XChain};
 
 use super::TerminalSeal;
 use crate::LIB_NAME_RGB_STD;
@@ -36,7 +36,6 @@ use crate::LIB_NAME_RGB_STD;
 pub struct TerminalDisclose {
     pub bundle_id: BundleId,
     pub seal: XChain<TerminalSeal>,
-    pub witness_id: Option<XWitnessId>,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -49,20 +48,12 @@ pub struct TerminalDisclose {
 )]
 pub struct Terminal {
     pub seals: SmallOrdSet<XChain<TerminalSeal>>,
-    pub witness_tx: Option<XPubWitness>,
 }
 
 impl Terminal {
     pub fn new(seal: XChain<TerminalSeal>) -> Self {
         Terminal {
             seals: small_bset![seal],
-            witness_tx: None,
-        }
-    }
-    pub fn with_witness(seal: XChain<TerminalSeal>, witness_tx: XPubWitness) -> Self {
-        Terminal {
-            seals: small_bset![seal],
-            witness_tx: Some(witness_tx),
         }
     }
 }

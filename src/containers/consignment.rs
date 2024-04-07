@@ -30,16 +30,16 @@ use amplify::confinement::{
 use amplify::{ByteArray, Bytes32};
 use armor::{AsciiArmor, StrictArmorError};
 use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
-use bp::Tx;
 use commit_verify::{CommitEncode, CommitEngine, CommitId, CommitmentId, DigestExt, Sha256};
 use rgb::{
     validation, AssetTag, AssignmentType, AttachId, BundleId, ContractHistory, ContractId,
-    Extension, Genesis, GraphSeal, OpId, Operation, Schema, SchemaId, Transition, XChain,
+    Extension, Genesis, GraphSeal, Operation, Schema, SchemaId, XChain,
 };
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 
-use super::{AnchoredBundle, ContainerVer, ContentId, ContentSigs, Terminal, TerminalDisclose};
+use super::{BundledWitness, ContainerVer, ContentId, ContentSigs, Terminal, TerminalDisclose};
 use crate::accessors::BundleExt;
+use crate::containers::anchors::ToWitnessId;
 use crate::interface::{ContractSuppl, IfaceId, IfacePair};
 use crate::resolvers::ResolveHeight;
 use crate::LIB_NAME_RGB_STD;
@@ -147,11 +147,12 @@ pub struct Consignment<const TYPE: bool> {
     /// Genesis data.
     pub genesis: Genesis,
 
-    /// All bundled state transitions contained in the consignment.
-    pub bundles: LargeOrdSet<AnchoredBundle>,
-
     /// All state extensions contained in the consignment.
     pub extensions: LargeOrdSet<Extension>,
+
+    /// All bundled state transitions contained in the consignment, together
+    /// with their witness data.
+    pub bundles: LargeOrdSet<BundledWitness>,
 
     /// Schema (plus root schema, if any) under which contract is issued.
     pub schema: Schema,
@@ -189,7 +190,7 @@ impl<const TYPE: bool> CommitEncode for Consignment<TYPE> {
         ));
 
         e.commit_to_set(&LargeOrdSet::from_iter_unsafe(
-            self.bundles.iter().map(|ab| ab.bundle.disclose_hash()),
+            self.bundles.iter().map(BundledWitness::disclose_hash),
         ));
         e.commit_to_set(&LargeOrdSet::from_iter_unsafe(
             self.extensions.iter().map(Extension::disclose_hash),
@@ -239,33 +240,11 @@ impl<const TYPE: bool> Consignment<TYPE> {
     #[inline]
     pub fn contract_id(&self) -> ContractId { self.genesis.contract_id() }
 
-    pub fn anchored_bundle(&self, bundle_id: BundleId) -> Option<&AnchoredBundle> {
-        self.bundles
-            .iter()
-            .find(|anchored_bundle| anchored_bundle.bundle_id() == bundle_id)
-    }
-
-    pub(super) fn transition(&self, opid: OpId) -> Option<&Transition> {
-        self.bundles
-            .iter()
-            .find_map(|ab| ab.bundle.known_transitions.get(&opid))
-    }
-
-    pub(super) fn extension(&self, opid: OpId) -> Option<&Extension> {
-        self.extensions
-            .iter()
-            .find(|&extension| extension.id() == opid)
-    }
-
     pub fn terminals_disclose(&self) -> impl Iterator<Item = TerminalDisclose> + '_ {
         self.terminals.iter().flat_map(|(id, term)| {
             term.seals.iter().map(|seal| TerminalDisclose {
                 bundle_id: *id,
                 seal: *seal,
-                witness_id: term
-                    .witness_tx
-                    .as_ref()
-                    .map(|witness| witness.map_ref(Tx::txid)),
             })
         })
     }
@@ -292,24 +271,27 @@ impl<const TYPE: bool> Consignment<TYPE> {
             .zip(iter::repeat(false))
             .collect::<BTreeMap<_, _>>();
         let mut ordered_extensions = BTreeMap::new();
-        for anchored_bundle in &self.bundles {
-            for transition in anchored_bundle.bundle.known_transitions.values() {
-                let witness_anchor = resolver.resolve_grip(&anchored_bundle.grip)?;
+        for bundled_witness in &self.bundles {
+            for bundle in bundled_witness.anchored_bundles.bundles() {
+                for transition in bundle.known_transitions.values() {
+                    let witness_anchor =
+                        resolver.resolve_height(&bundled_witness.pub_witness.to_witness_id())?;
 
-                history.add_transition(transition, witness_anchor);
-                for (id, used) in &mut extension_idx {
-                    if *used {
-                        continue;
-                    }
-                    for input in &transition.inputs {
-                        if input.prev_out.op == *id {
-                            *used = true;
-                            if let Some(ord) = ordered_extensions.get_mut(id) {
-                                if *ord > witness_anchor {
-                                    *ord = witness_anchor;
+                    history.add_transition(transition, witness_anchor);
+                    for (id, used) in &mut extension_idx {
+                        if *used {
+                            continue;
+                        }
+                        for input in &transition.inputs {
+                            if input.prev_out.op == *id {
+                                *used = true;
+                                if let Some(ord) = ordered_extensions.get_mut(id) {
+                                    if *ord > witness_anchor {
+                                        *ord = witness_anchor;
+                                    }
+                                } else {
+                                    ordered_extensions.insert(*id, witness_anchor);
                                 }
-                            } else {
-                                ordered_extensions.insert(*id, witness_anchor);
                             }
                         }
                     }
@@ -327,12 +309,15 @@ impl<const TYPE: bool> Consignment<TYPE> {
 
     #[must_use]
     pub fn reveal_bundle_seal(mut self, bundle_id: BundleId, revealed: XChain<GraphSeal>) -> Self {
+        // We need to clone since ordered set does not allow us to mutate members.
         let mut bundles = LargeOrdSet::with_capacity(self.bundles.len());
-        for mut anchored_bundle in self.bundles {
-            if anchored_bundle.bundle.bundle_id() == bundle_id {
-                anchored_bundle.bundle.reveal_seal(revealed);
+        for mut bundled_witness in self.bundles {
+            for bundle in bundled_witness.anchored_bundles.bundles_mut() {
+                if bundle.bundle_id() == bundle_id {
+                    bundle.reveal_seal(revealed);
+                }
             }
-            bundles.push(anchored_bundle).ok();
+            bundles.push(bundled_witness).ok();
         }
         self.bundles = bundles;
         self

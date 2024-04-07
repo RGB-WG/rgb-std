@@ -32,15 +32,15 @@ use commit_verify::{mpc, Conceal};
 use invoice::{Amount, Beneficiary, InvoiceState, NonFungible, RgbInvoice};
 use rgb::{
     validation, AssignmentType, BlindingFactor, BundleId, ContractId, GraphSeal, OpId, Operation,
-    Opout, Schema, SchemaId, SecretSeal, Transition, TransitionBundle, XChain, XGrip, XOutpoint,
+    Opout, Schema, SchemaId, SecretSeal, Transition, TransitionBundle, XChain, XOutpoint,
     XOutputSeal, XWitnessId,
 };
 use strict_encoding::{FieldName, TypeName};
 
-use crate::accessors::{BundleExt, MergeRevealError, RevealError};
+use crate::accessors::{MergeReveal, MergeRevealError, RevealError};
 use crate::containers::{
-    AnchoredBundle, Batch, BuilderSeal, Cert, Consignment, ContentId, Contract, Fascia, Terminal,
-    TerminalSeal, Transfer, TransitionInfo,
+    Batch, BuilderSeal, BundledWitness, Cert, Consignment, ContentId, Contract, Fascia,
+    SealWitness, Terminal, TerminalSeal, Transfer, TransitionInfo,
 };
 use crate::interface::{
     BuilderError, ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, IfaceWrapper,
@@ -63,6 +63,10 @@ pub enum ConsignerError<E1: Error, E2: Error> {
 
     /// public state at operation output {0} is concealed.
     ConcealedPublicState(Opout),
+
+    #[from]
+    #[display(inner)]
+    MergeReveal(MergeRevealError),
 
     #[from]
     #[display(inner)]
@@ -207,6 +211,9 @@ pub enum DataError {
     /// mismatch between witness seal chain and anchor chain.
     ChainMismatch,
 
+    /// bundle {0} has both tapret and opret anchors.
+    DoubleAnchor(BundleId),
+
     #[from]
     #[display(inner)]
     Reveal(RevealError),
@@ -267,6 +274,12 @@ pub enum InventoryInconsistency {
     /// It may happen due to RGB library bug, or indicate internal inventory
     /// inconsistency and compromised inventory data storage.
     BundleAbsent(OpId),
+
+    /// contract id for bundle {0} is not known.
+    ///
+    /// It may happen due to RGB library bug, or indicate internal inventory
+    /// inconsistency and compromised inventory data storage.
+    BundleContractUnknown(BundleId),
 
     /// absent information about anchor for bundle {0}.
     ///
@@ -358,8 +371,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     /// Must be called before the consignment is created, when witness
     /// transaction is not yet mined.
     fn consume(&mut self, fascia: Fascia) -> Result<(), InventoryError<Self::Error>> {
-        let witness_id = fascia.grip.witness_id();
-        unsafe { self.consume_grip(fascia.grip)? };
+        unsafe { self.consume_witness(SealWitness::new(fascia.witness_id, fascia.anchor))? };
         for (contract_id, bundle) in fascia.bundles {
             let ids1 = bundle
                 .known_transitions
@@ -370,15 +382,15 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             if !ids1.is_subset(&ids2) {
                 return Err(ConsumeError::InvalidBundle(contract_id, bundle.bundle_id()).into());
             }
-            unsafe { self.consume_bundle(contract_id, bundle, witness_id)? };
+            unsafe { self.consume_bundle(contract_id, bundle, fascia.witness_id)? };
         }
         Ok(())
     }
 
     #[doc(hidden)]
-    unsafe fn consume_grip(
+    unsafe fn consume_witness(
         &mut self,
-        grip: XGrip<mpc::MerkleBlock>,
+        witness: SealWitness,
     ) -> Result<(), InventoryError<Self::Error>>;
 
     #[doc(hidden)]
@@ -456,7 +468,12 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         iface_id: IfaceId,
     ) -> Result<ContractIface, InventoryError<Self::Error>>;
 
-    fn anchored_bundle(&self, opid: OpId) -> Result<AnchoredBundle, InventoryError<Self::Error>>;
+    fn op_bundle_id(&self, opid: OpId) -> Result<BundleId, InventoryError<Self::Error>>;
+
+    fn bundled_witness(
+        &self,
+        bundle_id: BundleId,
+    ) -> Result<BundledWitness, InventoryError<Self::Error>>;
 
     fn transition_builder(
         &self,
@@ -631,7 +648,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         opouts.extend(self.opouts_by_terminals(secret_seals.iter().copied())?);
 
         // 1.3. Collect all state transitions assigning state to the provided outpoints
-        let mut anchored_bundles = BTreeMap::<OpId, AnchoredBundle>::new();
+        let mut bundled_witnesses = BTreeMap::<BundleId, BundledWitness>::new();
         let mut transitions = BTreeMap::<OpId, Transition>::new();
         let mut terminals = BTreeMap::<BundleId, Terminal>::new();
         for opout in opouts {
@@ -640,11 +657,10 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             }
             let transition = self.transition(opout.op)?;
             transitions.insert(opout.op, transition.clone());
-            let anchored_bundle = self.anchored_bundle(opout.op)?;
 
+            let bundle_id = self.op_bundle_id(transition.id())?;
             // 2. Collect seals from terminal transitions to add to the consignment
-            // terminals
-            let bundle_id = anchored_bundle.bundle.bundle_id();
+            //    terminals
             for (type_id, typed_assignments) in transition.assignments.iter() {
                 for index in 0..typed_assignments.len_u16() {
                     let seal = typed_assignments.to_confidential_seals()[index as usize];
@@ -664,7 +680,10 @@ pub trait Inventory: Deref<Target = Self::Stash> {
                 }
             }
 
-            anchored_bundles.insert(opout.op, anchored_bundle.clone());
+            if !bundled_witnesses.contains_key(&bundle_id) {
+                let bw = self.bundled_witness(bundle_id)?;
+                bundled_witnesses.insert(bundle_id, bw);
+            }
         }
 
         // 2. Collect all state transitions between terminals and genesis
@@ -679,10 +698,11 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             let transition = self.transition(id)?;
             ids.extend(transition.inputs().iter().map(|input| input.prev_out.op));
             transitions.insert(id, transition.clone());
-            anchored_bundles
-                .entry(id)
-                .or_insert(self.anchored_bundle(id)?.clone())
-                .bundle
+            let bundle_id = self.op_bundle_id(transition.id())?;
+            bundled_witnesses
+                .entry(bundle_id)
+                .or_insert(self.bundled_witness(bundle_id)?.clone())
+                .anchored_bundles
                 .reveal_transition(transition.clone())?;
         }
 
@@ -698,7 +718,19 @@ pub trait Inventory: Deref<Target = Self::Stash> {
                 .insert(*iface_id, IfacePair::with(iface.clone(), iimpl.clone()))
                 .expect("same collection size");
         }
-        consignment.bundles = Confined::try_from_iter(anchored_bundles.into_values())
+        let mut bundles = BTreeMap::<XWitnessId, BundledWitness>::new();
+        for bw in bundled_witnesses.into_values() {
+            let witness_id = bw.witness_id();
+            match bundles.get_mut(&witness_id) {
+                Some(prev) => {
+                    *prev = prev.clone().merge_reveal(bw)?;
+                }
+                None => {
+                    bundles.insert(witness_id, bw);
+                }
+            }
+        }
+        consignment.bundles = Confined::try_from_iter(bundles.into_values())
             .map_err(|_| ConsignerError::TooManyBundles)?;
         consignment.terminals =
             Confined::try_from(terminals).map_err(|_| ConsignerError::TooManyTerminals)?;

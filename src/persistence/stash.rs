@@ -28,8 +28,8 @@ use amplify::confinement::{TinyOrdMap, TinyOrdSet};
 use bp::dbc::tapret::TapretCommitment;
 use commit_verify::mpc;
 use rgb::{
-    AssetTag, AssignmentType, BundleId, ContractId, Extension, Genesis, OpId, SchemaId,
-    TransitionBundle, XGrip, XWitnessId,
+    AnchorSet, AssetTag, AssignmentType, BundleId, ContractId, Extension, Genesis, OpId, SchemaId,
+    TransitionBundle, XWitnessId,
 };
 use strict_encoding::TypeName;
 
@@ -133,10 +133,10 @@ pub trait Stash {
 
     fn extension(&self, op_id: OpId) -> Result<&Extension, StashError<Self::Error>>;
 
-    fn grip(
+    fn anchor(
         &self,
         witness_id: XWitnessId,
-    ) -> Result<XGrip<mpc::MerkleBlock>, StashError<Self::Error>>;
+    ) -> Result<AnchorSet<mpc::MerkleBlock>, StashError<Self::Error>>;
 
     fn taprets(&self) -> Result<BTreeMap<XWitnessId, TapretCommitment>, StashError<Self::Error>>;
 }
