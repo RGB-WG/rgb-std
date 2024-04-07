@@ -40,7 +40,7 @@ use strict_encoding::{FieldName, TypeName};
 use crate::accessors::{MergeRevealError, RevealError};
 use crate::containers::{
     Batch, BuilderSeal, BundledWitness, Cert, Consignment, ContentId, Contract, Fascia,
-    SealWitness, Terminal, TerminalSeal, Transfer, TransitionInfo,
+    SealWitness, Terminal, TerminalSeal, Transfer, TransitionInfo, TransitionInfoError,
 };
 use crate::interface::{
     BuilderError, ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, IfaceWrapper,
@@ -86,6 +86,9 @@ pub enum ConsignerError<E1: Error, E2: Error> {
 #[derive(Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum ComposeError<E1: Error, E2: Error> {
+    /// the outputs spent contain more than 16 million contracts.
+    TooManyContracts,
+
     /// no outputs available to store state of type {1} with velocity class
     /// '{0}'.
     NoBlankOrChange(VelocityHint, AssignmentType),
@@ -106,10 +109,9 @@ pub enum ComposeError<E1: Error, E2: Error> {
     /// smart contract state.
     InsufficientState,
 
-    /// the operation produces too many state transitions which can't fit the
-    /// container requirements.
     #[from]
-    Confinement(confinement::Error),
+    #[display(inner)]
+    Transition(TransitionInfoError),
 
     #[from]
     #[display(inner)]
@@ -942,7 +944,9 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             }
 
             let transition = blank_builder.complete_transition()?;
-            blanks.push(TransitionInfo::new(transition, outputs)?)?;
+            blanks
+                .push(TransitionInfo::new(transition, outputs)?)
+                .map_err(|_| ComposeError::TooManyContracts)?;
         }
 
         Ok(Batch {

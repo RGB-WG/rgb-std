@@ -25,7 +25,6 @@ use std::hash::{Hash, Hasher};
 use std::ops::{BitOr, BitOrAssign};
 use std::vec;
 
-use amplify::confinement;
 use amplify::confinement::{Confined, U24};
 use bp::seals::txout::CloseMethod;
 use rgb::{
@@ -85,13 +84,13 @@ impl BitOrAssign<CloseMethodSet> for Option<CloseMethodSet> {
     fn bitor_assign(&mut self, rhs: CloseMethodSet) { *self = Some(rhs | *self) }
 }
 
-impl BitOr for CloseMethodSet {
+impl<T: Into<CloseMethodSet>> BitOr<T> for CloseMethodSet {
     type Output = Self;
-    fn bitor(self, rhs: Self) -> Self::Output { if self == rhs { self } else { Self::Both } }
+    fn bitor(self, rhs: T) -> Self::Output { if self == rhs.into() { self } else { Self::Both } }
 }
 
-impl BitOrAssign for CloseMethodSet {
-    fn bitor_assign(&mut self, rhs: Self) { *self = self.bitor(rhs); }
+impl<T: Into<CloseMethodSet>> BitOrAssign<T> for CloseMethodSet {
+    fn bitor_assign(&mut self, rhs: T) { *self = self.bitor(rhs.into()); }
 }
 
 impl From<XOutputSeal> for CloseMethodSet {
@@ -124,7 +123,7 @@ pub struct TransitionInfo {
     pub id: OpId,
     pub inputs: Confined<BTreeSet<XOutpoint>, 1, U24>,
     pub transition: Transition,
-    pub methods: CloseMethodSet,
+    pub method: CloseMethod,
 }
 
 impl StrictDumb for TransitionInfo {
@@ -151,29 +150,36 @@ impl TransitionInfo {
     pub fn new(
         transition: Transition,
         seals: impl AsRef<[XOutputSeal]>,
-    ) -> Result<Self, confinement::Error> {
+    ) -> Result<Self, TransitionInfoError> {
+        let id = transition.id();
+        let seals = seals.as_ref();
         let inputs = Confined::<BTreeSet<_>, 1, U24>::try_from_iter(
-            seals.as_ref().iter().copied().map(XOutpoint::from),
-        )?;
-        let methods = seals
-            .as_ref()
-            .iter()
-            .map(|seal| seal.method())
-            .map(CloseMethodSet::from)
-            .fold(None, |acc, i| {
-                Some(match acc {
-                    None => i,
-                    Some(a) => a | i,
-                })
-            })
-            .expect("confinement guarantees at least one item");
+            seals.iter().copied().map(XOutpoint::from),
+        )
+        .map_err(|_| TransitionInfoError::TooMany(id))?;
+        let method = seals.first().expect("one item guaranteed").method();
+        if seals.iter().any(|s| s.method() != method) {
+            return Err(TransitionInfoError::CloseMethodDivergence(id));
+        }
         Ok(TransitionInfo {
-            id: transition.id(),
+            id,
             inputs,
             transition,
-            methods,
+            method,
         })
     }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error)]
+#[display(doc_comments)]
+pub enum TransitionInfoError {
+    /// the operation produces too many state transitions which can't fit the
+    /// container requirements.
+    TooMany(OpId),
+
+    /// transition {0} contains inputs with different seal closing methods,
+    /// which is not allowed.
+    CloseMethodDivergence(OpId),
 }
 
 /// A batch of state transitions under different contracts which are associated
@@ -208,8 +214,8 @@ impl IntoIterator for Batch {
 
 impl Batch {
     pub fn close_method_set(&self) -> CloseMethodSet {
-        let mut methods = self.main.methods;
-        self.blanks.iter().for_each(|i| methods |= i.methods);
+        let mut methods = CloseMethodSet::from(self.main.method);
+        self.blanks.iter().for_each(|i| methods |= i.method);
         methods
     }
 }
