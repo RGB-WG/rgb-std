@@ -72,7 +72,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        toolchain: [ nightly, beta, stable, 1.69.0 ]
+        toolchain: [ nightly, beta, stable ]
     steps:
       - uses: actions/checkout@v2
       - name: Install rust ${{ matrix.toolchain }}
@@ -85,3 +85,20 @@ jobs:
         with:
           command: check
           args: --workspace --all-targets --all-features
+
+  msrv-build:
+    name: "MSRV build"
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v5
+      - name: Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v2
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+      - name: Build rgb-std
+        run: nix build
+      - name: Build rgb-invoice
+        run: nix build .#rgb-invoice
