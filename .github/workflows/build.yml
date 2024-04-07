@@ -87,7 +87,7 @@ jobs:
           args: --workspace --all-targets --all-features
 
   msrv-build:
-    name: "MSRV build"
+    name: "toolchains (msrv)"
     runs-on: ubuntu-latest
     steps:
       - name: checkout
