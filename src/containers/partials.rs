@@ -220,6 +220,44 @@ impl Batch {
     }
 }
 
+#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct BundleDichotomy {
+    pub first: TransitionBundle,
+    pub second: Option<TransitionBundle>,
+}
+
+impl IntoIterator for BundleDichotomy {
+    type Item = TransitionBundle;
+    type IntoIter = vec::IntoIter<TransitionBundle>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        let mut vec = Vec::with_capacity(2);
+        vec.push(self.first);
+        self.second.map(|s| vec.push(s));
+        vec.into_iter()
+    }
+}
+
+impl BundleDichotomy {
+    pub fn with(first: TransitionBundle, second: Option<TransitionBundle>) -> Self {
+        Self { first, second }
+    }
+
+    pub fn iter(&self) -> vec::IntoIter<&TransitionBundle> {
+        let mut vec = Vec::with_capacity(2);
+        vec.push(&self.first);
+        self.second.as_ref().map(|s| vec.push(s));
+        vec.into_iter()
+    }
+}
+
 /// Structure exported from a PSBT for merging into the stash. It contains a set
 /// of finalized state transitions (under multiple contracts), packed into
 /// bundles, and anchored to a single layer 1 transaction.
@@ -234,7 +272,7 @@ impl Batch {
 pub struct Fascia {
     pub witness_id: XWitnessId,
     pub anchor: AnchorSet,
-    pub bundles: Confined<BTreeMap<ContractId, TransitionBundle>, 1, U24>,
+    pub bundles: Confined<BTreeMap<ContractId, BundleDichotomy>, 1, U24>,
 }
 
 impl StrictDumb for Fascia {
@@ -248,3 +286,11 @@ impl StrictDumb for Fascia {
 }
 impl StrictSerialize for Fascia {}
 impl StrictDeserialize for Fascia {}
+
+impl Fascia {
+    pub fn into_bundles(self) -> impl IntoIterator<Item = (ContractId, TransitionBundle)> {
+        self.bundles
+            .into_iter()
+            .flat_map(|(id, d)| d.into_iter().map(move |b| (id, b)))
+    }
+}

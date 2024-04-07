@@ -48,6 +48,8 @@ pub use consignment::{Consignment, ConsignmentId, Contract, Transfer};
 pub use disclosure::Disclosure;
 pub use file::{FileContent, LoadError, UniversalFile};
 pub use indexed::IndexedConsignment;
-pub use partials::{Batch, CloseMethodSet, Fascia, TransitionInfo, TransitionInfoError};
+pub use partials::{
+    Batch, BundleDichotomy, CloseMethodSet, Fascia, TransitionInfo, TransitionInfoError,
+};
 pub use seal::{BuilderSeal, TerminalSeal, VoutSeal};
 pub use util::{ContainerVer, Terminal, TerminalDisclose};
