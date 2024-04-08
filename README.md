@@ -56,7 +56,7 @@ by default.
 
 ### MSRV
 
-Minimum supported rust compiler version (MSRV): 1.66, rust 2021 edition.
+Minimum supported rust compiler version (MSRV) is shown in `rust-version` of `Cargo.toml`.
 
 ## Contributing
 
