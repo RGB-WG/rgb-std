@@ -251,12 +251,12 @@ where T: OpSchema
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use amplify::confinement::{TinyOrdMap, TinyOrdSet};
+use amplify::confinement::{Confined, TinyOrdMap, TinyOrdSet};
 use rgb::Occurrences;
 use strict_encoding::{FieldName, TypeName};
 
 use crate::interface::{
-    ExtensionIface, GenesisIface, Iface, Modifier, OpName, OwnedIface, TransitionIface,
+    ExtensionIface, GenesisIface, Iface, IfaceImpl, Modifier, OpName, OwnedIface, TransitionIface,
 };
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display, Error)]
@@ -719,5 +719,84 @@ impl ExtensionIface {
         } else {
             Err(errors)
         }
+    }
+}
+
+impl IfaceImpl {
+    pub fn abstracted(mut self, base: &Iface, parent: &Iface) -> Option<Self> {
+        assert_eq!(self.iface_id, base.iface_id());
+        let parent_id = parent.iface_id();
+        if !base.inherits.contains(&parent_id) {
+            return None;
+        }
+
+        self.global_state = Confined::from_iter_unsafe(
+            base.global_state
+                .keys()
+                .filter(|name| parent.global_state.contains_key(*name))
+                .map(|name| {
+                    self.global_state
+                        .iter()
+                        .find(|i| &i.name == name)
+                        .cloned()
+                        .expect("invalid base implementation")
+                }),
+        );
+
+        self.assignments = Confined::from_iter_unsafe(
+            base.assignments
+                .keys()
+                .filter(|name| parent.assignments.contains_key(*name))
+                .map(|name| {
+                    self.assignments
+                        .iter()
+                        .find(|i| &i.name == name)
+                        .cloned()
+                        .expect("invalid base implementation")
+                }),
+        );
+
+        self.valencies = Confined::from_iter_unsafe(
+            base.assignments
+                .keys()
+                .filter(|name| parent.valencies.contains_key(*name))
+                .map(|name| {
+                    self.valencies
+                        .iter()
+                        .find(|i| &i.name == name)
+                        .cloned()
+                        .expect("invalid base implementation")
+                }),
+        );
+
+        self.transitions = Confined::from_iter_unsafe(
+            base.transitions
+                .keys()
+                .filter(|name| parent.transitions.contains_key(*name))
+                .map(|name| {
+                    self.transitions
+                        .iter()
+                        .find(|i| &i.name == name)
+                        .cloned()
+                        .expect("invalid base implementation")
+                }),
+        );
+
+        self.extensions = Confined::from_iter_unsafe(
+            base.extensions
+                .keys()
+                .filter(|name| parent.extensions.contains_key(*name))
+                .map(|name| {
+                    self.extensions
+                        .iter()
+                        .find(|i| &i.name == name)
+                        .cloned()
+                        .expect("invalid base implementation")
+                }),
+        );
+
+        self.iface_id = parent_id;
+
+        Some(self)
     }
 }
