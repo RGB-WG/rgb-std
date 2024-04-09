@@ -28,7 +28,7 @@ use amplify::{confinement, Wrapper};
 use chrono::Utc;
 use invoice::{Allocation, Amount};
 use rgb::{
-    validation, AltLayer1, AltLayer1Set, AssetTag, Assign, AssignmentType, Assignments,
+    validation, AltLayer1, AltLayer1Set, AssetTag, AssetTags, Assign, AssignmentType, Assignments,
     BlindingFactor, ContractId, DataState, ExposedSeal, FungibleType, Genesis, GenesisSeal,
     GlobalState, GraphSeal, Input, Layer1, Opout, RevealedAttach, RevealedData, RevealedValue,
     Schema, StateSchema, Transition, TransitionType, TypedAssigns, XChain, XOutpoint,
@@ -319,6 +319,7 @@ impl ContractBuilder {
             timestamp,
             testnet: self.testnet,
             alt_layers1: self.alt_layers1,
+            asset_tags,
             metadata: empty!(),
             globals: global,
             assignments,
@@ -328,7 +329,7 @@ impl ContractBuilder {
             script: none!(),
         };
 
-        let mut contract = Contract::new(schema, genesis, asset_tags);
+        let mut contract = Contract::new(schema, genesis);
         contract.ifaces = tiny_bmap! { iface_pair.iface_id() => iface_pair };
 
         let verified_contract =
@@ -601,7 +602,7 @@ pub struct OperationBuilder<Seal: ExposedSeal> {
     schema: Schema,
     iface: Iface,
     iimpl: IfaceImpl,
-    asset_tags: TinyOrdMap<AssignmentType, AssetTag>,
+    asset_tags: AssetTags,
 
     global: GlobalState,
     rights: TinyOrdMap<AssignmentType, Confined<HashSet<BuilderSeal<Seal>>, 1, U16>>,
@@ -948,8 +949,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
     fn complete(
         self,
         inputs: Option<&TinyOrdMap<Input, PersistedState>>,
-    ) -> (Schema, IfacePair, GlobalState, Assignments<Seal>, TinyOrdMap<AssignmentType, AssetTag>)
-    {
+    ) -> (Schema, IfacePair, GlobalState, Assignments<Seal>, AssetTags) {
         let owned_state = self.fungible.into_iter().map(|(id, vec)| {
             let mut blindings = Vec::with_capacity(vec.len());
             let mut vec = vec

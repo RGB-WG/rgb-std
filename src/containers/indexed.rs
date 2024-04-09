@@ -26,8 +26,8 @@ use amplify::confinement::Collection;
 use commit_verify::Conceal;
 use rgb::validation::ConsignmentApi;
 use rgb::{
-    AnchorSet, AssetTag, AssignmentType, BundleId, Extension, Genesis, OpId, OpRef, Operation,
-    Schema, Transition, TransitionBundle, XChain, XWitnessId,
+    AnchorSet, BundleId, Extension, Genesis, OpId, OpRef, Operation, Schema, Transition,
+    TransitionBundle, XChain, XWitnessId,
 };
 
 use super::Consignment;
@@ -95,11 +95,6 @@ impl<'c, const TYPE: bool> IndexedConsignment<'c, TYPE> {
 
 impl<'c, const TYPE: bool> ConsignmentApi for IndexedConsignment<'c, TYPE> {
     fn schema(&self) -> &Schema { &self.schema }
-
-    #[inline]
-    fn asset_tags<'iter>(&self) -> impl Iterator<Item = (AssignmentType, AssetTag)> + 'iter {
-        self.asset_tags.to_inner().into_iter()
-    }
 
     fn operation(&self, opid: OpId) -> Option<OpRef> {
         if opid == self.genesis.id() {

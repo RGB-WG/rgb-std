@@ -32,8 +32,8 @@ use armor::{AsciiArmor, StrictArmorError};
 use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
 use commit_verify::{CommitEncode, CommitEngine, CommitId, CommitmentId, DigestExt, Sha256};
 use rgb::{
-    validation, AssetTag, AssignmentType, AttachId, BundleId, ContractHistory, ContractId,
-    Extension, Genesis, GraphSeal, Operation, Schema, SchemaId, XChain,
+    validation, AttachId, BundleId, ContractHistory, ContractId, Extension, Genesis, GraphSeal,
+    Operation, Schema, SchemaId, XChain,
 };
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 
@@ -138,9 +138,6 @@ pub struct Consignment<const TYPE: bool> {
     /// contract.
     pub transfer: bool,
 
-    /// Confidential asset tags.
-    pub asset_tags: TinyOrdMap<AssignmentType, AssetTag>,
-
     /// Set of seals which are history terminals.
     pub terminals: SmallOrdMap<BundleId, Terminal>,
 
@@ -199,7 +196,6 @@ impl<const TYPE: bool> CommitEncode for Consignment<TYPE> {
 
         e.commit_to_set(&SmallOrdSet::from_iter_unsafe(self.attachments.keys().copied()));
         e.commit_to_set(&self.supplements);
-        e.commit_to_map(&self.asset_tags);
         e.commit_to_map(&self.signatures);
     }
 }
@@ -208,11 +204,7 @@ impl<const TYPE: bool> Consignment<TYPE> {
     /// # Panics
     ///
     /// If the provided schema is not the one which is used by genesis.
-    pub fn new(
-        schema: Schema,
-        genesis: Genesis,
-        asset_tags: TinyOrdMap<AssignmentType, AssetTag>,
-    ) -> Self {
+    pub fn new(schema: Schema, genesis: Genesis) -> Self {
         assert_eq!(schema.schema_id(), genesis.schema_id);
         Consignment {
             validation_status: None,
@@ -221,7 +213,6 @@ impl<const TYPE: bool> Consignment<TYPE> {
             schema,
             ifaces: none!(),
             supplements: none!(),
-            asset_tags,
             genesis,
             terminals: none!(),
             bundles: none!(),
@@ -331,7 +322,6 @@ impl<const TYPE: bool> Consignment<TYPE> {
             schema: self.schema,
             ifaces: self.ifaces,
             supplements: self.supplements,
-            asset_tags: self.asset_tags,
             genesis: self.genesis,
             terminals: self.terminals,
             bundles: self.bundles,
