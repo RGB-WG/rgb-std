@@ -33,22 +33,34 @@ mod anchors;
 mod consignment;
 mod disclosure;
 mod util;
-mod validate;
 mod certs;
 mod partials;
 mod indexed;
-mod armor;
 mod file;
+mod kit;
 
 pub use anchors::{
     AnchoredBundles, BundledWitness, BundledWitnessDisclosure, PubWitness, SealWitness,
     ToWitnessId, XPubWitness,
 };
 pub use certs::{Cert, ContentId, ContentSigs, Identity};
-pub use consignment::{Consignment, ConsignmentId, Contract, Transfer};
+pub use consignment::{Consignment, ConsignmentId, Contract, Transfer, ValidConsignment};
 pub use disclosure::Disclosure;
 pub use file::{FileContent, LoadError, UniversalFile};
 pub use indexed::IndexedConsignment;
+pub use kit::{Kit, KitId};
 pub use partials::{Batch, CloseMethodSet, Fascia, TransitionInfo};
 pub use seal::{BuilderSeal, TerminalSeal, VoutSeal};
 pub use util::{ContainerVer, Terminal, TerminalDisclose};
+
+pub const ASCII_ARMOR_NAME: &str = "Name";
+pub const ASCII_ARMOR_IFACE: &str = "Interface";
+pub const ASCII_ARMOR_IIMPL: &str = "Implementation";
+pub const ASCII_ARMOR_SCHEMA: &str = "Schema";
+pub const ASCII_ARMOR_CONTRACT_: &str = "Contract";
+pub const ASCII_ARMOR_VERSION: &str = "Version";
+pub const ASCII_ARMOR_TERMINAL: &str = "Terminal";
+pub const ASCII_ARMOR_SUPPL: &str = "Supplement";
+pub const ASCII_ARMOR_SCRIPT: &str = "Alu-Lib";
+pub const ASCII_ARMOR_TYPE_SYSTEM: &str = "Type-System";
+pub const ASCII_ARMOR_CONSIGNMENT_TYPE: &str = "Type";

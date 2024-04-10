@@ -30,8 +30,7 @@ use strict_types::typesys::SystemBuilder;
 use strict_types::{CompileError, LibBuilder, SemId, SymbolicSys, TypeLib, TypeSystem};
 
 use super::{AssetSpec, AssetTerms, BurnMeta, Error, IssueMeta, MediaType, LIB_NAME_RGB_CONTRACT};
-use crate::containers::{Contract, Transfer};
-use crate::persistence::Stock;
+use crate::containers::{Contract, Kit, Transfer};
 use crate::stl::ProofOfReserves;
 use crate::LIB_NAME_RGB_STD;
 
@@ -56,7 +55,7 @@ fn _rgb_std_stl() -> Result<TypeLib, CompileError> {
     })
     .transpile::<Transfer>()
     .transpile::<Contract>()
-    .transpile::<Stock>()
+    .transpile::<Kit>()
     .compile()
 }
 

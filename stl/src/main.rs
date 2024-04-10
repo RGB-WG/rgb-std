@@ -20,15 +20,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[macro_use]
-extern crate amplify;
-
 use std::fs;
 use std::io::Write;
 
 use commit_verify::CommitmentLayout;
 use rgbstd::containers::Transfer;
-use rgbstd::interface::{rgb20, rgb21, rgb25, IfaceClass, Rgb20, Rgb21, Rgb25};
 use rgbstd::stl::{
     aluvm_stl, bp_core_stl, bp_tx_stl, commit_verify_stl, rgb_contract_stl, rgb_core_stl,
     rgb_std_stl,
@@ -55,28 +51,6 @@ fn main() {
             Some(
                 "
   Description: Types for writing RGB contracts and interfaces
-  Author: Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
-  Copyright (C) 2023-2024-2024 LNP/BP Standards Association. All rights reserved.
-  License: Apache-2.0",
-            ),
-        )
-        .expect("unable to write to the file");
-
-    let rgb21 = Rgb21::stl();
-    rgb21
-        .serialize(StlFormat::Binary, Some(&dir), "0.1.0", None)
-        .expect("unable to write to the file");
-    rgb21
-        .serialize(StlFormat::Armored, Some(&dir), "0.1.0", None)
-        .expect("unable to write to the file");
-    rgb21
-        .serialize(
-            StlFormat::Source,
-            Some(&dir),
-            "0.1.0",
-            Some(
-                "
-  Description: Types for RGB21 interface
   Author: Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
   Copyright (C) 2023-2024-2024 LNP/BP Standards Association. All rights reserved.
   License: Apache-2.0",
@@ -134,51 +108,6 @@ fn main() {
         .unwrap()
         .finalize()
         .expect("not all libraries present");
-
-    let ifsys = SystemBuilder::new()
-        .import(rgb21)
-        .unwrap()
-        .import(rgb_contract_stl())
-        .unwrap()
-        .import(bp_tx_stl())
-        .unwrap()
-        .import(std_stl())
-        .unwrap()
-        .finalize()
-        .expect("not all libraries present");
-
-    let mut map = map![];
-    let ifaces = [
-        rgb20::named_asset(),
-        rgb20::renameable(),
-        rgb20::fungible(),
-        rgb20::fixed(),
-        rgb20::burnable(),
-        rgb20::inflatable(),
-        rgb20::replaceable(),
-        rgb20::reservable(),
-        rgb21::nft(),
-        rgb21::engravable(),
-        rgb21::unique(),
-        rgb21::limited(),
-        rgb21::issuable(),
-    ];
-    for iface in &ifaces {
-        map.insert(iface.iface_id(), iface.name.clone());
-    }
-    let mut file = fs::File::create(format!("{dir}/IfaceStd.con")).unwrap();
-    for iface in ifaces {
-        writeln!(file, "{}", iface.display(&map, &ifsys)).unwrap();
-    }
-
-    let rgb20 = Rgb20::iface(rgb20::Features::all());
-    fs::write(format!("{dir}/RGB20.con"), format!("{}", rgb20.display(&map, &ifsys))).unwrap();
-
-    let rgb21 = Rgb21::iface(rgb21::Features::all());
-    fs::write(format!("{dir}/RGB21.con"), format!("{}", rgb21.display(&map, &ifsys))).unwrap();
-
-    let rgb25 = Rgb25::iface(rgb25::Features::all());
-    fs::write(format!("{dir}/RGB25.con"), format!("{}", rgb25.display(&map, &ifsys))).unwrap();
 
     let mut file = fs::File::create(format!("{dir}/Transfer.vesper")).unwrap();
     writeln!(

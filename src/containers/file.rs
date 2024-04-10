@@ -24,13 +24,12 @@ use std::io::{self, Read, Write};
 
 use amplify::confinement::U32 as FILE_MAX_LEN;
 use armor::{AsciiArmor, StrictArmor};
-use rgb::Schema;
 use strict_encoding::{StreamReader, StreamWriter, StrictDecode, StrictEncode};
 
-use crate::containers::{Contract, Transfer};
-use crate::interface::{ContractSuppl, Iface, IfaceImpl};
+use crate::containers::{Contract, Kit, Transfer};
 
 const RGB_PREFIX: [u8; 4] = *b"RGB\x00";
+const MAGIC_LEN: usize = 3;
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
@@ -46,11 +45,11 @@ pub enum LoadError {
 
 pub trait FileContent: StrictArmor {
     /// Magic bytes used in saving/restoring container from a file.
-    const MAGIC: [u8; 4];
+    const MAGIC: [u8; MAGIC_LEN];
 
     fn load(mut data: impl Read) -> Result<Self, LoadError> {
         let mut rgb = [0u8; 4];
-        let mut magic = [0u8; 4];
+        let mut magic = [0u8; MAGIC_LEN];
         data.read_exact(&mut rgb)?;
         data.read_exact(&mut magic)?;
         if rgb != RGB_PREFIX || magic != Self::MAGIC {
@@ -86,29 +85,20 @@ pub trait FileContent: StrictArmor {
     }
 }
 
-impl FileContent for Schema {
-    const MAGIC: [u8; 4] = *b"SEMA";
+impl FileContent for Kit {
+    const MAGIC: [u8; MAGIC_LEN] = *b"KIT";
 }
 
 impl FileContent for Contract {
-    const MAGIC: [u8; 4] = *b"CONT";
+    const MAGIC: [u8; MAGIC_LEN] = *b"CON";
 }
 
 impl FileContent for Transfer {
-    const MAGIC: [u8; 4] = *b"TRFR";
+    const MAGIC: [u8; MAGIC_LEN] = *b"TFR";
 }
 
-impl FileContent for Iface {
-    const MAGIC: [u8; 4] = *b"IFCE";
-}
-
-impl FileContent for IfaceImpl {
-    const MAGIC: [u8; 4] = *b"IMPL";
-}
-
-impl FileContent for ContractSuppl {
-    const MAGIC: [u8; 4] = *b"SUPL";
-}
+// TODO: Add disclosure
+// TODO: Add batch and fascia
 
 #[derive(Clone, Debug, From)]
 #[cfg_attr(
@@ -118,31 +108,21 @@ impl FileContent for ContractSuppl {
 )]
 pub enum UniversalFile {
     #[from]
-    #[cfg_attr(feature = "serde", serde(rename = "interface"))]
-    Iface(Iface),
-
-    #[from]
-    Schema(Schema),
-
-    #[from]
-    #[cfg_attr(feature = "serde", serde(rename = "implementation"))]
-    Impl(IfaceImpl),
+    Kit(Kit),
 
     #[from]
     Contract(Contract),
 
     #[from]
     Transfer(Transfer),
-
-    #[from]
-    #[cfg_attr(feature = "serde", serde(rename = "supplement"))]
-    Suppl(ContractSuppl),
+    // TODO: Add disclosure
+    // TODO: Add batch and fascia
 }
 
 impl UniversalFile {
     pub fn load(mut data: impl Read) -> Result<Self, LoadError> {
         let mut rgb = [0u8; 4];
-        let mut magic = [0u8; 4];
+        let mut magic = [0u8; MAGIC_LEN];
         data.read_exact(&mut rgb)?;
         data.read_exact(&mut magic)?;
         if rgb != RGB_PREFIX {
@@ -150,12 +130,9 @@ impl UniversalFile {
         }
         let mut reader = StreamReader::new::<FILE_MAX_LEN>(data);
         Ok(match magic {
-            x if x == Iface::MAGIC => Iface::strict_read(&mut reader)?.into(),
-            x if x == Schema::MAGIC => Schema::strict_read(&mut reader)?.into(),
-            x if x == IfaceImpl::MAGIC => IfaceImpl::strict_read(&mut reader)?.into(),
+            x if x == Kit::MAGIC => Kit::strict_read(&mut reader)?.into(),
             x if x == Contract::MAGIC => Contract::strict_read(&mut reader)?.into(),
             x if x == Transfer::MAGIC => Transfer::strict_read(&mut reader)?.into(),
-            x if x == ContractSuppl::MAGIC => ContractSuppl::strict_read(&mut reader)?.into(),
             _ => return Err(LoadError::InvalidMagic),
         })
     }
@@ -163,24 +140,18 @@ impl UniversalFile {
     pub fn save(&self, mut writer: impl Write) -> Result<(), io::Error> {
         writer.write_all(&RGB_PREFIX)?;
         let magic = match self {
-            UniversalFile::Iface(_) => Iface::MAGIC,
-            UniversalFile::Schema(_) => Schema::MAGIC,
-            UniversalFile::Impl(_) => IfaceImpl::MAGIC,
+            UniversalFile::Kit(_) => Kit::MAGIC,
             UniversalFile::Contract(_) => Contract::MAGIC,
             UniversalFile::Transfer(_) => Transfer::MAGIC,
-            UniversalFile::Suppl(_) => ContractSuppl::MAGIC,
         };
         writer.write_all(&magic)?;
 
         let writer = StreamWriter::new::<FILE_MAX_LEN>(writer);
 
         match self {
-            UniversalFile::Iface(content) => content.strict_write(writer),
-            UniversalFile::Schema(content) => content.strict_write(writer),
-            UniversalFile::Impl(content) => content.strict_write(writer),
+            UniversalFile::Kit(content) => content.strict_write(writer),
             UniversalFile::Contract(content) => content.strict_write(writer),
             UniversalFile::Transfer(content) => content.strict_write(writer),
-            UniversalFile::Suppl(content) => content.strict_write(writer),
         }
     }
 
@@ -200,12 +171,9 @@ impl UniversalFile {
 impl Display for UniversalFile {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            UniversalFile::Iface(content) => Display::fmt(&content.display_ascii_armored(), f),
-            UniversalFile::Schema(content) => Display::fmt(&content.display_ascii_armored(), f),
-            UniversalFile::Impl(content) => Display::fmt(&content.display_ascii_armored(), f),
+            UniversalFile::Kit(content) => Display::fmt(&content.display_ascii_armored(), f),
             UniversalFile::Contract(content) => Display::fmt(&content.display_ascii_armored(), f),
             UniversalFile::Transfer(content) => Display::fmt(&content.display_ascii_armored(), f),
-            UniversalFile::Suppl(content) => Display::fmt(&content.display_ascii_armored(), f),
         }
     }
 }

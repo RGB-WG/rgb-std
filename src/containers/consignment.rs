@@ -19,28 +19,35 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use std::{fmt, iter};
 
+use aluvm::library::Lib;
 use amplify::confinement::{
-    LargeOrdSet, MediumBlob, SmallOrdMap, SmallOrdSet, TinyOrdMap, TinyOrdSet,
+    Confined, LargeOrdSet, MediumBlob, SmallOrdMap, SmallOrdSet, TinyOrdMap, TinyOrdSet,
 };
 use amplify::{ByteArray, Bytes32};
-use armor::{AsciiArmor, StrictArmorError};
+use armor::{ArmorHeader, StrictArmor};
 use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
 use commit_verify::{CommitEncode, CommitEngine, CommitId, CommitmentId, DigestExt, Sha256};
+use rgb::validation::{ResolveWitness, Validator, Validity, Warning, CONSIGNMENT_MAX_LIBS};
 use rgb::{
     validation, AssetTag, AssignmentType, AttachId, BundleId, ContractHistory, ContractId,
     Extension, Genesis, GraphSeal, Operation, Schema, SchemaId, XChain,
 };
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
+use strict_types::TypeSystem;
 
-use super::{BundledWitness, ContainerVer, ContentId, ContentSigs, Terminal, TerminalDisclose};
+use super::{
+    BundledWitness, ContainerVer, ContentId, ContentSigs, IndexedConsignment, Terminal,
+    TerminalDisclose, ASCII_ARMOR_CONSIGNMENT_TYPE, ASCII_ARMOR_CONTRACT_, ASCII_ARMOR_TERMINAL,
+    ASCII_ARMOR_VERSION,
+};
 use crate::accessors::BundleExt;
 use crate::containers::anchors::ToWitnessId;
-use crate::interface::{ContractSuppl, IfaceId, IfacePair};
+use crate::interface::{ContractSuppl, Iface, IfaceImpl};
 use crate::resolvers::ResolveHeight;
 use crate::LIB_NAME_RGB_STD;
 
@@ -103,6 +110,23 @@ impl ConsignmentId {
     pub fn to_mnemonic(&self) -> String { self.to_baid58().mnemonic() }
 }
 
+#[derive(Clone, Debug)]
+pub struct ValidConsignment<const TYPE: bool> {
+    /// Status of the latest validation.
+    validation_status: validation::Status,
+    consignment: Consignment<TYPE>,
+}
+
+impl<const TYPE: bool> ValidConsignment<TYPE> {
+    pub fn validation_status(&self) -> &validation::Status { &self.validation_status }
+
+    pub fn into_validation_status(self) -> validation::Status { self.validation_status }
+
+    pub fn split(self) -> (Consignment<TYPE>, validation::Status) {
+        (self.consignment, self.validation_status)
+    }
+}
+
 /// Consignment represents contract-specific data, always starting with genesis,
 /// which must be valid under client-side-validation rules (i.e. internally
 /// consistent and properly committed into the commitment layer, like bitcoin
@@ -111,8 +135,7 @@ impl ConsignmentId {
 /// All consignments-related procedures, including validation or merging
 /// consignments data into stash or schema-specific data storage, must start
 /// with `endpoints` and process up to the genesis.
-#[derive(Clone, Debug, Display)]
-#[display(AsciiArmor::to_ascii_armored_string)]
+#[derive(Clone, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(
@@ -121,15 +144,6 @@ impl ConsignmentId {
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct Consignment<const TYPE: bool> {
-    /// Status of the latest validation.
-    ///
-    /// The value is not saved and when the structure is read from a disk or
-    /// network is left uninitialized. Thus, only locally-run verification by
-    /// this library is trusted.
-    #[strict_type(skip, dumb = None)]
-    #[cfg_attr(feature = "serde", serde(skip))]
-    pub(super) validation_status: Option<validation::Status>,
-
     /// Version.
     pub version: ContainerVer,
 
@@ -158,10 +172,17 @@ pub struct Consignment<const TYPE: bool> {
     pub schema: Schema,
 
     /// Interfaces supported by the contract.
-    pub ifaces: TinyOrdMap<IfaceId, IfacePair>,
+    pub ifaces: TinyOrdMap<Iface, IfaceImpl>,
 
     /// Known supplements.
     pub supplements: TinyOrdSet<ContractSuppl>,
+
+    /// Type system covering all types used in schema, interfaces and
+    /// implementations.
+    pub types: TypeSystem,
+
+    /// Collection of scripts used across consignment.
+    pub scripts: Confined<BTreeSet<Lib>, 0, CONSIGNMENT_MAX_LIBS>,
 
     /// Data containers coming with this consignment. For the purposes of
     /// in-memory consignments we are restricting the size of the containers to
@@ -185,8 +206,9 @@ impl<const TYPE: bool> CommitEncode for Consignment<TYPE> {
 
         e.commit_to_serialized(&self.contract_id());
         e.commit_to_serialized(&self.genesis.disclose_hash());
+        e.commit_to_map(&self.asset_tags);
         e.commit_to_set(&TinyOrdSet::from_iter_unsafe(
-            self.ifaces.values().map(|pair| pair.iimpl.impl_id()),
+            self.ifaces.values().map(|iimpl| iimpl.impl_id()),
         ));
 
         e.commit_to_set(&LargeOrdSet::from_iter_unsafe(
@@ -198,39 +220,18 @@ impl<const TYPE: bool> CommitEncode for Consignment<TYPE> {
         e.commit_to_set(&SmallOrdSet::from_iter_unsafe(self.terminals_disclose()));
 
         e.commit_to_set(&SmallOrdSet::from_iter_unsafe(self.attachments.keys().copied()));
-        e.commit_to_set(&self.supplements);
-        e.commit_to_map(&self.asset_tags);
+        e.commit_to_set(&TinyOrdSet::from_iter_unsafe(
+            self.supplements.iter().map(|suppl| suppl.suppl_id()),
+        ));
+
+        e.commit_to_serialized(&self.types.id());
+        e.commit_to_set(&SmallOrdSet::from_iter_unsafe(self.scripts.iter().map(|lib| lib.id())));
+
         e.commit_to_map(&self.signatures);
     }
 }
 
 impl<const TYPE: bool> Consignment<TYPE> {
-    /// # Panics
-    ///
-    /// If the provided schema is not the one which is used by genesis.
-    pub fn new(
-        schema: Schema,
-        genesis: Genesis,
-        asset_tags: TinyOrdMap<AssignmentType, AssetTag>,
-    ) -> Self {
-        assert_eq!(schema.schema_id(), genesis.schema_id);
-        Consignment {
-            validation_status: None,
-            version: ContainerVer::V2,
-            transfer: TYPE,
-            schema,
-            ifaces: none!(),
-            supplements: none!(),
-            asset_tags,
-            genesis,
-            terminals: none!(),
-            bundles: none!(),
-            extensions: none!(),
-            attachments: none!(),
-            signatures: none!(),
-        }
-    }
-
     #[inline]
     pub fn consignment_id(&self) -> ConsignmentId { self.commit_id() }
 
@@ -248,12 +249,6 @@ impl<const TYPE: bool> Consignment<TYPE> {
             })
         })
     }
-
-    pub fn validation_status(&self) -> Option<&validation::Status> {
-        self.validation_status.as_ref()
-    }
-
-    pub fn into_validation_status(self) -> Option<validation::Status> { self.validation_status }
 
     pub fn update_history<R: ResolveHeight>(
         &self,
@@ -325,12 +320,12 @@ impl<const TYPE: bool> Consignment<TYPE> {
 
     pub fn into_contract(self) -> Contract {
         Contract {
-            validation_status: self.validation_status,
             version: self.version,
             transfer: false,
             schema: self.schema,
             ifaces: self.ifaces,
             supplements: self.supplements,
+            types: self.types,
             asset_tags: self.asset_tags,
             genesis: self.genesis,
             terminals: self.terminals,
@@ -338,31 +333,79 @@ impl<const TYPE: bool> Consignment<TYPE> {
             extensions: self.extensions,
             attachments: self.attachments,
             signatures: self.signatures,
+            scripts: self.scripts,
+        }
+    }
+
+    pub fn validate<R: ResolveWitness>(
+        self,
+        resolver: &mut R,
+        testnet: bool,
+    ) -> Result<ValidConsignment<TYPE>, (validation::Status, Consignment<TYPE>)> {
+        let index = IndexedConsignment::new(&self);
+        let mut status = Validator::validate(&index, resolver, testnet);
+
+        let validity = status.validity();
+
+        if self.transfer != TYPE {
+            status.add_warning(Warning::Custom(s!("invalid consignment type")));
+        }
+        // TODO: check that interface ids match implementations
+        // TODO: check bundle ids listed in terminals are present in the consignment
+        // TODO: check attach ids from data containers are present in operations
+
+        if validity != Validity::Valid {
+            Err((status, self))
+        } else {
+            Ok(ValidConsignment {
+                validation_status: status,
+                consignment: self,
+            })
         }
     }
 }
 
-impl<const TYPE: bool> FromStr for Consignment<TYPE> {
-    type Err = StrictArmorError;
+impl<const TYPE: bool> StrictArmor for Consignment<TYPE> {
+    type Id = ConsignmentId;
+    const PLATE_TITLE: &'static str = "RGB CONSIGNMENT";
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_ascii_armored_str(s) }
+    fn armor_id(&self) -> Self::Id { self.commit_id() }
+    fn armor_headers(&self) -> Vec<ArmorHeader> {
+        let mut headers = vec![
+            ArmorHeader::new(ASCII_ARMOR_VERSION, self.version.to_string()),
+            ArmorHeader::new(
+                ASCII_ARMOR_CONSIGNMENT_TYPE,
+                if self.transfer {
+                    s!("transfer")
+                } else {
+                    s!("contract")
+                },
+            ),
+            ArmorHeader::new(ASCII_ARMOR_CONTRACT_, self.contract_id().to_string()),
+        ];
+        for bundle_id in self.terminals.keys() {
+            headers.push(ArmorHeader::new(ASCII_ARMOR_TERMINAL, bundle_id.to_string()));
+        }
+        headers
+    }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::containers::armor::Bindle;
 
     #[test]
     fn contract_str_parse() {
         let contract = Contract::strict_dumb();
         let contract_str = contract.to_string();
-        Contract::from_str(&contract_str).expect("valid contract string");
+        Bindle::<Contract>::from_str(&contract_str).expect("valid contract string");
     }
 
     #[test]
     fn transfer_str_parse() {
         let transfer = Transfer::strict_dumb();
         let transfer_str = transfer.to_string();
-        Transfer::from_str(&transfer_str).expect("valid transfer string");
+        Bindle::<Transfer>::from_str(&transfer_str).expect("valid transfer string");
     }
 }

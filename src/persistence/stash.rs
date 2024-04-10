@@ -23,120 +23,493 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
+use std::fmt::Debug;
 
-use amplify::confinement::{TinyOrdMap, TinyOrdSet};
+use aluvm::library::{Lib, LibId};
+use amplify::confinement::{Confined, MediumBlob, TinyOrdMap};
+use bp::dbc::anchor::MergeError;
 use bp::dbc::tapret::TapretCommitment;
 use commit_verify::mpc;
+use rgb::validation::Scripts;
 use rgb::{
-    AnchorSet, AssetTag, AssignmentType, BundleId, ContractId, Extension, Genesis, OpId, SchemaId,
-    TransitionBundle, XWitnessId,
+    AssetTag, AssignmentType, AttachId, BundleId, ContractId, Extension, Genesis, OpId, Operation,
+    Schema, SchemaId, TransitionBundle, XWitnessId,
 };
-use strict_encoding::TypeName;
+use strict_encoding::{FieldName, TypeName};
+use strict_types::typesys::UnknownType;
+use strict_types::TypeSystem;
 
-use crate::interface::{ContractSuppl, Iface, IfaceId, SchemaIfaces};
+use crate::accessors::{MergeReveal, MergeRevealError};
+use crate::containers::{
+    BundledWitness, Cert, Consignment, ContentId, Kit, SealWitness, ToWitnessId,
+};
+use crate::interface::{
+    ContractBuilder, ContractSuppl, Iface, IfaceId, IfaceImpl, IfaceRef, TransitionBuilder,
+};
+use crate::LIB_NAME_RGB_STD;
 
 #[derive(Debug, Display, Error, From)]
 #[display(inner)]
-pub enum StashError<E: Error> {
+pub enum StashError<P: StashProvider> {
     /// Connectivity errors which may be recoverable and temporary.
-    Connectivity(E),
+    ReadProvider(<P as StashReadProvider>::Error),
 
-    /// Permanent errors caused by bugs in the business logic of this library.
-    /// Must be reported to LNP/BP Standards Association.
+    /// Connectivity errors which may be recoverable and temporary.
+    WriteProvider(<P as StashWriteProvider>::Error),
+
+    /// Errors caused by invalid input arguments.
     #[from]
-    InternalInconsistency(StashInconsistency),
+    #[from(UnknownType)]
+    #[from(MergeError)]
+    #[from(MergeRevealError)]
+    #[from(mpc::InvalidProof)]
+    Data(StashDataError),
 }
 
-#[derive(Debug, Display, Error, From)]
+#[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(doc_comments)]
-pub enum StashInconsistency {
-    /// interfae {0} is unknown; you need to import it first.
-    IfaceNameAbsent(TypeName),
+pub enum StashDataError {
+    /// schema {0} and related interfaces use too many AluVM libraries.
+    TooManyLibs(SchemaId),
 
-    /// interfae {0} is unknown; you need to import it first.
-    IfaceAbsent(IfaceId),
+    #[from]
+    #[display(inner)]
+    UnknownType(UnknownType),
 
-    /// contract {0} is unknown. Probably you haven't imported the contract yet.
-    ContractAbsent(ContractId),
+    #[from]
+    #[display(inner)]
+    Anchor(mpc::InvalidProof),
 
-    /// schema {0} is unknown.
-    ///
-    /// It may happen due to RGB standard library bug, or indicate internal
-    /// stash inconsistency and compromised stash data storage.
-    SchemaAbsent(SchemaId),
+    #[from]
+    #[display(inner)]
+    Merge(MergeError),
 
-    /// interface {0::<0} is not implemented for the schema {1::<0}.
-    IfaceImplAbsent(IfaceId, SchemaId),
+    #[from]
+    #[display(inner)]
+    MergeReveal(MergeRevealError),
 
-    /// transition {0} is absent.
-    ///
-    /// It may happen due to RGB standard library bug, or indicate internal
-    /// stash inconsistency and compromised stash data storage.
-    OperationAbsent(OpId),
-
-    /// anchor for txid {0} is absent.
-    ///
-    /// It may happen due to RGB standard library bug, or indicate internal
-    /// stash inconsistency and compromised stash data storage.
-    AnchorAbsent(XWitnessId),
-
-    /// bundle {0} is absent.
-    ///
-    /// It may happen due to RGB standard library bug, or indicate internal
-    /// stash inconsistency and compromised stash data storage.
-    BundleAbsent(BundleId),
+    /// schema {0} doesn't implement interface {1}.
+    NoIfaceImpl(SchemaId, IfaceId),
 }
 
-pub trait Stash {
+#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct SchemaIfaces {
+    pub schema: Schema,
+    pub iimpls: TinyOrdMap<IfaceId, IfaceImpl>,
+}
+
+impl SchemaIfaces {
+    pub fn new(schema: Schema) -> Self {
+        SchemaIfaces {
+            schema,
+            iimpls: none!(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Stash<P: StashProvider> {
+    provider: P,
+}
+
+impl<P: StashProvider> Stash<P> {
+    pub fn new(provider: P) -> Self { Self { provider } }
+
+    pub fn iface(&self, iface: impl Into<IfaceRef>) -> Result<&Iface, StashError<P>> {
+        self.provider.iface(iface).map_err(StashError::ReadProvider)
+    }
+    pub fn schema(&self, schema_id: SchemaId) -> Result<&SchemaIfaces, StashError<P>> {
+        self.provider
+            .schema(schema_id)
+            .map_err(StashError::ReadProvider)
+    }
+    pub fn genesis(&self, contract_id: ContractId) -> Result<&Genesis, StashError<P>> {
+        self.provider
+            .genesis(contract_id)
+            .map_err(StashError::ReadProvider)
+    }
+    pub fn contract_ids_by_iface(
+        &self,
+        iface: impl Into<IfaceRef>,
+    ) -> Result<impl Iterator<Item = ContractId> + '_, StashError<P>> {
+        self.provider
+            .contract_ids_by_iface(iface.into())
+            .map_err(StashError::ReadProvider)
+    }
+    pub fn contract_suppl(&self, contract_id: ContractId) -> Option<&ContractSuppl> {
+        self.provider.contract_suppl(contract_id)
+    }
+
+    pub(crate) fn extract<'a>(
+        &self,
+        schema: &Schema,
+        ifaces: impl IntoIterator<Item = &'a Iface>,
+    ) -> Result<(TypeSystem, Scripts), StashError<P>> {
+        let type_iter = schema
+            .types()
+            .chain(ifaces.into_iter().flat_map(Iface::types));
+        let types = self
+            .provider
+            .type_system()
+            .map_err(StashError::ReadProvider)?
+            .extract(type_iter)?;
+
+        let mut scripts = BTreeMap::new();
+        for id in schema.libs() {
+            let lib = self.provider.lib(id).map_err(StashError::ReadProvider)?;
+            scripts.insert(id, lib.clone());
+        }
+        let scripts = Scripts::try_from(scripts)
+            .map_err(|_| StashDataError::TooManyLibs(schema.schema_id()))?;
+
+        Ok((types, scripts))
+    }
+
+    pub fn contract_builder(
+        &self,
+        schema_id: SchemaId,
+        iface: impl Into<IfaceRef>,
+    ) -> Result<ContractBuilder, StashError<P>> {
+        let schema_ifaces = self.schema(schema_id)?;
+        let iface = self.iface(iface)?;
+        let iface_id = iface.iface_id();
+        let iimpl = schema_ifaces
+            .iimpls
+            .get(&iface_id)
+            .ok_or(StashDataError::NoIfaceImpl(schema_id, iface_id))?;
+
+        let (types, scripts) = self.extract(&schema_ifaces.schema, [iface])?;
+
+        let builder = ContractBuilder::with(
+            iface.clone(),
+            schema_ifaces.schema.clone(),
+            iimpl.clone(),
+            types,
+            scripts,
+        );
+        Ok(builder)
+    }
+
+    pub fn transition_builder(
+        &self,
+        contract_id: ContractId,
+        iface: impl Into<IfaceRef>,
+        transition_name: Option<impl Into<FieldName>>,
+    ) -> Result<TransitionBuilder, StashError<P>> {
+        let schema_ifaces = self
+            .provider
+            .contract_schema(contract_id)
+            .map_err(StashError::ReadProvider)?;
+        let iface = self.iface(iface)?;
+        let schema = &schema_ifaces.schema;
+        let iimpl = schema_ifaces
+            .iimpls
+            .get(&iface.iface_id())
+            .ok_or(StashDataError::NoIfaceImpl(schema.schema_id(), iface.iface_id()))?;
+
+        let (types, _) = self.extract(&schema_ifaces.schema, [iface])?;
+
+        let mut builder = if let Some(transition_name) = transition_name {
+            TransitionBuilder::named_transition(
+                contract_id,
+                iface.clone(),
+                schema.clone(),
+                iimpl.clone(),
+                transition_name.into(),
+                types,
+            )
+        } else {
+            TransitionBuilder::default_transition(
+                contract_id,
+                iface.clone(),
+                schema.clone(),
+                iimpl.clone(),
+                types,
+            )
+        }
+        .expect("internal inconsistency");
+        let tags = self
+            .provider
+            .contract_asset_tags(contract_id)
+            .map_err(StashError::ReadProvider)?;
+        for (assignment_type, asset_tag) in tags {
+            builder = builder
+                .add_asset_tag_raw(assignment_type, asset_tag)
+                .expect("tags are in bset and must not repeat");
+        }
+        Ok(builder)
+    }
+
+    pub fn blank_builder(
+        &self,
+        contract_id: ContractId,
+        iface: impl Into<IfaceRef>,
+    ) -> Result<TransitionBuilder, StashError<P>> {
+        let schema_ifaces = self
+            .provider
+            .contract_schema(contract_id)
+            .map_err(StashError::ReadProvider)?;
+        let iface = self.iface(iface)?;
+        let schema = &schema_ifaces.schema;
+        if schema_ifaces.iimpls.is_empty() {
+            return Err(StashDataError::NoIfaceImpl(schema.schema_id(), iface.iface_id()).into());
+        }
+
+        let (types, _) = self.extract(&schema_ifaces.schema, [iface])?;
+
+        let mut builder = if let Some(iimpl) = schema_ifaces.iimpls.get(&iface.iface_id()) {
+            TransitionBuilder::blank_transition(
+                contract_id,
+                iface.clone(),
+                schema.clone(),
+                iimpl.clone(),
+                types,
+            )
+        } else {
+            let (default_iface_id, default_iimpl) = schema_ifaces.iimpls.first_key_value().unwrap();
+            let default_iface = self.iface(*default_iface_id)?;
+
+            TransitionBuilder::blank_transition(
+                contract_id,
+                default_iface.clone(),
+                schema.clone(),
+                default_iimpl.clone(),
+                types,
+            )
+        };
+        let tags = self
+            .provider
+            .contract_asset_tags(contract_id)
+            .map_err(StashError::ReadProvider)?;
+        for (assignment_type, asset_tag) in tags {
+            builder = builder
+                .add_asset_tag_raw(assignment_type, asset_tag)
+                .expect("tags are in bset and must not repeat");
+        }
+
+        Ok(builder)
+    }
+
+    pub fn consume_kit(&mut self, kit: Kit) -> Result<(), StashError<P>> {
+        self.provider
+            .consume_types(kit.types)
+            .map_err(StashError::WriteProvider)?;
+        for lib in kit.scripts {
+            self.provider
+                .consume_lib(lib)
+                .map_err(StashError::WriteProvider)?;
+        }
+
+        // TODO: filter most trusted signers
+        for schema in kit.schemata {
+            self.provider
+                .consume_schema(schema)
+                .map_err(StashError::WriteProvider)?;
+        }
+        for iface in kit.ifaces {
+            self.provider
+                .consume_iface(iface)
+                .map_err(StashError::WriteProvider)?;
+        }
+        for iimpl in kit.iimpls {
+            self.provider
+                .consume_iimpl(iimpl)
+                .map_err(StashError::WriteProvider)?;
+        }
+
+        // TODO: filter out non-trusted signers
+        for suppl in kit.supplements {
+            self.provider
+                .consume_suppl(suppl)
+                .map_err(StashError::WriteProvider)?;
+        }
+
+        for (content_id, sigs) in kit.signatures {
+            // TODO: Filter sigs by trust level
+            // Do not bother if we can't import all the sigs
+            self.provider.import_sigs(content_id, sigs).ok();
+        }
+
+        Ok(())
+    }
+
+    pub fn consume_consignment<const TYPE: bool>(
+        &mut self,
+        consignment: Consignment<TYPE>,
+    ) -> Result<(), StashError<P>> {
+        let contract_id = consignment.contract_id();
+
+        let genesis = match self.genesis(contract_id) {
+            Ok(g) => g.clone().merge_reveal(consignment.genesis)?,
+            Err(_) => consignment.genesis,
+        };
+        self.provider
+            .consume_genesis(genesis, consignment.asset_tags)
+            .map_err(StashError::WriteProvider)?;
+
+        for extension in consignment.extensions {
+            let opid = extension.id();
+            let extension = match self.provider.extension(opid) {
+                Ok(e) => e.clone().merge_reveal(extension)?,
+                Err(_) => extension,
+            };
+            self.provider
+                .consume_extension(extension)
+                .map_err(StashError::WriteProvider)?;
+        }
+
+        for bw in consignment.bundles {
+            self.consume_bundled_witness(contract_id, bw)?;
+        }
+
+        for (id, attach) in consignment.attachments {
+            self.provider
+                .consume_attachment(id, attach)
+                .map_err(StashError::WriteProvider)?;
+        }
+
+        let (ifaces, iimpls): (BTreeSet<_>, BTreeSet<_>) = consignment
+            .ifaces
+            .into_inner()
+            .into_iter()
+            .fold((bset!(), bset!()), |(mut keys, mut values), (k, v)| {
+                keys.insert(k);
+                values.insert(v);
+                (keys, values)
+            });
+        self.consume_kit(Kit {
+            version: consignment.version,
+            ifaces: Confined::from_collection_unsafe(ifaces),
+            schemata: tiny_bset![consignment.schema],
+            iimpls: Confined::from_collection_unsafe(iimpls),
+            supplements: consignment.supplements,
+            types: consignment.types,
+            scripts: Confined::from_collection_unsafe(consignment.scripts.into_inner()),
+            signatures: consignment.signatures,
+        })
+    }
+
+    fn consume_bundled_witness(
+        &mut self,
+        contract_id: ContractId,
+        bundled_witness: BundledWitness,
+    ) -> Result<(), StashError<P>> {
+        let BundledWitness {
+            mut pub_witness,
+            anchored_bundles,
+        } = bundled_witness;
+
+        // TODO: Save pub witness transaction and SPVs
+
+        let witness_id = pub_witness.to_witness_id();
+        let anchor_set = anchored_bundles.to_anchor_set();
+
+        let mut bundles = anchored_bundles.into_bundles();
+        let mut bundle = bundles.next().expect("there always at least one bundle");
+        let mut bundle_id = bundle.bundle_id();
+
+        let mut anchor = anchor_set.to_merkle_block(contract_id, bundle_id)?;
+        if let Ok(witness) = self.provider.witness(witness_id) {
+            anchor = witness.anchor.clone().merge_reveal(anchor)?;
+            pub_witness = witness.public.clone().merge_reveal(pub_witness)?;
+        }
+
+        loop {
+            bundle = match self.provider.bundle(bundle_id) {
+                Ok(b) => b.clone().merge_reveal(bundle)?,
+                Err(_) => bundle,
+            };
+            self.provider
+                .consume_bundle(bundle)
+                .map_err(StashError::WriteProvider)?;
+            match bundles.next() {
+                Some(b) => {
+                    bundle_id = b.bundle_id();
+                    bundle = b;
+                }
+                None => break,
+            };
+        }
+
+        self.provider
+            .consume_witness(SealWitness {
+                public: pub_witness,
+                anchor,
+            })
+            .map_err(StashError::WriteProvider)?;
+
+        Ok(())
+    }
+}
+
+pub trait StashProvider: Debug + StashReadProvider + StashWriteProvider {}
+
+pub trait StashReadProvider {
     /// Error type which must indicate problems on data retrieval.
     type Error: Error;
 
-    fn schema_ids(&self) -> Result<BTreeSet<SchemaId>, Self::Error>;
-
-    fn ifaces(&self) -> Result<BTreeMap<IfaceId, TypeName>, Self::Error>;
-
-    fn iface_by_name(&self, name: &TypeName) -> Result<&Iface, StashError<Self::Error>>;
-
-    fn iface_by_id(&self, id: IfaceId) -> Result<&Iface, StashError<Self::Error>>;
-
-    fn schema(&self, schema_id: SchemaId) -> Result<&SchemaIfaces, StashError<Self::Error>>;
-
-    fn contract_ids(&self) -> Result<BTreeSet<ContractId>, Self::Error>;
-
-    fn contract_ids_by_iface(&self, name: &TypeName) -> Result<BTreeSet<ContractId>, Self::Error>;
-
-    fn contract_schema(
+    fn type_system(&self) -> Result<&TypeSystem, Self::Error>;
+    fn lib(&self, id: LibId) -> Result<&Lib, Self::Error>;
+    fn schema_ids(&self) -> Result<impl Iterator<Item = SchemaId>, Self::Error>;
+    fn ifaces(&self) -> Result<impl Iterator<Item = (IfaceId, TypeName)>, Self::Error>;
+    fn iface(&self, iface: impl Into<IfaceRef>) -> Result<&Iface, Self::Error>;
+    fn schema(&self, schema_id: SchemaId) -> Result<&SchemaIfaces, Self::Error>;
+    fn contract_ids(&self) -> Result<impl Iterator<Item = ContractId>, Self::Error>;
+    fn contract_ids_by_iface(
         &self,
-        contract_id: ContractId,
-    ) -> Result<&SchemaIfaces, StashError<Self::Error>> {
+        iface: impl Into<IfaceRef>,
+    ) -> Result<impl Iterator<Item = ContractId>, Self::Error>;
+    fn contract_schema(&self, contract_id: ContractId) -> Result<&SchemaIfaces, Self::Error> {
         let genesis = self.genesis(contract_id)?;
         self.schema(genesis.schema_id)
     }
-
     fn contract_suppl(&self, contract_id: ContractId) -> Option<&ContractSuppl>;
-    fn contract_suppl_all(&self, contract_id: ContractId) -> Option<&TinyOrdSet<ContractSuppl>>;
-
+    fn contract_suppl_all(
+        &self,
+        contract_id: ContractId,
+    ) -> Option<impl Iterator<Item = &ContractSuppl>>;
     fn contract_asset_tags(
         &self,
         contract_id: ContractId,
-    ) -> Result<&TinyOrdMap<AssignmentType, AssetTag>, StashError<Self::Error>>;
+    ) -> Result<impl Iterator<Item = (AssignmentType, AssetTag)>, Self::Error>;
+    fn genesis(&self, contract_id: ContractId) -> Result<&Genesis, Self::Error>;
+    fn witness_ids(&self) -> Result<impl Iterator<Item = XWitnessId>, Self::Error>;
+    fn bundle_ids(&self) -> Result<impl Iterator<Item = BundleId>, Self::Error>;
+    fn bundle(&self, bundle_id: BundleId) -> Result<&TransitionBundle, Self::Error>;
+    fn extension_ids(&self) -> Result<impl Iterator<Item = OpId>, Self::Error>;
+    fn extension(&self, op_id: OpId) -> Result<&Extension, Self::Error>;
+    fn witness(&self, witness_id: XWitnessId) -> Result<&SealWitness, Self::Error>;
+    fn taprets(&self) -> Result<impl Iterator<Item = (XWitnessId, TapretCommitment)>, Self::Error>;
+}
 
-    fn genesis(&self, contract_id: ContractId) -> Result<&Genesis, StashError<Self::Error>>;
+pub trait StashWriteProvider {
+    type Error: Error;
 
-    fn witness_ids(&self) -> Result<BTreeSet<XWitnessId>, Self::Error>;
-
-    fn bundle_ids(&self) -> Result<BTreeSet<BundleId>, Self::Error>;
-
-    fn bundle(&self, bundle_id: BundleId) -> Result<&TransitionBundle, StashError<Self::Error>>;
-
-    fn extension_ids(&self) -> Result<BTreeSet<OpId>, Self::Error>;
-
-    fn extension(&self, op_id: OpId) -> Result<&Extension, StashError<Self::Error>>;
-
-    fn anchor(
-        &self,
-        witness_id: XWitnessId,
-    ) -> Result<AnchorSet<mpc::MerkleBlock>, StashError<Self::Error>>;
-
-    fn taprets(&self) -> Result<BTreeMap<XWitnessId, TapretCommitment>, StashError<Self::Error>>;
+    fn consume_schema(&mut self, schema: Schema) -> Result<bool, Self::Error>;
+    fn consume_iface(&mut self, iface: Iface) -> Result<bool, Self::Error>;
+    fn consume_iimpl(&mut self, iimpl: IfaceImpl) -> Result<bool, Self::Error>;
+    fn consume_suppl(&mut self, suppl: ContractSuppl) -> Result<bool, Self::Error>;
+    fn consume_genesis(
+        &mut self,
+        genesis: Genesis,
+        asset_tags: TinyOrdMap<AssignmentType, AssetTag>,
+    ) -> Result<bool, Self::Error>;
+    fn consume_extension(&mut self, extension: Extension) -> Result<bool, Self::Error>;
+    fn consume_bundle(&mut self, bundle: TransitionBundle) -> Result<bool, Self::Error>;
+    fn consume_witness(&mut self, witness: SealWitness) -> Result<bool, Self::Error>;
+    fn consume_attachment(&mut self, id: AttachId, attach: MediumBlob)
+    -> Result<bool, Self::Error>;
+    fn consume_types(&mut self, types: TypeSystem) -> Result<(), Self::Error>;
+    fn consume_lib(&mut self, lib: Lib) -> Result<bool, Self::Error>;
+    fn import_sigs<I>(&mut self, content_id: ContentId, sigs: I) -> Result<(), Self::Error>
+    where
+        I: IntoIterator<Item = Cert>,
+        I::IntoIter: ExactSizeIterator<Item = Cert>;
 }

@@ -20,25 +20,20 @@
 // limitations under the License.
 
 use std::fmt::{self, Display, Formatter};
-use std::marker::PhantomData;
 use std::str::FromStr;
 
-use amplify::confinement::{TinyOrdMap, TinyOrdSet};
+use amplify::confinement::TinyOrdSet;
 use amplify::{ByteArray, Bytes32};
 use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
 use commit_verify::{CommitId, CommitmentId, DigestExt, Sha256};
 use rgb::{
-    AssignmentType, ExtensionType, GlobalStateType, Issuer, Schema, SchemaId, Script,
-    TransitionType, ValencyType,
+    AssignmentType, ExtensionType, GlobalStateType, Identity, SchemaId, TransitionType, ValencyType,
 };
 use strict_encoding::{FieldName, StrictDumb};
-use strict_types::encoding::{
-    StrictDecode, StrictDeserialize, StrictEncode, StrictSerialize, StrictType,
-};
-use strict_types::TypeLib;
+use strict_types::encoding::{StrictDecode, StrictEncode, StrictType};
 
 use crate::interface::iface::IfaceId;
-use crate::interface::{Iface, IfaceWrapper, VerNo};
+use crate::interface::VerNo;
 use crate::{ReservedBytes, LIB_NAME_RGB_STD};
 
 pub trait SchemaTypeIndex:
@@ -178,30 +173,8 @@ impl<T: SchemaTypeIndex> NamedType<T> {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-pub struct SchemaIfaces {
-    pub schema: Schema,
-    pub iimpls: TinyOrdMap<IfaceId, IfaceImpl>,
-}
-
-impl SchemaIfaces {
-    pub fn new(schema: Schema) -> Self {
-        SchemaIfaces {
-            schema,
-            iimpls: none!(),
-        }
-    }
-}
-
 /// Interface implementation for some specific schema.
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[derive(CommitEncode)]
@@ -215,19 +188,14 @@ pub struct IfaceImpl {
     pub version: VerNo,
     pub schema_id: SchemaId,
     pub iface_id: IfaceId,
-    pub developer: Issuer,
     pub timestamp: i64,
     pub global_state: TinyOrdSet<NamedField<GlobalStateType>>,
     pub assignments: TinyOrdSet<NamedField<AssignmentType>>,
     pub valencies: TinyOrdSet<NamedField<ValencyType>>,
     pub transitions: TinyOrdSet<NamedField<TransitionType>>,
     pub extensions: TinyOrdSet<NamedField<ExtensionType>>,
-    // TODO: Add error tags
-    pub script: Script,
+    pub developer: Identity,
 }
-
-impl StrictSerialize for IfaceImpl {}
-impl StrictDeserialize for IfaceImpl {}
 
 impl IfaceImpl {
     #[inline]
@@ -300,188 +268,5 @@ impl IfaceImpl {
             .iter()
             .find(|nt| nt.id == id)
             .map(|nt| &nt.name)
-    }
-}
-
-// TODO: Implement validation of implementation against interface requirements
-
-#[derive(Clone, Eq, PartialEq, Debug)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-pub struct IfacePair {
-    pub iface: Iface,
-    pub iimpl: IfaceImpl,
-}
-
-impl IfacePair {
-    pub fn with(iface: Iface, iimpl: IfaceImpl) -> IfacePair { IfacePair { iface, iimpl } }
-
-    pub fn iface_id(&self) -> IfaceId { self.iface.iface_id() }
-
-    pub fn impl_id(&self) -> ImplId { self.iimpl.impl_id() }
-
-    pub fn global_type(&self, name: &FieldName) -> Option<GlobalStateType> {
-        self.iimpl.global_type(name)
-    }
-
-    pub fn global_name(&self, global_type: GlobalStateType) -> Option<&FieldName> {
-        self.iimpl.global_name(global_type)
-    }
-
-    pub fn assignments_type(&self, name: &FieldName) -> Option<AssignmentType> {
-        self.iimpl.assignments_type(name)
-    }
-
-    pub fn assignment_name(&self, assignment_type: AssignmentType) -> Option<&FieldName> {
-        self.iimpl.assignment_name(assignment_type)
-    }
-
-    pub fn transition_type(&self, name: &FieldName) -> Option<TransitionType> {
-        self.iimpl.transition_type(name)
-    }
-
-    pub fn transition_name(&self, transition_type: TransitionType) -> Option<&FieldName> {
-        self.iimpl.transition_name(transition_type)
-    }
-}
-
-pub trait IssuerClass {
-    type IssuingIface: IfaceClass;
-
-    fn schema() -> Schema;
-    fn issue_impl() -> IfaceImpl;
-
-    fn issuer(
-        features: <Self::IssuingIface as IfaceClass>::Features,
-    ) -> SchemaIssuer<Self::IssuingIface> {
-        SchemaIssuer::new(Self::schema(), Self::issue_impl(), features)
-            .expect("implementation schema mismatch")
-    }
-}
-
-pub trait IfaceClass: IfaceWrapper {
-    type Features: Sized + Clone + Default;
-    fn iface(features: Self::Features) -> Iface;
-    fn stl() -> TypeLib;
-}
-
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display, Error)]
-#[display(doc_comments)]
-pub enum WrongImplementation {
-    /// the provided implementation {impl_id} implements interface {actual}
-    /// instead of {expected} for the schema {schema_id}
-    InterfaceMismatch {
-        schema_id: SchemaId,
-        impl_id: ImplId,
-        expected: IfaceId,
-        actual: IfaceId,
-    },
-
-    /// the provided implementation {impl_id} uses schema {actual} instead of
-    /// {expected}
-    SchemaMismatch {
-        impl_id: ImplId,
-        expected: SchemaId,
-        actual: SchemaId,
-    },
-}
-
-#[derive(Getters, Clone, Eq, PartialEq, Debug)]
-pub struct IssuerTriplet {
-    schema: Schema,
-    iface: Iface,
-    iimpl: IfaceImpl,
-}
-
-impl IssuerTriplet {
-    #[allow(clippy::result_large_err)]
-    pub fn new(
-        iface: Iface,
-        schema: Schema,
-        iimpl: IfaceImpl,
-    ) -> Result<Self, WrongImplementation> {
-        let expected = iface.iface_id();
-        let actual = iimpl.iface_id;
-
-        if actual != expected {
-            return Err(WrongImplementation::InterfaceMismatch {
-                schema_id: schema.schema_id(),
-                impl_id: iimpl.impl_id(),
-                expected,
-                actual,
-            });
-        }
-
-        let expected = schema.schema_id();
-        let actual = iimpl.schema_id;
-        if actual != expected {
-            return Err(WrongImplementation::SchemaMismatch {
-                impl_id: iimpl.impl_id(),
-                expected,
-                actual,
-            });
-        }
-
-        // TODO: check schema internal consistency
-        // TODO: check interface internal consistency
-        // TODO: check implementation internal consistency
-
-        Ok(Self {
-            iface,
-            schema,
-            iimpl,
-        })
-    }
-
-    #[inline]
-    pub fn into_split(self) -> (Iface, Schema, IfaceImpl) { (self.iface, self.schema, self.iimpl) }
-
-    #[inline]
-    pub fn into_issuer(self) -> (Schema, IfaceImpl) { (self.schema, self.iimpl) }
-}
-
-#[derive(Getters, Clone, Eq, PartialEq, Debug)]
-pub struct SchemaIssuer<I: IfaceClass> {
-    schema: Schema,
-    iimpl: IfaceImpl,
-    features: I::Features,
-    phantom: PhantomData<I>,
-}
-
-impl<I: IfaceClass> SchemaIssuer<I> {
-    #[allow(clippy::result_large_err)]
-    pub fn new(
-        schema: Schema,
-        iimpl: IfaceImpl,
-        features: I::Features,
-    ) -> Result<Self, WrongImplementation> {
-        let triplet = IssuerTriplet::new(I::iface(features.clone()), schema, iimpl)?;
-        let (_, schema, iimpl) = triplet.into_split();
-
-        Ok(Self {
-            schema,
-            iimpl,
-            features,
-            phantom: default!(),
-        })
-    }
-
-    #[inline]
-    pub fn into_split(self) -> (Schema, IfaceImpl, I::Features) {
-        (self.schema, self.iimpl, self.features)
-    }
-
-    pub fn into_triplet(self) -> IssuerTriplet {
-        let (schema, iimpl, features) = self.into_split();
-        IssuerTriplet {
-            schema,
-            iface: I::iface(features),
-            iimpl,
-        }
     }
 }

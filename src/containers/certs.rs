@@ -21,7 +21,7 @@
 
 use std::collections::{btree_set, BTreeSet};
 
-use amplify::confinement::{Confined, TinyAscii, TinyBlob, TinyString};
+use amplify::confinement::{Confined, SmallBlob, TinyAscii, TinyString};
 use rgb::{ContractId, SchemaId};
 
 use crate::interface::{IfaceId, ImplId, SupplId};
@@ -57,7 +57,7 @@ pub struct Identity {
     pub name: TinyString,
     pub email: TinyAscii,
     pub suite: IdSuite,
-    pub pk: TinyBlob,
+    pub pk: SmallBlob,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Display)]
@@ -90,7 +90,7 @@ pub enum IdSuite {
 )]
 pub struct Cert {
     pub signer: Identity,
-    pub signature: TinyBlob,
+    pub signature: SmallBlob,
 }
 
 #[derive(Wrapper, WrapperMut, Clone, PartialEq, Eq, Hash, Debug, From)]

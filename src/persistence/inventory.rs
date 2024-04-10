@@ -21,39 +21,64 @@
 
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::convert::Infallible;
 use std::error::Error;
-use std::ops::Deref;
+use std::fmt::Debug;
 
-use amplify::confinement::{self, Confined, U24};
+use amplify::confinement::{Confined, U24};
 use bp::seals::txout::CloseMethod;
-use bp::{Txid, Vout};
+use bp::Vout;
 use chrono::Utc;
-use commit_verify::{mpc, Conceal};
+use commit_verify::Conceal;
 use invoice::{Amount, Beneficiary, InvoiceState, NonFungible, RgbInvoice};
 use rgb::{
-    validation, AssignmentType, BlindingFactor, BundleId, ContractId, GraphSeal, OpId, Operation,
-    Opout, Schema, SchemaId, SecretSeal, Transition, TransitionBundle, XChain, XOutpoint,
-    XOutputSeal, XWitnessId,
+    validation, AssetTag, AssignmentType, BlindingFactor, BundleId, ContractId, DataState,
+    GraphSeal, OpId, Operation, Opout, SchemaId, SecretSeal, Transition, TransitionBundle, XChain,
+    XOutpoint, XOutputSeal, XWitnessId,
 };
-use strict_encoding::{FieldName, TypeName};
+use strict_encoding::FieldName;
 
 use crate::accessors::{MergeReveal, MergeRevealError, RevealError};
 use crate::containers::{
-    Batch, BuilderSeal, BundledWitness, Cert, Consignment, ContentId, Contract, Fascia,
-    SealWitness, Terminal, TerminalSeal, Transfer, TransitionInfo,
+    Batch, BuilderSeal, BundledWitness, Consignment, ContainerVer, Contract, Fascia, SealWitness,
+    Terminal, TerminalSeal, Transfer, TransitionInfo,
 };
 use crate::interface::{
-    BuilderError, ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, IfaceWrapper,
-    TransitionBuilder, VelocityHint,
+    AttachedState, BuilderError, ContractBuilder, ContractIface, IfaceRef, TransitionBuilder,
+    VelocityHint,
 };
-use crate::persistence::hoard::ConsumeError;
-use crate::persistence::stash::StashInconsistency;
-use crate::persistence::{PersistedState, Stash, StashError};
+use crate::persistence::{
+    Stash, StashDataError, StashError, StashProvider, StashReadProvider, StashWriteProvider,
+};
 use crate::resolvers::ResolveHeight;
 
 #[derive(Debug, Display, Error, From)]
+#[display(inner)]
+pub enum InventoryError<S: StashProvider, P: InventoryProvider, E: Error = Infallible> {
+    InvalidInput(E),
+    StashRead(<S as StashReadProvider>::Error),
+    StashWrite(<S as StashWriteProvider>::Error),
+    InventoryRead(<P as InventoryReadProvider>::Error),
+    InventoryWrite(<P as InventoryWriteProvider>::Error),
+    #[from]
+    StashData(StashDataError),
+}
+
+impl<S: StashProvider, P: InventoryProvider, E: Error> From<StashError<S>>
+    for InventoryError<S, P, E>
+{
+    fn from(err: StashError<S>) -> Self {
+        match err {
+            StashError::ReadProvider(err) => Self::StashRead(err),
+            StashError::WriteProvider(err) => Self::StashWrite(err),
+            StashError::Data(e) => Self::StashData(e),
+        }
+    }
+}
+
+#[derive(Debug, Display, Error, From)]
 #[display(doc_comments)]
-pub enum ConsignerError<E1: Error, E2: Error> {
+pub enum ConsignError {
     /// unable to construct consignment: too many terminals provided.
     TooManyTerminals,
 
@@ -71,21 +96,44 @@ pub enum ConsignerError<E1: Error, E2: Error> {
     #[from]
     #[display(inner)]
     Reveal(RevealError),
+}
 
-    #[from]
-    #[from(InventoryInconsistency)]
-    #[display(inner)]
-    InventoryError(InventoryError<E1>),
+impl<S: StashProvider, P: InventoryProvider> From<ConsignError>
+    for InventoryError<S, P, ConsignError>
+{
+    fn from(err: ConsignError) -> Self { Self::InvalidInput(err) }
+}
 
-    #[from]
-    #[from(StashInconsistency)]
-    #[display(inner)]
-    StashError(StashError<E2>),
+impl<S: StashProvider, P: InventoryProvider> From<MergeRevealError>
+    for InventoryError<S, P, ConsignError>
+{
+    fn from(err: MergeRevealError) -> Self { Self::InvalidInput(err.into()) }
+}
+
+impl<S: StashProvider, P: InventoryProvider> From<RevealError>
+    for InventoryError<S, P, ConsignError>
+{
+    fn from(err: RevealError) -> Self { Self::InvalidInput(err.into()) }
+}
+
+impl<S: StashProvider, P: InventoryProvider> From<InventoryError<S, P, Infallible>>
+    for InventoryError<S, P, ConsignError>
+{
+    fn from(err: InventoryError<S, P, Infallible>) -> Self {
+        match err {
+            InventoryError::InvalidInput(_) => unreachable!(),
+            InventoryError::StashRead(e) => InventoryError::StashRead(e),
+            InventoryError::StashWrite(e) => InventoryError::StashWrite(e),
+            InventoryError::InventoryRead(e) => InventoryError::InventoryRead(e),
+            InventoryError::InventoryWrite(e) => InventoryError::InventoryWrite(e),
+            InventoryError::StashData(e) => InventoryError::StashData(e),
+        }
+    }
 }
 
 #[derive(Debug, Display, Error, From)]
 #[display(doc_comments)]
-pub enum ComposeError<E1: Error, E2: Error> {
+pub enum ComposeError {
     /// no outputs available to store state of type {1} with velocity class
     /// '{0}'.
     NoBlankOrChange(VelocityHint, AssignmentType),
@@ -106,261 +154,189 @@ pub enum ComposeError<E1: Error, E2: Error> {
     /// smart contract state.
     InsufficientState,
 
-    /// the operation produces too many state transitions which can't fit the
-    /// container requirements.
-    #[from]
-    Confinement(confinement::Error),
+    /// the spent UTXOs contain too many seals which can't fit the state
+    /// transition input limit.
+    TooManyInputs,
+
+    /// the operation produces too many blank state transitions which can't fit
+    /// the container requirements.
+    TooManyBlanks,
 
     #[from]
     #[display(inner)]
     Builder(BuilderError),
-
-    #[from]
-    #[display(inner)]
-    InventoryError(InventoryError<E1>),
-
-    #[from]
-    #[display(inner)]
-    StashError(StashError<E2>),
 }
 
-#[derive(Debug, Display, Error, From)]
-#[display(inner)]
-pub enum InventoryError<E: Error> {
-    /// I/O or connectivity error.
-    Connectivity(E),
-
-    /// errors during consume operation.
-    // TODO: Make part of connectivity error
-    #[from]
-    Consume(ConsumeError),
-
-    /// error in input data.
-    #[from]
-    #[from(confinement::Error)]
-    DataError(DataError),
-
-    /// Permanent errors caused by bugs in the business logic of this library.
-    /// Must be reported to LNP/BP Standards Association.
-    #[from]
-    #[from(mpc::LeafNotKnown)]
-    #[from(mpc::InvalidProof)]
-    #[from(RevealError)]
-    #[from(StashInconsistency)]
-    InternalInconsistency(InventoryInconsistency),
-}
-
-impl<E1: Error, E2: Error> From<StashError<E1>> for InventoryError<E2>
-where E2: From<E1>
+impl<S: StashProvider, P: InventoryProvider> From<ComposeError>
+    for InventoryError<S, P, ComposeError>
 {
-    fn from(err: StashError<E1>) -> Self {
+    fn from(err: ComposeError) -> Self { Self::InvalidInput(err) }
+}
+
+impl<S: StashProvider, P: InventoryProvider> From<BuilderError>
+    for InventoryError<S, P, ComposeError>
+{
+    fn from(err: BuilderError) -> Self { Self::InvalidInput(err.into()) }
+}
+
+impl<S: StashProvider, P: InventoryProvider> From<InventoryError<S, P, Infallible>>
+    for InventoryError<S, P, ComposeError>
+{
+    fn from(err: InventoryError<S, P, Infallible>) -> Self {
         match err {
-            StashError::Connectivity(err) => Self::Connectivity(err.into()),
-            StashError::InternalInconsistency(e) => {
-                Self::InternalInconsistency(InventoryInconsistency::Stash(e))
-            }
+            InventoryError::InvalidInput(_) => unreachable!(),
+            InventoryError::StashRead(e) => InventoryError::StashRead(e),
+            InventoryError::StashWrite(e) => InventoryError::StashWrite(e),
+            InventoryError::InventoryRead(e) => InventoryError::InventoryRead(e),
+            InventoryError::InventoryWrite(e) => InventoryError::InventoryWrite(e),
+            InventoryError::StashData(e) => InventoryError::StashData(e),
         }
     }
 }
 
-#[derive(Debug, Display, Error, From)]
-#[display(inner)]
-pub enum InventoryDataError<E: Error> {
-    /// I/O or connectivity error.
-    Connectivity(E),
-
-    /// error in input data.
-    #[from]
-    #[from(validation::Status)]
-    #[from(confinement::Error)]
-    #[from(IfaceImplError)]
-    #[from(RevealError)]
-    #[from(MergeRevealError)]
-    DataError(DataError),
+#[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
+#[display(doc_comments)]
+pub enum FasciaError {
+    /// bundle {1} for contract {0} contains invalid transition input map.
+    InvalidBundle(ContractId, BundleId),
 }
 
-impl<E: Error> From<InventoryDataError<E>> for InventoryError<E> {
-    fn from(err: InventoryDataError<E>) -> Self {
-        match err {
-            InventoryDataError::Connectivity(e) => InventoryError::Connectivity(e),
-            InventoryDataError::DataError(e) => InventoryError::DataError(e),
+impl<S: StashProvider, P: InventoryProvider> From<FasciaError>
+    for InventoryError<S, P, FasciaError>
+{
+    fn from(err: FasciaError) -> Self { Self::InvalidInput(err) }
+}
+
+#[derive(Clone, Eq, PartialEq, Debug, Hash)]
+pub enum PersistedState {
+    Void,
+    Amount(Amount, BlindingFactor, AssetTag),
+    Data(DataState, u128),
+    Attachment(AttachedState, u64),
+}
+
+impl PersistedState {
+    fn update_blinding(&mut self, blinding: BlindingFactor) {
+        match self {
+            PersistedState::Void => {}
+            PersistedState::Amount(_, b, _) => *b = blinding,
+            PersistedState::Data(_, _) => {}
+            PersistedState::Attachment(_, _) => {}
         }
     }
 }
 
-#[derive(Debug, Display, Error, From)]
-#[display(doc_comments)]
-pub enum DataError {
-    /// the consignment was not validated by the local host and thus can't be
-    /// imported.
-    NotValidated,
-
-    /// consignment is invalid and can't be imported.
-    #[from]
-    Invalid(validation::Status),
-
-    /// consignment has transactions which are not known and thus the contract
-    /// can't be imported. If you are sure that you'd like to take the risc,
-    /// call `import_contract_force`.
-    UnresolvedTransactions,
-
-    /// consignment final transactions are not yet mined. If you are sure that
-    /// you'd like to take the risc, call `import_contract_force`.
-    TerminalsUnmined,
-
-    /// mismatch between witness seal chain and anchor chain.
-    ChainMismatch,
-
-    /// bundle {0} has both tapret and opret anchors.
-    DoubleAnchor(BundleId),
-
-    #[from]
-    #[display(inner)]
-    Reveal(RevealError),
-
-    #[from]
-    #[display(inner)]
-    Merge(MergeRevealError),
-
-    /// outpoint {0} is not part of the contract {1}.
-    OutpointUnknown(XOutputSeal, ContractId),
-
-    #[from]
-    #[display(inner)]
-    Confinement(confinement::Error),
-
-    #[from]
-    #[display(inner)]
-    IfaceImpl(IfaceImplError),
-
-    /// schema {0} doesn't implement interface {1}.
-    NoIfaceImpl(SchemaId, IfaceId),
-
-    #[from]
-    #[display(inner)]
-    HeightResolver(Box<dyn Error>),
-
-    /// Information is concealed.
-    Concealed,
+#[derive(Debug)]
+pub struct Inventory<S: StashProvider, P: InventoryProvider> {
+    stash: Stash<S>,
+    provider: P,
 }
 
-#[derive(Clone, Debug, Display, Error, From)]
-#[display(doc_comments)]
-pub enum IfaceImplError {
-    /// interface implementation references unknown schema {0::<0}
-    UnknownSchema(SchemaId),
+impl<S: StashProvider, P: InventoryProvider> Inventory<S, P> {
+    pub fn new(stash_provider: S, inventory_provider: P) -> Self {
+        Inventory {
+            stash: Stash::new(stash_provider),
+            provider: inventory_provider,
+        }
+    }
 
-    /// interface implementation references unknown interface {0::<0}
-    UnknownIface(IfaceId),
-}
+    pub fn with(stash: Stash<S>, provider: P) -> Self { Inventory { stash, provider } }
 
-/// These errors indicate internal business logic error. We report them instead
-/// of panicking to make sure that the software doesn't crash and gracefully
-/// handles situation, allowing users to report the problem back to the devs.
-#[derive(Debug, Display, Error, From)]
-#[display(doc_comments)]
-pub enum InventoryInconsistency {
-    /// state for contract {0} is not known or absent in the database.
-    StateAbsent(ContractId),
+    pub fn contracts_by_iface(
+        &self,
+        iface: impl Into<IfaceRef>,
+    ) -> Result<Vec<ContractIface>, InventoryError<S, P>> {
+        let iface_id = self.stash.iface(iface)?.iface_id();
+        self.stash
+            .contract_ids_by_iface(iface_id)?
+            .into_iter()
+            .map(|id| self.contract_iface(id, iface_id))
+            .collect()
+    }
 
-    /// disclosure for txid {0} is absent.
-    ///
-    /// It may happen due to RGB standard library bug, or indicate internal
-    /// inventory inconsistency and compromised inventory data storage.
-    DisclosureAbsent(Txid),
+    pub fn contracts_by_outputs(
+        &self,
+        outputs: impl IntoIterator<Item = impl Into<XOutputSeal>>,
+    ) -> Result<BTreeSet<ContractId>, InventoryError<S, P>> {
+        self.provider
+            .contracts_by_outputs(outputs)
+            .map_err(InventoryError::InventoryRead)
+    }
 
-    /// absent information about bundle for operation {0}.
-    ///
-    /// It may happen due to RGB library bug, or indicate internal inventory
-    /// inconsistency and compromised inventory data storage.
-    BundleAbsent(OpId),
+    pub fn contract_iface(
+        &self,
+        contract_id: ContractId,
+        iface: impl Into<IfaceRef>,
+    ) -> Result<ContractIface, InventoryError<S, P>> {
+        self.provider
+            .contract_iface(contract_id, iface)
+            .map_err(InventoryError::InventoryRead)
+    }
 
-    /// contract id for bundle {0} is not known.
-    ///
-    /// It may happen due to RGB library bug, or indicate internal inventory
-    /// inconsistency and compromised inventory data storage.
-    BundleContractUnknown(BundleId),
+    pub fn public_opouts(
+        &self,
+        contract_id: ContractId,
+    ) -> Result<BTreeSet<Opout>, InventoryError<S, P>> {
+        self.provider
+            .public_opouts(contract_id)
+            .map_err(InventoryError::InventoryRead)
+    }
 
-    /// absent information about anchor for bundle {0}.
-    ///
-    /// It may happen due to RGB library bug, or indicate internal inventory
-    /// inconsistency and compromised inventory data storage.
-    NoBundleAnchor(BundleId),
+    pub fn opouts_by_outputs(
+        &self,
+        contract_id: ContractId,
+        outputs: impl IntoIterator<Item = impl Into<XOutputSeal>>,
+    ) -> Result<BTreeSet<Opout>, InventoryError<S, P>> {
+        self.provider
+            .opouts_by_outputs(contract_id, outputs)
+            .map_err(InventoryError::InventoryRead)
+    }
 
-    /// the anchor is not related to the contract.
-    ///
-    /// It may happen due to RGB library bug, or indicate internal inventory
-    /// inconsistency and compromised inventory data storage.
-    #[from(mpc::LeafNotKnown)]
-    #[from(mpc::InvalidProof)]
-    UnrelatedAnchor,
+    pub fn opouts_by_terminals(
+        &self,
+        terminals: impl IntoIterator<Item = XChain<SecretSeal>>,
+    ) -> Result<BTreeSet<Opout>, InventoryError<S, P>> {
+        self.provider
+            .opouts_by_terminals(terminals)
+            .map_err(InventoryError::InventoryRead)
+    }
 
-    /// bundle reveal error. Details: {0}
-    ///
-    /// It may happen due to RGB library bug, or indicate internal inventory
-    /// inconsistency and compromised inventory data storage.
-    #[from]
-    BundleReveal(RevealError),
+    pub fn state_for_outpoints(
+        &self,
+        contract_id: ContractId,
+        outpoints: impl IntoIterator<Item = impl Into<XOutpoint>>,
+    ) -> Result<BTreeMap<(Opout, XOutputSeal), PersistedState>, InventoryError<S, P>> {
+        self.provider
+            .state_for_outpoints(contract_id, outpoints)
+            .map_err(InventoryError::InventoryRead)
+    }
 
-    /// the resulting bundle size exceeds consensus restrictions.
-    ///
-    /// It may happen due to RGB library bug, or indicate internal inventory
-    /// inconsistency and compromised inventory data storage.
-    OutsizedBundle,
-
-    #[from]
-    #[display(inner)]
-    Stash(StashInconsistency),
-}
-
-#[allow(clippy::result_large_err)]
-pub trait Inventory: Deref<Target = Self::Stash> {
-    type Stash: Stash;
-    /// Error type which must indicate problems on data retrieval.
-    type Error: Error;
-
-    fn stash(&self) -> &Self::Stash;
-
-    fn import_sigs<I>(
-        &mut self,
-        content_id: ContentId,
-        sigs: I,
-    ) -> Result<(), InventoryDataError<Self::Error>>
-    where
-        I: IntoIterator<Item = Cert>,
-        I::IntoIter: ExactSizeIterator<Item = Cert>;
-
-    fn import_schema(
-        &mut self,
-        schema: Schema,
-    ) -> Result<validation::Status, InventoryDataError<Self::Error>>;
-
-    fn import_iface(
-        &mut self,
-        iface: Iface,
-    ) -> Result<validation::Status, InventoryDataError<Self::Error>>;
-
-    fn import_iface_impl(
-        &mut self,
-        iimpl: IfaceImpl,
-    ) -> Result<validation::Status, InventoryDataError<Self::Error>>;
-
-    fn import_contract<R: ResolveHeight>(
+    pub fn import_contract<R: ResolveHeight>(
         &mut self,
         contract: Contract,
         resolver: &mut R,
-    ) -> Result<validation::Status, InventoryError<Self::Error>>
+    ) -> Result<validation::Status, InventoryError<S, P>>
     where
-        R::Error: 'static;
+        R::Error: 'static,
+    {
+        self.provider
+            .import_contract(contract, resolver)
+            .map_err(InventoryError::InventoryWrite)
+    }
 
-    fn accept_transfer<R: ResolveHeight>(
+    pub fn accept_transfer<R: ResolveHeight>(
         &mut self,
         transfer: Transfer,
         resolver: &mut R,
         force: bool,
-    ) -> Result<validation::Status, InventoryError<Self::Error>>
+    ) -> Result<validation::Status, InventoryError<S, P>>
     where
-        R::Error: 'static;
+        R::Error: 'static,
+    {
+        self.provider
+            .accept_transfer(transfer, resolver, force)
+            .map_err(InventoryError::InventoryWrite)
+    }
 
     /// Imports fascia into the stash, index and inventory.
     ///
@@ -370,8 +346,13 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     ///
     /// Must be called before the consignment is created, when witness
     /// transaction is not yet mined.
-    fn consume(&mut self, fascia: Fascia) -> Result<(), InventoryError<Self::Error>> {
-        unsafe { self.consume_witness(SealWitness::new(fascia.witness_id, fascia.anchor))? };
+    pub fn consume_fascia(
+        &mut self,
+        fascia: Fascia,
+    ) -> Result<(), InventoryError<S, P, FasciaError>> {
+        self.provider
+            .consume_witness(SealWitness::new(fascia.witness_id, fascia.anchor))
+            .map_err(InventoryError::InventoryWrite)?;
         for (contract_id, bundle) in fascia.bundles {
             let ids1 = bundle
                 .known_transitions
@@ -380,262 +361,68 @@ pub trait Inventory: Deref<Target = Self::Stash> {
                 .collect::<BTreeSet<_>>();
             let ids2 = bundle.input_map.values().copied().collect::<BTreeSet<_>>();
             if !ids1.is_subset(&ids2) {
-                return Err(ConsumeError::InvalidBundle(contract_id, bundle.bundle_id()).into());
+                return Err(FasciaError::InvalidBundle(contract_id, bundle.bundle_id()).into());
             }
-            unsafe { self.consume_bundle(contract_id, bundle, fascia.witness_id)? };
+            self.provider
+                .consume_bundle(contract_id, bundle, fascia.witness_id)
+                .map_err(InventoryError::InventoryWrite)?;
         }
         Ok(())
     }
 
-    #[doc(hidden)]
-    unsafe fn consume_witness(
-        &mut self,
-        witness: SealWitness,
-    ) -> Result<(), InventoryError<Self::Error>>;
-
-    #[doc(hidden)]
-    unsafe fn consume_bundle(
-        &mut self,
-        contract_id: ContractId,
-        bundle: TransitionBundle,
-        witness_id: XWitnessId,
-    ) -> Result<(), InventoryError<Self::Error>>;
-
-    /// # Safety
-    ///
-    /// Calling this method may lead to including into the stash asset
-    /// information which may be invalid.
-    unsafe fn import_contract_force<R: ResolveHeight>(
-        &mut self,
-        contract: Contract,
-        resolver: &mut R,
-    ) -> Result<validation::Status, InventoryError<Self::Error>>
-    where
-        R::Error: 'static;
-
-    fn contracts_by_iface<W: IfaceWrapper>(&self) -> Result<Vec<W>, InventoryError<Self::Error>>
-    where
-        Self::Error: From<<Self::Stash as Stash>::Error>,
-        InventoryError<Self::Error>: From<<Self::Stash as Stash>::Error>,
-    {
-        self.contract_ids_by_iface(&W::IFACE_NAME.into())?
-            .into_iter()
-            .map(|id| self.contract_iface_wrapped(id))
-            .collect()
+    pub fn contract_builder(
+        &self,
+        schema_id: SchemaId,
+        iface: impl Into<IfaceRef>,
+    ) -> Result<ContractBuilder, StashError<S>> {
+        self.stash.contract_builder(schema_id, iface)
     }
 
-    fn contracts_by_iface_name(
-        &self,
-        iface: impl Into<TypeName>,
-    ) -> Result<Vec<ContractIface>, InventoryError<Self::Error>>
-    where
-        Self::Error: From<<Self::Stash as Stash>::Error>,
-        InventoryError<Self::Error>: From<<Self::Stash as Stash>::Error>,
-    {
-        let iface = iface.into();
-        let iface_id = self.iface_by_name(&iface)?.iface_id();
-        self.contract_ids_by_iface(&iface)?
-            .into_iter()
-            .map(|id| self.contract_iface_id(id, iface_id))
-            .collect()
-    }
-
-    fn contract_iface_named(
+    pub fn transition_builder(
         &self,
         contract_id: ContractId,
-        iface: impl Into<TypeName>,
-    ) -> Result<ContractIface, InventoryError<Self::Error>>
-    where
-        Self::Error: From<<Self::Stash as Stash>::Error>,
-        InventoryError<Self::Error>: From<<Self::Stash as Stash>::Error>,
-    {
-        let iface = iface.into();
-        let iface_id = self.iface_by_name(&iface)?.iface_id();
-        self.contract_iface_id(contract_id, iface_id)
-    }
-
-    fn contract_iface_wrapped<W: IfaceWrapper>(
-        &self,
-        contract_id: ContractId,
-    ) -> Result<W, InventoryError<Self::Error>> {
-        self.contract_iface_id(contract_id, W::IFACE_ID)
-            .map(W::from)
-    }
-
-    fn contract_iface_id(
-        &self,
-        contract_id: ContractId,
-        iface_id: IfaceId,
-    ) -> Result<ContractIface, InventoryError<Self::Error>>;
-
-    fn op_bundle_id(&self, opid: OpId) -> Result<BundleId, InventoryError<Self::Error>>;
-
-    fn bundled_witness(
-        &self,
-        bundle_id: BundleId,
-    ) -> Result<BundledWitness, InventoryError<Self::Error>>;
-
-    fn transition_builder(
-        &self,
-        contract_id: ContractId,
-        iface: impl Into<TypeName>,
+        iface: impl Into<IfaceRef>,
         transition_name: Option<impl Into<FieldName>>,
-    ) -> Result<TransitionBuilder, InventoryError<Self::Error>>
-    where
-        Self::Error: From<<Self::Stash as Stash>::Error>,
-    {
-        let schema_ifaces = self.contract_schema(contract_id)?;
-        let iface = self.iface_by_name(&iface.into())?;
-        let schema = &schema_ifaces.schema;
-        let iimpl = schema_ifaces
-            .iimpls
-            .get(&iface.iface_id())
-            .ok_or(DataError::NoIfaceImpl(schema.schema_id(), iface.iface_id()))?;
-        let mut builder = if let Some(transition_name) = transition_name {
-            TransitionBuilder::named_transition(
-                contract_id,
-                iface.clone(),
-                schema.clone(),
-                iimpl.clone(),
-                transition_name.into(),
-            )
-        } else {
-            TransitionBuilder::default_transition(
-                contract_id,
-                iface.clone(),
-                schema.clone(),
-                iimpl.clone(),
-            )
-        }
-        .expect("internal inconsistency");
-        let tags = self.contract_asset_tags(contract_id)?;
-        for (assignment_type, asset_tag) in tags {
-            builder = builder
-                .add_asset_tag_raw(*assignment_type, *asset_tag)
-                .expect("tags are in bset and must not repeat");
-        }
-        Ok(builder)
+    ) -> Result<TransitionBuilder, StashError<S>> {
+        self.stash
+            .transition_builder(contract_id, iface, transition_name)
     }
 
-    fn blank_builder(
+    pub fn blank_builder(
         &self,
         contract_id: ContractId,
-        iface: impl Into<TypeName>,
-    ) -> Result<TransitionBuilder, InventoryError<Self::Error>>
-    where
-        Self::Error: From<<Self::Stash as Stash>::Error>,
-    {
-        let schema_ifaces = self.contract_schema(contract_id)?;
-        let iface = self.iface_by_name(&iface.into())?;
-        let schema = &schema_ifaces.schema;
-        if schema_ifaces.iimpls.is_empty() {
-            return Err(InventoryError::DataError(DataError::NoIfaceImpl(
-                schema.schema_id(),
-                iface.iface_id(),
-            )));
-        }
-
-        let mut builder = if let Some(iimpl) = schema_ifaces.iimpls.get(&iface.iface_id()) {
-            TransitionBuilder::blank_transition(
-                contract_id,
-                iface.clone(),
-                schema.clone(),
-                iimpl.clone(),
-            )
-            .expect("internal inconsistency")
-        } else {
-            let (default_iface_id, default_iimpl) = schema_ifaces.iimpls.first_key_value().unwrap();
-            let default_iface = self.iface_by_id(*default_iface_id)?;
-
-            TransitionBuilder::blank_transition(
-                contract_id,
-                default_iface.clone(),
-                schema.clone(),
-                default_iimpl.clone(),
-            )
-            .expect("internal inconsistency")
-        };
-        let tags = self.contract_asset_tags(contract_id)?;
-        for (assignment_type, asset_tag) in tags {
-            builder = builder
-                .add_asset_tag_raw(*assignment_type, *asset_tag)
-                .expect("tags are in bset and must not repeat");
-        }
-
-        Ok(builder)
+        iface: impl Into<IfaceRef>,
+    ) -> Result<TransitionBuilder, StashError<S>> {
+        self.stash.blank_builder(contract_id, iface)
     }
 
-    fn transition(&self, opid: OpId) -> Result<&Transition, InventoryError<Self::Error>>;
-
-    fn contracts_by_outputs(
-        &self,
-        outputs: impl IntoIterator<Item = impl Into<XOutputSeal>>,
-    ) -> Result<BTreeSet<ContractId>, InventoryError<Self::Error>>;
-
-    fn public_opouts(
+    pub fn export_contract(
         &self,
         contract_id: ContractId,
-    ) -> Result<BTreeSet<Opout>, InventoryError<Self::Error>>;
-
-    fn opouts_by_outputs(
-        &self,
-        contract_id: ContractId,
-        outputs: impl IntoIterator<Item = impl Into<XOutputSeal>>,
-    ) -> Result<BTreeSet<Opout>, InventoryError<Self::Error>>;
-
-    fn opouts_by_terminals(
-        &self,
-        terminals: impl IntoIterator<Item = XChain<SecretSeal>>,
-    ) -> Result<BTreeSet<Opout>, InventoryError<Self::Error>>;
-
-    #[allow(clippy::type_complexity)]
-    fn state_for_outpoints(
-        &self,
-        contract_id: ContractId,
-        outpoints: impl IntoIterator<Item = impl Into<XOutpoint>>,
-    ) -> Result<BTreeMap<(Opout, XOutputSeal), PersistedState>, InventoryError<Self::Error>>;
-
-    fn store_seal_secret(
-        &mut self,
-        seal: XChain<GraphSeal>,
-    ) -> Result<(), InventoryError<Self::Error>>;
-
-    fn seal_secrets(&self) -> Result<BTreeSet<XChain<GraphSeal>>, InventoryError<Self::Error>>;
-
-    #[allow(clippy::type_complexity)]
-    fn export_contract(
-        &self,
-        contract_id: ContractId,
-    ) -> Result<Contract, ConsignerError<Self::Error, <<Self as Deref>::Target as Stash>::Error>>
-    {
+    ) -> Result<Contract, InventoryError<S, P, ConsignError>> {
         let mut consignment = self.consign::<false>(contract_id, [], [])?;
         consignment.transfer = false;
         Ok(consignment)
         // TODO: Add known sigs to the bindle
     }
 
-    #[allow(clippy::type_complexity)]
-    fn transfer(
+    pub fn transfer(
         &self,
         contract_id: ContractId,
         outputs: impl AsRef<[XOutputSeal]>,
         secret_seals: impl AsRef<[XChain<SecretSeal>]>,
-    ) -> Result<Transfer, ConsignerError<Self::Error, <<Self as Deref>::Target as Stash>::Error>>
-    {
+    ) -> Result<Transfer, InventoryError<S, P, ConsignError>> {
         let mut consignment = self.consign(contract_id, outputs, secret_seals)?;
         consignment.transfer = true;
         Ok(consignment)
     }
 
-    fn consign<const TYPE: bool>(
+    pub fn consign<const TYPE: bool>(
         &self,
         contract_id: ContractId,
         outputs: impl AsRef<[XOutputSeal]>,
         secret_seals: impl AsRef<[XChain<SecretSeal>]>,
-    ) -> Result<
-        Consignment<TYPE>,
-        ConsignerError<Self::Error, <<Self as Deref>::Target as Stash>::Error>,
-    > {
+    ) -> Result<Consignment<TYPE>, InventoryError<S, P, ConsignError>> {
         let outputs = outputs.as_ref();
         let secret_seals = secret_seals.as_ref();
 
@@ -655,10 +442,16 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             if opout.op == contract_id {
                 continue; // we skip genesis since it will be present anywhere
             }
-            let transition = self.transition(opout.op)?;
+            let transition = self
+                .provider
+                .transition(opout.op)
+                .map_err(InventoryError::<_, _, Infallible>::InventoryRead)?;
             transitions.insert(opout.op, transition.clone());
 
-            let bundle_id = self.op_bundle_id(transition.id())?;
+            let bundle_id = self
+                .provider
+                .op_bundle_id(transition.id())
+                .map_err(InventoryError::<_, _, Infallible>::InventoryRead)?;
             // 2. Collect seals from terminal transitions to add to the consignment
             //    terminals
             for (type_id, typed_assignments) in transition.assignments.iter() {
@@ -674,14 +467,17 @@ pub trait Inventory: Deref<Target = Self::Stash> {
                             let seal = seal.map(|s| s.conceal()).map(TerminalSeal::from);
                             terminals.insert(bundle_id, Terminal::new(seal));
                         } else {
-                            return Err(ConsignerError::ConcealedPublicState(opout));
+                            return Err(ConsignError::ConcealedPublicState(opout).into());
                         }
                     }
                 }
             }
 
             if !bundled_witnesses.contains_key(&bundle_id) {
-                let bw = self.bundled_witness(bundle_id)?;
+                let bw = self
+                    .provider
+                    .bundled_witness(bundle_id)
+                    .map_err(InventoryError::<_, _, Infallible>::InventoryRead)?;
                 bundled_witnesses.insert(bundle_id, bw);
             }
         }
@@ -695,29 +491,37 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             if id == contract_id {
                 continue; // we skip genesis since it will be present anywhere
             }
-            let transition = self.transition(id)?;
+            let transition = self
+                .provider
+                .transition(id)
+                .map_err(InventoryError::<_, _, Infallible>::InventoryRead)?;
             ids.extend(transition.inputs().iter().map(|input| input.prev_out.op));
             transitions.insert(id, transition.clone());
-            let bundle_id = self.op_bundle_id(transition.id())?;
+            let bundle_id = self
+                .provider
+                .op_bundle_id(transition.id())
+                .map_err(InventoryError::<_, _, Infallible>::InventoryRead)?;
             bundled_witnesses
                 .entry(bundle_id)
-                .or_insert(self.bundled_witness(bundle_id)?.clone())
+                .or_insert(
+                    self.provider
+                        .bundled_witness(bundle_id)
+                        .map_err(InventoryError::<_, _, Infallible>::InventoryRead)?
+                        .clone(),
+                )
                 .anchored_bundles
                 .reveal_transition(transition.clone())?;
         }
 
-        let genesis = self.genesis(contract_id)?;
-        let schema_ifaces = self.schema(genesis.schema_id)?;
-        let asset_tags = self.contract_asset_tags(contract_id)?;
-        let mut consignment =
-            Consignment::new(schema_ifaces.schema.clone(), genesis.clone(), asset_tags.clone());
-        for (iface_id, iimpl) in &schema_ifaces.iimpls {
-            let iface = self.iface_by_id(*iface_id)?;
-            consignment
-                .ifaces
-                .insert(*iface_id, IfacePair::with(iface.clone(), iimpl.clone()))
-                .expect("same collection size");
+        let genesis = self.stash.genesis(contract_id)?.clone();
+        let schema_ifaces = self.stash.schema(genesis.schema_id)?.clone();
+        let mut ifaces = BTreeMap::new();
+        for (iface_id, iimpl) in schema_ifaces.iimpls {
+            let iface = self.stash.iface(iface_id)?;
+            ifaces.insert(iface.clone(), iimpl);
         }
+        let ifaces = Confined::from_collection_unsafe(ifaces);
+
         let mut bundles = BTreeMap::<XWitnessId, BundledWitness>::new();
         for bw in bundled_witnesses.into_values() {
             let witness_id = bw.witness_id();
@@ -730,31 +534,48 @@ pub trait Inventory: Deref<Target = Self::Stash> {
                 }
             }
         }
-        consignment.bundles = Confined::try_from_iter(bundles.into_values())
-            .map_err(|_| ConsignerError::TooManyBundles)?;
-        consignment.terminals =
-            Confined::try_from(terminals).map_err(|_| ConsignerError::TooManyTerminals)?;
+        let bundles = Confined::try_from_iter(bundles.into_values())
+            .map_err(|_| ConsignError::TooManyBundles)?;
+        let terminals =
+            Confined::try_from(terminals).map_err(|_| ConsignError::TooManyTerminals)?;
+
+        let (types, scripts) = self.stash.extract(&schema_ifaces.schema, ifaces.keys())?;
+        let scripts = Confined::from_iter_unsafe(scripts.into_values());
 
         // TODO: Conceal everything we do not need
         // TODO: Add known sigs to the consignment
 
-        Ok(consignment)
+        Ok(Consignment {
+            version: ContainerVer::V2,
+            transfer: TYPE,
+
+            schema: schema_ifaces.schema,
+            ifaces,
+            asset_tags: none!(),
+            genesis,
+            terminals,
+            bundles,
+            extensions: none!(),
+            attachments: none!(),
+
+            signatures: none!(),  // TODO: Collect signatures
+            supplements: none!(), // TODO: Collect supplements
+            types,
+            scripts,
+        })
     }
 
     /// Composes a batch of state transitions updating state for the provided
     /// set of previous outputs, satisfying requirements of the invoice, paying
     /// the change back and including the necessary blank state transitions.
-    fn compose(
+    pub fn compose(
         &self,
         invoice: &RgbInvoice,
         prev_outputs: impl IntoIterator<Item = impl Into<XOutputSeal>>,
         method: CloseMethod,
         beneficiary_vout: Option<impl Into<Vout>>,
         allocator: impl Fn(ContractId, AssignmentType, VelocityHint) -> Option<Vout>,
-    ) -> Result<Batch, ComposeError<Self::Error, <<Self as Deref>::Target as Stash>::Error>>
-    where
-        Self::Error: From<<Self::Stash as Stash>::Error>,
-    {
+    ) -> Result<Batch, InventoryError<S, P, ComposeError>> {
         self.compose_deterministic(
             invoice,
             prev_outputs,
@@ -770,7 +591,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     /// set of previous outputs, satisfying requirements of the invoice, paying
     /// the change back and including the necessary blank state transitions.
     #[allow(clippy::too_many_arguments)]
-    fn compose_deterministic(
+    pub fn compose_deterministic(
         &self,
         invoice: &RgbInvoice,
         prev_outputs: impl IntoIterator<Item = impl Into<XOutputSeal>>,
@@ -779,10 +600,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         allocator: impl Fn(ContractId, AssignmentType, VelocityHint) -> Option<Vout>,
         pedersen_blinder: impl Fn(ContractId, AssignmentType) -> BlindingFactor,
         seal_blinder: impl Fn(ContractId, AssignmentType) -> u64,
-    ) -> Result<Batch, ComposeError<Self::Error, <<Self as Deref>::Target as Stash>::Error>>
-    where
-        Self::Error: From<<Self::Stash as Stash>::Error>,
-    {
+    ) -> Result<Batch, InventoryError<S, P, ComposeError>> {
         let layer1 = invoice.layer1();
         let prev_outputs = prev_outputs
             .into_iter()
@@ -790,28 +608,26 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             .collect::<HashSet<XOutputSeal>>();
 
         #[allow(clippy::type_complexity)]
-        let output_for_assignment = |id: ContractId,
-                                     assignment_type: AssignmentType|
-         -> Result<
-            BuilderSeal<GraphSeal>,
-            ComposeError<Self::Error, <<Self as Deref>::Target as Stash>::Error>,
-        > {
-            let suppl = self.contract_suppl(id);
-            let velocity = suppl
-                .and_then(|suppl| suppl.owned_state.get(&assignment_type))
-                .map(|s| s.velocity)
-                .unwrap_or_default();
-            let vout = allocator(id, assignment_type, velocity)
-                .ok_or(ComposeError::NoBlankOrChange(velocity, assignment_type))?;
-            let seal =
-                GraphSeal::with_blinded_vout(method, vout, seal_blinder(id, assignment_type));
-            Ok(BuilderSeal::Revealed(XChain::with(layer1, seal)))
-        };
+        let output_for_assignment =
+            |id: ContractId,
+             assignment_type: AssignmentType|
+             -> Result<BuilderSeal<GraphSeal>, InventoryError<S, P, ComposeError>> {
+                let suppl = self.stash.contract_suppl(id);
+                let velocity = suppl
+                    .and_then(|suppl| suppl.owned_state.get(&assignment_type))
+                    .map(|s| s.velocity)
+                    .unwrap_or_default();
+                let vout = allocator(id, assignment_type, velocity)
+                    .ok_or(ComposeError::NoBlankOrChange(velocity, assignment_type))?;
+                let seal =
+                    GraphSeal::with_blinded_vout(method, vout, seal_blinder(id, assignment_type));
+                Ok(BuilderSeal::Revealed(XChain::with(layer1, seal)))
+            };
 
         // 1. Prepare the data
         if let Some(expiry) = invoice.expiry {
             if expiry < Utc::now().timestamp() {
-                return Err(ComposeError::InvoiceExpired);
+                return Err(ComposeError::InvoiceExpired.into());
             }
         }
         let contract_id = invoice.contract.ok_or(ComposeError::NoContract)?;
@@ -842,7 +658,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
                 ),
             )),
             (Beneficiary::WitnessVout(_), None) => {
-                return Err(ComposeError::NoBeneficiaryOutput);
+                return Err(ComposeError::NoBeneficiaryOutput.into());
             }
         };
 
@@ -878,7 +694,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
                             pedersen_blinder(contract_id, assignment_id),
                         )?;
                     }
-                    Ordering::Less => return Err(ComposeError::InsufficientState),
+                    Ordering::Less => return Err(ComposeError::InsufficientState.into()),
                     Ordering::Equal => {}
                 }
                 main_builder
@@ -893,7 +709,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             InvoiceState::Data(data) => match data {
                 NonFungible::RGB21(allocation) => {
                     if !data_inputs.into_iter().any(|x| x == allocation.into()) {
-                        return Err(ComposeError::InsufficientState);
+                        return Err(ComposeError::InsufficientState.into());
                     }
 
                     main_builder
@@ -940,12 +756,101 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             }
 
             let transition = blank_builder.complete_transition()?;
-            blanks.push(TransitionInfo::new(transition, outputs)?)?;
+            let info = TransitionInfo::new(transition, outputs)
+                .map_err(|_| ComposeError::TooManyInputs)?;
+            blanks.push(info).map_err(|_| ComposeError::TooManyBlanks)?;
         }
 
-        Ok(Batch {
-            main: TransitionInfo::new(main_transition, main_inputs)?,
-            blanks,
-        })
+        let main = TransitionInfo::new(main_transition, main_inputs)
+            .map_err(|_| ComposeError::TooManyInputs)?;
+        Ok(Batch { main, blanks })
     }
+}
+
+pub trait InventoryProvider: Debug + InventoryReadProvider + InventoryWriteProvider {}
+
+pub trait InventoryReadProvider {
+    type Error: Error;
+
+    fn contract_iface(
+        &self,
+        contract_id: ContractId,
+        iface: impl Into<IfaceRef>,
+    ) -> Result<ContractIface, Self::Error>;
+
+    fn contracts_by_outputs(
+        &self,
+        outputs: impl IntoIterator<Item = impl Into<XOutputSeal>>,
+    ) -> Result<BTreeSet<ContractId>, Self::Error>;
+
+    fn public_opouts(&self, contract_id: ContractId) -> Result<BTreeSet<Opout>, Self::Error>;
+
+    fn opouts_by_outputs(
+        &self,
+        contract_id: ContractId,
+        outputs: impl IntoIterator<Item = impl Into<XOutputSeal>>,
+    ) -> Result<BTreeSet<Opout>, Self::Error>;
+
+    fn opouts_by_terminals(
+        &self,
+        terminals: impl IntoIterator<Item = XChain<SecretSeal>>,
+    ) -> Result<BTreeSet<Opout>, Self::Error>;
+
+    fn state_for_outpoints(
+        &self,
+        contract_id: ContractId,
+        outpoints: impl IntoIterator<Item = impl Into<XOutpoint>>,
+    ) -> Result<BTreeMap<(Opout, XOutputSeal), PersistedState>, Self::Error>;
+
+    fn op_bundle_id(&self, opid: OpId) -> Result<BundleId, Self::Error>;
+
+    fn bundled_witness(&self, bundle_id: BundleId) -> Result<BundledWitness, Self::Error>;
+
+    fn transition(&self, opid: OpId) -> Result<&Transition, Self::Error>;
+
+    fn seal_secrets(&self) -> Result<BTreeSet<XChain<GraphSeal>>, Self::Error>;
+}
+
+pub trait InventoryWriteProvider {
+    type Error: Error;
+
+    fn import_contract<R: ResolveHeight>(
+        &mut self,
+        contract: Contract,
+        resolver: &mut R,
+    ) -> Result<validation::Status, Self::Error>
+    where
+        R::Error: 'static;
+
+    fn accept_transfer<R: ResolveHeight>(
+        &mut self,
+        transfer: Transfer,
+        resolver: &mut R,
+        force: bool,
+    ) -> Result<validation::Status, Self::Error>
+    where
+        R::Error: 'static;
+
+    /// # Safety
+    ///
+    /// Calling this method may lead to including into the stash asset
+    /// information which may be invalid.
+    fn import_contract_force<R: ResolveHeight>(
+        &mut self,
+        contract: Contract,
+        resolver: &mut R,
+    ) -> Result<validation::Status, Self::Error>
+    where
+        R::Error: 'static;
+
+    fn consume_witness(&mut self, witness: SealWitness) -> Result<(), Self::Error>;
+
+    fn consume_bundle(
+        &mut self,
+        contract_id: ContractId,
+        bundle: TransitionBundle,
+        witness_id: XWitnessId,
+    ) -> Result<(), Self::Error>;
+
+    fn store_seal_secret(&mut self, seal: XChain<GraphSeal>) -> Result<(), Self::Error>;
 }

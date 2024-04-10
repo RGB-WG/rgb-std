@@ -27,32 +27,26 @@ use amplify::confinement::{Confined, SmallOrdSet, TinyOrdMap, U16};
 use amplify::{confinement, Wrapper};
 use chrono::Utc;
 use invoice::{Allocation, Amount};
+use rgb::validation::Scripts;
 use rgb::{
     validation, AltLayer1, AltLayer1Set, AssetTag, Assign, AssignmentType, Assignments,
     BlindingFactor, ContractId, DataState, ExposedSeal, FungibleType, Genesis, GenesisSeal,
-    GlobalState, GraphSeal, Input, Layer1, Opout, RevealedAttach, RevealedData, RevealedValue,
-    Schema, StateSchema, Transition, TransitionType, TypedAssigns, XChain, XOutpoint,
+    GlobalState, GraphSeal, Input, Layer1, Opout, OwnedStateSchema, RevealedAttach, RevealedData,
+    RevealedValue, Schema, Transition, TransitionType, TypedAssigns, XChain, XOutpoint,
 };
 use strict_encoding::{FieldName, SerializeError, StrictSerialize};
-use strict_types::decode;
+use strict_types::{decode, TypeSystem};
 
-use crate::containers::{BuilderSeal, Contract};
+use crate::containers::{BuilderSeal, ContainerVer, Contract, ValidConsignment};
 use crate::interface::contract::AttachedState;
 use crate::interface::resolver::DumbResolver;
-use crate::interface::{
-    Iface, IfaceClass, IfaceImpl, IfacePair, IssuerTriplet, SchemaIssuer, TransitionIface,
-    WrongImplementation,
-};
+use crate::interface::{Iface, IfaceImpl, TransitionIface};
 use crate::persistence::PersistedState;
 use crate::Outpoint;
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum BuilderError {
-    #[from]
-    #[display(inner)]
-    WrongImplementation(WrongImplementation),
-
     /// contract already has too many layers1.
     TooManyLayers1,
 
@@ -140,44 +134,28 @@ pub struct ContractBuilder {
     builder: OperationBuilder<GenesisSeal>,
     testnet: bool,
     alt_layers1: AltLayer1Set,
+    scripts: Scripts,
 }
 
 impl ContractBuilder {
-    pub fn with(
+    pub(crate) fn with(
         iface: Iface,
         schema: Schema,
         iimpl: IfaceImpl,
-        testnet: bool,
-    ) -> Result<Self, WrongImplementation> {
-        Ok(Self {
-            builder: OperationBuilder::with(iface, schema, iimpl)?,
-            testnet,
-            alt_layers1: none!(),
-        })
-    }
-
-    pub fn mainnet(
-        iface: Iface,
-        schema: Schema,
-        iimpl: IfaceImpl,
-    ) -> Result<Self, WrongImplementation> {
-        Ok(Self {
-            builder: OperationBuilder::with(iface, schema, iimpl)?,
-            testnet: false,
-            alt_layers1: none!(),
-        })
-    }
-
-    pub fn testnet(
-        iface: Iface,
-        schema: Schema,
-        iimpl: IfaceImpl,
-    ) -> Result<Self, WrongImplementation> {
-        Ok(Self {
-            builder: OperationBuilder::with(iface, schema, iimpl)?,
+        types: TypeSystem,
+        scripts: Scripts,
+    ) -> Self {
+        Self {
+            builder: OperationBuilder::with(iface, schema, iimpl, types),
             testnet: true,
             alt_layers1: none!(),
-        })
+            scripts,
+        }
+    }
+
+    pub fn set_mainnet(mut self) -> Self {
+        self.testnet = false;
+        self
     }
 
     pub fn has_layer1(&self, layer1: Layer1) -> bool {
@@ -305,12 +283,16 @@ impl ContractBuilder {
         Ok(self)
     }
 
-    pub fn issue_contract(self) -> Result<Contract, BuilderError> {
+    pub fn issue_contract(self) -> Result<ValidConsignment<false>, BuilderError> {
         self.issue_contract_det(Utc::now().timestamp())
     }
 
-    pub fn issue_contract_det(self, timestamp: i64) -> Result<Contract, BuilderError> {
-        let (schema, iface_pair, global, assignments, asset_tags) = self.builder.complete(None);
+    pub fn issue_contract_det(
+        self,
+        timestamp: i64,
+    ) -> Result<ValidConsignment<false>, BuilderError> {
+        let (schema, iface, iimpl, global, assignments, types, asset_tags) =
+            self.builder.complete(None);
 
         let genesis = Genesis {
             ffv: none!(),
@@ -325,22 +307,36 @@ impl ContractBuilder {
             valencies: none!(),
             // TODO: Add APIs for providing issuer information
             issuer: none!(),
-            script: none!(),
+            validator: none!(),
         };
 
-        let mut contract = Contract::new(schema, genesis, asset_tags);
-        contract.ifaces = tiny_bmap! { iface_pair.iface_id() => iface_pair };
+        let ifaces = tiny_bmap! { iface => iimpl };
+        let scripts = Confined::from_iter_unsafe(self.scripts.into_values());
 
-        let verified_contract =
-            contract
-                .validate(&mut DumbResolver, self.testnet)
-                .map_err(|consignment| {
-                    consignment
-                        .into_validation_status()
-                        .expect("status always present upon validation")
-                })?;
+        let contract = Contract {
+            version: ContainerVer::V2,
+            transfer: false,
+            asset_tags,
+            terminals: none!(),
+            genesis,
+            extensions: none!(),
+            bundles: none!(),
+            schema,
+            ifaces,
+            attachments: none!(), // TODO: Add support for attachment files
 
-        Ok(verified_contract)
+            types,
+            scripts,
+
+            supplements: none!(), // TODO: Add supplements
+            signatures: none!(),  // TODO: Add signatures
+        };
+
+        let valid_contract = contract
+            .validate(&mut DumbResolver, self.testnet)
+            .map_err(|(status, _)| status)?;
+
+        Ok(valid_contract)
     }
 }
 
@@ -353,41 +349,44 @@ pub struct TransitionBuilder {
 }
 
 impl TransitionBuilder {
-    pub fn blank_transition(
+    pub(crate) fn blank_transition(
         contract_id: ContractId,
         iface: Iface,
         schema: Schema,
         iimpl: IfaceImpl,
-    ) -> Result<Self, WrongImplementation> {
-        Self::with(contract_id, iface, schema, iimpl, TransitionType::BLANK)
+        types: TypeSystem,
+    ) -> Self {
+        Self::with(contract_id, iface, schema, iimpl, TransitionType::BLANK, types)
     }
 
-    pub fn default_transition(
+    pub(crate) fn default_transition(
         contract_id: ContractId,
         iface: Iface,
         schema: Schema,
         iimpl: IfaceImpl,
+        types: TypeSystem,
     ) -> Result<Self, BuilderError> {
         let transition_type = iface
             .default_operation
             .as_ref()
             .and_then(|name| iimpl.transition_type(name))
             .ok_or(BuilderError::NoOperationSubtype)?;
-        Ok(Self::with(contract_id, iface, schema, iimpl, transition_type)?)
+        Ok(Self::with(contract_id, iface, schema, iimpl, transition_type, types))
     }
 
-    pub fn named_transition(
+    pub(crate) fn named_transition(
         contract_id: ContractId,
         iface: Iface,
         schema: Schema,
         iimpl: IfaceImpl,
         transition_name: impl Into<FieldName>,
+        types: TypeSystem,
     ) -> Result<Self, BuilderError> {
         let transition_name = transition_name.into();
         let transition_type = iimpl
             .transition_type(&transition_name)
             .ok_or(BuilderError::TransitionNotFound(transition_name))?;
-        Ok(Self::with(contract_id, iface, schema, iimpl, transition_type)?)
+        Ok(Self::with(contract_id, iface, schema, iimpl, transition_type, types))
     }
 
     fn with(
@@ -396,13 +395,14 @@ impl TransitionBuilder {
         schema: Schema,
         iimpl: IfaceImpl,
         transition_type: TransitionType,
-    ) -> Result<Self, WrongImplementation> {
-        Ok(Self {
+        types: TypeSystem,
+    ) -> Self {
+        Self {
             contract_id,
-            builder: OperationBuilder::with(iface, schema, iimpl)?,
+            builder: OperationBuilder::with(iface, schema, iimpl, types),
             transition_type,
             inputs: none!(),
-        })
+        }
     }
 
     pub fn transition_type(&self) -> TransitionType { self.transition_type }
@@ -574,7 +574,7 @@ impl TransitionBuilder {
     }
 
     pub fn complete_transition(self) -> Result<Transition, BuilderError> {
-        let (_, _, global, assignments, _) = self.builder.complete(Some(&self.inputs));
+        let (_, _, _, global, assignments, _, _) = self.builder.complete(Some(&self.inputs));
 
         let transition = Transition {
             ffv: none!(),
@@ -586,7 +586,7 @@ impl TransitionBuilder {
             assignments,
             valencies: none!(),
             witness: none!(),
-            script: none!(),
+            validator: none!(),
         };
 
         // TODO: Validate against schema
@@ -611,12 +611,11 @@ pub struct OperationBuilder<Seal: ExposedSeal> {
     attachments:
         TinyOrdMap<AssignmentType, Confined<BTreeMap<BuilderSeal<Seal>, RevealedAttach>, 1, U16>>,
     // TODO: add valencies
+    types: TypeSystem,
 }
 
-impl<Seal: ExposedSeal> From<IssuerTriplet> for OperationBuilder<Seal> {
-    fn from(triplet: IssuerTriplet) -> Self {
-        let (iface, schema, iimpl) = triplet.into_split();
-
+impl<Seal: ExposedSeal> OperationBuilder<Seal> {
+    fn with(iface: Iface, schema: Schema, iimpl: IfaceImpl, types: TypeSystem) -> Self {
         OperationBuilder {
             schema,
             iface,
@@ -628,18 +627,9 @@ impl<Seal: ExposedSeal> From<IssuerTriplet> for OperationBuilder<Seal> {
             fungible: none!(),
             attachments: none!(),
             data: none!(),
+
+            types,
         }
-    }
-}
-
-impl<Seal: ExposedSeal, I: IfaceClass> From<SchemaIssuer<I>> for OperationBuilder<Seal> {
-    fn from(issuer: SchemaIssuer<I>) -> Self { Self::from(issuer.into_triplet()) }
-}
-
-impl<Seal: ExposedSeal> OperationBuilder<Seal> {
-    fn with(iface: Iface, schema: Schema, iimpl: IfaceImpl) -> Result<Self, WrongImplementation> {
-        let triplet = IssuerTriplet::new(iface, schema, iimpl)?;
-        Ok(Self::from(triplet))
     }
 
     fn transition_iface(&self, ty: TransitionType) -> &TransitionIface {
@@ -655,7 +645,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
     }
 
     #[inline]
-    fn state_schema(&self, type_id: AssignmentType) -> &StateSchema {
+    fn state_schema(&self, type_id: AssignmentType) -> &OwnedStateSchema {
         self.schema
             .owned_types
             .get(&type_id)
@@ -730,9 +720,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             .get(&type_id)
             .expect("schema should match interface: must be checked by the constructor")
             .sem_id;
-        self.schema
-            .types
-            .strict_deserialize_type(sem_id, &serialized)?;
+        self.types.strict_deserialize_type(sem_id, &serialized)?;
 
         self.global
             .add_state(type_id, RevealedData::new_random_salt(serialized))?;
@@ -789,7 +777,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         seal: impl Into<BuilderSeal<Seal>>,
     ) -> Result<Self, BuilderError> {
         let state_schema = self.state_schema(type_id);
-        if *state_schema != StateSchema::Fungible(FungibleType::Unsigned64Bit) {
+        if *state_schema != OwnedStateSchema::Fungible(FungibleType::Unsigned64Bit) {
             return Err(BuilderError::InvalidState(type_id));
         }
 
@@ -827,7 +815,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         state: RevealedValue,
     ) -> Result<Self, BuilderError> {
         let state_schema = self.state_schema(type_id);
-        if *state_schema != StateSchema::Fungible(FungibleType::Unsigned64Bit) {
+        if *state_schema != OwnedStateSchema::Fungible(FungibleType::Unsigned64Bit) {
             return Err(BuilderError::InvalidState(type_id));
         }
 
@@ -869,7 +857,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         state: RevealedData,
     ) -> Result<Self, BuilderError> {
         let state_schema = self.state_schema(type_id);
-        if let StateSchema::Structured(_) = *state_schema {
+        if let OwnedStateSchema::Structured(_) = *state_schema {
             let seal = seal.into();
             match self.data.get_mut(&type_id) {
                 Some(assignments) => {
@@ -909,7 +897,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         state: RevealedAttach,
     ) -> Result<Self, BuilderError> {
         let state_schema = self.state_schema(type_id);
-        if let StateSchema::Structured(_) = *state_schema {
+        if let OwnedStateSchema::Structured(_) = *state_schema {
             let seal = seal.into();
             match self.attachments.get_mut(&type_id) {
                 Some(assignments) => {
@@ -948,8 +936,15 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
     fn complete(
         self,
         inputs: Option<&TinyOrdMap<Input, PersistedState>>,
-    ) -> (Schema, IfacePair, GlobalState, Assignments<Seal>, TinyOrdMap<AssignmentType, AssetTag>)
-    {
+    ) -> (
+        Schema,
+        Iface,
+        IfaceImpl,
+        GlobalState,
+        Assignments<Seal>,
+        TypeSystem,
+        TinyOrdMap<AssignmentType, AssetTag>,
+    ) {
         let owned_state = self.fungible.into_iter().map(|(id, vec)| {
             let mut blindings = Vec::with_capacity(vec.len());
             let mut vec = vec
@@ -1023,8 +1018,6 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             .extend(Assignments::from_inner(owned_data).into_inner())
             .expect("");
 
-        let iface_pair = IfacePair::with(self.iface, self.iimpl);
-
-        (self.schema, iface_pair, self.global, assignments, self.asset_tags)
+        (self.schema, self.iface, self.iimpl, self.global, assignments, self.types, self.asset_tags)
     }
 }

@@ -24,13 +24,12 @@
 use std::fmt::{self, Debug, Formatter};
 use std::str::FromStr;
 
-use amplify::ascii::AsciiString;
-use amplify::confinement::{Confined, NonEmptyString, NonEmptyVec, SmallOrdSet, SmallString, U8};
+use amplify::confinement::{Confined, NonEmptyString, SmallOrdSet, SmallString, U8};
 use invoice::Precision;
-use strict_encoding::stl::{AlphaCapsNum, AsciiPrintable};
+use strict_encoding::stl::{AlphaNum, AlphaSmall, AsciiPrintable};
 use strict_encoding::{
-    InvalidIdent, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, StrictType,
-    TypedWrite,
+    InvalidRString, RString, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize,
+    StrictType,
 };
 use strict_types::StrictVal;
 
@@ -65,167 +64,39 @@ impl StrictSerialize for IssueMeta {}
 impl StrictDeserialize for IssueMeta {}
 
 #[derive(Wrapper, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, From)]
-#[wrapper(Deref, Display)]
-#[derive(StrictDumb, StrictType, StrictDecode)]
+#[wrapper(Deref, Display, FromStr)]
+#[derive(StrictDumb, StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_CONTRACT, dumb = { Ticker::from("DUMB") })]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", transparent)
 )]
-pub struct Ticker(Confined<AsciiString, 1, 8>);
-impl StrictEncode for Ticker {
-    fn strict_encode<W: TypedWrite>(&self, writer: W) -> std::io::Result<W> {
-        let iter = self
-            .0
-            .as_bytes()
-            .iter()
-            .map(|c| AlphaCapsNum::try_from(*c).unwrap());
-        writer.write_newtype::<Self>(&NonEmptyVec::<AlphaCapsNum, 8>::try_from_iter(iter).unwrap())
-    }
-}
-impl StrictSerialize for Ticker {}
-impl StrictDeserialize for Ticker {}
+pub struct Ticker(RString<AlphaSmall, AlphaNum, 1, 8>);
 
-impl AsRef<str> for Ticker {
-    #[inline]
-    fn as_ref(&self) -> &str { self.0.as_str() }
-}
-
-// TODO: Ensure all constructors filter invalid characters
-impl FromStr for Ticker {
-    type Err = InvalidIdent;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let s = AsciiString::from_ascii(s.as_bytes())?;
-        Self::try_from(s)
-    }
-}
-
-impl From<&'static str> for Ticker {
-    fn from(s: &'static str) -> Self { Self::from_str(s).expect("invalid ticker name") }
-}
-
-impl TryFrom<String> for Ticker {
-    type Error = InvalidIdent;
-
-    fn try_from(s: String) -> Result<Self, Self::Error> {
-        let s = AsciiString::from_ascii(s.as_bytes())?;
-        Self::try_from(s)
-    }
-}
-
-impl TryFrom<AsciiString> for Ticker {
-    type Error = InvalidIdent;
-
-    fn try_from(ascii: AsciiString) -> Result<Self, InvalidIdent> {
-        if ascii.is_empty() {
-            return Err(InvalidIdent::Empty);
-        }
-        if let Some(ch) = ascii
-            .as_slice()
-            .iter()
-            .copied()
-            .find(|ch| AlphaCapsNum::try_from(ch.as_byte()).is_err())
-        {
-            return Err(InvalidIdent::InvalidChar(ascii, ch));
-        }
-        let s = Confined::try_from(ascii)?;
-        Ok(Self(s))
-    }
-}
-
-impl Debug for Ticker {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("Ticker").field(&self.as_str()).finish()
-    }
-}
+impl_ident_type!(Ticker);
+impl_ident_subtype!(Ticker);
 
 #[derive(Wrapper, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, From)]
-#[wrapper(Deref, Display)]
-#[derive(StrictType, StrictDecode)]
+#[wrapper(Deref, Display, FromStr)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_CONTRACT)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", transparent)
 )]
-pub struct Name(Confined<AsciiString, 1, 40>);
-impl StrictEncode for Name {
-    fn strict_encode<W: TypedWrite>(&self, writer: W) -> std::io::Result<W> {
-        let iter = self
-            .0
-            .as_bytes()
-            .iter()
-            .map(|c| AsciiPrintable::try_from(*c).unwrap());
-        writer
-            .write_newtype::<Self>(&NonEmptyVec::<AsciiPrintable, 40>::try_from_iter(iter).unwrap())
-    }
-}
+pub struct Name(RString<AsciiPrintable, AsciiPrintable, 1, 40>);
+
 impl StrictSerialize for Name {}
 impl StrictDeserialize for Name {}
 
-impl AsRef<str> for Name {
-    #[inline]
-    fn as_ref(&self) -> &str { self.0.as_str() }
-}
+impl_ident_type!(Name);
+impl_ident_subtype!(Name);
 
 impl Name {
     pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
         Name::from_str(&value.unwrap_string()).unwrap()
-    }
-}
-
-impl StrictDumb for Name {
-    fn strict_dumb() -> Self { Name::from("Dumb contract name") }
-}
-
-// TODO: Ensure all constructors filter invalid characters
-impl FromStr for Name {
-    type Err = InvalidIdent;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let s = AsciiString::from_ascii(s.as_bytes())?;
-        Self::try_from(s)
-    }
-}
-
-impl TryFrom<AsciiString> for Name {
-    type Error = InvalidIdent;
-
-    fn try_from(ascii: AsciiString) -> Result<Self, InvalidIdent> {
-        if ascii.is_empty() {
-            return Err(InvalidIdent::Empty);
-        }
-        if let Some(ch) = ascii
-            .as_slice()
-            .iter()
-            .copied()
-            .find(|ch| AsciiPrintable::try_from(ch.as_byte()).is_err())
-        {
-            return Err(InvalidIdent::InvalidChar(ascii, ch));
-        }
-        let s = Confined::try_from(ascii)?;
-        Ok(Self(s))
-    }
-}
-
-impl From<&'static str> for Name {
-    fn from(s: &'static str) -> Self { Self::from_str(s).expect("invalid ticker name") }
-}
-
-impl TryFrom<String> for Name {
-    type Error = InvalidIdent;
-
-    fn try_from(name: String) -> Result<Self, InvalidIdent> {
-        let name = AsciiString::from_ascii(name.as_bytes())?;
-        Self::try_from(name)
-    }
-}
-
-impl Debug for Name {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("ContractName").field(&self.as_str()).finish()
     }
 }
 
@@ -260,7 +131,7 @@ impl StrictDumb for Details {
 }
 
 impl FromStr for Details {
-    type Err = InvalidIdent;
+    type Err = InvalidRString;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = Confined::try_from_iter(s.chars())?;
@@ -273,9 +144,9 @@ impl From<&'static str> for Details {
 }
 
 impl TryFrom<String> for Details {
-    type Error = InvalidIdent;
+    type Error = InvalidRString;
 
-    fn try_from(name: String) -> Result<Self, InvalidIdent> {
+    fn try_from(name: String) -> Result<Self, InvalidRString> {
         let s = Confined::try_from(name)?;
         Ok(Self(s))
     }
@@ -321,7 +192,7 @@ impl AssetSpec {
         name: &str,
         precision: Precision,
         details: Option<&str>,
-    ) -> Result<AssetSpec, InvalidIdent> {
+    ) -> Result<AssetSpec, InvalidRString> {
         Ok(AssetSpec {
             ticker: Ticker::try_from(ticker.to_owned())?,
             name: Name::try_from(name.to_owned())?,
@@ -376,7 +247,7 @@ impl AsRef<str> for RicardianContract {
 }
 
 impl FromStr for RicardianContract {
-    type Err = InvalidIdent;
+    type Err = InvalidRString;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = Confined::try_from_iter(s.chars())?;

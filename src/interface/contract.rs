@@ -30,9 +30,9 @@ use rgb::{
 };
 use strict_encoding::{FieldName, StrictDecode, StrictDumb, StrictEncode};
 use strict_types::typify::TypedVal;
-use strict_types::{decode, StrictVal};
+use strict_types::{decode, StrictVal, TypeSystem};
 
-use crate::interface::{IfaceId, IfaceImpl, OutpointFilter, WitnessFilter};
+use crate::interface::{IfaceImpl, OutpointFilter, WitnessFilter};
 use crate::LIB_NAME_RGB_STD;
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
@@ -179,6 +179,7 @@ impl<C: StateChange> IfaceOp<C> {
 pub struct ContractIface {
     pub state: ContractState,
     pub iface: IfaceImpl,
+    pub types: TypeSystem,
 }
 
 // TODO: Introduce witness checker: additional filter returning only those data
@@ -192,7 +193,6 @@ impl ContractIface {
     /// implementations.
     pub fn global(&self, name: impl Into<FieldName>) -> Result<SmallVec<StrictVal>, ContractError> {
         let name = name.into();
-        let type_system = &self.state.schema.types;
         let type_id = self
             .iface
             .global_type(&name)
@@ -207,7 +207,7 @@ impl ContractIface {
         let state = state
             .into_iter()
             .map(|revealed| {
-                type_system
+                self.types
                     .strict_deserialize_type(type_schema.sem_id, revealed.value.as_ref())
                     .map(TypedVal::unbox)
             })
@@ -389,11 +389,4 @@ impl ContractIface {
             witness_filter,
         ))
     }
-
-    pub fn wrap<W: IfaceWrapper>(self) -> W { W::from(self) }
-}
-
-pub trait IfaceWrapper: From<ContractIface> {
-    const IFACE_NAME: &'static str;
-    const IFACE_ID: IfaceId;
 }

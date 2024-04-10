@@ -61,6 +61,7 @@ commit_verify = { workspace = true }
 bp-core = { workspace = true }
 rgb-core = { workspace = true }
 rgb-invoice = { version = "0.11.0-beta.5", path = "invoice" }
+aluvm = "0.11.0-beta.5"
 baid58 = { workspace = true }
 base85 = "=2.0.0"
 chrono = "0.4.31"
@@ -95,9 +96,14 @@ wasm-bindgen-test = "0.3"
 features = ["all"]
 
 [patch.crates-io]
-strict_types = { git = "https://github.com/strict-types/strict-types", branch = "master" }
+strict_encoding_derive = { git = "https://github.com/strict-types/strict-encoding", branch = "rstring" }
+strict_encoding = { git = "https://github.com/strict-types/strict-encoding", branch = "rstring" }
+strict_types = { git = "https://github.com/strict-types/strict-types", branch = "develop" }
+commit_verify = { git = "https://github.com/LNP-BP/client_side_validation", branch = "v0.11" }
+single_use_seals = { git = "https://github.com/LNP-BP/client_side_validation", branch = "v0.11" }
 bp-consensus = { git = "https://github.com/BP-WG/bp-core", branch = "v0.11" }
 bp-dbc = { git = "https://github.com/BP-WG/bp-core", branch = "v0.11" }
 bp-seals = { git = "https://github.com/BP-WG/bp-core", branch = "v0.11" }
 bp-core = { git = "https://github.com/BP-WG/bp-core", branch = "v0.11" }
-rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "v0.11" }
+rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "script-refactor" }
+aluvm = { git = "https://github.com/AluVM/rust-aluvm", branch = "v0.11" }

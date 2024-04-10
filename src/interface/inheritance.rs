@@ -19,11 +19,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use amplify::confinement::{TinyOrdMap, TinyOrdSet};
 use rgb::{
-    AssignmentType, ExtensionType, GlobalStateType, OpFullType, OpSchema, Schema, TransitionType,
-    ValencyType,
+    AssignmentType, ExtensionType, GlobalStateType, Occurrences, OpFullType, OpSchema, Schema,
+    TransitionType, ValencyType,
 };
-use strict_types::SemId;
+use strict_encoding::{FieldName, TypeName};
+
+use crate::interface::{
+    ExtensionIface, GenesisIface, Iface, Modifier, OpName, OwnedIface, TransitionIface,
+};
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, From)]
 #[cfg_attr(
@@ -49,13 +54,6 @@ pub enum InheritanceFailure {
     /// type #{0}.
     ExtensionTypeMismatch(ExtensionType),
 
-    /// invalid schema - no match with root schema requirements for metadata
-    /// type (required {expected}, found {actual}).
-    OpMetaMismatch {
-        op_type: OpFullType,
-        expected: SemId,
-        actual: SemId,
-    },
     /// invalid schema - no match with root schema requirements for global state
     /// type #{1} used in {0}.
     OpGlobalStateMismatch(OpFullType, GlobalStateType),
@@ -166,14 +164,6 @@ where T: OpSchema
     ) -> Result<(), Vec<InheritanceFailure>> {
         let mut status = vec![];
 
-        if self.metadata() != root.metadata() {
-            status.push(InheritanceFailure::OpMetaMismatch {
-                op_type,
-                expected: root.metadata(),
-                actual: self.metadata(),
-            });
-        }
-
         for (type_id, occ) in self.globals() {
             match root.globals().get(type_id) {
                 None => status.push(InheritanceFailure::OpGlobalStateMismatch(op_type, *type_id)),
@@ -230,35 +220,6 @@ where T: OpSchema
     }
 }
 
-// RGB standard library for working with smart contracts on Bitcoin & Lightning
-//
-// SPDX-License-Identifier: Apache-2.0
-//
-// Written in 2019-2024 by
-//     Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
-//
-// Copyright (C) 2019-2024 LNP/BP Standards Association. All rights reserved.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
-use amplify::confinement::{TinyOrdMap, TinyOrdSet};
-use rgb::Occurrences;
-use strict_encoding::{FieldName, TypeName};
-
-use crate::interface::{
-    ExtensionIface, GenesisIface, Iface, Modifier, OpName, OwnedIface, TransitionIface,
-};
-
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display, Error)]
 #[display("{iface} {err}")]
 pub struct InheritError {
@@ -307,9 +268,6 @@ pub enum ExtensionError {
     OpDefaultOverride(OpName),
     /// {0} tries to override '{2}' {1}.
     OpOcc(OpName, &'static str, FieldName),
-    /// interface can't inherit from the given parents since the number of data
-    /// types used by all of them exceeds maximum number.
-    TypesOverflow,
     /// too deep inheritance; it is not allowed for any interface to have more
     /// than 255 parents it inherits from, including all grandparents.
     InheritanceOverflow,
@@ -392,14 +350,14 @@ impl Iface {
         }
     }
 
-    pub fn extended(mut self, ext: Iface) -> Result<Iface, Vec<ExtensionError>> {
-        let parent_id = ext.iface_id();
+    pub fn extended(mut self, parent: Iface) -> Result<Iface, Vec<ExtensionError>> {
+        let parent_id = parent.iface_id();
 
         let mut errors = vec![];
-        self.name = ext.name;
+        self.name = parent.name;
 
         let mut overflow = false;
-        for (name, e) in ext.global_state {
+        for (name, e) in parent.global_state {
             match self.global_state.get_mut(&name) {
                 None if overflow => continue,
                 None => {
@@ -424,7 +382,7 @@ impl Iface {
         }
 
         overflow = false;
-        for (name, e) in ext.assignments {
+        for (name, e) in parent.assignments {
             match self.assignments.get_mut(&name) {
                 None if overflow => continue,
                 None => {
@@ -451,7 +409,7 @@ impl Iface {
         }
 
         overflow = false;
-        for (name, e) in ext.valencies {
+        for (name, e) in parent.valencies {
             match self.valencies.get_mut(&name) {
                 None if overflow => continue,
                 None => {
@@ -475,13 +433,13 @@ impl Iface {
 
         self.clone()
             .genesis
-            .extended(ext.genesis)
+            .extended(parent.genesis)
             .map(|genesis| self.genesis = genesis)
             .map_err(|errs| errors.extend(errs))
             .ok();
 
         overflow = false;
-        for (name, op) in ext.transitions {
+        for (name, op) in parent.transitions {
             match self.transitions.remove(&name) {
                 Ok(None) if overflow => continue,
                 Ok(None) if op.optional => continue,
@@ -505,7 +463,7 @@ impl Iface {
         }
 
         overflow = false;
-        for (name, op) in ext.extensions {
+        for (name, op) in parent.extensions {
             match self.extensions.remove(&name) {
                 Ok(None) if overflow => continue,
                 Ok(None) if op.optional => continue,
@@ -530,27 +488,22 @@ impl Iface {
 
         // We allow replacing error messages
         self.errors
-            .extend(ext.errors)
+            .extend(parent.errors)
             .map_err(|_| errors.push(ExtensionError::ErrorOverflow))
             .ok();
 
-        if ext.default_operation.is_some() {
-            if self.default_operation.is_some() && self.default_operation != ext.default_operation {
+        if parent.default_operation.is_some() {
+            if self.default_operation.is_some() &&
+                self.default_operation != parent.default_operation
+            {
                 errors.push(ExtensionError::DefaultOverride);
             } else {
-                self.default_operation = ext.default_operation
+                self.default_operation = parent.default_operation
             }
         }
 
-        if self.types != ext.types {
-            self.types
-                .extend(ext.types.into_strict())
-                .map_err(|_| errors.push(ExtensionError::TypesOverflow))
-                .ok();
-        }
-
         self.inherits
-            .extend(ext.inherits)
+            .extend(parent.inherits)
             .and_then(|_| self.inherits.push(parent_id))
             .map_err(|_| errors.push(ExtensionError::InheritanceOverflow))
             .ok();

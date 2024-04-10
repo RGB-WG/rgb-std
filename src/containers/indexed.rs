@@ -24,11 +24,12 @@ use std::ops::Deref;
 
 use amplify::confinement::Collection;
 use commit_verify::Conceal;
-use rgb::validation::ConsignmentApi;
+use rgb::validation::{ConsignmentApi, Scripts};
 use rgb::{
     AnchorSet, AssetTag, AssignmentType, BundleId, Extension, Genesis, OpId, OpRef, Operation,
     Schema, Transition, TransitionBundle, XChain, XWitnessId,
 };
+use strict_types::TypeSystem;
 
 use super::Consignment;
 use crate::containers::anchors::ToWitnessId;
@@ -38,6 +39,7 @@ use crate::SecretSeal;
 #[derive(Clone, Debug)]
 pub struct IndexedConsignment<'c, const TYPE: bool> {
     consignment: &'c Consignment<TYPE>,
+    scripts: Scripts,
     anchor_idx: BTreeMap<BundleId, (XWitnessId, AnchorSet)>,
     bundle_idx: BTreeMap<BundleId, &'c TransitionBundle>,
     op_witness_idx: BTreeMap<OpId, XWitnessId>,
@@ -73,8 +75,15 @@ impl<'c, const TYPE: bool> IndexedConsignment<'c, TYPE> {
         for extension in &consignment.extensions {
             extension_idx.insert(extension.id(), extension);
         }
+        let scripts = Scripts::from_iter_unsafe(
+            consignment
+                .scripts
+                .iter()
+                .map(|lib| (lib.id(), lib.clone())),
+        );
         Self {
             consignment,
+            scripts,
             anchor_idx,
             bundle_idx,
             op_witness_idx,
@@ -95,6 +104,10 @@ impl<'c, const TYPE: bool> IndexedConsignment<'c, TYPE> {
 
 impl<'c, const TYPE: bool> ConsignmentApi for IndexedConsignment<'c, TYPE> {
     fn schema(&self) -> &Schema { &self.schema }
+
+    fn types(&self) -> &TypeSystem { &self.types }
+
+    fn scripts(&self) -> &Scripts { &self.scripts }
 
     #[inline]
     fn asset_tags<'iter>(&self) -> impl Iterator<Item = (AssignmentType, AssetTag)> + 'iter {

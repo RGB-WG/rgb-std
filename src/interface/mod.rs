@@ -27,9 +27,6 @@ mod iface;
 mod iimpl;
 mod contract;
 mod builder;
-pub mod rgb20;
-pub mod rgb21;
-pub mod rgb25;
 mod suppl;
 mod filters;
 pub(crate) mod resolver;
@@ -39,22 +36,16 @@ mod inheritance;
 pub use builder::{BuilderError, ContractBuilder, TransitionBuilder, TxOutpoint};
 pub use contract::{
     AllocatedState, AttachAllocation, AttachedState, ContractError, ContractIface, DataAllocation,
-    FungibleAllocation, IfaceOp, IfaceWrapper, OwnedAllocation, RightsAllocation, StateChange,
+    FungibleAllocation, IfaceOp, OwnedAllocation, RightsAllocation, StateChange,
 };
 pub use contractum::IfaceDisplay;
 pub use filters::{FilterExclude, FilterIncludeAll, OutpointFilter, WitnessFilter};
 pub use iface::{
     ArgMap, AssignIface, ExtensionIface, GenesisIface, GlobalIface, Iface, IfaceId,
-    IfaceInconsistency, Modifier, OpName, OwnedIface, Req, TransitionIface, ValencyIface,
+    IfaceInconsistency, IfaceRef, Modifier, OpName, OwnedIface, Req, TransitionIface, ValencyIface,
 };
-pub use iimpl::{
-    IfaceClass, IfaceImpl, IfacePair, ImplId, IssuerClass, IssuerTriplet, NamedField, NamedType,
-    SchemaIfaces, SchemaIssuer, SchemaTypeIndex, WrongImplementation,
-};
+pub use iimpl::{IfaceImpl, ImplId, NamedField, NamedType, SchemaTypeIndex};
 pub use inheritance::{CheckInheritance, ExtensionError, InheritanceFailure};
-pub use rgb20::{AmountChange, Rgb20};
-pub use rgb21::{Rgb21, LIB_ID_RGB21, LIB_NAME_RGB21};
-pub use rgb25::Rgb25;
 pub use suppl::{ContractSuppl, OwnedStateSuppl, SupplId, TickerSuppl, VelocityHint};
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, Default)]

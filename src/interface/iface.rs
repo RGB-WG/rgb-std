@@ -28,7 +28,7 @@ use amplify::confinement::{TinyOrdMap, TinyOrdSet, TinyString};
 use amplify::{ByteArray, Bytes32};
 use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
 use commit_verify::{CommitId, CommitmentId, DigestExt, Sha256};
-use rgb::{Issuer, Occurrences, Types};
+use rgb::{Identity, Occurrences};
 use strict_encoding::{
     FieldName, StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize,
     StrictType, TypeName, VariantName,
@@ -92,6 +92,16 @@ impl FromStr for IfaceId {
 impl IfaceId {
     pub const fn from_array(id: [u8; 32]) -> Self { IfaceId(Bytes32::from_array(id)) }
     pub fn to_mnemonic(&self) -> String { self.to_baid58().mnemonic() }
+}
+
+#[derive(Clone, Debug, Display, From)]
+#[display(inner)]
+pub enum IfaceRef {
+    #[from]
+    #[from(&'static str)]
+    Name(TypeName),
+    #[from]
+    Id(IfaceId),
 }
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
@@ -224,6 +234,16 @@ pub enum OwnedIface {
     Data(SemId),
 }
 
+impl OwnedIface {
+    pub fn sem_id(&self) -> Option<SemId> {
+        if let Self::Data(id) = self {
+            Some(*id)
+        } else {
+            None
+        }
+    }
+}
+
 pub type ArgMap = TinyOrdMap<FieldName, Occurrences>;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Display, Default)]
@@ -243,7 +263,7 @@ pub enum Modifier {
     Final = 0xFF,
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(
@@ -260,7 +280,7 @@ pub struct GenesisIface {
     pub errors: TinyOrdSet<VariantName>,
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(
@@ -281,7 +301,7 @@ pub struct ExtensionIface {
     pub default_assignment: Option<FieldName>,
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(
@@ -303,7 +323,7 @@ pub struct TransitionIface {
 }
 
 /// Interface definition.
-#[derive(Clone, Eq, Debug)]
+#[derive(Clone, Eq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[derive(CommitEncode)]
@@ -317,7 +337,6 @@ pub struct Iface {
     pub version: VerNo,
     pub name: TypeName,
     pub inherits: TinyOrdSet<IfaceId>,
-    pub developer: Issuer,
     pub timestamp: i64,
     pub global_state: TinyOrdMap<FieldName, GlobalIface>,
     pub assignments: TinyOrdMap<FieldName, AssignIface>,
@@ -327,7 +346,7 @@ pub struct Iface {
     pub extensions: TinyOrdMap<FieldName, ExtensionIface>,
     pub default_operation: Option<FieldName>,
     pub errors: TinyOrdMap<VariantName, TinyString>,
-    pub types: Types,
+    pub developer: Identity,
 }
 
 impl PartialEq for Iface {
@@ -355,6 +374,21 @@ impl Iface {
         sys: &'a SymbolicSys,
     ) -> IfaceDisplay<'a> {
         IfaceDisplay::new(self, externals, sys)
+    }
+
+    pub fn types(&self) -> impl Iterator<Item = SemId> + '_ {
+        self.genesis
+            .metadata
+            .iter()
+            .copied()
+            .chain(self.global_state.values().filter_map(|i| i.sem_id))
+            .chain(self.extensions.values().filter_map(|i| i.metadata))
+            .chain(self.transitions.values().filter_map(|i| i.metadata))
+            .chain(
+                self.assignments
+                    .values()
+                    .filter_map(|i| i.owned_state.sem_id()),
+            )
     }
 
     pub fn check(&self) -> Result<(), Vec<IfaceInconsistency>> {
@@ -509,7 +543,7 @@ impl Iface {
 
     // TODO: Implement checking types against presence in a type system.
     /*
-    pub fn check_types(&self, sys: &SymbolicSys) -> Result<(), Vec<IfaceTypeError>> {
+    pub fn check_types(&self, sys: &TypeSystem) -> Result<(), Vec<IfaceTypeError>> {
         for g in self.global_state.values() {
             if let Some(id) = g.sem_id {
 

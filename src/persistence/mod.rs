@@ -22,27 +22,24 @@
 //! Module defines API used by providers of persistent data for RGB contracts.
 //!
 //! These data include:
-//! 1. [`Stash`]: a consensus-critical data for client-side-validation which
-//!    must be preserved and backed up.
+//! 1. [`StashProvider`]: a consensus-critical data for client-side-validation
+//!    which must be preserved and backed up.
 //! 2. [`rgb::ContractState`], updated with each enclosed consignment and
 //!    disclosure.
 //! 3. Index over stash, which simplifies construction of a new consignments.
-//! 4. [`Inventory`], which abstracts stash, contract states and index for
-//!    complex operations requiring participation of all of them.
+//! 4. [`InventoryProvider`], which abstracts stash, contract states and index
+//!    for complex operations requiring participation of all of them.
 //!
 //! 2-4 data can be re-computed from the stash in case of loss or corruption.
 
 mod stash;
 mod inventory;
-pub mod stock;
-pub mod hoard;
-mod state;
 
-pub use hoard::Hoard;
 pub use inventory::{
-    ComposeError, ConsignerError, Inventory, InventoryDataError, InventoryError,
-    InventoryInconsistency,
+    ComposeError, ConsignError, FasciaError, Inventory, InventoryError, InventoryProvider,
+    InventoryReadProvider, InventoryWriteProvider, PersistedState,
 };
-pub use stash::{Stash, StashError, StashInconsistency};
-pub use state::PersistedState;
-pub use stock::Stock;
+pub use stash::{
+    SchemaIfaces, Stash, StashDataError, StashError, StashProvider, StashReadProvider,
+    StashWriteProvider,
+};
