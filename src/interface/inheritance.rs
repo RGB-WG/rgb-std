@@ -330,10 +330,7 @@ impl OwnedIface {
 impl Modifier {
     pub fn is_final(self) -> bool { self == Self::Final }
     pub fn can_be_overriden_by(self, other: Modifier) -> bool {
-        match (self, other) {
-            (Self::Abstract | Self::Override, Self::Override | Self::Final) => true,
-            _ => false,
-        }
+        matches!((self, other), (Self::Abstract | Self::Override, Self::Override | Self::Final))
     }
 }
 
@@ -414,7 +411,7 @@ impl Iface {
                 Some(orig) => {
                     if orig.sem_id.is_some() && e.sem_id != orig.sem_id {
                         errors.push(ExtensionError::GlobalType(name));
-                    } else if orig.required > e.required || orig.multiple > e.multiple {
+                    } else if orig.required & !e.required || orig.multiple & !e.multiple {
                         errors.push(ExtensionError::GlobalOcc(name));
                     } else {
                         *orig = e;
@@ -439,9 +436,9 @@ impl Iface {
                 Some(orig) => {
                     if !orig.owned_state.is_superset(e.owned_state) {
                         errors.push(ExtensionError::AssignmentType(name));
-                    } else if orig.required > e.required || orig.multiple > e.multiple {
+                    } else if orig.required & !e.required || orig.multiple & !e.multiple {
                         errors.push(ExtensionError::AssignmentOcc(name));
-                    } else if orig.public > e.public {
+                    } else if orig.public & !e.public {
                         errors.push(ExtensionError::AssignmentPublic(name));
                     } else {
                         *orig = e;
@@ -464,7 +461,7 @@ impl Iface {
                         .ok();
                 }
                 Some(orig) => {
-                    if orig.required > e.required {
+                    if orig.required & !e.required {
                         errors.push(ExtensionError::ValencyOcc(name));
                     } else {
                         *orig = e;

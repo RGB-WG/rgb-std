@@ -20,6 +20,7 @@
 // limitations under the License.
 
 use std::cmp::Ordering;
+use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::error::Error;
 use std::ops::Deref;
@@ -680,9 +681,9 @@ pub trait Inventory: Deref<Target = Self::Stash> {
                 }
             }
 
-            if !bundled_witnesses.contains_key(&bundle_id) {
+            if let Entry::Vacant(entry) = bundled_witnesses.entry(bundle_id) {
                 let bw = self.bundled_witness(bundle_id)?;
-                bundled_witnesses.insert(bundle_id, bw);
+                entry.insert(bw);
             }
         }
 
