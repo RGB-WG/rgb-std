@@ -17,7 +17,7 @@ homepage = "https://github.com/RGB-WG"
 repository = "https://github.com/RGB-WG/rgb-std"
 keywords = ["bitcoin", "lightning", "rgb", "smart-contracts", "lnp-bp"]
 categories = ["cryptography::cryptocurrencies"]
-rust-version = "1.69.0" # Due to TOML dependency in amplify crate
+rust-version = "1.75.0" # Due to rgb-core
 edition = "2021"
 license = "Apache-2.0"
 
