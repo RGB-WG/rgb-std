@@ -40,9 +40,7 @@ use strict_types::typesys::UnknownType;
 use strict_types::TypeSystem;
 
 use crate::accessors::{MergeReveal, MergeRevealError};
-use crate::containers::{
-    BundledWitness, Cert, Consignment, ContentId, Kit, SealWitness, ToWitnessId,
-};
+use crate::containers::{BundledWitness, Cert, Consignment, ContentId, Kit, SealWitness};
 use crate::interface::{
     ContractBuilder, ContractSuppl, Iface, IfaceId, IfaceImpl, IfaceRef, TransitionBuilder,
 };
@@ -103,6 +101,10 @@ pub enum StashInconsistency {
 
     /// interface {0::<0} is not implemented for the schema {1::<0}.
     IfaceImplAbsent(IfaceId, SchemaId),
+
+    /// no known implementations of {0::<0} parent interfaces for the schema
+    /// {1::<0}.
+    NoAbstractImpl(IfaceId, SchemaId),
 
     /// transition {0} is absent.
     OperationAbsent(OpId),
@@ -381,7 +383,7 @@ impl<P: StashProvider> Stash<P> {
             Err(_) => consignment.genesis,
         };
         self.provider
-            .consume_genesis(genesis, consignment.asset_tags)
+            .consume_genesis(genesis)
             .map_err(StashError::WriteProvider)?;
 
         for extension in consignment.extensions {
@@ -432,48 +434,25 @@ impl<P: StashProvider> Stash<P> {
         bundled_witness: BundledWitness,
     ) -> Result<(), StashError<P>> {
         let BundledWitness {
-            mut pub_witness,
+            pub_witness,
             anchored_bundles,
         } = bundled_witness;
 
         // TODO: Save pub witness transaction and SPVs
 
-        let witness_id = pub_witness.to_witness_id();
-        let anchor_set = anchored_bundles.to_anchor_set();
-
-        let mut bundles = anchored_bundles.into_bundles();
-        let mut bundle = bundles.next().expect("there always at least one bundle");
-        let mut bundle_id = bundle.bundle_id();
-
-        let mut anchor = anchor_set.to_merkle_block(contract_id, bundle_id)?;
-        if let Ok(witness) = self.provider.witness(witness_id) {
-            anchor = witness.anchor.clone().merge_reveal(anchor)?;
-            pub_witness = witness.public.clone().merge_reveal(pub_witness)?;
-        }
-
-        loop {
-            bundle = match self.provider.bundle(bundle_id) {
-                Ok(b) => b.clone().merge_reveal(bundle)?,
-                Err(_) => bundle,
-            };
+        for bundle in anchored_bundles.bundles() {
             self.provider
-                .consume_bundle(bundle)
+                .consume_bundle(bundle.clone())
                 .map_err(StashError::WriteProvider)?;
-            match bundles.next() {
-                Some(b) => {
-                    bundle_id = b.bundle_id();
-                    bundle = b;
-                }
-                None => break,
-            };
-        }
 
-        self.provider
-            .consume_witness(SealWitness {
-                public: pub_witness,
-                anchor,
-            })
-            .map_err(StashError::WriteProvider)?;
+            let anchors = anchored_bundles.to_anchor_set(contract_id, bundle.bundle_id())?;
+            self.provider
+                .consume_witness(SealWitness {
+                    public: pub_witness.clone(),
+                    anchors,
+                })
+                .map_err(StashError::WriteProvider)?;
+        }
 
         Ok(())
     }
@@ -535,11 +514,7 @@ pub trait StashWriteProvider {
     fn consume_iface(&mut self, iface: Iface) -> Result<bool, Self::Error>;
     fn consume_iimpl(&mut self, iimpl: IfaceImpl) -> Result<bool, Self::Error>;
     fn consume_suppl(&mut self, suppl: ContractSuppl) -> Result<bool, Self::Error>;
-    fn consume_genesis(
-        &mut self,
-        genesis: Genesis,
-        asset_tags: TinyOrdMap<AssignmentType, AssetTag>,
-    ) -> Result<bool, Self::Error>;
+    fn consume_genesis(&mut self, genesis: Genesis) -> Result<bool, Self::Error>;
     fn consume_extension(&mut self, extension: Extension) -> Result<bool, Self::Error>;
     fn consume_bundle(&mut self, bundle: TransitionBundle) -> Result<bool, Self::Error>;
     fn consume_witness(&mut self, witness: SealWitness) -> Result<bool, Self::Error>;

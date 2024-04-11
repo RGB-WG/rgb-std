@@ -20,6 +20,7 @@
 // limitations under the License.
 
 use std::cmp::Ordering;
+use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::convert::Infallible;
 use std::error::Error;
@@ -38,10 +39,10 @@ use rgb::{
 };
 use strict_encoding::FieldName;
 
-use crate::accessors::{MergeReveal, MergeRevealError, RevealError};
+use crate::accessors::{MergeRevealError, RevealError};
 use crate::containers::{
     Batch, BuilderSeal, BundledWitness, Consignment, ContainerVer, Contract, Fascia, SealWitness,
-    Terminal, TerminalSeal, Transfer, TransitionInfo,
+    Terminal, TerminalSeal, Transfer, TransitionInfo, TransitionInfoError,
 };
 use crate::interface::{
     AttachedState, BuilderError, ContractBuilder, ContractIface, IfaceRef, TransitionBuilder,
@@ -161,6 +162,10 @@ pub enum ComposeError {
     /// the spent UTXOs contain too many seals which can't fit the state
     /// transition input limit.
     TooManyInputs,
+
+    #[from]
+    #[display(inner)]
+    Transition(TransitionInfoError),
 
     /// the operation produces too many blank state transitions which can't fit
     /// the container requirements.
@@ -355,10 +360,11 @@ impl<S: StashProvider, P: InventoryProvider> Inventory<S, P> {
         &mut self,
         fascia: Fascia,
     ) -> Result<(), InventoryError<S, P, FasciaError>> {
+        let witness_id = fascia.witness_id;
         self.provider
-            .consume_witness(SealWitness::new(fascia.witness_id, fascia.anchor))
+            .consume_witness(SealWitness::new(fascia.witness_id, fascia.anchor.clone()))
             .map_err(InventoryError::InventoryWrite)?;
-        for (contract_id, bundle) in fascia.bundles {
+        for (contract_id, bundle) in fascia.into_bundles() {
             let ids1 = bundle
                 .known_transitions
                 .keys()
@@ -369,7 +375,7 @@ impl<S: StashProvider, P: InventoryProvider> Inventory<S, P> {
                 return Err(FasciaError::InvalidBundle(contract_id, bundle.bundle_id()).into());
             }
             self.provider
-                .consume_bundle(contract_id, bundle, fascia.witness_id)
+                .consume_bundle(contract_id, bundle, witness_id)
                 .map_err(InventoryError::InventoryWrite)?;
         }
         Ok(())
@@ -478,12 +484,12 @@ impl<S: StashProvider, P: InventoryProvider> Inventory<S, P> {
                 }
             }
 
-            if !bundled_witnesses.contains_key(&bundle_id) {
+            if let Entry::Vacant(entry) = bundled_witnesses.entry(bundle_id) {
                 let bw = self
                     .provider
                     .bundled_witness(bundle_id)
                     .map_err(InventoryError::<_, _, Infallible>::InventoryRead)?;
-                bundled_witnesses.insert(bundle_id, bw);
+                entry.insert(bw);
             }
         }
 
@@ -556,7 +562,6 @@ impl<S: StashProvider, P: InventoryProvider> Inventory<S, P> {
 
             schema: schema_ifaces.schema,
             ifaces,
-            asset_tags: none!(),
             genesis,
             terminals,
             bundles,

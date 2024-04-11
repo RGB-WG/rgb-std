@@ -26,8 +26,8 @@ use amplify::confinement::Collection;
 use commit_verify::Conceal;
 use rgb::validation::{ConsignmentApi, Scripts};
 use rgb::{
-    AnchorSet, AssetTag, AssignmentType, BundleId, Extension, Genesis, OpId, OpRef, Operation,
-    Schema, Transition, TransitionBundle, XChain, XWitnessId,
+    BundleId, EAnchor, Extension, Genesis, OpId, OpRef, Operation, Schema, Transition,
+    TransitionBundle, XChain, XWitnessId,
 };
 use strict_types::TypeSystem;
 
@@ -40,7 +40,7 @@ use crate::SecretSeal;
 pub struct IndexedConsignment<'c, const TYPE: bool> {
     consignment: &'c Consignment<TYPE>,
     scripts: Scripts,
-    anchor_idx: BTreeMap<BundleId, (XWitnessId, AnchorSet)>,
+    anchor_idx: BTreeMap<BundleId, (XWitnessId, EAnchor)>,
     bundle_idx: BTreeMap<BundleId, &'c TransitionBundle>,
     op_witness_idx: BTreeMap<OpId, XWitnessId>,
     op_bundle_idx: BTreeMap<OpId, BundleId>,
@@ -61,11 +61,11 @@ impl<'c, const TYPE: bool> IndexedConsignment<'c, TYPE> {
         let mut op_bundle_idx = BTreeMap::new();
         let mut extension_idx = BTreeMap::new();
         for bw in &consignment.bundles {
-            for bundle in bw.anchored_bundles.bundles() {
+            for (anchor, bundle) in bw.anchored_bundles.pairs() {
                 let bundle_id = bundle.bundle_id();
                 let witness_id = bw.pub_witness.to_witness_id();
                 bundle_idx.insert(bundle_id, bundle);
-                anchor_idx.insert(bundle_id, (witness_id, bw.anchored_bundles.to_anchor_set()));
+                anchor_idx.insert(bundle_id, (witness_id, anchor));
                 for opid in bundle.known_transitions.keys() {
                     op_witness_idx.insert(*opid, witness_id);
                     op_bundle_idx.insert(*opid, bundle_id);
@@ -109,11 +109,6 @@ impl<'c, const TYPE: bool> ConsignmentApi for IndexedConsignment<'c, TYPE> {
 
     fn scripts(&self) -> &Scripts { &self.scripts }
 
-    #[inline]
-    fn asset_tags<'iter>(&self) -> impl Iterator<Item = (AssignmentType, AssetTag)> + 'iter {
-        self.asset_tags.to_inner().into_iter()
-    }
-
     fn operation(&self, opid: OpId) -> Option<OpRef> {
         if opid == self.genesis.id() {
             return Some(OpRef::Genesis(&self.genesis));
@@ -147,7 +142,7 @@ impl<'c, const TYPE: bool> ConsignmentApi for IndexedConsignment<'c, TYPE> {
         self.bundle_idx.get(&bundle_id).copied()
     }
 
-    fn anchors(&self, bundle_id: BundleId) -> Option<(XWitnessId, &AnchorSet)> {
+    fn anchor(&self, bundle_id: BundleId) -> Option<(XWitnessId, &EAnchor)> {
         self.anchor_idx.get(&bundle_id).map(|(id, set)| (*id, set))
     }
 

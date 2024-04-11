@@ -34,8 +34,8 @@ use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
 use commit_verify::{CommitEncode, CommitEngine, CommitId, CommitmentId, DigestExt, Sha256};
 use rgb::validation::{ResolveWitness, Validator, Validity, Warning, CONSIGNMENT_MAX_LIBS};
 use rgb::{
-    validation, AssetTag, AssignmentType, AttachId, BundleId, ContractHistory, ContractId,
-    Extension, Genesis, GraphSeal, Operation, Schema, SchemaId, XChain,
+    validation, AttachId, BundleId, ContractHistory, ContractId, Extension, Genesis, GraphSeal,
+    Operation, Schema, SchemaId, XChain,
 };
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 use strict_types::TypeSystem;
@@ -152,9 +152,6 @@ pub struct Consignment<const TYPE: bool> {
     /// contract.
     pub transfer: bool,
 
-    /// Confidential asset tags.
-    pub asset_tags: TinyOrdMap<AssignmentType, AssetTag>,
-
     /// Set of seals which are history terminals.
     pub terminals: SmallOrdMap<BundleId, Terminal>,
 
@@ -206,7 +203,6 @@ impl<const TYPE: bool> CommitEncode for Consignment<TYPE> {
 
         e.commit_to_serialized(&self.contract_id());
         e.commit_to_serialized(&self.genesis.disclose_hash());
-        e.commit_to_map(&self.asset_tags);
         e.commit_to_set(&TinyOrdSet::from_iter_unsafe(
             self.ifaces.values().map(|iimpl| iimpl.impl_id()),
         ));
@@ -326,7 +322,6 @@ impl<const TYPE: bool> Consignment<TYPE> {
             ifaces: self.ifaces,
             supplements: self.supplements,
             types: self.types,
-            asset_tags: self.asset_tags,
             genesis: self.genesis,
             terminals: self.terminals,
             bundles: self.bundles,

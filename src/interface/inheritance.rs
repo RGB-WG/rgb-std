@@ -19,7 +19,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use amplify::confinement::{TinyOrdMap, TinyOrdSet};
+use amplify::confinement::{Confined, TinyOrdMap, TinyOrdSet};
 use rgb::{
     AssignmentType, ExtensionType, GlobalStateType, Occurrences, OpFullType, OpSchema, Schema,
     TransitionType, ValencyType,
@@ -27,7 +27,7 @@ use rgb::{
 use strict_encoding::{FieldName, TypeName};
 
 use crate::interface::{
-    ExtensionIface, GenesisIface, Iface, Modifier, OpName, OwnedIface, TransitionIface,
+    ExtensionIface, GenesisIface, Iface, IfaceImpl, Modifier, OpName, OwnedIface, TransitionIface,
 };
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, From)]
@@ -288,10 +288,7 @@ impl OwnedIface {
 impl Modifier {
     pub fn is_final(self) -> bool { self == Self::Final }
     pub fn can_be_overriden_by(self, other: Modifier) -> bool {
-        match (self, other) {
-            (Self::Abstract | Self::Override, Self::Override | Self::Final) => true,
-            _ => false,
-        }
+        matches!((self, other), (Self::Abstract | Self::Override, Self::Override | Self::Final))
     }
 }
 
@@ -317,31 +314,32 @@ impl Iface {
         name: impl Into<TypeName>,
         ifaces: impl IntoIterator<Item = Iface>,
     ) -> Result<Iface, Vec<InheritError>> {
+        let name = name.into();
         let mut iter = ifaces.into_iter();
         let mut iface = iter
             .next()
             .expect("at least one interface must be provided for the inheritance");
         for ext in iter {
-            let name = ext.name.clone();
-            iface = iface.extended(ext).map_err(|err| {
+            let ext_name = ext.name.clone();
+            iface = iface.extended(ext, name.clone()).map_err(|err| {
                 err.into_iter()
                     .map(|e| InheritError {
                         err: e,
-                        iface: name.clone(),
+                        iface: ext_name.clone(),
                     })
                     .collect::<Vec<_>>()
             })?;
         }
-        iface.name = name.into();
         Ok(iface)
     }
 
-    pub fn expect_extended(self, ext: Iface) -> Iface {
-        let name = self.name.clone();
-        match self.extended(ext) {
+    pub fn expect_extended(self, ext: Iface, name: impl Into<TypeName>) -> Iface {
+        let prev_name = self.name.clone();
+        let ext_name = ext.name.clone();
+        match self.extended(ext, name) {
             Ok(iface) => iface,
             Err(msgs) => {
-                eprintln!("Unable to inherit from {name}:");
+                eprintln!("Unable to extend {prev_name} with {ext_name}:");
                 for msg in msgs {
                     eprintln!("- {msg}")
                 }
@@ -350,29 +348,31 @@ impl Iface {
         }
     }
 
-    pub fn extended(mut self, parent: Iface) -> Result<Iface, Vec<ExtensionError>> {
-        let parent_id = parent.iface_id();
+    pub fn extended(
+        mut self,
+        ext: Iface,
+        name: impl Into<TypeName>,
+    ) -> Result<Iface, Vec<ExtensionError>> {
+        let orig_id = self.iface_id();
 
         let mut errors = vec![];
-        self.name = parent.name;
 
-        let mut overflow = false;
-        for (name, e) in parent.global_state {
+        for (name, e) in ext.global_state {
             match self.global_state.get_mut(&name) {
-                None if overflow => continue,
                 None => {
-                    self.global_state
+                    if self
+                        .global_state
                         .insert(name, e)
-                        .map_err(|_| {
-                            overflow = true;
-                            errors.push(ExtensionError::GlobalOverflow)
-                        })
-                        .ok();
+                        .map_err(|_| errors.push(ExtensionError::GlobalOverflow))
+                        .is_err()
+                    {
+                        break;
+                    }
                 }
                 Some(orig) => {
                     if orig.sem_id.is_some() && e.sem_id != orig.sem_id {
                         errors.push(ExtensionError::GlobalType(name));
-                    } else if orig.required > e.required || orig.multiple > e.multiple {
+                    } else if orig.required & !e.required {
                         errors.push(ExtensionError::GlobalOcc(name));
                     } else {
                         *orig = e;
@@ -381,25 +381,24 @@ impl Iface {
             }
         }
 
-        overflow = false;
-        for (name, e) in parent.assignments {
+        for (name, e) in ext.assignments {
             match self.assignments.get_mut(&name) {
-                None if overflow => continue,
                 None => {
-                    self.assignments
+                    if self
+                        .assignments
                         .insert(name, e)
-                        .map_err(|_| {
-                            overflow = true;
-                            errors.push(ExtensionError::AssignmentOverflow)
-                        })
-                        .ok();
+                        .map_err(|_| errors.push(ExtensionError::AssignmentOverflow))
+                        .is_err()
+                    {
+                        break;
+                    }
                 }
                 Some(orig) => {
                     if !orig.owned_state.is_superset(e.owned_state) {
                         errors.push(ExtensionError::AssignmentType(name));
-                    } else if orig.required > e.required || orig.multiple > e.multiple {
+                    } else if orig.required & !e.required {
                         errors.push(ExtensionError::AssignmentOcc(name));
-                    } else if orig.public > e.public {
+                    } else if orig.public & !e.public {
                         errors.push(ExtensionError::AssignmentPublic(name));
                     } else {
                         *orig = e;
@@ -408,21 +407,20 @@ impl Iface {
             }
         }
 
-        overflow = false;
-        for (name, e) in parent.valencies {
+        for (name, e) in ext.valencies {
             match self.valencies.get_mut(&name) {
-                None if overflow => continue,
                 None => {
-                    self.valencies
+                    if self
+                        .valencies
                         .insert(name, e)
-                        .map_err(|_| {
-                            overflow = true;
-                            errors.push(ExtensionError::ValencyOverflow)
-                        })
-                        .ok();
+                        .map_err(|_| errors.push(ExtensionError::ValencyOverflow))
+                        .is_err()
+                    {
+                        break;
+                    }
                 }
                 Some(orig) => {
-                    if orig.required > e.required {
+                    if orig.required & !e.required {
                         errors.push(ExtensionError::ValencyOcc(name));
                     } else {
                         *orig = e;
@@ -433,24 +431,23 @@ impl Iface {
 
         self.clone()
             .genesis
-            .extended(parent.genesis)
+            .extended(ext.genesis)
             .map(|genesis| self.genesis = genesis)
             .map_err(|errs| errors.extend(errs))
             .ok();
 
-        overflow = false;
-        for (name, op) in parent.transitions {
+        for (name, op) in ext.transitions {
             match self.transitions.remove(&name) {
-                Ok(None) if overflow => continue,
                 Ok(None) if op.optional => continue,
                 Ok(None) => {
-                    self.transitions
+                    if self
+                        .transitions
                         .insert(name, op)
-                        .map_err(|_| {
-                            overflow = true;
-                            errors.push(ExtensionError::TransitionOverflow)
-                        })
-                        .ok();
+                        .map_err(|_| errors.push(ExtensionError::TransitionOverflow))
+                        .is_err()
+                    {
+                        break;
+                    }
                 }
                 Ok(Some(orig)) => {
                     orig.extended(op, name.clone())
@@ -462,19 +459,18 @@ impl Iface {
             }
         }
 
-        overflow = false;
-        for (name, op) in parent.extensions {
+        for (name, op) in ext.extensions {
             match self.extensions.remove(&name) {
-                Ok(None) if overflow => continue,
                 Ok(None) if op.optional => continue,
                 Ok(None) => {
-                    self.extensions
+                    if self
+                        .extensions
                         .insert(name, op)
-                        .map_err(|_| {
-                            overflow = true;
-                            errors.push(ExtensionError::TransitionOverflow)
-                        })
-                        .ok();
+                        .map_err(|_| errors.push(ExtensionError::TransitionOverflow))
+                        .is_err()
+                    {
+                        break;
+                    }
                 }
                 Ok(Some(orig)) => {
                     orig.extended(op, name.clone())
@@ -488,23 +484,22 @@ impl Iface {
 
         // We allow replacing error messages
         self.errors
-            .extend(parent.errors)
+            .extend(ext.errors)
             .map_err(|_| errors.push(ExtensionError::ErrorOverflow))
             .ok();
 
-        if parent.default_operation.is_some() {
-            if self.default_operation.is_some() &&
-                self.default_operation != parent.default_operation
-            {
+        if ext.default_operation.is_some() {
+            if self.default_operation.is_some() && self.default_operation != ext.default_operation {
                 errors.push(ExtensionError::DefaultOverride);
             } else {
-                self.default_operation = parent.default_operation
+                self.default_operation = ext.default_operation
             }
         }
 
+        self.name = name.into();
         self.inherits
-            .extend(parent.inherits)
-            .and_then(|_| self.inherits.push(parent_id))
+            .push(orig_id)
+            .and_then(|_| self.inherits.extend(ext.inherits))
             .map_err(|_| errors.push(ExtensionError::InheritanceOverflow))
             .ok();
 
@@ -523,20 +518,19 @@ fn check_occs(
     state: &'static str,
     errors: &mut Vec<ExtensionError>,
 ) {
-    let mut overflow = false;
     for (name, occ) in ext {
         match orig.get_mut(&name) {
-            None if overflow => continue,
             None => {
-                orig.insert(name, occ)
-                    .map_err(|_| {
-                        overflow = true;
-                        errors.push(ExtensionError::OpOverflow(op.clone(), state))
-                    })
-                    .ok();
+                if orig
+                    .insert(name, occ)
+                    .map_err(|_| errors.push(ExtensionError::OpOverflow(op.clone(), state)))
+                    .is_err()
+                {
+                    break;
+                }
             }
             Some(orig) => {
-                if orig.min_value() > occ.min_value() || orig.max_value() > occ.max_value() {
+                if orig.min_value() > occ.min_value() {
                     errors.push(ExtensionError::OpOcc(op.clone(), state, name));
                 } else {
                     *orig = occ;
@@ -553,17 +547,14 @@ fn check_presence<T: Ord + ToString>(
     state: &'static str,
     errors: &mut Vec<ExtensionError>,
 ) {
-    let mut overflow = false;
     for name in ext {
-        if overflow {
-            continue;
+        if orig
+            .push(name)
+            .map_err(|_| errors.push(ExtensionError::OpOverflow(op.clone(), state)))
+            .is_err()
+        {
+            break;
         }
-        orig.push(name)
-            .map_err(|_| {
-                overflow = true;
-                errors.push(ExtensionError::OpOverflow(op.clone(), state))
-            })
-            .ok();
     }
 }
 
@@ -672,5 +663,55 @@ impl ExtensionIface {
         } else {
             Err(errors)
         }
+    }
+}
+
+impl IfaceImpl {
+    pub fn abstracted(mut self, base: &Iface, parent: &Iface) -> Option<Self> {
+        assert_eq!(self.iface_id, base.iface_id());
+        let parent_id = parent.iface_id();
+        if !base.inherits.contains(&parent_id) {
+            return None;
+        }
+
+        self.global_state =
+            Confined::from_iter_unsafe(base.global_state.keys().filter_map(|name| {
+                self.global_state
+                    .iter()
+                    .find(|i| parent.global_state.contains_key(name) && &i.name == name)
+                    .cloned()
+            }));
+
+        self.assignments = Confined::from_iter_unsafe(base.assignments.keys().filter_map(|name| {
+            self.assignments
+                .iter()
+                .find(|i| parent.assignments.contains_key(name) && &i.name == name)
+                .cloned()
+        }));
+
+        self.valencies = Confined::from_iter_unsafe(base.assignments.keys().filter_map(|name| {
+            self.valencies
+                .iter()
+                .find(|i| parent.valencies.contains_key(name) && &i.name == name)
+                .cloned()
+        }));
+
+        self.transitions = Confined::from_iter_unsafe(base.transitions.keys().filter_map(|name| {
+            self.transitions
+                .iter()
+                .find(|i| parent.transitions.contains_key(name) && &i.name == name)
+                .cloned()
+        }));
+
+        self.extensions = Confined::from_iter_unsafe(base.extensions.keys().filter_map(|name| {
+            self.extensions
+                .iter()
+                .find(|i| parent.extensions.contains_key(name) && &i.name == name)
+                .cloned()
+        }));
+
+        self.iface_id = parent_id;
+
+        Some(self)
     }
 }

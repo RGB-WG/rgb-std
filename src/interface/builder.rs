@@ -29,7 +29,7 @@ use chrono::Utc;
 use invoice::{Allocation, Amount};
 use rgb::validation::Scripts;
 use rgb::{
-    validation, AltLayer1, AltLayer1Set, AssetTag, Assign, AssignmentType, Assignments,
+    validation, AltLayer1, AltLayer1Set, AssetTag, AssetTags, Assign, AssignmentType, Assignments,
     BlindingFactor, ContractId, DataState, ExposedSeal, FungibleType, Genesis, GenesisSeal,
     GlobalState, GraphSeal, Input, Layer1, Opout, OwnedStateSchema, RevealedAttach, RevealedData,
     RevealedValue, Schema, Transition, TransitionType, TypedAssigns, XChain, XOutpoint,
@@ -301,6 +301,7 @@ impl ContractBuilder {
             timestamp,
             testnet: self.testnet,
             alt_layers1: self.alt_layers1,
+            asset_tags,
             metadata: empty!(),
             globals: global,
             assignments,
@@ -316,7 +317,6 @@ impl ContractBuilder {
         let contract = Contract {
             version: ContainerVer::V2,
             transfer: false,
-            asset_tags,
             terminals: none!(),
             genesis,
             extensions: none!(),
@@ -601,7 +601,7 @@ pub struct OperationBuilder<Seal: ExposedSeal> {
     schema: Schema,
     iface: Iface,
     iimpl: IfaceImpl,
-    asset_tags: TinyOrdMap<AssignmentType, AssetTag>,
+    asset_tags: AssetTags,
 
     global: GlobalState,
     rights: TinyOrdMap<AssignmentType, Confined<HashSet<BuilderSeal<Seal>>, 1, U16>>,
@@ -936,15 +936,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
     fn complete(
         self,
         inputs: Option<&TinyOrdMap<Input, PersistedState>>,
-    ) -> (
-        Schema,
-        Iface,
-        IfaceImpl,
-        GlobalState,
-        Assignments<Seal>,
-        TypeSystem,
-        TinyOrdMap<AssignmentType, AssetTag>,
-    ) {
+    ) -> (Schema, Iface, IfaceImpl, GlobalState, Assignments<Seal>, TypeSystem, AssetTags) {
         let owned_state = self.fungible.into_iter().map(|(id, vec)| {
             let mut blindings = Vec::with_capacity(vec.len());
             let mut vec = vec

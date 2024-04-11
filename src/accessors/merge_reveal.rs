@@ -23,11 +23,10 @@ use std::collections::BTreeMap;
 
 use amplify::confinement::Confined;
 use amplify::Wrapper;
-use bp::dbc::anchor::MergeError;
 use bp::Txid;
 use commit_verify::{mpc, Conceal};
 use rgb::{
-    AnchorSet, Assign, Assignments, BundleId, ExposedSeal, ExposedState, Extension, Genesis, OpId,
+    Assign, Assignments, BundleId, EAnchor, ExposedSeal, ExposedState, Extension, Genesis, OpId,
     Operation, Transition, TransitionBundle, TypedAssigns,
 };
 
@@ -38,6 +37,9 @@ pub enum MergeRevealError {
     /// merge-revealed. This usually means internal application business logic
     /// error which should be reported to the software vendor.
     OperationMismatch(OpId, OpId),
+
+    /// mismatch between anchor DBC commitment schemes.
+    DbcMismatch,
 
     /// mismatch in anchor chains: one grip references bitcoin transaction
     /// {bitcoin} and the other merged part references liquid transaction
@@ -50,9 +52,12 @@ pub enum MergeRevealError {
     /// anchors in anchored bundle are not equal for bundle {0}.
     AnchorsNonEqual(BundleId),
 
+    /// anchors for the same witness do not match each other.
+    AnchorsMismatch,
+
     #[from]
     #[display(inner)]
-    AnchorMismatch(MergeError),
+    AnchorMismatch(mpc::MergeError),
 
     /// the merged bundles contain more transitions than inputs.
     InsufficientInputs,
@@ -259,27 +264,13 @@ impl MergeRevealContract for AnchoredBundle {
 }
  */
 
-impl MergeReveal for AnchorSet<mpc::MerkleBlock> {
-    fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {
-        let (tapret1, opret1) = self.into_split();
-        let (tapret2, opret2) = other.into_split();
-
-        let tapret = match (tapret1, tapret2) {
-            (Some(tr), None) | (None, Some(tr)) => Some(tr),
-            (Some(tapret1), Some(tapret2)) => Some(tapret1.merge_reveal(tapret2)?),
-            (None, None) => None,
-        };
-        let opret = match (opret1, opret2) {
-            (Some(or), None) | (None, Some(or)) => Some(or),
-            (Some(opret1), Some(opret2)) => Some(opret1.merge_reveal(opret2)?),
-            (None, None) => None,
-        };
-        Ok(match (tapret, opret) {
-            (Some(tapret), None) => Self::Tapret(tapret),
-            (None, Some(opret)) => Self::Opret(opret),
-            (Some(tapret), Some(opret)) => Self::Dual { tapret, opret },
-            _ => unreachable!(),
-        })
+impl MergeReveal for EAnchor<mpc::MerkleBlock> {
+    fn merge_reveal(mut self, other: Self) -> Result<Self, MergeRevealError> {
+        self.mpc_proof.merge_reveal(other.mpc_proof)?;
+        if self.dbc_proof != other.dbc_proof {
+            return Err(MergeRevealError::DbcMismatch);
+        }
+        Ok(self)
     }
 }
 
