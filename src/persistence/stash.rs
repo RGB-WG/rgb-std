@@ -32,8 +32,8 @@ use bp::dbc::tapret::TapretCommitment;
 use commit_verify::mpc;
 use rgb::validation::Scripts;
 use rgb::{
-    AssetTag, AssignmentType, AttachId, BundleId, ContractId, Extension, Genesis, OpId, Operation,
-    Schema, SchemaId, TransitionBundle, XWitnessId,
+    AttachId, BundleId, ContractId, Extension, Genesis, OpId, Operation, Schema, SchemaId,
+    TransitionBundle, XWitnessId,
 };
 use strict_encoding::{FieldName, TypeName};
 use strict_types::typesys::UnknownType;
@@ -90,7 +90,10 @@ impl<P: StashProvider> From<ProviderError<<P as StashReadProvider>::Error>> for 
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum StashInconsistency {
-    /// interfae {0} is unknown; you need to import it first.
+    /// library {0} is unknown; perhaps you need to import it first.
+    LibAbsent(LibId),
+
+    /// interface {0} is unknown; perhaps you need to import it first.
     IfaceAbsent(IfaceRef),
 
     /// contract {0} is unknown. Probably you haven't imported the contract yet.
@@ -109,8 +112,8 @@ pub enum StashInconsistency {
     /// transition {0} is absent.
     OperationAbsent(OpId),
 
-    /// anchor for txid {0} is absent.
-    AnchorAbsent(XWitnessId),
+    /// information about witness {0} is absent.
+    WitnessAbsent(XWitnessId),
 
     /// bundle {0} is absent.
     BundleAbsent(BundleId),
@@ -187,8 +190,14 @@ impl<P: StashProvider> Stash<P> {
     ) -> Result<impl Iterator<Item = ContractId> + '_, StashError<P>> {
         Ok(self.provider.contract_ids_by_iface(iface.into())?)
     }
-    pub fn contract_suppl(&self, contract_id: ContractId) -> Result<&ContractSuppl, StashError<P>> {
-        Ok(self.provider.contract_suppl(contract_id)?)
+    pub fn contract_supplements(
+        &self,
+        contract_id: ContractId,
+    ) -> Result<impl Iterator<Item = ContractSuppl> + '_, StashError<P>> {
+        Ok(self
+            .provider
+            .contract_supplements(contract_id)
+            .map_err(StashError::ReadProvider)?)
     }
 
     pub(crate) fn extract<'a>(
@@ -254,6 +263,7 @@ impl<P: StashProvider> Stash<P> {
             .iimpls
             .get(&iface.iface_id())
             .ok_or(StashDataError::NoIfaceImpl(schema.schema_id(), iface.iface_id()))?;
+        let genesis = self.provider.genesis(contract_id)?;
 
         let (types, _) = self.extract(&schema_ifaces.schema, [iface])?;
 
@@ -276,12 +286,13 @@ impl<P: StashProvider> Stash<P> {
             )
         }
         .expect("internal inconsistency");
-        let tags = self.provider.contract_asset_tags(contract_id)?;
-        for (assignment_type, asset_tag) in tags {
+
+        for (assignment_type, asset_tag) in genesis.asset_tags.iter() {
             builder = builder
-                .add_asset_tag_raw(assignment_type, asset_tag)
+                .add_asset_tag_raw(*assignment_type, *asset_tag)
                 .expect("tags are in bset and must not repeat");
         }
+
         Ok(builder)
     }
 
@@ -296,6 +307,7 @@ impl<P: StashProvider> Stash<P> {
         if schema_ifaces.iimpls.is_empty() {
             return Err(StashDataError::NoIfaceImpl(schema.schema_id(), iface.iface_id()).into());
         }
+        let genesis = self.provider.genesis(contract_id)?;
 
         let (types, _) = self.extract(&schema_ifaces.schema, [iface])?;
 
@@ -319,10 +331,9 @@ impl<P: StashProvider> Stash<P> {
                 types,
             )
         };
-        let tags = self.provider.contract_asset_tags(contract_id)?;
-        for (assignment_type, asset_tag) in tags {
+        for (assignment_type, asset_tag) in genesis.asset_tags.iter() {
             builder = builder
-                .add_asset_tag_raw(assignment_type, asset_tag)
+                .add_asset_tag_raw(*assignment_type, *asset_tag)
                 .expect("tags are in bset and must not repeat");
         }
 
@@ -335,31 +346,31 @@ impl<P: StashProvider> Stash<P> {
             .map_err(StashError::WriteProvider)?;
         for lib in kit.scripts {
             self.provider
-                .consume_lib(lib)
+                .replace_lib(lib)
                 .map_err(StashError::WriteProvider)?;
         }
 
         // TODO: filter most trusted signers
         for schema in kit.schemata {
             self.provider
-                .consume_schema(schema)
+                .replace_schema(schema)
                 .map_err(StashError::WriteProvider)?;
         }
         for iface in kit.ifaces {
             self.provider
-                .consume_iface(iface)
+                .replace_iface(iface)
                 .map_err(StashError::WriteProvider)?;
         }
         for iimpl in kit.iimpls {
             self.provider
-                .consume_iimpl(iimpl)
+                .replace_iimpl(iimpl)
                 .map_err(StashError::WriteProvider)?;
         }
 
         // TODO: filter out non-trusted signers
         for suppl in kit.supplements {
             self.provider
-                .consume_suppl(suppl)
+                .add_suppl(suppl)
                 .map_err(StashError::WriteProvider)?;
         }
 
@@ -383,7 +394,7 @@ impl<P: StashProvider> Stash<P> {
             Err(_) => consignment.genesis,
         };
         self.provider
-            .consume_genesis(genesis)
+            .replace_genesis(genesis)
             .map_err(StashError::WriteProvider)?;
 
         for extension in consignment.extensions {
@@ -393,7 +404,7 @@ impl<P: StashProvider> Stash<P> {
                 Err(_) => extension,
             };
             self.provider
-                .consume_extension(extension)
+                .replace_extension(extension)
                 .map_err(StashError::WriteProvider)?;
         }
 
@@ -403,7 +414,7 @@ impl<P: StashProvider> Stash<P> {
 
         for (id, attach) in consignment.attachments {
             self.provider
-                .consume_attachment(id, attach)
+                .replace_attachment(id, attach)
                 .map_err(StashError::WriteProvider)?;
         }
 
@@ -416,6 +427,7 @@ impl<P: StashProvider> Stash<P> {
                 values.insert(v);
                 (keys, values)
             });
+
         self.consume_kit(Kit {
             version: consignment.version,
             ifaces: Confined::from_collection_unsafe(ifaces),
@@ -433,6 +445,7 @@ impl<P: StashProvider> Stash<P> {
         contract_id: ContractId,
         bundled_witness: BundledWitness,
     ) -> Result<(), StashError<P>> {
+        let witness_id = bundled_witness.witness_id();
         let BundledWitness {
             pub_witness,
             anchored_bundles,
@@ -440,17 +453,32 @@ impl<P: StashProvider> Stash<P> {
 
         // TODO: Save pub witness transaction and SPVs
 
-        for bundle in anchored_bundles.bundles() {
+        for bundle in anchored_bundles.bundles().cloned() {
+            let bundle_id = bundle.bundle_id();
+            let bundle = match self.provider.bundle(bundle_id).cloned() {
+                Ok(b) => b.merge_reveal(bundle)?,
+                Err(_) => bundle,
+            };
             self.provider
-                .consume_bundle(bundle.clone())
+                .replace_bundle(bundle)
                 .map_err(StashError::WriteProvider)?;
 
-            let anchors = anchored_bundles.to_anchor_set(contract_id, bundle.bundle_id())?;
+            let anchors = anchored_bundles.to_anchor_set(contract_id, bundle_id)?;
+            let witness = SealWitness {
+                public: pub_witness.clone(),
+                anchors,
+            };
+            let witness = match self.provider.witness(witness_id).cloned() {
+                Ok(mut w) => {
+                    w.public = w.public.clone().merge_reveal(witness.public)?;
+                    w.anchors = w.anchors.clone().merge_reveal(witness.anchors)?;
+                    w
+                }
+                Err(_) => witness,
+            };
+
             self.provider
-                .consume_witness(SealWitness {
-                    public: pub_witness.clone(),
-                    anchors,
-                })
+                .replace_witness(witness)
                 .map_err(StashError::WriteProvider)?;
         }
 
@@ -484,18 +512,10 @@ pub trait StashReadProvider {
         let genesis = self.genesis(contract_id)?;
         self.schema(genesis.schema_id)
     }
-    fn contract_suppl(
+    fn contract_supplements(
         &self,
         contract_id: ContractId,
-    ) -> Result<&ContractSuppl, ProviderError<Self::Error>>;
-    fn contract_suppl_all(
-        &self,
-        contract_id: ContractId,
-    ) -> Result<impl Iterator<Item = &ContractSuppl>, ProviderError<Self::Error>>;
-    fn contract_asset_tags(
-        &self,
-        contract_id: ContractId,
-    ) -> Result<impl Iterator<Item = (AssignmentType, AssetTag)>, ProviderError<Self::Error>>;
+    ) -> Result<impl Iterator<Item = ContractSuppl>, Self::Error>;
 
     fn genesis(&self, contract_id: ContractId) -> Result<&Genesis, ProviderError<Self::Error>>;
     fn witness_ids(&self) -> Result<impl Iterator<Item = XWitnessId>, Self::Error>;
@@ -510,18 +530,19 @@ pub trait StashReadProvider {
 pub trait StashWriteProvider {
     type Error: Clone + Eq + Error;
 
-    fn consume_schema(&mut self, schema: Schema) -> Result<bool, Self::Error>;
-    fn consume_iface(&mut self, iface: Iface) -> Result<bool, Self::Error>;
-    fn consume_iimpl(&mut self, iimpl: IfaceImpl) -> Result<bool, Self::Error>;
-    fn consume_suppl(&mut self, suppl: ContractSuppl) -> Result<bool, Self::Error>;
-    fn consume_genesis(&mut self, genesis: Genesis) -> Result<bool, Self::Error>;
-    fn consume_extension(&mut self, extension: Extension) -> Result<bool, Self::Error>;
-    fn consume_bundle(&mut self, bundle: TransitionBundle) -> Result<bool, Self::Error>;
-    fn consume_witness(&mut self, witness: SealWitness) -> Result<bool, Self::Error>;
-    fn consume_attachment(&mut self, id: AttachId, attach: MediumBlob)
+    fn replace_schema(&mut self, schema: Schema) -> Result<bool, Self::Error>;
+    fn replace_iface(&mut self, iface: Iface) -> Result<bool, Self::Error>;
+    fn replace_iimpl(&mut self, iimpl: IfaceImpl) -> Result<bool, Self::Error>;
+    fn replace_genesis(&mut self, genesis: Genesis) -> Result<bool, Self::Error>;
+    fn replace_extension(&mut self, extension: Extension) -> Result<bool, Self::Error>;
+    fn replace_bundle(&mut self, bundle: TransitionBundle) -> Result<bool, Self::Error>;
+    fn replace_witness(&mut self, witness: SealWitness) -> Result<bool, Self::Error>;
+    fn replace_attachment(&mut self, id: AttachId, attach: MediumBlob)
     -> Result<bool, Self::Error>;
+
+    fn replace_lib(&mut self, lib: Lib) -> Result<bool, Self::Error>;
     fn consume_types(&mut self, types: TypeSystem) -> Result<(), Self::Error>;
-    fn consume_lib(&mut self, lib: Lib) -> Result<bool, Self::Error>;
+    fn add_suppl(&mut self, suppl: ContractSuppl) -> Result<(), Self::Error>;
     fn import_sigs<I>(&mut self, content_id: ContentId, sigs: I) -> Result<(), Self::Error>
     where
         I: IntoIterator<Item = Cert>,

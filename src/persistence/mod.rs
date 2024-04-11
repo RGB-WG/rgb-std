@@ -34,6 +34,7 @@
 
 mod stash;
 mod inventory;
+mod tiny_stash;
 
 pub use inventory::{
     ComposeError, ConsignError, FasciaError, Inventory, InventoryError, InventoryProvider,
@@ -43,3 +44,4 @@ pub use stash::{
     ProviderError as StashProviderError, SchemaIfaces, Stash, StashDataError, StashError,
     StashInconsistency, StashProvider, StashReadProvider, StashWriteProvider,
 };
+pub use tiny_stash::TinyStash;

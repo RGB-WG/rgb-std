@@ -622,10 +622,10 @@ impl<S: StashProvider, P: InventoryProvider> Inventory<S, P> {
             |id: ContractId,
              assignment_type: AssignmentType|
              -> Result<BuilderSeal<GraphSeal>, InventoryError<S, P, ComposeError>> {
-                let suppl = self.stash.contract_suppl(id)?;
+                let mut suppl = self.stash.contract_supplements(id)?;
                 let velocity = suppl
-                    .owned_state
-                    .get(&assignment_type)
+                    .next()
+                    .and_then(|mut s| s.owned_state.remove(&assignment_type).ok().flatten())
                     .map(|s| s.velocity)
                     .unwrap_or_default();
                 let vout = allocator(id, assignment_type, velocity)
