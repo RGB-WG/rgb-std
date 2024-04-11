@@ -166,18 +166,17 @@ impl Iface {
         let mut errors = vec![];
         self.name = ext.name;
 
-        let mut overflow = false;
         for (name, e) in ext.global_state {
             match self.global_state.get_mut(&name) {
-                None if overflow => continue,
                 None => {
-                    self.global_state
+                    if self
+                        .global_state
                         .insert(name, e)
-                        .map_err(|_| {
-                            overflow = true;
-                            errors.push(ExtensionError::GlobalOverflow)
-                        })
-                        .ok();
+                        .map_err(|_| errors.push(ExtensionError::GlobalOverflow))
+                        .is_err()
+                    {
+                        break;
+                    }
                 }
                 Some(orig) => {
                     if orig.sem_id.is_some() && e.sem_id != orig.sem_id {
@@ -191,18 +190,17 @@ impl Iface {
             }
         }
 
-        overflow = false;
         for (name, e) in ext.assignments {
             match self.assignments.get_mut(&name) {
-                None if overflow => continue,
                 None => {
-                    self.assignments
+                    if self
+                        .assignments
                         .insert(name, e)
-                        .map_err(|_| {
-                            overflow = true;
-                            errors.push(ExtensionError::AssignmentOverflow)
-                        })
-                        .ok();
+                        .map_err(|_| errors.push(ExtensionError::AssignmentOverflow))
+                        .is_err()
+                    {
+                        break;
+                    }
                 }
                 Some(orig) => {
                     if !orig.owned_state.is_superset(e.owned_state) {
@@ -218,18 +216,17 @@ impl Iface {
             }
         }
 
-        overflow = false;
         for (name, e) in ext.valencies {
             match self.valencies.get_mut(&name) {
-                None if overflow => continue,
                 None => {
-                    self.valencies
+                    if self
+                        .valencies
                         .insert(name, e)
-                        .map_err(|_| {
-                            overflow = true;
-                            errors.push(ExtensionError::ValencyOverflow)
-                        })
-                        .ok();
+                        .map_err(|_| errors.push(ExtensionError::ValencyOverflow))
+                        .is_err()
+                    {
+                        break;
+                    }
                 }
                 Some(orig) => {
                     if orig.required > e.required {
@@ -248,19 +245,18 @@ impl Iface {
             .map_err(|errs| errors.extend(errs))
             .ok();
 
-        overflow = false;
         for (name, op) in ext.transitions {
             match self.transitions.remove(&name) {
-                Ok(None) if overflow => continue,
                 Ok(None) if op.optional => continue,
                 Ok(None) => {
-                    self.transitions
+                    if self
+                        .transitions
                         .insert(name, op)
-                        .map_err(|_| {
-                            overflow = true;
-                            errors.push(ExtensionError::TransitionOverflow)
-                        })
-                        .ok();
+                        .map_err(|_| errors.push(ExtensionError::TransitionOverflow))
+                        .is_err()
+                    {
+                        break;
+                    }
                 }
                 Ok(Some(orig)) => {
                     orig.extended(op, name.clone())
@@ -272,19 +268,18 @@ impl Iface {
             }
         }
 
-        overflow = false;
         for (name, op) in ext.extensions {
             match self.extensions.remove(&name) {
-                Ok(None) if overflow => continue,
                 Ok(None) if op.optional => continue,
                 Ok(None) => {
-                    self.extensions
+                    if self
+                        .extensions
                         .insert(name, op)
-                        .map_err(|_| {
-                            overflow = true;
-                            errors.push(ExtensionError::TransitionOverflow)
-                        })
-                        .ok();
+                        .map_err(|_| errors.push(ExtensionError::TransitionOverflow))
+                        .is_err()
+                    {
+                        break;
+                    }
                 }
                 Ok(Some(orig)) => {
                     orig.extended(op, name.clone())
@@ -338,17 +333,16 @@ fn check_occs(
     state: &'static str,
     errors: &mut Vec<ExtensionError>,
 ) {
-    let mut overflow = false;
     for (name, occ) in ext {
         match orig.get_mut(&name) {
-            None if overflow => continue,
             None => {
-                orig.insert(name, occ)
-                    .map_err(|_| {
-                        overflow = true;
-                        errors.push(ExtensionError::OpOverflow(op.clone(), state))
-                    })
-                    .ok();
+                if orig
+                    .insert(name, occ)
+                    .map_err(|_| errors.push(ExtensionError::OpOverflow(op.clone(), state)))
+                    .is_err()
+                {
+                    break;
+                }
             }
             Some(orig) => {
                 if orig.min_value() > occ.min_value() || orig.max_value() > occ.max_value() {
@@ -368,17 +362,14 @@ fn check_presence<T: Ord + ToString>(
     state: &'static str,
     errors: &mut Vec<ExtensionError>,
 ) {
-    let mut overflow = false;
     for name in ext {
-        if overflow {
-            continue;
+        if orig
+            .push(name)
+            .map_err(|_| errors.push(ExtensionError::OpOverflow(op.clone(), state)))
+            .is_err()
+        {
+            break;
         }
-        orig.push(name)
-            .map_err(|_| {
-                overflow = true;
-                errors.push(ExtensionError::OpOverflow(op.clone(), state))
-            })
-            .ok();
     }
 }
 
