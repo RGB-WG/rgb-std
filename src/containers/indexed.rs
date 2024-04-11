@@ -26,7 +26,7 @@ use amplify::confinement::Collection;
 use commit_verify::Conceal;
 use rgb::validation::ConsignmentApi;
 use rgb::{
-    AnchorSet, BundleId, Extension, Genesis, OpId, OpRef, Operation, Schema, Transition,
+    BundleId, EAnchor, Extension, Genesis, OpId, OpRef, Operation, Schema, Transition,
     TransitionBundle, XChain, XWitnessId,
 };
 
@@ -38,7 +38,7 @@ use crate::SecretSeal;
 #[derive(Clone, Debug)]
 pub struct IndexedConsignment<'c, const TYPE: bool> {
     consignment: &'c Consignment<TYPE>,
-    anchor_idx: BTreeMap<BundleId, (XWitnessId, AnchorSet)>,
+    anchor_idx: BTreeMap<BundleId, (XWitnessId, EAnchor)>,
     bundle_idx: BTreeMap<BundleId, &'c TransitionBundle>,
     op_witness_idx: BTreeMap<OpId, XWitnessId>,
     op_bundle_idx: BTreeMap<OpId, BundleId>,
@@ -59,11 +59,11 @@ impl<'c, const TYPE: bool> IndexedConsignment<'c, TYPE> {
         let mut op_bundle_idx = BTreeMap::new();
         let mut extension_idx = BTreeMap::new();
         for bw in &consignment.bundles {
-            for bundle in bw.anchored_bundles.bundles() {
+            for (anchor, bundle) in bw.anchored_bundles.pairs() {
                 let bundle_id = bundle.bundle_id();
                 let witness_id = bw.pub_witness.to_witness_id();
                 bundle_idx.insert(bundle_id, bundle);
-                anchor_idx.insert(bundle_id, (witness_id, bw.anchored_bundles.to_anchor_set()));
+                anchor_idx.insert(bundle_id, (witness_id, anchor));
                 for opid in bundle.known_transitions.keys() {
                     op_witness_idx.insert(*opid, witness_id);
                     op_bundle_idx.insert(*opid, bundle_id);
@@ -129,7 +129,7 @@ impl<'c, const TYPE: bool> ConsignmentApi for IndexedConsignment<'c, TYPE> {
         self.bundle_idx.get(&bundle_id).copied()
     }
 
-    fn anchors(&self, bundle_id: BundleId) -> Option<(XWitnessId, &AnchorSet)> {
+    fn anchor(&self, bundle_id: BundleId) -> Option<(XWitnessId, &EAnchor)> {
         self.anchor_idx.get(&bundle_id).map(|(id, set)| (*id, set))
     }
 

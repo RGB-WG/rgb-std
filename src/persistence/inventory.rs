@@ -38,10 +38,10 @@ use rgb::{
 };
 use strict_encoding::{FieldName, TypeName};
 
-use crate::accessors::{MergeReveal, MergeRevealError, RevealError};
+use crate::accessors::{MergeRevealError, RevealError};
 use crate::containers::{
     Batch, BuilderSeal, BundledWitness, Cert, Consignment, ContentId, Contract, Fascia,
-    SealWitness, Terminal, TerminalSeal, Transfer, TransitionInfo,
+    SealWitness, Terminal, TerminalSeal, Transfer, TransitionInfo, TransitionInfoError,
 };
 use crate::interface::{
     BuilderError, ContractIface, Iface, IfaceId, IfaceImpl, IfacePair, IfaceWrapper,
@@ -87,6 +87,9 @@ pub enum ConsignerError<E1: Error, E2: Error> {
 #[derive(Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum ComposeError<E1: Error, E2: Error> {
+    /// the outputs spent contain more than 16 million contracts.
+    TooManyContracts,
+
     /// no outputs available to store state of type {1} with velocity class
     /// '{0}'.
     NoBlankOrChange(VelocityHint, AssignmentType),
@@ -107,10 +110,9 @@ pub enum ComposeError<E1: Error, E2: Error> {
     /// smart contract state.
     InsufficientState,
 
-    /// the operation produces too many state transitions which can't fit the
-    /// container requirements.
     #[from]
-    Confinement(confinement::Error),
+    #[display(inner)]
+    Transition(TransitionInfoError),
 
     #[from]
     #[display(inner)]
@@ -144,7 +146,6 @@ pub enum InventoryError<E: Error> {
     /// Permanent errors caused by bugs in the business logic of this library.
     /// Must be reported to LNP/BP Standards Association.
     #[from]
-    #[from(mpc::LeafNotKnown)]
     #[from(mpc::InvalidProof)]
     #[from(RevealError)]
     #[from(StashInconsistency)]
@@ -211,9 +212,6 @@ pub enum DataError {
 
     /// mismatch between witness seal chain and anchor chain.
     ChainMismatch,
-
-    /// bundle {0} has both tapret and opret anchors.
-    DoubleAnchor(BundleId),
 
     #[from]
     #[display(inner)]
@@ -282,6 +280,13 @@ pub enum InventoryInconsistency {
     /// inconsistency and compromised inventory data storage.
     BundleContractUnknown(BundleId),
 
+    /// none of known anchors contain information on bundle {0} under contract
+    /// {1}.
+    ///
+    /// It may happen due to RGB library bug, or indicate internal inventory
+    /// inconsistency and compromised inventory data storage.
+    BundleMissedInAnchors(BundleId, ContractId),
+
     /// absent information about anchor for bundle {0}.
     ///
     /// It may happen due to RGB library bug, or indicate internal inventory
@@ -292,7 +297,6 @@ pub enum InventoryInconsistency {
     ///
     /// It may happen due to RGB library bug, or indicate internal inventory
     /// inconsistency and compromised inventory data storage.
-    #[from(mpc::LeafNotKnown)]
     #[from(mpc::InvalidProof)]
     UnrelatedAnchor,
 
@@ -372,8 +376,9 @@ pub trait Inventory: Deref<Target = Self::Stash> {
     /// Must be called before the consignment is created, when witness
     /// transaction is not yet mined.
     fn consume(&mut self, fascia: Fascia) -> Result<(), InventoryError<Self::Error>> {
-        unsafe { self.consume_witness(SealWitness::new(fascia.witness_id, fascia.anchor))? };
-        for (contract_id, bundle) in fascia.bundles {
+        let witness_id = fascia.witness_id;
+        unsafe { self.consume_witness(SealWitness::new(witness_id, fascia.anchor.clone()))? };
+        for (contract_id, bundle) in fascia.into_bundles() {
             let ids1 = bundle
                 .known_transitions
                 .keys()
@@ -383,7 +388,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             if !ids1.is_subset(&ids2) {
                 return Err(ConsumeError::InvalidBundle(contract_id, bundle.bundle_id()).into());
             }
-            unsafe { self.consume_bundle(contract_id, bundle, fascia.witness_id)? };
+            unsafe { self.consume_bundle(contract_id, bundle, witness_id)? };
         }
         Ok(())
     }
@@ -945,7 +950,9 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             }
 
             let transition = blank_builder.complete_transition()?;
-            blanks.push(TransitionInfo::new(transition, outputs)?)?;
+            blanks
+                .push(TransitionInfo::new(transition, outputs)?)
+                .map_err(|_| ComposeError::TooManyContracts)?;
         }
 
         Ok(Batch {

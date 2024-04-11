@@ -26,13 +26,10 @@ use std::error::Error;
 
 use amplify::confinement::TinyOrdSet;
 use bp::dbc::tapret::TapretCommitment;
-use commit_verify::mpc;
-use rgb::{
-    AnchorSet, BundleId, ContractId, Extension, Genesis, OpId, SchemaId, TransitionBundle,
-    XWitnessId,
-};
+use rgb::{BundleId, ContractId, Extension, Genesis, OpId, SchemaId, TransitionBundle, XWitnessId};
 use strict_encoding::TypeName;
 
+use crate::containers::AnchorSet;
 use crate::interface::{ContractSuppl, Iface, IfaceId, SchemaIfaces};
 
 #[derive(Debug, Display, Error, From)]
@@ -132,10 +129,7 @@ pub trait Stash {
 
     fn extension(&self, op_id: OpId) -> Result<&Extension, StashError<Self::Error>>;
 
-    fn anchor(
-        &self,
-        witness_id: XWitnessId,
-    ) -> Result<AnchorSet<mpc::MerkleBlock>, StashError<Self::Error>>;
+    fn anchors(&self, witness_id: XWitnessId) -> Result<AnchorSet, StashError<Self::Error>>;
 
     fn taprets(&self) -> Result<BTreeMap<XWitnessId, TapretCommitment>, StashError<Self::Error>>;
 }

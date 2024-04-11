@@ -41,14 +41,15 @@ mod armor;
 mod file;
 
 pub use anchors::{
-    AnchoredBundles, BundledWitness, BundledWitnessDisclosure, PubWitness, SealWitness,
-    ToWitnessId, XPubWitness,
+    AnchorSet, AnchoredBundles, BundledWitness, PubWitness, SealWitness, ToWitnessId, XPubWitness,
 };
 pub use certs::{Cert, ContentId, ContentSigs, Identity};
 pub use consignment::{Consignment, ConsignmentId, Contract, Transfer};
 pub use disclosure::Disclosure;
 pub use file::{FileContent, LoadError, UniversalFile};
 pub use indexed::IndexedConsignment;
-pub use partials::{Batch, CloseMethodSet, Fascia, TransitionInfo};
+pub use partials::{
+    Batch, BundleDichotomy, CloseMethodSet, Fascia, TransitionInfo, TransitionInfoError,
+};
 pub use seal::{BuilderSeal, TerminalSeal, VoutSeal};
 pub use util::{ContainerVer, Terminal, TerminalDisclose};
