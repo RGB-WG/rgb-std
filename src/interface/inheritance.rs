@@ -412,7 +412,7 @@ impl Iface {
                 Some(orig) => {
                     if orig.sem_id.is_some() && e.sem_id != orig.sem_id {
                         errors.push(ExtensionError::GlobalType(name));
-                    } else if orig.required & !e.required || orig.multiple & !e.multiple {
+                    } else if orig.required & !e.required {
                         errors.push(ExtensionError::GlobalOcc(name));
                     } else {
                         *orig = e;
@@ -437,7 +437,7 @@ impl Iface {
                 Some(orig) => {
                     if !orig.owned_state.is_superset(e.owned_state) {
                         errors.push(ExtensionError::AssignmentType(name));
-                    } else if orig.required & !e.required || orig.multiple & !e.multiple {
+                    } else if orig.required & !e.required {
                         errors.push(ExtensionError::AssignmentOcc(name));
                     } else if orig.public & !e.public {
                         errors.push(ExtensionError::AssignmentPublic(name));
@@ -581,7 +581,7 @@ fn check_occs(
                     .ok();
             }
             Some(orig) => {
-                if orig.min_value() > occ.min_value() || orig.max_value() > occ.max_value() {
+                if orig.min_value() > occ.min_value() {
                     errors.push(ExtensionError::OpOcc(op.clone(), state, name));
                 } else {
                     *orig = occ;
