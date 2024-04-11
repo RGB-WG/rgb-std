@@ -40,6 +40,6 @@ pub use inventory::{
     InventoryReadProvider, InventoryWriteProvider, PersistedState,
 };
 pub use stash::{
-    SchemaIfaces, Stash, StashDataError, StashError, StashProvider, StashReadProvider,
-    StashWriteProvider,
+    ProviderError as StashProviderError, SchemaIfaces, Stash, StashDataError, StashError,
+    StashInconsistency, StashProvider, StashReadProvider, StashWriteProvider,
 };

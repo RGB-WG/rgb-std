@@ -48,7 +48,8 @@ use crate::interface::{
     VelocityHint,
 };
 use crate::persistence::{
-    Stash, StashDataError, StashError, StashProvider, StashReadProvider, StashWriteProvider,
+    Stash, StashDataError, StashError, StashInconsistency, StashProvider, StashReadProvider,
+    StashWriteProvider,
 };
 use crate::resolvers::ResolveHeight;
 
@@ -60,6 +61,7 @@ pub enum InventoryError<S: StashProvider, P: InventoryProvider, E: Error = Infal
     StashWrite(<S as StashWriteProvider>::Error),
     InventoryRead(<P as InventoryReadProvider>::Error),
     InventoryWrite(<P as InventoryWriteProvider>::Error),
+    StashInconsistency(StashInconsistency),
     #[from]
     StashData(StashDataError),
 }
@@ -72,6 +74,7 @@ impl<S: StashProvider, P: InventoryProvider, E: Error> From<StashError<S>>
             StashError::ReadProvider(err) => Self::StashRead(err),
             StashError::WriteProvider(err) => Self::StashWrite(err),
             StashError::Data(e) => Self::StashData(e),
+            StashError::Inconsistency(e) => Self::StashInconsistency(e),
         }
     }
 }
@@ -127,6 +130,7 @@ impl<S: StashProvider, P: InventoryProvider> From<InventoryError<S, P, Infallibl
             InventoryError::InventoryRead(e) => InventoryError::InventoryRead(e),
             InventoryError::InventoryWrite(e) => InventoryError::InventoryWrite(e),
             InventoryError::StashData(e) => InventoryError::StashData(e),
+            InventoryError::StashInconsistency(e) => InventoryError::StashInconsistency(e),
         }
     }
 }
@@ -190,6 +194,7 @@ impl<S: StashProvider, P: InventoryProvider> From<InventoryError<S, P, Infallibl
             InventoryError::InventoryRead(e) => InventoryError::InventoryRead(e),
             InventoryError::InventoryWrite(e) => InventoryError::InventoryWrite(e),
             InventoryError::StashData(e) => InventoryError::StashData(e),
+            InventoryError::StashInconsistency(e) => InventoryError::StashInconsistency(e),
         }
     }
 }
@@ -612,9 +617,10 @@ impl<S: StashProvider, P: InventoryProvider> Inventory<S, P> {
             |id: ContractId,
              assignment_type: AssignmentType|
              -> Result<BuilderSeal<GraphSeal>, InventoryError<S, P, ComposeError>> {
-                let suppl = self.stash.contract_suppl(id);
+                let suppl = self.stash.contract_suppl(id)?;
                 let velocity = suppl
-                    .and_then(|suppl| suppl.owned_state.get(&assignment_type))
+                    .owned_state
+                    .get(&assignment_type)
                     .map(|s| s.velocity)
                     .unwrap_or_default();
                 let vout = allocator(id, assignment_type, velocity)
