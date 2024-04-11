@@ -251,12 +251,12 @@ where T: OpSchema
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use amplify::confinement::{TinyOrdMap, TinyOrdSet};
+use amplify::confinement::{Confined, TinyOrdMap, TinyOrdSet};
 use rgb::Occurrences;
 use strict_encoding::{FieldName, TypeName};
 
 use crate::interface::{
-    ExtensionIface, GenesisIface, Iface, Modifier, OpName, OwnedIface, TransitionIface,
+    ExtensionIface, GenesisIface, Iface, IfaceImpl, Modifier, OpName, OwnedIface, TransitionIface,
 };
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display, Error)]
@@ -330,10 +330,7 @@ impl OwnedIface {
 impl Modifier {
     pub fn is_final(self) -> bool { self == Self::Final }
     pub fn can_be_overriden_by(self, other: Modifier) -> bool {
-        match (self, other) {
-            (Self::Abstract | Self::Override, Self::Override | Self::Final) => true,
-            _ => false,
-        }
+        matches!((self, other), (Self::Abstract | Self::Override, Self::Override | Self::Final))
     }
 }
 
@@ -359,31 +356,32 @@ impl Iface {
         name: impl Into<TypeName>,
         ifaces: impl IntoIterator<Item = Iface>,
     ) -> Result<Iface, Vec<InheritError>> {
+        let name = name.into();
         let mut iter = ifaces.into_iter();
         let mut iface = iter
             .next()
             .expect("at least one interface must be provided for the inheritance");
         for ext in iter {
-            let name = ext.name.clone();
-            iface = iface.extended(ext).map_err(|err| {
+            let ext_name = ext.name.clone();
+            iface = iface.extended(ext, name.clone()).map_err(|err| {
                 err.into_iter()
                     .map(|e| InheritError {
                         err: e,
-                        iface: name.clone(),
+                        iface: ext_name.clone(),
                     })
                     .collect::<Vec<_>>()
             })?;
         }
-        iface.name = name.into();
         Ok(iface)
     }
 
-    pub fn expect_extended(self, ext: Iface) -> Iface {
-        let name = self.name.clone();
-        match self.extended(ext) {
+    pub fn expect_extended(self, ext: Iface, name: impl Into<TypeName>) -> Iface {
+        let prev_name = self.name.clone();
+        let ext_name = ext.name.clone();
+        match self.extended(ext, name) {
             Ok(iface) => iface,
             Err(msgs) => {
-                eprintln!("Unable to inherit from {name}:");
+                eprintln!("Unable to extend {prev_name} with {ext_name}:");
                 for msg in msgs {
                     eprintln!("- {msg}")
                 }
@@ -392,8 +390,12 @@ impl Iface {
         }
     }
 
-    pub fn extended(mut self, ext: Iface) -> Result<Iface, Vec<ExtensionError>> {
-        let parent_id = ext.iface_id();
+    pub fn extended(
+        mut self,
+        ext: Iface,
+        name: impl Into<TypeName>,
+    ) -> Result<Iface, Vec<ExtensionError>> {
+        let orig_id = self.iface_id();
 
         let mut errors = vec![];
         self.name = ext.name;
@@ -413,7 +415,7 @@ impl Iface {
                 Some(orig) => {
                     if orig.sem_id.is_some() && e.sem_id != orig.sem_id {
                         errors.push(ExtensionError::GlobalType(name));
-                    } else if orig.required > e.required || orig.multiple > e.multiple {
+                    } else if orig.required & !e.required {
                         errors.push(ExtensionError::GlobalOcc(name));
                     } else {
                         *orig = e;
@@ -437,9 +439,9 @@ impl Iface {
                 Some(orig) => {
                     if !orig.owned_state.is_superset(e.owned_state) {
                         errors.push(ExtensionError::AssignmentType(name));
-                    } else if orig.required > e.required || orig.multiple > e.multiple {
+                    } else if orig.required & !e.required {
                         errors.push(ExtensionError::AssignmentOcc(name));
-                    } else if orig.public > e.public {
+                    } else if orig.public & !e.public {
                         errors.push(ExtensionError::AssignmentPublic(name));
                     } else {
                         *orig = e;
@@ -461,7 +463,7 @@ impl Iface {
                     }
                 }
                 Some(orig) => {
-                    if orig.required > e.required {
+                    if orig.required & !e.required {
                         errors.push(ExtensionError::ValencyOcc(name));
                     } else {
                         *orig = e;
@@ -544,9 +546,10 @@ impl Iface {
                 .ok();
         }
 
+        self.name = name.into();
         self.inherits
-            .extend(ext.inherits)
-            .and_then(|_| self.inherits.push(parent_id))
+            .push(orig_id)
+            .and_then(|_| self.inherits.extend(ext.inherits))
             .map_err(|_| errors.push(ExtensionError::InheritanceOverflow))
             .ok();
 
@@ -577,7 +580,7 @@ fn check_occs(
                 }
             }
             Some(orig) => {
-                if orig.min_value() > occ.min_value() || orig.max_value() > occ.max_value() {
+                if orig.min_value() > occ.min_value() {
                     errors.push(ExtensionError::OpOcc(op.clone(), state, name));
                 } else {
                     *orig = occ;
@@ -710,5 +713,55 @@ impl ExtensionIface {
         } else {
             Err(errors)
         }
+    }
+}
+
+impl IfaceImpl {
+    pub fn abstracted(mut self, base: &Iface, parent: &Iface) -> Option<Self> {
+        assert_eq!(self.iface_id, base.iface_id());
+        let parent_id = parent.iface_id();
+        if !base.inherits.contains(&parent_id) {
+            return None;
+        }
+
+        self.global_state =
+            Confined::from_iter_unsafe(base.global_state.keys().filter_map(|name| {
+                self.global_state
+                    .iter()
+                    .find(|i| parent.global_state.contains_key(name) && &i.name == name)
+                    .cloned()
+            }));
+
+        self.assignments = Confined::from_iter_unsafe(base.assignments.keys().filter_map(|name| {
+            self.assignments
+                .iter()
+                .find(|i| parent.assignments.contains_key(name) && &i.name == name)
+                .cloned()
+        }));
+
+        self.valencies = Confined::from_iter_unsafe(base.assignments.keys().filter_map(|name| {
+            self.valencies
+                .iter()
+                .find(|i| parent.valencies.contains_key(name) && &i.name == name)
+                .cloned()
+        }));
+
+        self.transitions = Confined::from_iter_unsafe(base.transitions.keys().filter_map(|name| {
+            self.transitions
+                .iter()
+                .find(|i| parent.transitions.contains_key(name) && &i.name == name)
+                .cloned()
+        }));
+
+        self.extensions = Confined::from_iter_unsafe(base.extensions.keys().filter_map(|name| {
+            self.extensions
+                .iter()
+                .find(|i| parent.extensions.contains_key(name) && &i.name == name)
+                .cloned()
+        }));
+
+        self.iface_id = parent_id;
+
+        Some(self)
     }
 }

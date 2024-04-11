@@ -79,7 +79,7 @@ pub fn named_asset() -> Iface {
 pub fn renameable() -> Iface {
     Iface {
         version: VerNo::V1,
-        inherits: tiny_bset![named_asset().iface_id()],
+        inherits: none!(),
         developer: none!(), // TODO: Add LNP/BP Standards Association
         timestamp: 1711405444,
         name: tn!("RenameableAsset"),
@@ -242,7 +242,7 @@ pub fn fixed() -> Iface {
     Iface {
         version: VerNo::V1,
         name: tn!("FixedAsset"),
-        inherits: tiny_bset![fungible().iface_id()],
+        inherits: none!(),
         developer: none!(), // TODO: Add LNP/BP Standards Association
         timestamp: 1711405444,
         global_state: none!(),
@@ -276,7 +276,7 @@ pub fn inflatable() -> Iface {
     let types = StandardTypes::new();
     Iface {
         version: VerNo::V1,
-        inherits: tiny_bset![fungible().iface_id()],
+        inherits: none!(),
         developer: none!(), // TODO: Add LNP/BP Standards Association
         timestamp: 1711405444,
         name: tn!("InflatableAsset"),
@@ -334,7 +334,7 @@ pub fn burnable() -> Iface {
     let types = StandardTypes::new();
     Iface {
         version: VerNo::V1,
-        inherits: tiny_bset![fungible().iface_id()],
+        inherits: none!(),
         developer: none!(), // TODO: Add LNP/BP Standards Association
         timestamp: 1711405444,
         name: tn!("BurnableAsset"),
@@ -392,7 +392,7 @@ pub fn replaceable() -> Iface {
     let types = StandardTypes::new();
     Iface {
         version: VerNo::V1,
-        inherits: tiny_bset![inflatable().iface_id()],
+        inherits: none!(),
         developer: none!(), // TODO: Add LNP/BP Standards Association
         timestamp: 1711405444,
         name: tn!("ReplaceableAsset"),
@@ -582,6 +582,11 @@ impl StateChange for AmountChange {
     }
 }
 
+pub const RGB20_SIMPLE_IFACE_ID: IfaceId = IfaceId::from_array([
+    0x58, 0x8d, 0xaf, 0x57, 0x88, 0x37, 0xe0, 0x42, 0xa1, 0x35, 0xd9, 0x4a, 0x20, 0x8b, 0x2a, 0x71,
+    0xa2, 0x2d, 0x79, 0xd5, 0x62, 0xba, 0x35, 0x83, 0x98, 0xa5, 0x8c, 0xe6, 0x6b, 0xeb, 0xf4, 0x87,
+]);
+
 #[derive(Wrapper, WrapperMut, Clone, Eq, PartialEq, Debug)]
 #[wrapper(Deref)]
 #[wrapper_mut(DerefMut)]
@@ -589,7 +594,8 @@ pub struct Rgb20(ContractIface);
 
 impl From<ContractIface> for Rgb20 {
     fn from(iface: ContractIface) -> Self {
-        if iface.iface.iface_id != Rgb20::IFACE_ID {
+        if iface.iface.iface_id != Rgb20::IFACE_ID && iface.iface.iface_id != RGB20_SIMPLE_IFACE_ID
+        {
             panic!("the provided interface is not RGB20 interface");
         }
         Self(iface)
@@ -599,34 +605,35 @@ impl From<ContractIface> for Rgb20 {
 impl IfaceWrapper for Rgb20 {
     const IFACE_NAME: &'static str = "RGB20";
     const IFACE_ID: IfaceId = IfaceId::from_array([
-        0xd3, 0xa5, 0x1e, 0x8c, 0x19, 0xad, 0x05, 0x4f, 0xc8, 0x95, 0x0d, 0x13, 0x0f, 0xc9, 0x54,
-        0xbd, 0xba, 0x2b, 0x27, 0xe9, 0x08, 0x6d, 0xf3, 0xcd, 0x7e, 0x34, 0x18, 0x60, 0xf9, 0x4f,
-        0x73, 0x8e,
+        0x67, 0xef, 0x0c, 0x35, 0xab, 0xef, 0x01, 0x88, 0x56, 0xf5, 0xe8, 0x51, 0xaf, 0x96, 0xc2,
+        0xab, 0xdd, 0xff, 0x64, 0x31, 0xec, 0xce, 0x73, 0xf0, 0x12, 0x1e, 0xe3, 0x64, 0xcc, 0xf5,
+        0xca, 0x69,
     ]);
 }
 
 impl IfaceClass for Rgb20 {
     type Features = Features;
     fn iface(features: Features) -> Iface {
-        let mut iface = named_asset().expect_extended(fungible());
+        let mut iface = named_asset().expect_extended(fungible(), "RGB20Base");
         if features.renaming {
-            iface = iface.expect_extended(renameable());
+            iface = iface.expect_extended(renameable(), "RGB20Renamable");
         }
         if features.inflation.is_fixed() {
-            iface = iface.expect_extended(fixed());
-        }
-        if features.inflation.is_inflatible() {
-            iface = iface.expect_extended(inflatable());
+            iface = iface.expect_extended(fixed(), "RGB20Fixed");
+        } else if features.inflation.is_inflatible() {
+            iface = iface.expect_extended(inflatable(), "RGB20Inflatible");
         }
         if features.inflation.is_replacable() {
-            iface = iface.expect_extended(replaceable());
+            iface = iface.expect_extended(replaceable(), "RGB20Replacable");
         } else if features.inflation.is_burnable() {
-            iface = iface.expect_extended(burnable());
+            iface = iface.expect_extended(burnable(), "RGB20Burnable");
         }
         if features.reserves {
-            iface = iface.expect_extended(reservable());
+            iface = iface.expect_extended(reservable(), "RGB20Reservable");
         }
-        iface.name = Self::IFACE_NAME.into();
+        if features == Features::all() {
+            iface.name = Self::IFACE_NAME.into();
+        }
         iface
     }
     fn stl() -> TypeLib { rgb_contract_stl() }
@@ -988,6 +995,9 @@ mod test {
 
     #[test]
     fn iface_id_all() {
+        let iface_id = Rgb20::iface(Features::none()).iface_id();
+        eprintln!("{:#04x?}", iface_id.to_byte_array());
+        assert_eq!(RGB20_SIMPLE_IFACE_ID, iface_id);
         let iface_id = Rgb20::iface(Features::all()).iface_id();
         eprintln!("{:#04x?}", iface_id.to_byte_array());
         assert_eq!(Rgb20::IFACE_ID, iface_id);

@@ -410,7 +410,7 @@ pub fn unique() -> Iface {
     Iface {
         version: VerNo::V1,
         name: tn!("UniqueNft"),
-        inherits: tiny_bset![nft().iface_id()],
+        inherits: none!(),
         developer: none!(), // TODO: Add LNP/BP Standards Association
         timestamp: 1711405444,
         global_state: tiny_bmap! {
@@ -447,7 +447,7 @@ pub fn limited() -> Iface {
     Iface {
         version: VerNo::V1,
         name: tn!("LimitedNft"),
-        inherits: tiny_bset![nft().iface_id()],
+        inherits: none!(),
         developer: none!(), // TODO: Add LNP/BP Standards Association
         timestamp: 1711405444,
         global_state: tiny_bmap! {
@@ -484,7 +484,7 @@ pub fn engravable() -> Iface {
     Iface {
         version: VerNo::V1,
         name: tn!("EngravableNft"),
-        inherits: tiny_bset![nft().iface_id()],
+        inherits: none!(),
         developer: none!(), // TODO: Add LNP/BP Standards Association
         timestamp: 1711405444,
         global_state: tiny_bmap! {
@@ -539,7 +539,7 @@ pub fn issuable() -> Iface {
     Iface {
         version: VerNo::V1,
         name: tn!("IssuableNft"),
-        inherits: tiny_bset![nft().iface_id()],
+        inherits: none!(),
         developer: none!(), // TODO: Add LNP/BP Standards Association
         timestamp: 1711405444,
         global_state: none!(),
@@ -629,6 +629,11 @@ impl Features {
     }
 }
 
+pub const RGB21_UNIQUE_IFACE_ID: IfaceId = IfaceId::from_array([
+    0xc8, 0xb0, 0x84, 0xe3, 0x38, 0x8c, 0xf7, 0x4d, 0x75, 0x55, 0x2a, 0x03, 0x77, 0x6f, 0xe3, 0xb0,
+    0x98, 0xcf, 0x14, 0x49, 0xc6, 0xeb, 0xda, 0xad, 0xba, 0x5b, 0x4a, 0xd2, 0x0d, 0x94, 0x98, 0xc2,
+]);
+
 #[derive(Wrapper, WrapperMut, Clone, Eq, PartialEq, Debug)]
 #[wrapper(Deref)]
 #[wrapper_mut(DerefMut)]
@@ -636,7 +641,8 @@ pub struct Rgb21(ContractIface);
 
 impl From<ContractIface> for Rgb21 {
     fn from(iface: ContractIface) -> Self {
-        if iface.iface.iface_id != Rgb21::IFACE_ID {
+        if iface.iface.iface_id != Rgb21::IFACE_ID || iface.iface.iface_id != RGB21_UNIQUE_IFACE_ID
+        {
             panic!("the provided interface is not RGB21 interface");
         }
         Self(iface)
@@ -646,31 +652,33 @@ impl From<ContractIface> for Rgb21 {
 impl IfaceWrapper for Rgb21 {
     const IFACE_NAME: &'static str = LIB_NAME_RGB21;
     const IFACE_ID: IfaceId = IfaceId::from_array([
-        0x98, 0x2b, 0x4e, 0xc1, 0xc8, 0x8a, 0xbc, 0xa3, 0x9f, 0x93, 0xa1, 0x4f, 0x1c, 0x1c, 0xfa,
-        0x80, 0x5c, 0x81, 0x54, 0xb0, 0x29, 0x5b, 0xf3, 0x98, 0xbf, 0xcb, 0xa1, 0x60, 0xe9, 0xad,
-        0x57, 0xe9,
+        0x7a, 0xbb, 0x21, 0xb3, 0x82, 0x21, 0x84, 0xbd, 0x41, 0x0f, 0x11, 0xb0, 0x31, 0x64, 0xb3,
+        0x06, 0x29, 0xa6, 0x5c, 0x75, 0x2e, 0x69, 0x52, 0xb5, 0x2e, 0xa9, 0xc7, 0x86, 0xa5, 0xe5,
+        0x2f, 0xe3,
     ]);
 }
 
 impl IfaceClass for Rgb21 {
     type Features = Features;
     fn iface(features: Self::Features) -> Iface {
-        let mut iface = named_asset().expect_extended(nft());
+        let mut iface = named_asset().expect_extended(nft(), "RGB21Base");
         if features.renaming {
-            iface = iface.expect_extended(renameable());
+            iface = iface.expect_extended(renameable(), "RGB21Renameable");
         }
         if features.engraving {
-            iface = iface.expect_extended(engravable());
+            iface = iface.expect_extended(engravable(), "RGB21Engravable");
         }
         iface = match features.issues {
-            Issues::Unique => iface.expect_extended(unique()),
-            Issues::Limited => iface.expect_extended(limited()),
-            Issues::MultiIssue => iface.expect_extended(issuable()),
+            Issues::Unique => iface.expect_extended(unique(), "RGB21Unique"),
+            Issues::Limited => iface.expect_extended(limited(), "RGB21Limited"),
+            Issues::MultiIssue => iface.expect_extended(issuable(), "RGB21Issuable"),
         };
         if features.reserves {
-            iface = iface.expect_extended(reservable());
+            iface = iface.expect_extended(reservable(), "RGB21Reservable");
         }
-        iface.name = Self::IFACE_NAME.into();
+        if features == Features::all() {
+            iface.name = Self::IFACE_NAME.into();
+        }
         iface
     }
     fn stl() -> TypeLib { rgb21_stl() }
@@ -735,6 +743,9 @@ mod test {
 
     #[test]
     fn iface_id() {
+        let iface_id = Rgb21::iface(Features::none()).iface_id();
+        eprintln!("{:#04x?}", iface_id.to_byte_array());
+        assert_eq!(RGB21_UNIQUE_IFACE_ID, iface_id);
         let iface_id = Rgb21::iface(Features::all()).iface_id();
         eprintln!("{:#04x?}", iface_id.to_byte_array());
         assert_eq!(Rgb21::IFACE_ID, iface_id);
