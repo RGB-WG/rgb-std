@@ -24,12 +24,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 
-use amplify::confinement::{TinyOrdMap, TinyOrdSet};
+use amplify::confinement::TinyOrdSet;
 use bp::dbc::tapret::TapretCommitment;
 use commit_verify::mpc;
 use rgb::{
-    AnchorSet, AssetTag, AssignmentType, BundleId, ContractId, Extension, Genesis, OpId, SchemaId,
-    TransitionBundle, XWitnessId,
+    AnchorSet, BundleId, ContractId, Extension, Genesis, OpId, SchemaId, TransitionBundle,
+    XWitnessId,
 };
 use strict_encoding::TypeName;
 
@@ -115,11 +115,6 @@ pub trait Stash {
 
     fn contract_suppl(&self, contract_id: ContractId) -> Option<&ContractSuppl>;
     fn contract_suppl_all(&self, contract_id: ContractId) -> Option<&TinyOrdSet<ContractSuppl>>;
-
-    fn contract_asset_tags(
-        &self,
-        contract_id: ContractId,
-    ) -> Result<&TinyOrdMap<AssignmentType, AssetTag>, StashError<Self::Error>>;
 
     fn genesis(&self, contract_id: ContractId) -> Result<&Genesis, StashError<Self::Error>>;
 

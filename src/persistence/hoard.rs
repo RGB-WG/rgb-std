@@ -28,8 +28,8 @@ use bp::dbc::anchor::MergeError;
 use bp::dbc::tapret::TapretCommitment;
 use commit_verify::{mpc, CommitId};
 use rgb::{
-    AnchorSet, AssetTag, AssignmentType, BundleId, ContractId, Extension, Genesis, OpId, Operation,
-    SchemaId, TransitionBundle, XWitnessId,
+    AnchorSet, BundleId, ContractId, Extension, Genesis, OpId, Operation, SchemaId,
+    TransitionBundle, XWitnessId,
 };
 use strict_encoding::TypeName;
 
@@ -75,7 +75,6 @@ pub struct Hoard {
     pub(super) ifaces: TinyOrdMap<IfaceId, Iface>,
     pub(super) geneses: TinyOrdMap<ContractId, Genesis>,
     pub(super) suppl: TinyOrdMap<ContractId, TinyOrdSet<ContractSuppl>>,
-    pub(super) asset_tags: TinyOrdMap<ContractId, TinyOrdMap<AssignmentType, AssetTag>>,
     pub(super) bundles: LargeOrdMap<BundleId, TransitionBundle>,
     pub(super) extensions: LargeOrdMap<OpId, Extension>,
     pub(super) witnesses: LargeOrdMap<XWitnessId, SealWitness>,
@@ -99,7 +98,6 @@ impl Hoard {
             },
             geneses: none!(),
             suppl: none!(),
-            asset_tags: none!(),
             bundles: none!(),
             extensions: none!(),
             witnesses: none!(),
@@ -208,10 +206,6 @@ impl Hoard {
             // Do not bother if we can't import all the sigs
             self.import_sigs_internal(content_id, sigs).ok();
         }
-
-        // Update asset tags
-        self.asset_tags
-            .insert(contract_id, consignment.asset_tags)?;
 
         Ok(())
     }
@@ -350,16 +344,6 @@ impl Stash for Hoard {
             .ok_or(StashInconsistency::AnchorAbsent(witness_id))?
             .clone();
         Ok(witness.anchor)
-    }
-
-    fn contract_asset_tags(
-        &self,
-        contract_id: ContractId,
-    ) -> Result<&TinyOrdMap<AssignmentType, AssetTag>, StashError<Self::Error>> {
-        self.asset_tags
-            .get(&contract_id)
-            .ok_or(StashInconsistency::ContractAbsent(contract_id))
-            .map_err(StashError::from)
     }
 
     fn taprets(&self) -> Result<BTreeMap<XWitnessId, TapretCommitment>, StashError<Self::Error>> {

@@ -508,7 +508,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             )
         }
         .expect("internal inconsistency");
-        let tags = self.contract_asset_tags(contract_id)?;
+        let tags = &self.genesis(contract_id)?.asset_tags;
         for (assignment_type, asset_tag) in tags {
             builder = builder
                 .add_asset_tag_raw(*assignment_type, *asset_tag)
@@ -555,7 +555,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
             )
             .expect("internal inconsistency")
         };
-        let tags = self.contract_asset_tags(contract_id)?;
+        let tags = &self.genesis(contract_id)?.asset_tags;
         for (assignment_type, asset_tag) in tags {
             builder = builder
                 .add_asset_tag_raw(*assignment_type, *asset_tag)
@@ -708,9 +708,7 @@ pub trait Inventory: Deref<Target = Self::Stash> {
 
         let genesis = self.genesis(contract_id)?;
         let schema_ifaces = self.schema(genesis.schema_id)?;
-        let asset_tags = self.contract_asset_tags(contract_id)?;
-        let mut consignment =
-            Consignment::new(schema_ifaces.schema.clone(), genesis.clone(), asset_tags.clone());
+        let mut consignment = Consignment::new(schema_ifaces.schema.clone(), genesis.clone());
         for (iface_id, iimpl) in &schema_ifaces.iimpls {
             let iface = self.iface_by_id(*iface_id)?;
             consignment
