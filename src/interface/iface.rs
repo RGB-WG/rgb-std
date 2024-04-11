@@ -24,7 +24,7 @@ use std::collections::HashMap;
 use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 
-use amplify::confinement::{TinyOrdMap, TinyOrdSet, TinyString};
+use amplify::confinement::{TinyOrdMap, TinyOrdSet, TinyString, TinyVec};
 use amplify::{ByteArray, Bytes32};
 use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
 use commit_verify::{CommitId, CommitmentId, DigestExt, Sha256};
@@ -316,7 +316,7 @@ pub struct TransitionIface {
 pub struct Iface {
     pub version: VerNo,
     pub name: TypeName,
-    pub inherits: TinyOrdSet<IfaceId>,
+    pub inherits: TinyVec<IfaceId>, // TODO: Replace with TinyIndexSet
     pub developer: Issuer,
     pub timestamp: i64,
     pub global_state: TinyOrdMap<FieldName, GlobalIface>,

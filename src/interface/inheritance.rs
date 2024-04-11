@@ -356,32 +356,32 @@ impl Iface {
         name: impl Into<TypeName>,
         ifaces: impl IntoIterator<Item = Iface>,
     ) -> Result<Iface, Vec<InheritError>> {
+        let name = name.into();
         let mut iter = ifaces.into_iter();
         let mut iface = iter
             .next()
             .expect("at least one interface must be provided for the inheritance");
         for ext in iter {
-            let name = ext.name.clone();
-            iface = iface.extended(ext).map_err(|err| {
+            let ext_name = ext.name.clone();
+            iface = iface.extended(ext, name.clone()).map_err(|err| {
                 err.into_iter()
                     .map(|e| InheritError {
                         err: e,
-                        iface: name.clone(),
+                        iface: ext_name.clone(),
                     })
                     .collect::<Vec<_>>()
             })?;
         }
-        iface.name = name.into();
         Ok(iface)
     }
 
-    pub fn expect_extended(self, ext: Iface) -> Iface {
-        let name = self.name.clone();
+    pub fn expect_extended(self, ext: Iface, name: impl Into<TypeName>) -> Iface {
+        let prev_name = self.name.clone();
         let ext_name = ext.name.clone();
-        match self.extended(ext) {
+        match self.extended(ext, name) {
             Ok(iface) => iface,
             Err(msgs) => {
-                eprintln!("Unable to extend {name} with {ext_name}:");
+                eprintln!("Unable to extend {prev_name} with {ext_name}:");
                 for msg in msgs {
                     eprintln!("- {msg}")
                 }
@@ -390,8 +390,12 @@ impl Iface {
         }
     }
 
-    pub fn extended(mut self, ext: Iface) -> Result<Iface, Vec<ExtensionError>> {
-        let parent_id = ext.iface_id();
+    pub fn extended(
+        mut self,
+        ext: Iface,
+        name: impl Into<TypeName>,
+    ) -> Result<Iface, Vec<ExtensionError>> {
+        let orig_id = self.iface_id();
 
         let mut errors = vec![];
         self.name = ext.name;
@@ -547,9 +551,10 @@ impl Iface {
                 .ok();
         }
 
+        self.name = name.into();
         self.inherits
-            .extend(ext.inherits)
-            .and_then(|_| self.inherits.push(parent_id))
+            .push(orig_id)
+            .and_then(|_| self.inherits.extend(ext.inherits))
             .map_err(|_| errors.push(ExtensionError::InheritanceOverflow))
             .ok();
 

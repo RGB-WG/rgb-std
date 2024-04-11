@@ -1922,7 +1922,7 @@ Consignmenttrue rec
       iface rec Iface
         version enum VerNo v0=0 v1=1
         name ascii len=1..100 aka=TypeName aka=Ident charset=AlphaNumLodash
-        inherits set len=0..MAX8
+        inherits list len=0..MAX8
           element bytes len=32 aka=IfaceId
         developer bytes len=0..MAX16 aka=Issuer
         timestamp is I64

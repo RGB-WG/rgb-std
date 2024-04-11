@@ -83,26 +83,28 @@ impl From<ContractIface> for Rgb25 {
 impl IfaceWrapper for Rgb25 {
     const IFACE_NAME: &'static str = "RGB25";
     const IFACE_ID: IfaceId = IfaceId::from_array([
-        0x45, 0xfd, 0xf1, 0x0d, 0xd2, 0xdd, 0x36, 0x11, 0x1a, 0xfb, 0x5b, 0xe5, 0xcb, 0x98, 0xab,
-        0xbf, 0x64, 0x06, 0x71, 0x7a, 0xec, 0xa7, 0x36, 0xa6, 0xf6, 0x6e, 0xb8, 0x7f, 0x6d, 0x18,
-        0x3f, 0x82,
+        0x81, 0x5e, 0x45, 0x56, 0x55, 0x4b, 0x4a, 0x06, 0x9d, 0x9b, 0x54, 0x2d, 0x2b, 0x29, 0xbc,
+        0xbd, 0x61, 0x43, 0xdd, 0x8f, 0xc7, 0x58, 0x64, 0x07, 0xc5, 0x95, 0x2d, 0x67, 0x9a, 0xec,
+        0xc6, 0xe4,
     ]);
 }
 
 impl IfaceClass for Rgb25 {
     type Features = Features;
     fn iface(features: Features) -> Iface {
-        let mut iface = named_asset().expect_extended(fungible());
+        let mut iface = named_asset().expect_extended(fungible(), "RGB25Base");
         if features.renaming {
-            iface = iface.expect_extended(renameable());
+            iface = iface.expect_extended(renameable(), "RGB25Renameable");
         }
         if features.reserves {
-            iface = iface.expect_extended(reservable());
+            iface = iface.expect_extended(reservable(), "RGB25Reservable");
         }
         if features.burnable {
-            iface = iface.expect_extended(burnable());
+            iface = iface.expect_extended(burnable(), "RGB25Burnable");
         }
-        iface.name = Self::IFACE_NAME.into();
+        if features == Features::all() {
+            iface.name = Self::IFACE_NAME.into();
+        }
         iface
     }
     fn stl() -> TypeLib { rgb_contract_stl() }
