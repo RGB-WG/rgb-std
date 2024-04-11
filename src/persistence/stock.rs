@@ -112,6 +112,22 @@ impl DerefMut for Stock {
 
 #[allow(clippy::result_large_err)]
 impl Stock {
+    fn contract_raw(
+        &self,
+        contract_id: ContractId,
+    ) -> Result<(&SchemaIfaces, &ContractHistory), InventoryInconsistency> {
+        let history = self
+            .history
+            .get(&contract_id)
+            .ok_or(InventoryInconsistency::StateAbsent(contract_id))?;
+        let schema_id = history.schema_id();
+        let schema_ifaces = self
+            .schemata
+            .get(&schema_id)
+            .ok_or(StashInconsistency::SchemaAbsent(schema_id))?;
+        Ok((schema_ifaces, history))
+    }
+
     fn consume_consignment<R: ResolveHeight, const TYPE: bool>(
         &mut self,
         mut consignment: Consignment<TYPE>,
@@ -504,29 +520,54 @@ impl Inventory for Stock {
         contract_id: ContractId,
         iface_id: IfaceId,
     ) -> Result<ContractIface, InventoryError<Self::Error>> {
-        let history = self
-            .history
-            .get(&contract_id)
-            .ok_or(InventoryInconsistency::StateAbsent(contract_id))?
-            .clone();
-        let schema_id = history.schema_id();
-        let schema_ifaces = self
-            .schemata
-            .get(&schema_id)
-            .ok_or(StashInconsistency::SchemaAbsent(schema_id))?;
-        let state = ContractState {
-            schema: schema_ifaces.schema.clone(),
-            history,
-        };
+        let (schema_ifaces, history) = self.contract_raw(contract_id)?;
         let iimpl = schema_ifaces
             .iimpls
             .get(&iface_id)
-            .ok_or(StashInconsistency::IfaceImplAbsent(iface_id, schema_id))?
+            .ok_or_else(|| {
+                StashInconsistency::IfaceImplAbsent(iface_id, schema_ifaces.schema.schema_id())
+            })?
             .clone();
         Ok(ContractIface {
-            state,
+            state: ContractState {
+                schema: schema_ifaces.schema.clone(),
+                history: history.clone(),
+            },
             iface: iimpl,
         })
+    }
+
+    fn contract_iface_abstract(
+        &self,
+        contract_id: ContractId,
+        iface_id: IfaceId,
+    ) -> Result<ContractIface, InventoryError<Self::Error>> {
+        let (schema_ifaces, history) = self.contract_raw(contract_id)?;
+        let iface = self.iface_by_id(iface_id)?;
+        schema_ifaces
+            .iimpls
+            .get(&iface_id)
+            .or_else(|| {
+                iface
+                    .inherits
+                    .iter()
+                    .rev()
+                    .find_map(|parent| schema_ifaces.iimpls.get(parent))
+            })
+            .ok_or_else(|| {
+                StashInconsistency::NoAbstractImpl(iface_id, schema_ifaces.schema.schema_id())
+                    .into()
+            })
+            .and_then(|iimpl| {
+                let state = ContractState {
+                    schema: schema_ifaces.schema.clone(),
+                    history: history.clone(),
+                };
+                Ok(ContractIface {
+                    state,
+                    iface: iimpl.clone(),
+                })
+            })
     }
 
     fn transition(&self, opid: OpId) -> Result<&Transition, InventoryError<Self::Error>> {

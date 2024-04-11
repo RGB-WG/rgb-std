@@ -68,6 +68,10 @@ pub enum StashInconsistency {
     /// interface {0::<0} is not implemented for the schema {1::<0}.
     IfaceImplAbsent(IfaceId, SchemaId),
 
+    /// no known implementations of {0::<0} parent interfaces for the schema
+    /// {1::<0}.
+    NoAbstractImpl(IfaceId, SchemaId),
+
     /// transition {0} is absent.
     ///
     /// It may happen due to RGB standard library bug, or indicate internal

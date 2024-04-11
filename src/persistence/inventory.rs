@@ -469,6 +469,12 @@ pub trait Inventory: Deref<Target = Self::Stash> {
         iface_id: IfaceId,
     ) -> Result<ContractIface, InventoryError<Self::Error>>;
 
+    fn contract_iface_abstract(
+        &self,
+        contract_id: ContractId,
+        iface_id: IfaceId,
+    ) -> Result<ContractIface, InventoryError<Self::Error>>;
+
     fn op_bundle_id(&self, opid: OpId) -> Result<BundleId, InventoryError<Self::Error>>;
 
     fn bundled_witness(
