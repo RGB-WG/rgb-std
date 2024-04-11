@@ -377,10 +377,11 @@ impl Iface {
 
     pub fn expect_extended(self, ext: Iface) -> Iface {
         let name = self.name.clone();
+        let ext_name = ext.name.clone();
         match self.extended(ext) {
             Ok(iface) => iface,
             Err(msgs) => {
-                eprintln!("Unable to inherit from {name}:");
+                eprintln!("Unable to extend {name} with {ext_name}:");
                 for msg in msgs {
                     eprintln!("- {msg}")
                 }

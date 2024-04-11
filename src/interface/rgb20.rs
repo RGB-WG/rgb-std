@@ -614,8 +614,7 @@ impl IfaceClass for Rgb20 {
         }
         if features.inflation.is_fixed() {
             iface = iface.expect_extended(fixed());
-        }
-        if features.inflation.is_inflatible() {
+        } else if features.inflation.is_inflatible() {
             iface = iface.expect_extended(inflatable());
         }
         if features.inflation.is_replacable() {
