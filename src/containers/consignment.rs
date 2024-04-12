@@ -21,6 +21,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::{Display, Formatter};
+use std::ops::Deref;
 use std::str::FromStr;
 use std::{fmt, iter};
 
@@ -49,7 +50,7 @@ use crate::accessors::BundleExt;
 use crate::containers::anchors::ToWitnessId;
 use crate::interface::{ContractSuppl, Iface, IfaceImpl};
 use crate::resolvers::ResolveHeight;
-use crate::LIB_NAME_RGB_STD;
+use crate::{SecretSeal, LIB_NAME_RGB_STD};
 
 pub type Transfer = Consignment<true>;
 pub type Contract = Consignment<false>;
@@ -125,6 +126,12 @@ impl<const TYPE: bool> ValidConsignment<TYPE> {
     pub fn split(self) -> (Consignment<TYPE>, validation::Status) {
         (self.consignment, self.validation_status)
     }
+}
+
+impl<const TYPE: bool> Deref for ValidConsignment<TYPE> {
+    type Target = Consignment<TYPE>;
+
+    fn deref(&self) -> &Self::Target { &self.consignment }
 }
 
 /// Consignment represents contract-specific data, always starting with genesis,
@@ -237,6 +244,13 @@ impl<const TYPE: bool> Consignment<TYPE> {
     #[inline]
     pub fn contract_id(&self) -> ContractId { self.genesis.contract_id() }
 
+    pub fn terminal_secrets(&self) -> impl Iterator<Item = (BundleId, XChain<SecretSeal>)> {
+        self.terminals
+            .clone()
+            .into_iter()
+            .flat_map(|(id, term)| term.secrets().map(move |secret| (id, secret)))
+    }
+
     pub fn terminals_disclose(&self) -> impl Iterator<Item = TerminalDisclose> + '_ {
         self.terminals.iter().flat_map(|(id, term)| {
             term.seals.iter().map(|seal| TerminalDisclose {
@@ -248,10 +262,10 @@ impl<const TYPE: bool> Consignment<TYPE> {
 
     pub fn update_history<R: ResolveHeight>(
         &self,
-        history: Option<&ContractHistory>,
+        history: Option<ContractHistory>,
         resolver: &mut R,
     ) -> Result<ContractHistory, R::Error> {
-        let mut history = history.cloned().unwrap_or_else(|| {
+        let mut history = history.unwrap_or_else(|| {
             ContractHistory::with(self.schema_id(), self.contract_id(), &self.genesis)
         });
 

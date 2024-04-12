@@ -23,7 +23,7 @@ use amplify::confinement::SmallOrdSet;
 use rgb::{BundleId, XChain};
 
 use super::TerminalSeal;
-use crate::LIB_NAME_RGB_STD;
+use crate::{SecretSeal, LIB_NAME_RGB_STD};
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
@@ -55,6 +55,13 @@ impl Terminal {
         Terminal {
             seals: small_bset![seal],
         }
+    }
+
+    pub fn secrets(&self) -> impl Iterator<Item = XChain<SecretSeal>> {
+        self.seals
+            .clone()
+            .into_iter()
+            .filter_map(|seal| seal.map_ref(TerminalSeal::secret_seal).transpose())
     }
 }
 

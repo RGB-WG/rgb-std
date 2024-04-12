@@ -32,16 +32,23 @@
 //!
 //! 2-4 data can be re-computed from the stash in case of loss or corruption.
 
-mod stash;
 mod stock;
+mod stash;
+mod state;
 mod index;
 
-mod tiny_stash;
+mod memory;
 
-pub use index::{IndexProvider, IndexReadProvider, IndexWriteProvider};
+pub use index::{
+    Index, IndexError, IndexInconsistency, IndexProvider, IndexReadError, IndexReadProvider,
+    IndexWriteError, IndexWriteProvider,
+};
+pub use memory::{MemIndex, MemStash, MemState};
 pub use stash::{
     ProviderError as StashProviderError, SchemaIfaces, Stash, StashDataError, StashError,
     StashInconsistency, StashProvider, StashReadProvider, StashWriteProvider,
 };
-pub use stock::{ComposeError, ConsignError, FasciaError, PersistedState, Stock, StockError};
-pub use tiny_stash::TinyStash;
+pub use state::{
+    PersistedState, StateProvider, StateReadProvider, StateUpdateError, StateWriteProvider,
+};
+pub use stock::{ComposeError, ConsignError, FasciaError, Stock, StockError};

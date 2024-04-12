@@ -19,105 +19,372 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::error::Error;
 use std::fmt::Debug;
 
 use rgb::{
-    validation, BundleId, ContractId, GraphSeal, OpId, Opout, Transition, TransitionBundle, XChain,
-    XOutpoint, XOutputSeal, XWitnessId,
+    Assign, AssignmentType, BundleId, ContractId, ExposedState, Extension, Genesis, GenesisSeal,
+    GraphSeal, OpId, Operation, Opout, TransitionBundle, TypedAssigns, XChain, XOutputSeal,
+    XWitnessId,
 };
 
-use crate::containers::{BundledWitness, Contract, SealWitness, Transfer};
-use crate::interface::{ContractIface, IfaceRef};
-use crate::persistence::PersistedState;
-use crate::resolvers::ResolveHeight;
+use crate::containers::{BundledWitness, Consignment, ToWitnessId};
 use crate::SecretSeal;
+
+#[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
+#[display(inner)]
+pub enum IndexError<P: IndexProvider> {
+    /// Connectivity errors which may be recoverable and temporary.
+    ReadProvider(<P as IndexReadProvider>::Error),
+
+    /// Connectivity errors which may be recoverable and temporary.
+    WriteProvider(<P as IndexWriteProvider>::Error),
+
+    /// {0}
+    ///
+    /// It may happen due to RGB standard library bug, or indicate internal
+    /// stash inconsistency and compromised index storage.
+    Inconsistency(IndexInconsistency),
+}
+
+#[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
+#[display(inner)]
+pub enum IndexReadError<E: Error> {
+    #[from]
+    Inconsistency(IndexInconsistency),
+    Connectivity(E),
+}
+
+#[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
+#[display(inner)]
+pub enum IndexWriteError<E: Error> {
+    #[from]
+    Inconsistency(IndexInconsistency),
+    Connectivity(E),
+}
+
+impl<P: IndexProvider> From<IndexReadError<<P as IndexReadProvider>::Error>> for IndexError<P> {
+    fn from(err: IndexReadError<<P as IndexReadProvider>::Error>) -> Self {
+        match err {
+            IndexReadError::Inconsistency(e) => IndexError::Inconsistency(e),
+            IndexReadError::Connectivity(e) => IndexError::ReadProvider(e),
+        }
+    }
+}
+
+impl<P: IndexProvider> From<IndexWriteError<<P as IndexWriteProvider>::Error>> for IndexError<P> {
+    fn from(err: IndexWriteError<<P as IndexWriteProvider>::Error>) -> Self {
+        match err {
+            IndexWriteError::Inconsistency(e) => IndexError::Inconsistency(e),
+            IndexWriteError::Connectivity(e) => IndexError::WriteProvider(e),
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
+#[display(doc_comments)]
+pub enum IndexInconsistency {
+    /// contract {0} is unknown. Probably you haven't imported the contract yet.
+    ContractAbsent(ContractId),
+
+    /// bundle matching state transition {0} is absent in the index.
+    BundleAbsent(OpId),
+
+    /// outpoint {0} is not part of the contract {1}.
+    OutpointUnknown(XOutputSeal, ContractId),
+
+    /// index already contains information about bundle {bundle_id} which
+    /// specifies witness {present} instead of witness {expected}.
+    DistinctBundleWitness {
+        bundle_id: BundleId,
+        present: XWitnessId,
+        expected: XWitnessId,
+    },
+
+    /// index already contains information about bundle {bundle_id} which
+    /// specifies contract {present} instead of contract {expected}.
+    DistinctBundleContract {
+        bundle_id: BundleId,
+        present: ContractId,
+        expected: ContractId,
+    },
+
+    /// index already contains information about operation {opid} which
+    /// specifies bundle {present} instead of bundle {expected}.
+    DistinctBundleOp {
+        opid: OpId,
+        present: BundleId,
+        expected: BundleId,
+    },
+
+    /// contract id for bundle {0} is not known.
+    BundleContractUnknown(BundleId),
+
+    /// absent information about witness for bundle {0}.
+    BundleWitnessUnknown(BundleId),
+}
+
+#[derive(Debug)]
+pub struct Index<P: IndexProvider> {
+    provider: P,
+}
+
+impl<P: IndexProvider> Index<P> {
+    pub(super) fn new(provider: P) -> Self { Self { provider } }
+
+    pub(super) fn index_consignment<const TYPE: bool>(
+        &mut self,
+        consignment: &Consignment<TYPE>,
+    ) -> Result<(), IndexError<P>> {
+        let contract_id = consignment.contract_id();
+
+        self.provider
+            .register_contract(contract_id)
+            .map_err(IndexError::WriteProvider)?;
+        self.index_genesis(contract_id, &consignment.genesis)?;
+        for extension in &consignment.extensions {
+            self.index_extension(contract_id, extension)?;
+        }
+        for BundledWitness {
+            pub_witness,
+            anchored_bundles,
+        } in &consignment.bundles
+        {
+            let witness_id = pub_witness.to_witness_id();
+            for bundle in anchored_bundles.bundles() {
+                self.index_bundle(contract_id, bundle, witness_id)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn index_genesis(&mut self, id: ContractId, genesis: &Genesis) -> Result<(), IndexError<P>> {
+        let opid = genesis.id();
+        for (type_id, assign) in genesis.assignments.iter() {
+            match assign {
+                TypedAssigns::Declarative(vec) => {
+                    self.provider
+                        .index_genesis_assignments(id, vec, opid, *type_id)?;
+                }
+                TypedAssigns::Fungible(vec) => {
+                    self.provider
+                        .index_genesis_assignments(id, vec, opid, *type_id)?;
+                }
+                TypedAssigns::Structured(vec) => {
+                    self.provider
+                        .index_genesis_assignments(id, vec, opid, *type_id)?;
+                }
+                TypedAssigns::Attachment(vec) => {
+                    self.provider
+                        .index_genesis_assignments(id, vec, opid, *type_id)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn index_extension(
+        &mut self,
+        id: ContractId,
+        extension: &Extension,
+    ) -> Result<(), IndexError<P>> {
+        let opid = extension.id();
+        for (type_id, assign) in extension.assignments.iter() {
+            match assign {
+                TypedAssigns::Declarative(vec) => {
+                    self.provider
+                        .index_genesis_assignments(id, vec, opid, *type_id)?;
+                }
+                TypedAssigns::Fungible(vec) => {
+                    self.provider
+                        .index_genesis_assignments(id, vec, opid, *type_id)?;
+                }
+                TypedAssigns::Structured(vec) => {
+                    self.provider
+                        .index_genesis_assignments(id, vec, opid, *type_id)?;
+                }
+                TypedAssigns::Attachment(vec) => {
+                    self.provider
+                        .index_genesis_assignments(id, vec, opid, *type_id)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn index_bundle(
+        &mut self,
+        contract_id: ContractId,
+        bundle: &TransitionBundle,
+        witness_id: XWitnessId,
+    ) -> Result<(), IndexError<P>> {
+        let bundle_id = bundle.bundle_id();
+
+        self.provider
+            .register_bundle(bundle_id, witness_id, contract_id)?;
+
+        for (opid, transition) in &bundle.known_transitions {
+            self.provider.register_operation(*opid, bundle_id)?;
+            for (type_id, assign) in transition.assignments.iter() {
+                match assign {
+                    TypedAssigns::Declarative(vec) => {
+                        self.provider.index_transition_assignments(
+                            contract_id,
+                            vec,
+                            *opid,
+                            *type_id,
+                            witness_id,
+                        )?;
+                    }
+                    TypedAssigns::Fungible(vec) => {
+                        self.provider.index_transition_assignments(
+                            contract_id,
+                            vec,
+                            *opid,
+                            *type_id,
+                            witness_id,
+                        )?;
+                    }
+                    TypedAssigns::Structured(vec) => {
+                        self.provider.index_transition_assignments(
+                            contract_id,
+                            vec,
+                            *opid,
+                            *type_id,
+                            witness_id,
+                        )?;
+                    }
+                    TypedAssigns::Attachment(vec) => {
+                        self.provider.index_transition_assignments(
+                            contract_id,
+                            vec,
+                            *opid,
+                            *type_id,
+                            witness_id,
+                        )?;
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    pub(super) fn contracts_assigning(
+        &self,
+        outputs: BTreeSet<XOutputSeal>,
+    ) -> Result<impl Iterator<Item = ContractId> + '_, IndexError<P>> {
+        Ok(self
+            .provider
+            .contracts_assigning(outputs)
+            .map_err(IndexError::ReadProvider)?)
+    }
+
+    pub(super) fn public_opouts(
+        &self,
+        contract_id: ContractId,
+    ) -> Result<BTreeSet<Opout>, IndexError<P>> {
+        Ok(self.provider.public_opouts(contract_id)?)
+    }
+
+    pub(super) fn opouts_by_outputs(
+        &self,
+        contract_id: ContractId,
+        outputs: impl IntoIterator<Item = impl Into<XOutputSeal>>,
+    ) -> Result<BTreeSet<Opout>, IndexError<P>> {
+        Ok(self.provider.opouts_by_outputs(contract_id, outputs)?)
+    }
+
+    pub(super) fn opouts_by_terminals(
+        &self,
+        terminals: impl IntoIterator<Item = XChain<SecretSeal>>,
+    ) -> Result<BTreeSet<Opout>, IndexError<P>> {
+        Ok(self
+            .provider
+            .opouts_by_terminals(terminals)
+            .map_err(IndexError::ReadProvider)?)
+    }
+
+    pub(super) fn bundle_id_for_op(&self, opid: OpId) -> Result<BundleId, IndexError<P>> {
+        Ok(self.provider.bundle_id_for_op(opid)?)
+    }
+
+    pub(super) fn bundle_info(
+        &self,
+        bundle_id: BundleId,
+    ) -> Result<(XWitnessId, ContractId), IndexError<P>> {
+        Ok(self.provider.bundle_info(bundle_id)?)
+    }
+}
 
 pub trait IndexProvider: Debug + IndexReadProvider + IndexWriteProvider {}
 
 pub trait IndexReadProvider {
-    type Error: Error;
+    type Error: Clone + Eq + Error;
 
-    fn contract_iface(
+    fn contracts_assigning(
+        &self,
+        outputs: BTreeSet<XOutputSeal>,
+    ) -> Result<impl Iterator<Item = ContractId> + '_, Self::Error>;
+
+    fn public_opouts(
         &self,
         contract_id: ContractId,
-        iface: impl Into<IfaceRef>,
-    ) -> Result<ContractIface, Self::Error>;
-
-    fn contracts_by_outputs(
-        &self,
-        outputs: impl IntoIterator<Item = impl Into<XOutputSeal>>,
-    ) -> Result<BTreeSet<ContractId>, Self::Error>;
-
-    fn public_opouts(&self, contract_id: ContractId) -> Result<BTreeSet<Opout>, Self::Error>;
+    ) -> Result<BTreeSet<Opout>, IndexReadError<Self::Error>>;
 
     fn opouts_by_outputs(
         &self,
         contract_id: ContractId,
         outputs: impl IntoIterator<Item = impl Into<XOutputSeal>>,
-    ) -> Result<BTreeSet<Opout>, Self::Error>;
+    ) -> Result<BTreeSet<Opout>, IndexReadError<Self::Error>>;
 
     fn opouts_by_terminals(
         &self,
         terminals: impl IntoIterator<Item = XChain<SecretSeal>>,
     ) -> Result<BTreeSet<Opout>, Self::Error>;
 
-    fn state_for_outpoints(
+    fn bundle_id_for_op(&self, opid: OpId) -> Result<BundleId, IndexReadError<Self::Error>>;
+
+    fn bundle_info(
         &self,
-        contract_id: ContractId,
-        outpoints: impl IntoIterator<Item = impl Into<XOutpoint>>,
-    ) -> Result<BTreeMap<(Opout, XOutputSeal), PersistedState>, Self::Error>;
-
-    fn op_bundle_id(&self, opid: OpId) -> Result<BundleId, Self::Error>;
-
-    fn bundled_witness(&self, bundle_id: BundleId) -> Result<BundledWitness, Self::Error>;
-
-    fn transition(&self, opid: OpId) -> Result<&Transition, Self::Error>;
-
-    fn seal_secrets(&self) -> Result<BTreeSet<XChain<GraphSeal>>, Self::Error>;
+        bundle_id: BundleId,
+    ) -> Result<(XWitnessId, ContractId), IndexReadError<Self::Error>>;
 }
 
 pub trait IndexWriteProvider {
-    type Error: Error;
+    type Error: Clone + Eq + Error;
 
-    fn import_contract<R: ResolveHeight>(
+    fn register_contract(&mut self, contract_id: ContractId) -> Result<bool, Self::Error>;
+
+    fn register_bundle(
         &mut self,
-        contract: Contract,
-        resolver: &mut R,
-    ) -> Result<validation::Status, Self::Error>
-    where
-        R::Error: 'static;
+        bundle_id: BundleId,
+        witness_id: XWitnessId,
+        contract_id: ContractId,
+    ) -> Result<bool, IndexWriteError<Self::Error>>;
 
-    fn accept_transfer<R: ResolveHeight>(
+    fn register_operation(
         &mut self,
-        transfer: Transfer,
-        resolver: &mut R,
-        force: bool,
-    ) -> Result<validation::Status, Self::Error>
-    where
-        R::Error: 'static;
+        opid: OpId,
+        bundle_id: BundleId,
+    ) -> Result<bool, IndexWriteError<Self::Error>>;
 
-    /// # Safety
-    ///
-    /// Calling this method may lead to including into the stash asset
-    /// information which may be invalid.
-    fn import_contract_force<R: ResolveHeight>(
-        &mut self,
-        contract: Contract,
-        resolver: &mut R,
-    ) -> Result<validation::Status, Self::Error>
-    where
-        R::Error: 'static;
-
-    fn consume_witness(&mut self, witness: SealWitness) -> Result<(), Self::Error>;
-
-    fn consume_bundle(
+    fn index_genesis_assignments<State: ExposedState>(
         &mut self,
         contract_id: ContractId,
-        bundle: TransitionBundle,
-        witness_id: XWitnessId,
-    ) -> Result<(), Self::Error>;
+        vec: &[Assign<State, GenesisSeal>],
+        opid: OpId,
+        type_id: AssignmentType,
+    ) -> Result<(), IndexWriteError<Self::Error>>;
 
-    fn store_seal_secret(&mut self, seal: XChain<GraphSeal>) -> Result<(), Self::Error>;
+    fn index_transition_assignments<State: ExposedState>(
+        &mut self,
+        contract_id: ContractId,
+        vec: &[Assign<State, GraphSeal>],
+        opid: OpId,
+        type_id: AssignmentType,
+        witness_id: XWitnessId,
+    ) -> Result<(), IndexWriteError<Self::Error>>;
 }
