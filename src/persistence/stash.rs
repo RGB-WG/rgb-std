@@ -172,6 +172,16 @@ pub struct Stash<P: StashProvider> {
     provider: P,
 }
 
+impl<P: StashProvider> Default for Stash<P>
+where P: Default
+{
+    fn default() -> Self {
+        Self {
+            provider: default!(),
+        }
+    }
+}
+
 impl<P: StashProvider> Stash<P> {
     pub(super) fn new(provider: P) -> Self { Self { provider } }
 

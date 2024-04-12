@@ -130,6 +130,16 @@ pub struct Index<P: IndexProvider> {
     provider: P,
 }
 
+impl<P: IndexProvider> Default for Index<P>
+where P: Default
+{
+    fn default() -> Self {
+        Self {
+            provider: default!(),
+        }
+    }
+}
+
 impl<P: IndexProvider> Index<P> {
     pub(super) fn new(provider: P) -> Self { Self { provider } }
 

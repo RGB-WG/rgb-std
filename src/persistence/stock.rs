@@ -335,6 +335,21 @@ pub struct Stock<
     index: Index<P>,
 }
 
+impl<S: StashProvider, H: StateProvider, P: IndexProvider> Default for Stock<S, H, P>
+where
+    S: Default,
+    H: Default,
+    P: Default,
+{
+    fn default() -> Self {
+        Self {
+            stash: default!(),
+            state: default!(),
+            index: default!(),
+        }
+    }
+}
+
 impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     pub fn new(stash_provider: S, state_provider: H, index_provider: P) -> Self {
         Stock {
