@@ -52,7 +52,7 @@ use crate::containers::{
     TransitionInfoError, ValidConsignment,
 };
 use crate::interface::{
-    BuilderError, ContractBuilder, ContractIface, IfaceId, IfaceRef, TransitionBuilder,
+    BuilderError, ContractBuilder, ContractIface, Iface, IfaceId, IfaceRef, TransitionBuilder,
     VelocityHint,
 };
 use crate::resolvers::ResolveHeight;
@@ -342,6 +342,13 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             state: state_provider,
             index: Index::new(index_provider),
         }
+    }
+
+    pub fn iface(&self, iface: impl Into<IfaceRef>) -> Result<&Iface, StockError<S, H, P>> {
+        Ok(self.stash.iface(iface)?)
+    }
+    pub fn schema(&self, schema_id: SchemaId) -> Result<&SchemaIfaces, StockError<S, H, P>> {
+        Ok(self.stash.schema(schema_id)?)
     }
 
     /// Iterates over all contract ids which can be interfaced using a specific
