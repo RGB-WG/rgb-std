@@ -27,21 +27,21 @@
 //! 2. [`rgb::ContractState`], updated with each enclosed consignment and
 //!    disclosure.
 //! 3. Index over stash, which simplifies construction of a new consignments.
-//! 4. [`InventoryProvider`], which abstracts stash, contract states and index
-//!    for complex operations requiring participation of all of them.
+//! 4. [`IndexProvider`], which abstracts stash, contract states and index for
+//!    complex operations requiring participation of all of them.
 //!
 //! 2-4 data can be re-computed from the stash in case of loss or corruption.
 
 mod stash;
-mod inventory;
+mod stock;
+mod index;
+
 mod tiny_stash;
 
-pub use inventory::{
-    ComposeError, ConsignError, FasciaError, Inventory, InventoryError, InventoryProvider,
-    InventoryReadProvider, InventoryWriteProvider, PersistedState,
-};
+pub use index::{IndexProvider, IndexReadProvider, IndexWriteProvider};
 pub use stash::{
     ProviderError as StashProviderError, SchemaIfaces, Stash, StashDataError, StashError,
     StashInconsistency, StashProvider, StashReadProvider, StashWriteProvider,
 };
+pub use stock::{ComposeError, ConsignError, FasciaError, PersistedState, Stock, StockError};
 pub use tiny_stash::TinyStash;
