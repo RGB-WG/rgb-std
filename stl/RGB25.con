@@ -1,6 +1,9 @@
 @version(1)
 @timestamp(1711405444)
-interface RGB25: FungibleAsset, BurnableAsset, NamedAsset, RenameableAsset, ReservableAsset
+interface RGB25: NamedAsset, urn:lnp-bp:if:J3bejM-kVjfQMi9-JiWMRoZo-Se6Db1WC-zppPwrxS-XkT9UA
+, urn:lnp-bp:if:GciRTV-zmEQkt9K-tbbdFKS3-ALgFwE4o-pYHVypiG-BUpffU
+, urn:lnp-bp:if:8Abba5-mE55hsiV-o4ZsKkcn-dH35xYfv-xo4VSEFG-2CFrvx
+
 	global burnedSupply(*): RGBContract.Amount
 	global issuedSupply: RGBContract.Amount
 	global spec: RGBContract.AssetSpec

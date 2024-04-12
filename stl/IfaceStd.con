@@ -10,7 +10,7 @@ interface NamedAsset
 
 @version(1)
 @timestamp(1711405444)
-interface RenameableAsset: NamedAsset
+interface RenameableAsset
 
 	public updateRight: Rights
 
@@ -50,7 +50,7 @@ interface FungibleAsset
 
 @version(1)
 @timestamp(1711405444)
-interface FixedAsset: FungibleAsset
+interface FixedAsset
 
 	owned assetOwner(+): Zk64
 
@@ -61,7 +61,7 @@ interface FixedAsset: FungibleAsset
 
 @version(1)
 @timestamp(1711405444)
-interface BurnableAsset: FungibleAsset
+interface BurnableAsset
 	global burnedSupply(*): RGBContract.Amount
 
 	public burnRight(+): Rights
@@ -82,7 +82,7 @@ interface BurnableAsset: FungibleAsset
 
 @version(1)
 @timestamp(1711405444)
-interface InflatableAsset: FungibleAsset
+interface InflatableAsset
 	global issuedSupply(+): RGBContract.Amount
 
 	public inflationAllowance(*): Zk64
@@ -103,7 +103,7 @@ interface InflatableAsset: FungibleAsset
 
 @version(1)
 @timestamp(1711405444)
-interface ReplaceableAsset: InflatableAsset
+interface ReplaceableAsset
 	global burnedSupply(*): RGBContract.Amount
 	global replacedSupply(*): RGBContract.Amount
 
@@ -188,7 +188,7 @@ interface NonFungibleToken
 
 @version(1)
 @timestamp(1711405444)
-interface EngravableNft: NonFungibleToken
+interface EngravableNft
 	global engravings(*): RGB21.EngravingData
 
 	error nonEngravableToken
@@ -206,7 +206,7 @@ interface EngravableNft: NonFungibleToken
 
 @version(1)
 @timestamp(1711405444)
-interface UniqueNft: NonFungibleToken
+interface UniqueNft
 	global attachmentTypes: RGB21.AttachmentType
 	global tokens: RGB21.TokenData
 
@@ -219,7 +219,7 @@ interface UniqueNft: NonFungibleToken
 
 @version(1)
 @timestamp(1711405444)
-interface LimitedNft: NonFungibleToken
+interface LimitedNft
 	global attachmentTypes(+): RGB21.AttachmentType
 	global tokens(+): RGB21.TokenData
 
@@ -232,7 +232,7 @@ interface LimitedNft: NonFungibleToken
 
 @version(1)
 @timestamp(1711405444)
-interface IssuableNft: NonFungibleToken
+interface IssuableNft
 
 	public inflationAllowance(+): RGB21.ItemsCount
 

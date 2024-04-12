@@ -1,6 +1,10 @@
 @version(1)
 @timestamp(1711405444)
-interface RGB21: EngravableNft, NamedAsset, RenameableAsset, IssuableNft, NonFungibleToken, ReservableAsset
+interface RGB21: NamedAsset, urn:lnp-bp:if:DQHYEh-dkqcQ7ZM-i9UDYpaD-KVW2c8iY-v1Am4stu-7wDw6W
+, urn:lnp-bp:if:GgmXbw-X2D1d1z5-mFCVNpzW-cBbezjzo-7YpNomqK-oUjw8F
+, urn:lnp-bp:if:JAAQCU-UPBYQY1V-RSvHXfar-s81akykM-FA2QziML-AJib4c
+, urn:lnp-bp:if:E11LNE-oinM3CfU-w3v9ogYU-fXEkWooR-fZxwuAvQ-XjRJqH
+
 	global attachmentTypes(*): RGB21.AttachmentType
 	global engravings(*): RGB21.EngravingData
 	global spec: RGBContract.AssetSpec

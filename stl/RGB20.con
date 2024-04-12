@@ -1,6 +1,10 @@
 @version(1)
 @timestamp(1711405444)
-interface RGB20: FungibleAsset, NamedAsset, RenameableAsset, ReplaceableAsset, ReservableAsset, InflatableAsset
+interface RGB20: NamedAsset, urn:lnp-bp:if:4DAH2C-2YGtcSMp-CNReMHyD-8j3Y3rnN-4XBpzVbD-tDwVsY
+, urn:lnp-bp:if:HJJuYJ-dH1HmDm6-hDwnbPGP-erLQazKv-Q76jwR4t-RFhaTQ
+, urn:lnp-bp:if:5z7wVX-PnnDqqfU-9sqTwHWH-mJyaexWm-CvzQo4d3-JjN4uz
+, urn:lnp-bp:if:Es2kE9-XNubuiNC-3ZTeTAxm-RiSTWuvk-sinURYzu-gZqKdE
+
 	global burnedSupply(*): RGBContract.Amount
 	global issuedSupply(+): RGBContract.Amount
 	global replacedSupply(*): RGBContract.Amount
