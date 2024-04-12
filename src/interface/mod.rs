@@ -35,8 +35,8 @@ mod inheritance;
 
 pub use builder::{BuilderError, ContractBuilder, TransitionBuilder, TxOutpoint};
 pub use contract::{
-    AllocatedState, AttachAllocation, AttachedState, ContractError, ContractIface, DataAllocation,
-    FungibleAllocation, IfaceOp, OwnedAllocation, RightsAllocation, StateChange,
+    AllocatedState, AmountChange, AttachAllocation, AttachedState, ContractError, ContractIface,
+    DataAllocation, FungibleAllocation, IfaceOp, OwnedAllocation, RightsAllocation, StateChange,
 };
 pub use contractum::IfaceDisplay;
 pub use filters::{FilterExclude, FilterIncludeAll, OutpointFilter, WitnessFilter};

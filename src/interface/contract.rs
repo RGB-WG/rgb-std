@@ -120,6 +120,58 @@ pub trait StateChange: Clone + Eq + StrictDumb + StrictEncode + StrictDecode {
     fn merge_received(&mut self, state: Self::State);
 }
 
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD, tags = custom)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub enum AmountChange {
+    #[display("-{0}")]
+    #[strict_type(tag = 0xFF)]
+    Dec(Amount),
+
+    #[display("0")]
+    #[strict_type(tag = 0, dumb)]
+    Zero,
+
+    #[display("+{0}")]
+    #[strict_type(tag = 0x01)]
+    Inc(Amount),
+}
+
+impl StateChange for AmountChange {
+    type State = Amount;
+
+    fn from_spent(state: Self::State) -> Self { AmountChange::Dec(state) }
+
+    fn from_received(state: Self::State) -> Self { AmountChange::Inc(state) }
+
+    fn merge_spent(&mut self, sub: Self::State) {
+        *self = match self {
+            AmountChange::Dec(neg) => AmountChange::Dec(*neg + sub),
+            AmountChange::Zero => AmountChange::Dec(sub),
+            AmountChange::Inc(pos) if *pos > sub => AmountChange::Inc(*pos - sub),
+            AmountChange::Inc(pos) if *pos == sub => AmountChange::Zero,
+            AmountChange::Inc(pos) if *pos < sub => AmountChange::Dec(sub - *pos),
+            AmountChange::Inc(_) => unreachable!(),
+        };
+    }
+
+    fn merge_received(&mut self, add: Self::State) {
+        *self = match self {
+            AmountChange::Inc(pos) => AmountChange::Inc(*pos + add),
+            AmountChange::Zero => AmountChange::Inc(add),
+            AmountChange::Dec(neg) if *neg > add => AmountChange::Dec(*neg - add),
+            AmountChange::Dec(neg) if *neg == add => AmountChange::Zero,
+            AmountChange::Dec(neg) if *neg < add => AmountChange::Inc(add - *neg),
+            AmountChange::Dec(_) => unreachable!(),
+        };
+    }
+}
+
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
