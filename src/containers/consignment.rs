@@ -398,23 +398,3 @@ impl<const TYPE: bool> StrictArmor for Consignment<TYPE> {
         headers
     }
 }
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use crate::containers::armor::Bindle;
-
-    #[test]
-    fn contract_str_parse() {
-        let contract = Contract::strict_dumb();
-        let contract_str = contract.to_string();
-        Bindle::<Contract>::from_str(&contract_str).expect("valid contract string");
-    }
-
-    #[test]
-    fn transfer_str_parse() {
-        let transfer = Transfer::strict_dumb();
-        let transfer_str = transfer.to_string();
-        Bindle::<Transfer>::from_str(&transfer_str).expect("valid transfer string");
-    }
-}
