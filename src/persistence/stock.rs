@@ -41,9 +41,9 @@ use strict_encoding::FieldName;
 
 use super::{
     Index, IndexError, IndexInconsistency, IndexProvider, IndexReadProvider, IndexWriteProvider,
-    PersistedState, SchemaIfaces, Stash, StashDataError, StashError, StashInconsistency,
-    StashProvider, StashReadProvider, StashWriteProvider, StateProvider, StateReadProvider,
-    StateUpdateError, StateWriteProvider,
+    MemIndex, MemStash, MemState, PersistedState, SchemaIfaces, Stash, StashDataError, StashError,
+    StashInconsistency, StashProvider, StashReadProvider, StashWriteProvider, StateProvider,
+    StateReadProvider, StateUpdateError, StateWriteProvider,
 };
 use crate::accessors::{MergeRevealError, RevealError};
 use crate::containers::{
@@ -59,7 +59,12 @@ use crate::resolvers::ResolveHeight;
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(inner)]
-pub enum StockError<S: StashProvider, H: StateProvider, P: IndexProvider, E: Error = Infallible> {
+pub enum StockError<
+    S: StashProvider = MemStash,
+    H: StateProvider = MemState,
+    P: IndexProvider = MemIndex,
+    E: Error = Infallible,
+> {
     InvalidInput(E),
     Resolver(String),
     StashRead(<S as StashReadProvider>::Error),
@@ -320,7 +325,11 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> From<StockError<S, H,
 }
 
 #[derive(Debug)]
-pub struct Stock<S: StashProvider, H: StateProvider, P: IndexProvider> {
+pub struct Stock<
+    S: StashProvider = MemStash,
+    H: StateProvider = MemState,
+    P: IndexProvider = MemIndex,
+> {
     stash: Stash<S>,
     state: H,
     index: Index<P>,
