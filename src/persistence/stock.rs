@@ -33,9 +33,9 @@ use chrono::Utc;
 use commit_verify::Conceal;
 use invoice::{Amount, Beneficiary, InvoiceState, NonFungible, RgbInvoice};
 use rgb::{
-    AssignmentType, BlindingFactor, BundleId, ContractHistory, ContractId, ContractState, DbcProof,
-    EAnchor, GraphSeal, OpId, Operation, Opout, SchemaId, SecretSeal, Transition, XChain,
-    XOutpoint, XOutputSeal, XWitnessId,
+    validation, AssignmentType, BlindingFactor, BundleId, ContractHistory, ContractId,
+    ContractState, DbcProof, EAnchor, GraphSeal, OpId, Operation, Opout, SchemaId, SecretSeal,
+    Transition, XChain, XOutpoint, XOutputSeal, XWitnessId,
 };
 use strict_encoding::FieldName;
 
@@ -899,9 +899,9 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         &mut self,
         consignment: ValidConsignment<TYPE>,
         resolver: &mut R,
-    ) -> Result<(), StockError<S, H, P>> {
+    ) -> Result<validation::Status, StockError<S, H, P>> {
         let contract_id = consignment.contract_id();
-        let consignment = consignment.split().0;
+        let (consignment, status) = consignment.split();
 
         self.state
             .create_or_update_state::<R>(contract_id, |history| {
@@ -910,7 +910,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         self.index.index_consignment(&consignment)?;
         self.stash.consume_consignment(consignment)?;
 
-        Ok(())
+        Ok(status)
     }
 
     /// Imports fascia into the stash, index and inventory.
