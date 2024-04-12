@@ -21,9 +21,9 @@
 
 use rgb::{
     AssignmentType, ExtensionType, GlobalStateType, OpFullType, OpSchema, Schema, TransitionType,
-    ValencyType,
+    Types, ValencyType,
 };
-use strict_types::SemId;
+use strict_types::{SemId, TypeSystem};
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, From)]
 #[cfg_attr(
@@ -252,6 +252,7 @@ where T: OpSchema
 // limitations under the License.
 
 use amplify::confinement::{Confined, TinyOrdMap, TinyOrdSet};
+use amplify::Wrapper;
 use rgb::Occurrences;
 use strict_encoding::{FieldName, TypeName};
 
@@ -540,10 +541,12 @@ impl Iface {
         }
 
         if self.types != ext.types {
-            self.types
-                .extend(ext.types.into_strict())
+            let mut types = self.types.into_strict().into_inner();
+            types
+                .extend(ext.types.into_strict().into_inner())
                 .map_err(|_| errors.push(ExtensionError::TypesOverflow))
                 .ok();
+            self.types = Types::Strict(TypeSystem::from_inner(types));
         }
 
         self.name = name.into();
