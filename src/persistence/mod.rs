@@ -51,4 +51,7 @@ pub use stash::{
 pub use state::{
     PersistedState, StateProvider, StateReadProvider, StateUpdateError, StateWriteProvider,
 };
-pub use stock::{ComposeError, ConsignError, ContractIfaceError, FasciaError, Stock, StockError};
+pub use stock::{
+    ComposeError, ConsignError, ContractIfaceError, FasciaError, InputError as StockInputError,
+    Stock, StockError, StockErrorAll, StockErrorMem,
+};

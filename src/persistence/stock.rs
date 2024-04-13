@@ -183,27 +183,6 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> From<RevealError>
     fn from(err: RevealError) -> Self { Self::InvalidInput(err.into()) }
 }
 
-impl<S: StashProvider, H: StateProvider, P: IndexProvider> From<StockError<S, H, P, Infallible>>
-    for StockError<S, H, P, ConsignError>
-{
-    fn from(err: StockError<S, H, P, Infallible>) -> Self {
-        match err {
-            StockError::InvalidInput(_) => unreachable!(),
-            StockError::Resolver(e) => StockError::Resolver(e),
-            StockError::StashRead(e) => StockError::StashRead(e),
-            StockError::StashWrite(e) => StockError::StashWrite(e),
-            StockError::IndexRead(e) => StockError::IndexRead(e),
-            StockError::IndexWrite(e) => StockError::IndexWrite(e),
-            StockError::StateRead(e) => StockError::StateRead(e),
-            StockError::StateWrite(e) => StockError::StateWrite(e),
-            StockError::StashData(e) => StockError::StashData(e),
-            StockError::StashInconsistency(e) => StockError::StashInconsistency(e),
-            StockError::StateInconsistency(e) => StockError::StateInconsistency(e),
-            StockError::IndexInconsistency(e) => StockError::IndexInconsistency(e),
-        }
-    }
-}
-
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum ComposeError {
@@ -256,27 +235,6 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> From<BuilderError>
     fn from(err: BuilderError) -> Self { Self::InvalidInput(err.into()) }
 }
 
-impl<S: StashProvider, H: StateProvider, P: IndexProvider> From<StockError<S, H, P, Infallible>>
-    for StockError<S, H, P, ComposeError>
-{
-    fn from(err: StockError<S, H, P, Infallible>) -> Self {
-        match err {
-            StockError::InvalidInput(_) => unreachable!(),
-            StockError::Resolver(e) => StockError::Resolver(e),
-            StockError::StashRead(e) => StockError::StashRead(e),
-            StockError::StashWrite(e) => StockError::StashWrite(e),
-            StockError::IndexRead(e) => StockError::IndexRead(e),
-            StockError::IndexWrite(e) => StockError::IndexWrite(e),
-            StockError::StateRead(e) => StockError::StateRead(e),
-            StockError::StateWrite(e) => StockError::StateWrite(e),
-            StockError::StashData(e) => StockError::StashData(e),
-            StockError::StashInconsistency(e) => StockError::StashInconsistency(e),
-            StockError::StateInconsistency(e) => StockError::StateInconsistency(e),
-            StockError::IndexInconsistency(e) => StockError::IndexInconsistency(e),
-        }
-    }
-}
-
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum FasciaError {
@@ -304,26 +262,72 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> From<ContractIfaceErr
     fn from(err: ContractIfaceError) -> Self { Self::InvalidInput(err) }
 }
 
-impl<S: StashProvider, H: StateProvider, P: IndexProvider> From<StockError<S, H, P, Infallible>>
-    for StockError<S, H, P, ContractIfaceError>
-{
-    fn from(err: StockError<S, H, P, Infallible>) -> Self {
-        match err {
-            StockError::InvalidInput(_) => unreachable!(),
-            StockError::Resolver(e) => StockError::Resolver(e),
-            StockError::StashRead(e) => StockError::StashRead(e),
-            StockError::StashWrite(e) => StockError::StashWrite(e),
-            StockError::IndexRead(e) => StockError::IndexRead(e),
-            StockError::IndexWrite(e) => StockError::IndexWrite(e),
-            StockError::StateRead(e) => StockError::StateRead(e),
-            StockError::StateWrite(e) => StockError::StateWrite(e),
-            StockError::StashData(e) => StockError::StashData(e),
-            StockError::StashInconsistency(e) => StockError::StashInconsistency(e),
-            StockError::StateInconsistency(e) => StockError::StateInconsistency(e),
-            StockError::IndexInconsistency(e) => StockError::IndexInconsistency(e),
-        }
-    }
+#[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
+#[display(inner)]
+pub enum InputError {
+    #[from]
+    Compose(ComposeError),
+    #[from]
+    Consign(ConsignError),
+    #[from]
+    Fascia(FasciaError),
+    #[from]
+    ContractIface(ContractIfaceError),
 }
+
+macro_rules! stock_err_conv {
+    ($err1:ty, $err2:ty) => {
+        impl<S: StashProvider, H: StateProvider, P: IndexProvider> From<StockError<S, H, P, $err1>>
+            for StockError<S, H, P, $err2>
+        {
+            fn from(err: StockError<S, H, P, $err1>) -> Self {
+                match err {
+                    StockError::InvalidInput(e) => StockError::InvalidInput(e.into()),
+                    StockError::Resolver(e) => StockError::Resolver(e),
+                    StockError::StashRead(e) => StockError::StashRead(e),
+                    StockError::StashWrite(e) => StockError::StashWrite(e),
+                    StockError::IndexRead(e) => StockError::IndexRead(e),
+                    StockError::IndexWrite(e) => StockError::IndexWrite(e),
+                    StockError::StateRead(e) => StockError::StateRead(e),
+                    StockError::StateWrite(e) => StockError::StateWrite(e),
+                    StockError::StashData(e) => StockError::StashData(e),
+                    StockError::StashInconsistency(e) => StockError::StashInconsistency(e),
+                    StockError::StateInconsistency(e) => StockError::StateInconsistency(e),
+                    StockError::IndexInconsistency(e) => StockError::IndexInconsistency(e),
+                }
+            }
+        }
+    };
+}
+
+impl From<Infallible> for InputError {
+    fn from(_: Infallible) -> Self { unreachable!() }
+}
+impl From<Infallible> for ComposeError {
+    fn from(_: Infallible) -> Self { unreachable!() }
+}
+impl From<Infallible> for ConsignError {
+    fn from(_: Infallible) -> Self { unreachable!() }
+}
+impl From<Infallible> for FasciaError {
+    fn from(_: Infallible) -> Self { unreachable!() }
+}
+impl From<Infallible> for ContractIfaceError {
+    fn from(_: Infallible) -> Self { unreachable!() }
+}
+
+stock_err_conv!(Infallible, ComposeError);
+stock_err_conv!(Infallible, ConsignError);
+stock_err_conv!(Infallible, FasciaError);
+stock_err_conv!(Infallible, ContractIfaceError);
+stock_err_conv!(Infallible, InputError);
+stock_err_conv!(ComposeError, InputError);
+stock_err_conv!(ConsignError, InputError);
+stock_err_conv!(FasciaError, InputError);
+stock_err_conv!(ContractIfaceError, InputError);
+
+pub type StockErrorMem<E = Infallible> = StockError<MemStash, MemState, MemIndex, E>;
+pub type StockErrorAll<S = MemStash, H = MemState, P = MemIndex> = StockError<S, H, P, InputError>;
 
 #[derive(Debug)]
 pub struct Stock<
