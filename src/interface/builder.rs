@@ -153,6 +153,8 @@ impl ContractBuilder {
         }
     }
 
+    pub fn type_system(&self) -> &TypeSystem { self.builder.type_system() }
+
     pub fn set_mainnet(mut self) -> Self {
         self.testnet = false;
         self
@@ -405,6 +407,8 @@ impl TransitionBuilder {
         }
     }
 
+    pub fn type_system(&self) -> &TypeSystem { self.builder.type_system() }
+
     pub fn transition_type(&self) -> TransitionType { self.transition_type }
 
     #[inline]
@@ -631,6 +635,8 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             types,
         }
     }
+
+    fn type_system(&self) -> &TypeSystem { &self.types }
 
     fn transition_iface(&self, ty: TransitionType) -> &TransitionIface {
         let transition_name = self.iimpl.transition_name(ty).expect("reverse type");
