@@ -37,7 +37,7 @@ use rgb::{
     ContractState, DbcProof, EAnchor, GraphSeal, OpId, Operation, Opout, SchemaId, SecretSeal,
     Transition, WitnessAnchor, XChain, XOutpoint, XOutputSeal, XWitnessId,
 };
-use strict_encoding::FieldName;
+use strict_encoding::{FieldName, TypeName};
 
 use super::{
     Index, IndexError, IndexInconsistency, IndexProvider, IndexReadProvider, IndexWriteProvider,
@@ -371,11 +371,26 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     #[doc(hidden)]
     pub fn as_index_provider(&self) -> &P { self.index.as_provider() }
 
+    pub fn ifaces(
+        &self,
+    ) -> Result<impl Iterator<Item = (IfaceId, TypeName)> + '_, StockError<S, H, P>> {
+        Ok(self.stash.ifaces()?)
+    }
     pub fn iface(&self, iface: impl Into<IfaceRef>) -> Result<&Iface, StockError<S, H, P>> {
         Ok(self.stash.iface(iface)?)
     }
+    pub fn schemata(
+        &self,
+    ) -> Result<impl Iterator<Item = &SchemaIfaces> + '_, StockError<S, H, P>> {
+        Ok(self.stash.schemata()?)
+    }
     pub fn schema(&self, schema_id: SchemaId) -> Result<&SchemaIfaces, StockError<S, H, P>> {
         Ok(self.stash.schema(schema_id)?)
+    }
+    pub fn contract_ids(
+        &self,
+    ) -> Result<impl Iterator<Item = ContractId> + '_, StockError<S, H, P>> {
+        Ok(self.stash.contract_ids()?)
     }
 
     /// Iterates over all contract ids which can be interfaced using a specific

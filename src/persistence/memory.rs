@@ -109,8 +109,8 @@ impl StashReadProvider for MemStash {
         .ok_or_else(|| StashInconsistency::IfaceAbsent(iref).into())
     }
 
-    fn schema_ids(&self) -> Result<impl Iterator<Item = SchemaId>, Self::Error> {
-        Ok(self.schemata.keys().copied())
+    fn schemata(&self) -> Result<impl Iterator<Item = &SchemaIfaces>, Self::Error> {
+        Ok(self.schemata.values())
     }
 
     fn schema(

@@ -188,12 +188,31 @@ impl<P: StashProvider> Stash<P> {
     #[doc(hidden)]
     pub fn as_provider(&self) -> &P { &self.provider }
 
+    pub(super) fn ifaces(
+        &self,
+    ) -> Result<impl Iterator<Item = (IfaceId, TypeName)> + '_, StashError<P>> {
+        Ok(self.provider.ifaces().map_err(StashError::ReadProvider)?)
+    }
     pub(super) fn iface(&self, iface: impl Into<IfaceRef>) -> Result<&Iface, StashError<P>> {
         Ok(self.provider.iface(iface)?)
+    }
+    pub(super) fn schemata(
+        &self,
+    ) -> Result<impl Iterator<Item = &SchemaIfaces> + '_, StashError<P>> {
+        Ok(self.provider.schemata().map_err(StashError::ReadProvider)?)
     }
     pub(super) fn schema(&self, schema_id: SchemaId) -> Result<&SchemaIfaces, StashError<P>> {
         Ok(self.provider.schema(schema_id)?)
     }
+    pub(super) fn contract_ids(
+        &self,
+    ) -> Result<impl Iterator<Item = ContractId> + '_, StashError<P>> {
+        Ok(self
+            .provider
+            .contract_ids()
+            .map_err(StashError::ReadProvider)?)
+    }
+
     pub(super) fn genesis(&self, contract_id: ContractId) -> Result<&Genesis, StashError<P>> {
         Ok(self.provider.genesis(contract_id)?)
     }
@@ -203,6 +222,7 @@ impl<P: StashProvider> Stash<P> {
     pub(super) fn witness(&self, witness_id: XWitnessId) -> Result<&SealWitness, StashError<P>> {
         Ok(self.provider.witness(witness_id)?)
     }
+
     pub(super) fn contract_ids_by_iface(
         &self,
         iface: impl Into<IfaceRef>,
@@ -536,7 +556,7 @@ pub trait StashReadProvider {
 
     fn ifaces(&self) -> Result<impl Iterator<Item = (IfaceId, TypeName)>, Self::Error>;
     fn iface(&self, iface: impl Into<IfaceRef>) -> Result<&Iface, ProviderError<Self::Error>>;
-    fn schema_ids(&self) -> Result<impl Iterator<Item = SchemaId>, Self::Error>;
+    fn schemata(&self) -> Result<impl Iterator<Item = &SchemaIfaces>, Self::Error>;
     fn schema(&self, schema_id: SchemaId) -> Result<&SchemaIfaces, ProviderError<Self::Error>>;
 
     fn contract_ids(&self) -> Result<impl Iterator<Item = ContractId>, Self::Error>;
