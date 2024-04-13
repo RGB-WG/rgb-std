@@ -19,73 +19,99 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use amplify::confinement::U32;
 use strict_encoding::{DeserializeError, SerializeError, StrictDeserialize, StrictSerialize};
 
-use crate::persistence::{MemIndex, MemStash, MemState, Stock};
+use crate::persistence::{
+    IndexProvider, MemIndex, MemStash, MemState, StashProvider, StateProvider, Stock,
+};
 
-impl Stock {
-    pub fn load(dir: impl Into<PathBuf>) -> Result<Self, DeserializeError> {
-        let mut file = dir.into();
-        file.push("stash.dat");
-        let stash = MemStash::load(&file)?;
+pub trait LoadFs: Sized {
+    fn load(path: impl AsRef<Path>) -> Result<Self, DeserializeError>;
+}
 
-        file.pop();
-        file.push("state.dat");
-        let state = MemState::load(&file)?;
+pub trait StoreFs {
+    fn store(&self, path: impl AsRef<Path>) -> Result<(), SerializeError>;
+}
 
-        file.pop();
-        file.push("index.dat");
-        let index = MemIndex::load(&file)?;
+impl<S: StashProvider, H: StateProvider, I: IndexProvider> LoadFs for Stock<S, H, I>
+where
+    S: LoadFs,
+    H: LoadFs,
+    I: LoadFs,
+{
+    fn load(path: impl AsRef<Path>) -> Result<Self, DeserializeError> {
+        let path = path.as_ref();
+        let stash = S::load(path)?;
+        let state = H::load(path)?;
+        let index = I::load(path)?;
 
         Ok(Stock::with(stash, state, index))
     }
+}
 
-    pub fn store(&self, dir: impl Into<PathBuf>) -> Result<(), SerializeError> {
-        let mut file = dir.into();
-        file.push("stash.dat");
-        self.as_stash_provider().store(&file)?;
-
-        file.pop();
-        file.push("state.dat");
-        self.as_state_provider().store(&file)?;
-
-        file.pop();
-        file.push("index.dat");
-        self.as_index_provider().store(&file)?;
+impl<S: StashProvider, H: StateProvider, I: IndexProvider> StoreFs for Stock<S, H, I>
+where
+    S: StoreFs,
+    H: StoreFs,
+    I: StoreFs,
+{
+    fn store(&self, path: impl AsRef<Path>) -> Result<(), SerializeError> {
+        let path = path.as_ref();
+        self.as_stash_provider().store(path)?;
+        self.as_state_provider().store(path)?;
+        self.as_index_provider().store(path)?;
 
         Ok(())
     }
 }
 
-impl MemStash {
-    pub fn load(file: impl AsRef<Path>) -> Result<Self, DeserializeError> {
+impl LoadFs for MemStash {
+    fn load(path: impl AsRef<Path>) -> Result<Self, DeserializeError> {
+        let mut file = path.as_ref().to_owned();
+        file.push("stash.dat");
         Self::strict_deserialize_from_file::<U32>(file)
     }
+}
 
-    pub fn store(&self, file: impl AsRef<Path>) -> Result<(), SerializeError> {
+impl StoreFs for MemStash {
+    fn store(&self, path: impl AsRef<Path>) -> Result<(), SerializeError> {
+        let mut file = path.as_ref().to_owned();
+        file.push("stash.dat");
         self.strict_serialize_to_file::<U32>(file)
     }
 }
 
-impl MemState {
-    pub fn load(file: impl AsRef<Path>) -> Result<Self, DeserializeError> {
+impl LoadFs for MemState {
+    fn load(path: impl AsRef<Path>) -> Result<Self, DeserializeError> {
+        let mut file = path.as_ref().to_owned();
+        file.push("state.dat");
         Self::strict_deserialize_from_file::<U32>(file)
     }
+}
 
-    pub fn store(&self, file: impl AsRef<Path>) -> Result<(), SerializeError> {
+impl StoreFs for MemState {
+    fn store(&self, path: impl AsRef<Path>) -> Result<(), SerializeError> {
+        let mut file = path.as_ref().to_owned();
+        file.push("state.dat");
         self.strict_serialize_to_file::<U32>(file)
     }
 }
 
-impl MemIndex {
-    pub fn load(file: impl AsRef<Path>) -> Result<Self, DeserializeError> {
+impl LoadFs for MemIndex {
+    fn load(path: impl AsRef<Path>) -> Result<Self, DeserializeError> {
+        let mut file = path.as_ref().to_owned();
+        file.push("index.dat");
         Self::strict_deserialize_from_file::<U32>(file)
     }
+}
 
-    pub fn store(&self, file: impl AsRef<Path>) -> Result<(), SerializeError> {
+impl StoreFs for MemIndex {
+    fn store(&self, path: impl AsRef<Path>) -> Result<(), SerializeError> {
+        let mut file = path.as_ref().to_owned();
+        file.push("index.dat");
         self.strict_serialize_to_file::<U32>(file)
     }
 }

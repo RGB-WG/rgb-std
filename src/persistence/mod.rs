@@ -37,7 +37,7 @@ mod index;
 
 mod memory;
 #[cfg(feature = "fs")]
-mod fs;
+pub mod fs;
 
 pub use index::{
     Index, IndexError, IndexInconsistency, IndexProvider, IndexReadError, IndexReadProvider,
