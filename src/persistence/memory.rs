@@ -53,7 +53,8 @@ use crate::LIB_NAME_RGB_STD;
 //////////
 
 /// Hoard is an in-memory stash useful for WASM implementations.
-#[derive(Clone, Debug, Default)]
+#[derive(Getters, Clone, Debug, Default)]
+#[getter(prefix = "debug_")]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 pub struct MemStash {
@@ -351,7 +352,8 @@ impl From<confinement::Error> for StateUpdateError<confinement::Error> {
     fn from(err: confinement::Error) -> Self { StateUpdateError::Connectivity(err) }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Getters, Clone, Debug, Default)]
+#[getter(prefix = "debug_")]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 pub struct MemState {
@@ -432,7 +434,8 @@ pub struct ContractIndex {
     outpoint_opouts: MediumOrdMap<XOutputSeal, MediumOrdSet<Opout>>,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Getters, Clone, Debug, Default)]
+#[getter(prefix = "debug_")]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 pub struct MemIndex {
