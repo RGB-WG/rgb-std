@@ -30,7 +30,7 @@ use amplify::confinement::{
     Confined, LargeOrdSet, MediumBlob, SmallOrdMap, SmallOrdSet, TinyOrdMap, TinyOrdSet,
 };
 use amplify::{ByteArray, Bytes32};
-use armor::{ArmorHeader, StrictArmor};
+use armor::{ArmorHeader, AsciiArmor, StrictArmor};
 use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
 use commit_verify::{CommitEncode, CommitEngine, CommitId, CommitmentId, DigestExt, Sha256};
 use rgb::validation::{ResolveWitness, Validator, Validity, Warning, CONSIGNMENT_MAX_LIBS};
@@ -142,7 +142,8 @@ impl<const TYPE: bool> Deref for ValidConsignment<TYPE> {
 /// All consignments-related procedures, including validation or merging
 /// consignments data into stash or schema-specific data storage, must start
 /// with `endpoints` and process up to the genesis.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Display)]
+#[display(AsciiArmor::to_ascii_armored_string)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(
