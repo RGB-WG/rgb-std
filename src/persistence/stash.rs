@@ -185,6 +185,9 @@ where P: Default
 impl<P: StashProvider> Stash<P> {
     pub(super) fn new(provider: P) -> Self { Self { provider } }
 
+    #[doc(hidden)]
+    pub fn as_provider(&self) -> &P { &self.provider }
+
     pub(super) fn iface(&self, iface: impl Into<IfaceRef>) -> Result<&Iface, StashError<P>> {
         Ok(self.provider.iface(iface)?)
     }

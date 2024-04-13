@@ -143,6 +143,9 @@ where P: Default
 impl<P: IndexProvider> Index<P> {
     pub(super) fn new(provider: P) -> Self { Self { provider } }
 
+    #[doc(hidden)]
+    pub fn as_provider(&self) -> &P { &self.provider }
+
     pub(super) fn index_consignment<const TYPE: bool>(
         &mut self,
         consignment: &Consignment<TYPE>,

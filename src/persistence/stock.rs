@@ -356,13 +356,20 @@ where
 }
 
 impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
-    pub fn new(stash_provider: S, state_provider: H, index_provider: P) -> Self {
+    pub fn with(stash_provider: S, state_provider: H, index_provider: P) -> Self {
         Stock {
             stash: Stash::new(stash_provider),
             state: state_provider,
             index: Index::new(index_provider),
         }
     }
+
+    #[doc(hidden)]
+    pub fn as_stash_provider(&self) -> &S { self.stash.as_provider() }
+    #[doc(hidden)]
+    pub fn as_state_provider(&self) -> &H { &self.state }
+    #[doc(hidden)]
+    pub fn as_index_provider(&self) -> &P { self.index.as_provider() }
 
     pub fn iface(&self, iface: impl Into<IfaceRef>) -> Result<&Iface, StockError<S, H, P>> {
         Ok(self.stash.iface(iface)?)
