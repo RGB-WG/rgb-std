@@ -146,9 +146,9 @@ impl<P: IndexProvider> Index<P> {
     #[doc(hidden)]
     pub fn as_provider(&self) -> &P { &self.provider }
 
-    pub(super) fn index_consignment<const TYPE: bool>(
+    pub(super) fn index_consignment<const TRANSFER: bool>(
         &mut self,
-        consignment: &Consignment<TYPE>,
+        consignment: &Consignment<TRANSFER>,
     ) -> Result<(), IndexError<P>> {
         let contract_id = consignment.contract_id();
 

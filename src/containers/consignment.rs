@@ -111,25 +111,28 @@ impl ConsignmentId {
     pub fn to_mnemonic(&self) -> String { self.to_baid58().mnemonic() }
 }
 
+pub type ValidContract = ValidConsignment<false>;
+pub type ValidTransfer = ValidConsignment<true>;
+
 #[derive(Clone, Debug)]
-pub struct ValidConsignment<const TYPE: bool> {
+pub struct ValidConsignment<const TRANSFER: bool> {
     /// Status of the latest validation.
     validation_status: validation::Status,
-    consignment: Consignment<TYPE>,
+    consignment: Consignment<TRANSFER>,
 }
 
-impl<const TYPE: bool> ValidConsignment<TYPE> {
+impl<const TRANSFER: bool> ValidConsignment<TRANSFER> {
     pub fn validation_status(&self) -> &validation::Status { &self.validation_status }
 
     pub fn into_validation_status(self) -> validation::Status { self.validation_status }
 
-    pub fn split(self) -> (Consignment<TYPE>, validation::Status) {
+    pub fn split(self) -> (Consignment<TRANSFER>, validation::Status) {
         (self.consignment, self.validation_status)
     }
 }
 
-impl<const TYPE: bool> Deref for ValidConsignment<TYPE> {
-    type Target = Consignment<TYPE>;
+impl<const TRANSFER: bool> Deref for ValidConsignment<TRANSFER> {
+    type Target = Consignment<TRANSFER>;
 
     fn deref(&self) -> &Self::Target { &self.consignment }
 }
@@ -151,7 +154,7 @@ impl<const TYPE: bool> Deref for ValidConsignment<TYPE> {
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-pub struct Consignment<const TYPE: bool> {
+pub struct Consignment<const TRANSFER: bool> {
     /// Version.
     pub version: ContainerVer,
 
@@ -199,10 +202,10 @@ pub struct Consignment<const TYPE: bool> {
     pub signatures: TinyOrdMap<ContentId, ContentSigs>,
 }
 
-impl<const TYPE: bool> StrictSerialize for Consignment<TYPE> {}
-impl<const TYPE: bool> StrictDeserialize for Consignment<TYPE> {}
+impl<const TRANSFER: bool> StrictSerialize for Consignment<TRANSFER> {}
+impl<const TRANSFER: bool> StrictDeserialize for Consignment<TRANSFER> {}
 
-impl<const TYPE: bool> CommitEncode for Consignment<TYPE> {
+impl<const TRANSFER: bool> CommitEncode for Consignment<TRANSFER> {
     type CommitmentId = ConsignmentId;
 
     fn commit_encode(&self, e: &mut CommitEngine) {
@@ -235,7 +238,7 @@ impl<const TYPE: bool> CommitEncode for Consignment<TYPE> {
     }
 }
 
-impl<const TYPE: bool> Consignment<TYPE> {
+impl<const TRANSFER: bool> Consignment<TRANSFER> {
     #[inline]
     pub fn consignment_id(&self) -> ConsignmentId { self.commit_id() }
 
@@ -351,13 +354,13 @@ impl<const TYPE: bool> Consignment<TYPE> {
         self,
         resolver: &mut R,
         testnet: bool,
-    ) -> Result<ValidConsignment<TYPE>, (validation::Status, Consignment<TYPE>)> {
+    ) -> Result<ValidConsignment<TRANSFER>, (validation::Status, Consignment<TRANSFER>)> {
         let index = IndexedConsignment::new(&self);
         let mut status = Validator::validate(&index, resolver, testnet);
 
         let validity = status.validity();
 
-        if self.transfer != TYPE {
+        if self.transfer != TRANSFER {
             status.add_warning(Warning::Custom(s!("invalid consignment type")));
         }
         // TODO: check that interface ids match implementations
@@ -375,7 +378,7 @@ impl<const TYPE: bool> Consignment<TYPE> {
     }
 }
 
-impl<const TYPE: bool> StrictArmor for Consignment<TYPE> {
+impl<const TRANSFER: bool> StrictArmor for Consignment<TRANSFER> {
     type Id = ConsignmentId;
     const PLATE_TITLE: &'static str = "RGB CONSIGNMENT";
 

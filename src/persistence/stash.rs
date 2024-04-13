@@ -422,9 +422,9 @@ impl<P: StashProvider> Stash<P> {
         Ok(())
     }
 
-    pub(super) fn consume_consignment<const TYPE: bool>(
+    pub(super) fn consume_consignment<const TRANSFER: bool>(
         &mut self,
-        mut consignment: Consignment<TYPE>,
+        mut consignment: Consignment<TRANSFER>,
     ) -> Result<(), StashError<P>> {
         let contract_id = consignment.contract_id();
 

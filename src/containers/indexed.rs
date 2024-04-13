@@ -37,8 +37,8 @@ use crate::SecretSeal;
 
 // TODO: Transform consignment into this type instead of composing over it
 #[derive(Clone, Debug)]
-pub struct IndexedConsignment<'c, const TYPE: bool> {
-    consignment: &'c Consignment<TYPE>,
+pub struct IndexedConsignment<'c, const TRANSFER: bool> {
+    consignment: &'c Consignment<TRANSFER>,
     scripts: Scripts,
     anchor_idx: BTreeMap<BundleId, (XWitnessId, EAnchor)>,
     bundle_idx: BTreeMap<BundleId, &'c TransitionBundle>,
@@ -47,14 +47,14 @@ pub struct IndexedConsignment<'c, const TYPE: bool> {
     extension_idx: BTreeMap<OpId, &'c Extension>,
 }
 
-impl<'c, const TYPE: bool> Deref for IndexedConsignment<'c, TYPE> {
-    type Target = Consignment<TYPE>;
+impl<'c, const TRANSFER: bool> Deref for IndexedConsignment<'c, TRANSFER> {
+    type Target = Consignment<TRANSFER>;
 
     fn deref(&self) -> &Self::Target { self.consignment }
 }
 
-impl<'c, const TYPE: bool> IndexedConsignment<'c, TYPE> {
-    pub fn new(consignment: &'c Consignment<TYPE>) -> Self {
+impl<'c, const TRANSFER: bool> IndexedConsignment<'c, TRANSFER> {
+    pub fn new(consignment: &'c Consignment<TRANSFER>) -> Self {
         let mut anchor_idx = BTreeMap::new();
         let mut bundle_idx = BTreeMap::new();
         let mut op_witness_idx = BTreeMap::new();
@@ -102,7 +102,7 @@ impl<'c, const TYPE: bool> IndexedConsignment<'c, TYPE> {
     }
 }
 
-impl<'c, const TYPE: bool> ConsignmentApi for IndexedConsignment<'c, TYPE> {
+impl<'c, const TRANSFER: bool> ConsignmentApi for IndexedConsignment<'c, TRANSFER> {
     fn schema(&self) -> &Schema { &self.schema }
 
     fn types(&self) -> &TypeSystem { &self.types }

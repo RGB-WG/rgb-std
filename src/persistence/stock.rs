@@ -49,7 +49,7 @@ use crate::accessors::{MergeRevealError, RevealError};
 use crate::containers::{
     AnchorSet, AnchoredBundles, Batch, BuilderSeal, BundledWitness, Consignment, ContainerVer,
     Contract, Fascia, PubWitness, SealWitness, Terminal, TerminalSeal, Transfer, TransitionInfo,
-    TransitionInfoError, ValidConsignment,
+    TransitionInfoError, ValidConsignment, ValidContract, ValidTransfer,
 };
 use crate::interface::resolver::DumbResolver;
 use crate::interface::{
@@ -582,12 +582,12 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         Ok(consignment)
     }
 
-    fn consign<const TYPE: bool>(
+    fn consign<const TRANSFER: bool>(
         &self,
         contract_id: ContractId,
         outputs: impl AsRef<[XOutputSeal]>,
         secret_seals: impl AsRef<[XChain<SecretSeal>]>,
-    ) -> Result<Consignment<TYPE>, StockError<S, H, P, ConsignError>> {
+    ) -> Result<Consignment<TRANSFER>, StockError<S, H, P, ConsignError>> {
         let outputs = outputs.as_ref();
         let secret_seals = secret_seals.as_ref();
 
@@ -699,7 +699,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
         Ok(Consignment {
             version: ContainerVer::V2,
-            transfer: TYPE,
+            transfer: TRANSFER,
 
             schema: schema_ifaces.schema,
             ifaces,
@@ -923,9 +923,25 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         Ok(Batch { main, blanks })
     }
 
-    pub fn consume_consignment<R: ResolveHeight, const TYPE: bool>(
+    pub fn import_contract<R: ResolveHeight>(
         &mut self,
-        consignment: ValidConsignment<TYPE>,
+        contract: ValidContract,
+        resolver: &mut R,
+    ) -> Result<validation::Status, StockError<S, H, P>> {
+        self.consume_consignment(contract, resolver)
+    }
+
+    pub fn accept_transfer<R: ResolveHeight>(
+        &mut self,
+        contract: ValidTransfer,
+        resolver: &mut R,
+    ) -> Result<validation::Status, StockError<S, H, P>> {
+        self.consume_consignment(contract, resolver)
+    }
+
+    fn consume_consignment<R: ResolveHeight, const TRANSFER: bool>(
+        &mut self,
+        consignment: ValidConsignment<TRANSFER>,
         resolver: &mut R,
     ) -> Result<validation::Status, StockError<S, H, P>> {
         let contract_id = consignment.contract_id();
