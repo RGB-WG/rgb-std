@@ -124,6 +124,8 @@ pub struct ValidConsignment<const TRANSFER: bool> {
 impl<const TRANSFER: bool> ValidConsignment<TRANSFER> {
     pub fn validation_status(&self) -> &validation::Status { &self.validation_status }
 
+    pub fn into_consignment(self) -> Consignment<TRANSFER> { self.consignment }
+
     pub fn into_validation_status(self) -> validation::Status { self.validation_status }
 
     pub fn split(self) -> (Consignment<TRANSFER>, validation::Status) {

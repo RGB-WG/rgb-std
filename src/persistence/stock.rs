@@ -49,7 +49,7 @@ use crate::accessors::{MergeRevealError, RevealError};
 use crate::containers::{
     AnchorSet, AnchoredBundles, Batch, BuilderSeal, BundledWitness, Consignment, ContainerVer,
     Contract, Fascia, PubWitness, SealWitness, Terminal, TerminalSeal, Transfer, TransitionInfo,
-    TransitionInfoError, ValidConsignment, ValidContract, ValidTransfer,
+    TransitionInfoError, ValidConsignment, ValidContract, ValidKit, ValidTransfer,
 };
 use crate::interface::resolver::DumbResolver;
 use crate::interface::{
@@ -921,6 +921,12 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         let main = TransitionInfo::new(main_transition, main_inputs)
             .map_err(|_| ComposeError::TooManyInputs)?;
         Ok(Batch { main, blanks })
+    }
+
+    pub fn import_kit(&mut self, kit: ValidKit) -> Result<validation::Status, StockError<S, H, P>> {
+        let (kit, status) = kit.split();
+        self.stash.consume_kit(kit)?;
+        Ok(status)
     }
 
     pub fn import_contract<R: ResolveHeight>(

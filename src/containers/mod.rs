@@ -49,7 +49,7 @@ pub use consignment::{
 pub use disclosure::Disclosure;
 pub use file::{FileContent, LoadError, UniversalFile};
 pub use indexed::IndexedConsignment;
-pub use kit::{Kit, KitId};
+pub use kit::{Kit, KitId, ValidKit};
 pub use partials::{
     Batch, BundleDichotomy, CloseMethodSet, Fascia, TransitionInfo, TransitionInfoError,
 };

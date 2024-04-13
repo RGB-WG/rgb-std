@@ -21,6 +21,7 @@
 
 use std::fmt;
 use std::fmt::{Display, Formatter};
+use std::ops::Deref;
 use std::str::FromStr;
 
 use aluvm::library::Lib;
@@ -29,7 +30,7 @@ use amplify::Bytes32;
 use armor::{ArmorHeader, AsciiArmor, StrictArmor};
 use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
 use commit_verify::{CommitEncode, CommitEngine, CommitId, CommitmentId, DigestExt, Sha256};
-use rgb::Schema;
+use rgb::{validation, Schema};
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 use strict_types::TypeSystem;
 
@@ -97,6 +98,29 @@ impl KitId {
     pub fn to_mnemonic(&self) -> String { self.to_baid58().mnemonic() }
 }
 
+#[derive(Clone, Debug)]
+pub struct ValidKit {
+    /// Status of the latest validation.
+    validation_status: validation::Status,
+    kit: Kit,
+}
+
+impl ValidKit {
+    pub fn validation_status(&self) -> &validation::Status { &self.validation_status }
+
+    pub fn into_kit(self) -> Kit { self.kit }
+
+    pub fn into_validation_status(self) -> validation::Status { self.validation_status }
+
+    pub fn split(self) -> (Kit, validation::Status) { (self.kit, self.validation_status) }
+}
+
+impl Deref for ValidKit {
+    type Target = Kit;
+
+    fn deref(&self) -> &Self::Target { &self.kit }
+}
+
 #[derive(Clone, Debug, Display)]
 #[display(AsciiArmor::to_ascii_armored_string)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
@@ -161,6 +185,18 @@ impl CommitEncode for Kit {
 impl Kit {
     #[inline]
     pub fn kit_id(&self) -> KitId { self.commit_id() }
+
+    pub fn validate(self) -> Result<ValidKit, (validation::Status, Kit)> {
+        let status = validation::Status::new();
+        // TODO:
+        //  - Verify integrity for each interface
+        //  - Verify implementations against interfaces
+        //  - Check schema integrity
+        Ok(ValidKit {
+            validation_status: status,
+            kit: self,
+        })
+    }
 }
 
 impl StrictArmor for Kit {
