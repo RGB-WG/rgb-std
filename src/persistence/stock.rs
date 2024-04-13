@@ -35,7 +35,7 @@ use invoice::{Amount, Beneficiary, InvoiceState, NonFungible, RgbInvoice};
 use rgb::{
     validation, AssignmentType, BlindingFactor, BundleId, ContractHistory, ContractId,
     ContractState, DbcProof, EAnchor, GraphSeal, OpId, Operation, Opout, SchemaId, SecretSeal,
-    Transition, XChain, XOutpoint, XOutputSeal, XWitnessId,
+    Transition, WitnessAnchor, XChain, XOutpoint, XOutputSeal, XWitnessId,
 };
 use strict_encoding::FieldName;
 
@@ -51,6 +51,7 @@ use crate::containers::{
     Contract, Fascia, PubWitness, SealWitness, Terminal, TerminalSeal, Transfer, TransitionInfo,
     TransitionInfoError, ValidConsignment,
 };
+use crate::interface::resolver::DumbResolver;
 use crate::interface::{
     BuilderError, ContractBuilder, ContractIface, Iface, IfaceId, IfaceRef, TransitionBuilder,
     VelocityHint,
@@ -921,10 +922,9 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     ///
     /// Must be called before the consignment is created, when witness
     /// transaction is not yet mined.
-    pub fn consume_fascia<R: ResolveHeight>(
+    pub fn consume_fascia(
         &mut self,
         fascia: Fascia,
-        resolver: &mut R,
     ) -> Result<(), StockError<S, H, P, FasciaError>> {
         let witness_id = fascia.witness_id;
 
@@ -944,13 +944,14 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
             self.index.index_bundle(contract_id, &bundle, witness_id)?;
 
-            self.state.update_state::<R>(contract_id, |history| {
-                for transition in bundle.known_transitions.values() {
-                    let witness_anchor = resolver.resolve_height(witness_id)?;
-                    history.add_transition(transition, witness_anchor);
-                }
-                Ok(())
-            })?;
+            self.state
+                .update_state::<DumbResolver>(contract_id, |history| {
+                    for transition in bundle.known_transitions.values() {
+                        let witness_anchor = WitnessAnchor::from_mempool(witness_id);
+                        history.add_transition(transition, witness_anchor);
+                    }
+                    Ok(())
+                })?;
 
             self.stash.consume_bundle(bundle)?;
         }
