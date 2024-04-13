@@ -543,6 +543,16 @@ impl<P: StashProvider> Stash<P> {
             .replace_bundle(bundle)
             .map_err(StashError::WriteProvider)
     }
+
+    pub(crate) fn store_secret_seal(
+        &mut self,
+        seal: XChain<GraphSeal>,
+    ) -> Result<bool, StashError<P>> {
+        Ok(self
+            .provider
+            .add_secret_seal(seal)
+            .map_err(StashError::WriteProvider)?)
+    }
 }
 
 pub trait StashProvider: Debug + StashReadProvider + StashWriteProvider {}

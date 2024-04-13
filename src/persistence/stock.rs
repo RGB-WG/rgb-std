@@ -539,8 +539,8 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         &self,
         schema_id: SchemaId,
         iface: impl Into<IfaceRef>,
-    ) -> Result<ContractBuilder, StashError<S>> {
-        self.stash.contract_builder(schema_id, iface)
+    ) -> Result<ContractBuilder, StockError<S, H, P>> {
+        Ok(self.stash.contract_builder(schema_id, iface)?)
     }
 
     pub fn transition_builder(
@@ -548,17 +548,18 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         contract_id: ContractId,
         iface: impl Into<IfaceRef>,
         transition_name: Option<impl Into<FieldName>>,
-    ) -> Result<TransitionBuilder, StashError<S>> {
-        self.stash
-            .transition_builder(contract_id, iface, transition_name)
+    ) -> Result<TransitionBuilder, StockError<S, H, P>> {
+        Ok(self
+            .stash
+            .transition_builder(contract_id, iface, transition_name)?)
     }
 
     pub fn blank_builder(
         &self,
         contract_id: ContractId,
         iface: impl Into<IfaceRef>,
-    ) -> Result<TransitionBuilder, StashError<S>> {
-        self.stash.blank_builder(contract_id, iface)
+    ) -> Result<TransitionBuilder, StockError<S, H, P>> {
+        Ok(self.stash.blank_builder(contract_id, iface)?)
     }
 
     pub fn export_contract(
@@ -1028,5 +1029,12 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             pub_witness: witness_id.map(PubWitness::new),
             anchored_bundles,
         })
+    }
+
+    pub fn store_secret_seal(
+        &mut self,
+        seal: XChain<GraphSeal>,
+    ) -> Result<bool, StockError<S, H, P>> {
+        Ok(self.stash.store_secret_seal(seal)?)
     }
 }
