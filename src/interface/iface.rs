@@ -445,6 +445,11 @@ impl Iface {
 
         let mut errors = vec![];
 
+        for name in &self.genesis.metadata {
+            if !self.metadata.contains_key(name) {
+                errors.push(IfaceInconsistency::UnknownMetadata(OpName::Genesis, name.clone()));
+            }
+        }
         proc_globals(&OpName::Genesis, &self.genesis.globals, &mut errors);
         proc_assignments(&OpName::Genesis, &self.genesis.assignments, &mut errors);
         proc_valencies(&OpName::Genesis, &self.genesis.valencies, &mut errors);
@@ -452,6 +457,12 @@ impl Iface {
 
         for (name, t) in &self.transitions {
             let op_name = OpName::Transition(name.clone());
+
+            for name in &t.metadata {
+                if !self.metadata.contains_key(name) {
+                    errors.push(IfaceInconsistency::UnknownMetadata(op_name.clone(), name.clone()));
+                }
+            }
             proc_globals(&op_name, &t.globals, &mut errors);
             proc_assignments(&op_name, &t.assignments, &mut errors);
             proc_valencies(&op_name, &t.valencies, &mut errors);
@@ -479,6 +490,12 @@ impl Iface {
 
         for (name, e) in &self.extensions {
             let op_name = OpName::Extension(name.clone());
+
+            for name in &e.metadata {
+                if !self.metadata.contains_key(name) {
+                    errors.push(IfaceInconsistency::UnknownMetadata(op_name.clone(), name.clone()));
+                }
+            }
             proc_globals(&op_name, &e.globals, &mut errors);
             proc_assignments(&op_name, &e.assignments, &mut errors);
             proc_valencies(&op_name, &e.valencies, &mut errors);
@@ -580,6 +597,8 @@ pub enum IfaceInconsistency {
     UnknownDefaultAssignment(OpName, FieldName),
     /// unknown default operation '{0}'.
     UnknownDefaultOp(FieldName),
+    /// unknown metadata '{1}' in {0}.
+    UnknownMetadata(OpName, FieldName),
     /// global state '{1}' must have a unique single value, but operation {0}
     /// defines multiple global state of this type.
     MultipleGlobal(OpName, FieldName),
