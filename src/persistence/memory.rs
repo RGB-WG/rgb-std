@@ -31,7 +31,7 @@ use bp::dbc::tapret::TapretCommitment;
 use commit_verify::{CommitId, Conceal};
 use rgb::{
     Assign, AssignmentType, AttachId, BundleId, ContractHistory, ContractId, ExposedState,
-    Extension, Genesis, GenesisSeal, GraphSeal, OpId, Operation, Opout, Schema, SchemaId,
+    Extension, Genesis, GenesisSeal, GraphSeal, Identity, OpId, Operation, Opout, Schema, SchemaId,
     SecretSeal, TransitionBundle, XChain, XOutputSeal, XWitnessId,
 };
 use strict_encoding::{StrictDeserialize, StrictSerialize, TypeName};
@@ -43,7 +43,7 @@ use super::{
     StashReadProvider, StashWriteProvider, StateProvider, StateReadProvider, StateUpdateError,
     StateWriteProvider,
 };
-use crate::containers::{AnchorSet, Cert, ContentId, ContentSigs, SealWitness};
+use crate::containers::{AnchorSet, ContentId, ContentSigs, SealWitness, SigBlob};
 use crate::interface::{ContractSuppl, Iface, IfaceId, IfaceImpl, IfaceRef};
 use crate::resolvers::ResolveHeight;
 use crate::LIB_NAME_RGB_STD;
@@ -322,8 +322,8 @@ impl StashWriteProvider for MemStash {
 
     fn import_sigs<I>(&mut self, content_id: ContentId, sigs: I) -> Result<(), confinement::Error>
     where
-        I: IntoIterator<Item = Cert>,
-        I::IntoIter: ExactSizeIterator<Item = Cert>,
+        I: IntoIterator<Item = (Identity, SigBlob)>,
+        I::IntoIter: ExactSizeIterator<Item = (Identity, SigBlob)>,
     {
         let sigs = sigs.into_iter();
         if sigs.len() > 0 {

@@ -42,7 +42,7 @@ mod kit;
 pub use anchors::{
     AnchorSet, AnchoredBundles, BundledWitness, PubWitness, SealWitness, ToWitnessId, XPubWitness,
 };
-pub use certs::{Cert, ContentId, ContentSigs, Identity};
+pub use certs::{ContentId, ContentSigs, SigBlob};
 pub use consignment::{
     Consignment, ConsignmentId, Contract, Transfer, ValidConsignment, ValidContract, ValidTransfer,
 };

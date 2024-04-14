@@ -19,10 +19,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::{btree_set, BTreeSet};
+use std::collections::{btree_map, BTreeMap};
 
-use amplify::confinement::{Confined, SmallBlob, TinyAscii, TinyString};
-use rgb::{ContractId, SchemaId};
+use amplify::confinement::{Confined, NonEmptyBlob};
+use commit_verify::StrictHash;
+use rgb::{ContractId, Identity, SchemaId};
+use strict_encoding::StrictDumb;
 
 use crate::interface::{IfaceId, ImplId, SupplId};
 use crate::LIB_NAME_RGB_STD;
@@ -43,67 +45,41 @@ pub enum ContentId {
     Suppl(SupplId),
 }
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Display)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[derive(Wrapper, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, From, Display)]
+#[wrapper(Deref, AsSlice, BorrowSlice, Hex)]
+#[display(LowerHex)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
+#[derive(CommitEncode)]
+#[commit_encode(strategy = strict, id = StrictHash)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
+    serde(crate = "serde_crate", transparent)
 )]
-#[display("{name} <{email}>; using={suite}")]
-#[non_exhaustive]
-pub struct Identity {
-    pub name: TinyString,
-    pub email: TinyAscii,
-    pub suite: IdSuite,
-    pub pk: SmallBlob,
-}
+pub struct SigBlob(NonEmptyBlob<4096>);
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Display)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD, tags = repr, into_u8, try_from_u8)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-#[non_exhaustive]
-#[repr(u8)]
-pub enum IdSuite {
-    #[strict_type(dumb)]
-    #[display("OpenPGP")]
-    Pgp,
-    #[display("OpenSSH")]
-    Ssh,
-    #[display("SSI")]
-    Ssi,
-}
-
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-pub struct Cert {
-    pub signer: Identity,
-    pub signature: SmallBlob,
+impl Default for SigBlob {
+    fn default() -> Self { SigBlob(NonEmptyBlob::with(0)) }
 }
 
 #[derive(Wrapper, WrapperMut, Clone, PartialEq, Eq, Hash, Debug, From)]
 #[wrapper(Deref)]
 #[wrapper_mut(DerefMut)]
-#[derive(StrictDumb, StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD, dumb = Self(confined_bset!(strict_dumb!())))]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
-pub struct ContentSigs(Confined<BTreeSet<Cert>, 1, 10>);
+pub struct ContentSigs(Confined<BTreeMap<Identity, SigBlob>, 1, 10>);
+
+impl StrictDumb for ContentSigs {
+    fn strict_dumb() -> Self {
+        confined_bmap! { strict_dumb!() => SigBlob::default() }
+    }
+}
 
 impl IntoIterator for ContentSigs {
-    type Item = Cert;
-    type IntoIter = btree_set::IntoIter<Cert>;
+    type Item = (Identity, SigBlob);
+    type IntoIter = btree_map::IntoIter<Identity, SigBlob>;
 
     fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
 }

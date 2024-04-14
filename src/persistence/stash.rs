@@ -32,15 +32,15 @@ use bp::dbc::tapret::TapretCommitment;
 use commit_verify::mpc;
 use rgb::validation::Scripts;
 use rgb::{
-    AttachId, BundleId, ContractId, Extension, Genesis, GraphSeal, OpId, Operation, Schema,
-    SchemaId, TransitionBundle, XChain, XWitnessId,
+    AttachId, BundleId, ContractId, Extension, Genesis, GraphSeal, Identity, OpId, Operation,
+    Schema, SchemaId, TransitionBundle, XChain, XWitnessId,
 };
 use strict_encoding::{FieldName, TypeName};
 use strict_types::typesys::UnknownType;
 use strict_types::TypeSystem;
 
 use crate::accessors::{MergeReveal, MergeRevealError};
-use crate::containers::{BundledWitness, Cert, Consignment, ContentId, Kit, SealWitness};
+use crate::containers::{BundledWitness, Consignment, ContentId, Kit, SealWitness, SigBlob};
 use crate::interface::{
     ContractBuilder, ContractSuppl, Iface, IfaceId, IfaceImpl, IfaceRef, TransitionBuilder,
 };
@@ -620,8 +620,8 @@ pub trait StashWriteProvider {
     fn add_suppl(&mut self, suppl: ContractSuppl) -> Result<(), Self::Error>;
     fn import_sigs<I>(&mut self, content_id: ContentId, sigs: I) -> Result<(), Self::Error>
     where
-        I: IntoIterator<Item = Cert>,
-        I::IntoIter: ExactSizeIterator<Item = Cert>;
+        I: IntoIterator<Item = (Identity, SigBlob)>,
+        I::IntoIter: ExactSizeIterator<Item = (Identity, SigBlob)>;
 
     fn add_secret_seal(&mut self, seal: XChain<GraphSeal>) -> Result<bool, Self::Error>;
 }
