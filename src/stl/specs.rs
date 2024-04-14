@@ -26,7 +26,7 @@ use std::str::FromStr;
 
 use amplify::confinement::{Confined, NonEmptyString, SmallOrdSet, SmallString, U8};
 use invoice::Precision;
-use strict_encoding::stl::{AlphaNum, AlphaSmall, AsciiPrintable};
+use strict_encoding::stl::{Alpha, AlphaNum, AsciiPrintable};
 use strict_encoding::{
     InvalidRString, RString, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize,
     StrictType,
@@ -72,7 +72,7 @@ impl StrictDeserialize for IssueMeta {}
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", transparent)
 )]
-pub struct Ticker(RString<AlphaSmall, AlphaNum, 1, 8>);
+pub struct Ticker(RString<Alpha, AlphaNum, 1, 8>);
 
 impl_ident_type!(Ticker);
 impl_ident_subtype!(Ticker);
