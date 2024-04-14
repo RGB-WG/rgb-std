@@ -1,5 +1,5 @@
 {-
-  Id: urn:ubideco:stl:4pWTi9vaUxGSHN3S74Ja8ifM7bWbPDFTAfhumztbuAkp#arnold-exile-combat
+  Id: urn:ubideco:stl:EkwzAnCsHZaZGWKrnE4kVaGGWz9Wi6bUWHJ4fFndXu5N#rebel-clever-ariel
   Name: RGBStd
   Version: 0.1.0
   Description: RGB standard library
@@ -272,11 +272,12 @@ data Iface             : version VerNo
 @mnemonic(vendor-polite-gong)
 data IfaceId           : [Byte ^ 32]
 
-@mnemonic(immune-magnum-float)
+@mnemonic(sheriff-puma-frozen)
 data IfaceImpl         : version VerNo
                        , schemaId RGB.SchemaId#garcia-smoke-ozone
                        , ifaceId IfaceId
                        , timestamp I64
+                       , metadata {NamedFieldMetaType ^ ..0xff}
                        , globalState {NamedFieldGlobalStateType ^ ..0xff}
                        , assignments {NamedFieldAssignmentType ^ ..0xff}
                        , valencies {NamedFieldValencyType ^ ..0xff}
@@ -313,6 +314,11 @@ data NamedFieldExtensionType : id RGB.ExtensionType#mission-salsa-parole
 
 @mnemonic(owner-fiesta-boston)
 data NamedFieldGlobalStateType : id RGB.GlobalStateType#seminar-major-tape
+                       , name StrictTypes.FieldName#toyota-plasma-austria
+                       , reserved CommitVerify.ReservedBytes4#claudia-drink-digital
+
+@mnemonic(mambo-bermuda-farmer)
+data NamedFieldMetaType : id RGB.MetaType#index-shadow-pattern
                        , name StrictTypes.FieldName#toyota-plasma-austria
                        , reserved CommitVerify.ReservedBytes4#claudia-drink-digital
 

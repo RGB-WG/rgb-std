@@ -1735,6 +1735,11 @@ Consignmenttrue rec
       schemaId bytes len=32 aka=SchemaId
       ifaceId bytes len=32 aka=IfaceId
       timestamp is I64
+      metadata set len=0..MAX8
+        NamedFieldMetaType rec
+          id is U16 aka=MetaType
+          name ascii len=1..100 aka=FieldName charset=AlphaSmallLodash
+          reserved bytes len=4 aka=ReservedBytes4
       globalState set len=0..MAX8
         NamedFieldGlobalStateType rec
           id is U16 aka=GlobalStateType

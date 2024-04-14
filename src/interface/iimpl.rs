@@ -27,7 +27,8 @@ use amplify::{ByteArray, Bytes32};
 use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
 use commit_verify::{CommitId, CommitmentId, DigestExt, Sha256};
 use rgb::{
-    AssignmentType, ExtensionType, GlobalStateType, Identity, SchemaId, TransitionType, ValencyType,
+    AssignmentType, ExtensionType, GlobalStateType, Identity, MetaType, SchemaId, TransitionType,
+    ValencyType,
 };
 use strict_encoding::{FieldName, StrictDumb};
 use strict_types::encoding::{StrictDecode, StrictEncode, StrictType};
@@ -40,6 +41,7 @@ pub trait SchemaTypeIndex:
     Copy + Eq + Ord + StrictType + StrictDumb + StrictEncode + StrictDecode
 {
 }
+impl SchemaTypeIndex for MetaType {}
 impl SchemaTypeIndex for GlobalStateType {}
 impl SchemaTypeIndex for AssignmentType {}
 impl SchemaTypeIndex for ValencyType {}
@@ -189,6 +191,7 @@ pub struct IfaceImpl {
     pub schema_id: SchemaId,
     pub iface_id: IfaceId,
     pub timestamp: i64,
+    pub metadata: TinyOrdSet<NamedField<MetaType>>,
     pub global_state: TinyOrdSet<NamedField<GlobalStateType>>,
     pub assignments: TinyOrdSet<NamedField<AssignmentType>>,
     pub valencies: TinyOrdSet<NamedField<ValencyType>>,
@@ -200,6 +203,13 @@ pub struct IfaceImpl {
 impl IfaceImpl {
     #[inline]
     pub fn impl_id(&self) -> ImplId { self.commit_id() }
+
+    pub fn meta_type(&self, name: &FieldName) -> Option<MetaType> {
+        self.metadata
+            .iter()
+            .find(|nt| &nt.name == name)
+            .map(|nt| nt.id)
+    }
 
     pub fn global_type(&self, name: &FieldName) -> Option<GlobalStateType> {
         self.global_state

@@ -702,6 +702,8 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         Ok(self)
     }
 
+    // TODO: Add methods for adding metadata
+
     pub fn add_global_state(
         mut self,
         name: impl Into<FieldName>,
