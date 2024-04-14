@@ -230,6 +230,8 @@ pub struct InheritError {
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display, Error)]
 #[display(doc_comments)]
 pub enum ExtensionError {
+    /// too many metadata fields defined.
+    MetaOverflow,
     /// too many global state types defined.
     GlobalOverflow,
     /// global state '{0}' has different data type from the parent interface.
@@ -260,8 +262,6 @@ pub enum ExtensionError {
     OpFinal(OpName),
     /// {0} must use `override` keyword to modify the parent version.
     OpNoOverride(OpName),
-    /// {0} overrides parent metadata type.
-    OpMetadata(OpName),
     /// too many {1} types defined in {0}.
     OpOverflow(OpName, &'static str),
     /// {0} tries to override the parent default assignment.
@@ -356,6 +356,11 @@ impl Iface {
         let orig_id = self.iface_id();
 
         let mut errors = vec![];
+
+        self.metadata
+            .extend(ext.metadata)
+            .map_err(|_| errors.push(ExtensionError::MetaOverflow))
+            .ok();
 
         for (name, e) in ext.global_state {
             match self.global_state.get_mut(&name) {
@@ -568,10 +573,11 @@ impl GenesisIface {
         } else if !self.modifier.can_be_overriden_by(ext.modifier) {
             errors.push(ExtensionError::OpNoOverride(op.clone()));
         }
-        if self.metadata.is_some() && ext.metadata.is_some() && self.metadata != ext.metadata {
-            errors.push(ExtensionError::OpMetadata(op.clone()));
-        }
 
+        self.metadata
+            .extend(ext.metadata)
+            .map_err(|_| errors.push(ExtensionError::OpOverflow(OpName::Genesis, "metadata")))
+            .ok();
         check_occs(&mut self.globals, ext.globals, op.clone(), "global", &mut errors);
         check_occs(&mut self.assignments, ext.assignments, op.clone(), "assignment", &mut errors);
 
@@ -597,10 +603,11 @@ impl TransitionIface {
             errors.push(ExtensionError::OpNoOverride(op.clone()));
         }
         self.optional = self.optional.max(ext.optional);
-        if self.metadata.is_some() && ext.metadata.is_some() && self.metadata != ext.metadata {
-            errors.push(ExtensionError::OpMetadata(op.clone()));
-        }
 
+        self.metadata
+            .extend(ext.metadata)
+            .map_err(|_| errors.push(ExtensionError::OpOverflow(op.clone(), "metadata")))
+            .ok();
         check_occs(&mut self.globals, ext.globals, op.clone(), "global", &mut errors);
         check_occs(&mut self.assignments, ext.assignments, op.clone(), "assignment", &mut errors);
         check_occs(&mut self.inputs, ext.inputs, op.clone(), "input", &mut errors);
@@ -637,10 +644,11 @@ impl ExtensionIface {
             errors.push(ExtensionError::OpNoOverride(op.clone()));
         }
         self.optional = self.optional.max(ext.optional);
-        if self.metadata.is_some() && ext.metadata.is_some() && self.metadata != ext.metadata {
-            errors.push(ExtensionError::OpMetadata(op.clone()));
-        }
 
+        self.metadata
+            .extend(ext.metadata)
+            .map_err(|_| errors.push(ExtensionError::OpOverflow(op.clone(), "metadata")))
+            .ok();
         check_occs(&mut self.globals, ext.globals, op.clone(), "global", &mut errors);
         check_occs(&mut self.assignments, ext.assignments, op.clone(), "assignment", &mut errors);
 
@@ -673,6 +681,13 @@ impl IfaceImpl {
         if !base.inherits.contains(&parent_id) {
             return None;
         }
+
+        self.metadata = Confined::from_iter_unsafe(base.metadata.keys().filter_map(|name| {
+            self.metadata
+                .iter()
+                .find(|i| parent.metadata.contains_key(name) && &i.name == name)
+                .cloned()
+        }));
 
         self.global_state =
             Confined::from_iter_unsafe(base.global_state.keys().filter_map(|name| {

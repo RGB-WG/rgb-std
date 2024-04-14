@@ -1661,7 +1661,8 @@ Consignmenttrue rec
           required enum Bool false=0 true=1
       genesis rec GenesisIface
         modifier enum Modifier abstract=0 override=1 final=255
-          some ascii len=1..100 option wrapped aka=FieldName charset=AlphaSmallLodash tag=1
+        metadata set len=0..MAX8
+          element ascii len=1..100 aka=FieldName charset=AlphaSmallLodash
         globals map len=0..MAX8
           key ascii len=1..100 aka=FieldName charset=AlphaSmallLodash
           value rec Occurrences
@@ -1681,7 +1682,8 @@ Consignmenttrue rec
         value rec TransitionIface
           modifier enum Modifier abstract=0 override=1 final=255
           optional enum Bool false=0 true=1
-            some ascii len=1..100 option wrapped aka=FieldName charset=AlphaSmallLodash tag=1
+          metadata set len=0..MAX8
+            element ascii len=1..100 aka=FieldName charset=AlphaSmallLodash
           globals map len=0..MAX8
             key ascii len=1..100 aka=FieldName charset=AlphaSmallLodash
             value rec Occurrences
@@ -1707,7 +1709,8 @@ Consignmenttrue rec
         value rec ExtensionIface
           modifier enum Modifier abstract=0 override=1 final=255
           optional enum Bool false=0 true=1
-            some ascii len=1..100 option wrapped aka=FieldName charset=AlphaSmallLodash tag=1
+          metadata set len=0..MAX8
+            element ascii len=1..100 aka=FieldName charset=AlphaSmallLodash
           globals map len=0..MAX8
             key ascii len=1..100 aka=FieldName charset=AlphaSmallLodash
             value rec Occurrences

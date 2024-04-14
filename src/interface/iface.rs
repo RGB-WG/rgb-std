@@ -273,7 +273,7 @@ pub enum Modifier {
 )]
 pub struct GenesisIface {
     pub modifier: Modifier,
-    pub metadata: Option<FieldName>,
+    pub metadata: TinyOrdSet<FieldName>,
     pub globals: ArgMap,
     pub assignments: ArgMap,
     pub valencies: TinyOrdSet<FieldName>,
@@ -292,7 +292,7 @@ pub struct ExtensionIface {
     pub modifier: Modifier,
     /// Defines whence schema may omit providing this operation.
     pub optional: bool,
-    pub metadata: Option<FieldName>,
+    pub metadata: TinyOrdSet<FieldName>,
     pub globals: ArgMap,
     pub assignments: ArgMap,
     pub redeems: TinyOrdSet<FieldName>,
@@ -313,7 +313,7 @@ pub struct TransitionIface {
     pub modifier: Modifier,
     /// Defines whence schema may omit providing this operation.
     pub optional: bool,
-    pub metadata: Option<FieldName>,
+    pub metadata: TinyOrdSet<FieldName>,
     pub globals: ArgMap,
     pub inputs: ArgMap,
     pub assignments: ArgMap,

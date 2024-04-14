@@ -57,7 +57,7 @@ impl<'a> Display for ArgMapDisplay<'a> {
 }
 
 struct OpIfaceDisplay<'a> {
-    metadata: Option<&'a FieldName>,
+    metadata: &'a TinyOrdSet<FieldName>,
     globals: &'a ArgMap,
     assignments: &'a ArgMap,
     valencies: &'a TinyOrdSet<FieldName>,
@@ -67,7 +67,7 @@ struct OpIfaceDisplay<'a> {
 impl<'a> OpIfaceDisplay<'a> {
     fn genesis(op: &'a GenesisIface) -> Self {
         Self {
-            metadata: op.metadata.as_ref(),
+            metadata: &op.metadata,
             globals: &op.globals,
             assignments: &op.assignments,
             valencies: &op.valencies,
@@ -77,7 +77,7 @@ impl<'a> OpIfaceDisplay<'a> {
 
     fn transition(op: &'a TransitionIface) -> Self {
         Self {
-            metadata: op.metadata.as_ref(),
+            metadata: &op.metadata,
             globals: &op.globals,
             assignments: &op.assignments,
             valencies: &op.valencies,
@@ -87,7 +87,7 @@ impl<'a> OpIfaceDisplay<'a> {
 
     fn extension(op: &'a ExtensionIface) -> Self {
         Self {
-            metadata: op.metadata.as_ref(),
+            metadata: &op.metadata,
             globals: &op.globals,
             assignments: &op.assignments,
             valencies: &op.valencies,
@@ -109,8 +109,15 @@ impl<'a> Display for OpIfaceDisplay<'a> {
             writeln!(f)?;
         }
 
-        if let Some(meta) = self.metadata {
-            write!(f, "\t\tmeta: {meta}")?;
+        if !self.metadata.is_empty() {
+            write!(f, "\t\tmeta: ")?;
+            for (i, meta) in self.metadata.iter().enumerate() {
+                if i > 0 {
+                    write!(f, ", ")?;
+                }
+                write!(f, "{meta}")?;
+            }
+            writeln!(f)?;
         }
         if !self.globals.is_empty() {
             writeln!(f, "\t\tglobals: {}", ArgMapDisplay(self.globals))?;
