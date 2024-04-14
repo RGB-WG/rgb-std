@@ -33,7 +33,6 @@ mod anchors;
 mod consignment;
 mod disclosure;
 mod util;
-mod certs;
 mod partials;
 mod indexed;
 mod file;
@@ -42,7 +41,6 @@ mod kit;
 pub use anchors::{
     AnchorSet, AnchoredBundles, BundledWitness, PubWitness, SealWitness, ToWitnessId, XPubWitness,
 };
-pub use certs::{ContentId, ContentSigs, SigBlob};
 pub use consignment::{
     Consignment, ConsignmentId, Contract, Transfer, ValidConsignment, ValidContract, ValidTransfer,
 };
@@ -54,7 +52,7 @@ pub use partials::{
     Batch, BundleDichotomy, CloseMethodSet, Fascia, TransitionInfo, TransitionInfoError,
 };
 pub use seal::{BuilderSeal, TerminalSeal, VoutSeal};
-pub use util::{ContainerVer, Terminal, TerminalDisclose};
+pub use util::{ContainerVer, ContentId, ContentSigs, SigBlob, Terminal, TerminalDisclose};
 
 pub const ASCII_ARMOR_NAME: &str = "Name";
 pub const ASCII_ARMOR_IFACE: &str = "Interface";
