@@ -44,7 +44,7 @@ pub use iface::{
     ArgMap, AssignIface, ExtensionIface, GenesisIface, GlobalIface, Iface, IfaceId,
     IfaceInconsistency, IfaceRef, Modifier, OpName, OwnedIface, Req, TransitionIface, ValencyIface,
 };
-pub use iimpl::{IfaceImpl, ImplId, NamedField, NamedType, SchemaTypeIndex};
+pub use iimpl::{IfaceImpl, ImplId, NamedField, NamedType, NamedVariant, SchemaTypeIndex};
 pub use inheritance::{CheckInheritance, ExtensionError, InheritanceFailure};
 pub use suppl::{ContractSuppl, OwnedStateSuppl, SupplId, TickerSuppl, VelocityHint};
 

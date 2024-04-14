@@ -1765,6 +1765,11 @@ Consignmenttrue rec
           id is U16 aka=ExtensionType
           name ascii len=1..100 aka=FieldName charset=AlphaSmallLodash
           reserved bytes len=4 aka=ReservedBytes4
+      errors set len=0..MAX8
+        NamedVariantu8 rec
+          id is U8
+          name ascii len=1..100 aka=VariantName charset=AlphaSmallLodash
+          reserved bytes len=4 aka=ReservedBytes4
       developer ascii len=0..4096 aka=Identity charset=AsciiPrintable
   supplements set len=0..MAX8
     ContractSuppl rec

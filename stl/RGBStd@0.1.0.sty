@@ -1,5 +1,5 @@
 {-
-  Id: urn:ubideco:stl:EkwzAnCsHZaZGWKrnE4kVaGGWz9Wi6bUWHJ4fFndXu5N#rebel-clever-ariel
+  Id: urn:ubideco:stl:AA63AHuKfCaK41LUgXSVg5aRPxEi1oedFHqwzBrHYzy#cockpit-humor-dollar
   Name: RGBStd
   Version: 0.1.0
   Description: RGB standard library
@@ -272,7 +272,7 @@ data Iface             : version VerNo
 @mnemonic(vendor-polite-gong)
 data IfaceId           : [Byte ^ 32]
 
-@mnemonic(sheriff-puma-frozen)
+@mnemonic(snow-habitat-collect)
 data IfaceImpl         : version VerNo
                        , schemaId RGB.SchemaId#garcia-smoke-ozone
                        , ifaceId IfaceId
@@ -283,6 +283,7 @@ data IfaceImpl         : version VerNo
                        , valencies {NamedFieldValencyType ^ ..0xff}
                        , transitions {NamedFieldTransitionType ^ ..0xff}
                        , extensions {NamedFieldExtensionType ^ ..0xff}
+                       , errors {NamedVariantu8 ^ ..0xff}
                        , developer RGB.Identity#stock-teacher-falcon
 
 @mnemonic(monday-igloo-jupiter)
@@ -330,6 +331,11 @@ data NamedFieldTransitionType : id RGB.TransitionType#puma-joshua-evita
 @mnemonic(candle-mirror-alcohol)
 data NamedFieldValencyType : id RGB.ValencyType#palma-exit-pupil
                        , name StrictTypes.FieldName#toyota-plasma-austria
+                       , reserved CommitVerify.ReservedBytes4#claudia-drink-digital
+
+@mnemonic(pedro-george-connect)
+data NamedVariantu8    : id U8
+                       , name StrictTypes.VariantName#fiesta-center-yoga
                        , reserved CommitVerify.ReservedBytes4#claudia-drink-digital
 
 @mnemonic(contact-remote-popular)

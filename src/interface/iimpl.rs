@@ -30,7 +30,7 @@ use rgb::{
     AssignmentType, ExtensionType, GlobalStateType, Identity, MetaType, SchemaId, TransitionType,
     ValencyType,
 };
-use strict_encoding::{FieldName, StrictDumb};
+use strict_encoding::{FieldName, StrictDumb, VariantName};
 use strict_types::encoding::{StrictDecode, StrictEncode, StrictType};
 
 use crate::interface::iface::IfaceId;
@@ -41,6 +41,7 @@ pub trait SchemaTypeIndex:
     Copy + Eq + Ord + StrictType + StrictDumb + StrictEncode + StrictDecode
 {
 }
+impl SchemaTypeIndex for u8 {} // Error types
 impl SchemaTypeIndex for MetaType {}
 impl SchemaTypeIndex for GlobalStateType {}
 impl SchemaTypeIndex for AssignmentType {}
@@ -140,6 +141,43 @@ impl<T: SchemaTypeIndex> NamedField<T> {
     }
 }
 
+/// Maps certain form of type id (global or owned state or a valency) to a
+/// human-readable name.
+///
+/// Two distinct [`crate::interface::NamedField`] objects must always have both
+/// different state ids and names.
+#[derive(Clone, Eq, PartialOrd, Ord, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct NamedVariant<T: SchemaTypeIndex> {
+    pub id: T,
+    pub name: VariantName,
+    /// Reserved bytes for storing information about value transformation
+    /// procedures
+    pub reserved: ReservedBytes<4usize>,
+}
+
+impl<T> PartialEq for NamedVariant<T>
+where T: SchemaTypeIndex
+{
+    fn eq(&self, other: &Self) -> bool { self.id == other.id || self.name == other.name }
+}
+
+impl<T: SchemaTypeIndex> NamedVariant<T> {
+    pub fn with(id: T, name: VariantName) -> NamedVariant<T> {
+        NamedVariant {
+            id,
+            name,
+            reserved: default!(),
+        }
+    }
+}
+
 /// Maps operation numeric type id to a human-readable name.
 ///
 /// Two distinct [`NamedType`] objects must always have both different state
@@ -197,6 +235,7 @@ pub struct IfaceImpl {
     pub valencies: TinyOrdSet<NamedField<ValencyType>>,
     pub transitions: TinyOrdSet<NamedField<TransitionType>>,
     pub extensions: TinyOrdSet<NamedField<ExtensionType>>,
+    pub errors: TinyOrdSet<NamedVariant<u8>>,
     pub developer: Identity,
 }
 
@@ -277,6 +316,13 @@ impl IfaceImpl {
         self.transitions
             .iter()
             .find(|nt| nt.id == id)
+            .map(|nt| &nt.name)
+    }
+
+    pub fn error_name(&self, errno: u8) -> Option<&VariantName> {
+        self.errors
+            .iter()
+            .find(|nt| nt.id == errno)
             .map(|nt| &nt.name)
     }
 }
