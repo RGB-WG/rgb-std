@@ -121,9 +121,9 @@ impl Deref for ValidKit {
     fn deref(&self) -> &Self::Target { &self.kit }
 }
 
-#[derive(Clone, Debug, Display)]
+#[derive(Clone, Default, Debug, Display)]
 #[display(AsciiArmor::to_ascii_armored_string)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(
     feature = "serde",
