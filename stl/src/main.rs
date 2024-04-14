@@ -38,16 +38,16 @@ fn main() {
 
     let contract_stl = rgb_contract_stl();
     contract_stl
-        .serialize(StlFormat::Binary, Some(&dir), "0.1.0", None)
+        .serialize(StlFormat::Binary, Some(&dir), "0.11.0", None)
         .expect("unable to write to the file");
     contract_stl
-        .serialize(StlFormat::Armored, Some(&dir), "0.1.0", None)
+        .serialize(StlFormat::Armored, Some(&dir), "0.11.0", None)
         .expect("unable to write to the file");
     contract_stl
         .serialize(
             StlFormat::Source,
             Some(&dir),
-            "0.1.0",
+            "0.11.0",
             Some(
                 "
   Description: Types for writing RGB contracts and interfaces
@@ -60,16 +60,16 @@ fn main() {
 
     let rgb_std = rgb_std_stl();
     rgb_std
-        .serialize(StlFormat::Binary, Some(&dir), "0.1.0", None)
+        .serialize(StlFormat::Binary, Some(&dir), "0.11.0", None)
         .expect("unable to write to the file");
     rgb_std
-        .serialize(StlFormat::Armored, Some(&dir), "0.1.0", None)
+        .serialize(StlFormat::Armored, Some(&dir), "0.11.0", None)
         .expect("unable to write to the file");
     rgb_std
         .serialize(
             StlFormat::Source,
             Some(&dir),
-            "0.1.0",
+            "0.11.0",
             Some(
                 "
   Description: RGB standard library
