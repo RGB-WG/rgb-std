@@ -41,6 +41,10 @@ pub enum LoadError {
     #[from]
     #[from(io::Error)]
     Decode(strict_encoding::DecodeError),
+
+    #[display(inner)]
+    #[from]
+    Armor(armor::StrictArmorError),
 }
 
 pub trait FileContent: StrictArmor {
@@ -82,6 +86,18 @@ pub trait FileContent: StrictArmor {
     fn save_file(&self, path: impl AsRef<std::path::Path>) -> Result<(), io::Error> {
         let file = std::fs::File::create(path)?;
         self.save(file)
+    }
+
+    #[cfg(feature = "fs")]
+    fn load_armored(path: impl AsRef<std::path::Path>) -> Result<Self, LoadError> {
+        let armor = std::fs::read_to_string(path)?;
+        let content = Self::from_ascii_armored_str(&armor)?;
+        Ok(content)
+    }
+
+    #[cfg(feature = "fs")]
+    fn save_armored(&self, path: impl AsRef<std::path::Path>) -> Result<(), io::Error> {
+        std::fs::write(path, self.to_ascii_armored_string())
     }
 }
 
