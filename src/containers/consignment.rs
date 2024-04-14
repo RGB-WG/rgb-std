@@ -114,7 +114,8 @@ impl ConsignmentId {
 pub type ValidContract = ValidConsignment<false>;
 pub type ValidTransfer = ValidConsignment<true>;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Display)]
+#[display("{consignment}")]
 pub struct ValidConsignment<const TRANSFER: bool> {
     /// Status of the latest validation.
     validation_status: validation::Status,

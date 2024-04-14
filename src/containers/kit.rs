@@ -98,7 +98,8 @@ impl KitId {
     pub fn to_mnemonic(&self) -> String { self.to_baid58().mnemonic() }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Display)]
+#[display("{kit}")]
 pub struct ValidKit {
     /// Status of the latest validation.
     validation_status: validation::Status,
