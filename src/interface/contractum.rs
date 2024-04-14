@@ -57,45 +57,41 @@ impl<'a> Display for ArgMapDisplay<'a> {
 }
 
 struct OpIfaceDisplay<'a> {
-    metadata: Option<SemId>,
+    metadata: Option<&'a FieldName>,
     globals: &'a ArgMap,
     assignments: &'a ArgMap,
     valencies: &'a TinyOrdSet<FieldName>,
     errors: &'a TinyOrdSet<VariantName>,
-    types: &'a SymbolicSys,
 }
 
 impl<'a> OpIfaceDisplay<'a> {
-    fn genesis(op: &'a GenesisIface, iface: &'a IfaceDisplay) -> Self {
+    fn genesis(op: &'a GenesisIface) -> Self {
         Self {
-            metadata: op.metadata,
+            metadata: op.metadata.as_ref(),
             globals: &op.globals,
             assignments: &op.assignments,
             valencies: &op.valencies,
             errors: &op.errors,
-            types: iface.types,
         }
     }
 
-    fn transition(op: &'a TransitionIface, iface: &'a IfaceDisplay) -> Self {
+    fn transition(op: &'a TransitionIface) -> Self {
         Self {
-            metadata: op.metadata,
+            metadata: op.metadata.as_ref(),
             globals: &op.globals,
             assignments: &op.assignments,
             valencies: &op.valencies,
             errors: &op.errors,
-            types: iface.types,
         }
     }
 
-    fn extension(op: &'a ExtensionIface, iface: &'a IfaceDisplay) -> Self {
+    fn extension(op: &'a ExtensionIface) -> Self {
         Self {
-            metadata: op.metadata,
+            metadata: op.metadata.as_ref(),
             globals: &op.globals,
             assignments: &op.assignments,
             valencies: &op.valencies,
             errors: &op.errors,
-            types: iface.types,
         }
     }
 }
@@ -113,12 +109,8 @@ impl<'a> Display for OpIfaceDisplay<'a> {
             writeln!(f)?;
         }
 
-        if let Some(meta_id) = self.metadata {
-            write!(f, "\t\tmeta: ")?;
-            match self.types.lookup(meta_id) {
-                Some(fqn) => writeln!(f, "{fqn}"),
-                None => writeln!(f, "{meta_id} -- type name is unknown"),
-            }?;
+        if let Some(meta) = self.metadata {
+            write!(f, "\t\tmeta: {meta}")?;
         }
         if !self.globals.is_empty() {
             writeln!(f, "\t\tglobals: {}", ArgMapDisplay(self.globals))?;
@@ -233,6 +225,18 @@ impl<'a> Display for IfaceDisplay<'a> {
         }
         writeln!(f)?;
 
+        for (fname, semid) in &self.iface.metadata {
+            write!(f, "\tmeta {fname}: ")?;
+            match self.types.lookup(*semid) {
+                Some(fqn) => writeln!(f, "{fqn}"),
+                None => writeln!(f, "{semid} -- type name is unknown"),
+            }?;
+            writeln!(f)?;
+        }
+        if !self.iface.metadata.is_empty() {
+            writeln!(f)?;
+        }
+
         for (fname, g) in &self.iface.global_state {
             write!(f, "\tglobal {fname}")?;
             sugar(f, g.required, g.multiple)?;
@@ -287,7 +291,7 @@ impl<'a> Display for IfaceDisplay<'a> {
             writeln!(f)?;
         }
 
-        let op = OpIfaceDisplay::genesis(&self.iface.genesis, self);
+        let op = OpIfaceDisplay::genesis(&self.iface.genesis);
         opsugar(f, "genesis", None, self.iface.genesis.modifier, true, false)?;
         writeln!(f, "{op}")?;
 
@@ -295,7 +299,7 @@ impl<'a> Display for IfaceDisplay<'a> {
             let default = self.iface.default_operation.as_ref() == Some(name);
             opsugar(f, "transition", Some(name), t.modifier, t.optional, default)?;
 
-            let op = OpIfaceDisplay::transition(t, self);
+            let op = OpIfaceDisplay::transition(t);
             write!(f, "{op}")?;
 
             if let Some(ref d) = t.default_assignment {
@@ -311,7 +315,7 @@ impl<'a> Display for IfaceDisplay<'a> {
             let default = self.iface.default_operation.as_ref() == Some(name);
             opsugar(f, "extension", Some(name), e.modifier, e.optional, default)?;
 
-            let op = OpIfaceDisplay::extension(e, self);
+            let op = OpIfaceDisplay::extension(e);
             write!(f, "{op}")?;
 
             if let Some(ref d) = e.default_assignment {

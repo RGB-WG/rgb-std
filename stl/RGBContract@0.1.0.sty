@@ -1,5 +1,5 @@
 {-
-  Id: urn:ubideco:stl:62pJgRAEXfW3WDNXsx2UsoRpAMrrYBXWvDouGd59rxNs#prefix-flute-jordan
+  Id: urn:ubideco:stl:7isbv9C7vzzuNUvpPPbxnLFj7V6XZHP8kWPAZezjvaqx#barbara-limit-cricket
   Name: RGBContract
   Version: 0.1.0
   Description: Types for writing RGB contracts and interfaces
@@ -21,6 +21,9 @@ import Bitcoin#HX2UBak8vPsTokug1DGMDvTpzns3xUdwZ7QJdyt4qBA9#speed-atlanta-trilog
   use Txid#cowboy-diego-betty
   use Outpoint#dinner-yoga-danube
 
+
+@mnemonic(break-tunnel-gray)
+data Allocation        : TokenIndex, OwnedFraction
 
 @mnemonic(burma-picasso-granite)
 data Amount            : U64
@@ -57,6 +60,9 @@ data MediaType         : type MediaRegName
 @mnemonic(ruby-tennis-lotus)
 data Name              : [Std.AsciiPrintable#prize-solar-driver ^ 1..0x28]
 
+@mnemonic(vital-edgar-quota)
+data OwnedFraction     : U64
+
 @mnemonic(union-drum-public)
 data Precision         : indivisible | deci | centi | milli
                        | deciMilli | centiMilli | micro | deciMicro
@@ -73,5 +79,8 @@ data RicardianContract : [Unicode]
 
 @mnemonic(proton-logic-weekend)
 data Ticker            : [Std.Alpha#october-urgent-tunnel ^ 1..0x8]
+
+@mnemonic(connect-farmer-havana)
+data TokenIndex        : U32
 
 

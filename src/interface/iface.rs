@@ -273,7 +273,7 @@ pub enum Modifier {
 )]
 pub struct GenesisIface {
     pub modifier: Modifier,
-    pub metadata: Option<SemId>,
+    pub metadata: Option<FieldName>,
     pub globals: ArgMap,
     pub assignments: ArgMap,
     pub valencies: TinyOrdSet<FieldName>,
@@ -292,7 +292,7 @@ pub struct ExtensionIface {
     pub modifier: Modifier,
     /// Defines whence schema may omit providing this operation.
     pub optional: bool,
-    pub metadata: Option<SemId>,
+    pub metadata: Option<FieldName>,
     pub globals: ArgMap,
     pub assignments: ArgMap,
     pub redeems: TinyOrdSet<FieldName>,
@@ -313,7 +313,7 @@ pub struct TransitionIface {
     pub modifier: Modifier,
     /// Defines whence schema may omit providing this operation.
     pub optional: bool,
-    pub metadata: Option<SemId>,
+    pub metadata: Option<FieldName>,
     pub globals: ArgMap,
     pub inputs: ArgMap,
     pub assignments: ArgMap,
@@ -338,6 +338,7 @@ pub struct Iface {
     pub name: TypeName,
     pub inherits: TinyVec<IfaceId>, // TODO: Replace with TinyIndexSet
     pub timestamp: i64,
+    pub metadata: TinyOrdMap<FieldName, SemId>,
     pub global_state: TinyOrdMap<FieldName, GlobalIface>,
     pub assignments: TinyOrdMap<FieldName, AssignIface>,
     pub valencies: TinyOrdMap<FieldName, ValencyIface>,
@@ -377,13 +378,10 @@ impl Iface {
     }
 
     pub fn types(&self) -> impl Iterator<Item = SemId> + '_ {
-        self.genesis
-            .metadata
-            .iter()
+        self.metadata
+            .values()
             .copied()
             .chain(self.global_state.values().filter_map(|i| i.sem_id))
-            .chain(self.extensions.values().filter_map(|i| i.metadata))
-            .chain(self.transitions.values().filter_map(|i| i.metadata))
             .chain(
                 self.assignments
                     .values()

@@ -1,5 +1,5 @@
 {-
-  Id: urn:ubideco:stl:GAhzwCYgTqE4oocsUcPpUJQ1zpmTzXyGfUURuQK66iux#paul-proton-network
+  Id: urn:ubideco:stl:4pWTi9vaUxGSHN3S74Ja8ifM7bWbPDFTAfhumztbuAkp#arnold-exile-combat
   Name: RGBStd
   Version: 0.1.0
   Description: RGB standard library
@@ -229,10 +229,10 @@ data ContractSuppl     : contractId RGB.ContractId#alarm-danube-vampire
                        , ownedState {RGB.AssignmentType -> ^ ..0xff OwnedStateSuppl}
                        , extensions {U16 -> ^ ..0xff [Byte]}
 
-@mnemonic(bahama-morph-druid)
+@mnemonic(source-sabine-novel)
 data ExtensionIface    : modifier Modifier
                        , optional Std.Bool#laser-madam-maxwell
-                       , metadata StrictTypes.SemId#cargo-plasma-catalog?
+                       , metadata StrictTypes.FieldName#toyota-plasma-austria?
                        , globals {StrictTypes.FieldName -> ^ ..0xff RGB.Occurrences#unicorn-empire-mama}
                        , assignments {StrictTypes.FieldName -> ^ ..0xff RGB.Occurrences#unicorn-empire-mama}
                        , redeems {StrictTypes.FieldName#toyota-plasma-austria ^ ..0xff}
@@ -240,9 +240,9 @@ data ExtensionIface    : modifier Modifier
                        , errors {StrictTypes.VariantName#fiesta-center-yoga ^ ..0xff}
                        , defaultAssignment StrictTypes.FieldName#toyota-plasma-austria?
 
-@mnemonic(linda-lemon-plume)
+@mnemonic(joker-boxer-dublin)
 data GenesisIface      : modifier Modifier
-                       , metadata StrictTypes.SemId#cargo-plasma-catalog?
+                       , metadata StrictTypes.FieldName#toyota-plasma-austria?
                        , globals {StrictTypes.FieldName -> ^ ..0xff RGB.Occurrences#unicorn-empire-mama}
                        , assignments {StrictTypes.FieldName -> ^ ..0xff RGB.Occurrences#unicorn-empire-mama}
                        , valencies {StrictTypes.FieldName#toyota-plasma-austria ^ ..0xff}
@@ -253,11 +253,12 @@ data GlobalIface       : semId StrictTypes.SemId#cargo-plasma-catalog?
                        , required Std.Bool#laser-madam-maxwell
                        , multiple Std.Bool#laser-madam-maxwell
 
-@mnemonic(congo-crash-dream)
+@mnemonic(magenta-juliet-greek)
 data Iface             : version VerNo
                        , name StrictTypes.TypeName#gray-bonanza-kilo
                        , inherits [IfaceId ^ ..0xff]
                        , timestamp I64
+                       , metadata {StrictTypes.FieldName -> ^ ..0xff StrictTypes.SemId#cargo-plasma-catalog}
                        , globalState {StrictTypes.FieldName -> ^ ..0xff GlobalIface}
                        , assignments {StrictTypes.FieldName -> ^ ..0xff AssignIface}
                        , valencies {StrictTypes.FieldName -> ^ ..0xff ValencyIface}
@@ -359,10 +360,10 @@ data TickerSuppl       : absent ()
                        | global (RGB.GlobalStateType#seminar-major-tape, StrictTypes.Path#secret-romeo-mustang)
                        | owned (RGB.AssignmentType#hunter-hello-retro, StrictTypes.Path#secret-romeo-mustang)
 
-@mnemonic(pardon-orange-bikini)
+@mnemonic(sweet-mouse-chamber)
 data TransitionIface   : modifier Modifier
                        , optional Std.Bool#laser-madam-maxwell
-                       , metadata StrictTypes.SemId#cargo-plasma-catalog?
+                       , metadata StrictTypes.FieldName#toyota-plasma-austria?
                        , globals {StrictTypes.FieldName -> ^ ..0xff RGB.Occurrences#unicorn-empire-mama}
                        , inputs {StrictTypes.FieldName -> ^ ..0xff RGB.Occurrences#unicorn-empire-mama}
                        , assignments {StrictTypes.FieldName -> ^ ..0xff RGB.Occurrences#unicorn-empire-mama}
