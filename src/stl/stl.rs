@@ -23,7 +23,7 @@ pub use bp::bc::stl::bp_tx_stl;
 pub use bp::stl::bp_core_stl;
 #[allow(unused_imports)]
 pub use commit_verify::stl::{commit_verify_stl, LIB_ID_COMMIT_VERIFY};
-use invoice::Amount;
+use invoice::{Allocation, Amount};
 pub use rgb::stl::{aluvm_stl, rgb_core_stl, LIB_ID_RGB};
 use strict_types::stl::{std_stl, strict_types_stl};
 use strict_types::typesys::SystemBuilder;
@@ -37,7 +37,7 @@ use crate::LIB_NAME_RGB_STD;
 /// Strict types id for the library providing standard data types which may be
 /// used in RGB smart contracts.
 pub const LIB_ID_RGB_CONTRACT: &str =
-    "urn:ubideco:stl:62pJgRAEXfW3WDNXsx2UsoRpAMrrYBXWvDouGd59rxNs#prefix-flute-jordan";
+    "urn:ubideco:stl:7isbv9C7vzzuNUvpPPbxnLFj7V6XZHP8kWPAZezjvaqx#barbara-limit-cricket";
 
 /// Strict types id for the library representing of RGB StdLib data types.
 pub const LIB_ID_RGB_STD: &str =
@@ -65,6 +65,7 @@ fn _rgb_contract_stl() -> Result<TypeLib, CompileError> {
         bp_tx_stl().to_dependency()
     })
     .transpile::<Amount>()
+    .transpile::<Allocation>()
     .transpile::<AssetSpec>()
     .transpile::<AssetTerms>()
     .transpile::<MediaType>()

@@ -63,12 +63,50 @@ pub enum AllocationParseError {
     WrongFormat,
 }
 
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default, From, Display)]
+#[derive(
+    Wrapper, WrapperMut, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default, From
+)]
+#[wrapper(Display, FromStr, Add, Sub, Mul, Div, Rem)]
+#[wrapper_mut(AddAssign, SubAssign, MulAssign, DivAssign, RemAssign)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_CONTRACT)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", transparent)
+)]
+pub struct TokenIndex(u32);
+
+#[derive(
+    Wrapper, WrapperMut, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default, From
+)]
+#[wrapper(Display, FromStr, Add, Sub, Mul, Div, Rem)]
+#[wrapper_mut(AddAssign, SubAssign, MulAssign, DivAssign, RemAssign)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_CONTRACT)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", transparent)
+)]
+pub struct OwnedFraction(u64);
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default, Display)]
+#[display("{1}@{0}")]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_CONTRACT)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
-#[display("{1}@{0}")]
-pub struct Allocation(u32, u64);
+pub struct Allocation(TokenIndex, OwnedFraction);
+
+impl Allocation {
+    pub fn with(index: impl Into<TokenIndex>, fraction: impl Into<OwnedFraction>) -> Allocation {
+        Allocation(index.into(), fraction.into())
+    }
+
+    pub fn token_index(self) -> TokenIndex { self.0 }
+
+    pub fn fraction(self) -> OwnedFraction { self.1 }
+}
 
 impl StrictSerialize for Allocation {}
 impl StrictDeserialize for Allocation {}
@@ -106,7 +144,7 @@ impl FromStr for Allocation {
         }
 
         match s.split_once('@') {
-            Some((fraction, token_index)) => Ok(Allocation::with(
+            Some((fraction, token_index)) => Ok(Allocation(
                 token_index
                     .parse()
                     .map_err(|_| AllocationParseError::InvalidIndex(token_index.to_owned()))?,
@@ -117,12 +155,4 @@ impl FromStr for Allocation {
             None => Err(AllocationParseError::WrongFormat),
         }
     }
-}
-
-impl Allocation {
-    pub fn with(token_index: u32, fraction: u64) -> Self { Self(token_index, fraction) }
-
-    pub fn token_index(self) -> u32 { self.0 }
-
-    pub fn fraction(self) -> u64 { self.1 }
 }
