@@ -138,7 +138,7 @@ pub struct ContractBuilder {
 }
 
 impl ContractBuilder {
-    pub(crate) fn with(
+    pub fn with(
         iface: Iface,
         schema: Schema,
         iimpl: IfaceImpl,
@@ -351,7 +351,7 @@ pub struct TransitionBuilder {
 }
 
 impl TransitionBuilder {
-    pub(crate) fn blank_transition(
+    pub fn blank_transition(
         contract_id: ContractId,
         iface: Iface,
         schema: Schema,
@@ -361,7 +361,7 @@ impl TransitionBuilder {
         Self::with(contract_id, iface, schema, iimpl, TransitionType::BLANK, types)
     }
 
-    pub(crate) fn default_transition(
+    pub fn default_transition(
         contract_id: ContractId,
         iface: Iface,
         schema: Schema,
@@ -376,7 +376,7 @@ impl TransitionBuilder {
         Ok(Self::with(contract_id, iface, schema, iimpl, transition_type, types))
     }
 
-    pub(crate) fn named_transition(
+    pub fn named_transition(
         contract_id: ContractId,
         iface: Iface,
         schema: Schema,
