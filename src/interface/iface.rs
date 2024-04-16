@@ -33,9 +33,9 @@ use strict_encoding::{
     FieldName, StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize,
     StrictType, TypeName, VariantName,
 };
-use strict_types::{SemId, SymbolicSys};
+use strict_types::{SemId, SymbolicSys, TypeLib};
 
-use crate::interface::{IfaceDisplay, VerNo};
+use crate::interface::{ContractIface, IfaceDisplay, VerNo};
 use crate::LIB_NAME_RGB_STD;
 
 /// Interface identifier.
@@ -320,6 +320,20 @@ pub struct TransitionIface {
     pub valencies: TinyOrdSet<FieldName>,
     pub errors: TinyOrdSet<VariantName>,
     pub default_assignment: Option<FieldName>,
+}
+
+/// A class of interfaces: one or several interfaces inheriting from each other.
+///
+/// Interface standards like RGB20, RGB21 and RGB25 are actually interface
+/// classes.
+pub trait IfaceClass: From<ContractIface> {
+    const IFACE_NAME: &'static str;
+    const IFACE_IDS: &'static [IfaceId];
+
+    type Features: Sized + Clone + Default;
+
+    fn iface(features: Self::Features) -> Iface;
+    fn stl() -> TypeLib;
 }
 
 /// Interface definition.
