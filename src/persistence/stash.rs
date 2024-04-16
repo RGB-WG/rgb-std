@@ -42,7 +42,8 @@ use strict_types::TypeSystem;
 use crate::accessors::{MergeReveal, MergeRevealError};
 use crate::containers::{BundledWitness, Consignment, ContentId, Kit, SealWitness, SigBlob};
 use crate::interface::{
-    ContractBuilder, ContractSuppl, Iface, IfaceId, IfaceImpl, IfaceRef, TransitionBuilder,
+    ContractBuilder, ContractSuppl, Iface, IfaceClass, IfaceId, IfaceImpl, IfaceRef,
+    TransitionBuilder,
 };
 use crate::{SecretSeal, LIB_NAME_RGB_STD};
 
@@ -221,11 +222,13 @@ impl<P: StashProvider> Stash<P> {
         Ok(self.provider.witness(witness_id)?)
     }
 
-    pub(super) fn contract_ids_by_iface(
+    pub(super) fn contracts_by<C: IfaceClass>(
         &self,
-        iface: impl Into<IfaceRef>,
     ) -> Result<impl Iterator<Item = ContractId> + '_, StashError<P>> {
-        Ok(self.provider.contract_ids_by_iface(iface.into())?)
+        Ok(C::IFACE_IDS
+            .iter()
+            .filter_map(|id| self.provider.contract_ids_by_iface(*id).ok())
+            .flatten())
     }
     pub(super) fn contract_supplements(
         &self,

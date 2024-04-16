@@ -21,7 +21,7 @@
 
 use std::cmp::Ordering;
 use std::collections::HashMap;
-use std::fmt::{self, Display, Formatter};
+use std::fmt::{self, Debug, Display, Formatter};
 use std::str::FromStr;
 
 use amplify::confinement::{TinyOrdMap, TinyOrdSet, TinyString, TinyVec};
@@ -35,7 +35,8 @@ use strict_encoding::{
 };
 use strict_types::{SemId, SymbolicSys, TypeLib};
 
-use crate::interface::{ContractIface, IfaceDisplay, VerNo};
+use crate::interface::{ContractIface, IfaceDisplay, IfaceImpl, VerNo};
+use crate::persistence::SchemaIfaces;
 use crate::LIB_NAME_RGB_STD;
 
 /// Interface identifier.
@@ -326,14 +327,28 @@ pub struct TransitionIface {
 ///
 /// Interface standards like RGB20, RGB21 and RGB25 are actually interface
 /// classes.
+///
+/// The instances implementing this trait are used as wrappers around
+/// [`ContractIface`] object, allowing a simple API matching the interface class
+/// requirements.
 pub trait IfaceClass: From<ContractIface> {
     const IFACE_NAME: &'static str;
     const IFACE_IDS: &'static [IfaceId];
 
+    /// An object which allows to configure specific interface features to
+    /// select one interface from the class.
     type Features: Sized + Clone + Default;
 
+    /// Object which represent concise summary about a contract;
+    type Info: Clone + Eq + Debug;
+
     fn iface(features: Self::Features) -> Iface;
+    fn iface_id(features: Self::Features) -> IfaceId;
     fn stl() -> TypeLib;
+
+    /// Constructs information object describing a specific class in terms of
+    /// the interface class.
+    fn info(&self) -> Self::Info;
 }
 
 /// Interface definition.
@@ -401,6 +416,16 @@ impl Iface {
                     .values()
                     .filter_map(|i| i.owned_state.sem_id()),
             )
+    }
+
+    pub fn find_abstractable_impl<'a>(
+        &self,
+        schema_ifaces: &'a SchemaIfaces,
+    ) -> Option<&'a IfaceImpl> {
+        self.inherits
+            .iter()
+            .rev()
+            .find_map(move |parent| schema_ifaces.iimpls.get(parent))
     }
 
     pub fn check(&self) -> Result<(), Vec<IfaceInconsistency>> {

@@ -54,8 +54,8 @@ use crate::containers::{
 use crate::info::{IfaceInfo, SchemaInfo};
 use crate::interface::resolver::DumbResolver;
 use crate::interface::{
-    BuilderError, ContractBuilder, ContractIface, Iface, IfaceId, IfaceRef, TransitionBuilder,
-    VelocityHint,
+    BuilderError, ContractBuilder, ContractIface, Iface, IfaceClass, IfaceId, IfaceRef,
+    TransitionBuilder, VelocityHint,
 };
 use crate::resolvers::ResolveHeight;
 
@@ -384,19 +384,22 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     pub fn schema(&self, schema_id: SchemaId) -> Result<&SchemaIfaces, StockError<S, H, P>> {
         Ok(self.stash.schema(schema_id)?)
     }
+
     pub fn contract_ids(
         &self,
     ) -> Result<impl Iterator<Item = ContractId> + '_, StockError<S, H, P>> {
         Ok(self.stash.contract_ids()?)
     }
 
-    /// Iterates over all contract ids which can be interfaced using a specific
-    /// interface.
-    pub fn contracts_ifaceable(
+    pub fn contracts_by<C: IfaceClass>(
         &self,
-        iface: impl Into<IfaceRef>,
-    ) -> Result<impl Iterator<Item = ContractId> + '_, StockError<S, H, P>> {
-        Ok(self.stash.contract_ids_by_iface(iface)?)
+    ) -> Result<impl Iterator<Item = C::Info> + '_, StockError<S, H, P>> {
+        Ok(self.stash.contracts_by::<C>()?.filter_map(|id| {
+            self.contract_iface_class::<C>(id)
+                .as_ref()
+                .map(C::info)
+                .ok()
+        }))
     }
 
     /// Iterates over ids of all contract assigning state to the provided set of
@@ -437,6 +440,43 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         })
     }
 
+    pub fn contract_iface_class<C: IfaceClass>(
+        &self,
+        contract_id: ContractId,
+    ) -> Result<C, StockError<S, H, P, ContractIfaceError>> {
+        let (schema_ifaces, history) = self.contract_raw(contract_id)?;
+        let iimpl = schema_ifaces
+            .iimpls
+            .values()
+            .find(|iimpl| C::IFACE_IDS.contains(&iimpl.iface_id))
+            .or_else(|| {
+                schema_ifaces.iimpls.keys().find_map(|id| {
+                    let iface = self.stash.iface(*id).ok()?;
+                    iface.find_abstractable_impl(schema_ifaces)
+                })
+            })
+            .ok_or_else(|| {
+                ContractIfaceError::NoAbstractImpl(
+                    C::IFACE_IDS[0],
+                    schema_ifaces.schema.schema_id(),
+                )
+            })?;
+
+        let iface = self.stash.iface(iimpl.iface_id)?;
+        let (types, _) = self.stash.extract(&schema_ifaces.schema, [iface])?;
+
+        let state = ContractState {
+            schema: schema_ifaces.schema.clone(),
+            history: history.clone(),
+        };
+        Ok(ContractIface {
+            state,
+            iface: iimpl.clone(),
+            types,
+        }
+        .into())
+    }
+
     /// Returns the best matching abstract interface to a contract.
     pub fn contract_iface(
         &self,
@@ -447,19 +487,9 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         let iface = self.stash.iface(iface)?;
         let iface_id = iface.iface_id();
 
-        let iimpl = schema_ifaces
-            .iimpls
-            .get(&iface_id)
-            .or_else(|| {
-                iface
-                    .inherits
-                    .iter()
-                    .rev()
-                    .find_map(|parent| schema_ifaces.iimpls.get(parent))
-            })
-            .ok_or_else(|| {
-                ContractIfaceError::NoAbstractImpl(iface_id, schema_ifaces.schema.schema_id())
-            })?;
+        let iimpl = iface.find_abstractable_impl(schema_ifaces).ok_or_else(|| {
+            ContractIfaceError::NoAbstractImpl(iface_id, schema_ifaces.schema.schema_id())
+        })?;
 
         let (types, _) = self.stash.extract(&schema_ifaces.schema, [iface])?;
 
