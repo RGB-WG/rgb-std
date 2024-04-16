@@ -25,6 +25,7 @@ use std::collections::{BTreeMap, HashSet};
 
 use amplify::confinement::{Confined, SmallOrdSet, TinyOrdMap, U16};
 use amplify::{confinement, Wrapper};
+use bp::secp256k1::rand::random;
 use chrono::Utc;
 use invoice::{Allocation, Amount};
 use rgb::{
@@ -222,6 +223,17 @@ impl ContractBuilder {
         value: impl StrictSerialize,
     ) -> Result<Self, BuilderError> {
         self.builder = self.builder.add_global_state(name, value)?;
+        Ok(self)
+    }
+
+    #[inline]
+    pub fn add_global_state_det(
+        mut self,
+        name: impl Into<FieldName>,
+        value: impl StrictSerialize,
+        salt: u128,
+    ) -> Result<Self, BuilderError> {
+        self.builder = self.builder.add_global_state_det(name, value, salt)?;
         Ok(self)
     }
 
@@ -711,9 +723,18 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
     }
 
     pub fn add_global_state(
+        self,
+        name: impl Into<FieldName>,
+        value: impl StrictSerialize,
+    ) -> Result<Self, BuilderError> {
+        self.add_global_state_det(name, value, random())
+    }
+
+    pub fn add_global_state_det(
         mut self,
         name: impl Into<FieldName>,
         value: impl StrictSerialize,
+        salt: u128,
     ) -> Result<Self, BuilderError> {
         let name = name.into();
         let serialized = value.to_strict_serialized::<{ u16::MAX as usize }>()?;
@@ -739,7 +760,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             .strict_deserialize_type(sem_id, &serialized)?;
 
         self.global
-            .add_state(type_id, RevealedData::new_random_salt(serialized))?;
+            .add_state(type_id, RevealedData::with_salt(serialized, salt))?;
 
         Ok(self)
     }
