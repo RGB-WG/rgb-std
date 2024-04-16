@@ -35,7 +35,7 @@ use rgb::{
     AttachId, BundleId, ContractId, Extension, Genesis, GraphSeal, Identity, OpId, Operation,
     Schema, SchemaId, TransitionBundle, XChain, XWitnessId,
 };
-use strict_encoding::{FieldName, TypeName};
+use strict_encoding::FieldName;
 use strict_types::typesys::UnknownType;
 use strict_types::TypeSystem;
 
@@ -188,9 +188,7 @@ impl<P: StashProvider> Stash<P> {
     #[doc(hidden)]
     pub fn as_provider(&self) -> &P { &self.provider }
 
-    pub(super) fn ifaces(
-        &self,
-    ) -> Result<impl Iterator<Item = (IfaceId, TypeName)> + '_, StashError<P>> {
+    pub(super) fn ifaces(&self) -> Result<impl Iterator<Item = &Iface> + '_, StashError<P>> {
         Ok(self.provider.ifaces().map_err(StashError::ReadProvider)?)
     }
     pub(super) fn iface(&self, iface: impl Into<IfaceRef>) -> Result<&Iface, StashError<P>> {
@@ -564,7 +562,7 @@ pub trait StashReadProvider {
     fn type_system(&self) -> Result<&TypeSystem, Self::Error>;
     fn lib(&self, id: LibId) -> Result<&Lib, ProviderError<Self::Error>>;
 
-    fn ifaces(&self) -> Result<impl Iterator<Item = (IfaceId, TypeName)>, Self::Error>;
+    fn ifaces(&self) -> Result<impl Iterator<Item = &Iface>, Self::Error>;
     fn iface(&self, iface: impl Into<IfaceRef>) -> Result<&Iface, ProviderError<Self::Error>>;
     fn schemata(&self) -> Result<impl Iterator<Item = &SchemaIfaces>, Self::Error>;
     fn schema(&self, schema_id: SchemaId) -> Result<&SchemaIfaces, ProviderError<Self::Error>>;

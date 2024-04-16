@@ -34,7 +34,7 @@ use rgb::{
     Extension, Genesis, GenesisSeal, GraphSeal, Identity, OpId, Operation, Opout, Schema, SchemaId,
     SecretSeal, TransitionBundle, XChain, XOutputSeal, XWitnessId,
 };
-use strict_encoding::{StrictDeserialize, StrictSerialize, TypeName};
+use strict_encoding::{StrictDeserialize, StrictSerialize};
 use strict_types::TypeSystem;
 
 use super::{
@@ -93,11 +93,8 @@ impl StashReadProvider for MemStash {
             .ok_or_else(|| StashInconsistency::LibAbsent(id).into())
     }
 
-    fn ifaces(&self) -> Result<impl Iterator<Item = (IfaceId, TypeName)>, Self::Error> {
-        Ok(self
-            .ifaces
-            .iter()
-            .map(|(id, iface)| (*id, iface.name.clone())))
+    fn ifaces(&self) -> Result<impl Iterator<Item = &Iface>, Self::Error> {
+        Ok(self.ifaces.values())
     }
 
     fn iface(&self, iface: impl Into<IfaceRef>) -> Result<&Iface, StashProviderError<Self::Error>> {

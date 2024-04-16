@@ -37,7 +37,7 @@ use rgb::{
     ContractState, DbcProof, EAnchor, GraphSeal, OpId, Operation, Opout, SchemaId, SecretSeal,
     Transition, WitnessAnchor, XChain, XOutpoint, XOutputSeal, XWitnessId,
 };
-use strict_encoding::{FieldName, TypeName};
+use strict_encoding::FieldName;
 
 use super::{
     Index, IndexError, IndexInconsistency, IndexProvider, IndexReadProvider, IndexWriteProvider,
@@ -51,6 +51,7 @@ use crate::containers::{
     Contract, Fascia, PubWitness, SealWitness, Terminal, TerminalSeal, Transfer, TransitionInfo,
     TransitionInfoError, ValidConsignment, ValidContract, ValidKit, ValidTransfer,
 };
+use crate::info::{IfaceInfo, SchemaInfo};
 use crate::interface::resolver::DumbResolver;
 use crate::interface::{
     BuilderError, ContractBuilder, ContractIface, Iface, IfaceId, IfaceRef, TransitionBuilder,
@@ -371,18 +372,14 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     #[doc(hidden)]
     pub fn as_index_provider(&self) -> &P { self.index.as_provider() }
 
-    pub fn ifaces(
-        &self,
-    ) -> Result<impl Iterator<Item = (IfaceId, TypeName)> + '_, StockError<S, H, P>> {
-        Ok(self.stash.ifaces()?)
+    pub fn ifaces(&self) -> Result<impl Iterator<Item = IfaceInfo> + '_, StockError<S, H, P>> {
+        Ok(self.stash.ifaces()?.map(IfaceInfo::with))
     }
     pub fn iface(&self, iface: impl Into<IfaceRef>) -> Result<&Iface, StockError<S, H, P>> {
         Ok(self.stash.iface(iface)?)
     }
-    pub fn schemata(
-        &self,
-    ) -> Result<impl Iterator<Item = &SchemaIfaces> + '_, StockError<S, H, P>> {
-        Ok(self.stash.schemata()?)
+    pub fn schemata(&self) -> Result<impl Iterator<Item = SchemaInfo> + '_, StockError<S, H, P>> {
+        Ok(self.stash.schemata()?.map(SchemaInfo::with))
     }
     pub fn schema(&self, schema_id: SchemaId) -> Result<&SchemaIfaces, StockError<S, H, P>> {
         Ok(self.stash.schema(schema_id)?)

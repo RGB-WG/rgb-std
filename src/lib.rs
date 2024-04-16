@@ -87,6 +87,7 @@ pub mod containers;
 pub mod persistence;
 pub mod resolvers;
 pub mod accessors;
+pub mod info;
 
 pub use bp::{Outpoint, Txid};
 pub use invoice::{Allocation, Amount, CoinAmount, OwnedFraction, Precision, TokenIndex};
