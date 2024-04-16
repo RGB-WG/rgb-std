@@ -451,7 +451,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             .find(|iimpl| C::IFACE_IDS.contains(&iimpl.iface_id))
             .or_else(|| {
                 schema_ifaces.iimpls.keys().find_map(|id| {
-                    let iface = self.stash.iface(*id).ok()?;
+                    let iface = self.stash.iface(id.clone()).ok()?;
                     iface.find_abstractable_impl(schema_ifaces)
                 })
             })

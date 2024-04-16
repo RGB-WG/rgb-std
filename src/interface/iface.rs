@@ -425,7 +425,7 @@ impl Iface {
         self.inherits
             .iter()
             .rev()
-            .find_map(move |parent| schema_ifaces.iimpls.get(parent))
+            .find_map(move |parent| schema_ifaces.get(*parent))
     }
 
     pub fn check(&self) -> Result<(), Vec<IfaceInconsistency>> {

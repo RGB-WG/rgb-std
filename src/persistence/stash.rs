@@ -35,7 +35,7 @@ use rgb::{
     AttachId, BundleId, ContractId, Extension, Genesis, GraphSeal, Identity, OpId, Operation,
     Schema, SchemaId, TransitionBundle, XChain, XWitnessId,
 };
-use strict_encoding::FieldName;
+use strict_encoding::{FieldName, TypeName};
 use strict_types::typesys::UnknownType;
 use strict_types::TypeSystem;
 
@@ -156,7 +156,7 @@ pub enum StashDataError {
 )]
 pub struct SchemaIfaces {
     pub schema: Schema,
-    pub iimpls: TinyOrdMap<IfaceId, IfaceImpl>,
+    pub iimpls: TinyOrdMap<TypeName, IfaceImpl>,
 }
 
 impl SchemaIfaces {
@@ -165,6 +165,14 @@ impl SchemaIfaces {
             schema,
             iimpls: none!(),
         }
+    }
+
+    pub fn get(&self, id: IfaceId) -> Option<&IfaceImpl> {
+        self.iimpls.values().find(|iimpl| iimpl.iface_id == id)
+    }
+
+    pub fn contains(&self, id: IfaceId) -> bool {
+        self.iimpls.values().any(|iimpl| iimpl.iface_id == id)
     }
 }
 
@@ -274,8 +282,7 @@ impl<P: StashProvider> Stash<P> {
         let iface = self.iface(iface)?;
         let iface_id = iface.iface_id();
         let iimpl = schema_ifaces
-            .iimpls
-            .get(&iface_id)
+            .get(iface_id)
             .ok_or(StashDataError::NoIfaceImpl(schema_id, iface_id))?;
 
         let (types, scripts) = self.extract(&schema_ifaces.schema, [iface])?;
@@ -300,8 +307,7 @@ impl<P: StashProvider> Stash<P> {
         let iface = self.iface(iface)?;
         let schema = &schema_ifaces.schema;
         let iimpl = schema_ifaces
-            .iimpls
-            .get(&iface.iface_id())
+            .get(iface.iface_id())
             .ok_or(StashDataError::NoIfaceImpl(schema.schema_id(), iface.iface_id()))?;
         let genesis = self.provider.genesis(contract_id)?;
 
@@ -351,7 +357,7 @@ impl<P: StashProvider> Stash<P> {
 
         let (types, _) = self.extract(&schema_ifaces.schema, [iface])?;
 
-        let mut builder = if let Some(iimpl) = schema_ifaces.iimpls.get(&iface.iface_id()) {
+        let mut builder = if let Some(iimpl) = schema_ifaces.get(iface.iface_id()) {
             TransitionBuilder::blank_transition(
                 contract_id,
                 iface.clone(),
@@ -360,8 +366,9 @@ impl<P: StashProvider> Stash<P> {
                 types,
             )
         } else {
-            let (default_iface_id, default_iimpl) = schema_ifaces.iimpls.first_key_value().unwrap();
-            let default_iface = self.iface(*default_iface_id)?;
+            let (default_iface_name, default_iimpl) =
+                schema_ifaces.iimpls.first_key_value().unwrap();
+            let default_iface = self.iface(default_iface_name.clone())?;
 
             TransitionBuilder::blank_transition(
                 contract_id,

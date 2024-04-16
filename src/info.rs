@@ -19,7 +19,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::BTreeMap;
+use std::fmt::{self, Display, Formatter, Write};
 
 use chrono::{DateTime, TimeZone, Utc};
 use rgb::{Identity, SchemaId};
@@ -56,13 +56,38 @@ impl IfaceInfo {
     }
 }
 
+impl Display for IfaceInfo {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{: <40}", self.name)?;
+        f.write_char(f.fill())?;
+        write!(f, "{}", self.version)?;
+        f.write_char(f.fill())?;
+        write!(f, "{}", self.developer)?;
+        f.write_char(f.fill())?;
+        write!(f, "{}", self.created_at.format("%Y-%m-%d"))?;
+        f.write_char(f.fill())?;
+        write!(f, "{}", self.default_op.clone().unwrap_or_else(|| fname!("~")))?;
+        f.write_char(f.fill())?;
+        writeln!(
+            f,
+            "{}",
+            self.inherits
+                .iter()
+                .map(|f| f.to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )?;
+        writeln!(f, "\t{}", self.id)
+    }
+}
+
 #[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
 pub struct SchemaInfo {
     pub id: SchemaId,
     pub name: TypeName,
     pub developer: Identity,
     pub created_at: DateTime<Utc>,
-    pub implements: BTreeMap<IfaceId, ImplInfo>,
+    pub implements: Vec<ImplInfo>,
 }
 
 impl SchemaInfo {
@@ -79,9 +104,24 @@ impl SchemaInfo {
             implements: schema_ifaces
                 .iimpls
                 .iter()
-                .map(|(id, iimpl)| (*id, ImplInfo::with(iimpl)))
+                .map(|(name, iimpl)| ImplInfo::with(name.clone(), iimpl))
                 .collect(),
         }
+    }
+}
+
+impl Display for SchemaInfo {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{: <40}", self.name)?;
+        f.write_char(f.fill())?;
+        write!(f, "{}", self.developer)?;
+        f.write_char(f.fill())?;
+        writeln!(f, "{}", self.created_at.format("%Y-%m-%d"))?;
+        f.write_char(f.fill())?;
+        for info in &self.implements {
+            writeln!(f, "\t{info}",)?;
+        }
+        Ok(())
     }
 }
 
@@ -89,20 +129,34 @@ impl SchemaInfo {
 pub struct ImplInfo {
     pub id: ImplId,
     pub iface_id: IfaceId,
+    pub iface_name: TypeName,
     pub developer: Identity,
     pub created_at: DateTime<Utc>,
 }
 
 impl ImplInfo {
-    pub fn with(iimpl: &IfaceImpl) -> Self {
+    pub fn with(iface_name: TypeName, iimpl: &IfaceImpl) -> Self {
         ImplInfo {
             id: iimpl.impl_id(),
             iface_id: iimpl.iface_id,
+            iface_name,
             developer: iimpl.developer.clone(),
             created_at: Utc
                 .timestamp_opt(iimpl.timestamp, 0)
                 .single()
                 .unwrap_or_else(Utc::now),
         }
+    }
+}
+
+impl Display for ImplInfo {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{: <40}", self.iface_name)?;
+        f.write_char(f.fill())?;
+        write!(f, "{}", self.developer)?;
+        f.write_char(f.fill())?;
+        write!(f, "{}", self.created_at.format("%Y-%m-%d"))?;
+        f.write_char(f.fill())?;
+        writeln!(f, "{}", self.id)
     }
 }
