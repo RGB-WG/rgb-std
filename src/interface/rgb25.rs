@@ -242,7 +242,6 @@ pub struct Issue {
     builder: ContractBuilder,
     issued: Amount,
     terms: AssetTerms,
-    deterministic: bool,
 }
 
 impl Issue {
@@ -250,6 +249,7 @@ impl Issue {
         issuer: SchemaIssuer<Rgb25>,
         name: &str,
         precision: Precision,
+        salt: Option<u128>,
     ) -> Result<Self, InvalidIdent> {
         let terms = AssetTerms {
             text: RicardianContract::default(),
@@ -257,18 +257,25 @@ impl Issue {
         };
 
         let (schema, main_iface_impl) = issuer.into_split();
-        let builder = ContractBuilder::testnet(rgb25(), schema, main_iface_impl)
-            .expect("schema interface mismatch")
-            .add_global_state("name", Name::try_from(name.to_owned())?)
-            .expect("invalid RGB25 schema (name mismatch)")
-            .add_global_state("name", precision)
-            .expect("invalid RGB25 schema (precision mismatch)");
+        let builder = if let Some(salt) = salt {
+            ContractBuilder::testnet_det(rgb25(), schema, main_iface_impl)
+                .expect("schema interface mismatch")
+                .add_global_state_det("name", Name::try_from(name.to_owned())?, salt)
+                .expect("invalid RGB25 schema (name mismatch)")
+                .add_global_state_det("name", precision, salt)
+        } else {
+            ContractBuilder::testnet(rgb25(), schema, main_iface_impl)
+                .expect("schema interface mismatch")
+                .add_global_state("name", Name::try_from(name.to_owned())?)
+                .expect("invalid RGB25 schema (name mismatch)")
+                .add_global_state("name", precision)
+        }
+        .expect("invalid RGB25 schema (precision mismatch)");
 
         Ok(Self {
             builder,
             terms,
             issued: Amount::ZERO,
-            deterministic: false,
         })
     }
 
@@ -276,7 +283,7 @@ impl Issue {
         name: &str,
         precision: Precision,
     ) -> Result<Self, InvalidIdent> {
-        Self::testnet_int(C::issuer(), name, precision)
+        Self::testnet_int(C::issuer(), name, precision, None)
     }
 
     pub fn testnet_with(
@@ -284,20 +291,20 @@ impl Issue {
         name: &str,
         precision: Precision,
     ) -> Result<Self, InvalidIdent> {
-        Self::testnet_int(issuer, name, precision)
+        Self::testnet_int(issuer, name, precision, None)
     }
 
     pub fn testnet_det<C: IssuerClass<IssuingIface = Rgb25>>(
         name: &str,
         precision: Precision,
         asset_tag: AssetTag,
+        salt: u128,
     ) -> Result<Self, InvalidIdent> {
-        let mut me = Self::testnet_int(C::issuer(), name, precision)?;
+        let mut me = Self::testnet_int(C::issuer(), name, precision, Some(salt))?;
         me.builder = me
             .builder
             .add_asset_tag("assetOwner", asset_tag)
             .expect("invalid RGB25 schema (assetOwner mismatch)");
-        me.deterministic = true;
         Ok(me)
     }
 
@@ -334,7 +341,7 @@ impl Issue {
         amount: Amount,
     ) -> Result<Self, AllocationError> {
         debug_assert!(
-            !self.deterministic,
+            !self.builder.deterministic(),
             "for creating deterministic contracts please use allocate_det method"
         );
 
@@ -371,7 +378,7 @@ impl Issue {
         amount_blinding: BlindingFactor,
     ) -> Result<Self, AllocationError> {
         debug_assert!(
-            self.deterministic,
+            self.builder.deterministic(),
             "to add asset allocation in deterministic way the contract builder has to be created \
              using `*_det` constructor"
         );
@@ -404,7 +411,7 @@ impl Issue {
     #[allow(clippy::result_large_err)]
     pub fn issue_contract(self) -> Result<Contract, BuilderError> {
         debug_assert!(
-            !self.deterministic,
+            !self.builder.deterministic(),
             "to add asset allocation in deterministic way you must use issue_contract_det method"
         );
         self.issue_contract_det(Utc::now().timestamp())
@@ -413,7 +420,7 @@ impl Issue {
     #[allow(clippy::result_large_err)]
     pub fn issue_contract_det(self, timestamp: i64) -> Result<Contract, BuilderError> {
         debug_assert!(
-            self.deterministic,
+            self.builder.deterministic(),
             "to add asset allocation in deterministic way the contract builder has to be created \
              using `*_det` constructor"
         );

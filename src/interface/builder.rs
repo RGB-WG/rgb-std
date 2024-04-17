@@ -136,11 +136,15 @@ impl TxOutpoint for XOutpoint {
     fn map_to_xchain<U>(self, f: impl FnOnce(Outpoint) -> U) -> XChain<U> { self.map(f) }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Getters, Clone, Debug)]
 pub struct ContractBuilder {
+    #[getter(skip)]
     builder: OperationBuilder<GenesisSeal>,
+    #[getter(skip)]
     testnet: bool,
+    #[getter(skip)]
     alt_layers1: AltLayer1Set,
+    deterministic: bool,
 }
 
 impl ContractBuilder {
@@ -154,7 +158,19 @@ impl ContractBuilder {
             builder: OperationBuilder::with(iface, schema, iimpl)?,
             testnet,
             alt_layers1: none!(),
+            deterministic: false,
         })
+    }
+
+    pub fn with_det(
+        iface: Iface,
+        schema: SubSchema,
+        iimpl: IfaceImpl,
+        testnet: bool,
+    ) -> Result<Self, WrongImplementation> {
+        let mut contract_builder = Self::with(iface, schema, iimpl, testnet)?;
+        contract_builder.deterministic = true;
+        Ok(contract_builder)
     }
 
     pub fn mainnet(
@@ -166,7 +182,18 @@ impl ContractBuilder {
             builder: OperationBuilder::with(iface, schema, iimpl)?,
             testnet: false,
             alt_layers1: none!(),
+            deterministic: false,
         })
+    }
+
+    pub fn mainnet_det(
+        iface: Iface,
+        schema: SubSchema,
+        iimpl: IfaceImpl,
+    ) -> Result<Self, WrongImplementation> {
+        let mut contract_builder = Self::mainnet(iface, schema, iimpl)?;
+        contract_builder.deterministic = true;
+        Ok(contract_builder)
     }
 
     pub fn testnet(
@@ -178,7 +205,18 @@ impl ContractBuilder {
             builder: OperationBuilder::with(iface, schema, iimpl)?,
             testnet: true,
             alt_layers1: none!(),
+            deterministic: false,
         })
+    }
+
+    pub fn testnet_det(
+        iface: Iface,
+        schema: SubSchema,
+        iimpl: IfaceImpl,
+    ) -> Result<Self, WrongImplementation> {
+        let mut contract_builder = Self::testnet(iface, schema, iimpl)?;
+        contract_builder.deterministic = true;
+        Ok(contract_builder)
     }
 
     pub fn has_layer1(&self, layer1: Layer1) -> bool {
@@ -222,6 +260,10 @@ impl ContractBuilder {
         name: impl Into<FieldName>,
         value: impl StrictSerialize,
     ) -> Result<Self, BuilderError> {
+        debug_assert!(
+            !self.deterministic,
+            "to add global state in deterministic way please use add_global_state_det method"
+        );
         self.builder = self.builder.add_global_state(name, value)?;
         Ok(self)
     }
@@ -233,6 +275,11 @@ impl ContractBuilder {
         value: impl StrictSerialize,
         salt: u128,
     ) -> Result<Self, BuilderError> {
+        debug_assert!(
+            self.deterministic,
+            "to add global state in deterministic way the contract builder has to be created \
+             using `*_det` constructor"
+        );
         self.builder = self.builder.add_global_state_det(name, value, salt)?;
         Ok(self)
     }
@@ -243,6 +290,11 @@ impl ContractBuilder {
         seal: impl Into<BuilderSeal<GenesisSeal>>,
         state: PersistedState,
     ) -> Result<Self, BuilderError> {
+        debug_assert!(
+            self.deterministic,
+            "to add owned state in deterministic way the contract builder has to be created using \
+             `*_det` constructor"
+        );
         let seal = seal.into();
         self.check_layer1(seal.layer1())?;
         self.builder = self.builder.add_owned_state_det(name, seal, state)?;
@@ -266,6 +318,10 @@ impl ContractBuilder {
         seal: impl Into<BuilderSeal<GenesisSeal>>,
         value: u64,
     ) -> Result<Self, BuilderError> {
+        debug_assert!(
+            !self.deterministic,
+            "to add fungible state in deterministic way please use add_owned_state_det method"
+        );
         let name = name.into();
         let seal = seal.into();
         self.check_layer1(seal.layer1())?;
@@ -299,6 +355,10 @@ impl ContractBuilder {
         seal: impl Into<BuilderSeal<GenesisSeal>>,
         value: impl StrictSerialize,
     ) -> Result<Self, BuilderError> {
+        debug_assert!(
+            !self.deterministic,
+            "to add data in deterministic way please use add_owned_state_det method"
+        );
         let seal = seal.into();
         self.check_layer1(seal.layer1())?;
         self.builder = self.builder.add_data(name, seal, value)?;
@@ -311,6 +371,10 @@ impl ContractBuilder {
         seal: impl Into<BuilderSeal<GenesisSeal>>,
         attachment: AttachedState,
     ) -> Result<Self, BuilderError> {
+        debug_assert!(
+            !self.deterministic,
+            "to add attachment in deterministic way please use add_owned_state_det method"
+        );
         let seal = seal.into();
         self.check_layer1(seal.layer1())?;
         self.builder = self.builder.add_attachment(name, seal, attachment)?;
@@ -318,10 +382,19 @@ impl ContractBuilder {
     }
 
     pub fn issue_contract(self) -> Result<Contract, BuilderError> {
+        debug_assert!(
+            !self.deterministic,
+            "to issue the contract in deterministic way please use issue_contract_det method"
+        );
         self.issue_contract_det(Utc::now().timestamp())
     }
 
     pub fn issue_contract_det(self, timestamp: i64) -> Result<Contract, BuilderError> {
+        debug_assert!(
+            self.deterministic,
+            "to issue the contract in deterministic way the contract builder has to be created \
+             using `*_det` constructor"
+        );
         let (schema, iface_pair, global, assignments, asset_tags) = self.builder.complete(None);
 
         let genesis = Genesis {
