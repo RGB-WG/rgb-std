@@ -373,7 +373,15 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     pub fn as_index_provider(&self) -> &P { self.index.as_provider() }
 
     pub fn ifaces(&self) -> Result<impl Iterator<Item = IfaceInfo> + '_, StockError<S, H, P>> {
-        Ok(self.stash.ifaces()?.map(IfaceInfo::with))
+        let names = self
+            .stash
+            .ifaces()?
+            .map(|iface| (iface.iface_id(), iface.name.clone()))
+            .collect::<HashMap<_, _>>();
+        Ok(self
+            .stash
+            .ifaces()?
+            .map(move |iface| IfaceInfo::with(iface, &names)))
     }
     pub fn iface(&self, iface: impl Into<IfaceRef>) -> Result<&Iface, StockError<S, H, P>> {
         Ok(self.stash.iface(iface)?)

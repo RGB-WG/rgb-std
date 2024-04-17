@@ -19,13 +19,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use std::fmt::{self, Display, Formatter, Write};
 
 use chrono::{DateTime, TimeZone, Utc};
 use rgb::{Identity, SchemaId};
 use strict_encoding::{FieldName, TypeName};
 
-use crate::interface::{Iface, IfaceId, IfaceImpl, ImplId, VerNo};
+use crate::interface::{Iface, IfaceId, IfaceImpl, IfaceRef, ImplId, VerNo};
 use crate::persistence::SchemaIfaces;
 
 #[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
@@ -35,12 +36,13 @@ pub struct IfaceInfo {
     pub name: TypeName,
     pub developer: Identity,
     pub created_at: DateTime<Utc>,
-    pub inherits: Vec<IfaceId>,
+    pub inherits: Vec<IfaceRef>,
     pub default_op: Option<FieldName>,
 }
 
 impl IfaceInfo {
-    pub fn with(iface: &Iface) -> Self {
+    pub fn with(iface: &Iface, names: &HashMap<IfaceId, TypeName>) -> Self {
+        eprintln!("{:#?}", names);
         IfaceInfo {
             id: iface.iface_id(),
             version: iface.version,
@@ -50,7 +52,17 @@ impl IfaceInfo {
                 .timestamp_opt(iface.timestamp, 0)
                 .single()
                 .unwrap_or_else(Utc::now),
-            inherits: iface.inherits.iter().cloned().collect(),
+            inherits: iface
+                .inherits
+                .iter()
+                .map(|id| {
+                    names
+                        .get(id)
+                        .cloned()
+                        .map(IfaceRef::Name)
+                        .unwrap_or(IfaceRef::Id(*id))
+                })
+                .collect(),
             default_op: iface.default_operation.clone(),
         }
     }
@@ -58,25 +70,25 @@ impl IfaceInfo {
 
 impl Display for IfaceInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{: <40}", self.name)?;
+        write!(f, "{: <18}", self.developer.to_string())?;
         f.write_char(f.fill())?;
         write!(f, "{}", self.version)?;
         f.write_char(f.fill())?;
-        write!(f, "{}", self.developer)?;
-        f.write_char(f.fill())?;
         write!(f, "{}", self.created_at.format("%Y-%m-%d"))?;
         f.write_char(f.fill())?;
-        write!(f, "{}", self.default_op.clone().unwrap_or_else(|| fname!("~")))?;
+        write!(f, "{:24}", self.default_op.clone().unwrap_or_else(|| fname!("~")))?;
         f.write_char(f.fill())?;
-        writeln!(
+        write!(
             f,
-            "{}",
+            "{:32}",
             self.inherits
                 .iter()
                 .map(|f| f.to_string())
                 .collect::<Vec<_>>()
                 .join(", ")
         )?;
+        writeln!(f, "{}", self.name)?;
+        f.write_char(f.fill())?;
         writeln!(f, "\t{}", self.id)
     }
 }
@@ -112,14 +124,16 @@ impl SchemaInfo {
 
 impl Display for SchemaInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{: <40}", self.name)?;
+        write!(f, "{: <18}", self.developer.to_string())?;
         f.write_char(f.fill())?;
-        write!(f, "{}", self.developer)?;
+        write!(f, "{}", self.created_at.format("%Y-%m-%d"))?;
         f.write_char(f.fill())?;
-        writeln!(f, "{}", self.created_at.format("%Y-%m-%d"))?;
+        write!(f, "{: <80}", self.id.to_string())?;
+        f.write_char(f.fill())?;
+        writeln!(f, "{: <24}", self.name)?;
         f.write_char(f.fill())?;
         for info in &self.implements {
-            writeln!(f, "\t{info}",)?;
+            writeln!(f, "\t{info}")?;
         }
         Ok(())
     }
@@ -151,12 +165,12 @@ impl ImplInfo {
 
 impl Display for ImplInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{: <40}", self.iface_name)?;
+        write!(f, "{: <24}", self.iface_name)?;
         f.write_char(f.fill())?;
-        write!(f, "{}", self.developer)?;
+        write!(f, "{: <18}", self.developer.to_string())?;
         f.write_char(f.fill())?;
         write!(f, "{}", self.created_at.format("%Y-%m-%d"))?;
         f.write_char(f.fill())?;
-        writeln!(f, "{}", self.id)
+        write!(f, "{: <80}", self.id.to_string())
     }
 }

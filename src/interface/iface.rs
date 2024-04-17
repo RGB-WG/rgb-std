@@ -95,7 +95,7 @@ impl IfaceId {
     pub fn to_mnemonic(&self) -> String { self.to_baid58().mnemonic() }
 }
 
-#[derive(Clone, PartialEq, Eq, Debug, Display, From)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Display, From)]
 #[display(inner)]
 pub enum IfaceRef {
     #[from]
