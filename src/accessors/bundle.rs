@@ -54,7 +54,7 @@ impl BundleExt for TransitionBundle {
 
     fn reveal_transition(&mut self, transition: Transition) -> Result<bool, RevealError> {
         let opid = transition.id();
-        if self.input_map.values().any(|id| id == &opid) {
+        if self.input_map.values().any(|id| id != &opid) {
             return Err(RevealError::UnrelatedTransition(opid, transition));
         }
         if self.known_transitions.contains_key(&opid) {
