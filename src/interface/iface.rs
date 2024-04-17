@@ -74,7 +74,7 @@ impl ToBaid58<32> for IfaceId {
 impl FromBaid58<32> for IfaceId {}
 impl Display for IfaceId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        if !f.alternate() {
+        if f.alternate() {
             f.write_str("urn:lnp-bp:if:")?;
         }
         if f.sign_minus() {

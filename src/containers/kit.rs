@@ -77,7 +77,7 @@ impl ToBaid58<32> for KitId {
 impl FromBaid58<32> for KitId {}
 impl Display for KitId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        if !f.alternate() {
+        if f.alternate() {
             f.write_str("urn:lnp-bp:kit:")?;
         }
         if f.sign_minus() {
