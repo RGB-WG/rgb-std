@@ -19,8 +19,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//use crate::containers::{Consignment, Contract, Transfer};
-
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::fmt::Debug;
@@ -420,12 +418,10 @@ impl<P: StashProvider> Stash<P> {
         Ok(())
     }
 
-    pub(super) fn consume_consignment<const TRANSFER: bool>(
-        &mut self,
+    pub(super) fn resolve_secrets<const TRANSFER: bool>(
+        &self,
         mut consignment: Consignment<TRANSFER>,
-    ) -> Result<(), StashError<P>> {
-        let contract_id = consignment.contract_id();
-
+    ) -> Result<Consignment<TRANSFER>, StashError<P>> {
         for (bundle_id, secret) in consignment.terminal_secrets() {
             if let Some(seal) = self
                 .provider
@@ -435,6 +431,14 @@ impl<P: StashProvider> Stash<P> {
                 consignment = consignment.reveal_bundle_seal(bundle_id, seal);
             }
         }
+        Ok(consignment)
+    }
+
+    pub(super) fn consume_consignment<const TRANSFER: bool>(
+        &mut self,
+        consignment: Consignment<TRANSFER>,
+    ) -> Result<(), StashError<P>> {
+        let contract_id = consignment.contract_id();
 
         let genesis = match self.genesis(contract_id) {
             Ok(g) => g.clone().merge_reveal(consignment.genesis)?,
