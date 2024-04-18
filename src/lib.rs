@@ -89,6 +89,7 @@ pub mod resolvers;
 pub mod accessors;
 
 pub use bp::{Outpoint, Txid};
+pub use invoice::{Allocation, Amount, CoinAmount, OwnedFraction, Precision, TokenIndex};
 pub use rgb::*;
 pub use stl::{LIB_NAME_RGB_CONTRACT, LIB_NAME_RGB_STD};
 

@@ -1,7 +1,7 @@
 {-
-  Id: urn:ubideco:stl:pvPyTM1N1rG9HEAvvEgqKonnMdakHreYrvGWfFff8q6#atlanta-adrian-sonata
+  Id: urn:ubideco:stl:7isbv9C7vzzuNUvpPPbxnLFj7V6XZHP8kWPAZezjvaqx#barbara-limit-cricket
   Name: RGBContract
-  Version: 0.1.0
+  Version: 0.11.0
   Description: Types for writing RGB contracts and interfaces
   Author: Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
   Copyright (C) 2023-2024-2024 LNP/BP Standards Association. All rights reserved.
@@ -11,15 +11,19 @@
 @context
 typelib RGBContract
 
-import Std#DzTvt9gGhPUKD8Dkkjk9PDBhkJ4gtWxXWQjxnmUYLNrs#voyage-kimono-disco
-  use AsciiPrintable#diet-oxford-window
-  use AlphaCapsNum#magnet-section-latin
+import Std#EcCNgrgLaygt3tCZNu2ZVEzMzSAZYEUeTNAVi5E81YWi#aspirin-mango-average
+  use AsciiPrintable#prize-solar-driver
+  use Alpha#october-urgent-tunnel
+  use AlphaSmall#song-accent-mammal
 
 import Bitcoin#HX2UBak8vPsTokug1DGMDvTpzns3xUdwZ7QJdyt4qBA9#speed-atlanta-trilogy
   use Vout#chrome-robin-gallop
   use Txid#cowboy-diego-betty
   use Outpoint#dinner-yoga-danube
 
+
+@mnemonic(break-tunnel-gray)
+data Allocation        : TokenIndex, OwnedFraction
 
 @mnemonic(burma-picasso-granite)
 data Amount            : U64
@@ -45,31 +49,19 @@ data Details           : [Unicode ^ 1..0xff]
 @mnemonic(alcohol-moral-needle)
 data IssueMeta         : reserves {ProofOfReserves}
 
-@mnemonic(memphis-bicycle-roof)
-data MediaRegName      : [MimeChar ^ 1..0x40]
+@mnemonic(telecom-pixel-initial)
+data MediaRegName      : [Std.AlphaSmall#song-accent-mammal ^ 1..0x40]
 
 @mnemonic(robert-decide-dispute)
 data MediaType         : type MediaRegName
                        , subtype MediaRegName?
                        , charset MediaRegName?
 
-@mnemonic(golf-antonio-courage)
-data MimeChar          : excl#33 | hash#35 | dollar | amp#38
-                       | plus#43 | dash#45 | dot | zero#48
-                       | one | two | three | four
-                       | five | six | seven | eight
-                       | nine | caret#94 | lodash | a#97
-                       | b | c | d | e
-                       | f | g | h | i
-                       | j | k | l | m
-                       | n | o | p | q
-                       | r | s | t | u
-                       | v | w | x | y
-                       | z
+@mnemonic(ruby-tennis-lotus)
+data Name              : [Std.AsciiPrintable#prize-solar-driver ^ 1..0x28]
 
-
-@mnemonic(crystal-visitor-tribune)
-data Name              : [Std.AsciiPrintable#diet-oxford-window ^ 1..0x28]
+@mnemonic(vital-edgar-quota)
+data OwnedFraction     : U64
 
 @mnemonic(union-drum-public)
 data Precision         : indivisible | deci | centi | milli
@@ -85,7 +77,10 @@ data ProofOfReserves   : utxo Bitcoin.Outpoint#dinner-yoga-danube, proof [Byte]
 @mnemonic(bundle-turbo-verona)
 data RicardianContract : [Unicode]
 
-@mnemonic(mike-atlas-store)
-data Ticker            : [Std.AlphaCapsNum#magnet-section-latin ^ 1..0x8]
+@mnemonic(proton-logic-weekend)
+data Ticker            : [Std.Alpha#october-urgent-tunnel ^ 1..0x8]
+
+@mnemonic(connect-farmer-havana)
+data TokenIndex        : U32
 
 

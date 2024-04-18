@@ -24,11 +24,12 @@ use std::ops::Deref;
 
 use amplify::confinement::Collection;
 use commit_verify::Conceal;
-use rgb::validation::ConsignmentApi;
+use rgb::validation::{ConsignmentApi, Scripts};
 use rgb::{
     BundleId, EAnchor, Extension, Genesis, OpId, OpRef, Operation, Schema, Transition,
     TransitionBundle, XChain, XWitnessId,
 };
+use strict_types::TypeSystem;
 
 use super::Consignment;
 use crate::containers::anchors::ToWitnessId;
@@ -36,8 +37,9 @@ use crate::SecretSeal;
 
 // TODO: Transform consignment into this type instead of composing over it
 #[derive(Clone, Debug)]
-pub struct IndexedConsignment<'c, const TYPE: bool> {
-    consignment: &'c Consignment<TYPE>,
+pub struct IndexedConsignment<'c, const TRANSFER: bool> {
+    consignment: &'c Consignment<TRANSFER>,
+    scripts: Scripts,
     anchor_idx: BTreeMap<BundleId, (XWitnessId, EAnchor)>,
     bundle_idx: BTreeMap<BundleId, &'c TransitionBundle>,
     op_witness_idx: BTreeMap<OpId, XWitnessId>,
@@ -45,14 +47,14 @@ pub struct IndexedConsignment<'c, const TYPE: bool> {
     extension_idx: BTreeMap<OpId, &'c Extension>,
 }
 
-impl<'c, const TYPE: bool> Deref for IndexedConsignment<'c, TYPE> {
-    type Target = Consignment<TYPE>;
+impl<'c, const TRANSFER: bool> Deref for IndexedConsignment<'c, TRANSFER> {
+    type Target = Consignment<TRANSFER>;
 
     fn deref(&self) -> &Self::Target { self.consignment }
 }
 
-impl<'c, const TYPE: bool> IndexedConsignment<'c, TYPE> {
-    pub fn new(consignment: &'c Consignment<TYPE>) -> Self {
+impl<'c, const TRANSFER: bool> IndexedConsignment<'c, TRANSFER> {
+    pub fn new(consignment: &'c Consignment<TRANSFER>) -> Self {
         let mut anchor_idx = BTreeMap::new();
         let mut bundle_idx = BTreeMap::new();
         let mut op_witness_idx = BTreeMap::new();
@@ -73,8 +75,15 @@ impl<'c, const TYPE: bool> IndexedConsignment<'c, TYPE> {
         for extension in &consignment.extensions {
             extension_idx.insert(extension.id(), extension);
         }
+        let scripts = Scripts::from_iter_unsafe(
+            consignment
+                .scripts
+                .iter()
+                .map(|lib| (lib.id(), lib.clone())),
+        );
         Self {
             consignment,
+            scripts,
             anchor_idx,
             bundle_idx,
             op_witness_idx,
@@ -93,8 +102,12 @@ impl<'c, const TYPE: bool> IndexedConsignment<'c, TYPE> {
     }
 }
 
-impl<'c, const TYPE: bool> ConsignmentApi for IndexedConsignment<'c, TYPE> {
+impl<'c, const TRANSFER: bool> ConsignmentApi for IndexedConsignment<'c, TRANSFER> {
     fn schema(&self) -> &Schema { &self.schema }
+
+    fn types(&self) -> &TypeSystem { &self.types }
+
+    fn scripts(&self) -> &Scripts { &self.scripts }
 
     fn operation(&self, opid: OpId) -> Option<OpRef> {
         if opid == self.genesis.id() {

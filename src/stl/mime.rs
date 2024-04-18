@@ -24,11 +24,9 @@
 use std::fmt::{self, Debug, Formatter};
 use std::str::FromStr;
 
-use amplify::ascii::AsciiString;
-use amplify::confinement::{Confined, NonEmptyVec};
-use amplify::s;
+use strict_encoding::stl::AlphaSmall;
 use strict_encoding::{
-    InvalidIdent, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, TypedWrite,
+    RString, RestrictedCharSet, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize,
 };
 use strict_types::StrictVal;
 
@@ -86,7 +84,7 @@ impl MediaType {
     }
 }
 
-impl std::fmt::Display for MediaType {
+impl fmt::Display for MediaType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -102,60 +100,22 @@ impl std::fmt::Display for MediaType {
 }
 
 #[derive(Wrapper, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, From)]
-#[wrapper(Deref, Display)]
-#[derive(StrictType, StrictDumb, StrictDecode)]
+#[wrapper(Deref, Display, FromStr)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_CONTRACT, dumb = { MediaRegName::from("dumb") })]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", transparent)
 )]
-pub struct MediaRegName(Confined<AsciiString, 1, 64>);
-impl StrictEncode for MediaRegName {
-    fn strict_encode<W: TypedWrite>(&self, writer: W) -> std::io::Result<W> {
-        let iter = self
-            .0
-            .as_bytes()
-            .iter()
-            .map(|c| MimeChar::try_from(*c).unwrap());
-        writer.write_newtype::<Self>(&NonEmptyVec::<MimeChar, 64>::try_from_iter(iter).unwrap())
-    }
-}
+pub struct MediaRegName(RString<AlphaSmall, MimeChar, 1, 64>);
+
+impl_ident_type!(MediaRegName);
+impl_ident_subtype!(MediaRegName);
 
 impl MediaRegName {
     pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
         MediaRegName::from_str(&value.unwrap_string()).expect("invalid media reg name")
-    }
-}
-
-// TODO: Ensure all constructors filter invalid characters
-impl FromStr for MediaRegName {
-    type Err = InvalidIdent;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let s = AsciiString::from_ascii(s.as_bytes())?;
-        let s = Confined::try_from_iter(s.chars())?;
-        Ok(Self(s))
-    }
-}
-
-impl From<&'static str> for MediaRegName {
-    fn from(s: &'static str) -> Self { Self::from_str(s).expect("invalid media-reg name") }
-}
-
-impl TryFrom<String> for MediaRegName {
-    type Error = InvalidIdent;
-
-    fn try_from(name: String) -> Result<Self, InvalidIdent> {
-        let name = AsciiString::from_ascii(name.as_bytes())?;
-        let s = Confined::try_from(name)?;
-        Ok(Self(s))
-    }
-}
-
-impl Debug for MediaRegName {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("MediaRegName").field(&self.as_str()).finish()
     }
 }
 
@@ -258,3 +218,5 @@ pub enum MimeChar {
     #[display("z")]
     z = b'z',
 }
+
+impl RestrictedCharSet for MimeChar {}

@@ -19,11 +19,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use amplify::confinement::{Confined, TinyOrdMap, TinyOrdSet};
 use rgb::{
-    AssignmentType, ExtensionType, GlobalStateType, OpFullType, OpSchema, Schema, TransitionType,
-    Types, ValencyType,
+    AssignmentType, ExtensionType, GlobalStateType, Occurrences, OpFullType, OpSchema, Schema,
+    TransitionType, ValencyType,
 };
-use strict_types::{SemId, TypeSystem};
+use strict_encoding::{FieldName, TypeName};
+
+use crate::interface::{
+    ExtensionIface, GenesisIface, Iface, IfaceImpl, Modifier, OpName, OwnedIface, TransitionIface,
+};
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, From)]
 #[cfg_attr(
@@ -49,13 +54,6 @@ pub enum InheritanceFailure {
     /// type #{0}.
     ExtensionTypeMismatch(ExtensionType),
 
-    /// invalid schema - no match with root schema requirements for metadata
-    /// type (required {expected}, found {actual}).
-    OpMetaMismatch {
-        op_type: OpFullType,
-        expected: SemId,
-        actual: SemId,
-    },
     /// invalid schema - no match with root schema requirements for global state
     /// type #{1} used in {0}.
     OpGlobalStateMismatch(OpFullType, GlobalStateType),
@@ -166,14 +164,6 @@ where T: OpSchema
     ) -> Result<(), Vec<InheritanceFailure>> {
         let mut status = vec![];
 
-        if self.metadata() != root.metadata() {
-            status.push(InheritanceFailure::OpMetaMismatch {
-                op_type,
-                expected: root.metadata(),
-                actual: self.metadata(),
-            });
-        }
-
         for (type_id, occ) in self.globals() {
             match root.globals().get(type_id) {
                 None => status.push(InheritanceFailure::OpGlobalStateMismatch(op_type, *type_id)),
@@ -230,36 +220,6 @@ where T: OpSchema
     }
 }
 
-// RGB standard library for working with smart contracts on Bitcoin & Lightning
-//
-// SPDX-License-Identifier: Apache-2.0
-//
-// Written in 2019-2024 by
-//     Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
-//
-// Copyright (C) 2019-2024 LNP/BP Standards Association. All rights reserved.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
-use amplify::confinement::{Confined, TinyOrdMap, TinyOrdSet};
-use amplify::Wrapper;
-use rgb::Occurrences;
-use strict_encoding::{FieldName, TypeName};
-
-use crate::interface::{
-    ExtensionIface, GenesisIface, Iface, IfaceImpl, Modifier, OpName, OwnedIface, TransitionIface,
-};
-
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display, Error)]
 #[display("{iface} {err}")]
 pub struct InheritError {
@@ -270,6 +230,8 @@ pub struct InheritError {
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display, Error)]
 #[display(doc_comments)]
 pub enum ExtensionError {
+    /// too many metadata fields defined.
+    MetaOverflow,
     /// too many global state types defined.
     GlobalOverflow,
     /// global state '{0}' has different data type from the parent interface.
@@ -300,17 +262,12 @@ pub enum ExtensionError {
     OpFinal(OpName),
     /// {0} must use `override` keyword to modify the parent version.
     OpNoOverride(OpName),
-    /// {0} overrides parent metadata type.
-    OpMetadata(OpName),
     /// too many {1} types defined in {0}.
     OpOverflow(OpName, &'static str),
     /// {0} tries to override the parent default assignment.
     OpDefaultOverride(OpName),
     /// {0} tries to override '{2}' {1}.
     OpOcc(OpName, &'static str, FieldName),
-    /// interface can't inherit from the given parents since the number of data
-    /// types used by all of them exceeds maximum number.
-    TypesOverflow,
     /// too deep inheritance; it is not allowed for any interface to have more
     /// than 255 parents it inherits from, including all grandparents.
     InheritanceOverflow,
@@ -399,7 +356,11 @@ impl Iface {
         let orig_id = self.iface_id();
 
         let mut errors = vec![];
-        self.name = ext.name;
+
+        self.metadata
+            .extend(ext.metadata)
+            .map_err(|_| errors.push(ExtensionError::MetaOverflow))
+            .ok();
 
         for (name, e) in ext.global_state {
             match self.global_state.get_mut(&name) {
@@ -540,15 +501,6 @@ impl Iface {
             }
         }
 
-        if self.types != ext.types {
-            let mut types = self.types.into_strict().into_inner();
-            types
-                .extend(ext.types.into_strict().into_inner())
-                .map_err(|_| errors.push(ExtensionError::TypesOverflow))
-                .ok();
-            self.types = Types::Strict(TypeSystem::from_inner(types));
-        }
-
         self.name = name.into();
         self.inherits
             .push(orig_id)
@@ -621,10 +573,11 @@ impl GenesisIface {
         } else if !self.modifier.can_be_overriden_by(ext.modifier) {
             errors.push(ExtensionError::OpNoOverride(op.clone()));
         }
-        if self.metadata.is_some() && ext.metadata.is_some() && self.metadata != ext.metadata {
-            errors.push(ExtensionError::OpMetadata(op.clone()));
-        }
 
+        self.metadata
+            .extend(ext.metadata)
+            .map_err(|_| errors.push(ExtensionError::OpOverflow(OpName::Genesis, "metadata")))
+            .ok();
         check_occs(&mut self.globals, ext.globals, op.clone(), "global", &mut errors);
         check_occs(&mut self.assignments, ext.assignments, op.clone(), "assignment", &mut errors);
 
@@ -650,10 +603,11 @@ impl TransitionIface {
             errors.push(ExtensionError::OpNoOverride(op.clone()));
         }
         self.optional = self.optional.max(ext.optional);
-        if self.metadata.is_some() && ext.metadata.is_some() && self.metadata != ext.metadata {
-            errors.push(ExtensionError::OpMetadata(op.clone()));
-        }
 
+        self.metadata
+            .extend(ext.metadata)
+            .map_err(|_| errors.push(ExtensionError::OpOverflow(op.clone(), "metadata")))
+            .ok();
         check_occs(&mut self.globals, ext.globals, op.clone(), "global", &mut errors);
         check_occs(&mut self.assignments, ext.assignments, op.clone(), "assignment", &mut errors);
         check_occs(&mut self.inputs, ext.inputs, op.clone(), "input", &mut errors);
@@ -690,10 +644,11 @@ impl ExtensionIface {
             errors.push(ExtensionError::OpNoOverride(op.clone()));
         }
         self.optional = self.optional.max(ext.optional);
-        if self.metadata.is_some() && ext.metadata.is_some() && self.metadata != ext.metadata {
-            errors.push(ExtensionError::OpMetadata(op.clone()));
-        }
 
+        self.metadata
+            .extend(ext.metadata)
+            .map_err(|_| errors.push(ExtensionError::OpOverflow(op.clone(), "metadata")))
+            .ok();
         check_occs(&mut self.globals, ext.globals, op.clone(), "global", &mut errors);
         check_occs(&mut self.assignments, ext.assignments, op.clone(), "assignment", &mut errors);
 
@@ -726,6 +681,13 @@ impl IfaceImpl {
         if !base.inherits.contains(&parent_id) {
             return None;
         }
+
+        self.metadata = Confined::from_iter_unsafe(base.metadata.keys().filter_map(|name| {
+            self.metadata
+                .iter()
+                .find(|i| parent.metadata.contains_key(name) && &i.name == name)
+                .cloned()
+        }));
 
         self.global_state =
             Confined::from_iter_unsafe(base.global_state.keys().filter_map(|name| {
