@@ -54,9 +54,7 @@ Consignmenttrue rec
     globals map len=0..MAX8 aka=GlobalState
       key is U16 aka=GlobalStateType
       value list len=1..MAX16 aka=GlobalValues
-        RevealedData rec
-          value bytes len=0..MAX16 aka=DataState
-          salt is U128
+        element bytes len=0..MAX16 aka=DataState
     assignments map len=0..MAX8 aka=AssignmentsBlindSealTxid
       key is U16 aka=AssignmentType
       value union TypedAssignsBlindSealTxid
@@ -265,9 +263,7 @@ Consignmenttrue rec
       globals map len=0..MAX8 aka=GlobalState
         key is U16 aka=GlobalStateType
         value list len=1..MAX16 aka=GlobalValues
-          RevealedData rec
-            value bytes len=0..MAX16 aka=DataState
-            salt is U128
+          element bytes len=0..MAX16 aka=DataState
       assignments map len=0..MAX8 aka=AssignmentsBlindSealTxid
         key is U16 aka=AssignmentType
         value union TypedAssignsBlindSealTxid
@@ -501,9 +497,7 @@ Consignmenttrue rec
                 globals map len=0..MAX8 aka=GlobalState
                   key is U16 aka=GlobalStateType
                   value list len=1..MAX16 aka=GlobalValues
-                    RevealedData rec
-                      value bytes len=0..MAX16 aka=DataState
-                      salt is U128
+                    element bytes len=0..MAX16 aka=DataState
                 inputs set len=0..MAX16 aka=Inputs
                   Input rec
                     prevOut rec Opout
@@ -766,9 +760,7 @@ Consignmenttrue rec
                 globals map len=0..MAX8 aka=GlobalState
                   key is U16 aka=GlobalStateType
                   value list len=1..MAX16 aka=GlobalValues
-                    RevealedData rec
-                      value bytes len=0..MAX16 aka=DataState
-                      salt is U128
+                    element bytes len=0..MAX16 aka=DataState
                 inputs set len=0..MAX16 aka=Inputs
                   Input rec
                     prevOut rec Opout
@@ -1035,9 +1027,7 @@ Consignmenttrue rec
                 globals map len=0..MAX8 aka=GlobalState
                   key is U16 aka=GlobalStateType
                   value list len=1..MAX16 aka=GlobalValues
-                    RevealedData rec
-                      value bytes len=0..MAX16 aka=DataState
-                      salt is U128
+                    element bytes len=0..MAX16 aka=DataState
                 inputs set len=0..MAX16 aka=Inputs
                   Input rec
                     prevOut rec Opout
@@ -1299,9 +1289,7 @@ Consignmenttrue rec
                 globals map len=0..MAX8 aka=GlobalState
                   key is U16 aka=GlobalStateType
                   value list len=1..MAX16 aka=GlobalValues
-                    RevealedData rec
-                      value bytes len=0..MAX16 aka=DataState
-                      salt is U128
+                    element bytes len=0..MAX16 aka=DataState
                 inputs set len=0..MAX16 aka=Inputs
                   Input rec
                     prevOut rec Opout
