@@ -191,7 +191,7 @@ impl<P: StashProvider> Stash<P> {
     pub(super) fn ifaces(
         &self,
     ) -> Result<impl Iterator<Item = (IfaceId, TypeName)> + '_, StashError<P>> {
-        Ok(self.provider.ifaces().map_err(StashError::ReadProvider)?)
+        self.provider.ifaces().map_err(StashError::ReadProvider)
     }
     pub(super) fn iface(&self, iface: impl Into<IfaceRef>) -> Result<&Iface, StashError<P>> {
         Ok(self.provider.iface(iface)?)
@@ -199,7 +199,7 @@ impl<P: StashProvider> Stash<P> {
     pub(super) fn schemata(
         &self,
     ) -> Result<impl Iterator<Item = &SchemaIfaces> + '_, StashError<P>> {
-        Ok(self.provider.schemata().map_err(StashError::ReadProvider)?)
+        self.provider.schemata().map_err(StashError::ReadProvider)
     }
     pub(super) fn schema(&self, schema_id: SchemaId) -> Result<&SchemaIfaces, StashError<P>> {
         Ok(self.provider.schema(schema_id)?)
@@ -207,10 +207,9 @@ impl<P: StashProvider> Stash<P> {
     pub(super) fn contract_ids(
         &self,
     ) -> Result<impl Iterator<Item = ContractId> + '_, StashError<P>> {
-        Ok(self
-            .provider
+        self.provider
             .contract_ids()
-            .map_err(StashError::ReadProvider)?)
+            .map_err(StashError::ReadProvider)
     }
 
     pub(super) fn genesis(&self, contract_id: ContractId) -> Result<&Genesis, StashError<P>> {
@@ -233,10 +232,9 @@ impl<P: StashProvider> Stash<P> {
         &self,
         contract_id: ContractId,
     ) -> Result<impl Iterator<Item = ContractSuppl> + '_, StashError<P>> {
-        Ok(self
-            .provider
+        self.provider
             .contract_supplements(contract_id)
-            .map_err(StashError::ReadProvider)?)
+            .map_err(StashError::ReadProvider)
     }
 
     pub(super) fn extract<'a>(
@@ -548,10 +546,9 @@ impl<P: StashProvider> Stash<P> {
         &mut self,
         seal: XChain<GraphSeal>,
     ) -> Result<bool, StashError<P>> {
-        Ok(self
-            .provider
+        self.provider
             .add_secret_seal(seal)
-            .map_err(StashError::WriteProvider)?)
+            .map_err(StashError::WriteProvider)
     }
 }
 

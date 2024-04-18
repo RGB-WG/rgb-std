@@ -289,10 +289,9 @@ impl<P: IndexProvider> Index<P> {
         &self,
         outputs: BTreeSet<XOutputSeal>,
     ) -> Result<impl Iterator<Item = ContractId> + '_, IndexError<P>> {
-        Ok(self
-            .provider
+        self.provider
             .contracts_assigning(outputs)
-            .map_err(IndexError::ReadProvider)?)
+            .map_err(IndexError::ReadProvider)
     }
 
     pub(super) fn public_opouts(
@@ -314,10 +313,9 @@ impl<P: IndexProvider> Index<P> {
         &self,
         terminals: impl IntoIterator<Item = XChain<SecretSeal>>,
     ) -> Result<BTreeSet<Opout>, IndexError<P>> {
-        Ok(self
-            .provider
+        self.provider
             .opouts_by_terminals(terminals)
-            .map_err(IndexError::ReadProvider)?)
+            .map_err(IndexError::ReadProvider)
     }
 
     pub(super) fn bundle_id_for_op(&self, opid: OpId) -> Result<BundleId, IndexError<P>> {

@@ -240,7 +240,9 @@ impl IntoIterator for BundleDichotomy {
     fn into_iter(self) -> Self::IntoIter {
         let mut vec = Vec::with_capacity(2);
         vec.push(self.first);
-        self.second.map(|s| vec.push(s));
+        if let Some(s) = self.second {
+            vec.push(s)
+        }
         vec.into_iter()
     }
 }
@@ -253,7 +255,9 @@ impl BundleDichotomy {
     pub fn iter(&self) -> vec::IntoIter<&TransitionBundle> {
         let mut vec = Vec::with_capacity(2);
         vec.push(&self.first);
-        self.second.as_ref().map(|s| vec.push(s));
+        if let Some(ref s) = self.second {
+            vec.push(s)
+        }
         vec.into_iter()
     }
 }

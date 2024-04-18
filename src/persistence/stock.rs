@@ -58,6 +58,8 @@ use crate::interface::{
 };
 use crate::resolvers::ResolveHeight;
 
+pub type ContractAssignments = HashMap<XOutputSeal, HashMap<Opout, PersistedState>>;
+
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(inner)]
 pub enum StockError<
@@ -477,11 +479,11 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         })
     }
 
-    pub fn contract_state_for_outpoints(
+    pub fn contract_assignments_for(
         &self,
         contract_id: ContractId,
         outpoints: impl IntoIterator<Item = impl Into<XOutpoint>>,
-    ) -> Result<HashMap<XOutputSeal, HashMap<Opout, PersistedState>>, StockError<S, H, P>> {
+    ) -> Result<ContractAssignments, StockError<S, H, P>> {
         let outputs: BTreeSet<XOutpoint> = outpoints.into_iter().map(|o| o.into()).collect();
 
         let history = self.contract_state(contract_id)?;
@@ -719,6 +721,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     /// Composes a batch of state transitions updating state for the provided
     /// set of previous outputs, satisfying requirements of the invoice, paying
     /// the change back and including the necessary blank state transitions.
+    #[allow(clippy::result_large_err)]
     pub fn compose(
         &self,
         invoice: &RgbInvoice,
@@ -741,7 +744,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     /// Composes a batch of state transitions updating state for the provided
     /// set of previous outputs, satisfying requirements of the invoice, paying
     /// the change back and including the necessary blank state transitions.
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments, clippy::result_large_err)]
     pub fn compose_deterministic(
         &self,
         invoice: &RgbInvoice,
@@ -819,7 +822,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         let mut sum_inputs = Amount::ZERO;
         let mut data_inputs = vec![];
         for (output, list) in
-            self.contract_state_for_outpoints(contract_id, prev_outputs.iter().copied())?
+            self.contract_assignments_for(contract_id, prev_outputs.iter().copied())?
         {
             main_inputs.push(output);
             for (opout, mut state) in list {
@@ -890,7 +893,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             if id == contract_id {
                 continue;
             }
-            let state = self.contract_state_for_outpoints(id, prev_outputs.iter().copied())?;
+            let state = self.contract_assignments_for(id, prev_outputs.iter().copied())?;
             let entry = spent_state.entry(id).or_default();
             for (seal, assigns) in state {
                 entry.entry(seal).or_default().extend(assigns);

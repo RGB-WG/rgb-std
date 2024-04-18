@@ -22,6 +22,7 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::{self, Display, Formatter};
+use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 
 use amplify::confinement::{TinyOrdMap, TinyOrdSet, TinyString, TinyVec};
@@ -323,7 +324,7 @@ pub struct TransitionIface {
 }
 
 /// Interface definition.
-#[derive(Clone, Eq, Hash, Debug)]
+#[derive(Clone, Eq, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[derive(CommitEncode)]
@@ -360,6 +361,10 @@ impl Ord for Iface {
 
 impl PartialOrd for Iface {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
+}
+
+impl Hash for Iface {
+    fn hash<H: Hasher>(&self, state: &mut H) { state.write(self.iface_id().as_slice()) }
 }
 
 impl StrictSerialize for Iface {}
