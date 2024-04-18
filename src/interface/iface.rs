@@ -22,16 +22,17 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::{self, Display, Formatter};
+use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 
-use amplify::confinement::{TinyOrdMap, TinyOrdSet, TinyString};
+use amplify::confinement::{TinyOrdMap, TinyOrdSet, TinyString, TinyVec};
 use amplify::{ByteArray, Bytes32};
 use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
 use commit_verify::{CommitId, CommitmentId, DigestExt, Sha256};
-use rgb::{Occurrences, Types};
+use rgb::{Identity, Occurrences};
 use strict_encoding::{
     FieldName, StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize,
-    StrictType, TypeName, Variant,
+    StrictType, TypeName, VariantName,
 };
 use strict_types::{SemId, SymbolicSys};
 
@@ -92,6 +93,16 @@ impl FromStr for IfaceId {
 impl IfaceId {
     pub const fn from_array(id: [u8; 32]) -> Self { IfaceId(Bytes32::from_array(id)) }
     pub fn to_mnemonic(&self) -> String { self.to_baid58().mnemonic() }
+}
+
+#[derive(Clone, PartialEq, Eq, Debug, Display, From)]
+#[display(inner)]
+pub enum IfaceRef {
+    #[from]
+    #[from(&'static str)]
+    Name(TypeName),
+    #[from]
+    Id(IfaceId),
 }
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
@@ -224,9 +235,19 @@ pub enum OwnedIface {
     Data(SemId),
 }
 
+impl OwnedIface {
+    pub fn sem_id(&self) -> Option<SemId> {
+        if let Self::Data(id) = self {
+            Some(*id)
+        } else {
+            None
+        }
+    }
+}
+
 pub type ArgMap = TinyOrdMap<FieldName, Occurrences>;
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, Display, Default)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Display, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD, into_u8, try_from_u8, tags = repr)]
 #[cfg_attr(
@@ -237,13 +258,13 @@ pub type ArgMap = TinyOrdMap<FieldName, Occurrences>;
 #[display(lowercase)]
 #[repr(u8)]
 pub enum Modifier {
+    Abstract = 0,
+    Override = 1,
     #[default]
-    Final = 0,
-    Abstract = 1,
-    Override = 2,
+    Final = 0xFF,
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(
@@ -253,14 +274,14 @@ pub enum Modifier {
 )]
 pub struct GenesisIface {
     pub modifier: Modifier,
-    pub metadata: Option<SemId>,
+    pub metadata: TinyOrdSet<FieldName>,
     pub globals: ArgMap,
     pub assignments: ArgMap,
     pub valencies: TinyOrdSet<FieldName>,
-    pub errors: TinyOrdSet<u8>,
+    pub errors: TinyOrdSet<VariantName>,
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(
@@ -272,16 +293,16 @@ pub struct ExtensionIface {
     pub modifier: Modifier,
     /// Defines whence schema may omit providing this operation.
     pub optional: bool,
-    pub metadata: Option<SemId>,
+    pub metadata: TinyOrdSet<FieldName>,
     pub globals: ArgMap,
     pub assignments: ArgMap,
     pub redeems: TinyOrdSet<FieldName>,
     pub valencies: TinyOrdSet<FieldName>,
-    pub errors: TinyOrdSet<u8>,
+    pub errors: TinyOrdSet<VariantName>,
     pub default_assignment: Option<FieldName>,
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(
@@ -293,12 +314,12 @@ pub struct TransitionIface {
     pub modifier: Modifier,
     /// Defines whence schema may omit providing this operation.
     pub optional: bool,
-    pub metadata: Option<SemId>,
+    pub metadata: TinyOrdSet<FieldName>,
     pub globals: ArgMap,
     pub inputs: ArgMap,
     pub assignments: ArgMap,
     pub valencies: TinyOrdSet<FieldName>,
-    pub errors: TinyOrdSet<u8>,
+    pub errors: TinyOrdSet<VariantName>,
     pub default_assignment: Option<FieldName>,
 }
 
@@ -316,7 +337,9 @@ pub struct TransitionIface {
 pub struct Iface {
     pub version: VerNo,
     pub name: TypeName,
-    pub inherits: TinyOrdSet<IfaceId>,
+    pub inherits: TinyVec<IfaceId>, // TODO: Replace with TinyIndexSet
+    pub timestamp: i64,
+    pub metadata: TinyOrdMap<FieldName, SemId>,
     pub global_state: TinyOrdMap<FieldName, GlobalIface>,
     pub assignments: TinyOrdMap<FieldName, AssignIface>,
     pub valencies: TinyOrdMap<FieldName, ValencyIface>,
@@ -324,8 +347,8 @@ pub struct Iface {
     pub transitions: TinyOrdMap<FieldName, TransitionIface>,
     pub extensions: TinyOrdMap<FieldName, ExtensionIface>,
     pub default_operation: Option<FieldName>,
-    pub errors: TinyOrdMap<Variant, TinyString>,
-    pub types: Types,
+    pub errors: TinyOrdMap<VariantName, TinyString>,
+    pub developer: Identity,
 }
 
 impl PartialEq for Iface {
@@ -340,6 +363,10 @@ impl PartialOrd for Iface {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
 }
 
+impl Hash for Iface {
+    fn hash<H: Hasher>(&self, state: &mut H) { state.write(self.iface_id().as_slice()) }
+}
+
 impl StrictSerialize for Iface {}
 impl StrictDeserialize for Iface {}
 
@@ -349,10 +376,22 @@ impl Iface {
 
     pub fn display<'a>(
         &'a self,
-        externals: HashMap<IfaceId, &'a TypeName>,
+        externals: &'a HashMap<IfaceId, TypeName>,
         sys: &'a SymbolicSys,
     ) -> IfaceDisplay<'a> {
         IfaceDisplay::new(self, externals, sys)
+    }
+
+    pub fn types(&self) -> impl Iterator<Item = SemId> + '_ {
+        self.metadata
+            .values()
+            .copied()
+            .chain(self.global_state.values().filter_map(|i| i.sem_id))
+            .chain(
+                self.assignments
+                    .values()
+                    .filter_map(|i| i.owned_state.sem_id()),
+            )
     }
 
     pub fn check(&self) -> Result<(), Vec<IfaceInconsistency>> {
@@ -399,17 +438,23 @@ impl Iface {
                 }
             }
         };
-        let proc_errors =
-            |op_name: &OpName, errs: &TinyOrdSet<u8>, errors: &mut Vec<IfaceInconsistency>| {
-                for tag in errs {
-                    if self.errors.keys().all(|v| v.tag != *tag) {
-                        errors.push(IfaceInconsistency::UnknownErrorTag(op_name.clone(), *tag));
-                    }
+        let proc_errors = |op_name: &OpName,
+                           errs: &TinyOrdSet<VariantName>,
+                           errors: &mut Vec<IfaceInconsistency>| {
+            for name in errs {
+                if !self.errors.contains_key(name) {
+                    errors.push(IfaceInconsistency::UnknownError(op_name.clone(), name.clone()));
                 }
-            };
+            }
+        };
 
         let mut errors = vec![];
 
+        for name in &self.genesis.metadata {
+            if !self.metadata.contains_key(name) {
+                errors.push(IfaceInconsistency::UnknownMetadata(OpName::Genesis, name.clone()));
+            }
+        }
         proc_globals(&OpName::Genesis, &self.genesis.globals, &mut errors);
         proc_assignments(&OpName::Genesis, &self.genesis.assignments, &mut errors);
         proc_valencies(&OpName::Genesis, &self.genesis.valencies, &mut errors);
@@ -417,6 +462,12 @@ impl Iface {
 
         for (name, t) in &self.transitions {
             let op_name = OpName::Transition(name.clone());
+
+            for name in &t.metadata {
+                if !self.metadata.contains_key(name) {
+                    errors.push(IfaceInconsistency::UnknownMetadata(op_name.clone(), name.clone()));
+                }
+            }
             proc_globals(&op_name, &t.globals, &mut errors);
             proc_assignments(&op_name, &t.assignments, &mut errors);
             proc_valencies(&op_name, &t.valencies, &mut errors);
@@ -444,6 +495,12 @@ impl Iface {
 
         for (name, e) in &self.extensions {
             let op_name = OpName::Extension(name.clone());
+
+            for name in &e.metadata {
+                if !self.metadata.contains_key(name) {
+                    errors.push(IfaceInconsistency::UnknownMetadata(op_name.clone(), name.clone()));
+                }
+            }
             proc_globals(&op_name, &e.globals, &mut errors);
             proc_assignments(&op_name, &e.assignments, &mut errors);
             proc_valencies(&op_name, &e.valencies, &mut errors);
@@ -506,7 +563,7 @@ impl Iface {
 
     // TODO: Implement checking types against presence in a type system.
     /*
-    pub fn check_types(&self, sys: &SymbolicSys) -> Result<(), Vec<IfaceTypeError>> {
+    pub fn check_types(&self, sys: &TypeSystem) -> Result<(), Vec<IfaceTypeError>> {
         for g in self.global_state.values() {
             if let Some(id) = g.sem_id {
 
@@ -539,12 +596,14 @@ pub enum IfaceInconsistency {
     UnknownAssignment(OpName, FieldName),
     /// unknown input '{1}' referenced from {0}.
     UnknownInput(OpName, FieldName),
-    /// unknown error tag '{1}' referenced from {0}.
-    UnknownErrorTag(OpName, u8),
+    /// unknown error '{1}' referenced from {0}.
+    UnknownError(OpName, VariantName),
     /// unknown default assignment '{1}' referenced from {0}.
     UnknownDefaultAssignment(OpName, FieldName),
     /// unknown default operation '{0}'.
     UnknownDefaultOp(FieldName),
+    /// unknown metadata '{1}' in {0}.
+    UnknownMetadata(OpName, FieldName),
     /// global state '{1}' must have a unique single value, but operation {0}
     /// defines multiple global state of this type.
     MultipleGlobal(OpName, FieldName),

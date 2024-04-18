@@ -17,7 +17,7 @@ homepage = "https://github.com/RGB-WG"
 repository = "https://github.com/RGB-WG/rgb-std"
 keywords = ["bitcoin", "lightning", "rgb", "smart-contracts", "lnp-bp"]
 categories = ["cryptography::cryptocurrencies"]
-rust-version = "1.69.0" # Due to TOML dependency in amplify crate
+rust-version = "1.75.0" # Due to rgb-core
 edition = "2021"
 license = "Apache-2.0"
 
@@ -25,8 +25,8 @@ license = "Apache-2.0"
 amplify = "4.6.0"
 ascii-armor = "0.2.0"
 baid58 = "0.4.4"
-strict_encoding = "2.7.0-beta.1"
-strict_types = "2.7.0-beta.2"
+strict_encoding = "2.7.0-beta.3"
+strict_types = "2.7.0-beta.3"
 commit_verify = { version = "0.11.0-beta.5", features = ["stl"] }
 bp-core = { version = "0.11.0-beta.5", features = ["stl"] }
 bp-invoice = { version = "0.11.0-beta.5" }
@@ -61,6 +61,7 @@ commit_verify = { workspace = true }
 bp-core = { workspace = true }
 rgb-core = { workspace = true }
 rgb-invoice = { version = "0.11.0-beta.5", path = "invoice" }
+aluvm = "0.11.0-beta.5"
 baid58 = { workspace = true }
 base85 = "=2.0.0"
 chrono = "0.4.31"
@@ -93,3 +94,13 @@ wasm-bindgen-test = "0.3"
 
 [package.metadata.docs.rs]
 features = ["all"]
+
+[patch.crates-io]
+commit_verify = { git = "https://github.com/LNP-BP/client_side_validation", branch = "v0.11" }
+single_use_seals = { git = "https://github.com/LNP-BP/client_side_validation", branch = "v0.11" }
+bp-consensus = { git = "https://github.com/BP-WG/bp-core", branch = "v0.11" }
+bp-dbc = { git = "https://github.com/BP-WG/bp-core", branch = "v0.11" }
+bp-seals = { git = "https://github.com/BP-WG/bp-core", branch = "v0.11" }
+bp-core = { git = "https://github.com/BP-WG/bp-core", branch = "v0.11" }
+rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "v0.11" }
+aluvm = { git = "https://github.com/AluVM/rust-aluvm", branch = "v0.11" }

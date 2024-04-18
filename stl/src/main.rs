@@ -20,15 +20,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[macro_use]
-extern crate amplify;
-
 use std::fs;
 use std::io::Write;
 
 use commit_verify::CommitmentLayout;
 use rgbstd::containers::Transfer;
-use rgbstd::interface::{IfaceClass, Rgb20, Rgb21, Rgb25};
 use rgbstd::stl::{
     aluvm_stl, bp_core_stl, bp_tx_stl, commit_verify_stl, rgb_contract_stl, rgb_core_stl,
     rgb_std_stl,
@@ -38,20 +34,20 @@ use strict_types::{parse_args, StlFormat, SystemBuilder};
 
 fn main() {
     let (_, dir) = parse_args();
-    let dir = dir.unwrap_or_else(|| ".".to_owned());
+    let dir = dir.unwrap_or_else(|| "./stl".to_owned());
 
     let contract_stl = rgb_contract_stl();
     contract_stl
-        .serialize(StlFormat::Binary, Some(&dir), "0.1.0", None)
+        .serialize(StlFormat::Binary, Some(&dir), "0.11.0", None)
         .expect("unable to write to the file");
     contract_stl
-        .serialize(StlFormat::Armored, Some(&dir), "0.1.0", None)
+        .serialize(StlFormat::Armored, Some(&dir), "0.11.0", None)
         .expect("unable to write to the file");
     contract_stl
         .serialize(
             StlFormat::Source,
             Some(&dir),
-            "0.1.0",
+            "0.11.0",
             Some(
                 "
   Description: Types for writing RGB contracts and interfaces
@@ -62,40 +58,18 @@ fn main() {
         )
         .expect("unable to write to the file");
 
-    let rgb21 = Rgb21::stl();
-    rgb21
-        .serialize(StlFormat::Binary, Some(&dir), "0.1.0", None)
-        .expect("unable to write to the file");
-    rgb21
-        .serialize(StlFormat::Armored, Some(&dir), "0.1.0", None)
-        .expect("unable to write to the file");
-    rgb21
-        .serialize(
-            StlFormat::Source,
-            Some(&dir),
-            "0.1.0",
-            Some(
-                "
-  Description: Types for RGB21 interface
-  Author: Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
-  Copyright (C) 2023-2024-2024 LNP/BP Standards Association. All rights reserved.
-  License: Apache-2.0",
-            ),
-        )
-        .expect("unable to write to the file");
-
     let rgb_std = rgb_std_stl();
     rgb_std
-        .serialize(StlFormat::Binary, Some(&dir), "0.1.0", None)
+        .serialize(StlFormat::Binary, Some(&dir), "0.11.0", None)
         .expect("unable to write to the file");
     rgb_std
-        .serialize(StlFormat::Armored, Some(&dir), "0.1.0", None)
+        .serialize(StlFormat::Armored, Some(&dir), "0.11.0", None)
         .expect("unable to write to the file");
     rgb_std
         .serialize(
             StlFormat::Source,
             Some(&dir),
-            "0.1.0",
+            "0.11.0",
             Some(
                 "
   Description: RGB standard library
@@ -134,27 +108,6 @@ fn main() {
         .unwrap()
         .finalize()
         .expect("not all libraries present");
-
-    let ifsys = SystemBuilder::new()
-        .import(rgb21)
-        .unwrap()
-        .import(rgb_contract_stl())
-        .unwrap()
-        .import(bp_tx_stl())
-        .unwrap()
-        .import(std_stl())
-        .unwrap()
-        .finalize()
-        .expect("not all libraries present");
-
-    let rgb20 = Rgb20::iface();
-    fs::write(format!("{dir}/RGB20.con"), format!("{}", rgb20.display(none!(), &ifsys))).unwrap();
-
-    let rgb21 = Rgb21::iface();
-    fs::write(format!("{dir}/RGB21.con"), format!("{}", rgb21.display(none!(), &ifsys))).unwrap();
-
-    let rgb25 = Rgb25::iface();
-    fs::write(format!("{dir}/RGB25.con"), format!("{}", rgb25.display(none!(), &ifsys))).unwrap();
 
     let mut file = fs::File::create(format!("{dir}/Transfer.vesper")).unwrap();
     writeln!(

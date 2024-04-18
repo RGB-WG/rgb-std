@@ -19,10 +19,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::error::Error;
+use std::fmt::Debug;
+
 use invoice::Amount;
-use rgb::{AssetTag, BlindingFactor, DataState};
+use rgb::{AssetTag, BlindingFactor, ContractHistory, ContractId, DataState};
 
 use crate::interface::AttachedState;
+use crate::resolvers::ResolveHeight;
+
+#[derive(Clone, PartialEq, Eq, Debug, Display, Error)]
+#[display(doc_comments)]
+pub enum StateUpdateError<E: Error> {
+    /// unable to resolve witness. Details:
+    ///
+    /// {0}
+    Resolver(String),
+
+    /// contract state {0} is not known.
+    UnknownContract(ContractId),
+
+    #[display(inner)]
+    Connectivity(E),
+}
 
 #[derive(Clone, Eq, PartialEq, Debug, Hash)]
 pub enum PersistedState {
@@ -33,7 +52,7 @@ pub enum PersistedState {
 }
 
 impl PersistedState {
-    pub(super) fn update_blinding(&mut self, blinding: BlindingFactor) {
+    pub(crate) fn update_blinding(&mut self, blinding: BlindingFactor) {
         match self {
             PersistedState::Void => {}
             PersistedState::Amount(_, b, _) => *b = blinding,
@@ -41,4 +60,31 @@ impl PersistedState {
             PersistedState::Attachment(_, _) => {}
         }
     }
+}
+
+pub trait StateProvider: Debug + StateReadProvider + StateWriteProvider {}
+
+pub trait StateReadProvider {
+    type Error: Clone + Eq + Error;
+
+    fn contract_state(
+        &self,
+        contract_id: ContractId,
+    ) -> Result<Option<&ContractHistory>, Self::Error>;
+}
+
+pub trait StateWriteProvider {
+    type Error: Clone + Eq + Error;
+
+    fn create_or_update_state<R: ResolveHeight>(
+        &mut self,
+        contract_id: ContractId,
+        updater: impl FnOnce(Option<ContractHistory>) -> Result<ContractHistory, R::Error>,
+    ) -> Result<(), StateUpdateError<Self::Error>>;
+
+    fn update_state<R: ResolveHeight>(
+        &mut self,
+        contract_id: ContractId,
+        updater: impl FnMut(&mut ContractHistory) -> Result<(), R::Error>,
+    ) -> Result<(), StateUpdateError<Self::Error>>;
 }

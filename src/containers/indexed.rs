@@ -19,56 +19,95 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::{btree_set, BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Deref;
-use std::rc::Rc;
 
 use amplify::confinement::Collection;
 use commit_verify::Conceal;
-use rgb::validation::ConsignmentApi;
+use rgb::validation::{ConsignmentApi, Scripts};
 use rgb::{
-    AnchoredBundle, AssetTag, AssignmentType, BundleId, Genesis, OpId, OpRef, Operation, SubSchema,
-    WitnessId, XChain,
+    BundleId, EAnchor, Extension, Genesis, OpId, OpRef, Operation, Schema, Transition,
+    TransitionBundle, XChain, XWitnessId,
 };
+use strict_types::TypeSystem;
 
 use super::Consignment;
+use crate::containers::anchors::ToWitnessId;
 use crate::SecretSeal;
 
-// TODO: Add more indexes
+// TODO: Transform consignment into this type instead of composing over it
 #[derive(Clone, Debug)]
-pub struct IndexedConsignment<'c, const TYPE: bool> {
-    consignment: &'c Consignment<TYPE>,
-    op_witness_ids: BTreeMap<OpId, WitnessId>,
+pub struct IndexedConsignment<'c, const TRANSFER: bool> {
+    consignment: &'c Consignment<TRANSFER>,
+    scripts: Scripts,
+    anchor_idx: BTreeMap<BundleId, (XWitnessId, EAnchor)>,
+    bundle_idx: BTreeMap<BundleId, &'c TransitionBundle>,
+    op_witness_idx: BTreeMap<OpId, XWitnessId>,
+    op_bundle_idx: BTreeMap<OpId, BundleId>,
+    extension_idx: BTreeMap<OpId, &'c Extension>,
 }
 
-impl<'c, const TYPE: bool> Deref for IndexedConsignment<'c, TYPE> {
-    type Target = Consignment<TYPE>;
+impl<'c, const TRANSFER: bool> Deref for IndexedConsignment<'c, TRANSFER> {
+    type Target = Consignment<TRANSFER>;
 
     fn deref(&self) -> &Self::Target { self.consignment }
 }
 
-impl<'c, const TYPE: bool> IndexedConsignment<'c, TYPE> {
-    pub fn new(consignment: &'c Consignment<TYPE>) -> Self {
-        let mut op_witness_ids = BTreeMap::new();
-        for ab in &consignment.bundles {
-            for opid in ab.bundle.known_transitions.keys() {
-                op_witness_ids.insert(*opid, ab.anchor.witness_id_unchecked());
+impl<'c, const TRANSFER: bool> IndexedConsignment<'c, TRANSFER> {
+    pub fn new(consignment: &'c Consignment<TRANSFER>) -> Self {
+        let mut anchor_idx = BTreeMap::new();
+        let mut bundle_idx = BTreeMap::new();
+        let mut op_witness_idx = BTreeMap::new();
+        let mut op_bundle_idx = BTreeMap::new();
+        let mut extension_idx = BTreeMap::new();
+        for bw in &consignment.bundles {
+            for (anchor, bundle) in bw.anchored_bundles.pairs() {
+                let bundle_id = bundle.bundle_id();
+                let witness_id = bw.pub_witness.to_witness_id();
+                bundle_idx.insert(bundle_id, bundle);
+                anchor_idx.insert(bundle_id, (witness_id, anchor));
+                for opid in bundle.known_transitions.keys() {
+                    op_witness_idx.insert(*opid, witness_id);
+                    op_bundle_idx.insert(*opid, bundle_id);
+                }
             }
         }
+        for extension in &consignment.extensions {
+            extension_idx.insert(extension.id(), extension);
+        }
+        let scripts = Scripts::from_iter_unsafe(
+            consignment
+                .scripts
+                .iter()
+                .map(|lib| (lib.id(), lib.clone())),
+        );
         Self {
             consignment,
-            op_witness_ids,
+            scripts,
+            anchor_idx,
+            bundle_idx,
+            op_witness_idx,
+            op_bundle_idx,
+            extension_idx,
         }
+    }
+
+    fn extension(&self, opid: OpId) -> Option<&Extension> { self.extension_idx.get(&opid).copied() }
+
+    fn transition(&self, opid: OpId) -> Option<&Transition> {
+        self.op_bundle_idx
+            .get(&opid)
+            .and_then(|id| self.bundle_idx.get(id))
+            .and_then(|bundle| bundle.known_transitions.get(&opid))
     }
 }
 
-impl<'c, const TYPE: bool> ConsignmentApi for IndexedConsignment<'c, TYPE> {
-    type Iter<'a> = BundleIdIter;
+impl<'c, const TRANSFER: bool> ConsignmentApi for IndexedConsignment<'c, TRANSFER> {
+    fn schema(&self) -> &Schema { &self.schema }
 
-    fn schema(&self) -> &SubSchema { &self.schema }
+    fn types(&self) -> &TypeSystem { &self.types }
 
-    #[inline]
-    fn asset_tags(&self) -> &BTreeMap<AssignmentType, AssetTag> { self.asset_tags.as_inner() }
+    fn scripts(&self) -> &Scripts { &self.scripts }
 
     fn operation(&self, opid: OpId) -> Option<OpRef> {
         if opid == self.genesis.id() {
@@ -81,36 +120,33 @@ impl<'c, const TYPE: bool> ConsignmentApi for IndexedConsignment<'c, TYPE> {
 
     fn genesis(&self) -> &Genesis { &self.genesis }
 
-    fn terminals(&self) -> BTreeSet<(BundleId, XChain<SecretSeal>)> {
+    fn terminals<'iter>(&self) -> impl Iterator<Item = (BundleId, XChain<SecretSeal>)> + 'iter {
         let mut set = BTreeSet::new();
         for (bundle_id, terminal) in &self.terminals {
             for seal in &terminal.seals {
                 set.push((*bundle_id, seal.conceal()));
             }
         }
-        set
+        set.into_iter()
     }
 
-    fn bundle_ids<'a>(&self) -> Self::Iter<'a> { BundleIdIter(self.bundles.clone().into_iter()) }
-
-    fn anchored_bundle(&self, bundle_id: BundleId) -> Option<Rc<AnchoredBundle>> {
-        self.consignment
-            .anchored_bundle(bundle_id)
-            .map(|ab| Rc::new(ab.clone()))
+    fn bundle_ids<'iter>(&self) -> impl Iterator<Item = BundleId> + 'iter {
+        self.bundle_idx
+            .keys()
+            .copied()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
     }
 
-    fn op_witness_id(&self, opid: OpId) -> Option<WitnessId> {
-        self.op_witness_ids.get(&opid).copied()
+    fn bundle(&self, bundle_id: BundleId) -> Option<&TransitionBundle> {
+        self.bundle_idx.get(&bundle_id).copied()
     }
-}
 
-#[derive(Debug)]
-pub struct BundleIdIter(btree_set::IntoIter<AnchoredBundle>);
+    fn anchor(&self, bundle_id: BundleId) -> Option<(XWitnessId, &EAnchor)> {
+        self.anchor_idx.get(&bundle_id).map(|(id, set)| (*id, set))
+    }
 
-impl Iterator for BundleIdIter {
-    type Item = BundleId;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next().as_ref().map(AnchoredBundle::bundle_id)
+    fn op_witness_id(&self, opid: OpId) -> Option<XWitnessId> {
+        self.op_witness_idx.get(&opid).copied()
     }
 }

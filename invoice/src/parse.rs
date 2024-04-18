@@ -29,7 +29,7 @@ use indexmap::IndexMap;
 use invoice::{Address, UnknownNetwork};
 use percent_encoding::{utf8_percent_encode, AsciiSet, CONTROLS};
 use rgb::{ContractId, SecretSeal};
-use strict_encoding::{InvalidIdent, TypeName};
+use strict_encoding::{InvalidRString, TypeName};
 
 use crate::invoice::{Beneficiary, ChainNet, InvoiceState, RgbInvoice, RgbTransport, XChainNet};
 
@@ -123,7 +123,7 @@ pub enum InvoiceParseError {
 
     #[from]
     /// invalid interface name.
-    IfaceName(InvalidIdent),
+    IfaceName(InvalidRString),
 }
 
 impl RgbInvoice {

@@ -25,14 +25,14 @@ use amplify::confinement::{SmallOrdSet, SmallVec};
 use invoice::{Allocation, Amount};
 use rgb::{
     AssignmentWitness, AttachId, ContractId, ContractState, DataState, KnownState, MediaType, OpId,
-    OutputAssignment, RevealedAttach, RevealedData, RevealedValue, VoidState, WitnessId, XOutpoint,
-    XOutputSeal,
+    OutputAssignment, RevealedAttach, RevealedData, RevealedValue, VoidState, XOutpoint,
+    XOutputSeal, XWitnessId,
 };
 use strict_encoding::{FieldName, StrictDecode, StrictDumb, StrictEncode};
 use strict_types::typify::TypedVal;
-use strict_types::{decode, StrictVal};
+use strict_types::{decode, StrictVal, TypeSystem};
 
-use crate::interface::{IfaceId, IfaceImpl, OutpointFilter, WitnessFilter};
+use crate::interface::{IfaceImpl, OutpointFilter, WitnessFilter};
 use crate::LIB_NAME_RGB_STD;
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
@@ -120,6 +120,58 @@ pub trait StateChange: Clone + Eq + StrictDumb + StrictEncode + StrictDecode {
     fn merge_received(&mut self, state: Self::State);
 }
 
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD, tags = custom)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub enum AmountChange {
+    #[display("-{0}")]
+    #[strict_type(tag = 0xFF)]
+    Dec(Amount),
+
+    #[display("0")]
+    #[strict_type(tag = 0, dumb)]
+    Zero,
+
+    #[display("+{0}")]
+    #[strict_type(tag = 0x01)]
+    Inc(Amount),
+}
+
+impl StateChange for AmountChange {
+    type State = Amount;
+
+    fn from_spent(state: Self::State) -> Self { AmountChange::Dec(state) }
+
+    fn from_received(state: Self::State) -> Self { AmountChange::Inc(state) }
+
+    fn merge_spent(&mut self, sub: Self::State) {
+        *self = match self {
+            AmountChange::Dec(neg) => AmountChange::Dec(*neg + sub),
+            AmountChange::Zero => AmountChange::Dec(sub),
+            AmountChange::Inc(pos) if *pos > sub => AmountChange::Inc(*pos - sub),
+            AmountChange::Inc(pos) if *pos == sub => AmountChange::Zero,
+            AmountChange::Inc(pos) if *pos < sub => AmountChange::Dec(sub - *pos),
+            AmountChange::Inc(_) => unreachable!(),
+        };
+    }
+
+    fn merge_received(&mut self, add: Self::State) {
+        *self = match self {
+            AmountChange::Inc(pos) => AmountChange::Inc(*pos + add),
+            AmountChange::Zero => AmountChange::Inc(add),
+            AmountChange::Dec(neg) if *neg > add => AmountChange::Dec(*neg - add),
+            AmountChange::Dec(neg) if *neg == add => AmountChange::Zero,
+            AmountChange::Dec(neg) if *neg < add => AmountChange::Inc(add - *neg),
+            AmountChange::Dec(_) => unreachable!(),
+        };
+    }
+}
+
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
@@ -179,6 +231,7 @@ impl<C: StateChange> IfaceOp<C> {
 pub struct ContractIface {
     pub state: ContractState,
     pub iface: IfaceImpl,
+    pub types: TypeSystem,
 }
 
 // TODO: Introduce witness checker: additional filter returning only those data
@@ -192,7 +245,6 @@ impl ContractIface {
     /// implementations.
     pub fn global(&self, name: impl Into<FieldName>) -> Result<SmallVec<StrictVal>, ContractError> {
         let name = name.into();
-        let type_system = &self.state.schema.types;
         let type_id = self
             .iface
             .global_type(&name)
@@ -207,8 +259,8 @@ impl ContractIface {
         let state = state
             .into_iter()
             .map(|revealed| {
-                type_system
-                    .strict_deserialize_type(type_schema.sem_id, revealed.value.as_ref())
+                self.types
+                    .strict_deserialize_type(type_schema.sem_id, revealed.as_ref())
                     .map(TypedVal::unbox)
             })
             .take(type_schema.max_items as usize)
@@ -311,7 +363,7 @@ impl ContractIface {
         allocations: impl Iterator<Item = OutputAssignment<C::State>> + 'c,
         witness_filter: impl WitnessFilter + Copy,
         // resolver: impl WitnessCheck + 'c,
-    ) -> HashMap<WitnessId, IfaceOp<C>>
+    ) -> HashMap<XWitnessId, IfaceOp<C>>
     where
         C::State: 'c,
     {
@@ -330,7 +382,7 @@ impl ContractIface {
         }
 
         let spent = f::<_, C::State>(witness_filter, state).map(OutputAssignment::from);
-        let mut ops = HashMap::<WitnessId, IfaceOp<C>>::new();
+        let mut ops = HashMap::<XWitnessId, IfaceOp<C>>::new();
         for alloc in spent {
             let AssignmentWitness::Present(witness_id) = alloc.witness else {
                 continue;
@@ -361,7 +413,7 @@ impl ContractIface {
         name: impl Into<FieldName>,
         witness_filter: impl WitnessFilter + Copy,
         outpoint_filter: impl OutpointFilter + Copy,
-    ) -> Result<HashMap<WitnessId, IfaceOp<C>>, ContractError> {
+    ) -> Result<HashMap<XWitnessId, IfaceOp<C>>, ContractError> {
         Ok(self.operations(
             self.state
                 .fungibles()
@@ -378,7 +430,7 @@ impl ContractIface {
         name: impl Into<FieldName>,
         witness_filter: impl WitnessFilter + Copy,
         outpoint_filter: impl OutpointFilter + Copy,
-    ) -> Result<HashMap<WitnessId, IfaceOp<C>>, ContractError> {
+    ) -> Result<HashMap<XWitnessId, IfaceOp<C>>, ContractError> {
         Ok(self.operations(
             self.state
                 .data()
@@ -389,11 +441,4 @@ impl ContractIface {
             witness_filter,
         ))
     }
-
-    pub fn wrap<W: IfaceWrapper>(self) -> W { W::from(self) }
-}
-
-pub trait IfaceWrapper: From<ContractIface> {
-    const IFACE_NAME: &'static str;
-    const IFACE_ID: IfaceId;
 }

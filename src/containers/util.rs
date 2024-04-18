@@ -19,11 +19,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use amplify::confinement::SmallOrdSet;
-use rgb::{BundleId, WitnessId, XChain, XPubWitness};
+use std::collections::{btree_map, BTreeMap};
+
+use amplify::confinement::{Confined, NonEmptyBlob, SmallOrdSet};
+use commit_verify::StrictHash;
+use rgb::{BundleId, ContractId, Identity, SchemaId, XChain};
+use strict_encoding::StrictDumb;
 
 use super::TerminalSeal;
-use crate::LIB_NAME_RGB_STD;
+use crate::interface::{IfaceId, ImplId, SupplId};
+use crate::{SecretSeal, LIB_NAME_RGB_STD};
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
@@ -36,7 +41,6 @@ use crate::LIB_NAME_RGB_STD;
 pub struct TerminalDisclose {
     pub bundle_id: BundleId,
     pub seal: XChain<TerminalSeal>,
-    pub witness_id: Option<WitnessId>,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -49,21 +53,20 @@ pub struct TerminalDisclose {
 )]
 pub struct Terminal {
     pub seals: SmallOrdSet<XChain<TerminalSeal>>,
-    pub witness_tx: Option<XPubWitness>,
 }
 
 impl Terminal {
     pub fn new(seal: XChain<TerminalSeal>) -> Self {
         Terminal {
             seals: small_bset![seal],
-            witness_tx: None,
         }
     }
-    pub fn with_witness(seal: XChain<TerminalSeal>, witness_tx: XPubWitness) -> Self {
-        Terminal {
-            seals: small_bset![seal],
-            witness_tx: Some(witness_tx),
-        }
+
+    pub fn secrets(&self) -> impl Iterator<Item = XChain<SecretSeal>> {
+        self.seals
+            .clone()
+            .into_iter()
+            .filter_map(|seal| seal.map_ref(TerminalSeal::secret_seal).transpose())
     }
 }
 
@@ -82,4 +85,59 @@ pub enum ContainerVer {
     // V0 and V1 was a previous version before v0.11, currently not supported.
     #[default]
     V2 = 2,
+}
+
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+#[derive(StrictType, strict_encoding::StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD, tags = order, dumb = ContentId::Schema(strict_dumb!()))]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub enum ContentId {
+    Schema(SchemaId),
+    Genesis(ContractId),
+    Iface(IfaceId),
+    IfaceImpl(ImplId),
+    Suppl(SupplId),
+}
+
+#[derive(Wrapper, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, From, Display)]
+#[wrapper(Deref, AsSlice, BorrowSlice, Hex)]
+#[display(LowerHex)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[derive(CommitEncode)]
+#[commit_encode(strategy = strict, id = StrictHash)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", transparent)
+)]
+pub struct SigBlob(NonEmptyBlob<4096>);
+
+impl Default for SigBlob {
+    fn default() -> Self { SigBlob(NonEmptyBlob::with(0)) }
+}
+
+#[derive(Wrapper, WrapperMut, Clone, PartialEq, Eq, Hash, Debug, From)]
+#[wrapper(Deref)]
+#[wrapper_mut(DerefMut)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
+pub struct ContentSigs(Confined<BTreeMap<Identity, SigBlob>, 1, 10>);
+
+impl StrictDumb for ContentSigs {
+    fn strict_dumb() -> Self {
+        confined_bmap! { strict_dumb!() => SigBlob::default() }
+    }
+}
+
+impl IntoIterator for ContentSigs {
+    type Item = (Identity, SigBlob);
+    type IntoIter = btree_map::IntoIter<Identity, SigBlob>;
+
+    fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
 }
