@@ -84,7 +84,7 @@ impl ToBaid58<32> for ImplId {
 impl FromBaid58<32> for ImplId {}
 impl Display for ImplId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        if !f.alternate() {
+        if f.alternate() {
             f.write_str("urn:lnp-bp:im:")?;
         }
         if f.sign_minus() {

@@ -34,7 +34,7 @@ use rgb::{
     Extension, Genesis, GenesisSeal, GraphSeal, Identity, OpId, Operation, Opout, Schema, SchemaId,
     SecretSeal, TransitionBundle, XChain, XOutputSeal, XWitnessId,
 };
-use strict_encoding::{StrictDeserialize, StrictSerialize, TypeName};
+use strict_encoding::{StrictDeserialize, StrictSerialize};
 use strict_types::TypeSystem;
 
 use super::{
@@ -93,11 +93,8 @@ impl StashReadProvider for MemStash {
             .ok_or_else(|| StashInconsistency::LibAbsent(id).into())
     }
 
-    fn ifaces(&self) -> Result<impl Iterator<Item = (IfaceId, TypeName)>, Self::Error> {
-        Ok(self
-            .ifaces
-            .iter()
-            .map(|(id, iface)| (*id, iface.name.clone())))
+    fn ifaces(&self) -> Result<impl Iterator<Item = &Iface>, Self::Error> {
+        Ok(self.ifaces.values())
     }
 
     fn iface(&self, iface: impl Into<IfaceRef>) -> Result<&Iface, StashProviderError<Self::Error>> {
@@ -135,7 +132,7 @@ impl StashReadProvider for MemStash {
         let schemata = self
             .schemata
             .iter()
-            .filter(|(_, iface)| iface.iimpls.contains_key(&iface_id))
+            .filter(|(_, iface)| iface.contains(iface_id))
             .map(|(schema_id, _)| schema_id)
             .collect::<BTreeSet<_>>();
         Ok(self
@@ -262,8 +259,10 @@ impl StashWriteProvider for MemStash {
             .schemata
             .get_mut(&iimpl.schema_id)
             .expect("unknown schema");
-        let present = schema_ifaces.iimpls.contains_key(&iimpl.iface_id);
-        schema_ifaces.iimpls.insert(iimpl.iface_id, iimpl)?;
+        let iface = self.ifaces.get(&iimpl.iface_id).expect("unknown interface");
+        let iface_name = iface.name.clone();
+        let present = schema_ifaces.iimpls.contains_key(&iface_name);
+        schema_ifaces.iimpls.insert(iface_name, iimpl)?;
         Ok(!present)
     }
 

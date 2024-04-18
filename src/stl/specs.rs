@@ -25,6 +25,7 @@ use std::fmt::{self, Debug, Formatter};
 use std::str::FromStr;
 
 use amplify::confinement::{Confined, NonEmptyString, SmallOrdSet, SmallString, U8};
+use amplify::Bytes32;
 use invoice::Precision;
 use strict_encoding::stl::{Alpha, AlphaNum, AsciiPrintable};
 use strict_encoding::{
@@ -255,7 +256,7 @@ impl FromStr for RicardianContract {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_CONTRACT)]
 #[cfg_attr(
@@ -267,7 +268,7 @@ pub struct Attachment {
     #[strict_type(rename = "type")]
     #[cfg_attr(feature = "serde", serde(rename = "type"))]
     pub ty: MediaType,
-    pub digest: [u8; 32],
+    pub digest: Bytes32,
 }
 impl StrictSerialize for Attachment {}
 impl StrictDeserialize for Attachment {}

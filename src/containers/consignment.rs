@@ -90,7 +90,7 @@ impl ToBaid58<32> for ConsignmentId {
 impl FromBaid58<32> for ConsignmentId {}
 impl Display for ConsignmentId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        if !f.alternate() {
+        if f.alternate() {
             f.write_str("urn:lnp-bp:con:")?;
         }
         if f.sign_minus() {

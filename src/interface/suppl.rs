@@ -68,7 +68,7 @@ impl ToBaid58<32> for SupplId {
 impl FromBaid58<32> for SupplId {}
 impl Display for SupplId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        if !f.alternate() {
+        if f.alternate() {
             f.write_str("urn:lnp-bp:suppl:")?;
         }
         if f.sign_minus() {
