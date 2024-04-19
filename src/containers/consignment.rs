@@ -43,8 +43,8 @@ use strict_types::TypeSystem;
 
 use super::{
     BundledWitness, ContainerVer, ContentId, ContentSigs, IndexedConsignment, Terminal,
-    TerminalDisclose, ASCII_ARMOR_CONSIGNMENT_TYPE, ASCII_ARMOR_CONTRACT_, ASCII_ARMOR_TERMINAL,
-    ASCII_ARMOR_VERSION,
+    TerminalDisclose, ASCII_ARMOR_CONSIGNMENT_TYPE, ASCII_ARMOR_CONTRACT, ASCII_ARMOR_IFACE,
+    ASCII_ARMOR_SCHEMA, ASCII_ARMOR_TERMINAL, ASCII_ARMOR_VERSION,
 };
 use crate::containers::anchors::ToWitnessId;
 use crate::interface::{ContractSuppl, Iface, IfaceImpl};
@@ -386,7 +386,7 @@ impl<const TRANSFER: bool> StrictArmor for Consignment<TRANSFER> {
 
     fn armor_id(&self) -> Self::Id { self.commit_id() }
     fn armor_headers(&self) -> Vec<ArmorHeader> {
-        let mut headers = vec![
+        vec![
             ArmorHeader::new(ASCII_ARMOR_VERSION, self.version.to_string()),
             ArmorHeader::new(
                 ASCII_ARMOR_CONSIGNMENT_TYPE,
@@ -396,11 +396,13 @@ impl<const TRANSFER: bool> StrictArmor for Consignment<TRANSFER> {
                     s!("contract")
                 },
             ),
-            ArmorHeader::new(ASCII_ARMOR_CONTRACT_, self.contract_id().to_string()),
-        ];
-        for bundle_id in self.terminals.keys() {
-            headers.push(ArmorHeader::new(ASCII_ARMOR_TERMINAL, bundle_id.to_string()));
-        }
-        headers
+            ArmorHeader::new(ASCII_ARMOR_CONTRACT, self.contract_id().to_string()),
+            ArmorHeader::new(ASCII_ARMOR_SCHEMA, self.schema.schema_id().to_string()),
+            ArmorHeader::with(
+                ASCII_ARMOR_IFACE,
+                self.ifaces.keys().map(|iface| iface.name.to_string()),
+            ),
+            ArmorHeader::with(ASCII_ARMOR_TERMINAL, self.terminals.keys().map(BundleId::to_string)),
+        ]
     }
 }

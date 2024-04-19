@@ -8,7 +8,7 @@ version = "0.11.0-beta.5"
 source = "git+https://github.com/AluVM/rust-aluvm?branch=develop#fafec9e124b10d4653cec7ef7804e1a9bda97844"
 dependencies = [
  "amplify",
- "ascii-armor",
+ "ascii-armor 0.2.0",
  "baid58",
  "blake3",
  "getrandom",
@@ -124,6 +124,19 @@ name = "ascii-armor"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "743d90b41a39d6e3920eef64a70f6411097cbb47141606a45b2a96533ec7111c"
+dependencies = [
+ "amplify",
+ "baid58",
+ "base85",
+ "sha2",
+ "strict_encoding",
+]
+
+[[package]]
+name = "ascii-armor"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "44ce552de9efa4fdee1a7920f3587e17689bf4a4ba149a7892f91820673c1e29"
 dependencies = [
  "amplify",
  "baid58",
@@ -650,7 +663,7 @@ source = "git+https://github.com/RGB-WG/rgb-core?branch=develop#bc8243c61de9eac0
 dependencies = [
  "aluvm",
  "amplify",
- "ascii-armor",
+ "ascii-armor 0.2.0",
  "baid58",
  "bp-core",
  "chrono",
@@ -688,7 +701,7 @@ version = "0.11.0-beta.5"
 dependencies = [
  "aluvm",
  "amplify",
- "ascii-armor",
+ "ascii-armor 0.3.0",
  "baid58",
  "base85",
  "bp-core",
@@ -914,7 +927,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "152bd04284e9093f23a911d0d89b7dd950a461af1ed5e243f6215fbcd45e9445"
 dependencies = [
  "amplify",
- "ascii-armor",
+ "ascii-armor 0.2.0",
  "baid58",
  "half",
  "indexmap",

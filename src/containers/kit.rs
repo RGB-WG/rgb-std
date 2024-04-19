@@ -206,7 +206,8 @@ impl StrictArmor for Kit {
 
     fn armor_id(&self) -> Self::Id { self.kit_id() }
     fn armor_headers(&self) -> Vec<ArmorHeader> {
-        let mut headers = vec![ArmorHeader::new(ASCII_ARMOR_VERSION, self.version.to_string())];
+        let mut headers =
+            vec![ArmorHeader::new(ASCII_ARMOR_VERSION, format!("{:#}", self.version))];
         for iface in &self.ifaces {
             let mut header = ArmorHeader::new(ASCII_ARMOR_IFACE, iface.name.to_string());
             header.params.push((s!("id"), iface.iface_id().to_string()));
@@ -214,12 +215,20 @@ impl StrictArmor for Kit {
         }
         for iimpl in &self.iimpls {
             let mut header = ArmorHeader::new(ASCII_ARMOR_IIMPL, iimpl.impl_id().to_string());
-            header.params.push((s!("of"), iimpl.iface_id.to_string()));
-            header.params.push((s!("for"), iimpl.schema_id.to_string()));
+            header
+                .params
+                .push((s!("interface"), iimpl.iface_id.to_string()));
+            header
+                .params
+                .push((s!("schema"), iimpl.schema_id.to_string()));
             headers.push(header);
         }
         for schema in &self.schemata {
-            headers.push(ArmorHeader::new(ASCII_ARMOR_SCHEMA, schema.schema_id().to_string()));
+            let mut header = ArmorHeader::new(ASCII_ARMOR_SCHEMA, schema.name.to_string());
+            header
+                .params
+                .push((s!("id"), schema.schema_id().to_string()));
+            headers.push(header);
         }
         headers.push(ArmorHeader::new(ASCII_ARMOR_TYPE_SYSTEM, self.types.id().to_string()));
         for lib in &self.scripts {

@@ -23,7 +23,7 @@ license = "Apache-2.0"
 
 [workspace.dependencies]
 amplify = "4.6.0"
-ascii-armor = "0.2.0"
+ascii-armor = "0.3.0"
 baid58 = "0.4.4"
 strict_encoding = "2.7.0-beta.3"
 strict_types = "2.7.0-beta.3"
