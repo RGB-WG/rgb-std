@@ -264,21 +264,23 @@ impl AnchorSet {
 impl AnchorSet {
     pub fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {
         match (self, other) {
-            (Self::Tapret(anchor), Self::Tapret(a)) if a == anchor => Ok(Self::Tapret(anchor)),
-            (Self::Opret(anchor), Self::Opret(a)) if a == anchor => Ok(Self::Opret(anchor)),
+            (Self::Tapret(anchor), Self::Tapret(a)) if a.matches(&anchor) => {
+                Ok(Self::Tapret(anchor))
+            }
+            (Self::Opret(anchor), Self::Opret(a)) if a.matches(&anchor) => Ok(Self::Opret(anchor)),
             (Self::Tapret(tapret), Self::Opret(opret)) |
             (Self::Opret(opret), Self::Tapret(tapret)) => Ok(Self::Double { tapret, opret }),
 
             (Self::Double { tapret, opret }, Self::Tapret(t)) |
             (Self::Tapret(t), Self::Double { tapret, opret })
-                if tapret == t =>
+                if t.matches(&tapret) =>
             {
                 Ok(Self::Double { tapret, opret })
             }
 
             (Self::Double { tapret, opret }, Self::Opret(o)) |
             (Self::Opret(o), Self::Double { tapret, opret })
-                if opret == o =>
+                if o.matches(&opret) =>
             {
                 Ok(Self::Double { tapret, opret })
             }
@@ -289,7 +291,7 @@ impl AnchorSet {
                     tapret: t,
                     opret: o,
                 },
-            ) if tapret == t && opret == o => Ok(Self::Double { tapret, opret }),
+            ) if t.matches(&tapret) && o.matches(&opret) => Ok(Self::Double { tapret, opret }),
 
             _ => Err(MergeRevealError::AnchorsMismatch),
         }

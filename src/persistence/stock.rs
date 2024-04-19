@@ -954,8 +954,9 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         resolver: &mut R,
     ) -> Result<validation::Status, StockError<S, H, P>> {
         let contract_id = consignment.contract_id();
-        let (consignment, status) = consignment.split();
+        let (mut consignment, status) = consignment.split();
 
+        consignment = self.stash.resolve_secrets(consignment)?;
         self.state
             .create_or_update_state::<R>(contract_id, |history| {
                 consignment.update_history(history, resolver)
