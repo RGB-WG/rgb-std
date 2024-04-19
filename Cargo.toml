@@ -74,6 +74,7 @@ default = []
 all = ["fs", "serde"]
 serde = [
     "serde_crate",
+    "chrono/serde",
     "amplify/serde",
     "strict_encoding/serde",
     "strict_types/serde",

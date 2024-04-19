@@ -97,6 +97,11 @@ impl IfaceId {
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Display, From)]
 #[display(inner)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
 pub enum IfaceRef {
     #[from]
     #[from(&'static str)]
