@@ -31,8 +31,8 @@ use error::Error;
 pub use invoice::LIB_NAME_RGB_CONTRACT;
 pub use mime::{MediaRegName, MediaType};
 pub use specs::{
-    AssetSpec, AssetTerms, Attachment, BurnMeta, Details, IssueMeta, Name, RicardianContract,
-    Ticker,
+    Article, AssetSpec, AssetTerms, Attachment, BurnMeta, ContractSpec, Details, IssueMeta, Name,
+    RicardianContract, Ticker,
 };
 pub use stl::{
     aluvm_stl, bp_core_stl, bp_tx_stl, commit_verify_stl, rgb_contract_stl, rgb_core_stl,
