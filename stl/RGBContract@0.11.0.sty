@@ -1,5 +1,5 @@
 {-
-  Id: urn:ubideco:stl:7isbv9C7vzzuNUvpPPbxnLFj7V6XZHP8kWPAZezjvaqx#barbara-limit-cricket
+  Id: urn:ubideco:stl:8Nxihgfg2yWzdoQAZYPf3QpfEnJ7HmwCWzN8cMQ5miK5#cantina-hexagon-baggage
   Name: RGBContract
   Version: 0.11.0
   Description: Types for writing RGB contracts and interfaces
@@ -28,20 +28,29 @@ data Allocation        : TokenIndex, OwnedFraction
 @mnemonic(burma-picasso-granite)
 data Amount            : U64
 
+@mnemonic(james-karl-master)
+data Article           : [Std.Alpha#october-urgent-tunnel ^ 1..0x20]
+
 @mnemonic(xray-giant-nina)
 data AssetSpec         : ticker Ticker
                        , name Name
                        , details Details?
                        , precision Precision
 
-@mnemonic(flower-anita-austin)
-data AssetTerms        : text RicardianContract, media Attachment?
-
 @mnemonic(flame-unicorn-fruit)
 data Attachment        : type MediaType, digest [Byte ^ 32]
 
 @mnemonic(gabriel-fiber-oregano)
 data BurnMeta          : burnProofs {ProofOfReserves}
+
+@mnemonic(sonic-retro-robin)
+data ContractSpec      : article Article?
+                       , name Name
+                       , details Details?
+                       , precision Precision
+
+@mnemonic(mega-gate-candle)
+data ContractTerms     : text RicardianContract, media Attachment?
 
 @mnemonic(network-kayak-adam)
 data Details           : [Unicode ^ 1..0xff]

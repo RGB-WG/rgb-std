@@ -377,14 +377,14 @@ impl Attachment {
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-pub struct AssetTerms {
+pub struct ContractTerms {
     pub text: RicardianContract,
     pub media: Option<Attachment>,
 }
-impl StrictSerialize for AssetTerms {}
-impl StrictDeserialize for AssetTerms {}
+impl StrictSerialize for ContractTerms {}
+impl StrictDeserialize for ContractTerms {}
 
-impl AssetTerms {
+impl ContractTerms {
     pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
         let text = RicardianContract::from_str(&value.unwrap_struct("text").unwrap_string())
             .expect("invalid text");
