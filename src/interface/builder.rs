@@ -326,7 +326,7 @@ impl ContractBuilder {
             !self.builder.deterministic,
             "for issuing deterministic contracts please use issue_contract_det method"
         );
-        self.issue_contract_det(Utc::now().timestamp())
+        self.issue_contract_raw(Utc::now().timestamp())
     }
 
     pub fn issue_contract_det(
