@@ -259,9 +259,11 @@ impl AnchorSet {
         map.into_values()
             .map(|msg| BundleId::from_byte_array(msg.to_byte_array()))
     }
-}
 
-impl AnchorSet {
+    pub fn has_tapret(&self) -> bool { matches!(self, Self::Tapret(_) | Self::Double { .. }) }
+
+    pub fn has_opret(&self) -> bool { matches!(self, Self::Opret(_) | Self::Double { .. }) }
+
     pub fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {
         match (self, other) {
             (Self::Tapret(anchor), Self::Tapret(a)) if a.matches(&anchor) => {
@@ -331,6 +333,10 @@ impl<P: mpc::Proof + StrictDumb> AnchoredBundles<P> {
             DbcProof::Opret(opret) => Self::Opret(Anchor::new(anchor.mpc_proof, opret), bundle),
         }
     }
+
+    pub fn has_tapret(&self) -> bool { matches!(self, Self::Tapret(..) | Self::Double { .. }) }
+
+    pub fn has_opret(&self) -> bool { matches!(self, Self::Opret(..) | Self::Double { .. }) }
 
     pub fn pairs(&self) -> vec::IntoIter<(EAnchor<P>, &TransitionBundle)>
     where P: Clone {
