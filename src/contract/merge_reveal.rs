@@ -26,8 +26,8 @@ use amplify::Wrapper;
 use bp::Txid;
 use commit_verify::{mpc, Conceal};
 use rgb::{
-    Assign, Assignments, BundleId, EAnchor, ExposedSeal, ExposedState, Extension, Genesis, OpId,
-    Operation, Transition, TransitionBundle, TypedAssigns,
+    Assign, Assignments, BundleId, ExposedSeal, ExposedState, Extension, Genesis, OpId, Operation,
+    Transition, TransitionBundle, TypedAssigns,
 };
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error, From)]
@@ -37,9 +37,6 @@ pub enum MergeRevealError {
     /// merge-revealed. This usually means internal application business logic
     /// error which should be reported to the software vendor.
     OperationMismatch(OpId, OpId),
-
-    /// mismatch between anchor DBC commitment schemes.
-    DbcMismatch,
 
     /// mismatch in anchor chains: one grip references bitcoin transaction
     /// {bitcoin} and the other merged part references liquid transaction
@@ -52,18 +49,11 @@ pub enum MergeRevealError {
     /// anchors in anchored bundle are not equal for bundle {0}.
     AnchorsNonEqual(BundleId),
 
-    /// anchors for the same witness do not match each other.
-    AnchorsMismatch,
-
-    #[from]
-    #[display(inner)]
-    AnchorMismatch(mpc::MergeError),
-
     /// the merged bundles contain more transitions than inputs.
     InsufficientInputs,
 
     /// contract id provided for the merge-reveal operation doesn't match
-    /// multi-protocol commitment.
+    /// multiprotocol commitment.
     #[from(mpc::InvalidProof)]
     #[from(mpc::LeafNotKnown)]
     ContractMismatch,
@@ -263,16 +253,6 @@ impl MergeRevealContract for AnchoredBundle {
     }
 }
  */
-
-impl MergeReveal for EAnchor<mpc::MerkleBlock> {
-    fn merge_reveal(mut self, other: Self) -> Result<Self, MergeRevealError> {
-        self.mpc_proof.merge_reveal(other.mpc_proof)?;
-        if self.dbc_proof != other.dbc_proof {
-            return Err(MergeRevealError::DbcMismatch);
-        }
-        Ok(self)
-    }
-}
 
 impl MergeReveal for Genesis {
     fn merge_reveal(mut self, other: Self) -> Result<Self, MergeRevealError> {
