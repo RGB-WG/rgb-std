@@ -47,8 +47,8 @@ use super::{
 };
 use crate::containers::{
     AnchorSet, AnchoredBundles, Batch, BuilderSeal, BundledWitness, Consignment, ContainerVer,
-    Contract, Fascia, PubWitness, SealWitness, Terminal, TerminalSeal, Transfer, TransitionInfo,
-    TransitionInfoError, ValidConsignment, ValidContract, ValidKit, ValidTransfer,
+    Contract, Fascia, Kit, PubWitness, SealWitness, Terminal, TerminalSeal, Transfer,
+    TransitionInfo, TransitionInfoError, ValidConsignment, ValidContract, ValidKit, ValidTransfer,
 };
 use crate::info::{IfaceInfo, SchemaInfo};
 use crate::interface::resolver::DumbResolver;
@@ -597,6 +597,27 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         iface: impl Into<IfaceRef>,
     ) -> Result<TransitionBuilder, StockError<S, H, P>> {
         Ok(self.stash.blank_builder(contract_id, iface)?)
+    }
+
+    pub fn export_schema(&self, schema_id: SchemaId) -> Result<ValidKit, StockError<S, H, P>> {
+        let mut kit = Kit::default();
+        let schema_ifaces = self.schema(schema_id)?;
+        kit.schemata
+            .push(schema_ifaces.schema.clone())
+            .expect("single item");
+        for name in schema_ifaces.iimpls.keys() {
+            let iface = self.stash.iface(name.clone())?;
+            kit.ifaces.push(iface.clone()).expect("type guarantees");
+        }
+        kit.iimpls
+            .extend(schema_ifaces.iimpls.values().cloned())
+            .expect("type guarantees");
+        let (types, scripts) = self.stash.extract(&schema_ifaces.schema, &kit.ifaces)?;
+        kit.scripts
+            .extend(scripts.into_values())
+            .expect("type guarantees");
+        kit.types = types;
+        Ok(kit.validate().expect("stock produced invalid kit"))
     }
 
     pub fn export_contract(

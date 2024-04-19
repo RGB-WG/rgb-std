@@ -30,6 +30,11 @@ use crate::interface::{Iface, IfaceId, IfaceImpl, IfaceRef, ImplId, VerNo};
 use crate::persistence::SchemaIfaces;
 
 #[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
 pub struct IfaceInfo {
     pub id: IfaceId,
     pub version: VerNo,
@@ -94,6 +99,11 @@ impl Display for IfaceInfo {
 }
 
 #[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
 pub struct SchemaInfo {
     pub id: SchemaId,
     pub name: TypeName,
@@ -140,6 +150,11 @@ impl Display for SchemaInfo {
 }
 
 #[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
 pub struct ImplInfo {
     pub id: ImplId,
     pub iface_id: IfaceId,
