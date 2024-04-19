@@ -34,8 +34,7 @@ use rgb::{
 };
 use strict_encoding::StrictDumb;
 
-use crate::accessors::{BundleExt, MergeReveal, MergeRevealError, RevealError};
-use crate::LIB_NAME_RGB_STD;
+use crate::{BundleExt, MergeReveal, MergeRevealError, RevealError, LIB_NAME_RGB_STD};
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]

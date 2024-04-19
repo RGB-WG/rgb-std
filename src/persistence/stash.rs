@@ -37,13 +37,12 @@ use strict_encoding::{FieldName, TypeName};
 use strict_types::typesys::UnknownType;
 use strict_types::TypeSystem;
 
-use crate::accessors::{MergeReveal, MergeRevealError};
 use crate::containers::{BundledWitness, Consignment, ContentId, Kit, SealWitness, SigBlob};
 use crate::interface::{
     ContractBuilder, ContractSuppl, Iface, IfaceClass, IfaceId, IfaceImpl, IfaceRef,
     TransitionBuilder,
 };
-use crate::{SecretSeal, LIB_NAME_RGB_STD};
+use crate::{MergeReveal, MergeRevealError, SecretSeal, LIB_NAME_RGB_STD};
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(inner)]

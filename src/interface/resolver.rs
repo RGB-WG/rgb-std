@@ -21,11 +21,11 @@
 
 use std::convert::Infallible;
 
+use rgb::validation::{ResolveWitness, WitnessResolverError};
 use rgb::XWitnessTx;
 use strict_encoding::StrictDumb;
 
 use crate::resolvers::ResolveHeight;
-use crate::validation::{ResolveWitness, WitnessResolverError};
 use crate::{WitnessAnchor, XWitnessId};
 
 pub(crate) struct DumbResolver;

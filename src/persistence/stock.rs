@@ -45,7 +45,6 @@ use super::{
     StashInconsistency, StashProvider, StashReadProvider, StashWriteProvider, StateProvider,
     StateReadProvider, StateUpdateError, StateWriteProvider,
 };
-use crate::accessors::{MergeRevealError, RevealError};
 use crate::containers::{
     AnchorSet, AnchoredBundles, Batch, BuilderSeal, BundledWitness, Consignment, ContainerVer,
     Contract, Fascia, PubWitness, SealWitness, Terminal, TerminalSeal, Transfer, TransitionInfo,
@@ -58,6 +57,7 @@ use crate::interface::{
     TransitionBuilder, VelocityHint,
 };
 use crate::resolvers::ResolveHeight;
+use crate::{MergeRevealError, RevealError};
 
 pub type ContractAssignments = HashMap<XOutputSeal, HashMap<Opout, PersistedState>>;
 

@@ -46,11 +46,10 @@ use super::{
     TerminalDisclose, ASCII_ARMOR_CONSIGNMENT_TYPE, ASCII_ARMOR_CONTRACT_, ASCII_ARMOR_TERMINAL,
     ASCII_ARMOR_VERSION,
 };
-use crate::accessors::BundleExt;
 use crate::containers::anchors::ToWitnessId;
 use crate::interface::{ContractSuppl, Iface, IfaceImpl};
 use crate::resolvers::ResolveHeight;
-use crate::{SecretSeal, LIB_NAME_RGB_STD};
+use crate::{BundleExt, SecretSeal, LIB_NAME_RGB_STD};
 
 pub type Transfer = Consignment<true>;
 pub type Contract = Consignment<false>;

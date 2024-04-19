@@ -21,7 +21,7 @@
 
 use rgb::{GraphSeal, OpId, Operation, Transition, TransitionBundle, XChain};
 
-use crate::accessors::TypedAssignsExt;
+use crate::contract::TypedAssignsExt;
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error)]
 #[display(doc_comments)]
