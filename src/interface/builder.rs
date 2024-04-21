@@ -59,11 +59,11 @@ pub enum BuilderError {
     /// transition `{0}` is not known to the schema.
     TransitionNotFound(FieldName),
 
-    /// state `{0}` provided to the builder has invalid name.
+    /// unknown owned state name `{0}`.
     InvalidStateField(FieldName),
 
-    /// state `{0}` provided to the builder has invalid name.
-    InvalidState(AssignmentType),
+    /// state `{0}` provided to the builder has invalid type.
+    InvalidStateType(AssignmentType),
 
     /// asset tag for state `{0}` must be added before any fungible state of
     /// the same type.
@@ -987,8 +987,8 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         seal: impl Into<BuilderSeal<Seal>>,
     ) -> Result<Self, BuilderError> {
         let state_schema = self.state_schema(type_id);
-        if *state_schema != OwnedStateSchema::Fungible(FungibleType::Unsigned64Bit) {
-            return Err(BuilderError::InvalidState(type_id));
+        if *state_schema != OwnedStateSchema::Declarative {
+            return Err(BuilderError::InvalidStateType(type_id));
         }
 
         let seal = seal.into();
@@ -1054,7 +1054,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
     ) -> Result<Self, BuilderError> {
         let state_schema = self.state_schema(type_id);
         if *state_schema != OwnedStateSchema::Fungible(FungibleType::Unsigned64Bit) {
-            return Err(BuilderError::InvalidState(type_id));
+            return Err(BuilderError::InvalidStateType(type_id));
         }
 
         let seal = seal.into();
@@ -1131,7 +1131,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
                 }
             }
         } else {
-            return Err(BuilderError::InvalidState(type_id));
+            return Err(BuilderError::InvalidStateType(type_id));
         }
         Ok(self)
     }
@@ -1188,7 +1188,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         state: RevealedAttach,
     ) -> Result<Self, BuilderError> {
         let state_schema = self.state_schema(type_id);
-        if let OwnedStateSchema::Structured(_) = *state_schema {
+        if let OwnedStateSchema::Attachment(_) = *state_schema {
             let seal = seal.into();
             match self.attachments.get_mut(&type_id) {
                 Some(assignments) => {
@@ -1200,7 +1200,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
                 }
             }
         } else {
-            return Err(BuilderError::InvalidState(type_id));
+            return Err(BuilderError::InvalidStateType(type_id));
         }
         Ok(self)
     }
