@@ -25,16 +25,17 @@ use std::str::FromStr;
 use amplify::confinement::TinyOrdSet;
 use amplify::{ByteArray, Bytes32};
 use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
+use chrono::{DateTime, TimeZone, Utc};
 use commit_verify::{CommitId, CommitmentId, DigestExt, Sha256};
 use rgb::{
-    AssignmentType, ExtensionType, GlobalStateType, Identity, MetaType, SchemaId, TransitionType,
-    ValencyType,
+    AssignmentType, ExtensionType, GlobalStateType, Identity, MetaType, Schema, SchemaId,
+    TransitionType, ValencyType,
 };
 use strict_encoding::{FieldName, StrictDumb, VariantName};
 use strict_types::encoding::{StrictDecode, StrictEncode, StrictType};
 
 use crate::interface::iface::IfaceId;
-use crate::interface::VerNo;
+use crate::interface::{Iface, VerNo};
 use crate::{ReservedBytes, LIB_NAME_RGB_STD};
 
 pub trait SchemaTypeIndex:
@@ -324,5 +325,152 @@ impl IfaceImpl {
             .iter()
             .find(|nt| nt.id == errno)
             .map(|nt| &nt.name)
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug, Display, Error)]
+#[display(doc_comments)]
+pub enum ImplInconsistency {
+    /// timestamp is invalid ({0}).
+    InvalidTimestamp(i64),
+    /// timestamp in the future ({0}).
+    FutureTimestamp(DateTime<Utc>),
+
+    /// interface metadata field '{0}' is not resolved by the implementation.
+    IfaceMetaAbsent(FieldName),
+    /// implementation metadata field '{0}' maps to an unknown schema metadata
+    /// type {1}.
+    SchemaMetaAbsent(FieldName, MetaType),
+
+    /// interface global state field '{0}' is not resolved by the
+    /// implementation.
+    IfaceGlobalAbsent(FieldName),
+    /// implementation global state field '{0}' maps to an unknown schema global
+    /// state type {1}.
+    SchemaGlobalAbsent(FieldName, GlobalStateType),
+
+    /// interface owned state field '{0}' is not resolved by the
+    /// implementation.
+    IfaceAssignmentAbsent(FieldName),
+    /// implementation owned state field '{0}' maps to an unknown schema owned
+    /// state type {1}.
+    SchemaAssignmentAbsent(FieldName, AssignmentType),
+
+    /// interface valency field '{0}' is not resolved by the implementation.
+    IfaceValencyAbsent(FieldName),
+    /// implementation valency field '{0}' maps to an unknown schema valency
+    /// {1}.
+    SchemaValencyAbsent(FieldName, ValencyType),
+
+    /// interface state transition name '{0}' is not resolved by the
+    /// implementation.
+    IfaceTransitionAbsent(FieldName),
+    /// implementation state transition name '{0}' maps to an unknown schema
+    /// state transition type {1}.
+    SchemaTransitionAbsent(FieldName, TransitionType),
+
+    /// interface state extension name '{0}' is not resolved by the
+    /// implementation.
+    IfaceExtensionAbsent(FieldName),
+    /// implementation state extension name '{0}' maps to an unknown schema
+    /// state extension type {1}.
+    SchemaExtensionAbsent(FieldName, ExtensionType),
+
+    /// interface error field '{0}' is not resolved by the implementation.
+    IfaceErrorAbsent(VariantName),
+}
+
+impl IfaceImpl {
+    pub fn check(&self, iface: &Iface, schema: &Schema) -> Result<(), Vec<ImplInconsistency>> {
+        let mut errors = vec![];
+
+        let now = Utc::now();
+        match Utc.timestamp_opt(self.timestamp, 0).single() {
+            Some(ts) if ts > now => errors.push(ImplInconsistency::FutureTimestamp(ts)),
+            None => errors.push(ImplInconsistency::InvalidTimestamp(self.timestamp)),
+            _ => {}
+        }
+
+        for name in iface.metadata.keys() {
+            if self.metadata.iter().all(|field| &field.name != name) {
+                errors.push(ImplInconsistency::IfaceMetaAbsent(name.clone()));
+            }
+        }
+        for field in &self.metadata {
+            if !schema.meta_types.contains_key(&field.id) {
+                errors.push(ImplInconsistency::SchemaMetaAbsent(field.name.clone(), field.id));
+            }
+        }
+
+        for name in iface.global_state.keys() {
+            if self.global_state.iter().all(|field| &field.name != name) {
+                errors.push(ImplInconsistency::IfaceGlobalAbsent(name.clone()));
+            }
+        }
+        for field in &self.global_state {
+            if !schema.global_types.contains_key(&field.id) {
+                errors.push(ImplInconsistency::SchemaGlobalAbsent(field.name.clone(), field.id));
+            }
+        }
+
+        for name in iface.assignments.keys() {
+            if self.assignments.iter().all(|field| &field.name != name) {
+                errors.push(ImplInconsistency::IfaceAssignmentAbsent(name.clone()));
+            }
+        }
+        for field in &self.assignments {
+            if !schema.owned_types.contains_key(&field.id) {
+                errors
+                    .push(ImplInconsistency::SchemaAssignmentAbsent(field.name.clone(), field.id));
+            }
+        }
+
+        for name in iface.valencies.keys() {
+            if self.valencies.iter().all(|field| &field.name != name) {
+                errors.push(ImplInconsistency::IfaceValencyAbsent(name.clone()));
+            }
+        }
+        for field in &self.valencies {
+            if !schema.valency_types.contains(&field.id) {
+                errors.push(ImplInconsistency::SchemaValencyAbsent(field.name.clone(), field.id));
+            }
+        }
+
+        for name in iface.transitions.keys() {
+            if self.transitions.iter().all(|field| &field.name != name) {
+                errors.push(ImplInconsistency::IfaceTransitionAbsent(name.clone()));
+            }
+        }
+        for field in &self.transitions {
+            if !schema.transitions.contains_key(&field.id) {
+                errors
+                    .push(ImplInconsistency::SchemaTransitionAbsent(field.name.clone(), field.id));
+            }
+        }
+
+        for name in iface.extensions.keys() {
+            if self.extensions.iter().all(|field| &field.name != name) {
+                errors.push(ImplInconsistency::IfaceExtensionAbsent(name.clone()));
+            }
+        }
+        for field in &self.extensions {
+            if !schema.extensions.contains_key(&field.id) {
+                errors.push(ImplInconsistency::SchemaExtensionAbsent(field.name.clone(), field.id));
+            }
+        }
+
+        for name in iface.errors.keys() {
+            if self.errors.iter().all(|variant| &variant.name != name) {
+                errors.push(ImplInconsistency::IfaceErrorAbsent(name.clone()));
+            }
+        }
+
+        // TODO: Warn about repeated field names
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
     }
 }

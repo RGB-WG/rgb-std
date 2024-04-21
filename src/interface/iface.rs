@@ -28,6 +28,7 @@ use std::str::FromStr;
 use amplify::confinement::{TinyOrdMap, TinyOrdSet, TinyString, TinyVec};
 use amplify::{ByteArray, Bytes32};
 use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
+use chrono::{DateTime, TimeZone, Utc};
 use commit_verify::{CommitId, CommitmentId, DigestExt, Sha256};
 use rgb::{Identity, Occurrences};
 use strict_encoding::{
@@ -496,6 +497,13 @@ impl Iface {
 
         let mut errors = vec![];
 
+        let now = Utc::now();
+        match Utc.timestamp_opt(self.timestamp, 0).single() {
+            Some(ts) if ts > now => errors.push(IfaceInconsistency::FutureTimestamp(ts)),
+            None => errors.push(IfaceInconsistency::InvalidTimestamp(self.timestamp)),
+            _ => {}
+        }
+
         for name in &self.genesis.metadata {
             if !self.metadata.contains_key(name) {
                 errors.push(IfaceInconsistency::UnknownMetadata(OpName::Genesis, name.clone()));
@@ -632,6 +640,10 @@ pub enum OpName {
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display, Error)]
 #[display(doc_comments)]
 pub enum IfaceInconsistency {
+    /// timestamp is invalid ({0}).
+    InvalidTimestamp(i64),
+    /// timestamp in the future ({0}).
+    FutureTimestamp(DateTime<Utc>),
     /// unknown global state '{1}' referenced from {0}.
     UnknownGlobal(OpName, FieldName),
     /// unknown valency '{1}' referenced from {0}.
