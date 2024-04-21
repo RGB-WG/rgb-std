@@ -208,6 +208,13 @@ impl StrictArmor for Kit {
     fn armor_headers(&self) -> Vec<ArmorHeader> {
         let mut headers =
             vec![ArmorHeader::new(ASCII_ARMOR_VERSION, format!("{:#}", self.version))];
+        for schema in &self.schemata {
+            let mut header = ArmorHeader::new(ASCII_ARMOR_SCHEMA, schema.name.to_string());
+            header
+                .params
+                .push((s!("id"), schema.schema_id().to_string()));
+            headers.push(header);
+        }
         for iface in &self.ifaces {
             let mut header = ArmorHeader::new(ASCII_ARMOR_IFACE, iface.name.to_string());
             header.params.push((s!("id"), iface.iface_id().to_string()));
@@ -221,13 +228,6 @@ impl StrictArmor for Kit {
             header
                 .params
                 .push((s!("schema"), iimpl.schema_id.to_string()));
-            headers.push(header);
-        }
-        for schema in &self.schemata {
-            let mut header = ArmorHeader::new(ASCII_ARMOR_SCHEMA, schema.name.to_string());
-            header
-                .params
-                .push((s!("id"), schema.schema_id().to_string()));
             headers.push(header);
         }
         headers.push(ArmorHeader::new(ASCII_ARMOR_TYPE_SYSTEM, self.types.id().to_string()));
