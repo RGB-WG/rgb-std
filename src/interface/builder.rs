@@ -1273,14 +1273,56 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             let state_data = TypedAssigns::Structured(state_data);
             (id, state_data)
         });
+        let owned_rights = self.rights.into_iter().map(|(id, vec)| {
+            let vec_data = vec.into_iter().map(|seal| match seal {
+                BuilderSeal::Revealed(seal) => Assign::Revealed {
+                    seal,
+                    state: none!(),
+                    lock: none!(),
+                },
+                BuilderSeal::Concealed(seal) => Assign::ConfidentialSeal {
+                    seal,
+                    state: none!(),
+                    lock: none!(),
+                },
+            });
+            let state_data = Confined::try_from_iter(vec_data).expect("at least one element");
+            let state_data = TypedAssigns::Declarative(state_data);
+            (id, state_data)
+        });
+        let owned_attachments = self.attachments.into_iter().map(|(id, vec)| {
+            let vec_data = vec.into_iter().map(|(seal, value)| match seal {
+                BuilderSeal::Revealed(seal) => Assign::Revealed {
+                    seal,
+                    state: value,
+                    lock: none!(),
+                },
+                BuilderSeal::Concealed(seal) => Assign::ConfidentialSeal {
+                    seal,
+                    state: value,
+                    lock: none!(),
+                },
+            });
+            let state_data = Confined::try_from_iter(vec_data).expect("at least one element");
+            let state_data = TypedAssigns::Attachment(state_data);
+            (id, state_data)
+        });
 
         let owned_state = Confined::try_from_iter(owned_state).expect("same size");
         let owned_data = Confined::try_from_iter(owned_data).expect("same size");
+        let owned_rights = Confined::try_from_iter(owned_rights).expect("same size");
+        let owned_attachments = Confined::try_from_iter(owned_attachments).expect("same size");
 
         let mut assignments = Assignments::from_inner(owned_state);
         assignments
             .extend(Assignments::from_inner(owned_data).into_inner())
-            .expect("");
+            .expect("too many assignments");
+        assignments
+            .extend(Assignments::from_inner(owned_rights).into_inner())
+            .expect("too many assignments");
+        assignments
+            .extend(Assignments::from_inner(owned_attachments).into_inner())
+            .expect("too many assignments");
 
         (self.schema, self.iface, self.iimpl, self.global, assignments, self.types, self.asset_tags)
     }
