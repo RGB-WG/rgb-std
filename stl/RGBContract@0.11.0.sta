@@ -1,8 +1,9 @@
 -----BEGIN STRICT TYPE LIB-----
-Id: urn:ubideco:stl:8Nxihgfg2yWzdoQAZYPf3QpfEnJ7HmwCWzN8cMQ5miK5#cantina-hexagon-baggage
+Id: 8Nxihgfg2yWzdoQAZYPf3QpfEnJ7HmwCWzN8cMQ5miK5#cantina-hexagon-baggage
 Name: RGBContract
-Dependency: EcCNgrgLaygt3tCZNu2ZVEzMzSAZYEUeTNAVi5E81YWi#aspirin-mango-average
-Dependency: HX2UBak8vPsTokug1DGMDvTpzns3xUdwZ7QJdyt4qBA9#speed-atlanta-trilogy
+Dependencies:
+	Std#EcCNgrgLaygt3tCZNu2ZVEzMzSAZYEUeTNAVi5E81YWi,
+	Bitcoin#HX2UBak8vPsTokug1DGMDvTpzns3xUdwZ7QJdyt4qBA9
 Checksum-SHA256: bbaa91443a548615fa7d425b87b7af3428b67ebecf029a360bbb8f7b5ce58761
 
 3sOfyLvL<$a$#e10?I5NZ-bfLFbqC#o>4E?M+l67UG^w8*<_XZ#%uyqCj(P-Wc6$

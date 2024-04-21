@@ -1,13 +1,14 @@
 -----BEGIN STRICT TYPE LIB-----
-Id: urn:ubideco:stl:HjK8eSCT2mMZWQmCS5BBWgjaq8BQp5og2yP6EXVnWqFH#alibi-gemini-brenda
+Id: HjK8eSCT2mMZWQmCS5BBWgjaq8BQp5og2yP6EXVnWqFH#alibi-gemini-brenda
 Name: RGBStd
-Dependency: 8UmJsi3csjCEFCEVXvjLeAgvmqxY52iY5EMfTvbyzWx2#energy-baboon-piano
-Dependency: ACBoDKVqDSuPrZLs2W2bLVj2TnpThzUMcJJrC3GhsQ79#idea-judo-benny
-Dependency: APYERRUMyWqLadwTv8tEFifHMPGpL3xGFSBxwaKYpmcV#square-mammal-uncle
-Dependency: EcCNgrgLaygt3tCZNu2ZVEzMzSAZYEUeTNAVi5E81YWi#aspirin-mango-average
-Dependency: FdtTxVxBBVXJaayVZoM1dhSHqszVHMenivcPd2v4PP1H#scoop-laptop-almanac
-Dependency: GCWLX5TjFmMDCJr5cxWtwoSajBWDWbkQVSuTNbrtD1tg#egypt-wedding-cupid
-Dependency: HX2UBak8vPsTokug1DGMDvTpzns3xUdwZ7QJdyt4qBA9#speed-atlanta-trilogy
+Dependencies:
+	BPCore#8UmJsi3csjCEFCEVXvjLeAgvmqxY52iY5EMfTvbyzWx2,
+	StrictTypes#ACBoDKVqDSuPrZLs2W2bLVj2TnpThzUMcJJrC3GhsQ79,
+	AluVM#APYERRUMyWqLadwTv8tEFifHMPGpL3xGFSBxwaKYpmcV,
+	Std#EcCNgrgLaygt3tCZNu2ZVEzMzSAZYEUeTNAVi5E81YWi,
+	RGB#FdtTxVxBBVXJaayVZoM1dhSHqszVHMenivcPd2v4PP1H,
+	CommitVerify#GCWLX5TjFmMDCJr5cxWtwoSajBWDWbkQVSuTNbrtD1tg,
+	Bitcoin#HX2UBak8vPsTokug1DGMDvTpzns3xUdwZ7QJdyt4qBA9
 Checksum-SHA256: 2fe317aeabf5966fc2d5d84a3a31732387b3875d40ea2000b6e80f4adf68912a
 
 22w{tQ*>kpZyuKUhrL_QB$OCu+VTUE>b16EcuX?V{EC+7E3Kt-20~CnZ*pabmdAK
