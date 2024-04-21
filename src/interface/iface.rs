@@ -432,10 +432,12 @@ impl Iface {
         &self,
         schema_ifaces: &'a SchemaIfaces,
     ) -> Option<&'a IfaceImpl> {
-        self.inherits
-            .iter()
-            .rev()
-            .find_map(move |parent| schema_ifaces.get(*parent))
+        schema_ifaces.get(self.iface_id()).or_else(|| {
+            self.inherits
+                .iter()
+                .rev()
+                .find_map(move |parent| schema_ifaces.get(*parent))
+        })
     }
 
     pub fn check(&self) -> Result<(), Vec<IfaceInconsistency>> {
