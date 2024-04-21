@@ -387,7 +387,7 @@ impl<const TRANSFER: bool> StrictArmor for Consignment<TRANSFER> {
     fn armor_id(&self) -> Self::Id { self.commit_id() }
     fn armor_headers(&self) -> Vec<ArmorHeader> {
         vec![
-            ArmorHeader::new(ASCII_ARMOR_VERSION, self.version.to_string()),
+            ArmorHeader::new(ASCII_ARMOR_VERSION, format!("{:#}", self.version)),
             ArmorHeader::new(
                 ASCII_ARMOR_CONSIGNMENT_TYPE,
                 if self.transfer {
