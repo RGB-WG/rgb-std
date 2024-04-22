@@ -914,8 +914,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             .sem_id;
         self.types.strict_deserialize_type(sem_id, &serialized)?;
 
-        self.global
-            .add_state(type_id, RevealedData::new_random_salt(serialized))?;
+        self.global.add_state(type_id, serialized.into())?;
 
         Ok(self)
     }

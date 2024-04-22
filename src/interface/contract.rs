@@ -258,9 +258,9 @@ impl ContractIface {
         let state = unsafe { self.state.global_unchecked(type_id) };
         let state = state
             .into_iter()
-            .map(|revealed| {
+            .map(|data| {
                 self.types
-                    .strict_deserialize_type(type_schema.sem_id, revealed.value.as_ref())
+                    .strict_deserialize_type(type_schema.sem_id, data.as_ref())
                     .map(TypedVal::unbox)
             })
             .take(type_schema.max_items as usize)
