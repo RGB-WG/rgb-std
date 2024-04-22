@@ -428,7 +428,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     fn contract_raw(
         &self,
         contract_id: ContractId,
-    ) -> Result<(&SchemaIfaces, &ContractHistory), StockError<S, H, P>> {
+    ) -> Result<(&SchemaIfaces, &ContractHistory, ContractInfo), StockError<S, H, P>> {
         let history = self
             .state
             .contract_state(contract_id)
@@ -436,14 +436,15 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             .ok_or(StockError::StateInconsistency(contract_id))?;
         let schema_id = history.schema_id();
         let schema_ifaces = self.stash.schema(schema_id)?;
-        Ok((schema_ifaces, history))
+        let info = ContractInfo::with(self.stash.genesis(contract_id)?);
+        Ok((schema_ifaces, history, info))
     }
 
     pub fn contract_state(
         &self,
         contract_id: ContractId,
     ) -> Result<ContractState, StockError<S, H, P>> {
-        let (schema_ifaces, history) = self.contract_raw(contract_id)?;
+        let (schema_ifaces, history, _) = self.contract_raw(contract_id)?;
         Ok(ContractState {
             schema: schema_ifaces.schema.clone(),
             history: history.clone(),
@@ -454,7 +455,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         &self,
         contract_id: ContractId,
     ) -> Result<C, StockError<S, H, P, ContractIfaceError>> {
-        let (schema_ifaces, history) = self.contract_raw(contract_id)?;
+        let (schema_ifaces, history, info) = self.contract_raw(contract_id)?;
         let iimpl = self.stash.impl_for::<C>(schema_ifaces)?;
 
         let iface = self.stash.iface(iimpl.iface_id)?;
@@ -468,6 +469,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             state,
             iface: iimpl.clone(),
             types,
+            info,
         }
         .into())
     }
@@ -478,7 +480,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         contract_id: ContractId,
         iface: impl Into<IfaceRef>,
     ) -> Result<ContractIface, StockError<S, H, P, ContractIfaceError>> {
-        let (schema_ifaces, history) = self.contract_raw(contract_id)?;
+        let (schema_ifaces, history, info) = self.contract_raw(contract_id)?;
         let iface = self.stash.iface(iface)?;
         let iface_id = iface.iface_id();
 
@@ -496,6 +498,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             state,
             iface: iimpl.clone(),
             types,
+            info,
         })
     }
 

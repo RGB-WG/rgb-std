@@ -23,7 +23,7 @@ use std::collections::HashMap;
 use std::fmt::{self, Display, Formatter, Write};
 
 use chrono::{DateTime, TimeZone, Utc};
-use rgb::{ContractId, Genesis, Identity, Operation, SchemaId};
+use rgb::{AltLayer1Set, ContractId, Genesis, Identity, Operation, SchemaId};
 use strict_encoding::{FieldName, TypeName};
 
 use crate::interface::{Iface, IfaceId, IfaceImpl, IfaceRef, ImplId, VerNo};
@@ -189,7 +189,7 @@ impl Display for ImplInfo {
     }
 }
 
-#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
@@ -200,6 +200,8 @@ pub struct ContractInfo {
     pub schema_id: SchemaId,
     pub issuer: Identity,
     pub issued_at: DateTime<Utc>,
+    pub testnet: bool,
+    pub alt_layers1: AltLayer1Set,
 }
 
 impl ContractInfo {
@@ -212,6 +214,8 @@ impl ContractInfo {
                 .timestamp_opt(genesis.timestamp, 0)
                 .single()
                 .unwrap_or_else(Utc::now),
+            testnet: genesis.testnet,
+            alt_layers1: genesis.alt_layers1.clone(),
         }
     }
 }
@@ -220,10 +224,19 @@ impl Display for ContractInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{: <18}", self.issuer.to_string())?;
         f.write_char(f.fill())?;
-        write!(f, "{}", self.issued_at.format("%Y-%m-%d"))?;
-        f.write_char(f.fill())?;
         write!(f, "{: <80}", self.id.to_string())?;
         f.write_char(f.fill())?;
-        writeln!(f, "{: <80}", self.schema_id)
+        write!(
+            f,
+            "bitcoin{: <8}",
+            self.alt_layers1
+                .iter()
+                .map(|layer| format!(", {layer}"))
+                .collect::<String>()
+        )?;
+        f.write_char(f.fill())?;
+        write!(f, "{}", self.issued_at.format("%Y-%m-%d"))?;
+        f.write_char(f.fill())?;
+        writeln!(f, "{}", self.schema_id)
     }
 }

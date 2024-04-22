@@ -32,6 +32,7 @@ use strict_encoding::{FieldName, StrictDecode, StrictDumb, StrictEncode};
 use strict_types::typify::TypedVal;
 use strict_types::{decode, StrictVal, TypeSystem};
 
+use crate::info::ContractInfo;
 use crate::interface::{IfaceImpl, OutpointFilter, WitnessFilter};
 use crate::LIB_NAME_RGB_STD;
 
@@ -232,6 +233,7 @@ pub struct ContractIface {
     pub state: ContractState,
     pub iface: IfaceImpl,
     pub types: TypeSystem,
+    pub info: ContractInfo,
 }
 
 // TODO: Introduce witness checker: additional filter returning only those data
