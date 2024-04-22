@@ -5,7 +5,7 @@ version = 3
 [[package]]
 name = "aluvm"
 version = "0.11.0-beta.5"
-source = "git+https://github.com/AluVM/rust-aluvm?branch=develop#d21a5bec78917e61f569ce0da58852bccd92642a"
+source = "git+https://github.com/AluVM/rust-aluvm?branch=develop#75782d845e29ba9afcb9dab967513932f73ccf49"
 dependencies = [
  "amplify",
  "ascii-armor 0.2.0",
@@ -243,7 +243,7 @@ dependencies = [
 [[package]]
 name = "bp-consensus"
 version = "0.11.0-beta.5"
-source = "git+https://github.com/BP-WG/bp-core?branch=develop#fb281e3b2d81a9aee7d393b6c574a3a4f62ad132"
+source = "git+https://github.com/BP-WG/bp-core?branch=develop#91e195d45a24c3e5623f0cbe0738ea2fca315bae"
 dependencies = [
  "amplify",
  "chrono",
@@ -257,7 +257,7 @@ dependencies = [
 [[package]]
 name = "bp-core"
 version = "0.11.0-beta.5"
-source = "git+https://github.com/BP-WG/bp-core?branch=develop#fb281e3b2d81a9aee7d393b6c574a3a4f62ad132"
+source = "git+https://github.com/BP-WG/bp-core?branch=develop#91e195d45a24c3e5623f0cbe0738ea2fca315bae"
 dependencies = [
  "amplify",
  "bp-consensus",
@@ -275,7 +275,7 @@ dependencies = [
 [[package]]
 name = "bp-dbc"
 version = "0.11.0-beta.5"
-source = "git+https://github.com/BP-WG/bp-core?branch=develop#fb281e3b2d81a9aee7d393b6c574a3a4f62ad132"
+source = "git+https://github.com/BP-WG/bp-core?branch=develop#91e195d45a24c3e5623f0cbe0738ea2fca315bae"
 dependencies = [
  "amplify",
  "base85",
@@ -301,7 +301,7 @@ dependencies = [
 [[package]]
 name = "bp-seals"
 version = "0.11.0-beta.5"
-source = "git+https://github.com/BP-WG/bp-core?branch=develop#fb281e3b2d81a9aee7d393b6c574a3a4f62ad132"
+source = "git+https://github.com/BP-WG/bp-core?branch=develop#91e195d45a24c3e5623f0cbe0738ea2fca315bae"
 dependencies = [
  "amplify",
  "baid58",
@@ -659,7 +659,7 @@ dependencies = [
 [[package]]
 name = "rgb-core"
 version = "0.11.0-beta.5"
-source = "git+https://github.com/RGB-WG/rgb-core?branch=develop#648bb45ab4dd4c000e8ba1872a2a7ce47cd2217e"
+source = "git+https://github.com/RGB-WG/rgb-core?branch=develop#9b34f1bd14c7b82b050c6932966b8956d569ce02"
 dependencies = [
  "aluvm",
  "amplify",

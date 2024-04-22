@@ -28,8 +28,8 @@ use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
 use chrono::{DateTime, TimeZone, Utc};
 use commit_verify::{CommitId, CommitmentId, DigestExt, Sha256};
 use rgb::{
-    AssignmentType, ExtensionType, GlobalStateType, Identity, MetaType, Schema, SchemaId,
-    TransitionType, ValencyType,
+    impl_serde_baid58, AssignmentType, ExtensionType, GlobalStateType, Identity, MetaType, Schema,
+    SchemaId, TransitionType, ValencyType,
 };
 use strict_encoding::{FieldName, StrictDumb, VariantName};
 use strict_types::encoding::{StrictDecode, StrictEncode, StrictType};
@@ -57,11 +57,6 @@ impl SchemaTypeIndex for TransitionType {}
 #[wrapper(Deref, BorrowSlice, Hex, Index, RangeOps)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", transparent)
-)]
 pub struct ImplId(
     #[from]
     #[from([u8; 32])]
@@ -104,6 +99,8 @@ impl FromStr for ImplId {
 impl ImplId {
     pub fn to_mnemonic(&self) -> String { self.to_baid58().mnemonic() }
 }
+
+impl_serde_baid58!(ImplId);
 
 /// Maps certain form of type id (global or owned state or a valency) to a
 /// human-readable name.

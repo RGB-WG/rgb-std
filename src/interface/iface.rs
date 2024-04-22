@@ -30,7 +30,7 @@ use amplify::{ByteArray, Bytes32};
 use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
 use chrono::{DateTime, TimeZone, Utc};
 use commit_verify::{CommitId, CommitmentId, DigestExt, Sha256};
-use rgb::{Identity, Occurrences};
+use rgb::{impl_serde_baid58, Identity, Occurrences};
 use strict_encoding::{
     FieldName, StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize,
     StrictType, TypeName, VariantName,
@@ -48,11 +48,6 @@ use crate::LIB_NAME_RGB_STD;
 #[wrapper(Deref, BorrowSlice, Hex, Index, RangeOps)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", transparent)
-)]
 pub struct IfaceId(
     #[from]
     #[from([u8; 32])]
@@ -96,6 +91,8 @@ impl IfaceId {
     pub const fn from_array(id: [u8; 32]) -> Self { IfaceId(Bytes32::from_array(id)) }
     pub fn to_mnemonic(&self) -> String { self.to_baid58().mnemonic() }
 }
+
+impl_serde_baid58!(IfaceId);
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Display, From)]
 #[display(inner)]

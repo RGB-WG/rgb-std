@@ -35,8 +35,8 @@ use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
 use commit_verify::{CommitEncode, CommitEngine, CommitId, CommitmentId, DigestExt, Sha256};
 use rgb::validation::{ResolveWitness, Validator, Validity, Warning, CONSIGNMENT_MAX_LIBS};
 use rgb::{
-    validation, AttachId, BundleId, ContractHistory, ContractId, Extension, Genesis, GraphSeal,
-    Operation, Schema, SchemaId, XChain,
+    impl_serde_baid58, validation, AttachId, BundleId, ContractHistory, ContractId, Extension,
+    Genesis, GraphSeal, Operation, Schema, SchemaId, XChain,
 };
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 use strict_types::TypeSystem;
@@ -61,11 +61,6 @@ pub type Contract = Consignment<false>;
 #[wrapper(Deref, BorrowSlice, Hex, Index, RangeOps)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", transparent)
-)]
 pub struct ConsignmentId(
     #[from]
     #[from([u8; 32])]
@@ -109,6 +104,8 @@ impl ConsignmentId {
     pub const fn from_array(id: [u8; 32]) -> Self { Self(Bytes32::from_array(id)) }
     pub fn to_mnemonic(&self) -> String { self.to_baid58().mnemonic() }
 }
+
+impl_serde_baid58!(ConsignmentId);
 
 pub type ValidContract = ValidConsignment<false>;
 pub type ValidTransfer = ValidConsignment<true>;

@@ -30,7 +30,7 @@ use amplify::Bytes32;
 use armor::{ArmorHeader, AsciiArmor, StrictArmor};
 use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
 use commit_verify::{CommitEncode, CommitEngine, CommitId, CommitmentId, DigestExt, Sha256};
-use rgb::{validation, Schema};
+use rgb::{impl_serde_baid58, validation, Schema};
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 use strict_types::TypeSystem;
 
@@ -49,11 +49,6 @@ use crate::LIB_NAME_RGB_STD;
 #[wrapper(Deref, BorrowSlice, Hex, Index, RangeOps)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", transparent)
-)]
 pub struct KitId(
     #[from]
     #[from([u8; 32])]
@@ -97,6 +92,8 @@ impl KitId {
     pub const fn from_array(id: [u8; 32]) -> Self { KitId(Bytes32::from_array(id)) }
     pub fn to_mnemonic(&self) -> String { self.to_baid58().mnemonic() }
 }
+
+impl_serde_baid58!(KitId);
 
 #[derive(Clone, Debug, Display)]
 #[display("{kit}")]
