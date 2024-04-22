@@ -34,8 +34,8 @@ use commit_verify::Conceal;
 use invoice::{Amount, Beneficiary, InvoiceState, NonFungible, RgbInvoice};
 use rgb::{
     validation, AssignmentType, BlindingFactor, BundleId, ContractHistory, ContractId,
-    ContractState, DbcProof, EAnchor, GraphSeal, OpId, Operation, Opout, SchemaId, SecretSeal,
-    Transition, WitnessAnchor, XChain, XOutpoint, XOutputSeal, XWitnessId,
+    ContractState, DbcProof, EAnchor, GraphSeal, Identity, OpId, Operation, Opout, SchemaId,
+    SecretSeal, Transition, WitnessAnchor, XChain, XOutpoint, XOutputSeal, XWitnessId,
 };
 use strict_encoding::FieldName;
 
@@ -574,10 +574,13 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
     pub fn contract_builder(
         &self,
+        issuer: impl Into<Identity>,
         schema_id: SchemaId,
         iface: impl Into<IfaceRef>,
     ) -> Result<ContractBuilder, StockError<S, H, P>> {
-        Ok(self.stash.contract_builder(schema_id, iface)?)
+        Ok(self
+            .stash
+            .contract_builder(issuer.into(), schema_id, iface)?)
     }
 
     pub fn transition_builder(

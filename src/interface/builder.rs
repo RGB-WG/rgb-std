@@ -31,8 +31,9 @@ use rgb::validation::Scripts;
 use rgb::{
     validation, AltLayer1, AltLayer1Set, AssetTag, AssetTags, Assign, AssignmentType, Assignments,
     BlindingFactor, ContractId, DataState, ExposedSeal, FungibleType, Genesis, GenesisSeal,
-    GlobalState, GraphSeal, Input, Layer1, Opout, OwnedStateSchema, RevealedAttach, RevealedData,
-    RevealedValue, Schema, Transition, TransitionType, TypedAssigns, XChain, XOutpoint,
+    GlobalState, GraphSeal, Identity, Input, Layer1, Opout, OwnedStateSchema, RevealedAttach,
+    RevealedData, RevealedValue, Schema, Transition, TransitionType, TypedAssigns, XChain,
+    XOutpoint,
 };
 use strict_encoding::{FieldName, SerializeError, StrictSerialize};
 use strict_types::{decode, TypeSystem};
@@ -135,10 +136,12 @@ pub struct ContractBuilder {
     testnet: bool,
     alt_layers1: AltLayer1Set,
     scripts: Scripts,
+    issuer: Identity,
 }
 
 impl ContractBuilder {
     pub fn with(
+        issuer: Identity,
         iface: Iface,
         schema: Schema,
         iimpl: IfaceImpl,
@@ -150,10 +153,12 @@ impl ContractBuilder {
             testnet: true,
             alt_layers1: none!(),
             scripts,
+            issuer,
         }
     }
 
     pub fn deterministic(
+        issuer: Identity,
         iface: Iface,
         schema: Schema,
         iimpl: IfaceImpl,
@@ -165,6 +170,7 @@ impl ContractBuilder {
             testnet: true,
             alt_layers1: none!(),
             scripts,
+            issuer,
         }
     }
 
@@ -356,8 +362,7 @@ impl ContractBuilder {
             globals: global,
             assignments,
             valencies: none!(),
-            // TODO: Add APIs for providing issuer information
-            issuer: none!(),
+            issuer: self.issuer,
             validator: none!(),
         };
 
