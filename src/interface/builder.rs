@@ -927,8 +927,8 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
     ) -> Result<Self, BuilderError> {
         debug_assert!(
             self.deterministic,
-            "to add owned state in deterministic way the builder has to be created using `*_det` \
-             constructor"
+            "to add owned state in deterministic way the builder has to be created using \
+             deterministic constructor"
         );
         let name = name.into();
         let type_id = self
@@ -1034,8 +1034,8 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
     ) -> Result<Self, BuilderError> {
         debug_assert!(
             self.deterministic,
-            "to add owned state in deterministic way the builder has to be created using `*_det` \
-             constructor"
+            "to add owned state in deterministic way the builder has to be created using \
+             deterministic constructor"
         );
 
         let name = name.into();
@@ -1101,8 +1101,8 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
     ) -> Result<Self, BuilderError> {
         debug_assert!(
             self.deterministic,
-            "to add owned state in deterministic way the builder has to be created using `*_det` \
-             constructor"
+            "to add owned state in deterministic way the builder has to be created using \
+             deterministic constructor"
         );
 
         let name = name.into();
@@ -1168,8 +1168,8 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
     ) -> Result<Self, BuilderError> {
         debug_assert!(
             self.deterministic,
-            "to add owned state in deterministic way the builder has to be created using `*_det` \
-             constructor"
+            "to add owned state in deterministic way the builder has to be created using \
+             deterministic constructor"
         );
 
         let name = name.into();
