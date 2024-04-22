@@ -119,8 +119,8 @@ impl StashReadProvider for MemStash {
             .ok_or_else(|| StashInconsistency::SchemaAbsent(schema_id).into())
     }
 
-    fn contract_ids(&self) -> Result<impl Iterator<Item = ContractId>, Self::Error> {
-        Ok(self.geneses.keys().copied())
+    fn geneses(&self) -> Result<impl Iterator<Item = &Genesis>, Self::Error> {
+        Ok(self.geneses.values())
     }
 
     fn contract_ids_by_iface(

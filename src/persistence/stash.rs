@@ -208,14 +208,10 @@ impl<P: StashProvider> Stash<P> {
     pub(super) fn schema(&self, schema_id: SchemaId) -> Result<&SchemaIfaces, StashError<P>> {
         Ok(self.provider.schema(schema_id)?)
     }
-    pub(super) fn contract_ids(
-        &self,
-    ) -> Result<impl Iterator<Item = ContractId> + '_, StashError<P>> {
-        self.provider
-            .contract_ids()
-            .map_err(StashError::ReadProvider)
-    }
 
+    pub(super) fn geneses(&self) -> Result<impl Iterator<Item = &Genesis> + '_, StashError<P>> {
+        self.provider.geneses().map_err(StashError::ReadProvider)
+    }
     pub(super) fn genesis(&self, contract_id: ContractId) -> Result<&Genesis, StashError<P>> {
         Ok(self.provider.genesis(contract_id)?)
     }
@@ -579,7 +575,6 @@ pub trait StashReadProvider {
     fn schemata(&self) -> Result<impl Iterator<Item = &SchemaIfaces>, Self::Error>;
     fn schema(&self, schema_id: SchemaId) -> Result<&SchemaIfaces, ProviderError<Self::Error>>;
 
-    fn contract_ids(&self) -> Result<impl Iterator<Item = ContractId>, Self::Error>;
     fn contract_ids_by_iface(
         &self,
         iface: impl Into<IfaceRef>,
@@ -596,6 +591,7 @@ pub trait StashReadProvider {
         contract_id: ContractId,
     ) -> Result<impl Iterator<Item = ContractSuppl>, Self::Error>;
 
+    fn geneses(&self) -> Result<impl Iterator<Item = &Genesis>, Self::Error>;
     fn genesis(&self, contract_id: ContractId) -> Result<&Genesis, ProviderError<Self::Error>>;
     fn witness_ids(&self) -> Result<impl Iterator<Item = XWitnessId>, Self::Error>;
     fn bundle_ids(&self) -> Result<impl Iterator<Item = BundleId>, Self::Error>;

@@ -50,7 +50,7 @@ use crate::containers::{
     Contract, Fascia, Kit, PubWitness, SealWitness, Terminal, TerminalSeal, Transfer,
     TransitionInfo, TransitionInfoError, ValidConsignment, ValidContract, ValidKit, ValidTransfer,
 };
-use crate::info::{IfaceInfo, SchemaInfo};
+use crate::info::{ContractInfo, IfaceInfo, SchemaInfo};
 use crate::interface::resolver::DumbResolver;
 use crate::interface::{
     BuilderError, ContractBuilder, ContractIface, Iface, IfaceClass, IfaceId, IfaceRef,
@@ -395,10 +395,10 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         Ok(self.stash.schema(schema_id)?)
     }
 
-    pub fn contract_ids(
+    pub fn contracts(
         &self,
-    ) -> Result<impl Iterator<Item = ContractId> + '_, StockError<S, H, P>> {
-        Ok(self.stash.contract_ids()?)
+    ) -> Result<impl Iterator<Item = ContractInfo> + '_, StockError<S, H, P>> {
+        Ok(self.stash.geneses()?.map(ContractInfo::with))
     }
 
     pub fn contracts_by<C: IfaceClass>(
