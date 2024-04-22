@@ -47,7 +47,6 @@ pub struct IfaceInfo {
 
 impl IfaceInfo {
     pub fn with(iface: &Iface, names: &HashMap<IfaceId, TypeName>) -> Self {
-        eprintln!("{:#?}", names);
         IfaceInfo {
             id: iface.iface_id(),
             version: iface.version,
