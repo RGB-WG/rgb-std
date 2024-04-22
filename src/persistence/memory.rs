@@ -38,13 +38,13 @@ use strict_encoding::{StrictDeserialize, StrictSerialize};
 use strict_types::TypeSystem;
 
 use super::{
-    IndexInconsistency, IndexProvider, IndexReadError, IndexReadProvider, IndexWriteError,
-    IndexWriteProvider, SchemaIfaces, StashInconsistency, StashProvider, StashProviderError,
-    StashReadProvider, StashWriteProvider, StateProvider, StateReadProvider, StateUpdateError,
-    StateWriteProvider,
+    ContractIfaceError, IndexInconsistency, IndexProvider, IndexReadError, IndexReadProvider,
+    IndexWriteError, IndexWriteProvider, SchemaIfaces, StashInconsistency, StashProvider,
+    StashProviderError, StashReadProvider, StashWriteProvider, StateProvider, StateReadProvider,
+    StateUpdateError, StateWriteProvider,
 };
 use crate::containers::{AnchorSet, ContentId, ContentSigs, SealWitness, SigBlob};
-use crate::interface::{ContractSuppl, Iface, IfaceId, IfaceImpl, IfaceRef};
+use crate::interface::{ContractSuppl, Iface, IfaceClass, IfaceId, IfaceImpl, IfaceRef};
 use crate::resolvers::ResolveHeight;
 use crate::LIB_NAME_RGB_STD;
 
@@ -109,6 +109,37 @@ impl StashReadProvider for MemStash {
     fn schemata(&self) -> Result<impl Iterator<Item = &SchemaIfaces>, Self::Error> {
         Ok(self.schemata.values())
     }
+    fn schemata_by<C: IfaceClass>(
+        &self,
+    ) -> Result<impl Iterator<Item = &SchemaIfaces>, Self::Error> {
+        Ok(self
+            .schemata
+            .values()
+            .filter(|schema_ifaces| self.impl_for::<C>(schema_ifaces).is_ok()))
+    }
+
+    fn impl_for<'a, C: IfaceClass + 'a>(
+        &'a self,
+        schema_ifaces: &'a SchemaIfaces,
+    ) -> Result<&'a IfaceImpl, StashProviderError<Self::Error>> {
+        schema_ifaces
+            .iimpls
+            .values()
+            .find(|iimpl| C::IFACE_IDS.contains(&iimpl.iface_id))
+            .or_else(|| {
+                schema_ifaces.iimpls.keys().find_map(|id| {
+                    let iface = self.iface(id.clone()).ok()?;
+                    iface.find_abstractable_impl(schema_ifaces)
+                })
+            })
+            .ok_or_else(move || {
+                ContractIfaceError::NoAbstractImpl(
+                    C::IFACE_IDS[0],
+                    schema_ifaces.schema.schema_id(),
+                )
+                .into()
+            })
+    }
 
     fn schema(
         &self,
@@ -117,30 +148,6 @@ impl StashReadProvider for MemStash {
         self.schemata
             .get(&schema_id)
             .ok_or_else(|| StashInconsistency::SchemaAbsent(schema_id).into())
-    }
-
-    fn geneses(&self) -> Result<impl Iterator<Item = &Genesis>, Self::Error> {
-        Ok(self.geneses.values())
-    }
-
-    fn contract_ids_by_iface(
-        &self,
-        iface: impl Into<IfaceRef>,
-    ) -> Result<impl Iterator<Item = ContractId>, StashProviderError<Self::Error>> {
-        let iface = self.iface(iface)?;
-        let iface_id = iface.iface_id();
-        let schemata = self
-            .schemata
-            .iter()
-            .filter(|(_, iface)| iface.contains(iface_id))
-            .map(|(schema_id, _)| schema_id)
-            .collect::<BTreeSet<_>>();
-        Ok(self
-            .geneses
-            .iter()
-            .filter(move |(_, genesis)| schemata.contains(&genesis.schema_id))
-            .map(|(contract_id, _)| contract_id)
-            .copied())
     }
 
     fn contract_supplements(
@@ -153,6 +160,18 @@ impl StashReadProvider for MemStash {
             .cloned()
             .unwrap_or_default()
             .into_iter())
+    }
+
+    fn geneses(&self) -> Result<impl Iterator<Item = &Genesis>, Self::Error> {
+        Ok(self.geneses.values())
+    }
+
+    fn geneses_by<C: IfaceClass>(&self) -> Result<impl Iterator<Item = &Genesis>, Self::Error> {
+        Ok(self.schemata_by::<C>()?.flat_map(|schema_ifaces| {
+            self.geneses
+                .values()
+                .filter(|genesis| schema_ifaces.schema.schema_id() == genesis.schema_id)
+        }))
     }
 
     fn genesis(

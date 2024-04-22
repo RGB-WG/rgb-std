@@ -401,11 +401,11 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         Ok(self.stash.geneses()?.map(ContractInfo::with))
     }
 
-    pub fn contracts_by<C: IfaceClass>(
-        &self,
-    ) -> Result<impl Iterator<Item = C::Info> + '_, StockError<S, H, P>> {
-        Ok(self.stash.contracts_by::<C>()?.filter_map(|id| {
-            self.contract_iface_class::<C>(id)
+    pub fn contracts_by<'a, C: IfaceClass + 'a>(
+        &'a self,
+    ) -> Result<impl Iterator<Item = C::Info> + 'a, StockError<S, H, P>> {
+        Ok(self.stash.geneses_by::<C>()?.filter_map(|genesis| {
+            self.contract_iface_class::<C>(genesis.contract_id())
                 .as_ref()
                 .map(C::info)
                 .ok()
@@ -455,22 +455,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         contract_id: ContractId,
     ) -> Result<C, StockError<S, H, P, ContractIfaceError>> {
         let (schema_ifaces, history) = self.contract_raw(contract_id)?;
-        let iimpl = schema_ifaces
-            .iimpls
-            .values()
-            .find(|iimpl| C::IFACE_IDS.contains(&iimpl.iface_id))
-            .or_else(|| {
-                schema_ifaces.iimpls.keys().find_map(|id| {
-                    let iface = self.stash.iface(id.clone()).ok()?;
-                    iface.find_abstractable_impl(schema_ifaces)
-                })
-            })
-            .ok_or_else(|| {
-                ContractIfaceError::NoAbstractImpl(
-                    C::IFACE_IDS[0],
-                    schema_ifaces.schema.schema_id(),
-                )
-            })?;
+        let iimpl = self.stash.impl_for::<C>(schema_ifaces)?;
 
         let iface = self.stash.iface(iimpl.iface_id)?;
         let (types, _) = self.stash.extract(&schema_ifaces.schema, [iface])?;

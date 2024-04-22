@@ -42,6 +42,7 @@ use crate::interface::{
     ContractBuilder, ContractSuppl, Iface, IfaceClass, IfaceId, IfaceImpl, IfaceRef,
     TransitionBuilder,
 };
+use crate::persistence::ContractIfaceError;
 use crate::{MergeReveal, MergeRevealError, SecretSeal, LIB_NAME_RGB_STD};
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
@@ -73,6 +74,8 @@ pub enum StashError<P: StashProvider> {
 pub enum ProviderError<E: Error> {
     #[from]
     Inconsistency(StashInconsistency),
+    #[from]
+    Iface(ContractIfaceError),
     Connectivity(E),
 }
 
@@ -81,6 +84,7 @@ impl<P: StashProvider> From<ProviderError<<P as StashReadProvider>::Error>> for 
         match err {
             ProviderError::Inconsistency(e) => StashError::Inconsistency(e),
             ProviderError::Connectivity(e) => StashError::ReadProvider(e),
+            ProviderError::Iface(e) => StashError::Data(StashDataError::NoAbstractIface(e)),
         }
     }
 }
@@ -141,6 +145,10 @@ pub enum StashDataError {
 
     /// schema {0} doesn't implement interface {1}.
     NoIfaceImpl(SchemaId, IfaceId),
+
+    #[from]
+    #[display(inner)]
+    NoAbstractIface(ContractIfaceError),
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -208,9 +216,22 @@ impl<P: StashProvider> Stash<P> {
     pub(super) fn schema(&self, schema_id: SchemaId) -> Result<&SchemaIfaces, StashError<P>> {
         Ok(self.provider.schema(schema_id)?)
     }
+    pub(super) fn impl_for<'a, C: IfaceClass + 'a>(
+        &'a self,
+        schema_ifaces: &'a SchemaIfaces,
+    ) -> Result<&'a IfaceImpl, StashError<P>> {
+        Ok(self.provider.impl_for::<C>(schema_ifaces)?)
+    }
 
     pub(super) fn geneses(&self) -> Result<impl Iterator<Item = &Genesis> + '_, StashError<P>> {
         self.provider.geneses().map_err(StashError::ReadProvider)
+    }
+    pub(super) fn geneses_by<'a, C: IfaceClass + 'a>(
+        &'a self,
+    ) -> Result<impl Iterator<Item = &'a Genesis> + 'a, StashError<P>> {
+        self.provider
+            .geneses_by::<C>()
+            .map_err(StashError::ReadProvider)
     }
     pub(super) fn genesis(&self, contract_id: ContractId) -> Result<&Genesis, StashError<P>> {
         Ok(self.provider.genesis(contract_id)?)
@@ -222,14 +243,6 @@ impl<P: StashProvider> Stash<P> {
         Ok(self.provider.witness(witness_id)?)
     }
 
-    pub(super) fn contracts_by<C: IfaceClass>(
-        &self,
-    ) -> Result<impl Iterator<Item = ContractId> + '_, StashError<P>> {
-        Ok(C::IFACE_IDS
-            .iter()
-            .filter_map(|id| self.provider.contract_ids_by_iface(*id).ok())
-            .flatten())
-    }
     pub(super) fn contract_supplements(
         &self,
         contract_id: ContractId,
@@ -574,11 +587,17 @@ pub trait StashReadProvider {
     fn iface(&self, iface: impl Into<IfaceRef>) -> Result<&Iface, ProviderError<Self::Error>>;
     fn schemata(&self) -> Result<impl Iterator<Item = &SchemaIfaces>, Self::Error>;
     fn schema(&self, schema_id: SchemaId) -> Result<&SchemaIfaces, ProviderError<Self::Error>>;
-
-    fn contract_ids_by_iface(
+    fn schemata_by<C: IfaceClass>(
         &self,
-        iface: impl Into<IfaceRef>,
-    ) -> Result<impl Iterator<Item = ContractId>, ProviderError<Self::Error>>;
+    ) -> Result<impl Iterator<Item = &SchemaIfaces>, Self::Error>;
+    fn impl_for<'a, C: IfaceClass + 'a>(
+        &'a self,
+        schema_ifaces: &'a SchemaIfaces,
+    ) -> Result<&'a IfaceImpl, ProviderError<Self::Error>>;
+    fn geneses(&self) -> Result<impl Iterator<Item = &Genesis>, Self::Error>;
+    fn geneses_by<C: IfaceClass>(&self) -> Result<impl Iterator<Item = &Genesis>, Self::Error>;
+    fn genesis(&self, contract_id: ContractId) -> Result<&Genesis, ProviderError<Self::Error>>;
+
     fn contract_schema(
         &self,
         contract_id: ContractId,
@@ -591,8 +610,6 @@ pub trait StashReadProvider {
         contract_id: ContractId,
     ) -> Result<impl Iterator<Item = ContractSuppl>, Self::Error>;
 
-    fn geneses(&self) -> Result<impl Iterator<Item = &Genesis>, Self::Error>;
-    fn genesis(&self, contract_id: ContractId) -> Result<&Genesis, ProviderError<Self::Error>>;
     fn witness_ids(&self) -> Result<impl Iterator<Item = XWitnessId>, Self::Error>;
     fn bundle_ids(&self) -> Result<impl Iterator<Item = BundleId>, Self::Error>;
     fn bundle(&self, bundle_id: BundleId) -> Result<&TransitionBundle, ProviderError<Self::Error>>;
