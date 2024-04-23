@@ -18,6 +18,11 @@
         };
 
         cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
+
+        nightlyWithWasm = pkgs.rust-bin.nightly.latest.default.override {
+          extensions = [ ];
+          targets = [ "wasm32-unknown-unknown" ];
+        };
       in
       with pkgs;
       {
@@ -45,6 +50,14 @@
           nightly = mkShell {
             buildInputs = [
               rust-bin.nightly.latest.default
+            ];
+          };
+
+          wasm = mkShell {
+            buildInputs = [
+              nightlyWithWasm
+              chromedriver
+              wasm-pack
             ];
           };
         };
