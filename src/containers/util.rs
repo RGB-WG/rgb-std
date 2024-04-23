@@ -26,8 +26,8 @@ use commit_verify::StrictHash;
 use rgb::{BundleId, ContractId, Identity, SchemaId, XChain};
 use strict_encoding::StrictDumb;
 
-use super::TerminalSeal;
-use crate::interface::{IfaceId, ImplId, SupplId};
+use super::{SupplId, TerminalSeal};
+use crate::interface::{IfaceId, ImplId};
 use crate::{SecretSeal, LIB_NAME_RGB_STD};
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
@@ -87,7 +87,7 @@ pub enum ContainerVer {
     V2 = 2,
 }
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 #[derive(StrictType, strict_encoding::StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD, tags = order, dumb = ContentId::Schema(strict_dumb!()))]
 #[cfg_attr(

@@ -27,7 +27,6 @@ mod iface;
 mod iimpl;
 mod contract;
 mod builder;
-mod suppl;
 mod filters;
 pub(crate) mod resolver;
 mod contractum;
@@ -46,7 +45,6 @@ pub use iface::{
 };
 pub use iimpl::{IfaceImpl, ImplId, NamedField, NamedType, NamedVariant, SchemaTypeIndex};
 pub use inheritance::{CheckInheritance, ExtensionError, InheritanceFailure};
-pub use suppl::{ContractSuppl, OwnedStateSuppl, SupplId, TickerSuppl, VelocityHint};
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]

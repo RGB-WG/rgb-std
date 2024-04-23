@@ -43,8 +43,10 @@ use super::{
     StashProviderError, StashReadProvider, StashWriteProvider, StateProvider, StateReadProvider,
     StateUpdateError, StateWriteProvider,
 };
-use crate::containers::{AnchorSet, ContentId, ContentSigs, SealWitness, SigBlob};
-use crate::interface::{ContractSuppl, Iface, IfaceClass, IfaceId, IfaceImpl, IfaceRef};
+use crate::containers::{
+    AnchorSet, ContentId, ContentRef, ContentSigs, SealWitness, SigBlob, Supplement,
+};
+use crate::interface::{Iface, IfaceClass, IfaceId, IfaceImpl, IfaceRef};
 use crate::resolvers::ResolveHeight;
 use crate::LIB_NAME_RGB_STD;
 
@@ -61,7 +63,7 @@ pub struct MemStash {
     schemata: TinyOrdMap<SchemaId, SchemaIfaces>,
     ifaces: TinyOrdMap<IfaceId, Iface>,
     geneses: TinyOrdMap<ContractId, Genesis>,
-    suppl: TinyOrdMap<ContractId, TinyOrdSet<ContractSuppl>>,
+    suppl: TinyOrdMap<ContentRef, TinyOrdSet<Supplement>>,
     bundles: LargeOrdMap<BundleId, TransitionBundle>,
     extensions: LargeOrdMap<OpId, Extension>,
     witnesses: LargeOrdMap<XWitnessId, SealWitness>,
@@ -150,13 +152,13 @@ impl StashReadProvider for MemStash {
             .ok_or_else(|| StashInconsistency::SchemaAbsent(schema_id).into())
     }
 
-    fn contract_supplements(
+    fn supplements(
         &self,
-        contract_id: ContractId,
-    ) -> Result<impl Iterator<Item = ContractSuppl>, Self::Error> {
+        content_ref: ContentRef,
+    ) -> Result<impl Iterator<Item = Supplement>, Self::Error> {
         Ok(self
             .suppl
-            .get(&contract_id)
+            .get(&content_ref)
             .cloned()
             .unwrap_or_default()
             .into_iter())
@@ -285,11 +287,10 @@ impl StashWriteProvider for MemStash {
         Ok(!present)
     }
 
-    fn add_suppl(&mut self, suppl: ContractSuppl) -> Result<(), confinement::Error> {
-        match self.suppl.get_mut(&suppl.contract_id) {
+    fn add_suppl(&mut self, suppl: Supplement) -> Result<(), confinement::Error> {
+        match self.suppl.get_mut(&suppl.content_id) {
             None => {
-                self.suppl
-                    .insert(suppl.contract_id, confined_bset![suppl])?;
+                self.suppl.insert(suppl.content_id, confined_bset![suppl])?;
             }
             Some(suppls) => suppls.push(suppl)?,
         }

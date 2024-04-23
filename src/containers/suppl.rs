@@ -23,15 +23,21 @@ use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
-use amplify::confinement::{SmallBlob, TinyOrdMap, TinyString};
+use amplify::confinement::{SmallBlob, TinyOrdMap};
 use amplify::{ByteArray, Bytes32};
 use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
 use commit_verify::{CommitId, CommitmentId, DigestExt, Sha256};
-use rgb::{impl_serde_baid58, AssignmentType, ContractId, GlobalStateType};
-use strict_encoding::{StrictDeserialize, StrictSerialize};
+use rgb::{impl_serde_baid58, AssignmentType, ContractId, GlobalStateType, Identity, SchemaId};
+use strict_encoding::stl::{AlphaCaps, AlphaNumDash};
+use strict_encoding::{
+    DeserializeError, FieldName, RString, StrictDeserialize, StrictSerialize, TypeName, VariantName,
+};
 use strict_types::value;
 
+use crate::interface::{IfaceId, ImplId};
 use crate::LIB_NAME_RGB_STD;
+
+pub const SUPPL_ANNOT_VELOCITY: &str = "Velocity";
 
 /// Contract supplement identifier.
 ///
@@ -86,6 +92,102 @@ impl SupplId {
 
 impl_serde_baid58!(SupplId);
 
+#[derive(Wrapper, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, From, Display)]
+#[wrapper(Deref, FromStr)]
+#[display(inner)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", transparent)
+)]
+pub struct AnnotationName(RString<AlphaCaps, AlphaNumDash>);
+
+impl Default for AnnotationName {
+    fn default() -> Self { Self::from("") }
+}
+
+impl From<&'static str> for AnnotationName {
+    fn from(s: &'static str) -> Self { Self(RString::from(s)) }
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD, tags = order, dumb = ContentRef::Schema(strict_dumb!()))]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub enum ContentRef {
+    Schema(SchemaId),
+    Genesis(ContractId),
+    Iface(IfaceId),
+    IfaceImpl(ImplId),
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Default)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD, tags = repr, into_u8, try_from_u8)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+#[repr(u8)]
+pub enum SupplSub {
+    #[default]
+    Itself = 0,
+    Meta = 1,
+    Global,
+    Owned,
+    Valency,
+    Assignment,
+    Genesis,
+    Transition,
+    Extension,
+    Exception,
+}
+
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD, tags = custom)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub enum SupplItem {
+    #[default]
+    #[strict_type(tag = 0)]
+    Default,
+    #[strict_type(tag = 1)]
+    TypeNo(u16),
+    #[strict_type(tag = 0x11)]
+    TypeName(TypeName),
+    #[strict_type(tag = 0x12)]
+    FieldName(FieldName),
+    #[strict_type(tag = 0x13)]
+    VariantName(VariantName),
+}
+
+#[derive(Wrapper, WrapperMut, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Default, From)]
+#[wrapper(Deref)]
+#[wrapper_mut(DerefMut)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
+pub struct SupplMap(TinyOrdMap<SupplItem, Annotations>);
+
+#[derive(Wrapper, WrapperMut, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Default, From)]
+#[wrapper(Deref)]
+#[wrapper_mut(DerefMut)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
+pub struct Annotations(TinyOrdMap<AnnotationName, SmallBlob>);
+
 /// Contract supplement, providing non-consensus information about standard
 /// way of working with the contract data. Each contract can have only a single
 /// valid supplement; the supplement is attached to the contract via trusted
@@ -100,23 +202,42 @@ impl_serde_baid58!(SupplId);
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-pub struct ContractSuppl {
-    pub contract_id: ContractId,
-    pub ticker: TickerSuppl,
-    /// Media kit is a URL string which provides JSON information on media files
-    /// and colors that should be used for UI,
-    pub media_kit: TinyString,
-    pub global_state: TinyOrdMap<AssignmentType, OwnedStateSuppl>,
-    pub owned_state: TinyOrdMap<AssignmentType, OwnedStateSuppl>,
-    /// TLV-encoded custom fields.
-    pub extensions: TinyOrdMap<u16, SmallBlob>,
+pub struct Supplement {
+    pub content_id: ContentRef,
+    pub timestamp: i64,
+    pub creator: Identity,
+    /// Strict-encoded custom fields.
+    pub annotations: TinyOrdMap<SupplSub, SupplMap>,
 }
 
-impl StrictSerialize for ContractSuppl {}
-impl StrictDeserialize for ContractSuppl {}
+impl StrictSerialize for Supplement {}
+impl StrictDeserialize for Supplement {}
 
-impl ContractSuppl {
+impl Supplement {
     pub fn suppl_id(&self) -> SupplId { self.commit_id() }
+
+    pub fn get_default<T: StrictDeserialize>(
+        &self,
+        sub: SupplSub,
+        name: impl Into<AnnotationName>,
+    ) -> Option<Result<T, DeserializeError>> {
+        let annotation = self
+            .annotations
+            .get(&sub)?
+            .get(&SupplItem::Default)?
+            .get(&name.into())?;
+        Some(T::from_strict_serialized(annotation.clone()))
+    }
+
+    pub fn get<T: StrictDeserialize>(
+        &self,
+        sub: SupplSub,
+        item: SupplItem,
+        name: impl Into<AnnotationName>,
+    ) -> Option<Result<T, DeserializeError>> {
+        let annotation = self.annotations.get(&sub)?.get(&item)?.get(&name.into())?;
+        Some(T::from_strict_serialized(annotation.clone()))
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -136,18 +257,8 @@ pub enum TickerSuppl {
     Owned(AssignmentType, value::Path),
 }
 
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-pub struct OwnedStateSuppl {
-    pub meaning: TinyString,
-    pub velocity: VelocityHint,
-}
+impl StrictSerialize for TickerSuppl {}
+impl StrictDeserialize for TickerSuppl {}
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
@@ -174,6 +285,9 @@ pub enum VelocityHint {
     /// Should be used for stablecoins and money.
     HighFrequency = 255,
 }
+
+impl StrictSerialize for VelocityHint {}
+impl StrictDeserialize for VelocityHint {}
 
 impl VelocityHint {
     pub fn with_value(value: &u8) -> Self {

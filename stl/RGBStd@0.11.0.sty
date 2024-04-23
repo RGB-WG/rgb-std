@@ -1,5 +1,5 @@
 {-
-  Id: HjK8eSCT2mMZWQmCS5BBWgjaq8BQp5og2yP6EXVnWqFH#alibi-gemini-brenda
+  Id: DSKog3fAanZsJtyb6T6EhC7YsGzSVpMvbwzAaMR2Fw2x#round-gallery-granite
   Name: RGBStd
   Version: 0.11.0
   Description: RGB standard library
@@ -29,10 +29,8 @@ import StrictTypes#ACBoDKVqDSuPrZLs2W2bLVj2TnpThzUMcJJrC3GhsQ79
   use VariantInfoSemId#garlic-weekend-nirvana
   use UnionVariantsSemId#soviet-yoyo-nikita
   use VariantName#fiesta-center-yoga
-  use Step#isabel-point-moment
   use Primitive#hobby-cable-puzzle
   use EnumVariants#fast-content-copy
-  use Path#secret-romeo-mustang
   use TySemId#congo-satire-gossip
   use UnnamedFieldsSemId#hippie-world-sandra
   use SemId#cargo-plasma-catalog
@@ -41,7 +39,6 @@ import StrictTypes#ACBoDKVqDSuPrZLs2W2bLVj2TnpThzUMcJJrC3GhsQ79
   use FieldSemId#beast-traffic-enrico
   use TypeSystem#carmen-nova-quasi
   use Variant#colony-polo-senator
-  use KeyStep#frozen-margo-cannon
   use NamedFieldsSemId#clever-prize-sinatra
   use FieldName#toyota-plasma-austria
 
@@ -169,6 +166,12 @@ data AnchoredBundles   : tapret#1 (BPCore.AnchorMerkleProofTapretProof, RGB.Tran
                        , opretAnchor BPCore.AnchorMerkleProofOpretProof
                        , opretBundle RGB.TransitionBundle)
 
+@mnemonic(pandora-film-society)
+data AnnotationName    : [Std.AlphaCaps ^ ..0xff]
+
+@mnemonic(algebra-bikini-tunnel)
+data Annotations       : {AnnotationName -> ^ ..0xff [Byte]}
+
 @mnemonic(galileo-stuart-night)
 data AssignIface       : ownedState OwnedIface
                        , public Std.Bool
@@ -178,7 +181,7 @@ data AssignIface       : ownedState OwnedIface
 @mnemonic(tommy-picasso-spell)
 data BundledWitness    : pubWitness RGB.XChainPubWitness, anchoredBundles AnchoredBundles
 
-@mnemonic(ninja-reward-wizard)
+@mnemonic(bonus-opinion-mary)
 data Consignmentfalse  : version ContainerVer
                        , transfer Std.Bool
                        , terminals {RGB.BundleId -> Terminal}
@@ -187,13 +190,13 @@ data Consignmentfalse  : version ContainerVer
                        , bundles {BundledWitness ^ ..0xffffffff}
                        , schema RGB.Schema
                        , ifaces {Iface -> ^ ..0xff IfaceImpl}
-                       , supplements {ContractSuppl ^ ..0xff}
+                       , supplements {Supplement ^ ..0xff}
                        , types StrictTypes.TypeSystem
                        , scripts {AluVM.Lib ^ ..0x400}
                        , attachments {RGB.AttachId -> [Byte ^ ..0xffffff]}
                        , signatures {ContentId -> ^ ..0xff ContentSigs}
 
-@mnemonic(cairo-poem-script)
+@mnemonic(declare-austin-enjoy)
 data Consignmenttrue   : version ContainerVer
                        , transfer Std.Bool
                        , terminals {RGB.BundleId -> Terminal}
@@ -202,7 +205,7 @@ data Consignmenttrue   : version ContainerVer
                        , bundles {BundledWitness ^ ..0xffffffff}
                        , schema RGB.Schema
                        , ifaces {Iface -> ^ ..0xff IfaceImpl}
-                       , supplements {ContractSuppl ^ ..0xff}
+                       , supplements {Supplement ^ ..0xff}
                        , types StrictTypes.TypeSystem
                        , scripts {AluVM.Lib ^ ..0x400}
                        , attachments {RGB.AttachId -> [Byte ^ ..0xffffff]}
@@ -219,16 +222,14 @@ data ContentId         : schema RGB.SchemaId
                        | ifaceImpl ImplId
                        | suppl SupplId
 
+@mnemonic(fish-voodoo-teacher)
+data ContentRef        : schema RGB.SchemaId
+                       | genesis RGB.ContractId
+                       | iface IfaceId
+                       | ifaceImpl ImplId
+
 @mnemonic(adios-import-collect)
 data ContentSigs       : {RGB.Identity -> ^ 1..0xa SigBlob}
-
-@mnemonic(slang-mars-belgium)
-data ContractSuppl     : contractId RGB.ContractId
-                       , ticker TickerSuppl
-                       , mediaKit [Unicode ^ ..0xff]
-                       , globalState {RGB.AssignmentType -> ^ ..0xff OwnedStateSuppl}
-                       , ownedState {RGB.AssignmentType -> ^ ..0xff OwnedStateSuppl}
-                       , extensions {U16 -> ^ ..0xff [Byte]}
 
 @mnemonic(austria-rudolf-command)
 data ExtensionIface    : modifier Modifier
@@ -290,12 +291,12 @@ data IfaceImpl         : version VerNo
 @mnemonic(monday-igloo-jupiter)
 data ImplId            : [Byte ^ 32]
 
-@mnemonic(domino-pulse-oxford)
+@mnemonic(street-sample-collect)
 data Kit               : version ContainerVer
                        , ifaces {Iface ^ ..0xff}
                        , schemata {RGB.Schema ^ ..0xff}
                        , iimpls {IfaceImpl ^ ..0xff}
-                       , supplements {ContractSuppl ^ ..0xff}
+                       , supplements {Supplement ^ ..0xff}
                        , types StrictTypes.TypeSystem
                        , scripts {AluVM.Lib}
                        , signatures {ContentId -> ^ ..0xff ContentSigs}
@@ -347,9 +348,6 @@ data OwnedIface        : any ()
                        | anyAttach ()
                        | data StrictTypes.SemId
 
-@mnemonic(office-hexagon-exile)
-data OwnedStateSuppl   : meaning [Unicode ^ ..0xff], velocity VelocityHint
-
 @mnemonic(pixel-bravo-tactic)
 data PubWitness        : txid Bitcoin.Txid
                        , tx Bitcoin.Tx?
@@ -361,16 +359,33 @@ data SigBlob           : [Byte ^ 1..0x1000]
 @mnemonic(partner-austin-dinner)
 data SupplId           : [Byte ^ 32]
 
+@mnemonic(ivan-adios-aspirin)
+data SupplItem         : default ()
+                       | typeNo U16
+                       | typeName#17 StrictTypes.TypeName
+                       | fieldName StrictTypes.FieldName
+                       | variantName StrictTypes.VariantName
+
+@mnemonic(martin-belgium-between)
+data SupplMap          : {SupplItem -> ^ ..0xff Annotations}
+
+@mnemonic(lazarus-shallow-amigo)
+data SupplSub          : itself | meta | global | owned
+                       | valency | assignment | genesis | transition
+                       | extension | exception
+
+
+@mnemonic(depend-lola-money)
+data Supplement        : contentId ContentRef
+                       , timestamp I64
+                       , creator RGB.Identity
+                       , annotations {SupplSub -> ^ ..0xff SupplMap}
+
 @mnemonic(permit-crimson-parole)
 data Terminal          : seals {RGB.XChainTerminalSeal}
 
 @mnemonic(battery-cecilia-politic)
 data TerminalSeal      : VoutSeal?
-
-@mnemonic(mailbox-tempo-billy)
-data TickerSuppl       : absent ()
-                       | global (RGB.GlobalStateType, StrictTypes.Path)
-                       | owned (RGB.AssignmentType, StrictTypes.Path)
 
 @mnemonic(radius-weather-analyze)
 data TransitionIface   : modifier Modifier
@@ -385,11 +400,6 @@ data TransitionIface   : modifier Modifier
 
 @mnemonic(input-tripod-oscar)
 data ValencyIface      : required Std.Bool
-
-@mnemonic(textile-politic-harris)
-data VelocityHint      : unspecified | seldom#15 | episodic#31 | regular#63
-                       | frequent#127 | highFrequency#255
-
 
 @mnemonic(sabine-harlem-absorb)
 data VerNo             : v0 | v1

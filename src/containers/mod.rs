@@ -37,6 +37,7 @@ mod partials;
 mod indexed;
 mod file;
 mod kit;
+mod suppl;
 
 pub use anchors::{
     AnchorSet, AnchoredBundles, BundledWitness, PubWitness, SealWitness, ToWitnessId, XPubWitness,
@@ -52,6 +53,10 @@ pub use partials::{
     Batch, BundleDichotomy, CloseMethodSet, Fascia, TransitionInfo, TransitionInfoError,
 };
 pub use seal::{BuilderSeal, TerminalSeal, VoutSeal};
+pub use suppl::{
+    AnnotationName, Annotations, ContentRef, SupplId, SupplItem, SupplMap, SupplSub, Supplement,
+    TickerSuppl, VelocityHint, SUPPL_ANNOT_VELOCITY,
+};
 pub use util::{ContainerVer, ContentId, ContentSigs, SigBlob, Terminal, TerminalDisclose};
 
 pub const ASCII_ARMOR_NAME: &str = "Name";

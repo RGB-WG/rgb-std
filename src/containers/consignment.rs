@@ -42,12 +42,12 @@ use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 use strict_types::TypeSystem;
 
 use super::{
-    BundledWitness, ContainerVer, ContentId, ContentSigs, IndexedConsignment, Terminal,
+    BundledWitness, ContainerVer, ContentId, ContentSigs, IndexedConsignment, Supplement, Terminal,
     TerminalDisclose, ASCII_ARMOR_CONSIGNMENT_TYPE, ASCII_ARMOR_CONTRACT, ASCII_ARMOR_IFACE,
     ASCII_ARMOR_SCHEMA, ASCII_ARMOR_TERMINAL, ASCII_ARMOR_VERSION,
 };
 use crate::containers::anchors::ToWitnessId;
-use crate::interface::{ContractSuppl, Iface, IfaceImpl};
+use crate::interface::{Iface, IfaceImpl};
 use crate::resolvers::ResolveHeight;
 use crate::{BundleExt, SecretSeal, LIB_NAME_RGB_STD};
 
@@ -182,7 +182,7 @@ pub struct Consignment<const TRANSFER: bool> {
     pub ifaces: TinyOrdMap<Iface, IfaceImpl>,
 
     /// Known supplements.
-    pub supplements: TinyOrdSet<ContractSuppl>,
+    pub supplements: TinyOrdSet<Supplement>,
 
     /// Type system covering all types used in schema, interfaces and
     /// implementations.

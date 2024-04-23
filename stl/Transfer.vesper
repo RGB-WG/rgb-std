@@ -1252,28 +1252,29 @@ Consignmenttrue rec
           reserved bytes len=4 aka=ReservedBytes4
       developer ascii len=0..4096 aka=Identity charset=AsciiPrintable
   supplements set len=0..MAX8
-    ContractSuppl rec
-      contractId bytes len=32 aka=ContractId
-      ticker union TickerSuppl
-        absent is Unit tag=0
-        global tuple tag=1
-          _ is U16 aka=GlobalStateType
-        owned tuple tag=2
-          _ is U16 aka=AssignmentType
-      mediaKit str len=0..MAX8
-      globalState map len=0..MAX8
-        key is U16 aka=AssignmentType
-        value rec OwnedStateSuppl
-          meaning str len=0..MAX8
-          velocity enum VelocityHint unspecified=0 seldom=15 episodic=31 regular=63 frequent=127 highFrequency=255
-      ownedState map len=0..MAX8
-        key is U16 aka=AssignmentType
-        value rec OwnedStateSuppl
-          meaning str len=0..MAX8
-          velocity enum VelocityHint unspecified=0 seldom=15 episodic=31 regular=63 frequent=127 highFrequency=255
-      extensions map len=0..MAX8
-        key is U16
-        value bytes len=0..MAX16
+    Supplement rec
+      contentId union ContentRef
+        schema bytes len=32 wrapped aka=SchemaId tag=0
+        genesis bytes len=32 wrapped aka=ContractId tag=1
+        iface bytes len=32 wrapped aka=IfaceId tag=2
+        ifaceImpl bytes len=32 wrapped aka=ImplId tag=3
+      timestamp is I64
+      creator ascii len=0..4096 aka=Identity charset=AsciiPrintable
+      annotations map len=0..MAX8
+        key enum {
+          SupplSub itself=0 meta=1 global=2 owned=3 valency=4 assignment=5 genesis=6 transition=7
+          extension=8 exception=9
+        }
+        value map len=0..MAX8 aka=SupplMap
+          key union SupplItem
+            default is Unit tag=0
+            typeNo is U16 wrapped tag=1
+            typeName ascii len=1..100 wrapped aka=TypeName charset=AlphaCapsLodash tag=2
+            fieldName ascii len=1..100 wrapped aka=FieldName charset=AlphaSmallLodash tag=3
+            variantName ascii len=1..100 wrapped aka=VariantName charset=AlphaSmallLodash tag=4
+          value map len=0..MAX8 aka=Annotations
+            key ascii len=0..MAX8 aka=AnnotationName charset=AlphaCaps
+            value bytes len=0..MAX16
   types map len=0..MAX24 aka=TypeSystem
     key bytes len=32 aka=SemId
     value union TySemId

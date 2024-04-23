@@ -27,6 +27,7 @@ use std::error::Error;
 use std::fmt::Debug;
 
 use amplify::confinement::{Confined, U24};
+use amplify::Wrapper;
 use bp::seals::txout::CloseMethod;
 use bp::Vout;
 use chrono::Utc;
@@ -47,14 +48,15 @@ use super::{
 };
 use crate::containers::{
     AnchorSet, AnchoredBundles, Batch, BuilderSeal, BundledWitness, Consignment, ContainerVer,
-    Contract, Fascia, Kit, PubWitness, SealWitness, Terminal, TerminalSeal, Transfer,
-    TransitionInfo, TransitionInfoError, ValidConsignment, ValidContract, ValidKit, ValidTransfer,
+    ContentRef, Contract, Fascia, Kit, PubWitness, SealWitness, SupplItem, SupplSub, Terminal,
+    TerminalSeal, Transfer, TransitionInfo, TransitionInfoError, ValidConsignment, ValidContract,
+    ValidKit, ValidTransfer, VelocityHint, SUPPL_ANNOT_VELOCITY,
 };
 use crate::info::{ContractInfo, IfaceInfo, SchemaInfo};
 use crate::interface::resolver::DumbResolver;
 use crate::interface::{
     BuilderError, ContractBuilder, ContractIface, Iface, IfaceClass, IfaceId, IfaceRef,
-    TransitionBuilder, VelocityHint,
+    TransitionBuilder,
 };
 use crate::resolvers::ResolveHeight;
 use crate::{MergeRevealError, RevealError};
@@ -813,11 +815,20 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             |id: ContractId,
              assignment_type: AssignmentType|
              -> Result<BuilderSeal<GraphSeal>, StockError<S, H, P, ComposeError>> {
-                let mut suppl = self.stash.contract_supplements(id)?;
+                let mut suppl = self.stash.supplements(ContentRef::Genesis(id))?;
                 let velocity = suppl
                     .next()
-                    .and_then(|mut s| s.owned_state.remove(&assignment_type).ok().flatten())
-                    .map(|s| s.velocity)
+                    .and_then(|suppl| {
+                        suppl
+                            .get(
+                                SupplSub::Assignment,
+                                SupplItem::TypeNo(assignment_type.to_inner()),
+                                SUPPL_ANNOT_VELOCITY,
+                            )
+                            .transpose()
+                            .ok()
+                            .flatten()
+                    })
                     .unwrap_or_default();
                 let vout = allocator(id, assignment_type, velocity)
                     .ok_or(ComposeError::NoBlankOrChange(velocity, assignment_type))?;

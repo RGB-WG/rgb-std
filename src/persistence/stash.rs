@@ -37,10 +37,11 @@ use strict_encoding::{FieldName, TypeName};
 use strict_types::typesys::UnknownType;
 use strict_types::TypeSystem;
 
-use crate::containers::{BundledWitness, Consignment, ContentId, Kit, SealWitness, SigBlob};
+use crate::containers::{
+    BundledWitness, Consignment, ContentId, ContentRef, Kit, SealWitness, SigBlob, Supplement,
+};
 use crate::interface::{
-    ContractBuilder, ContractSuppl, Iface, IfaceClass, IfaceId, IfaceImpl, IfaceRef,
-    TransitionBuilder,
+    ContractBuilder, Iface, IfaceClass, IfaceId, IfaceImpl, IfaceRef, TransitionBuilder,
 };
 use crate::persistence::ContractIfaceError;
 use crate::{MergeReveal, MergeRevealError, SecretSeal, LIB_NAME_RGB_STD};
@@ -243,12 +244,12 @@ impl<P: StashProvider> Stash<P> {
         Ok(self.provider.witness(witness_id)?)
     }
 
-    pub(super) fn contract_supplements(
+    pub(super) fn supplements(
         &self,
-        contract_id: ContractId,
-    ) -> Result<impl Iterator<Item = ContractSuppl> + '_, StashError<P>> {
+        content_ref: ContentRef,
+    ) -> Result<impl Iterator<Item = Supplement> + '_, StashError<P>> {
         self.provider
-            .contract_supplements(contract_id)
+            .supplements(content_ref)
             .map_err(StashError::ReadProvider)
     }
 
@@ -605,10 +606,10 @@ pub trait StashReadProvider {
         let genesis = self.genesis(contract_id)?;
         self.schema(genesis.schema_id)
     }
-    fn contract_supplements(
+    fn supplements(
         &self,
-        contract_id: ContractId,
-    ) -> Result<impl Iterator<Item = ContractSuppl>, Self::Error>;
+        content_ref: ContentRef,
+    ) -> Result<impl Iterator<Item = Supplement>, Self::Error>;
 
     fn witness_ids(&self) -> Result<impl Iterator<Item = XWitnessId>, Self::Error>;
     fn bundle_ids(&self) -> Result<impl Iterator<Item = BundleId>, Self::Error>;
@@ -640,7 +641,7 @@ pub trait StashWriteProvider {
 
     fn replace_lib(&mut self, lib: Lib) -> Result<bool, Self::Error>;
     fn consume_types(&mut self, types: TypeSystem) -> Result<(), Self::Error>;
-    fn add_suppl(&mut self, suppl: ContractSuppl) -> Result<(), Self::Error>;
+    fn add_suppl(&mut self, suppl: Supplement) -> Result<(), Self::Error>;
     fn import_sigs<I>(&mut self, content_id: ContentId, sigs: I) -> Result<(), Self::Error>
     where
         I: IntoIterator<Item = (Identity, SigBlob)>,

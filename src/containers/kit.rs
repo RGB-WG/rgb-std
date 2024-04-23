@@ -35,11 +35,11 @@ use strict_encoding::{StrictDeserialize, StrictSerialize};
 use strict_types::TypeSystem;
 
 use super::{
-    ASCII_ARMOR_IFACE, ASCII_ARMOR_IIMPL, ASCII_ARMOR_SCHEMA, ASCII_ARMOR_SCRIPT,
+    Supplement, ASCII_ARMOR_IFACE, ASCII_ARMOR_IIMPL, ASCII_ARMOR_SCHEMA, ASCII_ARMOR_SCRIPT,
     ASCII_ARMOR_SUPPL, ASCII_ARMOR_TYPE_SYSTEM, ASCII_ARMOR_VERSION,
 };
 use crate::containers::{ContainerVer, ContentId, ContentSigs};
-use crate::interface::{ContractSuppl, Iface, IfaceImpl};
+use crate::interface::{Iface, IfaceImpl};
 use crate::LIB_NAME_RGB_STD;
 
 /// Kit identifier.
@@ -138,7 +138,7 @@ pub struct Kit {
 
     pub iimpls: TinyOrdSet<IfaceImpl>,
 
-    pub supplements: TinyOrdSet<ContractSuppl>,
+    pub supplements: TinyOrdSet<Supplement>,
 
     /// Type system covering all types used in schema, interfaces and
     /// implementations.
