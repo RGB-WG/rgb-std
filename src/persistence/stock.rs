@@ -385,7 +385,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         Ok(self
             .stash
             .ifaces()?
-            .map(move |iface| IfaceInfo::with(iface, &names)))
+            .map(move |iface| IfaceInfo::new(iface, &names)))
     }
     pub fn iface(&self, iface: impl Into<IfaceRef>) -> Result<&Iface, StockError<S, H, P>> {
         Ok(self.stash.iface(iface)?)

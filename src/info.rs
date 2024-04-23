@@ -39,6 +39,8 @@ pub struct IfaceInfo {
     pub id: IfaceId,
     pub version: VerNo,
     pub name: TypeName,
+    pub standard: Option<TypeName>,
+    pub features: Vec<String>,
     pub developer: Identity,
     pub created_at: DateTime<Utc>,
     pub inherits: Vec<IfaceRef>,
@@ -46,11 +48,36 @@ pub struct IfaceInfo {
 }
 
 impl IfaceInfo {
-    pub fn with(iface: &Iface, names: &HashMap<IfaceId, TypeName>) -> Self {
+    pub fn new(iface: &Iface, names: &HashMap<IfaceId, TypeName>) -> Self {
+        Self::with(iface, None, vec![], names)
+    }
+
+    pub fn standard<'f, F: Display + 'f>(
+        iface: &Iface,
+        standard: TypeName,
+        features: impl IntoIterator<Item = &'f F>,
+        names: &HashMap<IfaceId, TypeName>,
+    ) -> Self {
+        Self::with(
+            iface,
+            Some(standard),
+            features.into_iter().map(F::to_string).collect(),
+            names,
+        )
+    }
+
+    pub fn with(
+        iface: &Iface,
+        standard: Option<TypeName>,
+        features: Vec<String>,
+        names: &HashMap<IfaceId, TypeName>,
+    ) -> Self {
         IfaceInfo {
             id: iface.iface_id(),
             version: iface.version,
             name: iface.name.clone(),
+            standard,
+            features,
             developer: iface.developer.clone(),
             created_at: Utc
                 .timestamp_opt(iface.timestamp, 0)
@@ -74,6 +101,14 @@ impl IfaceInfo {
 
 impl Display for IfaceInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            self.standard
+                .as_ref()
+                .map(TypeName::to_string)
+                .unwrap_or_else(|| s!("~"))
+        )?;
         write!(f, "{: <40}\t", self.name)?;
         write!(f, "{}\t", self.created_at.format("%Y-%m-%d"))?;
         write!(f, "{}\t", self.version)?;
