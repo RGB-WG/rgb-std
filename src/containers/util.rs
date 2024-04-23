@@ -87,6 +87,32 @@ pub enum ContainerVer {
     V2 = 2,
 }
 
+pub trait SigValidator {
+    fn validate_sig(&self, identity: &Identity, sig: SigBlob) -> SigValidity;
+}
+
+pub struct DumbValidator;
+impl SigValidator for DumbValidator {
+    fn validate_sig(&self, _: &Identity, _: SigBlob) -> SigValidity { SigValidity::Untrusted }
+}
+
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
+#[display(lowercase)]
+#[repr(u8)]
+pub enum SigValidity {
+    Invalid = 0,
+    Unknown = 0x10,
+    Untrusted = 0x40,
+    Trusted = 0x80,
+    Ultimate = 0xC0,
+}
+
+impl SigValidity {
+    pub fn should_accept(self) -> bool { self >= Self::Unknown }
+    pub fn should_use(self) -> bool { self >= Self::Trusted }
+    pub fn must_use(self) -> bool { self >= Self::Ultimate }
+}
+
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 #[derive(StrictType, strict_encoding::StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD, tags = order, dumb = ContentId::Schema(strict_dumb!()))]

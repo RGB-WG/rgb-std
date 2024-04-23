@@ -349,9 +349,11 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
         }
     }
 
-    pub fn validate<R: ResolveWitness>(
+    pub fn validate(
         self,
-        resolver: &mut R,
+        resolver: &mut impl ResolveWitness,
+        // TODO: Add sig validator
+        //_: &impl SigValidator,
         testnet: bool,
     ) -> Result<ValidConsignment<TRANSFER>, (validation::Status, Consignment<TRANSFER>)> {
         let index = IndexedConsignment::new(&self);
@@ -365,6 +367,7 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
         // TODO: check that interface ids match implementations
         // TODO: check bundle ids listed in terminals are present in the consignment
         // TODO: check attach ids from data containers are present in operations
+        // TODO: validate sigs and remove untrusted
 
         if validity != Validity::Valid {
             Err((status, self))

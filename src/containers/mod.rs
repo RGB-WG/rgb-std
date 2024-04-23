@@ -57,7 +57,10 @@ pub use suppl::{
     AnnotationName, Annotations, ContentRef, SupplId, SupplItem, SupplMap, SupplSub, Supplement,
     TickerSuppl, VelocityHint, SUPPL_ANNOT_VELOCITY,
 };
-pub use util::{ContainerVer, ContentId, ContentSigs, SigBlob, Terminal, TerminalDisclose};
+pub use util::{
+    ContainerVer, ContentId, ContentSigs, DumbValidator, SigBlob, SigValidator, SigValidity,
+    Terminal, TerminalDisclose,
+};
 
 pub const ASCII_ARMOR_NAME: &str = "Name";
 pub const ASCII_ARMOR_IFACE: &str = "Interface";

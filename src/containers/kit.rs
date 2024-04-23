@@ -184,12 +184,17 @@ impl Kit {
     #[inline]
     pub fn kit_id(&self) -> KitId { self.commit_id() }
 
-    pub fn validate(self) -> Result<ValidKit, (validation::Status, Kit)> {
+    pub fn validate(
+        self,
+        // TODO: Add sig validator
+        //_: &impl SigValidator,
+    ) -> Result<ValidKit, (validation::Status, Kit)> {
         let status = validation::Status::new();
         // TODO:
         //  - Verify integrity for each interface
         //  - Verify implementations against interfaces
         //  - Check schema integrity
+        //  - Validate content sigs and remove untrusted ones
         Ok(ValidKit {
             validation_status: status,
             kit: self,
