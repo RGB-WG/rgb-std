@@ -38,6 +38,8 @@ use crate::interface::{IfaceId, ImplId};
 use crate::LIB_NAME_RGB_STD;
 
 pub const SUPPL_ANNOT_VELOCITY: &str = "Velocity";
+pub const SUPPL_ANNOT_IFACE_CLASS: &str = "Standard";
+pub const SUPPL_ANNOT_IFACE_FEATURES: &str = "Features";
 
 /// Contract supplement identifier.
 ///
@@ -203,6 +205,14 @@ impl StrictDeserialize for Supplement {}
 
 impl Supplement {
     pub fn suppl_id(&self) -> SupplId { self.commit_id() }
+
+    pub fn get_default_opt<T: StrictDeserialize>(
+        &self,
+        sub: SupplSub,
+        name: impl Into<AnnotationName>,
+    ) -> Option<T> {
+        self.get_default(sub, name).transpose().ok().flatten()
+    }
 
     pub fn get_default<T: StrictDeserialize>(
         &self,

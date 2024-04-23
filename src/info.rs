@@ -20,14 +20,48 @@
 // limitations under the License.
 
 use std::collections::HashMap;
-use std::fmt::{self, Display, Formatter, Write};
+use std::fmt::{self, Debug, Display, Formatter, Write};
+use std::str::FromStr;
 
+use amplify::confinement::TinyVec;
 use chrono::{DateTime, TimeZone, Utc};
 use rgb::{AltLayer1Set, ContractId, Genesis, Identity, Operation, SchemaId};
-use strict_encoding::{FieldName, TypeName};
+use strict_encoding::stl::{AlphaCapsLodash, AlphaNumLodash};
+use strict_encoding::{FieldName, RString, StrictDeserialize, StrictSerialize, TypeName};
 
+use crate::containers::{
+    SupplSub, Supplement, SUPPL_ANNOT_IFACE_CLASS, SUPPL_ANNOT_IFACE_FEATURES,
+};
 use crate::interface::{Iface, IfaceId, IfaceImpl, IfaceRef, ImplId, VerNo};
 use crate::persistence::SchemaIfaces;
+use crate::LIB_NAME_RGB_STD;
+
+#[derive(Wrapper, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, From)]
+#[wrapper(Deref, Display, FromStr)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", transparent)
+)]
+pub struct IfaceClassName(RString<AlphaCapsLodash, AlphaNumLodash, 1, 64>);
+
+impl_ident_type!(IfaceClassName);
+impl_ident_subtype!(IfaceClassName);
+impl_strict_newtype!(IfaceClassName, LIB_NAME_RGB_STD);
+
+impl StrictSerialize for IfaceClassName {}
+impl StrictDeserialize for IfaceClassName {}
+
+#[derive(Wrapper, WrapperMut, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Default, From)]
+#[wrapper(Deref)]
+#[wrapper_mut(DerefMut)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
+pub struct FeatureList(TinyVec<FieldName>);
+
+impl StrictSerialize for FeatureList {}
+impl StrictDeserialize for FeatureList {}
 
 #[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
 #[cfg_attr(
@@ -39,8 +73,8 @@ pub struct IfaceInfo {
     pub id: IfaceId,
     pub version: VerNo,
     pub name: TypeName,
-    pub standard: Option<TypeName>,
-    pub features: Vec<String>,
+    pub standard: Option<IfaceClassName>,
+    pub features: FeatureList,
     pub developer: Identity,
     pub created_at: DateTime<Utc>,
     pub inherits: Vec<IfaceRef>,
@@ -48,28 +82,27 @@ pub struct IfaceInfo {
 }
 
 impl IfaceInfo {
-    pub fn new(iface: &Iface, names: &HashMap<IfaceId, TypeName>) -> Self {
-        Self::with(iface, None, vec![], names)
-    }
-
-    pub fn standard<'f, F: Display + 'f>(
+    pub fn new(
         iface: &Iface,
-        standard: TypeName,
-        features: impl IntoIterator<Item = &'f F>,
         names: &HashMap<IfaceId, TypeName>,
+        suppl: Option<&Supplement>,
     ) -> Self {
-        Self::with(
-            iface,
-            Some(standard),
-            features.into_iter().map(F::to_string).collect(),
-            names,
-        )
+        let mut standard = None;
+        let mut features = none!();
+        if let Some(suppl) = suppl {
+            standard =
+                suppl.get_default_opt::<IfaceClassName>(SupplSub::Itself, SUPPL_ANNOT_IFACE_CLASS);
+            suppl
+                .get_default_opt::<FeatureList>(SupplSub::Itself, SUPPL_ANNOT_IFACE_FEATURES)
+                .map(|list| features = list);
+        }
+        Self::with(iface, standard, features, names)
     }
 
     pub fn with(
         iface: &Iface,
-        standard: Option<TypeName>,
-        features: Vec<String>,
+        standard: Option<IfaceClassName>,
+        features: FeatureList,
         names: &HashMap<IfaceId, TypeName>,
     ) -> Self {
         IfaceInfo {
@@ -106,7 +139,7 @@ impl Display for IfaceInfo {
             "{}",
             self.standard
                 .as_ref()
-                .map(TypeName::to_string)
+                .map(IfaceClassName::to_string)
                 .unwrap_or_else(|| s!("~"))
         )?;
         write!(f, "{: <40}\t", self.name)?;

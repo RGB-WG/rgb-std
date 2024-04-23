@@ -24,6 +24,7 @@ use std::error::Error;
 use std::fmt::Debug;
 
 use aluvm::library::{Lib, LibId};
+use amplify::confinement;
 use amplify::confinement::{Confined, MediumBlob, TinyOrdMap};
 use bp::dbc::anchor::MergeError;
 use bp::dbc::tapret::TapretCommitment;
@@ -39,6 +40,7 @@ use strict_types::TypeSystem;
 
 use crate::containers::{
     BundledWitness, Consignment, ContentId, ContentRef, Kit, SealWitness, SigBlob, Supplement,
+    TrustLevel,
 };
 use crate::interface::{
     ContractBuilder, Iface, IfaceClass, IfaceId, IfaceImpl, IfaceRef, TransitionBuilder,
@@ -250,6 +252,15 @@ impl<P: StashProvider> Stash<P> {
     ) -> Result<impl Iterator<Item = Supplement> + '_, StashError<P>> {
         self.provider
             .supplements(content_ref)
+            .map_err(StashError::ReadProvider)
+    }
+
+    pub(super) fn supplement(
+        &self,
+        content_ref: ContentRef,
+    ) -> Result<Option<&Supplement>, StashError<P>> {
+        self.provider
+            .supplement(content_ref)
             .map_err(StashError::ReadProvider)
     }
 
@@ -606,6 +617,9 @@ pub trait StashReadProvider {
         let genesis = self.genesis(contract_id)?;
         self.schema(genesis.schema_id)
     }
+
+    fn get_trust(&self, identity: &Identity) -> Result<TrustLevel, Self::Error>;
+    fn supplement(&self, content_ref: ContentRef) -> Result<Option<&Supplement>, Self::Error>;
     fn supplements(
         &self,
         content_ref: ContentRef,
@@ -641,11 +655,14 @@ pub trait StashWriteProvider {
 
     fn replace_lib(&mut self, lib: Lib) -> Result<bool, Self::Error>;
     fn consume_types(&mut self, types: TypeSystem) -> Result<(), Self::Error>;
+    fn set_trust(
+        &mut self,
+        identity: Identity,
+        trust: TrustLevel,
+    ) -> Result<(), confinement::Error>;
     fn add_suppl(&mut self, suppl: Supplement) -> Result<(), Self::Error>;
     fn import_sigs<I>(&mut self, content_id: ContentId, sigs: I) -> Result<(), Self::Error>
-    where
-        I: IntoIterator<Item = (Identity, SigBlob)>,
-        I::IntoIter: ExactSizeIterator<Item = (Identity, SigBlob)>;
+    where I: IntoIterator<Item = (Identity, SigBlob)>;
 
     fn add_secret_seal(&mut self, seal: XChain<GraphSeal>) -> Result<bool, Self::Error>;
 }

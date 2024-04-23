@@ -44,7 +44,7 @@ use super::{
     StateUpdateError, StateWriteProvider,
 };
 use crate::containers::{
-    AnchorSet, ContentId, ContentRef, ContentSigs, SealWitness, SigBlob, Supplement,
+    AnchorSet, ContentId, ContentRef, ContentSigs, SealWitness, SigBlob, Supplement, TrustLevel,
 };
 use crate::interface::{Iface, IfaceClass, IfaceId, IfaceImpl, IfaceRef};
 use crate::resolvers::ResolveHeight;
@@ -70,6 +70,7 @@ pub struct MemStash {
     attachments: SmallOrdMap<AttachId, MediumBlob>,
     secret_seals: MediumOrdSet<XChain<GraphSeal>>,
     type_system: TypeSystem,
+    identities: SmallOrdMap<Identity, TrustLevel>,
     libs: SmallOrdMap<LibId, Lib>,
     sigs: SmallOrdMap<ContentId, ContentSigs>,
 }
@@ -150,6 +151,14 @@ impl StashReadProvider for MemStash {
         self.schemata
             .get(&schema_id)
             .ok_or_else(|| StashInconsistency::SchemaAbsent(schema_id).into())
+    }
+
+    fn get_trust(&self, identity: &Identity) -> Result<TrustLevel, Self::Error> {
+        Ok(self.identities.get(identity).copied().unwrap_or_default())
+    }
+
+    fn supplement(&self, content_ref: ContentRef) -> Result<Option<&Supplement>, Self::Error> {
+        Ok(self.suppl.get(&content_ref).and_then(|s| s.first()))
     }
 
     fn supplements(
@@ -287,6 +296,15 @@ impl StashWriteProvider for MemStash {
         Ok(!present)
     }
 
+    fn set_trust(
+        &mut self,
+        identity: Identity,
+        trust: TrustLevel,
+    ) -> Result<(), confinement::Error> {
+        self.identities.insert(identity, trust)?;
+        Ok(())
+    }
+
     fn add_suppl(&mut self, suppl: Supplement) -> Result<(), confinement::Error> {
         match self.suppl.get_mut(&suppl.content_id) {
             None => {
@@ -340,18 +358,24 @@ impl StashWriteProvider for MemStash {
     }
 
     fn import_sigs<I>(&mut self, content_id: ContentId, sigs: I) -> Result<(), confinement::Error>
-    where
-        I: IntoIterator<Item = (Identity, SigBlob)>,
-        I::IntoIter: ExactSizeIterator<Item = (Identity, SigBlob)>,
-    {
-        let sigs = sigs.into_iter();
-        if sigs.len() > 0 {
-            if let Some(prev_sigs) = self.sigs.get_mut(&content_id) {
-                prev_sigs.extend(sigs)?;
-            } else {
-                let sigs = Confined::try_from_iter(sigs)?;
-                self.sigs.insert(content_id, ContentSigs::from(sigs)).ok();
+    where I: IntoIterator<Item = (Identity, SigBlob)> {
+        let sigs = sigs.into_iter().filter(|(id, _)| {
+            match self.identities.get(id) {
+                Some(level) => *level,
+                None => {
+                    let level = TrustLevel::default();
+                    // We ignore if the identities are full
+                    self.identities.insert(id.clone(), level).ok();
+                    level
+                }
             }
+            .should_accept()
+        });
+        if let Some(prev_sigs) = self.sigs.get_mut(&content_id) {
+            prev_sigs.extend(sigs)?;
+        } else {
+            let sigs = Confined::try_from_iter(sigs)?;
+            self.sigs.insert(content_id, ContentSigs::from(sigs)).ok();
         }
         Ok(())
     }

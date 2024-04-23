@@ -55,11 +55,12 @@ pub use partials::{
 pub use seal::{BuilderSeal, TerminalSeal, VoutSeal};
 pub use suppl::{
     AnnotationName, Annotations, ContentRef, SupplId, SupplItem, SupplMap, SupplSub, Supplement,
-    TickerSuppl, VelocityHint, SUPPL_ANNOT_VELOCITY,
+    TickerSuppl, VelocityHint, SUPPL_ANNOT_IFACE_CLASS, SUPPL_ANNOT_IFACE_FEATURES,
+    SUPPL_ANNOT_VELOCITY,
 };
 pub use util::{
-    ContainerVer, ContentId, ContentSigs, DumbValidator, SigBlob, SigValidator, SigValidity,
-    Terminal, TerminalDisclose,
+    ContainerVer, ContentId, ContentSigs, DumbValidator, SigBlob, SigValidator, Terminal,
+    TerminalDisclose, TrustLevel,
 };
 
 pub const ASCII_ARMOR_NAME: &str = "Name";

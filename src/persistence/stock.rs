@@ -382,10 +382,14 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             .ifaces()?
             .map(|iface| (iface.iface_id(), iface.name.clone()))
             .collect::<HashMap<_, _>>();
-        Ok(self
-            .stash
-            .ifaces()?
-            .map(move |iface| IfaceInfo::new(iface, &names)))
+        Ok(self.stash.ifaces()?.map(move |iface| {
+            let suppl = self
+                .stash
+                .supplement(ContentRef::Iface(iface.iface_id()))
+                .ok()
+                .flatten();
+            IfaceInfo::new(iface, &names, suppl)
+        }))
     }
     pub fn iface(&self, iface: impl Into<IfaceRef>) -> Result<&Iface, StockError<S, H, P>> {
         Ok(self.stash.iface(iface)?)
