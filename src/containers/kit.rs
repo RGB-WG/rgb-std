@@ -26,11 +26,11 @@ use std::str::FromStr;
 
 use aluvm::library::Lib;
 use amplify::confinement::{SmallOrdSet, TinyOrdMap, TinyOrdSet};
-use amplify::Bytes32;
+use amplify::{ByteArray, Bytes32};
 use armor::{ArmorHeader, AsciiArmor, StrictArmor};
-use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
+use baid64::{Baid64ParseError, DisplayBaid64, FromBaid64Str};
 use commit_verify::{CommitEncode, CommitEngine, CommitId, CommitmentId, DigestExt, Sha256};
-use rgb::{impl_serde_baid58, validation, Schema};
+use rgb::{impl_serde_baid64, validation, Schema};
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 use strict_types::TypeSystem;
 
@@ -63,37 +63,28 @@ impl CommitmentId for KitId {
     const TAG: &'static str = "urn:lnp-bp:rgb:kit#2024-04-09";
 }
 
-impl ToBaid58<32> for KitId {
-    const HRI: &'static str = "kit";
-    const CHUNKING: Option<Chunking> = CHUNKING_32;
-    fn to_baid58_payload(&self) -> [u8; 32] { self.to_byte_array() }
-    fn to_baid58_string(&self) -> String { self.to_string() }
+impl DisplayBaid64 for KitId {
+    const HRI: &'static str = "rgb:kit";
+    const CHUNKING: bool = true;
+    const PREFIX: bool = true;
+    const EMBED_CHECKSUM: bool = false;
+    const MNEMONIC: bool = false;
+    fn to_baid64_payload(&self) -> [u8; 32] { self.to_byte_array() }
 }
-impl FromBaid58<32> for KitId {}
-impl Display for KitId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        if f.alternate() {
-            f.write_str("urn:lnp-bp:kit:")?;
-        }
-        if f.sign_minus() {
-            write!(f, "{:.2}", self.to_baid58())
-        } else {
-            write!(f, "{:#.2}", self.to_baid58())
-        }
-    }
-}
+impl FromBaid64Str for KitId {}
 impl FromStr for KitId {
-    type Err = Baid58ParseError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Self::from_baid58_maybe_chunked_str(s.trim_start_matches("urn:lnp-bp:"), ':', '#')
-    }
+    type Err = Baid64ParseError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_baid64_str(s) }
 }
-impl KitId {
-    pub const fn from_array(id: [u8; 32]) -> Self { KitId(Bytes32::from_array(id)) }
-    pub fn to_mnemonic(&self) -> String { self.to_baid58().mnemonic() }
+impl Display for KitId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { self.fmt_baid64(f) }
 }
 
-impl_serde_baid58!(KitId);
+impl_serde_baid64!(KitId);
+
+impl KitId {
+    pub const fn from_array(id: [u8; 32]) -> Self { KitId(Bytes32::from_array(id)) }
+}
 
 #[derive(Clone, Debug, Display)]
 #[display("{kit}")]

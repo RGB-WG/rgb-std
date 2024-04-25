@@ -25,9 +25,9 @@ use std::str::FromStr;
 
 use amplify::confinement::{SmallBlob, TinyOrdMap};
 use amplify::{ByteArray, Bytes32};
-use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
+use baid64::{Baid64ParseError, DisplayBaid64, FromBaid64Str};
 use commit_verify::{CommitId, CommitmentId, DigestExt, Sha256};
-use rgb::{impl_serde_baid58, AssignmentType, ContractId, GlobalStateType, Identity, SchemaId};
+use rgb::{impl_serde_baid64, AssignmentType, ContractId, GlobalStateType, Identity, SchemaId};
 use strict_encoding::stl::{AlphaCaps, AlphaNumDash};
 use strict_encoding::{
     DeserializeError, FieldName, RString, StrictDeserialize, StrictSerialize, TypeName, VariantName,
@@ -60,42 +60,33 @@ impl CommitmentId for SupplId {
     const TAG: &'static str = "urn:lnp-bp:rgb:suppl#2024-03-11";
 }
 
-impl ToBaid58<32> for SupplId {
-    const HRI: &'static str = "suppl";
-    const CHUNKING: Option<Chunking> = CHUNKING_32;
-    fn to_baid58_payload(&self) -> [u8; 32] { self.to_byte_array() }
-    fn to_baid58_string(&self) -> String { self.to_string() }
+impl DisplayBaid64 for SupplId {
+    const HRI: &'static str = "rgb:sup";
+    const CHUNKING: bool = false;
+    const PREFIX: bool = true;
+    const EMBED_CHECKSUM: bool = false;
+    const MNEMONIC: bool = false;
+    fn to_baid64_payload(&self) -> [u8; 32] { self.to_byte_array() }
 }
-impl FromBaid58<32> for SupplId {}
-impl Display for SupplId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        if f.alternate() {
-            f.write_str("urn:lnp-bp:suppl:")?;
-        }
-        if f.sign_minus() {
-            write!(f, "{:.2}", self.to_baid58())
-        } else {
-            write!(f, "{:#.2}", self.to_baid58())
-        }
-    }
-}
+impl FromBaid64Str for SupplId {}
 impl FromStr for SupplId {
-    type Err = Baid58ParseError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Self::from_baid58_maybe_chunked_str(s.trim_start_matches("urn:lnp-bp:"), ':', '#')
-    }
+    type Err = Baid64ParseError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_baid64_str(s) }
 }
-impl SupplId {
-    pub const fn from_array(id: [u8; 32]) -> Self { Self(Bytes32::from_array(id)) }
-    pub fn to_mnemonic(&self) -> String { self.to_baid58().mnemonic() }
+impl Display for SupplId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { self.fmt_baid64(f) }
 }
 
-impl_serde_baid58!(SupplId);
+impl_serde_baid64!(SupplId);
+
+impl SupplId {
+    pub const fn from_array(id: [u8; 32]) -> Self { Self(Bytes32::from_array(id)) }
+}
 
 #[derive(Wrapper, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, From, Display)]
 #[wrapper(Deref, FromStr)]
 #[display(inner)]
-#[derive(StrictType, StrictEncode, StrictDecode)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(
     feature = "serde",
@@ -103,10 +94,6 @@ impl_serde_baid58!(SupplId);
     serde(crate = "serde_crate", transparent)
 )]
 pub struct AnnotationName(RString<AlphaCaps, AlphaNumDash>);
-
-impl Default for AnnotationName {
-    fn default() -> Self { Self::from("") }
-}
 
 impl From<&'static str> for AnnotationName {
     fn from(s: &'static str) -> Self { Self(RString::from(s)) }

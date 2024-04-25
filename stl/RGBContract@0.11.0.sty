@@ -1,5 +1,5 @@
 {-
-  Id: 8Nxihgfg2yWzdoQAZYPf3QpfEnJ7HmwCWzN8cMQ5miK5#cantina-hexagon-baggage
+  Id: stl:@r5yXt4a-v3XXv0M-E9Z6eoh-BFZweik-fxS6CB4-8AaO@MM#rover-annual-disney
   Name: RGBContract
   Version: 0.11.0
   Description: Types for writing RGB contracts and interfaces
@@ -11,68 +11,84 @@
 @context
 typelib RGBContract
 
-import Std#EcCNgrgLaygt3tCZNu2ZVEzMzSAZYEUeTNAVi5E81YWi
-  use AsciiPrintable#prize-solar-driver
-  use Alpha#october-urgent-tunnel
-  use AlphaSmall#song-accent-mammal
+import Std#ralph-blue-lucky
+  use AsciiPrintable#ultra-sunset-format
+  use AlphaNum#window-tractor-alamo
+  use Alpha#citizen-bicycle-stretch
+  use AlphaSmall#magnum-martin-soviet
 
-import Bitcoin#HX2UBak8vPsTokug1DGMDvTpzns3xUdwZ7QJdyt4qBA9
-  use Vout#chrome-robin-gallop
-  use Txid#cowboy-diego-betty
-  use Outpoint#dinner-yoga-danube
+import Bitcoin#signal-color-cipher
+  use Vout#brush-gloria-heroic
+  use Txid#shallow-light-reverse
+  use Outpoint#logo-alamo-madam
 
 
-@mnemonic(break-tunnel-gray)
+@mnemonic(blonde-slang-mobile)
 data Allocation        : TokenIndex, OwnedFraction
 
-@mnemonic(burma-picasso-granite)
+@mnemonic(monica-tornado-page)
 data Amount            : U64
 
-@mnemonic(james-karl-master)
-data Article           : [Std.Alpha ^ 1..0x20]
+@mnemonic(infant-father-exhibit)
+data Article           : Std.Alpha, [Std.AlphaNum ^ ..0x1f]
 
-@mnemonic(xray-giant-nina)
+@mnemonic(alaska-archive-mailbox)
 data AssetSpec         : ticker Ticker
                        , name Name
                        , details Details?
                        , precision Precision
 
-@mnemonic(flame-unicorn-fruit)
+@mnemonic(mono-bagel-falcon)
 data Attachment        : type MediaType, digest [Byte ^ 32]
 
-@mnemonic(gabriel-fiber-oregano)
+@mnemonic(ivory-speed-finish)
 data BurnMeta          : burnProofs {ProofOfReserves}
 
-@mnemonic(sonic-retro-robin)
+@mnemonic(hawaii-winter-orca)
 data ContractSpec      : article Article?
                        , name Name
                        , details Details?
                        , precision Precision
 
-@mnemonic(mega-gate-candle)
+@mnemonic(voodoo-toga-meaning)
 data ContractTerms     : text RicardianContract, media Attachment?
 
-@mnemonic(network-kayak-adam)
+@mnemonic(trivial-halt-nobody)
 data Details           : [Unicode ^ 1..0xff]
 
-@mnemonic(alcohol-moral-needle)
+@mnemonic(alias-analog-icon)
 data IssueMeta         : reserves {ProofOfReserves}
 
-@mnemonic(telecom-pixel-initial)
-data MediaRegName      : [Std.AlphaSmall ^ 1..0x40]
+@mnemonic(taboo-pogo-exile)
+data MediaRegName      : Std.AlphaSmall, [MimeChar ^ ..0x3f]
 
-@mnemonic(robert-decide-dispute)
+@mnemonic(brother-burma-book)
 data MediaType         : type MediaRegName
                        , subtype MediaRegName?
                        , charset MediaRegName?
 
-@mnemonic(ruby-tennis-lotus)
-data Name              : [Std.AsciiPrintable ^ 1..0x28]
+@mnemonic(amber-alarm-satire)
+data MimeChar          : excl#33 | hash#35 | dollar | amp#38
+                       | plus#43 | dash#45 | dot | zero#48
+                       | one | two | three | four
+                       | five | six | seven | eight
+                       | nine | caret#94 | lodash | a#97
+                       | b | c | d | e
+                       | f | g | h | i
+                       | j | k | l | m
+                       | n | o | p | q
+                       | r | s | t | u
+                       | v | w | x | y
+                       | z
 
-@mnemonic(vital-edgar-quota)
+
+@mnemonic(lexicon-monitor-madonna)
+data Name              : Std.AsciiPrintable, [Std.AsciiPrintable ^ ..0x27]
+
+@mnemonic(mission-person-armor)
 data OwnedFraction     : U64
 
-@mnemonic(union-drum-public)
+@mnemonic(vendor-anita-british)
 data Precision         : indivisible | deci | centi | milli
                        | deciMilli | centiMilli | micro | deciMicro
                        | centiMicro | nano | deciNano | centiNano
@@ -80,16 +96,16 @@ data Precision         : indivisible | deci | centi | milli
                        | deciFemto | centiFemto | atto
 
 
-@mnemonic(liquid-owner-london)
+@mnemonic(harmony-dolby-golf)
 data ProofOfReserves   : utxo Bitcoin.Outpoint, proof [Byte]
 
-@mnemonic(bundle-turbo-verona)
+@mnemonic(bernard-right-pablo)
 data RicardianContract : [Unicode]
 
-@mnemonic(proton-logic-weekend)
-data Ticker            : [Std.Alpha ^ 1..0x8]
+@mnemonic(newton-corona-aloha)
+data Ticker            : Std.Alpha, [Std.AlphaNum ^ ..0x7]
 
-@mnemonic(connect-farmer-havana)
+@mnemonic(giraffe-correct-modest)
 data TokenIndex        : U32
 
 

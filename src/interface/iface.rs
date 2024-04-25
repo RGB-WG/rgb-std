@@ -27,10 +27,10 @@ use std::str::FromStr;
 
 use amplify::confinement::{TinyOrdMap, TinyOrdSet, TinyString, TinyVec};
 use amplify::{ByteArray, Bytes32};
-use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
+use baid64::{Baid64ParseError, DisplayBaid64, FromBaid64Str};
 use chrono::{DateTime, TimeZone, Utc};
 use commit_verify::{CommitId, CommitmentId, DigestExt, Sha256};
-use rgb::{impl_serde_baid58, Identity, Occurrences};
+use rgb::{impl_serde_baid64, Identity, Occurrences};
 use strict_encoding::{
     FieldName, StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize,
     StrictType, TypeName, VariantName,
@@ -62,37 +62,28 @@ impl CommitmentId for IfaceId {
     const TAG: &'static str = "urn:lnp-bp:rgb:interface#2024-02-04";
 }
 
-impl ToBaid58<32> for IfaceId {
-    const HRI: &'static str = "if";
-    const CHUNKING: Option<Chunking> = CHUNKING_32;
-    fn to_baid58_payload(&self) -> [u8; 32] { self.to_byte_array() }
-    fn to_baid58_string(&self) -> String { self.to_string() }
+impl DisplayBaid64 for IfaceId {
+    const HRI: &'static str = "rgb:ifc";
+    const CHUNKING: bool = true;
+    const PREFIX: bool = true;
+    const EMBED_CHECKSUM: bool = false;
+    const MNEMONIC: bool = true;
+    fn to_baid64_payload(&self) -> [u8; 32] { self.to_byte_array() }
 }
-impl FromBaid58<32> for IfaceId {}
-impl Display for IfaceId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        if f.alternate() {
-            f.write_str("urn:lnp-bp:if:")?;
-        }
-        if f.sign_minus() {
-            write!(f, "{:.2}", self.to_baid58())
-        } else {
-            write!(f, "{:#.2}", self.to_baid58())
-        }
-    }
-}
+impl FromBaid64Str for IfaceId {}
 impl FromStr for IfaceId {
-    type Err = Baid58ParseError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Self::from_baid58_maybe_chunked_str(s.trim_start_matches("urn:lnp-bp:"), ':', '#')
-    }
+    type Err = Baid64ParseError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_baid64_str(s) }
 }
-impl IfaceId {
-    pub const fn from_array(id: [u8; 32]) -> Self { IfaceId(Bytes32::from_array(id)) }
-    pub fn to_mnemonic(&self) -> String { self.to_baid58().mnemonic() }
+impl Display for IfaceId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { self.fmt_baid64(f) }
 }
 
-impl_serde_baid58!(IfaceId);
+impl_serde_baid64!(IfaceId);
+
+impl IfaceId {
+    pub const fn from_array(id: [u8; 32]) -> Self { IfaceId(Bytes32::from_array(id)) }
+}
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Display, From)]
 #[display(inner)]

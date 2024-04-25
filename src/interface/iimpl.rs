@@ -24,11 +24,11 @@ use std::str::FromStr;
 
 use amplify::confinement::TinyOrdSet;
 use amplify::{ByteArray, Bytes32};
-use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
+use baid64::{Baid64ParseError, DisplayBaid64, FromBaid64Str};
 use chrono::{DateTime, TimeZone, Utc};
 use commit_verify::{CommitId, CommitmentId, DigestExt, Sha256};
 use rgb::{
-    impl_serde_baid58, AssignmentType, ExtensionType, GlobalStateType, Identity, MetaType, Schema,
+    impl_serde_baid64, AssignmentType, ExtensionType, GlobalStateType, Identity, MetaType, Schema,
     SchemaId, TransitionType, ValencyType,
 };
 use strict_encoding::{FieldName, StrictDumb, VariantName};
@@ -71,36 +71,28 @@ impl CommitmentId for ImplId {
     const TAG: &'static str = "urn:lnp-bp:rgb:iface-impl#2024-02-04";
 }
 
-impl ToBaid58<32> for ImplId {
-    const HRI: &'static str = "im";
-    const CHUNKING: Option<Chunking> = CHUNKING_32;
-    fn to_baid58_payload(&self) -> [u8; 32] { self.to_byte_array() }
-    fn to_baid58_string(&self) -> String { self.to_string() }
+impl DisplayBaid64 for ImplId {
+    const HRI: &'static str = "rgb:imp";
+    const CHUNKING: bool = true;
+    const PREFIX: bool = true;
+    const EMBED_CHECKSUM: bool = false;
+    const MNEMONIC: bool = true;
+    fn to_baid64_payload(&self) -> [u8; 32] { self.to_byte_array() }
 }
-impl FromBaid58<32> for ImplId {}
-impl Display for ImplId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        if f.alternate() {
-            f.write_str("urn:lnp-bp:im:")?;
-        }
-        if f.sign_minus() {
-            write!(f, "{:.2}", self.to_baid58())
-        } else {
-            write!(f, "{:#.2}", self.to_baid58())
-        }
-    }
-}
+impl FromBaid64Str for ImplId {}
 impl FromStr for ImplId {
-    type Err = Baid58ParseError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Self::from_baid58_maybe_chunked_str(s.trim_start_matches("urn:lnp-bp:"), ':', '#')
-    }
+    type Err = Baid64ParseError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_baid64_str(s) }
 }
-impl ImplId {
-    pub fn to_mnemonic(&self) -> String { self.to_baid58().mnemonic() }
+impl Display for ImplId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { self.fmt_baid64(f) }
 }
 
-impl_serde_baid58!(ImplId);
+impl_serde_baid64!(ImplId);
+
+impl ImplId {
+    pub const fn from_array(id: [u8; 32]) -> Self { ImplId(Bytes32::from_array(id)) }
+}
 
 /// Maps certain form of type id (global or owned state or a valency) to a
 /// human-readable name.

@@ -31,11 +31,11 @@ use amplify::confinement::{
 };
 use amplify::{ByteArray, Bytes32};
 use armor::{ArmorHeader, AsciiArmor, StrictArmor};
-use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
+use baid64::{Baid64ParseError, DisplayBaid64, FromBaid64Str};
 use commit_verify::{CommitEncode, CommitEngine, CommitId, CommitmentId, DigestExt, Sha256};
 use rgb::validation::{ResolveWitness, Validator, Validity, Warning, CONSIGNMENT_MAX_LIBS};
 use rgb::{
-    impl_serde_baid58, validation, AttachId, BundleId, ContractHistory, ContractId, Extension,
+    impl_serde_baid64, validation, AttachId, BundleId, ContractHistory, ContractId, Extension,
     Genesis, GraphSeal, Operation, Schema, SchemaId, XChain,
 };
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
@@ -75,37 +75,28 @@ impl CommitmentId for ConsignmentId {
     const TAG: &'static str = "urn:lnp-bp:rgb:consignment#2024-03-11";
 }
 
-impl ToBaid58<32> for ConsignmentId {
-    const HRI: &'static str = "con";
-    const CHUNKING: Option<Chunking> = CHUNKING_32;
-    fn to_baid58_payload(&self) -> [u8; 32] { self.to_byte_array() }
-    fn to_baid58_string(&self) -> String { self.to_string() }
+impl DisplayBaid64 for ConsignmentId {
+    const HRI: &'static str = "rgb:csg";
+    const CHUNKING: bool = true;
+    const PREFIX: bool = true;
+    const EMBED_CHECKSUM: bool = false;
+    const MNEMONIC: bool = true;
+    fn to_baid64_payload(&self) -> [u8; 32] { self.to_byte_array() }
 }
-impl FromBaid58<32> for ConsignmentId {}
-impl Display for ConsignmentId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        if f.alternate() {
-            f.write_str("urn:lnp-bp:con:")?;
-        }
-        if f.sign_minus() {
-            write!(f, "{:.2}", self.to_baid58())
-        } else {
-            write!(f, "{:#.2}", self.to_baid58())
-        }
-    }
-}
+impl FromBaid64Str for ConsignmentId {}
 impl FromStr for ConsignmentId {
-    type Err = Baid58ParseError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Self::from_baid58_maybe_chunked_str(s.trim_start_matches("urn:lnp-bp:"), ':', '#')
-    }
+    type Err = Baid64ParseError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_baid64_str(s) }
 }
-impl ConsignmentId {
-    pub const fn from_array(id: [u8; 32]) -> Self { Self(Bytes32::from_array(id)) }
-    pub fn to_mnemonic(&self) -> String { self.to_baid58().mnemonic() }
+impl Display for ConsignmentId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { self.fmt_baid64(f) }
 }
 
-impl_serde_baid58!(ConsignmentId);
+impl_serde_baid64!(ConsignmentId);
+
+impl ConsignmentId {
+    pub const fn from_array(id: [u8; 32]) -> Self { Self(Bytes32::from_array(id)) }
+}
 
 pub type ValidContract = ValidConsignment<false>;
 pub type ValidTransfer = ValidConsignment<true>;

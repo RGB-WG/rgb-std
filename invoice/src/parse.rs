@@ -61,7 +61,7 @@ pub enum TransportParseError {
     InvalidTransportHost(String),
 }
 
-#[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
+#[derive(Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum InvoiceParseError {
     #[from]
@@ -107,7 +107,7 @@ pub enum InvoiceParseError {
 
     #[from]
     #[display(inner)]
-    Id(baid58::Baid58ParseError),
+    Id(baid64::Baid64ParseError),
 
     /// can't recognize beneficiary "{0}": it should be either a bitcoin address
     /// or a blinded UTXO seal.
@@ -151,7 +151,7 @@ impl RgbInvoice {
 }
 
 impl Display for RgbTransport {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             RgbTransport::JsonRpc { tls, host } => {
                 let s = if *tls { "s" } else { "" };
@@ -266,8 +266,12 @@ impl Display for RgbInvoice {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         let amt = self.owned_state.to_string();
         if let Some(contract) = self.contract {
-            Display::fmt(&contract, f)?;
-            f.write_str("/")?;
+            let id = if f.alternate() {
+                contract.to_string().replace('-', "")
+            } else {
+                contract.to_string()
+            };
+            write!(f, "{id}/")?;
         } else {
             write!(f, "rgb:{OMITTED}/")?;
         }
@@ -285,7 +289,12 @@ impl Display for RgbInvoice {
         if !amt.is_empty() {
             write!(f, "{amt}+")?;
         }
-        Display::fmt(&self.beneficiary, f)?;
+        let beneficiary = if f.alternate() {
+            self.beneficiary.to_string().replace('-', "")
+        } else {
+            self.beneficiary.to_string()
+        };
+        f.write_str(&beneficiary)?;
         if self.has_params() {
             f.write_str("?")?;
         }
@@ -433,45 +442,45 @@ mod test {
     #[test]
     fn parse() {
         // rgb20/rgb25 parameters
-        let invoice_str = "rgb:2WBcas9-yjzEvGufY-9GEgnyMj7-beMNMWA8r-sPHtV1nPU-TMsGMQX/RGB20/\
-                           100+bc:utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb";
+        let invoice_str = "rgb:11Fa@$Dk-rUWXhy8-7H35qXm-pLGGLOo-txBWUgj-tbOaSbI/RGB20/100+bc:\
+                           utxob:zlVS28Rb-amM5lih-ONXGACC-IUWD0Y$-0JXcnWZ-MQn8VEI-B39@F";
         let invoice = RgbInvoice::from_str(invoice_str).unwrap();
         assert_eq!(invoice.to_string(), invoice_str);
         assert_eq!(format!("{invoice:#}"), invoice_str.replace('-', ""));
 
         // rgb21 parameters
-        let invoice_str = "rgb:2WBcas9-yjzEvGufY-9GEgnyMj7-beMNMWA8r-sPHtV1nPU-TMsGMQX/RGB21/1@\
-                           1+bc:utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb";
+        let invoice_str = "rgb:11Fa@$Dk-rUWXhy8-7H35qXm-pLGGLOo-txBWUgj-tbOaSbI/RGB21/1@1+bc:\
+                           utxob:zlVS28Rb-amM5lih-ONXGACC-IUWD0Y$-0JXcnWZ-MQn8VEI-B39@F";
         let invoice = RgbInvoice::from_str(invoice_str).unwrap();
         assert_eq!(invoice.to_string(), invoice_str);
         assert_eq!(format!("{invoice:#}"), invoice_str.replace('-', ""));
 
         // no amount
-        let invoice_str = "rgb:2WBcas9-yjzEvGufY-9GEgnyMj7-beMNMWA8r-sPHtV1nPU-TMsGMQX/RGB20/bc:\
-                           utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb";
+        let invoice_str = "rgb:11Fa@$Dk-rUWXhy8-7H35qXm-pLGGLOo-txBWUgj-tbOaSbI/RGB20/bc:utxob:\
+                           zlVS28Rb-amM5lih-ONXGACC-IUWD0Y$-0JXcnWZ-MQn8VEI-B39@F";
         let invoice = RgbInvoice::from_str(invoice_str).unwrap();
         assert_eq!(invoice.to_string(), invoice_str);
 
         // no allocation
-        let invoice_str = "rgb:2WBcas9-yjzEvGufY-9GEgnyMj7-beMNMWA8r-sPHtV1nPU-TMsGMQX/RGB21/bc:\
-                           utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb";
+        let invoice_str = "rgb:11Fa@$Dk-rUWXhy8-7H35qXm-pLGGLOo-txBWUgj-tbOaSbI/RGB21/bc:utxob:\
+                           zlVS28Rb-amM5lih-ONXGACC-IUWD0Y$-0JXcnWZ-MQn8VEI-B39@F";
         let invoice = RgbInvoice::from_str(invoice_str).unwrap();
         assert_eq!(invoice.to_string(), invoice_str);
 
         // no contract ID
         let invoice_str =
-            "rgb:~/RGB20/bc:utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb";
+            "rgb:~/RGB20/bc:utxob:zlVS28Rb-amM5lih-ONXGACC-IUWD0Y$-0JXcnWZ-MQn8VEI-B39@F";
         let invoice = RgbInvoice::from_str(invoice_str).unwrap();
         assert_eq!(invoice.to_string(), invoice_str);
 
         // no contract ID nor iface
-        let invoice_str = "rgb:~/~/bc:utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb";
+        let invoice_str = "rgb:~/~/bc:utxob:zlVS28Rb-amM5lih-ONXGACC-IUWD0Y$-0JXcnWZ-MQn8VEI-B39@F";
         let invoice = RgbInvoice::from_str(invoice_str).unwrap();
         assert_eq!(invoice.to_string(), invoice_str);
 
         // contract ID provided but no iface
-        let invoice_str = "rgb:2WBcas9-yjzEvGufY-9GEgnyMj7-beMNMWA8r-sPHtV1nPU-TMsGMQX/~/bc:utxob:\
-                           egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb";
+        let invoice_str = "rgb:11Fa@$Dk-rUWXhy8-7H35qXm-pLGGLOo-txBWUgj-tbOaSbI/~/bc:utxob:\
+                           zlVS28Rb-amM5lih-ONXGACC-IUWD0Y$-0JXcnWZ-MQn8VEI-B39@F";
         let result = RgbInvoice::from_str(invoice_str);
         assert!(matches!(result, Err(InvoiceParseError::ContractIdNoIface)));
 
@@ -479,57 +488,55 @@ mod test {
         let invalid_contract_id = "invalid";
         let invoice_str = format!(
             "rgb:{invalid_contract_id}/RGB20/bc:utxob:\
-             egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb"
+             zlVS28Rb-amM5lih-ONXGACC-IUWD0Y$-0JXcnWZ-MQn8VEI-B39@F"
         );
         let result = RgbInvoice::from_str(&invoice_str);
         assert!(matches!(result,
                 Err(InvoiceParseError::InvalidContractId(c)) if c == invalid_contract_id));
 
         // with expiration
-        let invoice_str = "rgb:2WBcas9-yjzEvGufY-9GEgnyMj7-beMNMWA8r-sPHtV1nPU-TMsGMQX/RGB20/\
-                           100+bc:utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb?\
+        let invoice_str = "rgb:11Fa@$Dk-rUWXhy8-7H35qXm-pLGGLOo-txBWUgj-tbOaSbI/RGB20/100+bc:\
+                           utxob:zlVS28Rb-amM5lih-ONXGACC-IUWD0Y$-0JXcnWZ-MQn8VEI-B39@F?\
                            expiry=1682086371";
         let invoice = RgbInvoice::from_str(invoice_str).unwrap();
         assert_eq!(invoice.to_string(), invoice_str);
 
         // bad expiration
-        let invoice_str = "rgb:2WBcas9-yjzEvGufY-9GEgnyMj7-beMNMWA8r-sPHtV1nPU-TMsGMQX/RGB20/\
-                           100+bc:utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb?\
-                           expiry=six";
+        let invoice_str = "rgb:11Fa@$Dk-rUWXhy8-7H35qXm-pLGGLOo-txBWUgj-tbOaSbI/RGB20/100+bc:\
+                           utxob:zlVS28Rb-amM5lih-ONXGACC-IUWD0Y$-0JXcnWZ-MQn8VEI-B39@F?expiry=six";
         let result = RgbInvoice::from_str(invoice_str);
         assert!(matches!(result, Err(InvoiceParseError::InvalidExpiration(_))));
 
         // with bad query parameter
-        let invoice_str = "rgb:2WBcas9-yjzEvGufY-9GEgnyMj7-beMNMWA8r-sPHtV1nPU-TMsGMQX/RGB20/\
-                           100+bc:utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb?\
-                           expiry";
+        let invoice_str = "rgb:11Fa@$Dk-rUWXhy8-7H35qXm-pLGGLOo-txBWUgj-tbOaSbI/RGB20/100+bc:\
+                           utxob:zlVS28Rb-amM5lih-ONXGACC-IUWD0Y$-0JXcnWZ-MQn8VEI-B39@F?expiry";
         let result = RgbInvoice::from_str(invoice_str);
         assert!(matches!(result, Err(InvoiceParseError::InvalidQueryParam(_))));
 
         // with an unknown query parameter
-        let invoice_str = "rgb:2WBcas9-yjzEvGufY-9GEgnyMj7-beMNMWA8r-sPHtV1nPU-TMsGMQX/RGB20/\
-                           100+bc:utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb?\
+        let invoice_str = "rgb:11Fa@$Dk-rUWXhy8-7H35qXm-pLGGLOo-txBWUgj-tbOaSbI/RGB20/100+bc:\
+                           utxob:zlVS28Rb-amM5lih-ONXGACC-IUWD0Y$-0JXcnWZ-MQn8VEI-B39@F?\
                            unknown=new";
         let invoice = RgbInvoice::from_str(invoice_str).unwrap();
         assert_eq!(invoice.to_string(), invoice_str);
 
         // with two unknown query parameters
-        let invoice_str = "rgb:2WBcas9-yjzEvGufY-9GEgnyMj7-beMNMWA8r-sPHtV1nPU-TMsGMQX/RGB20/\
-                           100+bc:utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb?\
+        let invoice_str = "rgb:11Fa@$Dk-rUWXhy8-7H35qXm-pLGGLOo-txBWUgj-tbOaSbI/RGB20/100+bc:\
+                           utxob:zlVS28Rb-amM5lih-ONXGACC-IUWD0Y$-0JXcnWZ-MQn8VEI-B39@F?\
                            unknown=new&another=new";
         let invoice = RgbInvoice::from_str(invoice_str).unwrap();
         assert_eq!(invoice.to_string(), invoice_str);
 
         // with expiration and an unknown query parameter
-        let invoice_str = "rgb:2WBcas9-yjzEvGufY-9GEgnyMj7-beMNMWA8r-sPHtV1nPU-TMsGMQX/RGB20/\
-                           100+bc:utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb?\
+        let invoice_str = "rgb:11Fa@$Dk-rUWXhy8-7H35qXm-pLGGLOo-txBWUgj-tbOaSbI/RGB20/100+bc:\
+                           utxob:zlVS28Rb-amM5lih-ONXGACC-IUWD0Y$-0JXcnWZ-MQn8VEI-B39@F?\
                            expiry=1682086371&unknown=new";
         let invoice = RgbInvoice::from_str(invoice_str).unwrap();
         assert_eq!(invoice.to_string(), invoice_str);
 
         // with an unknown query parameter containing percent-encoded text
-        let invoice_base = "rgb:2WBcas9-yjzEvGufY-9GEgnyMj7-beMNMWA8r-sPHtV1nPU-TMsGMQX/RGB20/\
-                            100+bc:utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb?";
+        let invoice_base = "rgb:11Fa@$Dk-rUWXhy8-7H35qXm-pLGGLOo-txBWUgj-tbOaSbI/RGB20/100+bc:\
+                            utxob:zlVS28Rb-amM5lih-ONXGACC-IUWD0Y$-0JXcnWZ-MQn8VEI-B39@F?";
         let query_key_encoded = ":@-%20%23";
         let query_key_decoded = ":@- #";
         let query_val_encoded = "?/.%26%3D";
@@ -546,40 +553,39 @@ mod test {
 
         // no scheme
         let invoice_str = "2WBcas9-yjzEvGufY-9GEgnyMj7-beMNMWA8r-sPHtV1nPU-TMsGMQX/~/bc:utxob:\
-                           egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb";
+                           zlVS28Rb-amM5lih-ONXGACC-IUWD0Y$-0JXcnWZ-MQn8VEI-B39@F";
         let result = RgbInvoice::from_str(invoice_str);
         assert!(matches!(result, Err(InvoiceParseError::Invalid)));
 
         // invalid scheme
         let invoice_str = "bad:2WBcas9-yjzEvGufY-9GEgnyMj7-beMNMWA8r-sPHtV1nPU-TMsGMQX/~/bc:utxob:\
-                           egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb";
+                           zlVS28Rb-amM5lih-ONXGACC-IUWD0Y$-0JXcnWZ-MQn8VEI-B39@F";
         let result = RgbInvoice::from_str(invoice_str);
         assert!(matches!(result, Err(InvoiceParseError::InvalidScheme(_))));
 
         // empty transport endpoint specification
-        let invoice_str = "rgb:2WBcas9-yjzEvGufY-9GEgnyMj7-beMNMWA8r-sPHtV1nPU-TMsGMQX/RGB20/\
-                           100+bc:utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb?\
-                           endpoints=";
+        let invoice_str = "rgb:11Fa@$Dk-rUWXhy8-7H35qXm-pLGGLOo-txBWUgj-tbOaSbI/RGB20/100+bc:\
+                           utxob:zlVS28Rb-amM5lih-ONXGACC-IUWD0Y$-0JXcnWZ-MQn8VEI-B39@F?endpoints=";
         let result = RgbInvoice::from_str(invoice_str);
         assert!(matches!(result, Err(InvoiceParseError::InvalidQueryParam(_))));
 
         // invalid transport endpoint specification
-        let invoice_str = "rgb:2WBcas9-yjzEvGufY-9GEgnyMj7-beMNMWA8r-sPHtV1nPU-TMsGMQX/RGB20/\
-                           100+bc:utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb?\
+        let invoice_str = "rgb:11Fa@$Dk-rUWXhy8-7H35qXm-pLGGLOo-txBWUgj-tbOaSbI/RGB20/100+bc:\
+                           utxob:zlVS28Rb-amM5lih-ONXGACC-IUWD0Y$-0JXcnWZ-MQn8VEI-B39@F?\
                            endpoints=bad";
         let result = RgbInvoice::from_str(invoice_str);
         assert!(matches!(result, Err(InvoiceParseError::InvalidQueryParam(_))));
 
         // invalid transport variant
-        let invoice_str = "rgb:2WBcas9-yjzEvGufY-9GEgnyMj7-beMNMWA8r-sPHtV1nPU-TMsGMQX/RGB20/\
-                           100+bc:utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb?\
+        let invoice_str = "rgb:11Fa@$Dk-rUWXhy8-7H35qXm-pLGGLOo-txBWUgj-tbOaSbI/RGB20/100+bc:\
+                           utxob:zlVS28Rb-amM5lih-ONXGACC-IUWD0Y$-0JXcnWZ-MQn8VEI-B39@F?\
                            endpoints=rpca://host.example.com";
         let result = RgbInvoice::from_str(invoice_str);
         assert!(matches!(result, Err(InvoiceParseError::InvalidQueryParam(_))));
 
         // rgb-rpc variant
-        let invoice_str = "rgb:2WBcas9-yjzEvGufY-9GEgnyMj7-beMNMWA8r-sPHtV1nPU-TMsGMQX/RGB20/\
-                           100+bc:utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb?\
+        let invoice_str = "rgb:11Fa@$Dk-rUWXhy8-7H35qXm-pLGGLOo-txBWUgj-tbOaSbI/RGB20/100+bc:\
+                           utxob:zlVS28Rb-amM5lih-ONXGACC-IUWD0Y$-0JXcnWZ-MQn8VEI-B39@F?\
                            endpoints=rpc://host.example.com";
         let invoice = RgbInvoice::from_str(invoice_str).unwrap();
         assert_eq!(invoice.transports, vec![RgbTransport::JsonRpc {
@@ -589,8 +595,8 @@ mod test {
         assert_eq!(invoice.to_string(), invoice_str);
 
         // rgb-rpc variant, host containing authentication, "-" characters and port
-        let invoice_str = "rgb:2WBcas9-yjzEvGufY-9GEgnyMj7-beMNMWA8r-sPHtV1nPU-TMsGMQX/RGB20/\
-                           100+bc:utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb?\
+        let invoice_str = "rgb:11Fa@$Dk-rUWXhy8-7H35qXm-pLGGLOo-txBWUgj-tbOaSbI/RGB20/100+bc:\
+                           utxob:zlVS28Rb-amM5lih-ONXGACC-IUWD0Y$-0JXcnWZ-MQn8VEI-B39@F?\
                            endpoints=rpcs://user:pass@host-1.ex-ample.com:1234";
         let invoice = RgbInvoice::from_str(invoice_str).unwrap();
         assert_eq!(invoice.transports, vec![RgbTransport::JsonRpc {
@@ -600,8 +606,8 @@ mod test {
         assert_eq!(invoice.to_string(), invoice_str);
 
         // rgb-rpc variant, IPv6 host
-        let invoice_str = "rgb:2WBcas9-yjzEvGufY-9GEgnyMj7-beMNMWA8r-sPHtV1nPU-TMsGMQX/RGB20/\
-                           100+bc:utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb?\
+        let invoice_str = "rgb:11Fa@$Dk-rUWXhy8-7H35qXm-pLGGLOo-txBWUgj-tbOaSbI/RGB20/100+bc:\
+                           utxob:zlVS28Rb-amM5lih-ONXGACC-IUWD0Y$-0JXcnWZ-MQn8VEI-B39@F?\
                            endpoints=rpcs://%5B2001:db8::1%5D:1234";
         let invoice = RgbInvoice::from_str(invoice_str).unwrap();
         assert_eq!(invoice.transports, vec![RgbTransport::JsonRpc {
@@ -611,30 +617,30 @@ mod test {
         assert_eq!(invoice.to_string(), invoice_str);
 
         // rgb-rpc variant with missing host
-        let invoice_str = "rgb:2WBcas9-yjzEvGufY-9GEgnyMj7-beMNMWA8r-sPHtV1nPU-TMsGMQX/RGB20/\
-                           100+bc:utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb?\
+        let invoice_str = "rgb:11Fa@$Dk-rUWXhy8-7H35qXm-pLGGLOo-txBWUgj-tbOaSbI/RGB20/100+bc:\
+                           utxob:zlVS28Rb-amM5lih-ONXGACC-IUWD0Y$-0JXcnWZ-MQn8VEI-B39@F?\
                            endpoints=rpc://";
         let result = RgbInvoice::from_str(invoice_str);
         assert!(matches!(result, Err(InvoiceParseError::InvalidQueryParam(_))));
 
         // rgb-rpc variant with invalid separator
-        let invoice_str = "rgb:2WBcas9-yjzEvGufY-9GEgnyMj7-beMNMWA8r-sPHtV1nPU-TMsGMQX/RGB20/\
-                           100+bc:utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb?\
+        let invoice_str = "rgb:11Fa@$Dk-rUWXhy8-7H35qXm-pLGGLOo-txBWUgj-tbOaSbI/RGB20/100+bc:\
+                           utxob:zlVS28Rb-amM5lih-ONXGACC-IUWD0Y$-0JXcnWZ-MQn8VEI-B39@F?\
                            endpoints=rpc/host.example.com";
         let result = RgbInvoice::from_str(invoice_str);
         assert!(matches!(result, Err(InvoiceParseError::InvalidQueryParam(_))));
 
         // rgb-rpc variant with invalid transport host specification
-        let invoice_str = "rgb:2WBcas9-yjzEvGufY-9GEgnyMj7-beMNMWA8r-sPHtV1nPU-TMsGMQX/RGB20/\
-                           100+bc:utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb?\
+        let invoice_str = "rgb:11Fa@$Dk-rUWXhy8-7H35qXm-pLGGLOo-txBWUgj-tbOaSbI/RGB20/100+bc:\
+                           utxob:zlVS28Rb-amM5lih-ONXGACC-IUWD0Y$-0JXcnWZ-MQn8VEI-B39@F?\
                            endpoints=rpc://ho]t";
         let result = RgbInvoice::from_str(invoice_str);
         assert!(matches!(result, Err(InvoiceParseError::Uri(_))));
 
         // rgb+http variant
         let invoice_str = "rgb:\
-                           2WBcas9-yjzEvGufY-9GEgnyMj7-beMNMWA8r-sPHtV1nPU-TMsGMQX/RGB20/\
-                           100+bc:utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb?endpoints=https://\
+                           11Fa@$Dk-rUWXhy8-7H35qXm-pLGGLOo-txBWUgj-tbOaSbI/RGB20/\
+                           100+bc:utxob:zlVS28Rb-amM5lih-ONXGACC-IUWD0Y$-0JXcnWZ-MQn8VEI-B39@F?endpoints=https://\
                            host.example.com";
         let invoice = RgbInvoice::from_str(invoice_str).unwrap();
         let transports = vec![RgbTransport::RestHttp {
@@ -645,8 +651,8 @@ mod test {
         assert_eq!(invoice.to_string(), invoice_str);
 
         // rgb+ws variant
-        let invoice_str = "rgb:2WBcas9-yjzEvGufY-9GEgnyMj7-beMNMWA8r-sPHtV1nPU-TMsGMQX/RGB20/\
-                           100+bc:utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb?\
+        let invoice_str = "rgb:11Fa@$Dk-rUWXhy8-7H35qXm-pLGGLOo-txBWUgj-tbOaSbI/RGB20/100+bc:\
+                           utxob:zlVS28Rb-amM5lih-ONXGACC-IUWD0Y$-0JXcnWZ-MQn8VEI-B39@F?\
                            endpoints=wss://host.example.com";
         let invoice = RgbInvoice::from_str(invoice_str).unwrap();
         let transports = vec![RgbTransport::WebSockets {
@@ -660,8 +666,8 @@ mod test {
 
         // multiple transports
         let invoice_str = "rgb:\
-                           2WBcas9-yjzEvGufY-9GEgnyMj7-beMNMWA8r-sPHtV1nPU-TMsGMQX/RGB20/\
-                           100+bc:utxob:egXsFnw-5Eud7WKYn-7DVQvcPbc-rR69YmgmG-veacwmUFo-uMFKFb?endpoints=rpcs://\
+                           11Fa@$Dk-rUWXhy8-7H35qXm-pLGGLOo-txBWUgj-tbOaSbI/RGB20/\
+                           100+bc:utxob:zlVS28Rb-amM5lih-ONXGACC-IUWD0Y$-0JXcnWZ-MQn8VEI-B39@F?endpoints=rpcs://\
                            host1.example.com,http://host2.example.com,ws://host3.example.com";
         let invoice = RgbInvoice::from_str(invoice_str).unwrap();
         let transports = vec![
