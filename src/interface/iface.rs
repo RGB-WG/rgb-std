@@ -85,8 +85,7 @@ impl IfaceId {
     pub const fn from_array(id: [u8; 32]) -> Self { IfaceId(Bytes32::from_array(id)) }
 }
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Display, From)]
-#[display(inner)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, From)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
@@ -98,6 +97,21 @@ pub enum IfaceRef {
     Name(TypeName),
     #[from]
     Id(IfaceId),
+}
+
+impl Display for IfaceRef {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            IfaceRef::Name(name) => f.write_str(name.as_str()),
+            IfaceRef::Id(id) => {
+                if f.alternate() {
+                    write!(f, "{}", id.to_baid64_mnemonic())
+                } else {
+                    write!(f, "{}", id)
+                }
+            }
+        }
+    }
 }
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]

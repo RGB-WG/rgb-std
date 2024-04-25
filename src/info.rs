@@ -74,26 +74,27 @@ impl IfaceInfo {
 
 impl Display for IfaceInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{: <18}", self.developer.to_string())?;
-        f.write_char(f.fill())?;
-        write!(f, "{}", self.version)?;
-        f.write_char(f.fill())?;
-        write!(f, "{}", self.created_at.format("%Y-%m-%d"))?;
-        f.write_char(f.fill())?;
-        write!(f, "{:24}", self.default_op.clone().unwrap_or_else(|| fname!("~")))?;
-        f.write_char(f.fill())?;
-        write!(
+        write!(f, "{: <40}\t", self.name)?;
+        write!(f, "{}\t", self.created_at.format("%Y-%m-%d"))?;
+        write!(f, "{}\t", self.version)?;
+        writeln!(f, "{}", self.id)?;
+
+        writeln!(f, "\tDeveloper:   {}", self.developer.to_string())?;
+
+        writeln!(f, "\tDefaults to: {}", self.default_op.clone().unwrap_or_else(|| fname!("~")))?;
+
+        writeln!(
             f,
-            "{:32}",
+            "\tInherits:    {}",
             self.inherits
                 .iter()
-                .map(|f| f.to_string())
+                .map(|f| format!("{:#}", f))
                 .collect::<Vec<_>>()
-                .join(", ")
-        )?;
-        writeln!(f, "{}", self.name)?;
-        f.write_char(f.fill())?;
-        writeln!(f, "\t{}", self.id)
+                .chunks(5)
+                .map(|chunk| chunk.join(", "))
+                .collect::<Vec<_>>()
+                .join("\n\t             ")
+        )
     }
 }
 
