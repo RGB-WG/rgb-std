@@ -213,8 +213,9 @@ impl<'a> Display for IfaceDisplay<'a> {
         }
 
         writeln!(f, "@version({:#})", self.iface.version)?;
-        if !self.iface.developer.is_empty() {
-            writeln!(f, "@developer({})", self.iface.developer)?;
+        writeln!(f, "@id({})", self.iface.iface_id())?;
+        if !self.iface.developer.is_anonymous() {
+            writeln!(f, "@developer(\"{}\")", self.iface.developer)?;
         }
         writeln!(f, "@timestamp({})", self.iface.timestamp)?;
         write!(f, "interface {}", self.iface.name)?;
@@ -235,8 +236,8 @@ impl<'a> Display for IfaceDisplay<'a> {
         for (fname, semid) in &self.iface.metadata {
             write!(f, "\tmeta {fname}: ")?;
             match self.types.lookup(*semid) {
-                Some(fqn) => writeln!(f, "{fqn}"),
-                None => writeln!(f, "{semid} -- type name is unknown"),
+                Some(fqn) => write!(f, "{fqn}"),
+                None => write!(f, "{semid} -- type name is unknown"),
             }?;
             writeln!(f)?;
         }
