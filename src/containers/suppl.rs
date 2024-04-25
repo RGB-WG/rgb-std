@@ -99,7 +99,8 @@ impl From<&'static str> for AnnotationName {
     fn from(s: &'static str) -> Self { Self(RString::from(s)) }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Display)]
+#[display(inner)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD, tags = order, dumb = ContentRef::Schema(strict_dumb!()))]
 #[cfg_attr(
