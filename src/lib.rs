@@ -74,12 +74,14 @@ extern crate amplify;
 extern crate strict_encoding;
 #[macro_use]
 extern crate commit_verify;
+#[macro_use]
+extern crate rgbcore as rgb;
 #[cfg(feature = "serde")]
 #[macro_use]
 extern crate serde_crate as serde;
 
 /// Re-exporting all invoice data types (RGB and BP).
-pub extern crate invoice;
+pub extern crate rgbinvoice as invoice;
 
 pub mod stl;
 pub mod interface;

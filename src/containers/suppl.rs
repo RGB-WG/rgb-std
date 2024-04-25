@@ -27,7 +27,7 @@ use amplify::confinement::{SmallBlob, TinyOrdMap};
 use amplify::{ByteArray, Bytes32};
 use baid64::{Baid64ParseError, DisplayBaid64, FromBaid64Str};
 use commit_verify::{CommitId, CommitmentId, DigestExt, Sha256};
-use rgb::{impl_serde_baid64, AssignmentType, ContractId, GlobalStateType, Identity, SchemaId};
+use rgb::{AssignmentType, ContractId, GlobalStateType, Identity, SchemaId};
 use strict_encoding::stl::{AlphaCaps, AlphaNumDash};
 use strict_encoding::{
     DeserializeError, FieldName, RString, StrictDeserialize, StrictSerialize, TypeName, VariantName,

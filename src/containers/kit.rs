@@ -30,7 +30,7 @@ use amplify::{ByteArray, Bytes32};
 use armor::{ArmorHeader, AsciiArmor, StrictArmor};
 use baid64::{Baid64ParseError, DisplayBaid64, FromBaid64Str};
 use commit_verify::{CommitEncode, CommitEngine, CommitId, CommitmentId, DigestExt, Sha256};
-use rgb::{impl_serde_baid64, validation, Schema};
+use rgb::{validation, Schema};
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 use strict_types::TypeSystem;
 
