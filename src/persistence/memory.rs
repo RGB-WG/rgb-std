@@ -305,7 +305,7 @@ impl StashWriteProvider for MemStash {
         Ok(())
     }
 
-    fn add_suppl(&mut self, suppl: Supplement) -> Result<(), confinement::Error> {
+    fn add_supplement(&mut self, suppl: Supplement) -> Result<(), confinement::Error> {
         match self.suppl.get_mut(&suppl.content_id) {
             None => {
                 self.suppl.insert(suppl.content_id, confined_bset![suppl])?;

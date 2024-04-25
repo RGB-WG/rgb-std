@@ -26,11 +26,13 @@ use std::str::FromStr;
 use amplify::confinement::{SmallBlob, TinyOrdMap};
 use amplify::{ByteArray, Bytes32};
 use baid64::{Baid64ParseError, DisplayBaid64, FromBaid64Str};
+use chrono::Utc;
 use commit_verify::{CommitId, CommitmentId, DigestExt, Sha256};
 use rgb::{AssignmentType, ContractId, GlobalStateType, Identity, SchemaId};
 use strict_encoding::stl::{AlphaCaps, AlphaNumDash};
 use strict_encoding::{
-    DeserializeError, FieldName, RString, StrictDeserialize, StrictSerialize, TypeName, VariantName,
+    DeserializeError, FieldName, RString, SerializeError, StrictDeserialize, StrictSerialize,
+    TypeName, VariantName,
 };
 use strict_types::value;
 
@@ -101,7 +103,7 @@ impl From<&'static str> for AnnotationName {
     fn from(s: &'static str) -> Self { Self(RString::from(s)) }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Display)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Display, From)]
 #[display(inner)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD, tags = order, dumb = ContentRef::Schema(strict_dumb!()))]
@@ -111,9 +113,13 @@ impl From<&'static str> for AnnotationName {
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub enum ContentRef {
+    #[from]
     Schema(SchemaId),
+    #[from]
     Genesis(ContractId),
+    #[from]
     Iface(IfaceId),
+    #[from]
     IfaceImpl(ImplId),
 }
 
@@ -206,6 +212,15 @@ impl StrictDeserialize for Supplement {}
 impl Supplement {
     pub fn suppl_id(&self) -> SupplId { self.commit_id() }
 
+    pub fn new(content: impl Into<ContentRef>, creator: impl Into<Identity>) -> Self {
+        Supplement {
+            content_id: content.into(),
+            timestamp: Utc::now().timestamp(),
+            creator: creator.into(),
+            annotations: none!(),
+        }
+    }
+
     pub fn get_default_opt<T: StrictDeserialize>(
         &self,
         sub: SupplSub,
@@ -235,6 +250,45 @@ impl Supplement {
     ) -> Option<Result<T, DeserializeError>> {
         let annotation = self.annotations.get(&sub)?.get(&item)?.get(&name.into())?;
         Some(T::from_strict_serialized(annotation.clone()))
+    }
+
+    pub fn annotate_itself(
+        &mut self,
+        name: impl Into<AnnotationName>,
+        data: &impl StrictSerialize,
+    ) -> Result<bool, SerializeError> {
+        self.annotate_default(SupplSub::Itself, name, data)
+    }
+
+    pub fn annotate_default(
+        &mut self,
+        sub: SupplSub,
+        name: impl Into<AnnotationName>,
+        data: &impl StrictSerialize,
+    ) -> Result<bool, SerializeError> {
+        self.annotate(sub, SupplItem::Default, name, data)
+    }
+
+    pub fn annotate(
+        &mut self,
+        sub: SupplSub,
+        item: SupplItem,
+        name: impl Into<AnnotationName>,
+        data: &impl StrictSerialize,
+    ) -> Result<bool, SerializeError> {
+        let mut a = self
+            .annotations
+            .remove(&sub)
+            .expect("zero items allowed")
+            .unwrap_or_default();
+        let mut b = a
+            .remove(&item)
+            .expect("zero items allowed")
+            .unwrap_or_default();
+        let prev = b.insert(name.into(), data.to_strict_serialized()?)?;
+        a.insert(item, b)?;
+        self.annotations.insert(sub, a)?;
+        Ok(prev.is_some())
     }
 }
 

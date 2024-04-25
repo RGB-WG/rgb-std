@@ -35,8 +35,8 @@ use strict_encoding::{StrictDeserialize, StrictSerialize};
 use strict_types::TypeSystem;
 
 use super::{
-    Supplement, ASCII_ARMOR_IFACE, ASCII_ARMOR_IIMPL, ASCII_ARMOR_SCHEMA, ASCII_ARMOR_SCRIPT,
-    ASCII_ARMOR_SUPPL, ASCII_ARMOR_TYPE_SYSTEM, ASCII_ARMOR_VERSION,
+    ContentRef, Supplement, ASCII_ARMOR_IFACE, ASCII_ARMOR_IIMPL, ASCII_ARMOR_SCHEMA,
+    ASCII_ARMOR_SCRIPT, ASCII_ARMOR_TYPE_SYSTEM, ASCII_ARMOR_VERSION,
 };
 use crate::containers::{ContainerVer, ContentId, ContentSigs};
 use crate::interface::{Iface, IfaceImpl};
@@ -203,32 +203,62 @@ impl StrictArmor for Kit {
             vec![ArmorHeader::new(ASCII_ARMOR_VERSION, format!("{:#}", self.version))];
         for schema in &self.schemata {
             let mut header = ArmorHeader::new(ASCII_ARMOR_SCHEMA, schema.name.to_string());
+            let id = schema.schema_id();
+            header.params.push((s!("id"), format!("{id:-}")));
             header
                 .params
-                .push((s!("id"), schema.schema_id().to_string()));
+                .push((s!("dev"), schema.developer.to_string()));
+            if let Some(suppl) = self
+                .supplements
+                .iter()
+                .find(|s| s.content_id == ContentRef::Schema(id))
+            {
+                header
+                    .params
+                    .push((s!("suppl"), format!("{:-}", suppl.suppl_id())));
+            }
             headers.push(header);
         }
         for iface in &self.ifaces {
             let mut header = ArmorHeader::new(ASCII_ARMOR_IFACE, iface.name.to_string());
-            header.params.push((s!("id"), iface.iface_id().to_string()));
+            let id = iface.iface_id();
+            header.params.push((s!("id"), format!("{id:-}")));
+            header.params.push((s!("dev"), iface.developer.to_string()));
+            if let Some(suppl) = self
+                .supplements
+                .iter()
+                .find(|s| s.content_id == ContentRef::Iface(id))
+            {
+                header
+                    .params
+                    .push((s!("suppl"), format!("{:-}", suppl.suppl_id())));
+            }
             headers.push(header);
         }
         for iimpl in &self.iimpls {
-            let mut header = ArmorHeader::new(ASCII_ARMOR_IIMPL, iimpl.impl_id().to_string());
+            let id = iimpl.impl_id();
+            let mut header = ArmorHeader::new(ASCII_ARMOR_IIMPL, format!("{id:-}"));
             header
                 .params
-                .push((s!("interface"), iimpl.iface_id.to_string()));
+                .push((s!("interface"), format!("{:-}", iimpl.iface_id)));
             header
                 .params
-                .push((s!("schema"), iimpl.schema_id.to_string()));
+                .push((s!("schema"), format!("{:-}", iimpl.schema_id)));
+            header.params.push((s!("dev"), iimpl.developer.to_string()));
+            if let Some(suppl) = self
+                .supplements
+                .iter()
+                .find(|s| s.content_id == ContentRef::IfaceImpl(id))
+            {
+                header
+                    .params
+                    .push((s!("suppl"), format!("{:-}", suppl.suppl_id())));
+            }
             headers.push(header);
         }
         headers.push(ArmorHeader::new(ASCII_ARMOR_TYPE_SYSTEM, self.types.id().to_string()));
         for lib in &self.scripts {
             headers.push(ArmorHeader::new(ASCII_ARMOR_SCRIPT, lib.id().to_string()));
-        }
-        for suppl in &self.supplements {
-            headers.push(ArmorHeader::new(ASCII_ARMOR_SUPPL, suppl.suppl_id().to_string()));
         }
         headers
     }

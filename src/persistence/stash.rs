@@ -435,7 +435,7 @@ impl<P: StashProvider> Stash<P> {
         // TODO: filter out non-trusted signers
         for suppl in kit.supplements {
             self.provider
-                .add_suppl(suppl)
+                .add_supplement(suppl)
                 .map_err(StashError::WriteProvider)?;
         }
 
@@ -660,7 +660,7 @@ pub trait StashWriteProvider {
         identity: Identity,
         trust: TrustLevel,
     ) -> Result<(), confinement::Error>;
-    fn add_suppl(&mut self, suppl: Supplement) -> Result<(), Self::Error>;
+    fn add_supplement(&mut self, suppl: Supplement) -> Result<(), Self::Error>;
     fn import_sigs<I>(&mut self, content_id: ContentId, sigs: I) -> Result<(), Self::Error>
     where I: IntoIterator<Item = (Identity, SigBlob)>;
 

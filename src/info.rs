@@ -20,10 +20,10 @@
 // limitations under the License.
 
 use std::collections::HashMap;
-use std::fmt::{self, Debug, Display, Formatter, Write};
+use std::fmt::{self, Debug, Display, Formatter};
 use std::str::FromStr;
 
-use amplify::confinement::TinyVec;
+use amplify::confinement::TinyOrdSet;
 use chrono::{DateTime, TimeZone, Utc};
 use rgb::{AltLayer1Set, ContractId, Genesis, Identity, Operation, SchemaId};
 use strict_encoding::stl::{AlphaCapsLodash, AlphaNumLodash};
@@ -58,7 +58,7 @@ impl StrictDeserialize for IfaceClassName {}
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
-pub struct FeatureList(TinyVec<FieldName>);
+pub struct FeatureList(TinyOrdSet<FieldName>);
 
 impl StrictSerialize for FeatureList {}
 impl StrictDeserialize for FeatureList {}
@@ -136,24 +136,34 @@ impl Display for IfaceInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{}",
+            "{}\t",
             self.standard
                 .as_ref()
                 .map(IfaceClassName::to_string)
                 .unwrap_or_else(|| s!("~"))
         )?;
-        write!(f, "{: <40}\t", self.name)?;
+        write!(f, "{: <40}\t", self.name.to_string())?;
         write!(f, "{}\t", self.created_at.format("%Y-%m-%d"))?;
         write!(f, "{}\t", self.version)?;
         writeln!(f, "{}", self.id)?;
 
-        writeln!(f, "\tDeveloper:   {}", self.developer.to_string())?;
+        writeln!(
+            f,
+            "  Features:    {}",
+            self.features
+                .iter()
+                .map(FieldName::to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
+        )?;
 
-        writeln!(f, "\tDefaults to: {}", self.default_op.clone().unwrap_or_else(|| fname!("~")))?;
+        writeln!(f, "  Defaults to: {}", self.default_op.clone().unwrap_or_else(|| fname!("~")))?;
+
+        writeln!(f, "  Developer:   {}", self.developer.to_string())?;
 
         writeln!(
             f,
-            "\tInherits:    {}",
+            "  Inherits:    {}",
             self.inherits
                 .iter()
                 .map(|f| format!("{:#}", f))
@@ -161,7 +171,7 @@ impl Display for IfaceInfo {
                 .chunks(5)
                 .map(|chunk| chunk.join(", "))
                 .collect::<Vec<_>>()
-                .join("\n\t             ")
+                .join("\n               ")
         )
     }
 }
@@ -202,16 +212,12 @@ impl SchemaInfo {
 
 impl Display for SchemaInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{: <18}", self.developer.to_string())?;
-        f.write_char(f.fill())?;
-        write!(f, "{}", self.created_at.format("%Y-%m-%d"))?;
-        f.write_char(f.fill())?;
-        write!(f, "{: <80}", self.id.to_string())?;
-        f.write_char(f.fill())?;
-        writeln!(f, "{: <24}", self.name)?;
-        f.write_char(f.fill())?;
+        write!(f, "{: <24}", self.name.to_string())?;
+        write!(f, "\t{: <80}", self.id.to_string())?;
+        write!(f, "\t{}", self.created_at.format("%Y-%m-%d"))?;
+        writeln!(f, "\t{}", self.developer)?;
         for info in &self.implements {
-            writeln!(f, "\t{info}")?;
+            write!(f, "  {info}")?;
         }
         Ok(())
     }
@@ -248,13 +254,10 @@ impl ImplInfo {
 
 impl Display for ImplInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{: <24}", self.iface_name)?;
-        f.write_char(f.fill())?;
-        write!(f, "{: <18}", self.developer.to_string())?;
-        f.write_char(f.fill())?;
-        write!(f, "{}", self.created_at.format("%Y-%m-%d"))?;
-        f.write_char(f.fill())?;
-        write!(f, "{: <80}", self.id.to_string())
+        write!(f, "{: <24}", self.iface_name.to_string())?;
+        write!(f, "\t{: <80}", self.id.to_string())?;
+        write!(f, "\t{}", self.created_at.format("%Y-%m-%d"))?;
+        writeln!(f, "\t{}", self.developer)
     }
 }
 
@@ -291,21 +294,17 @@ impl ContractInfo {
 
 impl Display for ContractInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{: <18}", self.issuer.to_string())?;
-        f.write_char(f.fill())?;
-        write!(f, "{: <80}", self.id.to_string())?;
-        f.write_char(f.fill())?;
+        write!(f, "{}", self.id)?;
         write!(
             f,
-            "bitcoin{: <8}",
+            "\tbitcoin{: <12}",
             self.alt_layers1
                 .iter()
                 .map(|layer| format!(", {layer}"))
                 .collect::<String>()
         )?;
-        f.write_char(f.fill())?;
-        write!(f, "{}", self.issued_at.format("%Y-%m-%d"))?;
-        f.write_char(f.fill())?;
-        writeln!(f, "{}", self.schema_id)
+        write!(f, "\t{}", self.issued_at.format("%Y-%m-%d"))?;
+        writeln!(f, "\t{: <80}", self.schema_id.to_string())?;
+        writeln!(f, "  Developer: {}", self.issuer)
     }
 }
