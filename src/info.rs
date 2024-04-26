@@ -159,7 +159,14 @@ impl Display for IfaceInfo {
                 .join(", ")
         )?;
 
-        writeln!(f, "  Defaults to: {}", self.default_op.clone().unwrap_or_else(|| fname!("~")))?;
+        writeln!(
+            f,
+            "  Defaults to: {}",
+            self.default_op
+                .as_ref()
+                .map(FieldName::to_string)
+                .unwrap_or_else(|| s!("~"))
+        )?;
 
         writeln!(f, "  Developer:   {}", self.developer)?;
 
