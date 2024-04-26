@@ -184,7 +184,7 @@ impl SchemaIfaces {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Stash<P: StashProvider> {
     provider: P,
 }

@@ -334,7 +334,7 @@ stock_err_conv!(ContractIfaceError, InputError);
 pub type StockErrorMem<E = Infallible> = StockError<MemStash, MemState, MemIndex, E>;
 pub type StockErrorAll<S = MemStash, H = MemState, P = MemIndex> = StockError<S, H, P, InputError>;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Stock<
     S: StashProvider = MemStash,
     H: StateProvider = MemState,

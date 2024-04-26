@@ -21,7 +21,7 @@
 
 #![allow(unused_braces)]
 
-use std::fmt::{self, Debug, Formatter};
+use std::fmt::{self, Debug};
 use std::str::FromStr;
 
 use strict_encoding::stl::AlphaSmall;

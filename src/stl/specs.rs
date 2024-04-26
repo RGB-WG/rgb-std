@@ -22,6 +22,7 @@
 #![allow(unused_braces)] // caused by rustc unable to understand strict_dumb
 
 use std::fmt::{self, Debug, Formatter};
+use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 
 use amplify::confinement::{Confined, NonEmptyString, SmallOrdSet, SmallString, U8};
@@ -78,7 +79,7 @@ pub struct Article(RString<Alpha, AlphaNum, 1, 32>);
 impl_ident_type!(Article);
 impl_ident_subtype!(Article);
 
-#[derive(Wrapper, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, From)]
+#[derive(Wrapper, Clone, Ord, PartialOrd, Eq, From)]
 #[wrapper(Deref, Display, FromStr)]
 #[derive(StrictDumb, StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_CONTRACT, dumb = { Ticker::from("DUMB") })]
@@ -88,6 +89,18 @@ impl_ident_subtype!(Article);
     serde(crate = "serde_crate", transparent)
 )]
 pub struct Ticker(RString<Alpha, AlphaNum, 1, 8>);
+
+impl PartialEq for Ticker {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_str()
+            .to_uppercase()
+            .eq(&other.as_str().to_uppercase())
+    }
+}
+
+impl Hash for Ticker {
+    fn hash<H: Hasher>(&self, state: &mut H) { self.as_str().to_uppercase().hash(state) }
+}
 
 impl_ident_type!(Ticker);
 impl_ident_subtype!(Ticker);

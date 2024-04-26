@@ -20,7 +20,7 @@
 // limitations under the License.
 
 use std::collections::HashMap;
-use std::fmt::{self, Debug, Display, Formatter};
+use std::fmt::{self, Debug, Display, Formatter, Write};
 use std::str::FromStr;
 
 use amplify::confinement::TinyOrdSet;
@@ -92,9 +92,11 @@ impl IfaceInfo {
         if let Some(suppl) = suppl {
             standard =
                 suppl.get_default_opt::<IfaceClassName>(SupplSub::Itself, SUPPL_ANNOT_IFACE_CLASS);
-            suppl
-                .get_default_opt::<FeatureList>(SupplSub::Itself, SUPPL_ANNOT_IFACE_FEATURES)
-                .map(|list| features = list);
+            if let Some(list) =
+                suppl.get_default_opt::<FeatureList>(SupplSub::Itself, SUPPL_ANNOT_IFACE_FEATURES)
+            {
+                features = list
+            };
         }
         Self::with(iface, standard, features, names)
     }
@@ -159,7 +161,7 @@ impl Display for IfaceInfo {
 
         writeln!(f, "  Defaults to: {}", self.default_op.clone().unwrap_or_else(|| fname!("~")))?;
 
-        writeln!(f, "  Developer:   {}", self.developer.to_string())?;
+        writeln!(f, "  Developer:   {}", self.developer)?;
 
         writeln!(
             f,
@@ -298,10 +300,10 @@ impl Display for ContractInfo {
         write!(
             f,
             "\tbitcoin{: <12}",
-            self.alt_layers1
-                .iter()
-                .map(|layer| format!(", {layer}"))
-                .collect::<String>()
+            self.alt_layers1.iter().fold(s!(""), |mut acc, layer| {
+                write!(acc, ", {layer}").ok();
+                acc
+            })
         )?;
         write!(f, "\t{}", self.issued_at.format("%Y-%m-%d"))?;
         writeln!(f, "\t{: <80}", self.schema_id.to_string())?;
