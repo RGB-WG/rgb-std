@@ -196,15 +196,15 @@ impl Display for UniversalFile {
 
 #[cfg(test)]
 mod test {
+    use std::fs::OpenOptions;
+
     use super::*;
     static DEFAULT_KIT_PATH: &str = "asset/kit.default";
+    #[cfg(feature = "fs")]
+    static ARMORED_KIT_PATH: &str = "asset/armored_kit.default";
 
     #[test]
     fn kit_save_load_round_trip() {
-        use std::fs::OpenOptions;
-
-        use crate::containers::Kit;
-
         let mut kit_file = OpenOptions::new()
             .read(true)
             .open(DEFAULT_KIT_PATH)
@@ -225,5 +225,25 @@ mod test {
             .unwrap();
         let kit = Kit::load(kit_file).expect("fail to load kit.default");
         assert_eq!(kit, default_kit, "kit roudtrip does not work");
+    }
+
+    #[cfg(feature = "fs")]
+    #[test]
+    fn armored_kit_save_load_round_trip() {
+        let kit_file = OpenOptions::new()
+            .read(true)
+            .open(DEFAULT_KIT_PATH)
+            .unwrap();
+        let kit = Kit::load(kit_file).expect("fail to load kit.default");
+        let unarmored_kit =
+            Kit::load_armored(ARMORED_KIT_PATH).expect("fail to export armored kit");
+        assert_eq!(kit, unarmored_kit, "kit unarmored is not the same");
+
+        let default_kit = Kit::default();
+        default_kit
+            .save_armored(ARMORED_KIT_PATH)
+            .expect("fail to save armored kit");
+        let kit = Kit::load_armored(ARMORED_KIT_PATH).expect("fail to export armored kit");
+        assert_eq!(kit, default_kit, "armored kit roudtrip does not work");
     }
 }
