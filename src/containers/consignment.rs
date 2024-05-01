@@ -258,7 +258,7 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
         &self,
         history: Option<ContractHistory>,
         resolver: &mut R,
-    ) -> Result<ContractHistory, R::Error> {
+    ) -> Result<ContractHistory, String> {
         let mut history = history.unwrap_or_else(|| {
             ContractHistory::with(self.schema_id(), self.contract_id(), &self.genesis)
         });
