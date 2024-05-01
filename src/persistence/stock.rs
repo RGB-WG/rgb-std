@@ -1041,10 +1041,9 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         &mut self,
         fascia: Fascia,
     ) -> Result<(), StockError<S, H, P, FasciaError>> {
-        let witness_id = fascia.witness_id;
-
+        let witness_id = fascia.witness_id();
         self.stash
-            .consume_witness(SealWitness::new(fascia.witness_id, fascia.anchor.clone()))?;
+            .consume_witness(SealWitness::new(fascia.witness.clone(), fascia.anchor.clone()))?;
 
         for (contract_id, bundle) in fascia.into_bundles() {
             let ids1 = bundle

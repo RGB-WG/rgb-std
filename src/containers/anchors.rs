@@ -50,9 +50,9 @@ pub struct SealWitness {
 }
 
 impl SealWitness {
-    pub fn new(witness_id: XWitnessId, anchors: AnchorSet) -> Self {
+    pub fn new(witness: XPubWitness, anchors: AnchorSet) -> Self {
         SealWitness {
-            public: witness_id.map(PubWitness::new),
+            public: witness,
             anchors,
         }
     }
