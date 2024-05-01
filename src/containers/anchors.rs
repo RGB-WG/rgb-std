@@ -123,6 +123,14 @@ impl PubWitness {
             spv: none!(),
         }
     }
+
+    pub fn with(tx: Tx) -> Self {
+        PubWitness {
+            txid: tx.txid(),
+            tx: Some(tx),
+            spv: none!(),
+        }
+    }
 }
 
 impl PubWitness {

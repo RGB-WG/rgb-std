@@ -48,9 +48,9 @@ use super::{
 };
 use crate::containers::{
     AnchorSet, AnchoredBundles, Batch, BuilderSeal, BundledWitness, Consignment, ContainerVer,
-    ContentRef, Contract, Fascia, Kit, PubWitness, SealWitness, SupplItem, SupplSub, Terminal,
-    TerminalSeal, Transfer, TransitionInfo, TransitionInfoError, ValidConsignment, ValidContract,
-    ValidKit, ValidTransfer, VelocityHint, SUPPL_ANNOT_VELOCITY,
+    ContentRef, Contract, Fascia, Kit, SealWitness, SupplItem, SupplSub, Terminal, TerminalSeal,
+    Transfer, TransitionInfo, TransitionInfoError, ValidConsignment, ValidContract, ValidKit,
+    ValidTransfer, VelocityHint, SUPPL_ANNOT_VELOCITY,
 };
 use crate::info::{ContractInfo, IfaceInfo, SchemaInfo};
 use crate::interface::resolver::DumbResolver;
@@ -1085,7 +1085,8 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         let (witness_id, contract_id) = self.index.bundle_info(bundle_id)?;
 
         let bundle = self.stash.bundle(bundle_id)?.clone();
-        let anchor = self.stash.witness(witness_id)?.anchors.clone();
+        let witness = self.stash.witness(witness_id)?;
+        let anchor = witness.anchors.clone();
         let (tapret, opret) = match anchor {
             AnchorSet::Tapret(tapret) => (Some(tapret), None),
             AnchorSet::Opret(opret) => (None, Some(opret)),
@@ -1111,9 +1112,8 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         let anchored_bundles = AnchoredBundles::with(anchor, bundle);
         // TODO: Conceal all transitions except the one we need
 
-        // TODO: recover Tx and SPV
         Ok(BundledWitness {
-            pub_witness: witness_id.map(PubWitness::new),
+            pub_witness: witness.public.clone(),
             anchored_bundles,
         })
     }
