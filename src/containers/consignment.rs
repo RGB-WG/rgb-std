@@ -137,7 +137,7 @@ impl<const TRANSFER: bool> Deref for ValidConsignment<TRANSFER> {
 /// with `endpoints` and process up to the genesis.
 #[derive(Clone, Debug, Display)]
 #[display(AsciiArmor::to_ascii_armored_string)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode, PartialEq)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(
     feature = "serde",
