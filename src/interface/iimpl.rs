@@ -365,7 +365,7 @@ pub enum ImplInconsistency {
     /// state extension type {1}.
     SchemaExtensionAbsent(FieldName, ExtensionType),
 
-    /// interface error field '{0}' is not resolved by the implementation.
+    /// implementation references unknown interface error '{0}'.
     IfaceErrorAbsent(VariantName),
 }
 
@@ -448,9 +448,9 @@ impl IfaceImpl {
             }
         }
 
-        for name in iface.errors.keys() {
-            if self.errors.iter().all(|variant| &variant.name != name) {
-                errors.push(ImplInconsistency::IfaceErrorAbsent(name.clone()));
+        for var in &self.errors {
+            if iface.errors.keys().all(|name| name != &var.name) {
+                errors.push(ImplInconsistency::IfaceErrorAbsent(var.name.clone()));
             }
         }
 
