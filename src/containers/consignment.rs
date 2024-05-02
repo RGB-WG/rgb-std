@@ -377,7 +377,7 @@ impl<const TRANSFER: bool> StrictArmor for Consignment<TRANSFER> {
 
     fn armor_id(&self) -> Self::Id { self.commit_id() }
     fn armor_headers(&self) -> Vec<ArmorHeader> {
-        vec![
+        let mut headers = vec![
             ArmorHeader::new(ASCII_ARMOR_VERSION, format!("{:#}", self.version)),
             ArmorHeader::new(
                 ASCII_ARMOR_CONSIGNMENT_TYPE,
@@ -389,11 +389,19 @@ impl<const TRANSFER: bool> StrictArmor for Consignment<TRANSFER> {
             ),
             ArmorHeader::new(ASCII_ARMOR_CONTRACT, self.contract_id().to_string()),
             ArmorHeader::new(ASCII_ARMOR_SCHEMA, self.schema.schema_id().to_string()),
-            ArmorHeader::with(
+        ];
+        if !self.ifaces.is_empty() {
+            headers.push(ArmorHeader::with(
                 ASCII_ARMOR_IFACE,
                 self.ifaces.keys().map(|iface| iface.name.to_string()),
-            ),
-            ArmorHeader::with(ASCII_ARMOR_TERMINAL, self.terminals.keys().map(BundleId::to_string)),
-        ]
+            ));
+        }
+        if !self.terminals.is_empty() {
+            headers.push(ArmorHeader::with(
+                ASCII_ARMOR_TERMINAL,
+                self.terminals.keys().map(BundleId::to_string),
+            ));
+        }
+        headers
     }
 }
