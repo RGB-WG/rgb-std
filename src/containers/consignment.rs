@@ -405,3 +405,25 @@ impl<const TRANSFER: bool> StrictArmor for Consignment<TRANSFER> {
         headers
     }
 }
+
+impl<const TRANSFER: bool> FromStr for Consignment<TRANSFER> {
+    type Err = armor::StrictArmorError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_ascii_armored_str(s) }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn contract_from_str() {
+        Contract::from_str(include_str!("../../asset/armored_contract.default"))
+            .expect("contract from str should work");
+    }
+
+    #[test]
+    fn transfer_from_str() {
+        Transfer::from_str(include_str!("../../asset/armored_transfer.default"))
+            .expect("transfer from str should work");
+    }
+}

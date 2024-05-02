@@ -263,3 +263,18 @@ impl StrictArmor for Kit {
         headers
     }
 }
+
+impl FromStr for Kit {
+    type Err = armor::StrictArmorError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_ascii_armored_str(s) }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    #[test]
+    fn kit_from_str() {
+        Kit::from_str(include_str!("../../asset/armored_kit.default"))
+            .expect("kit from str should work");
+    }
+}
