@@ -416,14 +416,24 @@ mod test {
     use super::*;
 
     #[test]
-    fn contract_from_str() {
-        Contract::from_str(include_str!("../../asset/armored_contract.default"))
+    fn contract_str_round_trip() {
+        let contract = Contract::from_str(include_str!("../../asset/armored_contract.default"))
             .expect("contract from str should work");
+        assert_eq!(
+            contract.to_string(),
+            include_str!("../../asset/armored_contract.default"),
+            "contract string round trip fails"
+        );
     }
 
     #[test]
-    fn transfer_from_str() {
-        Transfer::from_str(include_str!("../../asset/armored_transfer.default"))
+    fn transfer_str_round_trip() {
+        let transfer = Transfer::from_str(include_str!("../../asset/armored_transfer.default"))
             .expect("transfer from str should work");
+        assert_eq!(
+            transfer.to_string(),
+            include_str!("../../asset/armored_transfer.default"),
+            "transfer string round trip fails"
+        );
     }
 }

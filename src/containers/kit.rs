@@ -273,8 +273,20 @@ impl FromStr for Kit {
 mod test {
     use super::*;
     #[test]
-    fn kit_from_str() {
-        Kit::from_str(include_str!("../../asset/armored_kit.default"))
+    fn kit_str_round_trip() {
+        let kit = Kit::from_str(include_str!("../../asset/armored_kit.default"))
             .expect("kit from str should work");
+
+        assert_eq!(
+            kit.to_string(),
+            include_str!("../../asset/armored_kit.default"),
+            "kit string round trip fails"
+        );
+
+        assert_eq!(
+            kit.validate().unwrap().to_string(),
+            include_str!("../../asset/armored_kit.default"),
+            "validated kit string round trip fails"
+        );
     }
 }
