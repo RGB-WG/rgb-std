@@ -427,6 +427,68 @@ mod test {
     }
 
     #[test]
+    fn error_contract_strs() {
+        assert!(
+            Contract::from_str(
+                r#"-----BEGIN RGB CONSIGNMENT-----
+Id: rgb:csg:poAMvm9j-NdapxqA-MJ@5dwP-d@IIt2A-T@5OiXE-Tl54Yew#guide-campus-arctic
+Version: 2
+Type: contract
+Contract: rgb:qm7P@06T-uuBQT56-ovwOLzx-9Gka7Nb-84Nwo8g-blLb8kw
+Schema: rgb:sch:CyqM42yAdM1moWyNZPQedAYt73BM$k9z$dKLUXY1voA#cello-global-deluxe
+Check-SHA256: 181748dae0c83cbb44f6ccfdaddf6faca0bc4122a9f35fef47bab9aea023e4a1
+
+0ssI2000000000000000000000000000000000000000000000000000000D0CRI`I$>^aZh38Qb#nj!
+0000000000000000000000d59ZDjxe00000000dDb8~4rVQz13d2MfXa{vGU00000000000000000000
+0000000000000
+
+-----END RGB CONSIGNMENT-----"#
+            )
+            .is_ok()
+        );
+
+        // Wrong Id
+        assert!(
+            Contract::from_str(
+                r#"-----BEGIN RGB CONSIGNMENT-----
+Id: rgb:csg:aaaaaaaa-aaaaaaa-aaaaaaa-aaaaaaa-aaaaaaa-aaaaaaa#guide-campus-arctic
+Version: 2
+Type: contract
+Contract: rgb:qm7P@06T-uuBQT56-ovwOLzx-9Gka7Nb-84Nwo8g-blLb8kw
+Schema: rgb:sch:CyqM42yAdM1moWyNZPQedAYt73BM$k9z$dKLUXY1voA#cello-global-deluxe
+Check-SHA256: 181748dae0c83cbb44f6ccfdaddf6faca0bc4122a9f35fef47bab9aea023e4a1
+
+0ssI2000000000000000000000000000000000000000000000000000000D0CRI`I$>^aZh38Qb#nj!
+0000000000000000000000d59ZDjxe00000000dDb8~4rVQz13d2MfXa{vGU00000000000000000000
+0000000000000
+
+-----END RGB CONSIGNMENT-----"#
+            )
+            .is_err()
+        );
+
+        // Wrong checksum
+        assert!(
+            Contract::from_str(
+                r#"-----BEGIN RGB CONSIGNMENT-----
+Id: rgb:csg:poAMvm9j-NdapxqA-MJ@5dwP-d@IIt2A-T@5OiXE-Tl54Yew#guide-campus-arctic
+Version: 2
+Type: contract
+Contract: rgb:qm7P@06T-uuBQT56-ovwOLzx-9Gka7Nb-84Nwo8g-blLb8kw
+Schema: rgb:sch:CyqM42yAdM1moWyNZPQedAYt73BM$k9z$dKLUXY1voA#cello-global-deluxe
+Check-SHA256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+0ssI2000000000000000000000000000000000000000000000000000000D0CRI`I$>^aZh38Qb#nj!
+0000000000000000000000d59ZDjxe00000000dDb8~4rVQz13d2MfXa{vGU00000000000000000000
+0000000000000
+
+-----END RGB CONSIGNMENT-----"#
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
     fn transfer_str_round_trip() {
         let transfer = Transfer::from_str(include_str!("../../asset/armored_transfer.default"))
             .expect("transfer from str should work");
@@ -434,6 +496,68 @@ mod test {
             transfer.to_string(),
             include_str!("../../asset/armored_transfer.default"),
             "transfer string round trip fails"
+        );
+    }
+
+    #[test]
+    fn error_transfer_strs() {
+        assert!(
+            Transfer::from_str(
+                r#"-----BEGIN RGB CONSIGNMENT-----
+Id: rgb:csg:poAMvm9j-NdapxqA-MJ@5dwP-d@IIt2A-T@5OiXE-Tl54Yew#guide-campus-arctic
+Version: 2
+Type: contract
+Contract: rgb:qm7P@06T-uuBQT56-ovwOLzx-9Gka7Nb-84Nwo8g-blLb8kw
+Schema: rgb:sch:CyqM42yAdM1moWyNZPQedAYt73BM$k9z$dKLUXY1voA#cello-global-deluxe
+Check-SHA256: 181748dae0c83cbb44f6ccfdaddf6faca0bc4122a9f35fef47bab9aea023e4a1
+
+0ssI2000000000000000000000000000000000000000000000000000000D0CRI`I$>^aZh38Qb#nj!
+0000000000000000000000d59ZDjxe00000000dDb8~4rVQz13d2MfXa{vGU00000000000000000000
+0000000000000
+
+-----END RGB CONSIGNMENT-----"#
+            )
+            .is_ok()
+        );
+
+        // Wrong Id
+        assert!(
+            Transfer::from_str(
+                r#"-----BEGIN RGB CONSIGNMENT-----
+Id: rgb:csg:aaaaaaaa-aaaaaaa-aaaaaaa-aaaaaaa-aaaaaaa-aaaaaaa#guide-campus-arctic
+Version: 2
+Type: contract
+Contract: rgb:qm7P@06T-uuBQT56-ovwOLzx-9Gka7Nb-84Nwo8g-blLb8kw
+Schema: rgb:sch:CyqM42yAdM1moWyNZPQedAYt73BM$k9z$dKLUXY1voA#cello-global-deluxe
+Check-SHA256: 181748dae0c83cbb44f6ccfdaddf6faca0bc4122a9f35fef47bab9aea023e4a1
+
+0ssI2000000000000000000000000000000000000000000000000000000D0CRI`I$>^aZh38Qb#nj!
+0000000000000000000000d59ZDjxe00000000dDb8~4rVQz13d2MfXa{vGU00000000000000000000
+0000000000000
+
+-----END RGB CONSIGNMENT-----"#
+            )
+            .is_err()
+        );
+
+        // Wrong checksum
+        assert!(
+            Transfer::from_str(
+                r#"-----BEGIN RGB CONSIGNMENT-----
+Id: rgb:csg:poAMvm9j-NdapxqA-MJ@5dwP-d@IIt2A-T@5OiXE-Tl54Yew#guide-campus-arctic
+Version: 2
+Type: contract
+Contract: rgb:qm7P@06T-uuBQT56-ovwOLzx-9Gka7Nb-84Nwo8g-blLb8kw
+Schema: rgb:sch:CyqM42yAdM1moWyNZPQedAYt73BM$k9z$dKLUXY1voA#cello-global-deluxe
+Check-SHA256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+0ssI2000000000000000000000000000000000000000000000000000000D0CRI`I$>^aZh38Qb#nj!
+0000000000000000000000d59ZDjxe00000000dDb8~4rVQz13d2MfXa{vGU00000000000000000000
+0000000000000
+
+-----END RGB CONSIGNMENT-----"#
+            )
+            .is_err()
         );
     }
 }
