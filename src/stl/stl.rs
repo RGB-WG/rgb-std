@@ -29,7 +29,10 @@ use strict_types::stl::{std_stl, strict_types_stl};
 use strict_types::typesys::SystemBuilder;
 use strict_types::{CompileError, LibBuilder, SemId, SymbolicSys, TypeLib, TypeSystem};
 
-use super::{AssetSpec, AssetTerms, BurnMeta, Error, IssueMeta, MediaType, LIB_NAME_RGB_CONTRACT};
+use super::{
+    AssetSpec, BurnMeta, ContractSpec, ContractTerms, Error, IssueMeta, MediaType,
+    LIB_NAME_RGB_CONTRACT,
+};
 use crate::containers::{Contract, Kit, Transfer};
 use crate::stl::ProofOfReserves;
 use crate::LIB_NAME_RGB_STD;
@@ -37,11 +40,11 @@ use crate::LIB_NAME_RGB_STD;
 /// Strict types id for the library providing standard data types which may be
 /// used in RGB smart contracts.
 pub const LIB_ID_RGB_CONTRACT: &str =
-    "urn:ubideco:stl:7isbv9C7vzzuNUvpPPbxnLFj7V6XZHP8kWPAZezjvaqx#barbara-limit-cricket";
+    "stl:@r5yXt4a-v3XXv0M-E9Z6eoh-BFZweik-fxS6CB4-8AaO@MM#rover-annual-disney";
 
 /// Strict types id for the library representing of RGB StdLib data types.
 pub const LIB_ID_RGB_STD: &str =
-    "urn:ubideco:stl:BFDoWbsCjCoKCY3eivtrchciZnQzo3FctNLEgEWGNFkw#boxer-avatar-permit";
+    "stl:hYQHisDw-Xlm3v1j-P7A1VJg-luZS$ja-0AZHFIx-QtWo@SY#carrot-salt-sport";
 
 fn _rgb_std_stl() -> Result<TypeLib, CompileError> {
     LibBuilder::new(libname!(LIB_NAME_RGB_STD), tiny_bset! {
@@ -66,8 +69,9 @@ fn _rgb_contract_stl() -> Result<TypeLib, CompileError> {
     })
     .transpile::<Amount>()
     .transpile::<Allocation>()
+    .transpile::<ContractSpec>()
     .transpile::<AssetSpec>()
-    .transpile::<AssetTerms>()
+    .transpile::<ContractTerms>()
     .transpile::<MediaType>()
     .transpile::<ProofOfReserves>()
     .transpile::<BurnMeta>()

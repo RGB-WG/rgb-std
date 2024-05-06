@@ -25,7 +25,7 @@ use std::vec;
 use amplify::ByteArray;
 use bp::dbc::opret::OpretProof;
 use bp::dbc::tapret::TapretProof;
-use bp::dbc::Anchor;
+use bp::dbc::{anchor, Anchor};
 use bp::{Tx, Txid};
 use commit_verify::{mpc, CommitId, ReservedBytes};
 use rgb::{
@@ -34,8 +34,7 @@ use rgb::{
 };
 use strict_encoding::StrictDumb;
 
-use crate::accessors::{BundleExt, MergeReveal, MergeRevealError, RevealError};
-use crate::LIB_NAME_RGB_STD;
+use crate::{BundleExt, MergeReveal, MergeRevealError, RevealError, LIB_NAME_RGB_STD};
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
@@ -51,9 +50,9 @@ pub struct SealWitness {
 }
 
 impl SealWitness {
-    pub fn new(witness_id: XWitnessId, anchors: AnchorSet) -> Self {
+    pub fn new(witness: XPubWitness, anchors: AnchorSet) -> Self {
         SealWitness {
-            public: witness_id.map(PubWitness::new),
+            public: witness,
             anchors,
         }
     }
@@ -121,6 +120,14 @@ impl PubWitness {
         PubWitness {
             txid,
             tx: None,
+            spv: none!(),
+        }
+    }
+
+    pub fn with(tx: Tx) -> Self {
+        PubWitness {
+            txid: tx.txid(),
+            tx: Some(tx),
             spv: none!(),
         }
     }
@@ -259,41 +266,39 @@ impl AnchorSet {
         map.into_values()
             .map(|msg| BundleId::from_byte_array(msg.to_byte_array()))
     }
-}
 
-impl AnchorSet {
-    pub fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {
+    pub fn has_tapret(&self) -> bool { matches!(self, Self::Tapret(_) | Self::Double { .. }) }
+
+    pub fn has_opret(&self) -> bool { matches!(self, Self::Opret(_) | Self::Double { .. }) }
+
+    pub fn merge_reveal(self, other: Self) -> Result<Self, anchor::MergeError> {
         match (self, other) {
-            (Self::Tapret(anchor), Self::Tapret(a)) if a.matches(&anchor) => {
-                Ok(Self::Tapret(anchor))
-            }
-            (Self::Opret(anchor), Self::Opret(a)) if a.matches(&anchor) => Ok(Self::Opret(anchor)),
+            (Self::Tapret(anchor), Self::Tapret(a)) => Ok(Self::Tapret(anchor.merge_reveal(a)?)),
+            (Self::Opret(anchor), Self::Opret(a)) => Ok(Self::Opret(anchor.merge_reveal(a)?)),
             (Self::Tapret(tapret), Self::Opret(opret)) |
             (Self::Opret(opret), Self::Tapret(tapret)) => Ok(Self::Double { tapret, opret }),
 
             (Self::Double { tapret, opret }, Self::Tapret(t)) |
-            (Self::Tapret(t), Self::Double { tapret, opret })
-                if t.matches(&tapret) =>
-            {
-                Ok(Self::Double { tapret, opret })
-            }
+            (Self::Tapret(t), Self::Double { tapret, opret }) => Ok(Self::Double {
+                tapret: tapret.merge_reveal(t)?,
+                opret,
+            }),
 
             (Self::Double { tapret, opret }, Self::Opret(o)) |
-            (Self::Opret(o), Self::Double { tapret, opret })
-                if o.matches(&opret) =>
-            {
-                Ok(Self::Double { tapret, opret })
-            }
-
+            (Self::Opret(o), Self::Double { tapret, opret }) => Ok(Self::Double {
+                tapret,
+                opret: opret.merge_reveal(o)?,
+            }),
             (
                 Self::Double { tapret, opret },
                 Self::Double {
                     tapret: t,
                     opret: o,
                 },
-            ) if t.matches(&tapret) && o.matches(&opret) => Ok(Self::Double { tapret, opret }),
-
-            _ => Err(MergeRevealError::AnchorsMismatch),
+            ) => Ok(Self::Double {
+                tapret: tapret.merge_reveal(t)?,
+                opret: opret.merge_reveal(o)?,
+            }),
         }
     }
 }
@@ -331,6 +336,10 @@ impl<P: mpc::Proof + StrictDumb> AnchoredBundles<P> {
             DbcProof::Opret(opret) => Self::Opret(Anchor::new(anchor.mpc_proof, opret), bundle),
         }
     }
+
+    pub fn has_tapret(&self) -> bool { matches!(self, Self::Tapret(..) | Self::Double { .. }) }
+
+    pub fn has_opret(&self) -> bool { matches!(self, Self::Opret(..) | Self::Double { .. }) }
 
     pub fn pairs(&self) -> vec::IntoIter<(EAnchor<P>, &TransitionBundle)>
     where P: Clone {

@@ -20,7 +20,7 @@
 // limitations under the License.
 
 use amplify::IoError;
-use baid58::Baid58ParseError;
+use baid64::Baid64ParseError;
 use strict_types::{typesys, CompileError};
 
 #[allow(dead_code)]
@@ -29,7 +29,7 @@ pub(super) enum Error {
     #[from(std::io::Error)]
     Io(IoError),
     #[from]
-    Baid58(Baid58ParseError),
+    Baid64(Baid64ParseError),
     #[from]
     Compile(CompileError),
     #[from]

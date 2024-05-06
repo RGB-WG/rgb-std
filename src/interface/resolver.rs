@@ -19,13 +19,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::convert::Infallible;
-
+use rgb::validation::{ResolveWitness, WitnessResolverError};
 use rgb::XWitnessTx;
 use strict_encoding::StrictDumb;
 
 use crate::resolvers::ResolveHeight;
-use crate::validation::{ResolveWitness, WitnessResolverError};
 use crate::{WitnessAnchor, XWitnessId};
 
 pub(crate) struct DumbResolver;
@@ -37,8 +35,7 @@ impl ResolveWitness for DumbResolver {
 }
 
 impl ResolveHeight for DumbResolver {
-    type Error = Infallible;
-    fn resolve_height(&mut self, _: XWitnessId) -> Result<WitnessAnchor, Self::Error> {
+    fn resolve_height(&mut self, _: XWitnessId) -> Result<WitnessAnchor, String> {
         Ok(WitnessAnchor::strict_dumb())
     }
 }

@@ -31,7 +31,7 @@ use crate::containers::{Contract, Kit, Transfer};
 const RGB_PREFIX: [u8; 4] = *b"RGB\x00";
 const MAGIC_LEN: usize = 3;
 
-#[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
+#[derive(Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum LoadError {
     /// invalid file data.

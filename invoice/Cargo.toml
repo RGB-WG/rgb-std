@@ -13,11 +13,11 @@ edition = { workspace = true }
 license = { workspace = true }
 
 [lib]
-name = "invoice"
+name = "rgbinvoice"
 
 [dependencies]
 amplify = { workspace = true }
-baid58 = { workspace = true }
+baid64 = { workspace = true }
 strict_encoding = { workspace = true }
 strict_types = { workspace = true }
 bp-core = { workspace = true }
@@ -27,6 +27,7 @@ indexmap = { workspace = true }
 fluent-uri = "0.1.4"
 percent-encoding = "2.3.0"
 serde_crate = { workspace = true, optional = true }
+rand = "0.8.5"
 
 [features]
 default = []

@@ -79,12 +79,12 @@ pub trait StateWriteProvider {
     fn create_or_update_state<R: ResolveHeight>(
         &mut self,
         contract_id: ContractId,
-        updater: impl FnOnce(Option<ContractHistory>) -> Result<ContractHistory, R::Error>,
+        updater: impl FnOnce(Option<ContractHistory>) -> Result<ContractHistory, String>,
     ) -> Result<(), StateUpdateError<Self::Error>>;
 
     fn update_state<R: ResolveHeight>(
         &mut self,
         contract_id: ContractId,
-        updater: impl FnMut(&mut ContractHistory) -> Result<(), R::Error>,
+        updater: impl FnMut(&mut ContractHistory) -> Result<(), String>,
     ) -> Result<(), StateUpdateError<Self::Error>>;
 }

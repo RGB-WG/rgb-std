@@ -22,9 +22,11 @@
 #![allow(unused_braces)] // caused by rustc unable to understand strict_dumb
 
 use std::fmt::{self, Debug, Formatter};
+use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 
 use amplify::confinement::{Confined, NonEmptyString, SmallOrdSet, SmallString, U8};
+use amplify::Bytes32;
 use invoice::Precision;
 use strict_encoding::stl::{Alpha, AlphaNum, AsciiPrintable};
 use strict_encoding::{
@@ -66,6 +68,20 @@ impl StrictDeserialize for IssueMeta {}
 #[derive(Wrapper, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, From)]
 #[wrapper(Deref, Display, FromStr)]
 #[derive(StrictDumb, StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_CONTRACT, dumb = { Article::from("DUMB") })]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", transparent)
+)]
+pub struct Article(RString<Alpha, AlphaNum, 1, 32>);
+
+impl_ident_type!(Article);
+impl_ident_subtype!(Article);
+
+#[derive(Wrapper, Clone, Ord, PartialOrd, Eq, From)]
+#[wrapper(Deref, Display, FromStr)]
+#[derive(StrictDumb, StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_CONTRACT, dumb = { Ticker::from("DUMB") })]
 #[cfg_attr(
     feature = "serde",
@@ -73,6 +89,18 @@ impl StrictDeserialize for IssueMeta {}
     serde(crate = "serde_crate", transparent)
 )]
 pub struct Ticker(RString<Alpha, AlphaNum, 1, 8>);
+
+impl PartialEq for Ticker {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_str()
+            .to_uppercase()
+            .eq(&other.as_str().to_uppercase())
+    }
+}
+
+impl Hash for Ticker {
+    fn hash<H: Hasher>(&self, state: &mut H) { self.as_str().to_uppercase().hash(state) }
+}
 
 impl_ident_type!(Ticker);
 impl_ident_subtype!(Ticker);
@@ -228,6 +256,76 @@ impl AssetSpec {
     pub fn details(&self) -> Option<&str> { self.details.as_ref().map(|d| d.as_str()) }
 }
 
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(StrictDumb, StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_CONTRACT)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct ContractSpec {
+    pub article: Option<Article>,
+    pub name: Name,
+    pub details: Option<Details>,
+    pub precision: Precision,
+}
+impl StrictSerialize for ContractSpec {}
+impl StrictDeserialize for ContractSpec {}
+
+impl ContractSpec {
+    pub fn new(name: &'static str, precision: Precision) -> ContractSpec {
+        ContractSpec {
+            article: None,
+            name: Name::from(name),
+            details: None,
+            precision,
+        }
+    }
+
+    pub fn with(
+        article: &str,
+        name: &str,
+        precision: Precision,
+        details: Option<&str>,
+    ) -> Result<ContractSpec, InvalidRString> {
+        Ok(ContractSpec {
+            article: Some(Article::try_from(article.to_owned())?),
+            name: Name::try_from(name.to_owned())?,
+            details: details.map(Details::from_str).transpose()?,
+            precision,
+        })
+    }
+
+    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
+        let article = value.unwrap_struct("article").unwrap_option();
+        let name = value.unwrap_struct("name").unwrap_string();
+        let details = value
+            .unwrap_struct("details")
+            .unwrap_option()
+            .map(StrictVal::unwrap_string);
+        let precision = value.unwrap_struct("precision").unwrap_enum();
+        Self {
+            article: article.map(|val| {
+                Article::from_str(&val.unwrap_string()).expect("invalid contract article")
+            }),
+            name: Name::from_str(&name).expect("invalid contract name"),
+            details: details
+                .as_deref()
+                .map(Details::from_str)
+                .transpose()
+                .expect("invalid contract details"),
+            precision,
+        }
+    }
+
+    pub fn article(&self) -> Option<&str> { self.article.as_ref().map(|a| a.as_str()) }
+
+    pub fn name(&self) -> &str { self.name.as_str() }
+
+    pub fn details(&self) -> Option<&str> { self.details.as_ref().map(|d| d.as_str()) }
+}
+
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display, Default)]
 #[display(inner)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
@@ -255,7 +353,7 @@ impl FromStr for RicardianContract {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_CONTRACT)]
 #[cfg_attr(
@@ -267,7 +365,7 @@ pub struct Attachment {
     #[strict_type(rename = "type")]
     #[cfg_attr(feature = "serde", serde(rename = "type"))]
     pub ty: MediaType,
-    pub digest: [u8; 32],
+    pub digest: Bytes32,
 }
 impl StrictSerialize for Attachment {}
 impl StrictDeserialize for Attachment {}
@@ -292,14 +390,14 @@ impl Attachment {
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-pub struct AssetTerms {
+pub struct ContractTerms {
     pub text: RicardianContract,
     pub media: Option<Attachment>,
 }
-impl StrictSerialize for AssetTerms {}
-impl StrictDeserialize for AssetTerms {}
+impl StrictSerialize for ContractTerms {}
+impl StrictDeserialize for ContractTerms {}
 
-impl AssetTerms {
+impl ContractTerms {
     pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
         let text = RicardianContract::from_str(&value.unwrap_struct("text").unwrap_string())
             .expect("invalid text");

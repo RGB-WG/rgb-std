@@ -74,23 +74,28 @@ extern crate amplify;
 extern crate strict_encoding;
 #[macro_use]
 extern crate commit_verify;
+#[macro_use]
+extern crate rgbcore as rgb;
 #[cfg(feature = "serde")]
 #[macro_use]
 extern crate serde_crate as serde;
 
 /// Re-exporting all invoice data types (RGB and BP).
-pub extern crate invoice;
+pub extern crate rgbinvoice as invoice;
 
 pub mod stl;
 pub mod interface;
 pub mod containers;
 pub mod persistence;
 pub mod resolvers;
-pub mod accessors;
+mod contract;
+pub mod info;
 
 pub use bp::{Outpoint, Txid};
+pub use contract::{BundleExt, MergeReveal, MergeRevealError, RevealError, TypedAssignsExt};
 pub use invoice::{Allocation, Amount, CoinAmount, OwnedFraction, Precision, TokenIndex};
-pub use rgb::*;
+pub use rgb::prelude::*;
+pub use rgb::rgbasm;
 pub use stl::{LIB_NAME_RGB_CONTRACT, LIB_NAME_RGB_STD};
 
 /// BIP32 derivation index for outputs which may contain assigned RGB state.

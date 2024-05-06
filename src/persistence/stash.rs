@@ -24,6 +24,7 @@ use std::error::Error;
 use std::fmt::Debug;
 
 use aluvm::library::{Lib, LibId};
+use amplify::confinement;
 use amplify::confinement::{Confined, MediumBlob, TinyOrdMap};
 use bp::dbc::anchor::MergeError;
 use bp::dbc::tapret::TapretCommitment;
@@ -37,12 +38,15 @@ use strict_encoding::{FieldName, TypeName};
 use strict_types::typesys::UnknownType;
 use strict_types::TypeSystem;
 
-use crate::accessors::{MergeReveal, MergeRevealError};
-use crate::containers::{BundledWitness, Consignment, ContentId, Kit, SealWitness, SigBlob};
-use crate::interface::{
-    ContractBuilder, ContractSuppl, Iface, IfaceId, IfaceImpl, IfaceRef, TransitionBuilder,
+use crate::containers::{
+    BundledWitness, Consignment, ContentId, ContentRef, Kit, SealWitness, SigBlob, Supplement,
+    TrustLevel,
 };
-use crate::{SecretSeal, LIB_NAME_RGB_STD};
+use crate::interface::{
+    ContractBuilder, Iface, IfaceClass, IfaceId, IfaceImpl, IfaceRef, TransitionBuilder,
+};
+use crate::persistence::ContractIfaceError;
+use crate::{MergeReveal, MergeRevealError, SecretSeal, LIB_NAME_RGB_STD};
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(inner)]
@@ -73,6 +77,8 @@ pub enum StashError<P: StashProvider> {
 pub enum ProviderError<E: Error> {
     #[from]
     Inconsistency(StashInconsistency),
+    #[from]
+    Iface(ContractIfaceError),
     Connectivity(E),
 }
 
@@ -81,6 +87,7 @@ impl<P: StashProvider> From<ProviderError<<P as StashReadProvider>::Error>> for 
         match err {
             ProviderError::Inconsistency(e) => StashError::Inconsistency(e),
             ProviderError::Connectivity(e) => StashError::ReadProvider(e),
+            ProviderError::Iface(e) => StashError::Data(StashDataError::NoAbstractIface(e)),
         }
     }
 }
@@ -141,6 +148,10 @@ pub enum StashDataError {
 
     /// schema {0} doesn't implement interface {1}.
     NoIfaceImpl(SchemaId, IfaceId),
+
+    #[from]
+    #[display(inner)]
+    NoAbstractIface(ContractIfaceError),
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -153,7 +164,7 @@ pub enum StashDataError {
 )]
 pub struct SchemaIfaces {
     pub schema: Schema,
-    pub iimpls: TinyOrdMap<IfaceId, IfaceImpl>,
+    pub iimpls: TinyOrdMap<TypeName, IfaceImpl>,
 }
 
 impl SchemaIfaces {
@@ -163,9 +174,17 @@ impl SchemaIfaces {
             iimpls: none!(),
         }
     }
+
+    pub fn get(&self, id: IfaceId) -> Option<&IfaceImpl> {
+        self.iimpls.values().find(|iimpl| iimpl.iface_id == id)
+    }
+
+    pub fn contains(&self, id: IfaceId) -> bool {
+        self.iimpls.values().any(|iimpl| iimpl.iface_id == id)
+    }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Stash<P: StashProvider> {
     provider: P,
 }
@@ -186,9 +205,7 @@ impl<P: StashProvider> Stash<P> {
     #[doc(hidden)]
     pub fn as_provider(&self) -> &P { &self.provider }
 
-    pub(super) fn ifaces(
-        &self,
-    ) -> Result<impl Iterator<Item = (IfaceId, TypeName)> + '_, StashError<P>> {
+    pub(super) fn ifaces(&self) -> Result<impl Iterator<Item = &Iface> + '_, StashError<P>> {
         self.provider.ifaces().map_err(StashError::ReadProvider)
     }
     pub(super) fn iface(&self, iface: impl Into<IfaceRef>) -> Result<&Iface, StashError<P>> {
@@ -202,14 +219,23 @@ impl<P: StashProvider> Stash<P> {
     pub(super) fn schema(&self, schema_id: SchemaId) -> Result<&SchemaIfaces, StashError<P>> {
         Ok(self.provider.schema(schema_id)?)
     }
-    pub(super) fn contract_ids(
-        &self,
-    ) -> Result<impl Iterator<Item = ContractId> + '_, StashError<P>> {
-        self.provider
-            .contract_ids()
-            .map_err(StashError::ReadProvider)
+    pub(super) fn impl_for<'a, C: IfaceClass + 'a>(
+        &'a self,
+        schema_ifaces: &'a SchemaIfaces,
+    ) -> Result<&'a IfaceImpl, StashError<P>> {
+        Ok(self.provider.impl_for::<C>(schema_ifaces)?)
     }
 
+    pub(super) fn geneses(&self) -> Result<impl Iterator<Item = &Genesis> + '_, StashError<P>> {
+        self.provider.geneses().map_err(StashError::ReadProvider)
+    }
+    pub(super) fn geneses_by<'a, C: IfaceClass + 'a>(
+        &'a self,
+    ) -> Result<impl Iterator<Item = &'a Genesis> + 'a, StashError<P>> {
+        self.provider
+            .geneses_by::<C>()
+            .map_err(StashError::ReadProvider)
+    }
     pub(super) fn genesis(&self, contract_id: ContractId) -> Result<&Genesis, StashError<P>> {
         Ok(self.provider.genesis(contract_id)?)
     }
@@ -220,18 +246,21 @@ impl<P: StashProvider> Stash<P> {
         Ok(self.provider.witness(witness_id)?)
     }
 
-    pub(super) fn contract_ids_by_iface(
+    pub(super) fn supplements(
         &self,
-        iface: impl Into<IfaceRef>,
-    ) -> Result<impl Iterator<Item = ContractId> + '_, StashError<P>> {
-        Ok(self.provider.contract_ids_by_iface(iface.into())?)
-    }
-    pub(super) fn contract_supplements(
-        &self,
-        contract_id: ContractId,
-    ) -> Result<impl Iterator<Item = ContractSuppl> + '_, StashError<P>> {
+        content_ref: ContentRef,
+    ) -> Result<impl Iterator<Item = Supplement> + '_, StashError<P>> {
         self.provider
-            .contract_supplements(contract_id)
+            .supplements(content_ref)
+            .map_err(StashError::ReadProvider)
+    }
+
+    pub(super) fn supplement(
+        &self,
+        content_ref: ContentRef,
+    ) -> Result<Option<&Supplement>, StashError<P>> {
+        self.provider
+            .supplement(content_ref)
             .map_err(StashError::ReadProvider)
     }
 
@@ -262,6 +291,7 @@ impl<P: StashProvider> Stash<P> {
 
     pub(super) fn contract_builder(
         &self,
+        issuer: Identity,
         schema_id: SchemaId,
         iface: impl Into<IfaceRef>,
     ) -> Result<ContractBuilder, StashError<P>> {
@@ -269,13 +299,13 @@ impl<P: StashProvider> Stash<P> {
         let iface = self.iface(iface)?;
         let iface_id = iface.iface_id();
         let iimpl = schema_ifaces
-            .iimpls
-            .get(&iface_id)
+            .get(iface_id)
             .ok_or(StashDataError::NoIfaceImpl(schema_id, iface_id))?;
 
         let (types, scripts) = self.extract(&schema_ifaces.schema, [iface])?;
 
         let builder = ContractBuilder::with(
+            issuer,
             iface.clone(),
             schema_ifaces.schema.clone(),
             iimpl.clone(),
@@ -295,8 +325,7 @@ impl<P: StashProvider> Stash<P> {
         let iface = self.iface(iface)?;
         let schema = &schema_ifaces.schema;
         let iimpl = schema_ifaces
-            .iimpls
-            .get(&iface.iface_id())
+            .get(iface.iface_id())
             .ok_or(StashDataError::NoIfaceImpl(schema.schema_id(), iface.iface_id()))?;
         let genesis = self.provider.genesis(contract_id)?;
 
@@ -346,7 +375,7 @@ impl<P: StashProvider> Stash<P> {
 
         let (types, _) = self.extract(&schema_ifaces.schema, [iface])?;
 
-        let mut builder = if let Some(iimpl) = schema_ifaces.iimpls.get(&iface.iface_id()) {
+        let mut builder = if let Some(iimpl) = schema_ifaces.get(iface.iface_id()) {
             TransitionBuilder::blank_transition(
                 contract_id,
                 iface.clone(),
@@ -355,8 +384,9 @@ impl<P: StashProvider> Stash<P> {
                 types,
             )
         } else {
-            let (default_iface_id, default_iimpl) = schema_ifaces.iimpls.first_key_value().unwrap();
-            let default_iface = self.iface(*default_iface_id)?;
+            let (default_iface_name, default_iimpl) =
+                schema_ifaces.iimpls.first_key_value().unwrap();
+            let default_iface = self.iface(default_iface_name.clone())?;
 
             TransitionBuilder::blank_transition(
                 contract_id,
@@ -405,7 +435,7 @@ impl<P: StashProvider> Stash<P> {
         // TODO: filter out non-trusted signers
         for suppl in kit.supplements {
             self.provider
-                .add_suppl(suppl)
+                .add_supplement(suppl)
                 .map_err(StashError::WriteProvider)?;
         }
 
@@ -565,16 +595,21 @@ pub trait StashReadProvider {
     fn type_system(&self) -> Result<&TypeSystem, Self::Error>;
     fn lib(&self, id: LibId) -> Result<&Lib, ProviderError<Self::Error>>;
 
-    fn ifaces(&self) -> Result<impl Iterator<Item = (IfaceId, TypeName)>, Self::Error>;
+    fn ifaces(&self) -> Result<impl Iterator<Item = &Iface>, Self::Error>;
     fn iface(&self, iface: impl Into<IfaceRef>) -> Result<&Iface, ProviderError<Self::Error>>;
     fn schemata(&self) -> Result<impl Iterator<Item = &SchemaIfaces>, Self::Error>;
     fn schema(&self, schema_id: SchemaId) -> Result<&SchemaIfaces, ProviderError<Self::Error>>;
-
-    fn contract_ids(&self) -> Result<impl Iterator<Item = ContractId>, Self::Error>;
-    fn contract_ids_by_iface(
+    fn schemata_by<C: IfaceClass>(
         &self,
-        iface: impl Into<IfaceRef>,
-    ) -> Result<impl Iterator<Item = ContractId>, ProviderError<Self::Error>>;
+    ) -> Result<impl Iterator<Item = &SchemaIfaces>, Self::Error>;
+    fn impl_for<'a, C: IfaceClass + 'a>(
+        &'a self,
+        schema_ifaces: &'a SchemaIfaces,
+    ) -> Result<&'a IfaceImpl, ProviderError<Self::Error>>;
+    fn geneses(&self) -> Result<impl Iterator<Item = &Genesis>, Self::Error>;
+    fn geneses_by<C: IfaceClass>(&self) -> Result<impl Iterator<Item = &Genesis>, Self::Error>;
+    fn genesis(&self, contract_id: ContractId) -> Result<&Genesis, ProviderError<Self::Error>>;
+
     fn contract_schema(
         &self,
         contract_id: ContractId,
@@ -582,12 +617,14 @@ pub trait StashReadProvider {
         let genesis = self.genesis(contract_id)?;
         self.schema(genesis.schema_id)
     }
-    fn contract_supplements(
-        &self,
-        contract_id: ContractId,
-    ) -> Result<impl Iterator<Item = ContractSuppl>, Self::Error>;
 
-    fn genesis(&self, contract_id: ContractId) -> Result<&Genesis, ProviderError<Self::Error>>;
+    fn get_trust(&self, identity: &Identity) -> Result<TrustLevel, Self::Error>;
+    fn supplement(&self, content_ref: ContentRef) -> Result<Option<&Supplement>, Self::Error>;
+    fn supplements(
+        &self,
+        content_ref: ContentRef,
+    ) -> Result<impl Iterator<Item = Supplement>, Self::Error>;
+
     fn witness_ids(&self) -> Result<impl Iterator<Item = XWitnessId>, Self::Error>;
     fn bundle_ids(&self) -> Result<impl Iterator<Item = BundleId>, Self::Error>;
     fn bundle(&self, bundle_id: BundleId) -> Result<&TransitionBundle, ProviderError<Self::Error>>;
@@ -618,11 +655,14 @@ pub trait StashWriteProvider {
 
     fn replace_lib(&mut self, lib: Lib) -> Result<bool, Self::Error>;
     fn consume_types(&mut self, types: TypeSystem) -> Result<(), Self::Error>;
-    fn add_suppl(&mut self, suppl: ContractSuppl) -> Result<(), Self::Error>;
+    fn set_trust(
+        &mut self,
+        identity: Identity,
+        trust: TrustLevel,
+    ) -> Result<(), confinement::Error>;
+    fn add_supplement(&mut self, suppl: Supplement) -> Result<(), Self::Error>;
     fn import_sigs<I>(&mut self, content_id: ContentId, sigs: I) -> Result<(), Self::Error>
-    where
-        I: IntoIterator<Item = (Identity, SigBlob)>,
-        I::IntoIter: ExactSizeIterator<Item = (Identity, SigBlob)>;
+    where I: IntoIterator<Item = (Identity, SigBlob)>;
 
     fn add_secret_seal(&mut self, seal: XChain<GraphSeal>) -> Result<bool, Self::Error>;
 }

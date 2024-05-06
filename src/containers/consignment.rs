@@ -31,26 +31,25 @@ use amplify::confinement::{
 };
 use amplify::{ByteArray, Bytes32};
 use armor::{ArmorHeader, AsciiArmor, StrictArmor};
-use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
+use baid64::{Baid64ParseError, DisplayBaid64, FromBaid64Str};
 use commit_verify::{CommitEncode, CommitEngine, CommitId, CommitmentId, DigestExt, Sha256};
 use rgb::validation::{ResolveWitness, Validator, Validity, Warning, CONSIGNMENT_MAX_LIBS};
 use rgb::{
-    validation, AttachId, BundleId, ContractHistory, ContractId, Extension, Genesis, GraphSeal,
-    Operation, Schema, SchemaId, XChain,
+    impl_serde_baid64, validation, AttachId, BundleId, ContractHistory, ContractId, Extension,
+    Genesis, GraphSeal, Operation, Schema, SchemaId, XChain,
 };
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 use strict_types::TypeSystem;
 
 use super::{
-    BundledWitness, ContainerVer, ContentId, ContentSigs, IndexedConsignment, Terminal,
-    TerminalDisclose, ASCII_ARMOR_CONSIGNMENT_TYPE, ASCII_ARMOR_CONTRACT_, ASCII_ARMOR_TERMINAL,
-    ASCII_ARMOR_VERSION,
+    BundledWitness, ContainerVer, ContentId, ContentSigs, IndexedConsignment, Supplement, Terminal,
+    TerminalDisclose, ASCII_ARMOR_CONSIGNMENT_TYPE, ASCII_ARMOR_CONTRACT, ASCII_ARMOR_IFACE,
+    ASCII_ARMOR_SCHEMA, ASCII_ARMOR_TERMINAL, ASCII_ARMOR_VERSION,
 };
-use crate::accessors::BundleExt;
 use crate::containers::anchors::ToWitnessId;
-use crate::interface::{ContractSuppl, Iface, IfaceImpl};
+use crate::interface::{Iface, IfaceImpl};
 use crate::resolvers::ResolveHeight;
-use crate::{SecretSeal, LIB_NAME_RGB_STD};
+use crate::{BundleExt, SecretSeal, LIB_NAME_RGB_STD};
 
 pub type Transfer = Consignment<true>;
 pub type Contract = Consignment<false>;
@@ -62,11 +61,6 @@ pub type Contract = Consignment<false>;
 #[wrapper(Deref, BorrowSlice, Hex, Index, RangeOps)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", transparent)
-)]
 pub struct ConsignmentId(
     #[from]
     #[from([u8; 32])]
@@ -81,34 +75,27 @@ impl CommitmentId for ConsignmentId {
     const TAG: &'static str = "urn:lnp-bp:rgb:consignment#2024-03-11";
 }
 
-impl ToBaid58<32> for ConsignmentId {
-    const HRI: &'static str = "con";
-    const CHUNKING: Option<Chunking> = CHUNKING_32;
-    fn to_baid58_payload(&self) -> [u8; 32] { self.to_byte_array() }
-    fn to_baid58_string(&self) -> String { self.to_string() }
+impl DisplayBaid64 for ConsignmentId {
+    const HRI: &'static str = "rgb:csg";
+    const CHUNKING: bool = true;
+    const PREFIX: bool = true;
+    const EMBED_CHECKSUM: bool = false;
+    const MNEMONIC: bool = true;
+    fn to_baid64_payload(&self) -> [u8; 32] { self.to_byte_array() }
 }
-impl FromBaid58<32> for ConsignmentId {}
-impl Display for ConsignmentId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        if !f.alternate() {
-            f.write_str("urn:lnp-bp:con:")?;
-        }
-        if f.sign_minus() {
-            write!(f, "{:.2}", self.to_baid58())
-        } else {
-            write!(f, "{:#.2}", self.to_baid58())
-        }
-    }
-}
+impl FromBaid64Str for ConsignmentId {}
 impl FromStr for ConsignmentId {
-    type Err = Baid58ParseError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Self::from_baid58_maybe_chunked_str(s.trim_start_matches("urn:lnp-bp:"), ':', '#')
-    }
+    type Err = Baid64ParseError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_baid64_str(s) }
 }
+impl Display for ConsignmentId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { self.fmt_baid64(f) }
+}
+
+impl_serde_baid64!(ConsignmentId);
+
 impl ConsignmentId {
     pub const fn from_array(id: [u8; 32]) -> Self { Self(Bytes32::from_array(id)) }
-    pub fn to_mnemonic(&self) -> String { self.to_baid58().mnemonic() }
 }
 
 pub type ValidContract = ValidConsignment<false>;
@@ -186,7 +173,7 @@ pub struct Consignment<const TRANSFER: bool> {
     pub ifaces: TinyOrdMap<Iface, IfaceImpl>,
 
     /// Known supplements.
-    pub supplements: TinyOrdSet<ContractSuppl>,
+    pub supplements: TinyOrdSet<Supplement>,
 
     /// Type system covering all types used in schema, interfaces and
     /// implementations.
@@ -271,7 +258,7 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
         &self,
         history: Option<ContractHistory>,
         resolver: &mut R,
-    ) -> Result<ContractHistory, R::Error> {
+    ) -> Result<ContractHistory, String> {
         let mut history = history.unwrap_or_else(|| {
             ContractHistory::with(self.schema_id(), self.contract_id(), &self.genesis)
         });
@@ -353,9 +340,11 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
         }
     }
 
-    pub fn validate<R: ResolveWitness>(
+    pub fn validate(
         self,
-        resolver: &mut R,
+        resolver: &mut impl ResolveWitness,
+        // TODO: Add sig validator
+        //_: &impl SigValidator,
         testnet: bool,
     ) -> Result<ValidConsignment<TRANSFER>, (validation::Status, Consignment<TRANSFER>)> {
         let index = IndexedConsignment::new(&self);
@@ -369,6 +358,7 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
         // TODO: check that interface ids match implementations
         // TODO: check bundle ids listed in terminals are present in the consignment
         // TODO: check attach ids from data containers are present in operations
+        // TODO: validate sigs and remove untrusted
 
         if validity != Validity::Valid {
             Err((status, self))
@@ -387,8 +377,8 @@ impl<const TRANSFER: bool> StrictArmor for Consignment<TRANSFER> {
 
     fn armor_id(&self) -> Self::Id { self.commit_id() }
     fn armor_headers(&self) -> Vec<ArmorHeader> {
-        let mut headers = vec![
-            ArmorHeader::new(ASCII_ARMOR_VERSION, self.version.to_string()),
+        vec![
+            ArmorHeader::new(ASCII_ARMOR_VERSION, format!("{:#}", self.version)),
             ArmorHeader::new(
                 ASCII_ARMOR_CONSIGNMENT_TYPE,
                 if self.transfer {
@@ -397,11 +387,13 @@ impl<const TRANSFER: bool> StrictArmor for Consignment<TRANSFER> {
                     s!("contract")
                 },
             ),
-            ArmorHeader::new(ASCII_ARMOR_CONTRACT_, self.contract_id().to_string()),
-        ];
-        for bundle_id in self.terminals.keys() {
-            headers.push(ArmorHeader::new(ASCII_ARMOR_TERMINAL, bundle_id.to_string()));
-        }
-        headers
+            ArmorHeader::new(ASCII_ARMOR_CONTRACT, self.contract_id().to_string()),
+            ArmorHeader::new(ASCII_ARMOR_SCHEMA, self.schema.schema_id().to_string()),
+            ArmorHeader::with(
+                ASCII_ARMOR_IFACE,
+                self.ifaces.keys().map(|iface| iface.name.to_string()),
+            ),
+            ArmorHeader::with(ASCII_ARMOR_TERMINAL, self.terminals.keys().map(BundleId::to_string)),
+        ]
     }
 }

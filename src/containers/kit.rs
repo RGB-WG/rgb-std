@@ -26,20 +26,20 @@ use std::str::FromStr;
 
 use aluvm::library::Lib;
 use amplify::confinement::{SmallOrdSet, TinyOrdMap, TinyOrdSet};
-use amplify::Bytes32;
+use amplify::{ByteArray, Bytes32};
 use armor::{ArmorHeader, AsciiArmor, StrictArmor};
-use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
+use baid64::{Baid64ParseError, DisplayBaid64, FromBaid64Str};
 use commit_verify::{CommitEncode, CommitEngine, CommitId, CommitmentId, DigestExt, Sha256};
 use rgb::{validation, Schema};
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 use strict_types::TypeSystem;
 
 use super::{
-    ASCII_ARMOR_IFACE, ASCII_ARMOR_IIMPL, ASCII_ARMOR_SCHEMA, ASCII_ARMOR_SCRIPT,
-    ASCII_ARMOR_SUPPL, ASCII_ARMOR_TYPE_SYSTEM, ASCII_ARMOR_VERSION,
+    ContentRef, Supplement, ASCII_ARMOR_IFACE, ASCII_ARMOR_IIMPL, ASCII_ARMOR_SCHEMA,
+    ASCII_ARMOR_SCRIPT, ASCII_ARMOR_TYPE_SYSTEM, ASCII_ARMOR_VERSION,
 };
 use crate::containers::{ContainerVer, ContentId, ContentSigs};
-use crate::interface::{ContractSuppl, Iface, IfaceImpl};
+use crate::interface::{Iface, IfaceImpl};
 use crate::LIB_NAME_RGB_STD;
 
 /// Kit identifier.
@@ -49,11 +49,6 @@ use crate::LIB_NAME_RGB_STD;
 #[wrapper(Deref, BorrowSlice, Hex, Index, RangeOps)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", transparent)
-)]
 pub struct KitId(
     #[from]
     #[from([u8; 32])]
@@ -68,34 +63,27 @@ impl CommitmentId for KitId {
     const TAG: &'static str = "urn:lnp-bp:rgb:kit#2024-04-09";
 }
 
-impl ToBaid58<32> for KitId {
-    const HRI: &'static str = "kit";
-    const CHUNKING: Option<Chunking> = CHUNKING_32;
-    fn to_baid58_payload(&self) -> [u8; 32] { self.to_byte_array() }
-    fn to_baid58_string(&self) -> String { self.to_string() }
+impl DisplayBaid64 for KitId {
+    const HRI: &'static str = "rgb:kit";
+    const CHUNKING: bool = true;
+    const PREFIX: bool = true;
+    const EMBED_CHECKSUM: bool = false;
+    const MNEMONIC: bool = false;
+    fn to_baid64_payload(&self) -> [u8; 32] { self.to_byte_array() }
 }
-impl FromBaid58<32> for KitId {}
-impl Display for KitId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        if !f.alternate() {
-            f.write_str("urn:lnp-bp:kit:")?;
-        }
-        if f.sign_minus() {
-            write!(f, "{:.2}", self.to_baid58())
-        } else {
-            write!(f, "{:#.2}", self.to_baid58())
-        }
-    }
-}
+impl FromBaid64Str for KitId {}
 impl FromStr for KitId {
-    type Err = Baid58ParseError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Self::from_baid58_maybe_chunked_str(s.trim_start_matches("urn:lnp-bp:"), ':', '#')
-    }
+    type Err = Baid64ParseError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_baid64_str(s) }
 }
+impl Display for KitId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { self.fmt_baid64(f) }
+}
+
+impl_serde_baid64!(KitId);
+
 impl KitId {
     pub const fn from_array(id: [u8; 32]) -> Self { KitId(Bytes32::from_array(id)) }
-    pub fn to_mnemonic(&self) -> String { self.to_baid58().mnemonic() }
 }
 
 #[derive(Clone, Debug, Display)]
@@ -141,7 +129,7 @@ pub struct Kit {
 
     pub iimpls: TinyOrdSet<IfaceImpl>,
 
-    pub supplements: TinyOrdSet<ContractSuppl>,
+    pub supplements: TinyOrdSet<Supplement>,
 
     /// Type system covering all types used in schema, interfaces and
     /// implementations.
@@ -187,12 +175,17 @@ impl Kit {
     #[inline]
     pub fn kit_id(&self) -> KitId { self.commit_id() }
 
-    pub fn validate(self) -> Result<ValidKit, (validation::Status, Kit)> {
+    pub fn validate(
+        self,
+        // TODO: Add sig validator
+        //_: &impl SigValidator,
+    ) -> Result<ValidKit, (validation::Status, Kit)> {
         let status = validation::Status::new();
         // TODO:
         //  - Verify integrity for each interface
         //  - Verify implementations against interfaces
         //  - Check schema integrity
+        //  - Validate content sigs and remove untrusted ones
         Ok(ValidKit {
             validation_status: status,
             kit: self,
@@ -206,27 +199,66 @@ impl StrictArmor for Kit {
 
     fn armor_id(&self) -> Self::Id { self.kit_id() }
     fn armor_headers(&self) -> Vec<ArmorHeader> {
-        let mut headers = vec![ArmorHeader::new(ASCII_ARMOR_VERSION, self.version.to_string())];
+        let mut headers =
+            vec![ArmorHeader::new(ASCII_ARMOR_VERSION, format!("{:#}", self.version))];
+        for schema in &self.schemata {
+            let mut header = ArmorHeader::new(ASCII_ARMOR_SCHEMA, schema.name.to_string());
+            let id = schema.schema_id();
+            header.params.push((s!("id"), format!("{id:-}")));
+            header
+                .params
+                .push((s!("dev"), schema.developer.to_string()));
+            if let Some(suppl) = self
+                .supplements
+                .iter()
+                .find(|s| s.content_id == ContentRef::Schema(id))
+            {
+                header
+                    .params
+                    .push((s!("suppl"), format!("{:-}", suppl.suppl_id())));
+            }
+            headers.push(header);
+        }
         for iface in &self.ifaces {
             let mut header = ArmorHeader::new(ASCII_ARMOR_IFACE, iface.name.to_string());
-            header.params.push((s!("id"), iface.iface_id().to_string()));
+            let id = iface.iface_id();
+            header.params.push((s!("id"), format!("{id:-}")));
+            header.params.push((s!("dev"), iface.developer.to_string()));
+            if let Some(suppl) = self
+                .supplements
+                .iter()
+                .find(|s| s.content_id == ContentRef::Iface(id))
+            {
+                header
+                    .params
+                    .push((s!("suppl"), format!("{:-}", suppl.suppl_id())));
+            }
             headers.push(header);
         }
         for iimpl in &self.iimpls {
-            let mut header = ArmorHeader::new(ASCII_ARMOR_IIMPL, iimpl.impl_id().to_string());
-            header.params.push((s!("of"), iimpl.iface_id.to_string()));
-            header.params.push((s!("for"), iimpl.schema_id.to_string()));
+            let id = iimpl.impl_id();
+            let mut header = ArmorHeader::new(ASCII_ARMOR_IIMPL, format!("{id:-}"));
+            header
+                .params
+                .push((s!("interface"), format!("{:-}", iimpl.iface_id)));
+            header
+                .params
+                .push((s!("schema"), format!("{:-}", iimpl.schema_id)));
+            header.params.push((s!("dev"), iimpl.developer.to_string()));
+            if let Some(suppl) = self
+                .supplements
+                .iter()
+                .find(|s| s.content_id == ContentRef::IfaceImpl(id))
+            {
+                header
+                    .params
+                    .push((s!("suppl"), format!("{:-}", suppl.suppl_id())));
+            }
             headers.push(header);
-        }
-        for schema in &self.schemata {
-            headers.push(ArmorHeader::new(ASCII_ARMOR_SCHEMA, schema.schema_id().to_string()));
         }
         headers.push(ArmorHeader::new(ASCII_ARMOR_TYPE_SYSTEM, self.types.id().to_string()));
         for lib in &self.scripts {
             headers.push(ArmorHeader::new(ASCII_ARMOR_SCRIPT, lib.id().to_string()));
-        }
-        for suppl in &self.supplements {
-            headers.push(ArmorHeader::new(ASCII_ARMOR_SUPPL, suppl.suppl_id().to_string()));
         }
         headers
     }

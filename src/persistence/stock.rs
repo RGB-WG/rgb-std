@@ -27,6 +27,7 @@ use std::error::Error;
 use std::fmt::Debug;
 
 use amplify::confinement::{Confined, U24};
+use amplify::Wrapper;
 use bp::seals::txout::CloseMethod;
 use bp::Vout;
 use chrono::Utc;
@@ -34,10 +35,10 @@ use commit_verify::Conceal;
 use invoice::{Amount, Beneficiary, InvoiceState, NonFungible, RgbInvoice};
 use rgb::{
     validation, AssignmentType, BlindingFactor, BundleId, ContractHistory, ContractId,
-    ContractState, DbcProof, EAnchor, GraphSeal, OpId, Operation, Opout, SchemaId, SecretSeal,
-    Transition, WitnessAnchor, XChain, XOutpoint, XOutputSeal, XWitnessId,
+    ContractState, DbcProof, EAnchor, GraphSeal, Identity, OpId, Operation, Opout, SchemaId,
+    SecretSeal, Transition, WitnessAnchor, XChain, XOutpoint, XOutputSeal, XWitnessId,
 };
-use strict_encoding::{FieldName, TypeName};
+use strict_encoding::FieldName;
 
 use super::{
     Index, IndexError, IndexInconsistency, IndexProvider, IndexReadProvider, IndexWriteProvider,
@@ -45,18 +46,20 @@ use super::{
     StashInconsistency, StashProvider, StashReadProvider, StashWriteProvider, StateProvider,
     StateReadProvider, StateUpdateError, StateWriteProvider,
 };
-use crate::accessors::{MergeRevealError, RevealError};
 use crate::containers::{
     AnchorSet, AnchoredBundles, Batch, BuilderSeal, BundledWitness, Consignment, ContainerVer,
-    Contract, Fascia, PubWitness, SealWitness, Terminal, TerminalSeal, Transfer, TransitionInfo,
-    TransitionInfoError, ValidConsignment, ValidContract, ValidKit, ValidTransfer,
+    ContentRef, Contract, Fascia, Kit, SealWitness, SupplItem, SupplSub, Terminal, TerminalSeal,
+    Transfer, TransitionInfo, TransitionInfoError, ValidConsignment, ValidContract, ValidKit,
+    ValidTransfer, VelocityHint, SUPPL_ANNOT_VELOCITY,
 };
+use crate::info::{ContractInfo, IfaceInfo, SchemaInfo};
 use crate::interface::resolver::DumbResolver;
 use crate::interface::{
-    BuilderError, ContractBuilder, ContractIface, Iface, IfaceId, IfaceRef, TransitionBuilder,
-    VelocityHint,
+    BuilderError, ContractBuilder, ContractIface, Iface, IfaceClass, IfaceId, IfaceRef,
+    TransitionBuilder,
 };
 use crate::resolvers::ResolveHeight;
+use crate::{MergeRevealError, RevealError};
 
 pub type ContractAssignments = HashMap<XOutputSeal, HashMap<Opout, PersistedState>>;
 
@@ -331,7 +334,7 @@ stock_err_conv!(ContractIfaceError, InputError);
 pub type StockErrorMem<E = Infallible> = StockError<MemStash, MemState, MemIndex, E>;
 pub type StockErrorAll<S = MemStash, H = MemState, P = MemIndex> = StockError<S, H, P, InputError>;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Stock<
     S: StashProvider = MemStash,
     H: StateProvider = MemState,
@@ -373,35 +376,46 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     #[doc(hidden)]
     pub fn as_index_provider(&self) -> &P { self.index.as_provider() }
 
-    pub fn ifaces(
-        &self,
-    ) -> Result<impl Iterator<Item = (IfaceId, TypeName)> + '_, StockError<S, H, P>> {
-        Ok(self.stash.ifaces()?)
+    pub fn ifaces(&self) -> Result<impl Iterator<Item = IfaceInfo> + '_, StockError<S, H, P>> {
+        let names = self
+            .stash
+            .ifaces()?
+            .map(|iface| (iface.iface_id(), iface.name.clone()))
+            .collect::<HashMap<_, _>>();
+        Ok(self.stash.ifaces()?.map(move |iface| {
+            let suppl = self
+                .stash
+                .supplement(ContentRef::Iface(iface.iface_id()))
+                .ok()
+                .flatten();
+            IfaceInfo::new(iface, &names, suppl)
+        }))
     }
     pub fn iface(&self, iface: impl Into<IfaceRef>) -> Result<&Iface, StockError<S, H, P>> {
         Ok(self.stash.iface(iface)?)
     }
-    pub fn schemata(
-        &self,
-    ) -> Result<impl Iterator<Item = &SchemaIfaces> + '_, StockError<S, H, P>> {
-        Ok(self.stash.schemata()?)
+    pub fn schemata(&self) -> Result<impl Iterator<Item = SchemaInfo> + '_, StockError<S, H, P>> {
+        Ok(self.stash.schemata()?.map(SchemaInfo::with))
     }
     pub fn schema(&self, schema_id: SchemaId) -> Result<&SchemaIfaces, StockError<S, H, P>> {
         Ok(self.stash.schema(schema_id)?)
     }
-    pub fn contract_ids(
+
+    pub fn contracts(
         &self,
-    ) -> Result<impl Iterator<Item = ContractId> + '_, StockError<S, H, P>> {
-        Ok(self.stash.contract_ids()?)
+    ) -> Result<impl Iterator<Item = ContractInfo> + '_, StockError<S, H, P>> {
+        Ok(self.stash.geneses()?.map(ContractInfo::with))
     }
 
-    /// Iterates over all contract ids which can be interfaced using a specific
-    /// interface.
-    pub fn contracts_ifaceable(
-        &self,
-        iface: impl Into<IfaceRef>,
-    ) -> Result<impl Iterator<Item = ContractId> + '_, StockError<S, H, P>> {
-        Ok(self.stash.contract_ids_by_iface(iface)?)
+    pub fn contracts_by<'a, C: IfaceClass + 'a>(
+        &'a self,
+    ) -> Result<impl Iterator<Item = C::Info> + 'a, StockError<S, H, P>> {
+        Ok(self.stash.geneses_by::<C>()?.filter_map(|genesis| {
+            self.contract_iface_class::<C>(genesis.contract_id())
+                .as_ref()
+                .map(C::info)
+                .ok()
+        }))
     }
 
     /// Iterates over ids of all contract assigning state to the provided set of
@@ -420,7 +434,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     fn contract_raw(
         &self,
         contract_id: ContractId,
-    ) -> Result<(&SchemaIfaces, &ContractHistory), StockError<S, H, P>> {
+    ) -> Result<(&SchemaIfaces, &ContractHistory, ContractInfo), StockError<S, H, P>> {
         let history = self
             .state
             .contract_state(contract_id)
@@ -428,18 +442,42 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             .ok_or(StockError::StateInconsistency(contract_id))?;
         let schema_id = history.schema_id();
         let schema_ifaces = self.stash.schema(schema_id)?;
-        Ok((schema_ifaces, history))
+        let info = ContractInfo::with(self.stash.genesis(contract_id)?);
+        Ok((schema_ifaces, history, info))
     }
 
     pub fn contract_state(
         &self,
         contract_id: ContractId,
     ) -> Result<ContractState, StockError<S, H, P>> {
-        let (schema_ifaces, history) = self.contract_raw(contract_id)?;
+        let (schema_ifaces, history, _) = self.contract_raw(contract_id)?;
         Ok(ContractState {
             schema: schema_ifaces.schema.clone(),
             history: history.clone(),
         })
+    }
+
+    pub fn contract_iface_class<C: IfaceClass>(
+        &self,
+        contract_id: ContractId,
+    ) -> Result<C, StockError<S, H, P, ContractIfaceError>> {
+        let (schema_ifaces, history, info) = self.contract_raw(contract_id)?;
+        let iimpl = self.stash.impl_for::<C>(schema_ifaces)?;
+
+        let iface = self.stash.iface(iimpl.iface_id)?;
+        let (types, _) = self.stash.extract(&schema_ifaces.schema, [iface])?;
+
+        let state = ContractState {
+            schema: schema_ifaces.schema.clone(),
+            history: history.clone(),
+        };
+        Ok(ContractIface {
+            state,
+            iface: iimpl.clone(),
+            types,
+            info,
+        }
+        .into())
     }
 
     /// Returns the best matching abstract interface to a contract.
@@ -448,23 +486,13 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         contract_id: ContractId,
         iface: impl Into<IfaceRef>,
     ) -> Result<ContractIface, StockError<S, H, P, ContractIfaceError>> {
-        let (schema_ifaces, history) = self.contract_raw(contract_id)?;
+        let (schema_ifaces, history, info) = self.contract_raw(contract_id)?;
         let iface = self.stash.iface(iface)?;
         let iface_id = iface.iface_id();
 
-        let iimpl = schema_ifaces
-            .iimpls
-            .get(&iface_id)
-            .or_else(|| {
-                iface
-                    .inherits
-                    .iter()
-                    .rev()
-                    .find_map(|parent| schema_ifaces.iimpls.get(parent))
-            })
-            .ok_or_else(|| {
-                ContractIfaceError::NoAbstractImpl(iface_id, schema_ifaces.schema.schema_id())
-            })?;
+        let iimpl = iface.find_abstractable_impl(schema_ifaces).ok_or_else(|| {
+            ContractIfaceError::NoAbstractImpl(iface_id, schema_ifaces.schema.schema_id())
+        })?;
 
         let (types, _) = self.stash.extract(&schema_ifaces.schema, [iface])?;
 
@@ -476,6 +504,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             state,
             iface: iimpl.clone(),
             types,
+            info,
         })
     }
 
@@ -539,10 +568,13 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
     pub fn contract_builder(
         &self,
+        issuer: impl Into<Identity>,
         schema_id: SchemaId,
         iface: impl Into<IfaceRef>,
     ) -> Result<ContractBuilder, StockError<S, H, P>> {
-        Ok(self.stash.contract_builder(schema_id, iface)?)
+        Ok(self
+            .stash
+            .contract_builder(issuer.into(), schema_id, iface)?)
     }
 
     pub fn transition_builder(
@@ -562,6 +594,27 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         iface: impl Into<IfaceRef>,
     ) -> Result<TransitionBuilder, StockError<S, H, P>> {
         Ok(self.stash.blank_builder(contract_id, iface)?)
+    }
+
+    pub fn export_schema(&self, schema_id: SchemaId) -> Result<ValidKit, StockError<S, H, P>> {
+        let mut kit = Kit::default();
+        let schema_ifaces = self.schema(schema_id)?;
+        kit.schemata
+            .push(schema_ifaces.schema.clone())
+            .expect("single item");
+        for name in schema_ifaces.iimpls.keys() {
+            let iface = self.stash.iface(name.clone())?;
+            kit.ifaces.push(iface.clone()).expect("type guarantees");
+        }
+        kit.iimpls
+            .extend(schema_ifaces.iimpls.values().cloned())
+            .expect("type guarantees");
+        let (types, scripts) = self.stash.extract(&schema_ifaces.schema, &kit.ifaces)?;
+        kit.scripts
+            .extend(scripts.into_values())
+            .expect("type guarantees");
+        kit.types = types;
+        Ok(kit.validate().expect("stock produced invalid kit"))
     }
 
     pub fn export_contract(
@@ -766,11 +819,20 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             |id: ContractId,
              assignment_type: AssignmentType|
              -> Result<BuilderSeal<GraphSeal>, StockError<S, H, P, ComposeError>> {
-                let mut suppl = self.stash.contract_supplements(id)?;
+                let mut suppl = self.stash.supplements(ContentRef::Genesis(id))?;
                 let velocity = suppl
                     .next()
-                    .and_then(|mut s| s.owned_state.remove(&assignment_type).ok().flatten())
-                    .map(|s| s.velocity)
+                    .and_then(|suppl| {
+                        suppl
+                            .get(
+                                SupplSub::Assignment,
+                                SupplItem::TypeNo(assignment_type.to_inner()),
+                                SUPPL_ANNOT_VELOCITY,
+                            )
+                            .transpose()
+                            .ok()
+                            .flatten()
+                    })
                     .unwrap_or_default();
                 let vout = allocator(id, assignment_type, velocity)
                     .ok_or(ComposeError::NoBlankOrChange(velocity, assignment_type))?;
@@ -979,10 +1041,9 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         &mut self,
         fascia: Fascia,
     ) -> Result<(), StockError<S, H, P, FasciaError>> {
-        let witness_id = fascia.witness_id;
-
+        let witness_id = fascia.witness_id();
         self.stash
-            .consume_witness(SealWitness::new(fascia.witness_id, fascia.anchor.clone()))?;
+            .consume_witness(SealWitness::new(fascia.witness.clone(), fascia.anchor.clone()))?;
 
         for (contract_id, bundle) in fascia.into_bundles() {
             let ids1 = bundle
@@ -1024,7 +1085,8 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         let (witness_id, contract_id) = self.index.bundle_info(bundle_id)?;
 
         let bundle = self.stash.bundle(bundle_id)?.clone();
-        let anchor = self.stash.witness(witness_id)?.anchors.clone();
+        let witness = self.stash.witness(witness_id)?;
+        let anchor = witness.anchors.clone();
         let (tapret, opret) = match anchor {
             AnchorSet::Tapret(tapret) => (Some(tapret), None),
             AnchorSet::Opret(opret) => (None, Some(opret)),
@@ -1050,9 +1112,8 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         let anchored_bundles = AnchoredBundles::with(anchor, bundle);
         // TODO: Conceal all transitions except the one we need
 
-        // TODO: recover Tx and SPV
         Ok(BundledWitness {
-            pub_witness: witness_id.map(PubWitness::new),
+            pub_witness: witness.public.clone(),
             anchored_bundles,
         })
     }

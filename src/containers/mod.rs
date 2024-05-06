@@ -37,6 +37,7 @@ mod partials;
 mod indexed;
 mod file;
 mod kit;
+mod suppl;
 
 pub use anchors::{
     AnchorSet, AnchoredBundles, BundledWitness, PubWitness, SealWitness, ToWitnessId, XPubWitness,
@@ -52,13 +53,21 @@ pub use partials::{
     Batch, BundleDichotomy, CloseMethodSet, Fascia, TransitionInfo, TransitionInfoError,
 };
 pub use seal::{BuilderSeal, TerminalSeal, VoutSeal};
-pub use util::{ContainerVer, ContentId, ContentSigs, SigBlob, Terminal, TerminalDisclose};
+pub use suppl::{
+    AnnotationName, Annotations, ContentRef, SupplId, SupplItem, SupplMap, SupplSub, Supplement,
+    TickerSuppl, VelocityHint, SUPPL_ANNOT_IFACE_CLASS, SUPPL_ANNOT_IFACE_FEATURES,
+    SUPPL_ANNOT_VELOCITY,
+};
+pub use util::{
+    ContainerVer, ContentId, ContentSigs, DumbValidator, SigBlob, SigValidator, Terminal,
+    TerminalDisclose, TrustLevel,
+};
 
 pub const ASCII_ARMOR_NAME: &str = "Name";
 pub const ASCII_ARMOR_IFACE: &str = "Interface";
 pub const ASCII_ARMOR_IIMPL: &str = "Implementation";
 pub const ASCII_ARMOR_SCHEMA: &str = "Schema";
-pub const ASCII_ARMOR_CONTRACT_: &str = "Contract";
+pub const ASCII_ARMOR_CONTRACT: &str = "Contract";
 pub const ASCII_ARMOR_VERSION: &str = "Version";
 pub const ASCII_ARMOR_TERMINAL: &str = "Terminal";
 pub const ASCII_ARMOR_SUPPL: &str = "Supplement";

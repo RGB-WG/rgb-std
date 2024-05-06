@@ -33,7 +33,7 @@ use rgb::{
 };
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 
-use crate::containers::AnchorSet;
+use crate::containers::{AnchorSet, XPubWitness};
 use crate::LIB_NAME_RGB_STD;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
@@ -274,7 +274,7 @@ impl BundleDichotomy {
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct Fascia {
-    pub witness_id: XWitnessId,
+    pub witness: XPubWitness,
     pub anchor: AnchorSet,
     pub bundles: Confined<BTreeMap<ContractId, BundleDichotomy>, 1, U24>,
 }
@@ -282,7 +282,7 @@ pub struct Fascia {
 impl StrictDumb for Fascia {
     fn strict_dumb() -> Self {
         Fascia {
-            witness_id: strict_dumb!(),
+            witness: strict_dumb!(),
             anchor: strict_dumb!(),
             bundles: confined_bmap![strict_dumb!() => strict_dumb!()],
         }
@@ -292,6 +292,8 @@ impl StrictSerialize for Fascia {}
 impl StrictDeserialize for Fascia {}
 
 impl Fascia {
+    pub fn witness_id(&self) -> XWitnessId { self.witness.map_ref(|w| w.txid) }
+
     pub fn into_bundles(self) -> impl IntoIterator<Item = (ContractId, TransitionBundle)> {
         self.bundles
             .into_iter()

@@ -32,6 +32,7 @@ use strict_encoding::{FieldName, StrictDecode, StrictDumb, StrictEncode};
 use strict_types::typify::TypedVal;
 use strict_types::{decode, StrictVal, TypeSystem};
 
+use crate::info::ContractInfo;
 use crate::interface::{IfaceImpl, OutpointFilter, WitnessFilter};
 use crate::LIB_NAME_RGB_STD;
 
@@ -232,6 +233,7 @@ pub struct ContractIface {
     pub state: ContractState,
     pub iface: IfaceImpl,
     pub types: TypeSystem,
+    pub info: ContractInfo,
 }
 
 // TODO: Introduce witness checker: additional filter returning only those data
@@ -258,9 +260,9 @@ impl ContractIface {
         let state = unsafe { self.state.global_unchecked(type_id) };
         let state = state
             .into_iter()
-            .map(|revealed| {
+            .map(|data| {
                 self.types
-                    .strict_deserialize_type(type_schema.sem_id, revealed.as_ref())
+                    .strict_deserialize_type(type_schema.sem_id, data.as_ref())
                     .map(TypedVal::unbox)
             })
             .take(type_schema.max_items as usize)

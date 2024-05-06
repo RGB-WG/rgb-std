@@ -125,7 +125,7 @@ pub enum IndexInconsistency {
     BundleWitnessUnknown(BundleId),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Index<P: IndexProvider> {
     provider: P,
 }

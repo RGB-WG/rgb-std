@@ -26,8 +26,8 @@ use commit_verify::StrictHash;
 use rgb::{BundleId, ContractId, Identity, SchemaId, XChain};
 use strict_encoding::StrictDumb;
 
-use super::TerminalSeal;
-use crate::interface::{IfaceId, ImplId, SupplId};
+use super::{SupplId, TerminalSeal};
+use crate::interface::{IfaceId, ImplId};
 use crate::{SecretSeal, LIB_NAME_RGB_STD};
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
@@ -78,17 +78,51 @@ impl Terminal {
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-#[display(lowercase)]
 #[non_exhaustive]
 #[repr(u8)]
 pub enum ContainerVer {
     // V0 and V1 was a previous version before v0.11, currently not supported.
     #[default]
+    #[display("v2", alt = "2")]
     V2 = 2,
 }
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-#[derive(StrictType, strict_encoding::StrictDumb, StrictEncode, StrictDecode)]
+pub trait SigValidator {
+    fn validate_sig(&self, identity: &Identity, sig: SigBlob) -> bool;
+}
+
+pub struct DumbValidator;
+impl SigValidator for DumbValidator {
+    fn validate_sig(&self, _: &Identity, _: SigBlob) -> bool { false }
+}
+
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, Default)]
+#[display(lowercase)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD, tags = repr, into_u8, try_from_u8)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+#[repr(u8)]
+pub enum TrustLevel {
+    Malicious = 0x10,
+    #[default]
+    Unknown = 0x20,
+    Untrusted = 0x40,
+    Trusted = 0x80,
+    Ultimate = 0xC0,
+}
+
+impl TrustLevel {
+    pub fn should_accept(self) -> bool { self >= Self::Unknown }
+    pub fn should_use(self) -> bool { self >= Self::Trusted }
+    pub fn must_use(self) -> bool { self >= Self::Ultimate }
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD, tags = order, dumb = ContentId::Schema(strict_dumb!()))]
 #[cfg_attr(
     feature = "serde",

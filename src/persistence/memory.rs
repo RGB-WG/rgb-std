@@ -34,17 +34,19 @@ use rgb::{
     Extension, Genesis, GenesisSeal, GraphSeal, Identity, OpId, Operation, Opout, Schema, SchemaId,
     SecretSeal, TransitionBundle, XChain, XOutputSeal, XWitnessId,
 };
-use strict_encoding::{StrictDeserialize, StrictSerialize, TypeName};
+use strict_encoding::{StrictDeserialize, StrictSerialize};
 use strict_types::TypeSystem;
 
 use super::{
-    IndexInconsistency, IndexProvider, IndexReadError, IndexReadProvider, IndexWriteError,
-    IndexWriteProvider, SchemaIfaces, StashInconsistency, StashProvider, StashProviderError,
-    StashReadProvider, StashWriteProvider, StateProvider, StateReadProvider, StateUpdateError,
-    StateWriteProvider,
+    ContractIfaceError, IndexInconsistency, IndexProvider, IndexReadError, IndexReadProvider,
+    IndexWriteError, IndexWriteProvider, SchemaIfaces, StashInconsistency, StashProvider,
+    StashProviderError, StashReadProvider, StashWriteProvider, StateProvider, StateReadProvider,
+    StateUpdateError, StateWriteProvider,
 };
-use crate::containers::{AnchorSet, ContentId, ContentSigs, SealWitness, SigBlob};
-use crate::interface::{ContractSuppl, Iface, IfaceId, IfaceImpl, IfaceRef};
+use crate::containers::{
+    AnchorSet, ContentId, ContentRef, ContentSigs, SealWitness, SigBlob, Supplement, TrustLevel,
+};
+use crate::interface::{Iface, IfaceClass, IfaceId, IfaceImpl, IfaceRef};
 use crate::resolvers::ResolveHeight;
 use crate::LIB_NAME_RGB_STD;
 
@@ -61,13 +63,14 @@ pub struct MemStash {
     schemata: TinyOrdMap<SchemaId, SchemaIfaces>,
     ifaces: TinyOrdMap<IfaceId, Iface>,
     geneses: TinyOrdMap<ContractId, Genesis>,
-    suppl: TinyOrdMap<ContractId, TinyOrdSet<ContractSuppl>>,
+    suppl: TinyOrdMap<ContentRef, TinyOrdSet<Supplement>>,
     bundles: LargeOrdMap<BundleId, TransitionBundle>,
     extensions: LargeOrdMap<OpId, Extension>,
     witnesses: LargeOrdMap<XWitnessId, SealWitness>,
     attachments: SmallOrdMap<AttachId, MediumBlob>,
     secret_seals: MediumOrdSet<XChain<GraphSeal>>,
     type_system: TypeSystem,
+    identities: SmallOrdMap<Identity, TrustLevel>,
     libs: SmallOrdMap<LibId, Lib>,
     sigs: SmallOrdMap<ContentId, ContentSigs>,
 }
@@ -93,11 +96,8 @@ impl StashReadProvider for MemStash {
             .ok_or_else(|| StashInconsistency::LibAbsent(id).into())
     }
 
-    fn ifaces(&self) -> Result<impl Iterator<Item = (IfaceId, TypeName)>, Self::Error> {
-        Ok(self
-            .ifaces
-            .iter()
-            .map(|(id, iface)| (*id, iface.name.clone())))
+    fn ifaces(&self) -> Result<impl Iterator<Item = &Iface>, Self::Error> {
+        Ok(self.ifaces.values())
     }
 
     fn iface(&self, iface: impl Into<IfaceRef>) -> Result<&Iface, StashProviderError<Self::Error>> {
@@ -112,6 +112,37 @@ impl StashReadProvider for MemStash {
     fn schemata(&self) -> Result<impl Iterator<Item = &SchemaIfaces>, Self::Error> {
         Ok(self.schemata.values())
     }
+    fn schemata_by<C: IfaceClass>(
+        &self,
+    ) -> Result<impl Iterator<Item = &SchemaIfaces>, Self::Error> {
+        Ok(self
+            .schemata
+            .values()
+            .filter(|schema_ifaces| self.impl_for::<C>(schema_ifaces).is_ok()))
+    }
+
+    fn impl_for<'a, C: IfaceClass + 'a>(
+        &'a self,
+        schema_ifaces: &'a SchemaIfaces,
+    ) -> Result<&'a IfaceImpl, StashProviderError<Self::Error>> {
+        schema_ifaces
+            .iimpls
+            .values()
+            .find(|iimpl| C::IFACE_IDS.contains(&iimpl.iface_id))
+            .or_else(|| {
+                schema_ifaces.iimpls.keys().find_map(|id| {
+                    let iface = self.iface(id.clone()).ok()?;
+                    iface.find_abstractable_impl(schema_ifaces)
+                })
+            })
+            .ok_or_else(move || {
+                ContractIfaceError::NoAbstractImpl(
+                    C::IFACE_IDS[0],
+                    schema_ifaces.schema.schema_id(),
+                )
+                .into()
+            })
+    }
 
     fn schema(
         &self,
@@ -122,40 +153,36 @@ impl StashReadProvider for MemStash {
             .ok_or_else(|| StashInconsistency::SchemaAbsent(schema_id).into())
     }
 
-    fn contract_ids(&self) -> Result<impl Iterator<Item = ContractId>, Self::Error> {
-        Ok(self.geneses.keys().copied())
+    fn get_trust(&self, identity: &Identity) -> Result<TrustLevel, Self::Error> {
+        Ok(self.identities.get(identity).copied().unwrap_or_default())
     }
 
-    fn contract_ids_by_iface(
-        &self,
-        iface: impl Into<IfaceRef>,
-    ) -> Result<impl Iterator<Item = ContractId>, StashProviderError<Self::Error>> {
-        let iface = self.iface(iface)?;
-        let iface_id = iface.iface_id();
-        let schemata = self
-            .schemata
-            .iter()
-            .filter(|(_, iface)| iface.iimpls.contains_key(&iface_id))
-            .map(|(schema_id, _)| schema_id)
-            .collect::<BTreeSet<_>>();
-        Ok(self
-            .geneses
-            .iter()
-            .filter(move |(_, genesis)| schemata.contains(&genesis.schema_id))
-            .map(|(contract_id, _)| contract_id)
-            .copied())
+    fn supplement(&self, content_ref: ContentRef) -> Result<Option<&Supplement>, Self::Error> {
+        Ok(self.suppl.get(&content_ref).and_then(|s| s.first()))
     }
 
-    fn contract_supplements(
+    fn supplements(
         &self,
-        contract_id: ContractId,
-    ) -> Result<impl Iterator<Item = ContractSuppl>, Self::Error> {
+        content_ref: ContentRef,
+    ) -> Result<impl Iterator<Item = Supplement>, Self::Error> {
         Ok(self
             .suppl
-            .get(&contract_id)
+            .get(&content_ref)
             .cloned()
             .unwrap_or_default()
             .into_iter())
+    }
+
+    fn geneses(&self) -> Result<impl Iterator<Item = &Genesis>, Self::Error> {
+        Ok(self.geneses.values())
+    }
+
+    fn geneses_by<C: IfaceClass>(&self) -> Result<impl Iterator<Item = &Genesis>, Self::Error> {
+        Ok(self.schemata_by::<C>()?.flat_map(|schema_ifaces| {
+            self.geneses
+                .values()
+                .filter(|genesis| schema_ifaces.schema.schema_id() == genesis.schema_id)
+        }))
     }
 
     fn genesis(
@@ -262,16 +289,26 @@ impl StashWriteProvider for MemStash {
             .schemata
             .get_mut(&iimpl.schema_id)
             .expect("unknown schema");
-        let present = schema_ifaces.iimpls.contains_key(&iimpl.iface_id);
-        schema_ifaces.iimpls.insert(iimpl.iface_id, iimpl)?;
+        let iface = self.ifaces.get(&iimpl.iface_id).expect("unknown interface");
+        let iface_name = iface.name.clone();
+        let present = schema_ifaces.iimpls.contains_key(&iface_name);
+        schema_ifaces.iimpls.insert(iface_name, iimpl)?;
         Ok(!present)
     }
 
-    fn add_suppl(&mut self, suppl: ContractSuppl) -> Result<(), confinement::Error> {
-        match self.suppl.get_mut(&suppl.contract_id) {
+    fn set_trust(
+        &mut self,
+        identity: Identity,
+        trust: TrustLevel,
+    ) -> Result<(), confinement::Error> {
+        self.identities.insert(identity, trust)?;
+        Ok(())
+    }
+
+    fn add_supplement(&mut self, suppl: Supplement) -> Result<(), confinement::Error> {
+        match self.suppl.get_mut(&suppl.content_id) {
             None => {
-                self.suppl
-                    .insert(suppl.contract_id, confined_bset![suppl])?;
+                self.suppl.insert(suppl.content_id, confined_bset![suppl])?;
             }
             Some(suppls) => suppls.push(suppl)?,
         }
@@ -321,18 +358,24 @@ impl StashWriteProvider for MemStash {
     }
 
     fn import_sigs<I>(&mut self, content_id: ContentId, sigs: I) -> Result<(), confinement::Error>
-    where
-        I: IntoIterator<Item = (Identity, SigBlob)>,
-        I::IntoIter: ExactSizeIterator<Item = (Identity, SigBlob)>,
-    {
-        let sigs = sigs.into_iter();
-        if sigs.len() > 0 {
-            if let Some(prev_sigs) = self.sigs.get_mut(&content_id) {
-                prev_sigs.extend(sigs)?;
-            } else {
-                let sigs = Confined::try_from_iter(sigs)?;
-                self.sigs.insert(content_id, ContentSigs::from(sigs)).ok();
+    where I: IntoIterator<Item = (Identity, SigBlob)> {
+        let sigs = sigs.into_iter().filter(|(id, _)| {
+            match self.identities.get(id) {
+                Some(level) => *level,
+                None => {
+                    let level = TrustLevel::default();
+                    // We ignore if the identities are full
+                    self.identities.insert(id.clone(), level).ok();
+                    level
+                }
             }
+            .should_accept()
+        });
+        if let Some(prev_sigs) = self.sigs.get_mut(&content_id) {
+            prev_sigs.extend(sigs)?;
+        } else {
+            let sigs = Confined::try_from_iter(sigs)?;
+            self.sigs.insert(content_id, ContentSigs::from(sigs)).ok();
         }
         Ok(())
     }
@@ -386,7 +429,7 @@ impl StateWriteProvider for MemState {
     fn create_or_update_state<R: ResolveHeight>(
         &mut self,
         contract_id: ContractId,
-        updater: impl FnOnce(Option<ContractHistory>) -> Result<ContractHistory, R::Error>,
+        updater: impl FnOnce(Option<ContractHistory>) -> Result<ContractHistory, String>,
     ) -> Result<(), StateUpdateError<Self::Error>> {
         let state = self.history.get(&contract_id);
         let updated =
@@ -398,7 +441,7 @@ impl StateWriteProvider for MemState {
     fn update_state<R: ResolveHeight>(
         &mut self,
         contract_id: ContractId,
-        mut updater: impl FnMut(&mut ContractHistory) -> Result<(), R::Error>,
+        mut updater: impl FnMut(&mut ContractHistory) -> Result<(), String>,
     ) -> Result<(), StateUpdateError<Self::Error>> {
         let state = self
             .history

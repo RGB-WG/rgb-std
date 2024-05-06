@@ -21,22 +21,24 @@
 
 use std::cmp::Ordering;
 use std::collections::HashMap;
-use std::fmt::{self, Display, Formatter};
+use std::fmt::{self, Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 
 use amplify::confinement::{TinyOrdMap, TinyOrdSet, TinyString, TinyVec};
 use amplify::{ByteArray, Bytes32};
-use baid58::{Baid58ParseError, Chunking, FromBaid58, ToBaid58, CHUNKING_32};
+use baid64::{Baid64ParseError, DisplayBaid64, FromBaid64Str};
+use chrono::{DateTime, TimeZone, Utc};
 use commit_verify::{CommitId, CommitmentId, DigestExt, Sha256};
 use rgb::{Identity, Occurrences};
 use strict_encoding::{
     FieldName, StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize,
     StrictType, TypeName, VariantName,
 };
-use strict_types::{SemId, SymbolicSys};
+use strict_types::{SemId, SymbolicSys, TypeLib};
 
-use crate::interface::{IfaceDisplay, VerNo};
+use crate::interface::{ContractIface, IfaceDisplay, IfaceImpl, VerNo};
+use crate::persistence::SchemaIfaces;
 use crate::LIB_NAME_RGB_STD;
 
 /// Interface identifier.
@@ -46,11 +48,6 @@ use crate::LIB_NAME_RGB_STD;
 #[wrapper(Deref, BorrowSlice, Hex, Index, RangeOps)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", transparent)
-)]
 pub struct IfaceId(
     #[from]
     #[from([u8; 32])]
@@ -65,44 +62,56 @@ impl CommitmentId for IfaceId {
     const TAG: &'static str = "urn:lnp-bp:rgb:interface#2024-02-04";
 }
 
-impl ToBaid58<32> for IfaceId {
-    const HRI: &'static str = "if";
-    const CHUNKING: Option<Chunking> = CHUNKING_32;
-    fn to_baid58_payload(&self) -> [u8; 32] { self.to_byte_array() }
-    fn to_baid58_string(&self) -> String { self.to_string() }
+impl DisplayBaid64 for IfaceId {
+    const HRI: &'static str = "rgb:ifc";
+    const CHUNKING: bool = true;
+    const PREFIX: bool = true;
+    const EMBED_CHECKSUM: bool = false;
+    const MNEMONIC: bool = true;
+    fn to_baid64_payload(&self) -> [u8; 32] { self.to_byte_array() }
 }
-impl FromBaid58<32> for IfaceId {}
-impl Display for IfaceId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        if !f.alternate() {
-            f.write_str("urn:lnp-bp:if:")?;
-        }
-        if f.sign_minus() {
-            write!(f, "{:.2}", self.to_baid58())
-        } else {
-            write!(f, "{:#.2}", self.to_baid58())
-        }
-    }
-}
+impl FromBaid64Str for IfaceId {}
 impl FromStr for IfaceId {
-    type Err = Baid58ParseError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Self::from_baid58_maybe_chunked_str(s.trim_start_matches("urn:lnp-bp:"), ':', '#')
-    }
+    type Err = Baid64ParseError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_baid64_str(s) }
 }
-impl IfaceId {
-    pub const fn from_array(id: [u8; 32]) -> Self { IfaceId(Bytes32::from_array(id)) }
-    pub fn to_mnemonic(&self) -> String { self.to_baid58().mnemonic() }
+impl Display for IfaceId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { self.fmt_baid64(f) }
 }
 
-#[derive(Clone, PartialEq, Eq, Debug, Display, From)]
-#[display(inner)]
+impl_serde_baid64!(IfaceId);
+
+impl IfaceId {
+    pub const fn from_array(id: [u8; 32]) -> Self { IfaceId(Bytes32::from_array(id)) }
+}
+
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, From)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
 pub enum IfaceRef {
     #[from]
     #[from(&'static str)]
     Name(TypeName),
     #[from]
     Id(IfaceId),
+}
+
+impl Display for IfaceRef {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            IfaceRef::Name(name) => f.write_str(name.as_str()),
+            IfaceRef::Id(id) => {
+                if f.alternate() {
+                    write!(f, "{}", id.to_baid64_mnemonic())
+                } else {
+                    write!(f, "{}", id)
+                }
+            }
+        }
+    }
 }
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
@@ -323,6 +332,34 @@ pub struct TransitionIface {
     pub default_assignment: Option<FieldName>,
 }
 
+/// A class of interfaces: one or several interfaces inheriting from each other.
+///
+/// Interface standards like RGB20, RGB21 and RGB25 are actually interface
+/// classes.
+///
+/// The instances implementing this trait are used as wrappers around
+/// [`ContractIface`] object, allowing a simple API matching the interface class
+/// requirements.
+pub trait IfaceClass: From<ContractIface> {
+    const IFACE_NAME: &'static str;
+    const IFACE_IDS: &'static [IfaceId];
+
+    /// An object which allows to configure specific interface features to
+    /// select one interface from the class.
+    type Features: Sized + Clone + Default;
+
+    /// Object which represent concise summary about a contract;
+    type Info: Clone + Eq + Debug;
+
+    fn iface(features: Self::Features) -> Iface;
+    fn iface_id(features: Self::Features) -> IfaceId;
+    fn stl() -> TypeLib;
+
+    /// Constructs information object describing a specific class in terms of
+    /// the interface class.
+    fn info(&self) -> Self::Info;
+}
+
 /// Interface definition.
 #[derive(Clone, Eq, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
@@ -394,6 +431,18 @@ impl Iface {
             )
     }
 
+    pub fn find_abstractable_impl<'a>(
+        &self,
+        schema_ifaces: &'a SchemaIfaces,
+    ) -> Option<&'a IfaceImpl> {
+        schema_ifaces.get(self.iface_id()).or_else(|| {
+            self.inherits
+                .iter()
+                .rev()
+                .find_map(move |parent| schema_ifaces.get(*parent))
+        })
+    }
+
     pub fn check(&self) -> Result<(), Vec<IfaceInconsistency>> {
         let proc_globals = |op_name: &OpName,
                             globals: &ArgMap,
@@ -449,6 +498,13 @@ impl Iface {
         };
 
         let mut errors = vec![];
+
+        let now = Utc::now();
+        match Utc.timestamp_opt(self.timestamp, 0).single() {
+            Some(ts) if ts > now => errors.push(IfaceInconsistency::FutureTimestamp(ts)),
+            None => errors.push(IfaceInconsistency::InvalidTimestamp(self.timestamp)),
+            _ => {}
+        }
 
         for name in &self.genesis.metadata {
             if !self.metadata.contains_key(name) {
@@ -586,6 +642,10 @@ pub enum OpName {
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display, Error)]
 #[display(doc_comments)]
 pub enum IfaceInconsistency {
+    /// timestamp is invalid ({0}).
+    InvalidTimestamp(i64),
+    /// timestamp in the future ({0}).
+    FutureTimestamp(DateTime<Utc>),
     /// unknown global state '{1}' referenced from {0}.
     UnknownGlobal(OpName, FieldName),
     /// unknown valency '{1}' referenced from {0}.

@@ -354,6 +354,8 @@ impl Iface {
         name: impl Into<TypeName>,
     ) -> Result<Iface, Vec<ExtensionError>> {
         let orig_id = self.iface_id();
+        let ext_id = ext.iface_id();
+        let name = name.into();
 
         let mut errors = vec![];
 
@@ -501,10 +503,11 @@ impl Iface {
             }
         }
 
-        self.name = name.into();
+        self.name = name;
         self.inherits
             .push(orig_id)
             .and_then(|_| self.inherits.extend(ext.inherits))
+            .and_then(|_| self.inherits.push(ext_id))
             .map_err(|_| errors.push(ExtensionError::InheritanceOverflow))
             .ok();
 
