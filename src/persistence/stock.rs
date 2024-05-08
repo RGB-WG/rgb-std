@@ -170,25 +170,19 @@ pub enum ConsignError {
 impl<S: StashProvider, H: StateProvider, P: IndexProvider> From<ConsignError>
     for StockError<S, H, P, ConsignError>
 {
-    fn from(err: ConsignError) -> Self {
-        Self::InvalidInput(err)
-    }
+    fn from(err: ConsignError) -> Self { Self::InvalidInput(err) }
 }
 
 impl<S: StashProvider, H: StateProvider, P: IndexProvider> From<MergeRevealError>
     for StockError<S, H, P, ConsignError>
 {
-    fn from(err: MergeRevealError) -> Self {
-        Self::InvalidInput(err.into())
-    }
+    fn from(err: MergeRevealError) -> Self { Self::InvalidInput(err.into()) }
 }
 
 impl<S: StashProvider, H: StateProvider, P: IndexProvider> From<RevealError>
     for StockError<S, H, P, ConsignError>
 {
-    fn from(err: RevealError) -> Self {
-        Self::InvalidInput(err.into())
-    }
+    fn from(err: RevealError) -> Self { Self::InvalidInput(err.into()) }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
@@ -234,17 +228,13 @@ pub enum ComposeError {
 impl<S: StashProvider, H: StateProvider, P: IndexProvider> From<ComposeError>
     for StockError<S, H, P, ComposeError>
 {
-    fn from(err: ComposeError) -> Self {
-        Self::InvalidInput(err)
-    }
+    fn from(err: ComposeError) -> Self { Self::InvalidInput(err) }
 }
 
 impl<S: StashProvider, H: StateProvider, P: IndexProvider> From<BuilderError>
     for StockError<S, H, P, ComposeError>
 {
-    fn from(err: BuilderError) -> Self {
-        Self::InvalidInput(err.into())
-    }
+    fn from(err: BuilderError) -> Self { Self::InvalidInput(err.into()) }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
@@ -257,9 +247,7 @@ pub enum FasciaError {
 impl<S: StashProvider, H: StateProvider, P: IndexProvider> From<FasciaError>
     for StockError<S, H, P, FasciaError>
 {
-    fn from(err: FasciaError) -> Self {
-        Self::InvalidInput(err)
-    }
+    fn from(err: FasciaError) -> Self { Self::InvalidInput(err) }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
@@ -273,9 +261,7 @@ pub enum ContractIfaceError {
 impl<S: StashProvider, H: StateProvider, P: IndexProvider> From<ContractIfaceError>
     for StockError<S, H, P, ContractIfaceError>
 {
-    fn from(err: ContractIfaceError) -> Self {
-        Self::InvalidInput(err)
-    }
+    fn from(err: ContractIfaceError) -> Self { Self::InvalidInput(err) }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
@@ -317,29 +303,19 @@ macro_rules! stock_err_conv {
 }
 
 impl From<Infallible> for InputError {
-    fn from(_: Infallible) -> Self {
-        unreachable!()
-    }
+    fn from(_: Infallible) -> Self { unreachable!() }
 }
 impl From<Infallible> for ComposeError {
-    fn from(_: Infallible) -> Self {
-        unreachable!()
-    }
+    fn from(_: Infallible) -> Self { unreachable!() }
 }
 impl From<Infallible> for ConsignError {
-    fn from(_: Infallible) -> Self {
-        unreachable!()
-    }
+    fn from(_: Infallible) -> Self { unreachable!() }
 }
 impl From<Infallible> for FasciaError {
-    fn from(_: Infallible) -> Self {
-        unreachable!()
-    }
+    fn from(_: Infallible) -> Self { unreachable!() }
 }
 impl From<Infallible> for ContractIfaceError {
-    fn from(_: Infallible) -> Self {
-        unreachable!()
-    }
+    fn from(_: Infallible) -> Self { unreachable!() }
 }
 
 stock_err_conv!(Infallible, ComposeError);
@@ -391,17 +367,11 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     }
 
     #[doc(hidden)]
-    pub fn as_stash_provider(&self) -> &S {
-        self.stash.as_provider()
-    }
+    pub fn as_stash_provider(&self) -> &S { self.stash.as_provider() }
     #[doc(hidden)]
-    pub fn as_state_provider(&self) -> &H {
-        &self.state
-    }
+    pub fn as_state_provider(&self) -> &H { &self.state }
     #[doc(hidden)]
-    pub fn as_index_provider(&self) -> &P {
-        self.index.as_provider()
-    }
+    pub fn as_index_provider(&self) -> &P { self.index.as_provider() }
 
     pub fn ifaces(
         &self,
