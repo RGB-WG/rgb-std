@@ -19,10 +19,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::str::FromStr;
-
 use amplify::confinement::SmallBlob;
-use bp::Outpoint;
+use amplify::ByteArray;
+use bp::{Outpoint, Txid};
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 use strict_types::StrictVal;
 
@@ -45,8 +44,16 @@ impl ProofOfReserves {
     }
 
     pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
-        let utxo = Outpoint::from_str(&value.unwrap_struct("utxo").unwrap_string())
-            .expect("invalid outpoint");
+        let utxo = value.unwrap_struct("utxo");
+        let txid_array: [u8; 32] = utxo
+            .unwrap_struct("txid")
+            .unwrap_bytes()
+            .try_into()
+            .expect("invalid txid");
+        let txid = Txid::from_byte_array(txid_array);
+        let vout: u32 = utxo.unwrap_struct("vout").unwrap_num().unwrap_uint();
+        let utxo = Outpoint::new(txid, vout);
+
         let proof =
             SmallBlob::from_collection_unsafe(value.unwrap_struct("proof").unwrap_bytes().into());
 
