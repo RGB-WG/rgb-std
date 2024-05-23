@@ -10,3 +10,6 @@
 *.swp
 
 /dep_test
+result
+default_*.profraw
+coverage.lcov
