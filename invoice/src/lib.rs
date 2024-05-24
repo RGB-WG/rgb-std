@@ -43,7 +43,8 @@ pub use data::{Allocation, NonFungible, OwnedFraction, TokenIndex};
 pub use parse::{InvoiceParseError, TransportParseError};
 
 pub use crate::invoice::{
-    Beneficiary, ChainNet, InvoiceState, RgbInvoice, RgbTransport, XChainNet,
+    Beneficiary, ChainNet, InvoiceState, Pay2Vout, Pay2VoutError, RgbInvoice, RgbTransport,
+    XChainNet,
 };
 
 pub const LIB_NAME_RGB_CONTRACT: &str = "RGBContract";
