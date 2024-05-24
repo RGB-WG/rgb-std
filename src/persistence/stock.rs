@@ -679,7 +679,12 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
                 for index in 0..typed_assignments.len_u16() {
                     let seal = typed_assignments.to_confidential_seals()[index as usize];
                     if secret_seals.contains(&seal) {
-                        terminals.insert(bundle_id, Terminal::new(seal.map(TerminalSeal::from)));
+                        terminals
+                            .entry(bundle_id)
+                            .or_insert(Terminal::new(seal.map(TerminalSeal::from)))
+                            .seals
+                            .push(seal.map(TerminalSeal::from))
+                            .map_err(|_| ConsignError::TooManyTerminals)?;
                     } else if opout.no == index && opout.ty == *type_id {
                         if let Some(seal) = typed_assignments
                             .revealed_seal_at(index)
