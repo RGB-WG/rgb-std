@@ -137,7 +137,7 @@ impl<const TRANSFER: bool> Deref for ValidConsignment<TRANSFER> {
 /// with `endpoints` and process up to the genesis.
 #[derive(Clone, Debug, Display)]
 #[display(AsciiArmor::to_ascii_armored_string)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode, PartialEq)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(
     feature = "serde",
@@ -377,7 +377,7 @@ impl<const TRANSFER: bool> StrictArmor for Consignment<TRANSFER> {
 
     fn armor_id(&self) -> Self::Id { self.commit_id() }
     fn armor_headers(&self) -> Vec<ArmorHeader> {
-        vec![
+        let mut headers = vec![
             ArmorHeader::new(ASCII_ARMOR_VERSION, format!("{:#}", self.version)),
             ArmorHeader::new(
                 ASCII_ARMOR_CONSIGNMENT_TYPE,
@@ -389,11 +389,175 @@ impl<const TRANSFER: bool> StrictArmor for Consignment<TRANSFER> {
             ),
             ArmorHeader::new(ASCII_ARMOR_CONTRACT, self.contract_id().to_string()),
             ArmorHeader::new(ASCII_ARMOR_SCHEMA, self.schema.schema_id().to_string()),
-            ArmorHeader::with(
+        ];
+        if !self.ifaces.is_empty() {
+            headers.push(ArmorHeader::with(
                 ASCII_ARMOR_IFACE,
                 self.ifaces.keys().map(|iface| iface.name.to_string()),
-            ),
-            ArmorHeader::with(ASCII_ARMOR_TERMINAL, self.terminals.keys().map(BundleId::to_string)),
-        ]
+            ));
+        }
+        if !self.terminals.is_empty() {
+            headers.push(ArmorHeader::with(
+                ASCII_ARMOR_TERMINAL,
+                self.terminals.keys().map(BundleId::to_string),
+            ));
+        }
+        headers
+    }
+}
+
+impl<const TRANSFER: bool> FromStr for Consignment<TRANSFER> {
+    type Err = armor::StrictArmorError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_ascii_armored_str(s) }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn contract_str_round_trip() {
+        let contract = Contract::from_str(include_str!("../../asset/armored_contract.default"))
+            .expect("contract from str should work");
+        assert_eq!(
+            contract.to_string(),
+            include_str!("../../asset/armored_contract.default"),
+            "contract string round trip fails"
+        );
+    }
+
+    #[test]
+    fn error_contract_strs() {
+        assert!(
+            Contract::from_str(
+                r#"-----BEGIN RGB CONSIGNMENT-----
+Id: rgb:csg:poAMvm9j-NdapxqA-MJ@5dwP-d@IIt2A-T@5OiXE-Tl54Yew#guide-campus-arctic
+Version: 2
+Type: contract
+Contract: rgb:qm7P@06T-uuBQT56-ovwOLzx-9Gka7Nb-84Nwo8g-blLb8kw
+Schema: rgb:sch:CyqM42yAdM1moWyNZPQedAYt73BM$k9z$dKLUXY1voA#cello-global-deluxe
+Check-SHA256: 181748dae0c83cbb44f6ccfdaddf6faca0bc4122a9f35fef47bab9aea023e4a1
+
+0ssI2000000000000000000000000000000000000000000000000000000D0CRI`I$>^aZh38Qb#nj!
+0000000000000000000000d59ZDjxe00000000dDb8~4rVQz13d2MfXa{vGU00000000000000000000
+0000000000000
+
+-----END RGB CONSIGNMENT-----"#
+            )
+            .is_ok()
+        );
+
+        // Wrong Id
+        assert!(
+            Contract::from_str(
+                r#"-----BEGIN RGB CONSIGNMENT-----
+Id: rgb:csg:aaaaaaaa-aaaaaaa-aaaaaaa-aaaaaaa-aaaaaaa-aaaaaaa#guide-campus-arctic
+Version: 2
+Type: contract
+Contract: rgb:qm7P@06T-uuBQT56-ovwOLzx-9Gka7Nb-84Nwo8g-blLb8kw
+Schema: rgb:sch:CyqM42yAdM1moWyNZPQedAYt73BM$k9z$dKLUXY1voA#cello-global-deluxe
+Check-SHA256: 181748dae0c83cbb44f6ccfdaddf6faca0bc4122a9f35fef47bab9aea023e4a1
+
+0ssI2000000000000000000000000000000000000000000000000000000D0CRI`I$>^aZh38Qb#nj!
+0000000000000000000000d59ZDjxe00000000dDb8~4rVQz13d2MfXa{vGU00000000000000000000
+0000000000000
+
+-----END RGB CONSIGNMENT-----"#
+            )
+            .is_err()
+        );
+
+        // Wrong checksum
+        assert!(
+            Contract::from_str(
+                r#"-----BEGIN RGB CONSIGNMENT-----
+Id: rgb:csg:poAMvm9j-NdapxqA-MJ@5dwP-d@IIt2A-T@5OiXE-Tl54Yew#guide-campus-arctic
+Version: 2
+Type: contract
+Contract: rgb:qm7P@06T-uuBQT56-ovwOLzx-9Gka7Nb-84Nwo8g-blLb8kw
+Schema: rgb:sch:CyqM42yAdM1moWyNZPQedAYt73BM$k9z$dKLUXY1voA#cello-global-deluxe
+Check-SHA256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+0ssI2000000000000000000000000000000000000000000000000000000D0CRI`I$>^aZh38Qb#nj!
+0000000000000000000000d59ZDjxe00000000dDb8~4rVQz13d2MfXa{vGU00000000000000000000
+0000000000000
+
+-----END RGB CONSIGNMENT-----"#
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn transfer_str_round_trip() {
+        let transfer = Transfer::from_str(include_str!("../../asset/armored_transfer.default"))
+            .expect("transfer from str should work");
+        assert_eq!(
+            transfer.to_string(),
+            include_str!("../../asset/armored_transfer.default"),
+            "transfer string round trip fails"
+        );
+    }
+
+    #[test]
+    fn error_transfer_strs() {
+        assert!(
+            Transfer::from_str(
+                r#"-----BEGIN RGB CONSIGNMENT-----
+Id: rgb:csg:poAMvm9j-NdapxqA-MJ@5dwP-d@IIt2A-T@5OiXE-Tl54Yew#guide-campus-arctic
+Version: 2
+Type: contract
+Contract: rgb:qm7P@06T-uuBQT56-ovwOLzx-9Gka7Nb-84Nwo8g-blLb8kw
+Schema: rgb:sch:CyqM42yAdM1moWyNZPQedAYt73BM$k9z$dKLUXY1voA#cello-global-deluxe
+Check-SHA256: 181748dae0c83cbb44f6ccfdaddf6faca0bc4122a9f35fef47bab9aea023e4a1
+
+0ssI2000000000000000000000000000000000000000000000000000000D0CRI`I$>^aZh38Qb#nj!
+0000000000000000000000d59ZDjxe00000000dDb8~4rVQz13d2MfXa{vGU00000000000000000000
+0000000000000
+
+-----END RGB CONSIGNMENT-----"#
+            )
+            .is_ok()
+        );
+
+        // Wrong Id
+        assert!(
+            Transfer::from_str(
+                r#"-----BEGIN RGB CONSIGNMENT-----
+Id: rgb:csg:aaaaaaaa-aaaaaaa-aaaaaaa-aaaaaaa-aaaaaaa-aaaaaaa#guide-campus-arctic
+Version: 2
+Type: contract
+Contract: rgb:qm7P@06T-uuBQT56-ovwOLzx-9Gka7Nb-84Nwo8g-blLb8kw
+Schema: rgb:sch:CyqM42yAdM1moWyNZPQedAYt73BM$k9z$dKLUXY1voA#cello-global-deluxe
+Check-SHA256: 181748dae0c83cbb44f6ccfdaddf6faca0bc4122a9f35fef47bab9aea023e4a1
+
+0ssI2000000000000000000000000000000000000000000000000000000D0CRI`I$>^aZh38Qb#nj!
+0000000000000000000000d59ZDjxe00000000dDb8~4rVQz13d2MfXa{vGU00000000000000000000
+0000000000000
+
+-----END RGB CONSIGNMENT-----"#
+            )
+            .is_err()
+        );
+
+        // Wrong checksum
+        assert!(
+            Transfer::from_str(
+                r#"-----BEGIN RGB CONSIGNMENT-----
+Id: rgb:csg:poAMvm9j-NdapxqA-MJ@5dwP-d@IIt2A-T@5OiXE-Tl54Yew#guide-campus-arctic
+Version: 2
+Type: contract
+Contract: rgb:qm7P@06T-uuBQT56-ovwOLzx-9Gka7Nb-84Nwo8g-blLb8kw
+Schema: rgb:sch:CyqM42yAdM1moWyNZPQedAYt73BM$k9z$dKLUXY1voA#cello-global-deluxe
+Check-SHA256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+0ssI2000000000000000000000000000000000000000000000000000000D0CRI`I$>^aZh38Qb#nj!
+0000000000000000000000d59ZDjxe00000000dDb8~4rVQz13d2MfXa{vGU00000000000000000000
+0000000000000
+
+-----END RGB CONSIGNMENT-----"#
+            )
+            .is_err()
+        );
     }
 }

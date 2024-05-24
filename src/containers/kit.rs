@@ -110,7 +110,7 @@ impl Deref for ValidKit {
     fn deref(&self) -> &Self::Target { &self.kit }
 }
 
-#[derive(Clone, Default, Debug, Display)]
+#[derive(Clone, Default, Debug, Display, PartialEq)]
 #[display(AsciiArmor::to_ascii_armored_string)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
@@ -261,5 +261,82 @@ impl StrictArmor for Kit {
             headers.push(ArmorHeader::new(ASCII_ARMOR_SCRIPT, lib.id().to_string()));
         }
         headers
+    }
+}
+
+impl FromStr for Kit {
+    type Err = armor::StrictArmorError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_ascii_armored_str(s) }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    #[test]
+    fn kit_str_round_trip() {
+        let kit = Kit::from_str(include_str!("../../asset/armored_kit.default"))
+            .expect("kit from str should work");
+
+        assert_eq!(
+            kit.to_string(),
+            include_str!("../../asset/armored_kit.default"),
+            "kit string round trip fails"
+        );
+
+        assert_eq!(
+            kit.validate().unwrap().to_string(),
+            include_str!("../../asset/armored_kit.default"),
+            "validated kit string round trip fails"
+        );
+    }
+
+    #[test]
+    fn error_kit_strs() {
+        assert!(
+            Kit::from_str(
+                r#"-----BEGIN RGB KIT-----
+Id: rgb:kit:e1jW6Rgc-2$JzXDg-XmR8XRJ-v@q$Dzf-yImkPjD-t8EjfvI
+Version: 2
+Type-System: sts:8Vb$sM1F-5MsQc20-HEixf55-gJR37FM-0zRKfpY-SwIp35w#design-farmer-camel
+Check-SHA256: 5563cc1568e244183804e0db3cec6ff9bf577f4a403924096177bf4a586160da
+
+0ssI2000000000
+
+-----END RGB KIT-----"#
+            )
+            .is_ok()
+        );
+
+        // Wrong Id
+        assert!(
+            Kit::from_str(
+                r#"-----BEGIN RGB KIT-----
+Id: rgb:kit:11111111-2222222-XmR8XRJ-v@q$Dzf-yImkPjD-t8EjfvI
+Version: 2
+Type-System: sts:8Vb$sM1F-5MsQc20-HEixf55-gJR37FM-0zRKfpY-SwIp35w#design-farmer-camel
+Check-SHA256: 5563cc1568e244183804e0db3cec6ff9bf577f4a403924096177bf4a586160da
+
+0ssI2000000000
+
+-----END RGB KIT-----"#
+            )
+            .is_err()
+        );
+
+        // wrong checksum
+        assert!(
+            Kit::from_str(
+                r#"-----BEGIN RGB KIT-----
+Id: rgb:kit:e1jW6Rgc-2$JzXDg-XmR8XRJ-v@q$Dzf-yImkPjD-t8EjfvI
+Version: 2
+Type-System: sts:8Vb$sM1F-5MsQc20-HEixf55-gJR37FM-0zRKfpY-SwIp35w#design-farmer-camel
+Check-SHA256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+0ssI2000000000
+
+-----END RGB KIT-----"#
+            )
+            .is_err()
+        );
     }
 }

@@ -193,3 +193,262 @@ impl Display for UniversalFile {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use std::fs::OpenOptions;
+    use std::str::FromStr;
+
+    use super::*;
+    static DEFAULT_KIT_PATH: &str = "asset/kit.default";
+    #[cfg(feature = "fs")]
+    static ARMORED_KIT_PATH: &str = "asset/armored_kit.default";
+
+    static DEFAULT_CONTRACT_PATH: &str = "asset/contract.default";
+    #[cfg(feature = "fs")]
+    static ARMORED_CONTRACT_PATH: &str = "asset/armored_contract.default";
+
+    static DEFAULT_TRANSFER_PATH: &str = "asset/transfer.default";
+    #[cfg(feature = "fs")]
+    static ARMORED_TRANSFER_PATH: &str = "asset/armored_transfer.default";
+
+    #[test]
+    fn kit_save_load_round_trip() {
+        let mut kit_file = OpenOptions::new()
+            .read(true)
+            .open(DEFAULT_KIT_PATH)
+            .unwrap();
+        let kit = Kit::load(kit_file).expect("fail to load kit.default");
+        let default_kit = Kit::default();
+        assert_eq!(kit, default_kit, "kit default is not same as before");
+
+        kit_file = OpenOptions::new()
+            .write(true)
+            .open(DEFAULT_KIT_PATH)
+            .unwrap();
+        default_kit.save(kit_file).expect("fail to export kit");
+
+        kit_file = OpenOptions::new()
+            .read(true)
+            .open(DEFAULT_KIT_PATH)
+            .unwrap();
+        let kit = Kit::load(kit_file).expect("fail to load kit.default");
+        assert_eq!(kit, default_kit, "kit roudtrip does not work");
+    }
+
+    #[cfg(feature = "fs")]
+    #[test]
+    fn armored_kit_save_load_round_trip() {
+        let kit_file = OpenOptions::new()
+            .read(true)
+            .open(DEFAULT_KIT_PATH)
+            .unwrap();
+        let kit = Kit::load(kit_file).expect("fail to load kit.default");
+        let unarmored_kit =
+            Kit::load_armored(ARMORED_KIT_PATH).expect("fail to export armored kit");
+        assert_eq!(kit, unarmored_kit, "kit unarmored is not the same");
+
+        let default_kit = Kit::default();
+        default_kit
+            .save_armored(ARMORED_KIT_PATH)
+            .expect("fail to save armored kit");
+        let kit = Kit::load_armored(ARMORED_KIT_PATH).expect("fail to export armored kit");
+        assert_eq!(kit, default_kit, "armored kit roudtrip does not work");
+    }
+
+    // A contract with almost default fields
+    fn almost_default_contract() -> Contract {
+        Contract {
+            version: Default::default(),
+            transfer: Default::default(),
+            terminals: Default::default(),
+            genesis: rgb::Genesis {
+                ffv: Default::default(),
+                schema_id: rgb::SchemaId::from_str(
+                    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA#distant-history-exotic",
+                )
+                .unwrap(),
+                flags: Default::default(),
+                timestamp: Default::default(),
+                issuer: Default::default(),
+                testnet: Default::default(),
+                alt_layers1: Default::default(),
+                asset_tags: Default::default(),
+                metadata: Default::default(),
+                globals: Default::default(),
+                assignments: Default::default(),
+                valencies: Default::default(),
+                validator: Default::default(),
+            },
+            extensions: Default::default(),
+            bundles: Default::default(),
+            schema: rgb::Schema {
+                ffv: Default::default(),
+                flags: Default::default(),
+                name: strict_encoding::TypeName::from_str("Name").unwrap(),
+                timestamp: Default::default(),
+                developer: Default::default(),
+                meta_types: Default::default(),
+                global_types: Default::default(),
+                owned_types: Default::default(),
+                valency_types: Default::default(),
+                genesis: Default::default(),
+                extensions: Default::default(),
+                transitions: Default::default(),
+                reserved: Default::default(),
+            },
+            ifaces: Default::default(),
+            supplements: Default::default(),
+            types: Default::default(),
+            scripts: Default::default(),
+            attachments: Default::default(),
+            signatures: Default::default(),
+        }
+    }
+
+    #[test]
+    fn contract_save_load_round_trip() {
+        let mut contract_file = OpenOptions::new()
+            .read(true)
+            .open(DEFAULT_CONTRACT_PATH)
+            .unwrap();
+        let contract = Contract::load(contract_file).expect("fail to load contract.default");
+
+        let default_contract = almost_default_contract();
+        assert_eq!(&contract, &default_contract, "contract default is not same as before");
+
+        contract_file = OpenOptions::new()
+            .write(true)
+            .open(DEFAULT_CONTRACT_PATH)
+            .unwrap();
+        default_contract
+            .save(contract_file)
+            .expect("fail to export contract");
+
+        contract_file = OpenOptions::new()
+            .read(true)
+            .open(DEFAULT_CONTRACT_PATH)
+            .unwrap();
+        let contract = Contract::load(contract_file).expect("fail to load contract.default");
+        assert_eq!(&contract, &default_contract, "contract roudtrip does not work");
+    }
+
+    #[cfg(feature = "fs")]
+    #[test]
+    fn armored_contract_save_load_round_trip() {
+        let contract_file = OpenOptions::new()
+            .read(true)
+            .open(DEFAULT_CONTRACT_PATH)
+            .unwrap();
+        let contract = Contract::load(contract_file).expect("fail to load contract.default");
+        let unarmored_contract =
+            Contract::load_armored(ARMORED_CONTRACT_PATH).expect("fail to export armored contract");
+        assert_eq!(contract, unarmored_contract, "contract unarmored is not the same");
+
+        let default_contract = almost_default_contract();
+        default_contract
+            .save_armored(ARMORED_CONTRACT_PATH)
+            .expect("fail to save armored contract");
+        let contract =
+            Contract::load_armored(ARMORED_CONTRACT_PATH).expect("fail to export armored contract");
+        assert_eq!(contract, default_contract, "armored contract roudtrip does not work");
+    }
+
+    // A transfer with almost default fields
+    fn almost_default_transfer() -> Transfer {
+        Transfer {
+            version: Default::default(),
+            transfer: Default::default(),
+            terminals: Default::default(),
+            genesis: rgb::Genesis {
+                ffv: Default::default(),
+                schema_id: rgb::SchemaId::from_str(
+                    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA#distant-history-exotic",
+                )
+                .unwrap(),
+                flags: Default::default(),
+                timestamp: Default::default(),
+                issuer: Default::default(),
+                testnet: Default::default(),
+                alt_layers1: Default::default(),
+                asset_tags: Default::default(),
+                metadata: Default::default(),
+                globals: Default::default(),
+                assignments: Default::default(),
+                valencies: Default::default(),
+                validator: Default::default(),
+            },
+            extensions: Default::default(),
+            bundles: Default::default(),
+            schema: rgb::Schema {
+                ffv: Default::default(),
+                flags: Default::default(),
+                name: strict_encoding::TypeName::from_str("Name").unwrap(),
+                timestamp: Default::default(),
+                developer: Default::default(),
+                meta_types: Default::default(),
+                global_types: Default::default(),
+                owned_types: Default::default(),
+                valency_types: Default::default(),
+                genesis: Default::default(),
+                extensions: Default::default(),
+                transitions: Default::default(),
+                reserved: Default::default(),
+            },
+            ifaces: Default::default(),
+            supplements: Default::default(),
+            types: Default::default(),
+            scripts: Default::default(),
+            attachments: Default::default(),
+            signatures: Default::default(),
+        }
+    }
+
+    #[test]
+    fn transfer_save_load_round_trip() {
+        let mut transfer_file = OpenOptions::new()
+            .read(true)
+            .open(DEFAULT_TRANSFER_PATH)
+            .unwrap();
+        let transfer = Transfer::load(transfer_file).expect("fail to load transfer.default");
+
+        let default_transfer = almost_default_transfer();
+        assert_eq!(&transfer, &default_transfer, "transfer default is not same as before");
+
+        transfer_file = OpenOptions::new()
+            .write(true)
+            .open(DEFAULT_TRANSFER_PATH)
+            .unwrap();
+        default_transfer
+            .save(transfer_file)
+            .expect("fail to export transfer");
+
+        transfer_file = OpenOptions::new()
+            .read(true)
+            .open(DEFAULT_TRANSFER_PATH)
+            .unwrap();
+        let transfer = Transfer::load(transfer_file).expect("fail to load transfer.default");
+        assert_eq!(&transfer, &default_transfer, "transfer roudtrip does not work");
+    }
+
+    #[cfg(feature = "fs")]
+    #[test]
+    fn armored_transfer_save_load_round_trip() {
+        let transfer_file = OpenOptions::new()
+            .read(true)
+            .open(DEFAULT_TRANSFER_PATH)
+            .unwrap();
+        let transfer = Transfer::load(transfer_file).expect("fail to load transfer.default");
+        let unarmored_transfer =
+            Transfer::load_armored(ARMORED_TRANSFER_PATH).expect("fail to export armored transfer");
+        assert_eq!(transfer, unarmored_transfer, "transfer unarmored is not the same");
+
+        let default_transfer = almost_default_transfer();
+        default_transfer
+            .save_armored(ARMORED_TRANSFER_PATH)
+            .expect("fail to save armored transfer");
+        let transfer =
+            Transfer::load_armored(ARMORED_TRANSFER_PATH).expect("fail to export armored transfer");
+        assert_eq!(transfer, default_transfer, "armored transfer roudtrip does not work");
+    }
+}
