@@ -295,7 +295,7 @@ mod test {
         assert!(
             Kit::from_str(
                 r#"-----BEGIN RGB KIT-----
-Id: rgb:kit:e1jW6Rgc-2$JzXDg-XmR8XRJ-v@q$Dzf-yImkPjD-t8EjfvI
+Id: rgb:kit:e1jW6Rgc-2$JzXDg-XmR8XRJ-v!q$Dzf-yImkPjD-t8EjfvI
 Version: 2
 Type-System: sts:8Vb$sM1F-5MsQc20-HEixf55-gJR37FM-0zRKfpY-SwIp35w#design-farmer-camel
 Check-SHA256: 5563cc1568e244183804e0db3cec6ff9bf577f4a403924096177bf4a586160da
@@ -311,7 +311,7 @@ Check-SHA256: 5563cc1568e244183804e0db3cec6ff9bf577f4a403924096177bf4a586160da
         assert!(
             Kit::from_str(
                 r#"-----BEGIN RGB KIT-----
-Id: rgb:kit:11111111-2222222-XmR8XRJ-v@q$Dzf-yImkPjD-t8EjfvI
+Id: rgb:kit:11111111-2222222-XmR8XRJ-v!q$Dzf-yImkPjD-t8EjfvI
 Version: 2
 Type-System: sts:8Vb$sM1F-5MsQc20-HEixf55-gJR37FM-0zRKfpY-SwIp35w#design-farmer-camel
 Check-SHA256: 5563cc1568e244183804e0db3cec6ff9bf577f4a403924096177bf4a586160da
@@ -327,7 +327,7 @@ Check-SHA256: 5563cc1568e244183804e0db3cec6ff9bf577f4a403924096177bf4a586160da
         assert!(
             Kit::from_str(
                 r#"-----BEGIN RGB KIT-----
-Id: rgb:kit:e1jW6Rgc-2$JzXDg-XmR8XRJ-v@q$Dzf-yImkPjD-t8EjfvI
+Id: rgb:kit:e1jW6Rgc-2$JzXDg-XmR8XRJ-v!q$Dzf-yImkPjD-t8EjfvI
 Version: 2
 Type-System: sts:8Vb$sM1F-5MsQc20-HEixf55-gJR37FM-0zRKfpY-SwIp35w#design-farmer-camel
 Check-SHA256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa

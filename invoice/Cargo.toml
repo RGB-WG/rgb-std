@@ -25,7 +25,7 @@ bp-invoice = { workspace = true }
 rgb-core = { workspace = true }
 indexmap = { workspace = true }
 fluent-uri = "0.1.4"
-percent-encoding = "2.3.0"
+percent-encoding = "2.3.1"
 serde_crate = { workspace = true, optional = true }
 rand = "0.8.5"
 

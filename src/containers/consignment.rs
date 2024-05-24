@@ -431,10 +431,10 @@ mod test {
         assert!(
             Contract::from_str(
                 r#"-----BEGIN RGB CONSIGNMENT-----
-Id: rgb:csg:poAMvm9j-NdapxqA-MJ@5dwP-d@IIt2A-T@5OiXE-Tl54Yew#guide-campus-arctic
+Id: rgb:csg:poAMvm9j-NdapxqA-MJ!5dwP-d!IIt2A-T!5OiXE-Tl54Yew#guide-campus-arctic
 Version: 2
 Type: contract
-Contract: rgb:qm7P@06T-uuBQT56-ovwOLzx-9Gka7Nb-84Nwo8g-blLb8kw
+Contract: rgb:qm7P!06T-uuBQT56-ovwOLzx-9Gka7Nb-84Nwo8g-blLb8kw
 Schema: rgb:sch:CyqM42yAdM1moWyNZPQedAYt73BM$k9z$dKLUXY1voA#cello-global-deluxe
 Check-SHA256: 181748dae0c83cbb44f6ccfdaddf6faca0bc4122a9f35fef47bab9aea023e4a1
 
@@ -454,7 +454,7 @@ Check-SHA256: 181748dae0c83cbb44f6ccfdaddf6faca0bc4122a9f35fef47bab9aea023e4a1
 Id: rgb:csg:aaaaaaaa-aaaaaaa-aaaaaaa-aaaaaaa-aaaaaaa-aaaaaaa#guide-campus-arctic
 Version: 2
 Type: contract
-Contract: rgb:qm7P@06T-uuBQT56-ovwOLzx-9Gka7Nb-84Nwo8g-blLb8kw
+Contract: rgb:qm7P!06T-uuBQT56-ovwOLzx-9Gka7Nb-84Nwo8g-blLb8kw
 Schema: rgb:sch:CyqM42yAdM1moWyNZPQedAYt73BM$k9z$dKLUXY1voA#cello-global-deluxe
 Check-SHA256: 181748dae0c83cbb44f6ccfdaddf6faca0bc4122a9f35fef47bab9aea023e4a1
 
@@ -471,10 +471,10 @@ Check-SHA256: 181748dae0c83cbb44f6ccfdaddf6faca0bc4122a9f35fef47bab9aea023e4a1
         assert!(
             Contract::from_str(
                 r#"-----BEGIN RGB CONSIGNMENT-----
-Id: rgb:csg:poAMvm9j-NdapxqA-MJ@5dwP-d@IIt2A-T@5OiXE-Tl54Yew#guide-campus-arctic
+Id: rgb:csg:poAMvm9j-NdapxqA-MJ!5dwP-d!IIt2A-T!5OiXE-Tl54Yew#guide-campus-arctic
 Version: 2
 Type: contract
-Contract: rgb:qm7P@06T-uuBQT56-ovwOLzx-9Gka7Nb-84Nwo8g-blLb8kw
+Contract: rgb:qm7P!06T-uuBQT56-ovwOLzx-9Gka7Nb-84Nwo8g-blLb8kw
 Schema: rgb:sch:CyqM42yAdM1moWyNZPQedAYt73BM$k9z$dKLUXY1voA#cello-global-deluxe
 Check-SHA256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
@@ -504,10 +504,10 @@ Check-SHA256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
         assert!(
             Transfer::from_str(
                 r#"-----BEGIN RGB CONSIGNMENT-----
-Id: rgb:csg:poAMvm9j-NdapxqA-MJ@5dwP-d@IIt2A-T@5OiXE-Tl54Yew#guide-campus-arctic
+Id: rgb:csg:poAMvm9j-NdapxqA-MJ!5dwP-d!IIt2A-T!5OiXE-Tl54Yew#guide-campus-arctic
 Version: 2
 Type: contract
-Contract: rgb:qm7P@06T-uuBQT56-ovwOLzx-9Gka7Nb-84Nwo8g-blLb8kw
+Contract: rgb:qm7P!06T-uuBQT56-ovwOLzx-9Gka7Nb-84Nwo8g-blLb8kw
 Schema: rgb:sch:CyqM42yAdM1moWyNZPQedAYt73BM$k9z$dKLUXY1voA#cello-global-deluxe
 Check-SHA256: 181748dae0c83cbb44f6ccfdaddf6faca0bc4122a9f35fef47bab9aea023e4a1
 
@@ -527,7 +527,7 @@ Check-SHA256: 181748dae0c83cbb44f6ccfdaddf6faca0bc4122a9f35fef47bab9aea023e4a1
 Id: rgb:csg:aaaaaaaa-aaaaaaa-aaaaaaa-aaaaaaa-aaaaaaa-aaaaaaa#guide-campus-arctic
 Version: 2
 Type: contract
-Contract: rgb:qm7P@06T-uuBQT56-ovwOLzx-9Gka7Nb-84Nwo8g-blLb8kw
+Contract: rgb:qm7P!06T-uuBQT56-ovwOLzx-9Gka7Nb-84Nwo8g-blLb8kw
 Schema: rgb:sch:CyqM42yAdM1moWyNZPQedAYt73BM$k9z$dKLUXY1voA#cello-global-deluxe
 Check-SHA256: 181748dae0c83cbb44f6ccfdaddf6faca0bc4122a9f35fef47bab9aea023e4a1
 
@@ -544,10 +544,10 @@ Check-SHA256: 181748dae0c83cbb44f6ccfdaddf6faca0bc4122a9f35fef47bab9aea023e4a1
         assert!(
             Transfer::from_str(
                 r#"-----BEGIN RGB CONSIGNMENT-----
-Id: rgb:csg:poAMvm9j-NdapxqA-MJ@5dwP-d@IIt2A-T@5OiXE-Tl54Yew#guide-campus-arctic
+Id: rgb:csg:poAMvm9j-NdapxqA-MJ!5dwP-d!IIt2A-T!5OiXE-Tl54Yew#guide-campus-arctic
 Version: 2
 Type: contract
-Contract: rgb:qm7P@06T-uuBQT56-ovwOLzx-9Gka7Nb-84Nwo8g-blLb8kw
+Contract: rgb:qm7P!06T-uuBQT56-ovwOLzx-9Gka7Nb-84Nwo8g-blLb8kw
 Schema: rgb:sch:CyqM42yAdM1moWyNZPQedAYt73BM$k9z$dKLUXY1voA#cello-global-deluxe
 Check-SHA256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
