@@ -37,7 +37,7 @@ mod builder;
 mod amount;
 mod data;
 
-pub use amount::{Amount, CoinAmount, Precision};
+pub use amount::{Amount, AmountParseError, CoinAmount, Precision, PrecisionError};
 pub use builder::RgbInvoiceBuilder;
 pub use data::{Allocation, NonFungible, OwnedFraction, TokenIndex};
 pub use parse::{InvoiceParseError, TransportParseError};
