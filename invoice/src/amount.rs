@@ -35,10 +35,13 @@ use strict_types::StrictVal;
 
 use crate::LIB_NAME_RGB_CONTRACT;
 
+pub const ENC_BASE32_NODIGIT: &[u8; 32] = b"abcdefghkmnABCDEFGHKMNPQRSTVWXYZ";
+fast32::make_base32_alpha!(BASE32_NODIGIT, DEC_BASE32_NODIGIT, ENC_BASE32_NODIGIT);
+
 #[derive(
     Wrapper, WrapperMut, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default, From
 )]
-#[wrapper(Display, FromStr, Add, Sub, Mul, Div, Rem)]
+#[wrapper(Add, Sub, Mul, Div, Rem)]
 #[wrapper_mut(AddAssign, SubAssign, MulAssign, DivAssign, RemAssign)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_CONTRACT)]
@@ -171,6 +174,32 @@ impl Sum<u64> for Amount {
 impl Sum for Amount {
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
         iter.fold(Amount::ZERO, |sum, value| sum.saturating_add(value))
+    }
+}
+
+impl Display for Amount {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let bytes = self.0.to_le_bytes();
+        let pos = bytes.iter().rposition(|b| *b != 0).unwrap_or(0) + 1;
+        let s = BASE32_NODIGIT.encode(&bytes[..pos]);
+        f.write_str(&s)
+    }
+}
+
+impl FromStr for Amount {
+    type Err = fast32::DecodeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let amount = BASE32_NODIGIT.decode_str(s)?;
+        let len = amount.len();
+        if len > 8 {
+            return Err(fast32::DecodeError::InvalidLength {
+                length: amount.len(),
+            });
+        }
+        let mut le = [0u8; 8];
+        le[..len].copy_from_slice(&amount);
+        Ok(Amount(u64::from_le_bytes(le)))
     }
 }
 

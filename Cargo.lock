@@ -433,6 +433,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
 
 [[package]]
+name = "fast32"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "27ea9bdb2356e5a92403cf23ac493f9b43bd71e4ffd0f800862b841dd723994c"
+
+[[package]]
 name = "fluent-uri"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -681,6 +687,7 @@ dependencies = [
  "baid64",
  "bp-core",
  "bp-invoice",
+ "fast32",
  "fluent-uri",
  "indexmap",
  "percent-encoding",
