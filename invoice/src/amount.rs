@@ -19,6 +19,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::cmp::Ordering;
 use std::fmt;
 use std::fmt::{Display, Formatter, Write};
 use std::iter::Sum;
@@ -209,6 +210,7 @@ impl Precision {
     pub fn from_strict_val_unchecked(value: &StrictVal) -> Self { value.unwrap_enum() }
     pub const fn decimals(self) -> u8 { self as u8 }
     pub const fn decimals_u32(self) -> u32 { self as u8 as u32 }
+    pub const fn decimals_usize(self) -> usize { self as u8 as usize }
 
     pub const fn multiplier(self) -> u64 {
         match self {
@@ -283,10 +285,15 @@ impl CoinAmount {
 
 impl Display for CoinAmount {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let mut int = self.int.to_string();
-        if f.alternate() {
-            int = int
-                .chars()
+        if ![' ', '\'', '`', '_'].contains(&f.fill()) {
+            panic!("disallowed fill character {} in coin amount formatting string", f.fill())
+        }
+        if f.precision().is_some() {
+            panic!("formatting precision exceeds must not be used for coin amounts")
+        }
+        let fill = &f.fill().to_string();
+        let to_chunks = |s: &str| -> String {
+            s.chars()
                 .rev()
                 .collect::<String>()
                 .as_bytes()
@@ -298,25 +305,34 @@ impl Display for CoinAmount {
                 })
                 .rev()
                 .collect::<Vec<_>>()
-                .join("`");
+                .join(fill)
+        };
+        let mut int = self.int.to_string();
+        if f.alternate() {
+            int = to_chunks(&int);
         }
         f.write_str(&int)?;
-        if self.fract > 0 {
+        if self.fract > 0 || f.alternate() {
             f.write_char('.')?;
             let mut float = self.fract.to_string();
             let len = float.len();
-            if let Some(decimals) = f.precision() {
-                float.push_str(&"0".repeat(decimals - len));
+            let decimals = self.precision.decimals_usize();
+            match len.cmp(&decimals) {
+                Ordering::Less => {
+                    float = format!("{:0>width$}{float}", "", width = decimals - len);
+                }
+                Ordering::Equal => {}
+                Ordering::Greater => panic!("float precision overflow for coin amount {self:?}"),
             }
             if f.alternate() {
-                float = float
-                    .as_bytes()
-                    .chunks(3)
-                    .map(|chunk| unsafe { String::from_utf8_unchecked(chunk.to_owned()) })
-                    .collect::<Vec<_>>()
-                    .join("`");
+                float = to_chunks(&float);
+            } else {
+                float = float.trim_end_matches('0').to_string();
             }
             f.write_str(&float)?;
+        }
+        if !f.alternate() {
+            write!(f, "~{}", self.precision.decimals())?;
         }
         Ok(())
     }
@@ -328,11 +344,41 @@ mod test {
 
     #[test]
     #[allow(clippy::inconsistent_digit_grouping)]
-    fn coin_amount() {
-        let amount = CoinAmount::with(10_000_436_081_95u64, Precision::default());
+    fn int_trailing_zeros() {
+        let amount = CoinAmount::with(10_000__43_608_195u64, Precision::default());
         assert_eq!(amount.int, 10_000);
         assert_eq!(amount.fract, 436_081_95);
-        assert_eq!(format!("{amount}"), "10000.43608195");
-        assert_eq!(format!("{amount:#.10}"), "10`000.436`081`950`0");
+        assert_eq!(format!("{amount}"), "10000.43608195~8");
+        assert_eq!(format!("{amount:`>#}"), "10`000.43`608`195");
+    }
+
+    #[test]
+    #[allow(clippy::inconsistent_digit_grouping)]
+    fn sub_fraction() {
+        let amount = CoinAmount::with(10__00_008_195u64, Precision::default());
+        assert_eq!(amount.int, 10);
+        assert_eq!(amount.fract, 8195);
+        assert_eq!(format!("{amount}"), "10.00008195~8");
+        assert_eq!(format!("{amount:#}"), "10.00 008 195");
+    }
+
+    #[test]
+    #[allow(clippy::inconsistent_digit_grouping)]
+    fn small_fraction() {
+        let amount = CoinAmount::with(10__00_000_500u64, Precision::default());
+        assert_eq!(amount.int, 10);
+        assert_eq!(amount.fract, 500);
+        assert_eq!(format!("{amount}"), "10.000005~8");
+        assert_eq!(format!("{amount:_>#}"), "10.00_000_500");
+    }
+
+    #[test]
+    #[allow(clippy::inconsistent_digit_grouping)]
+    fn zero_fraction() {
+        let amount = CoinAmount::with(10__00_000_000u64, Precision::default());
+        assert_eq!(amount.int, 10);
+        assert_eq!(amount.fract, 0);
+        assert_eq!(format!("{amount}"), "10~8");
+        assert_eq!(format!("{amount:_>#}"), "10.00_000_000");
     }
 }
