@@ -871,14 +871,11 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             (Beneficiary::BlindedSeal(seal), _) => {
                 BuilderSeal::Concealed(XChain::with(layer1, seal))
             }
-            (Beneficiary::WitnessVout(_), Some(vout)) => BuilderSeal::Revealed(XChain::with(
-                layer1,
-                GraphSeal::with_blinded_vout(
-                    method,
-                    vout,
-                    seal_blinder(contract_id, assignment_id),
-                ),
-            )),
+            (Beneficiary::WitnessVout(payload), Some(vout)) => {
+                let blinding = seal_blinder(contract_id, assignment_id);
+                let seal = GraphSeal::with_blinded_vout(payload.method, vout, blinding);
+                BuilderSeal::Revealed(XChain::with(layer1, seal))
+            }
             (Beneficiary::WitnessVout(_), None) => {
                 return Err(ComposeError::NoBeneficiaryOutput.into());
             }
