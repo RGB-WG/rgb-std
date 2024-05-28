@@ -233,6 +233,13 @@ impl IfaceImpl {
     #[inline]
     pub fn impl_id(&self) -> ImplId { self.commit_id() }
 
+    pub fn meta_name(&self, id: MetaType) -> Option<&FieldName> {
+        self.metadata
+            .iter()
+            .find(|nt| nt.id == id)
+            .map(|nt| &nt.name)
+    }
+
     pub fn meta_type(&self, name: &FieldName) -> Option<MetaType> {
         self.metadata
             .iter()
