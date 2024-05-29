@@ -947,7 +947,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
                 }
             },
             _ => {
-                todo!("only TypedState::Amount and TypedState::Allocation are currently supported")
+                todo!("only PersistedState::Amount and PersistedState::Allocation are currently supported")
             }
         };
 
