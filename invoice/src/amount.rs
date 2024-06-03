@@ -211,8 +211,6 @@ impl StrictDeserialize for Precision {}
 impl Precision {
     pub fn from_strict_val_unchecked(value: &StrictVal) -> Self { value.unwrap_enum() }
     pub const fn decimals(self) -> u8 { self as u8 }
-    pub const fn decimals_u32(self) -> u32 { self as u8 as u32 }
-    pub const fn decimals_usize(self) -> usize { self as u8 as usize }
 
     pub const fn multiplier(self) -> u64 {
         match self {
@@ -296,7 +294,7 @@ impl CoinAmount {
     ) -> Result<Self, PrecisionError> {
         let precision = precision.into();
         // 2^64 ~ 10^19 < 10^18 (18 is max value for Precision enum)
-        let pow = 10u64.pow(precision.decimals_u32());
+        let pow = 10u64.pow(precision.decimals() as u32);
         // number of decimals can't be larger than the smallest possible integer
         if fract >= pow {
             return Err(PrecisionError);
@@ -310,7 +308,7 @@ impl CoinAmount {
 
     pub(crate) fn to_amount_unchecked(self) -> Amount {
         // 2^64 ~ 10^19 < 10^18 (18 is max value for Precision enum)
-        let pow = 10u64.pow(self.precision.decimals_u32());
+        let pow = 10u64.pow(self.precision.decimals() as u32());
         // number of decimals can't be larger than the smallest possible integer
         self.int
             .checked_mul(pow)
@@ -357,7 +355,7 @@ impl Display for CoinAmount {
             f.write_char('.')?;
             let mut float = self.fract.to_string();
             let len = float.len();
-            let decimals = self.precision.decimals_usize();
+            let decimals = self.precision.decimals() as usize;
             match len.cmp(&decimals) {
                 Ordering::Less => {
                     float = format!("{:0>width$}{float}", "", width = decimals - len);
