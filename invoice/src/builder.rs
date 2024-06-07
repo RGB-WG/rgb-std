@@ -25,7 +25,7 @@ use rgb::ContractId;
 use strict_encoding::{FieldName, TypeName};
 
 use crate::invoice::{Beneficiary, InvoiceState, RgbInvoice, RgbTransport, XChainNet};
-use crate::{Allocation, Amount, NonFungible, Precision, TransportParseError};
+use crate::{Allocation, CoinAmount, NonFungible, Precision, TransportParseError};
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct RgbInvoiceBuilder(RgbInvoice);
@@ -78,31 +78,19 @@ impl RgbInvoiceBuilder {
         self
     }
 
-    pub fn set_amount_raw(mut self, amount: impl Into<Amount>) -> Self {
-        self.0.owned_state = InvoiceState::Amount(amount.into());
-        self
-    }
-
     pub fn set_amount(
-        self,
+        mut self,
         integer: u64,
         decimals: u64,
         precision: Precision,
     ) -> Result<Self, Self> {
-        // 2^64 ~ 10^19 < 10^18 (18 is max value for Precision enum)
-        let pow = 10u64.pow(precision as u32);
-        // number of decimals can't be larger than the smallest possible integer
-        if decimals >= pow {
-            return Err(self);
+        let amount = match CoinAmount::with(integer, decimals, precision) {
+            Ok(amount) => amount,
+            Err(_) => return Err(self),
         }
-        let Some(mut amount) = integer.checked_mul(pow) else {
-            return Err(self);
-        };
-        amount = amount.checked_add(decimals).expect(
-            "integer has at least the same number of zeros in the lowest digits as much as \
-             decimals has digits at most, so overflow is not possible",
-        );
-        Ok(self.set_amount_raw(amount))
+        .to_amount_unchecked();
+        self.0.owned_state = InvoiceState::Amount(amount);
+        Ok(self)
     }
 
     pub fn set_allocation_raw(mut self, allocation: impl Into<Allocation>) -> Self {
