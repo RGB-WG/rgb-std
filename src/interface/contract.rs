@@ -270,15 +270,15 @@ impl ContractIface {
         Ok(SmallVec::try_from_iter(state).expect("same or smaller collection size"))
     }
 
-    fn extract_state<'c, S: KnownState + 'c, U: KnownState + 'c>(
+    fn extract_state<'c, S, U>(
         &'c self,
         state: impl IntoIterator<Item = &'c OutputAssignment<S>> + 'c,
         name: impl Into<FieldName>,
         filter: impl OutpointFilter + 'c,
     ) -> Result<impl Iterator<Item = OutputAssignment<U>> + 'c, ContractError>
     where
-        S: Clone,
-        U: From<S>,
+        S: Clone + KnownState + 'c,
+        U: From<S> + KnownState + 'c,
     {
         let name = name.into();
         let type_id = self
@@ -329,13 +329,13 @@ impl ContractIface {
         &'c self,
         filter: impl OutpointFilter + Copy + 'c,
     ) -> impl Iterator<Item = OwnedAllocation> + 'c {
-        fn f<'a, S: KnownState + 'a, U: KnownState + 'a>(
+        fn f<'a, S, U>(
             filter: impl OutpointFilter + 'a,
             state: impl IntoIterator<Item = &'a OutputAssignment<S>> + 'a,
         ) -> impl Iterator<Item = OutputAssignment<U>> + 'a
         where
-            S: Clone,
-            U: From<S>,
+            S: Clone + KnownState + 'a,
+            U: From<S> + KnownState + 'a,
         {
             state
                 .into_iter()
@@ -369,13 +369,13 @@ impl ContractIface {
     where
         C::State: 'c,
     {
-        fn f<'a, S: KnownState + 'a, U: KnownState + 'a>(
+        fn f<'a, S, U>(
             filter: impl WitnessFilter + 'a,
             state: impl IntoIterator<Item = OutputAssignment<S>> + 'a,
         ) -> impl Iterator<Item = OutputAssignment<U>> + 'a
         where
-            S: Clone,
-            U: From<S>,
+            S: Clone + KnownState + 'a,
+            U: From<S> + KnownState + 'a,
         {
             state
                 .into_iter()

@@ -225,7 +225,7 @@ impl TryFrom<[u8; 35]> for Pay2Vout {
             Self::P2WSH => AddressPayload::Wsh(WScriptHash::from_slice_unsafe(&data[2..])),
             Self::P2TR => AddressPayload::Tr(
                 OutputPk::from_byte_array(Bytes32::from_slice_unsafe(&data[2..34]).to_byte_array())
-                    .map_err(|e| Pay2VoutError::InvalidTapkey(e))?,
+                    .map_err(Pay2VoutError::InvalidTapkey)?,
             ),
             wrong => return Err(Pay2VoutError::InvalidAddressType(wrong)),
         };
