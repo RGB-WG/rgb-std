@@ -75,6 +75,10 @@ pub enum InvoiceParseError {
     /// invalid invoice.
     Invalid,
 
+    /// RGB invoice must not contain any URI authority data, including empty
+    /// one.
+    Authority,
+
     /// contract id is missed from the invoice.
     ContractMissed,
 
@@ -349,7 +353,12 @@ impl FromStr for RgbInvoice {
             return Err(InvoiceParseError::InvalidScheme(scheme.to_string()));
         }
 
-        let mut path = uri.path().segments();
+        let path = uri.path();
+        if path.is_absolute() || uri.auth.is_some() {
+            return Err(InvoiceParseError::Authority);
+        }
+
+        let mut path = path.segments();
 
         let Some(contract_id_str) = path.next() else {
             return Err(InvoiceParseError::ContractMissed);
