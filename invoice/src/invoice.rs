@@ -21,6 +21,9 @@
 
 use std::str::FromStr;
 
+use amplify::{ByteArray, Bytes32};
+use bp::seals::txout::CloseMethod;
+use bp::{InvalidPubkey, OutputPk, PubkeyHash, ScriptHash, WPubkeyHash, WScriptHash};
 use indexmap::IndexMap;
 use invoice::{AddressNetwork, AddressPayload, Network};
 use rgb::{AttachId, ContractId, Layer1, SecretSeal};
@@ -184,12 +187,58 @@ impl<T> XChainNet<T> {
     pub fn is_prod(&self) -> bool { self.chain_network().is_prod() }
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error)]
+#[display(doc_comments)]
+pub enum Pay2VoutError {
+    /// invalid close method byte {0:#04x}.
+    InvalidMethod(u8),
+    /// unexpected address type byte {0:#04x}.
+    InvalidAddressType(u8),
+    /// invalid taproot output key; specifically {0}.
+    InvalidTapkey(InvalidPubkey<32>),
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, From)]
+pub struct Pay2Vout {
+    pub method: CloseMethod,
+    pub address: AddressPayload,
+}
+
+impl Pay2Vout {
+    pub(crate) const P2PKH: u8 = 1;
+    pub(crate) const P2SH: u8 = 2;
+    pub(crate) const P2WPKH: u8 = 3;
+    pub(crate) const P2WSH: u8 = 4;
+    pub(crate) const P2TR: u8 = 5;
+}
+
+impl TryFrom<[u8; 35]> for Pay2Vout {
+    type Error = Pay2VoutError;
+
+    fn try_from(data: [u8; 35]) -> Result<Self, Self::Error> {
+        let method =
+            CloseMethod::try_from(data[0]).map_err(|e| Pay2VoutError::InvalidMethod(e.1))?;
+        let address = match data[1] {
+            Self::P2PKH => AddressPayload::Pkh(PubkeyHash::from_slice_unsafe(&data[2..22])),
+            Self::P2SH => AddressPayload::Sh(ScriptHash::from_slice_unsafe(&data[2..22])),
+            Self::P2WPKH => AddressPayload::Wpkh(WPubkeyHash::from_slice_unsafe(&data[2..22])),
+            Self::P2WSH => AddressPayload::Wsh(WScriptHash::from_slice_unsafe(&data[2..])),
+            Self::P2TR => AddressPayload::Tr(
+                OutputPk::from_byte_array(Bytes32::from_slice_unsafe(&data[2..34]).to_byte_array())
+                    .map_err(|e| Pay2VoutError::InvalidTapkey(e))?,
+            ),
+            wrong => return Err(Pay2VoutError::InvalidAddressType(wrong)),
+        };
+        Ok(Self { method, address })
+    }
+}
+
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, From)]
 pub enum Beneficiary {
     #[from]
     BlindedSeal(SecretSeal),
     #[from]
-    WitnessVout(AddressPayload),
+    WitnessVout(Pay2Vout),
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]

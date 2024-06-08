@@ -95,3 +95,7 @@ wasm-bindgen-test = "0.3"
 
 [package.metadata.docs.rs]
 features = ["all"]
+
+[patch.crates-io]
+baid64 = { git = "https://github.com/UBIDECO/rust-baid64" }
+bp-invoice = { git = "https://github.com/BP-WG/bp-std" }

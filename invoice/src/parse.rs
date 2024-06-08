@@ -20,18 +20,22 @@
 // limitations under the License.
 
 use std::fmt::{self, Debug, Display, Formatter};
+use std::io::{Cursor, Write};
 use std::num::ParseIntError;
 use std::str::FromStr;
 
+use baid64::{Baid64ParseError, DisplayBaid64, FromBaid64Str};
 use fluent_uri::enc::EStr;
 use fluent_uri::Uri;
 use indexmap::IndexMap;
-use invoice::{Address, UnknownNetwork};
+use invoice::{AddressType, UnknownNetwork};
 use percent_encoding::{utf8_percent_encode, AsciiSet, CONTROLS};
 use rgb::{ContractId, SecretSeal};
 use strict_encoding::{InvalidRString, TypeName};
 
-use crate::invoice::{Beneficiary, ChainNet, InvoiceState, RgbInvoice, RgbTransport, XChainNet};
+use crate::invoice::{
+    Beneficiary, ChainNet, InvoiceState, Pay2Vout, RgbInvoice, RgbTransport, XChainNet,
+};
 
 const OMITTED: &str = "~";
 const EXPIRY: &str = "expiry";
@@ -206,17 +210,7 @@ impl Display for XChainNet<Beneficiary> {
         write!(f, "{}:", self.chain_network())?;
         match self.into_inner() {
             Beneficiary::BlindedSeal(seal) => Display::fmt(&seal, f),
-            Beneficiary::WitnessVout(payload) => {
-                let addr = Address::new(payload, self.chain_network().address_network());
-                let s = addr.to_string();
-                let s = s
-                    .trim_start_matches("bc1")
-                    .trim_start_matches("tb1")
-                    .trim_start_matches("bcrt1");
-                // 26 27 34 42 62 -- 14..72
-                // TODO: Do address chunking
-                f.write_str(s)
-            }
+            Beneficiary::WitnessVout(payload) => payload.fmt_baid64(f),
         }
     }
 }
@@ -237,6 +231,39 @@ impl FromStr for ChainNet {
     }
 }
 
+impl DisplayBaid64<35> for Pay2Vout {
+    const HRI: &'static str = "wvout";
+    const CHUNKING: bool = true;
+    const PREFIX: bool = true;
+    const EMBED_CHECKSUM: bool = true;
+    const MNEMONIC: bool = false;
+
+    fn to_baid64_payload(&self) -> [u8; 35] {
+        let mut payload = [0u8; 35];
+        payload[0] = self.method as u8;
+        payload[1] = match self.address.address_type() {
+            AddressType::P2pkh => Self::P2PKH,
+            AddressType::P2sh => Self::P2SH,
+            AddressType::P2wpkh => Self::P2WPKH,
+            AddressType::P2wsh => Self::P2WSH,
+            AddressType::P2tr => Self::P2TR,
+        };
+        let spk = self.address.script_pubkey();
+        Cursor::new(&mut payload[2..])
+            .write_all(spk.as_slice())
+            .expect("address payload always less than 32 bytes");
+        payload
+    }
+}
+impl Display for Pay2Vout {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { self.fmt_baid64(f) }
+}
+impl FromBaid64Str<35> for Pay2Vout {}
+impl FromStr for Pay2Vout {
+    type Err = Baid64ParseError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_baid64_str(s) }
+}
+
 impl FromStr for XChainNet<Beneficiary> {
     type Err = InvoiceParseError;
 
@@ -249,15 +276,7 @@ impl FromStr for XChainNet<Beneficiary> {
             return Ok(XChainNet::with(cn, Beneficiary::BlindedSeal(seal)));
         }
 
-        let prefix = match cn {
-            ChainNet::BitcoinMainnet | ChainNet::LiquidMainnet => "bc",
-            ChainNet::BitcoinTestnet | ChainNet::BitcoinSignet | ChainNet::LiquidTestnet => "tb",
-            ChainNet::BitcoinRegtest => "bcrt",
-        };
-        let addr = format!("{prefix}1{beneficiary}");
-        let payload = Address::from_str(&addr)
-            .map_err(|_| InvoiceParseError::Beneficiary(s.to_owned()))?
-            .payload;
+        let payload = Pay2Vout::from_str(beneficiary)?;
         Ok(XChainNet::with(cn, Beneficiary::WitnessVout(payload)))
     }
 }

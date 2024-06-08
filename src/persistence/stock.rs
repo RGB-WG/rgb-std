@@ -198,6 +198,9 @@ pub enum ComposeError {
     /// the provided PSBT doesn't pay any sats to the RGB beneficiary address.
     NoBeneficiaryOutput,
 
+    /// beneficiary output number is given when secret seal is used.
+    BeneficiaryVout,
+
     /// expired invoice.
     InvoiceExpired,
 
@@ -868,17 +871,17 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
         let layer1 = invoice.beneficiary.chain_network().layer1();
         let beneficiary = match (invoice.beneficiary.into_inner(), beneficiary_vout) {
-            (Beneficiary::BlindedSeal(seal), _) => {
+            (Beneficiary::BlindedSeal(seal), None) => {
                 BuilderSeal::Concealed(XChain::with(layer1, seal))
             }
-            (Beneficiary::WitnessVout(_), Some(vout)) => BuilderSeal::Revealed(XChain::with(
-                layer1,
-                GraphSeal::with_blinded_vout(
-                    method,
-                    vout,
-                    seal_blinder(contract_id, assignment_id),
-                ),
-            )),
+            (Beneficiary::BlindedSeal(_), Some(_)) => {
+                return Err(ComposeError::BeneficiaryVout.into());
+            }
+            (Beneficiary::WitnessVout(payload), Some(vout)) => {
+                let blinding = seal_blinder(contract_id, assignment_id);
+                let seal = GraphSeal::with_blinded_vout(payload.method, vout, blinding);
+                BuilderSeal::Revealed(XChain::with(layer1, seal))
+            }
             (Beneficiary::WitnessVout(_), None) => {
                 return Err(ComposeError::NoBeneficiaryOutput.into());
             }
