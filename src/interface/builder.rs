@@ -31,9 +31,9 @@ use rgb::validation::Scripts;
 use rgb::{
     validation, AltLayer1, AltLayer1Set, AssetTag, AssetTags, Assign, AssignmentType, Assignments,
     BlindingFactor, ContractId, DataState, ExposedSeal, FungibleType, Genesis, GenesisSeal,
-    GlobalState, GraphSeal, Identity, Input, Layer1, Opout, OwnedStateSchema, RevealedAttach,
-    RevealedData, RevealedValue, Schema, Transition, TransitionType, TypedAssigns, XChain,
-    XOutpoint,
+    GlobalState, GraphSeal, Identity, Input, Layer1, MetadataError, Opout, OwnedStateSchema,
+    RevealedAttach, RevealedData, RevealedValue, Schema, Transition, TransitionType, TypedAssigns,
+    XChain, XOutpoint,
 };
 use rgbcore::{GlobalStateSchema, GlobalStateType, MetaType, Metadata, ValencyType};
 use strict_encoding::{FieldName, SerializeError, StrictSerialize};
@@ -52,8 +52,12 @@ pub enum BuilderError {
     /// contract already has too many layers1.
     TooManyLayers1,
 
-    /// meta data `{0}` is not known to the schema
+    /// metadata `{0}` are not known to the schema
     MetadataNotFound(FieldName),
+
+    #[from]
+    #[display(inner)]
+    MetadataInvalid(MetadataError),
 
     /// global state `{0}` is not known to the schema.
     GlobalNotFound(FieldName),
@@ -221,16 +225,6 @@ impl ContractBuilder {
     }
 
     #[inline]
-    pub fn add_meta_data(
-        mut self,
-        name: impl Into<FieldName>,
-        value: impl StrictSerialize,
-    ) -> Result<Self, BuilderError> {
-        self.builder = self.builder.add_meta_data(name, value)?;
-        Ok(self)
-    }
-
-    #[inline]
     pub fn global_type(&self, name: &FieldName) -> Option<GlobalStateType> {
         self.builder.global_type(name)
     }
@@ -240,11 +234,23 @@ impl ContractBuilder {
         self.builder.valency_type(name)
     }
 
+    #[inline]
     pub fn valency_name(&self, type_id: ValencyType) -> &FieldName {
         self.builder.valency_name(type_id)
     }
 
+    #[inline]
     pub fn meta_name(&self, type_id: MetaType) -> &FieldName { self.builder.meta_name(type_id) }
+
+    #[inline]
+    pub fn add_metadata(
+        mut self,
+        name: impl Into<FieldName>,
+        value: impl StrictSerialize,
+    ) -> Result<Self, BuilderError> {
+        self.builder = self.builder.add_metadata(name, value)?;
+        Ok(self)
+    }
 
     #[inline]
     pub fn add_global_state(
@@ -576,12 +582,12 @@ impl TransitionBuilder {
     }
 
     #[inline]
-    pub fn add_meta_data(
+    pub fn add_metadata(
         mut self,
         name: impl Into<FieldName>,
         value: impl StrictSerialize,
     ) -> Result<Self, BuilderError> {
-        self.builder = self.builder.add_meta_data(name, value)?;
+        self.builder = self.builder.add_metadata(name, value)?;
         Ok(self)
     }
 
@@ -984,8 +990,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         }
     }
 
-    // TODO: Add methods for adding metadata
-    pub fn add_meta_data(
+    pub fn add_metadata(
         mut self,
         name: impl Into<FieldName>,
         value: impl StrictSerialize,
@@ -999,9 +1004,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
 
         let sem_id = self.meta_schema(type_id);
         self.types.strict_deserialize_type(*sem_id, &serialized)?;
-        self.meta
-            .add_value(type_id, serialized.into())
-            .expect("add meta value failed");
+        self.meta.add_value(type_id, serialized.into())?;
         Ok(self)
     }
 
