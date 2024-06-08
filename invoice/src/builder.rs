@@ -25,7 +25,7 @@ use rgb::ContractId;
 use strict_encoding::{FieldName, TypeName};
 
 use crate::invoice::{Beneficiary, InvoiceState, RgbInvoice, RgbTransport, XChainNet};
-use crate::{Allocation, CoinAmount, NonFungible, Precision, TransportParseError};
+use crate::{Allocation, Amount, CoinAmount, NonFungible, Precision, TransportParseError};
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct RgbInvoiceBuilder(RgbInvoice);
@@ -75,6 +75,11 @@ impl RgbInvoiceBuilder {
 
     pub fn set_assignment(mut self, name: impl Into<FieldName>) -> Self {
         self.0.assignment = Some(name.into());
+        self
+    }
+
+    pub fn set_amount_raw(mut self, amount: impl Into<Amount>) -> Self {
+        self.0.owned_state = InvoiceState::Amount(amount.into());
         self
     }
 
