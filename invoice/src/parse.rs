@@ -354,7 +354,7 @@ impl FromStr for RgbInvoice {
         }
 
         let path = uri.path();
-        if path.is_absolute() || uri.auth.is_some() {
+        if path.is_absolute() || uri.authority().is_some() {
             return Err(InvoiceParseError::Authority);
         }
 
