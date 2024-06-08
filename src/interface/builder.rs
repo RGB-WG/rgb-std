@@ -31,12 +31,13 @@ use rgb::validation::Scripts;
 use rgb::{
     validation, AltLayer1, AltLayer1Set, AssetTag, AssetTags, Assign, AssignmentType, Assignments,
     BlindingFactor, ContractId, DataState, ExposedSeal, FungibleType, Genesis, GenesisSeal,
-    GlobalState, GraphSeal, Identity, Input, Layer1, Opout, OwnedStateSchema, RevealedAttach,
-    RevealedData, RevealedValue, Schema, Transition, TransitionType, TypedAssigns, XChain,
-    XOutpoint,
+    GlobalState, GraphSeal, Identity, Input, Layer1, MetadataError, Opout, OwnedStateSchema,
+    RevealedAttach, RevealedData, RevealedValue, Schema, Transition, TransitionType, TypedAssigns,
+    XChain, XOutpoint,
 };
+use rgbcore::{GlobalStateSchema, GlobalStateType, MetaType, Metadata, ValencyType};
 use strict_encoding::{FieldName, SerializeError, StrictSerialize};
-use strict_types::{decode, TypeSystem};
+use strict_types::{decode, SemId, TypeSystem};
 
 use crate::containers::{BuilderSeal, ContainerVer, Contract, ValidConsignment};
 use crate::interface::contract::AttachedState;
@@ -50,6 +51,13 @@ use crate::Outpoint;
 pub enum BuilderError {
     /// contract already has too many layers1.
     TooManyLayers1,
+
+    /// metadata `{0}` are not known to the schema
+    MetadataNotFound(FieldName),
+
+    #[from]
+    #[display(inner)]
+    MetadataInvalid(MetadataError),
 
     /// global state `{0}` is not known to the schema.
     GlobalNotFound(FieldName),
@@ -213,6 +221,34 @@ impl ContractBuilder {
         asset_tag: AssetTag,
     ) -> Result<Self, BuilderError> {
         self.builder = self.builder.add_asset_tag(name, asset_tag)?;
+        Ok(self)
+    }
+
+    #[inline]
+    pub fn global_type(&self, name: &FieldName) -> Option<GlobalStateType> {
+        self.builder.global_type(name)
+    }
+
+    #[inline]
+    pub fn valency_type(&self, name: &FieldName) -> Option<ValencyType> {
+        self.builder.valency_type(name)
+    }
+
+    #[inline]
+    pub fn valency_name(&self, type_id: ValencyType) -> &FieldName {
+        self.builder.valency_name(type_id)
+    }
+
+    #[inline]
+    pub fn meta_name(&self, type_id: MetaType) -> &FieldName { self.builder.meta_name(type_id) }
+
+    #[inline]
+    pub fn add_metadata(
+        mut self,
+        name: impl Into<FieldName>,
+        value: impl StrictSerialize,
+    ) -> Result<Self, BuilderError> {
+        self.builder = self.builder.add_metadata(name, value)?;
         Ok(self)
     }
 
@@ -546,6 +582,16 @@ impl TransitionBuilder {
     }
 
     #[inline]
+    pub fn add_metadata(
+        mut self,
+        name: impl Into<FieldName>,
+        value: impl StrictSerialize,
+    ) -> Result<Self, BuilderError> {
+        self.builder = self.builder.add_metadata(name, value)?;
+        Ok(self)
+    }
+
+    #[inline]
     pub fn add_global_state(
         mut self,
         name: impl Into<FieldName>,
@@ -572,6 +618,22 @@ impl TransitionBuilder {
     pub fn assignments_type(&self, name: &FieldName) -> Option<AssignmentType> {
         self.builder.assignments_type(name)
     }
+
+    #[inline]
+    pub fn global_type(&self, name: &FieldName) -> Option<GlobalStateType> {
+        self.builder.global_type(name)
+    }
+
+    #[inline]
+    pub fn valency_type(&self, name: &FieldName) -> Option<ValencyType> {
+        self.builder.valency_type(name)
+    }
+
+    pub fn valency_name(&self, type_id: ValencyType) -> &FieldName {
+        self.builder.valency_name(type_id)
+    }
+
+    pub fn meta_name(&self, type_id: MetaType) -> &FieldName { self.builder.meta_name(type_id) }
 
     pub fn add_owned_state_det(
         mut self,
@@ -760,6 +822,7 @@ pub struct OperationBuilder<Seal: ExposedSeal> {
     deterministic: bool,
 
     global: GlobalState,
+    meta: Metadata,
     rights: TinyOrdMap<AssignmentType, Confined<HashSet<BuilderSeal<Seal>>, 1, U16>>,
     fungible:
         TinyOrdMap<AssignmentType, Confined<BTreeMap<BuilderSeal<Seal>, RevealedValue>, 1, U16>>,
@@ -780,6 +843,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             deterministic: false,
 
             global: none!(),
+            meta: none!(),
             rights: none!(),
             fungible: none!(),
             attachments: none!(),
@@ -798,6 +862,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             deterministic: true,
 
             global: none!(),
+            meta: none!(),
             rights: none!(),
             fungible: none!(),
             attachments: none!(),
@@ -821,10 +886,44 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         self.iimpl.assignments_type(name)
     }
 
+    fn meta_type(&self, name: &FieldName) -> Option<MetaType> { self.iimpl.meta_type(name) }
+
+    fn meta_name(&self, ty: MetaType) -> &FieldName {
+        self.iimpl.meta_name(ty).expect("internal inconsistency")
+    }
+
+    fn global_type(&self, name: &FieldName) -> Option<GlobalStateType> {
+        self.iimpl.global_type(name)
+    }
+
+    fn valency_type(&self, name: &FieldName) -> Option<ValencyType> {
+        self.iimpl.valency_type(name)
+    }
+
+    fn valency_name(&self, ty: ValencyType) -> &FieldName {
+        self.iimpl.valency_name(ty).expect("internal inconsistency")
+    }
+
     #[inline]
     fn state_schema(&self, type_id: AssignmentType) -> &OwnedStateSchema {
         self.schema
             .owned_types
+            .get(&type_id)
+            .expect("schema should match interface: must be checked by the constructor")
+    }
+
+    #[inline]
+    fn meta_schema(&self, type_id: MetaType) -> &SemId {
+        self.schema
+            .meta_types
+            .get(&type_id)
+            .expect("schema should match interface: must be checked by the constructor")
+    }
+
+    #[inline]
+    fn global_schema(&self, type_id: GlobalStateType) -> &GlobalStateSchema {
+        self.schema
+            .global_types
             .get(&type_id)
             .expect("schema should match interface: must be checked by the constructor")
     }
@@ -891,7 +990,23 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         }
     }
 
-    // TODO: Add methods for adding metadata
+    pub fn add_metadata(
+        mut self,
+        name: impl Into<FieldName>,
+        value: impl StrictSerialize,
+    ) -> Result<Self, BuilderError> {
+        let name = name.into();
+        let serialized = value.to_strict_serialized::<{ u16::MAX as usize }>()?;
+
+        let Some(type_id) = self.meta_type(&name) else {
+            return Err(BuilderError::MetadataNotFound(name));
+        };
+
+        let sem_id = self.meta_schema(type_id);
+        self.types.strict_deserialize_type(*sem_id, &serialized)?;
+        self.meta.add_value(type_id, serialized.into())?;
+        Ok(self)
+    }
 
     pub fn add_global_state(
         mut self,
@@ -902,21 +1017,10 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         let serialized = value.to_strict_serialized::<{ u16::MAX as usize }>()?;
 
         // Check value matches type requirements
-        let Some(type_id) = self
-            .iimpl
-            .global_state
-            .iter()
-            .find(|t| t.name == name)
-            .map(|t| t.id)
-        else {
+        let Some(type_id) = self.global_type(&name) else {
             return Err(BuilderError::GlobalNotFound(name));
         };
-        let sem_id = self
-            .schema
-            .global_types
-            .get(&type_id)
-            .expect("schema should match interface: must be checked by the constructor")
-            .sem_id;
+        let sem_id = self.global_schema(type_id).sem_id;
         self.types.strict_deserialize_type(sem_id, &serialized)?;
 
         self.global.add_state(type_id, serialized.into())?;
