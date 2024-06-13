@@ -51,11 +51,11 @@ impl RgbInvoiceBuilder {
     }
 
     pub fn rgb20(contract_id: ContractId, beneficiary: impl Into<XChainNet<Beneficiary>>) -> Self {
-        Self::with(contract_id, beneficiary).set_interface("RGB20")
+        Self::with(contract_id, beneficiary).set_interface("RGB20Fixed")
     }
 
     pub fn rgb20_anything(beneficiary: impl Into<XChainNet<Beneficiary>>) -> Self {
-        Self::new(beneficiary).set_interface("RGB20")
+        Self::new(beneficiary).set_interface("RGB20Fixed")
     }
 
     pub fn set_contract(mut self, contract_id: ContractId) -> Self {
