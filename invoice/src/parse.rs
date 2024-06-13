@@ -235,15 +235,15 @@ impl FromStr for ChainNet {
     }
 }
 
-impl DisplayBaid64<35> for Pay2Vout {
+impl DisplayBaid64<37> for Pay2Vout {
     const HRI: &'static str = "wvout";
     const CHUNKING: bool = true;
     const PREFIX: bool = true;
     const EMBED_CHECKSUM: bool = true;
     const MNEMONIC: bool = false;
 
-    fn to_baid64_payload(&self) -> [u8; 35] {
-        let mut payload = [0u8; 35];
+    fn to_baid64_payload(&self) -> [u8; 37] {
+        let mut payload = [0u8; 37];
         payload[0] = self.method as u8;
         payload[1] = match self.address.address_type() {
             AddressType::P2pkh => Self::P2PKH,
@@ -255,14 +255,14 @@ impl DisplayBaid64<35> for Pay2Vout {
         let spk = self.address.script_pubkey();
         Cursor::new(&mut payload[2..])
             .write_all(spk.as_slice())
-            .expect("address payload always less than 32 bytes");
+            .expect("address payload always less than 34 bytes");
         payload
     }
 }
 impl Display for Pay2Vout {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { self.fmt_baid64(f) }
 }
-impl FromBaid64Str<35> for Pay2Vout {}
+impl FromBaid64Str<37> for Pay2Vout {}
 impl FromStr for Pay2Vout {
     type Err = Baid64ParseError;
     fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_baid64_str(s) }
