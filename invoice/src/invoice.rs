@@ -212,10 +212,10 @@ impl Pay2Vout {
     pub(crate) const P2TR: u8 = 5;
 }
 
-impl TryFrom<[u8; 37]> for Pay2Vout {
+impl TryFrom<[u8; 34]> for Pay2Vout {
     type Error = Pay2VoutError;
 
-    fn try_from(data: [u8; 37]) -> Result<Self, Self::Error> {
+    fn try_from(data: [u8; 34]) -> Result<Self, Self::Error> {
         let method =
             CloseMethod::try_from(data[0]).map_err(|e| Pay2VoutError::InvalidMethod(e.1))?;
         let address = match data[1] {
@@ -224,7 +224,7 @@ impl TryFrom<[u8; 37]> for Pay2Vout {
             Self::P2WPKH => AddressPayload::Wpkh(WPubkeyHash::from_slice_unsafe(&data[2..22])),
             Self::P2WSH => AddressPayload::Wsh(WScriptHash::from_slice_unsafe(&data[2..])),
             Self::P2TR => AddressPayload::Tr(
-                OutputPk::from_byte_array(Bytes32::from_slice_unsafe(&data[4..36]).to_byte_array())
+                OutputPk::from_byte_array(Bytes32::from_slice_unsafe(&data[2..34]).to_byte_array())
                     .map_err(Pay2VoutError::InvalidTapkey)?,
             ),
             wrong => return Err(Pay2VoutError::InvalidAddressType(wrong)),
