@@ -212,10 +212,10 @@ impl Pay2Vout {
     pub(crate) const P2TR: u8 = 5;
 }
 
-impl TryFrom<[u8; 35]> for Pay2Vout {
+impl TryFrom<[u8; 34]> for Pay2Vout {
     type Error = Pay2VoutError;
 
-    fn try_from(data: [u8; 35]) -> Result<Self, Self::Error> {
+    fn try_from(data: [u8; 34]) -> Result<Self, Self::Error> {
         let method =
             CloseMethod::try_from(data[0]).map_err(|e| Pay2VoutError::InvalidMethod(e.1))?;
         let address = match data[1] {
