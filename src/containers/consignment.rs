@@ -366,16 +366,13 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
         }
 
         // check bundle ids listed in terminals are present in the consignment
-        let bundle_ids = index.bundle_ids().collect::<BTreeSet<_>>();
-        for (bundle_id, _) in self.terminals.iter() {
-            if !bundle_ids.contains(bundle_id) {
+        for bundle_id in self.terminals.keys() {
+            if !index.bundle_ids().any(|id| id == *bundle_id) {
                 status.add_warning(Warning::Custom(s!(
-                    "bundle ids listed in terminals doesn't present in the consignment"
+                    "terminal bundle id {bundle_id} is not present in the consignment"
                 )));
             }
         }
-        // TODO: check that interface ids match implementations
-        // TODO: check bundle ids listed in terminals are present in the consignment
         // TODO: check attach ids from data containers are present in operations
         // TODO: validate sigs and remove untrusted
 
