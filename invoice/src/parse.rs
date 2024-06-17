@@ -28,7 +28,7 @@ use baid64::{Baid64ParseError, DisplayBaid64, FromBaid64Str};
 use fluent_uri::enc::EStr;
 use fluent_uri::Uri;
 use indexmap::IndexMap;
-use invoice::{AddressType, UnknownNetwork};
+use invoice::{AddressPayload, UnknownNetwork};
 use percent_encoding::{utf8_percent_encode, AsciiSet, CONTROLS};
 use rgb::{ContractId, SecretSeal};
 use strict_encoding::{InvalidRString, TypeName};
@@ -235,34 +235,40 @@ impl FromStr for ChainNet {
     }
 }
 
-impl DisplayBaid64<35> for Pay2Vout {
+impl DisplayBaid64<34> for Pay2Vout {
     const HRI: &'static str = "wvout";
     const CHUNKING: bool = true;
     const PREFIX: bool = true;
     const EMBED_CHECKSUM: bool = true;
     const MNEMONIC: bool = false;
 
-    fn to_baid64_payload(&self) -> [u8; 35] {
-        let mut payload = [0u8; 35];
+    fn to_baid64_payload(&self) -> [u8; 34] {
+        let mut payload = [0u8; 34];
+        // tmp stack array to store the tr payload to resolve lifetime issue
+        let schnorr_pk: [u8; 32];
         payload[0] = self.method as u8;
-        payload[1] = match self.address.address_type() {
-            AddressType::P2pkh => Self::P2PKH,
-            AddressType::P2sh => Self::P2SH,
-            AddressType::P2wpkh => Self::P2WPKH,
-            AddressType::P2wsh => Self::P2WSH,
-            AddressType::P2tr => Self::P2TR,
+        let (addr_type, spk) = match &self.address {
+            AddressPayload::Pkh(pkh) => (Self::P2PKH, pkh.as_ref()),
+            AddressPayload::Sh(sh) => (Self::P2SH, sh.as_ref()),
+            AddressPayload::Wpkh(wpkh) => (Self::P2WPKH, wpkh.as_ref()),
+            AddressPayload::Wsh(wsh) => (Self::P2WSH, wsh.as_ref()),
+            AddressPayload::Tr(tr) => {
+                schnorr_pk = tr.to_byte_array();
+                (Self::P2TR, &schnorr_pk[..])
+            }
         };
-        let spk = self.address.script_pubkey();
+        payload[1] = addr_type;
         Cursor::new(&mut payload[2..])
-            .write_all(spk.as_slice())
+            .write_all(spk)
             .expect("address payload always less than 32 bytes");
         payload
     }
 }
+
 impl Display for Pay2Vout {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { self.fmt_baid64(f) }
 }
-impl FromBaid64Str<35> for Pay2Vout {}
+impl FromBaid64Str<34> for Pay2Vout {}
 impl FromStr for Pay2Vout {
     type Err = Baid64ParseError;
     fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_baid64_str(s) }
@@ -733,5 +739,45 @@ mod test {
         // rgb-rpc variant with invalid separator parse error
         let result = RgbTransport::from_str("rpc/host.example.com");
         assert!(matches!(result, Err(TransportParseError::InvalidTransport(_))));
+    }
+
+    #[test]
+    fn pay2vout_parse() {
+        let p = Pay2Vout {
+            method: bp::dbc::Method::OpretFirst,
+            address: AddressPayload::Pkh([0xff; 20].into()),
+        };
+        assert_eq!(Pay2Vout::from_str(&p.to_string()).unwrap(), p);
+
+        let p = Pay2Vout {
+            method: bp::dbc::Method::OpretFirst,
+            address: AddressPayload::Sh([0xff; 20].into()),
+        };
+        assert_eq!(Pay2Vout::from_str(&p.to_string()).unwrap(), p);
+
+        let p = Pay2Vout {
+            method: bp::dbc::Method::OpretFirst,
+            address: AddressPayload::Wpkh([0xff; 20].into()),
+        };
+        assert_eq!(Pay2Vout::from_str(&p.to_string()).unwrap(), p);
+
+        let p = Pay2Vout {
+            method: bp::dbc::Method::OpretFirst,
+            address: AddressPayload::Wsh([0xff; 32].into()),
+        };
+        assert_eq!(Pay2Vout::from_str(&p.to_string()).unwrap(), p);
+
+        let p = Pay2Vout {
+            method: bp::dbc::Method::OpretFirst,
+            address: AddressPayload::Tr(
+                bp::OutputPk::from_byte_array([
+                    0x85, 0xa6, 0x42, 0x59, 0x8b, 0xfe, 0x2e, 0x42, 0xa3, 0x78, 0xcb, 0xb5, 0x3b,
+                    0xf1, 0x4a, 0xbe, 0x77, 0xf8, 0x1a, 0xef, 0xed, 0xf7, 0x3b, 0x66, 0x7b, 0x42,
+                    0x85, 0xaf, 0x7c, 0xf1, 0xc8, 0xa3,
+                ])
+                .unwrap(),
+            ),
+        };
+        assert_eq!(Pay2Vout::from_str(&p.to_string()).unwrap(), p);
     }
 }
