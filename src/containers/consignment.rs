@@ -359,8 +359,11 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
         // check ifaceid match implementation
         for (iface, iimpl) in self.ifaces.iter() {
             if iface.iface_id() != iimpl.iface_id {
-                status.add_warning(Warning::Custom(s!(
-                    "interface ids doesn't match implementations"
+                status.add_warning(Warning::Custom(format!(
+                    "implementation {} targets different interface {} than expected {}",
+                    iimpl.impl_id(),
+                    iimpl.iface_id,
+                    iface.iface_id()
                 )));
             }
         }
@@ -368,7 +371,7 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
         // check bundle ids listed in terminals are present in the consignment
         for bundle_id in self.terminals.keys() {
             if !index.bundle_ids().any(|id| id == *bundle_id) {
-                status.add_warning(Warning::Custom(s!(
+                status.add_warning(Warning::Custom(format!(
                     "terminal bundle id {bundle_id} is not present in the consignment"
                 )));
             }
