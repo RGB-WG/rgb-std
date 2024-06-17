@@ -38,6 +38,7 @@ use rgb::{
     impl_serde_baid64, validation, AttachId, BundleId, ContractHistory, ContractId, Extension,
     Genesis, GraphSeal, Operation, Schema, SchemaId, XChain,
 };
+use rgbcore::validation::ConsignmentApi;
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 use strict_types::TypeSystem;
 
@@ -355,8 +356,26 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
         if self.transfer != TRANSFER {
             status.add_warning(Warning::Custom(s!("invalid consignment type")));
         }
-        // TODO: check that interface ids match implementations
-        // TODO: check bundle ids listed in terminals are present in the consignment
+        // check ifaceid match implementation
+        for (iface, iimpl) in self.ifaces.iter() {
+            if iface.iface_id() != iimpl.iface_id {
+                status.add_warning(Warning::Custom(format!(
+                    "implementation {} targets different interface {} than expected {}",
+                    iimpl.impl_id(),
+                    iimpl.iface_id,
+                    iface.iface_id()
+                )));
+            }
+        }
+
+        // check bundle ids listed in terminals are present in the consignment
+        for bundle_id in self.terminals.keys() {
+            if !index.bundle_ids().any(|id| id == *bundle_id) {
+                status.add_warning(Warning::Custom(format!(
+                    "terminal bundle id {bundle_id} is not present in the consignment"
+                )));
+            }
+        }
         // TODO: check attach ids from data containers are present in operations
         // TODO: validate sigs and remove untrusted
 
