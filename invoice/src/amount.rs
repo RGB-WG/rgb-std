@@ -353,7 +353,7 @@ impl CoinAmount {
 
 impl Display for CoinAmount {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        if ![' ', '\'', '`', '_'].contains(&f.fill()) {
+        if ![' ', '_'].contains(&f.fill()) {
             panic!("disallowed fill character {} in coin amount formatting string", f.fill())
         }
         if f.precision().is_some() {
@@ -429,7 +429,7 @@ impl FromStr for CoinAmount {
     type Err = AmountParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let s = s.replace([' ', '_', '`', '\''], "");
+        let s = s.replace([' ', '_'], "");
         let (int, remain) = s.split_once('.').unwrap_or_else(|| (&s, "0"));
         let (fract, precision) = remain.split_once('~').unwrap_or((remain, ""));
         let precision = if precision.is_empty() {
@@ -461,7 +461,7 @@ mod test {
         assert_eq!(amount.int, 10_000);
         assert_eq!(amount.fract, 436_081_95);
         assert_eq!(format!("{amount}"), "10000.43608195~8");
-        assert_eq!(format!("{amount:`>#}"), "10`000.43`608`195");
+        assert_eq!(format!("{amount: >#}"), "10 000.43 608 195");
     }
 
     #[test]
