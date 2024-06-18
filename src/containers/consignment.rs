@@ -33,7 +33,7 @@ use amplify::{ByteArray, Bytes32};
 use armor::{ArmorHeader, AsciiArmor, StrictArmor};
 use baid64::{Baid64ParseError, DisplayBaid64, FromBaid64Str};
 use commit_verify::{CommitEncode, CommitEngine, CommitId, CommitmentId, DigestExt, Sha256};
-use rgb::validation::{ResolveWitness, Validator, Validity, Warning, CONSIGNMENT_MAX_LIBS};
+use rgb::validation::{ResolveWitness, Status, Validator, Validity, Warning, CONSIGNMENT_MAX_LIBS};
 use rgb::{
     impl_serde_baid64, validation, AttachId, BundleId, ContractHistory, ContractId, Extension,
     Genesis, GraphSeal, Operation, Schema, SchemaId, XChain,
@@ -386,6 +386,23 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
                 validation_status: status,
                 consignment: self,
             })
+        }
+    }
+
+    /// Method to construct valid consignment which can be consumed by a stash
+    /// for debug purposes.
+    ///
+    /// # Safety
+    ///
+    /// The function runs no actual validation, but still constructs
+    /// [`ValidConsignment`] type, which is a violation of type safety.
+    pub unsafe fn assume_valid(self) -> ValidConsignment<TRANSFER> {
+        let validation_status = Status::with_failure(validation::Failure::Custom(s!(
+            "consignment was assumed valid with no actual validation"
+        )));
+        ValidConsignment {
+            validation_status,
+            consignment: self,
         }
     }
 }
