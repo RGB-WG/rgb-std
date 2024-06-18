@@ -443,4 +443,38 @@ impl ContractIface {
             witness_filter,
         ))
     }
+
+    pub fn rights_ops<C: StateChange<State = VoidState>>(
+        &self,
+        name: impl Into<FieldName>,
+        witness_filter: impl WitnessFilter + Copy,
+        outpoint_filter: impl OutpointFilter + Copy,
+    ) -> Result<HashMap<XWitnessId, IfaceOp<C>>, ContractError> {
+        Ok(self.operations(
+            self.state
+                .rights()
+                .iter()
+                .cloned()
+                .map(OutputAssignment::transmute),
+            self.rights(name, outpoint_filter)?,
+            witness_filter,
+        ))
+    }
+
+    pub fn attachment_ops<C: StateChange<State = AttachedState>>(
+        &self,
+        name: impl Into<FieldName>,
+        witness_filter: impl WitnessFilter + Copy,
+        outpoint_filter: impl OutpointFilter + Copy,
+    ) -> Result<HashMap<XWitnessId, IfaceOp<C>>, ContractError> {
+        Ok(self.operations(
+            self.state
+                .attach()
+                .iter()
+                .cloned()
+                .map(OutputAssignment::transmute),
+            self.attachments(name, outpoint_filter)?,
+            witness_filter,
+        ))
+    }
 }
