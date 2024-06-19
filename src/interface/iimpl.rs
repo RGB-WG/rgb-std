@@ -567,7 +567,7 @@ impl IfaceImpl {
                 errors.push(ImplInconsistency::SchemaExtensionAbsent(field.name.clone(), field.id));
             }
         }
-        
+
         dup_extensions.iter().for_each(|(field_name, &count)| {
             if count > 1 {
                 status.add_warning(RepeatWarning::RepeatedExtensions(field_name.clone(), count));
