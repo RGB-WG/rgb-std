@@ -19,15 +19,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use amplify::confinement::{SmallOrdSet, SmallVec};
+use chrono::{DateTime, Utc};
 use invoice::{Allocation, Amount};
 use rgb::{
     AssignmentWitness, AttachId, ContractId, ContractState, DataState, KnownState, MediaType, OpId,
     OutputAssignment, RevealedAttach, RevealedData, RevealedValue, VoidState, XOutpoint,
     XOutputSeal, XWitnessId,
 };
+use rgbcore::AltLayer1;
 use strict_encoding::{FieldName, StrictDecode, StrictDumb, StrictEncode};
 use strict_types::typify::TypedVal;
 use strict_types::{decode, StrictVal, TypeSystem};
@@ -477,4 +479,18 @@ impl ContractIface {
             witness_filter,
         ))
     }
+    // get contract schema id by contract iface
+    pub fn contract_schema_id(&self) -> String { self.info.schema_id() }
+
+    // get contract issuer identity by contract iface
+    pub fn contract_issuer_identity(&self) -> String { self.info.issuer_identity() }
+
+    // get contract issue datetime by contract iface
+    pub fn contract_issue_datetime(&self) -> DateTime<Utc> { self.info.issue_datetime() }
+
+    // is contract on testnet by contract iface
+    pub fn contract_is_testnet(&self) -> bool { self.info.is_testnet() }
+
+    // get contract alt layer set by contract iface
+    pub fn contract_alt_layer_set(&self) -> BTreeSet<AltLayer1> { self.info.alt_layer_set() }
 }

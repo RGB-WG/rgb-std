@@ -19,13 +19,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::fmt::{self, Debug, Display, Formatter, Write};
 use std::str::FromStr;
 
 use amplify::confinement::TinyOrdSet;
 use chrono::{DateTime, TimeZone, Utc};
 use rgb::{AltLayer1Set, ContractId, Genesis, Identity, Operation, SchemaId};
+use rgbcore::AltLayer1;
 use strict_encoding::stl::{AlphaCapsLodash, AlphaNumLodash};
 use strict_encoding::{FieldName, RString, StrictDeserialize, StrictSerialize, TypeName};
 
@@ -299,6 +300,21 @@ impl ContractInfo {
             alt_layers1: genesis.alt_layers1.clone(),
         }
     }
+
+    // get contract schema id in string format
+    pub fn schema_id(&self) -> String { self.schema_id.to_string() }
+
+    // get contract issue identity in string format
+    pub fn issuer_identity(&self) -> String { self.issuer.to_string() }
+
+    // get contract issue datetime
+    pub fn issue_datetime(&self) -> DateTime<Utc> { self.issued_at }
+
+    // is contract on testnet
+    pub fn is_testnet(&self) -> bool { self.testnet }
+
+    // get contract alt layer set
+    pub fn alt_layer_set(&self) -> BTreeSet<AltLayer1> { self.alt_layers1.to_inner() }
 }
 
 impl Display for ContractInfo {
