@@ -19,6 +19,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 
@@ -376,11 +377,68 @@ pub enum ImplInconsistency {
     IfaceErrorAbsent(VariantName),
 }
 
-impl IfaceImpl {
-    pub fn check(&self, iface: &Iface, schema: &Schema) -> Result<(), Vec<ImplInconsistency>> {
-        let mut errors = vec![];
+#[derive(Clone, PartialEq, Eq, Debug, Display, From)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+#[display(doc_comments)]
+pub enum RepeatWarning {
+    /// metadata field name {0} is repeated {1} times
+    RepeatedMetaData(FieldName, i32),
 
+    /// global state field name {0} is repeated {1} times
+    RepeatedGlobalState(FieldName, i32),
+
+    /// assignments field name {0} is repeated {1} times
+    RepeatedAssignments(FieldName, i32),
+
+    /// valencies field name {0} is repeated {1} times
+    RepeatedValencies(FieldName, i32),
+
+    /// transition field name {0} is repeated {1} times
+    RepeatedTransitions(FieldName, i32),
+
+    /// extension field name {0} is repeated {1} times
+    RepeatedExtensions(FieldName, i32),
+}
+
+#[derive(Clone, PartialEq, Eq, Debug, Default)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct RepeatedStatus {
+    pub warnings: Vec<RepeatWarning>,
+}
+
+impl RepeatedStatus {
+    pub fn new() -> Self { Self { warnings: vec![] } }
+
+    pub fn add_warning(&mut self, warning: impl Into<RepeatWarning>) -> &Self {
+        self.warnings.push(warning.into());
+        self
+    }
+}
+
+impl IfaceImpl {
+    pub fn check(
+        &self,
+        iface: &Iface,
+        schema: &Schema,
+    ) -> Result<(), (RepeatedStatus, Vec<ImplInconsistency>)> {
+        let mut errors = vec![];
+        let mut status = RepeatedStatus::new();
         let now = Utc::now();
+        let mut dup_metadata = HashMap::new();
+        let mut dup_global_state = HashMap::new();
+        let mut dup_assignments = HashMap::new();
+        let mut dup_valencies = HashMap::new();
+        let mut dup_transitions = HashMap::new();
+        let mut dup_extensions = HashMap::new();
+
         match Utc.timestamp_opt(self.timestamp, 0).single() {
             Some(ts) if ts > now => errors.push(ImplInconsistency::FutureTimestamp(ts)),
             None => errors.push(ImplInconsistency::InvalidTimestamp(self.timestamp)),
@@ -393,10 +451,20 @@ impl IfaceImpl {
             }
         }
         for field in &self.metadata {
+            dup_metadata
+                .entry(field.name.clone())
+                .and_modify(|counter| *counter += 1)
+                .or_insert(0);
             if !schema.meta_types.contains_key(&field.id) {
                 errors.push(ImplInconsistency::SchemaMetaAbsent(field.name.clone(), field.id));
             }
         }
+
+        dup_metadata.iter().for_each(|(field_name, &count)| {
+            if count > 1 {
+                status.add_warning(RepeatWarning::RepeatedMetaData(field_name.clone(), count));
+            }
+        });
 
         for name in iface.global_state.keys() {
             if self.global_state.iter().all(|field| &field.name != name) {
@@ -404,10 +472,20 @@ impl IfaceImpl {
             }
         }
         for field in &self.global_state {
+            dup_global_state
+                .entry(field.name.clone())
+                .and_modify(|counter| *counter += 1)
+                .or_insert(0);
             if !schema.global_types.contains_key(&field.id) {
                 errors.push(ImplInconsistency::SchemaGlobalAbsent(field.name.clone(), field.id));
             }
         }
+
+        dup_global_state.iter().for_each(|(field_name, &count)| {
+            if count > 1 {
+                status.add_warning(RepeatWarning::RepeatedGlobalState(field_name.clone(), count));
+            }
+        });
 
         for name in iface.assignments.keys() {
             if self.assignments.iter().all(|field| &field.name != name) {
@@ -415,11 +493,21 @@ impl IfaceImpl {
             }
         }
         for field in &self.assignments {
+            dup_assignments
+                .entry(field.name.clone())
+                .and_modify(|counter| *counter += 1)
+                .or_insert(0);
             if !schema.owned_types.contains_key(&field.id) {
                 errors
                     .push(ImplInconsistency::SchemaAssignmentAbsent(field.name.clone(), field.id));
             }
         }
+
+        dup_assignments.iter().for_each(|(field_name, &count)| {
+            if count > 1 {
+                status.add_warning(RepeatWarning::RepeatedAssignments(field_name.clone(), count));
+            }
+        });
 
         for name in iface.valencies.keys() {
             if self.valencies.iter().all(|field| &field.name != name) {
@@ -427,10 +515,20 @@ impl IfaceImpl {
             }
         }
         for field in &self.valencies {
+            dup_valencies
+                .entry(field.name.clone())
+                .and_modify(|counter| *counter += 1)
+                .or_insert(0);
+
             if !schema.valency_types.contains(&field.id) {
                 errors.push(ImplInconsistency::SchemaValencyAbsent(field.name.clone(), field.id));
             }
         }
+        dup_valencies.iter().for_each(|(field_name, &count)| {
+            if count > 1 {
+                status.add_warning(RepeatWarning::RepeatedValencies(field_name.clone(), count));
+            }
+        });
 
         for name in iface.transitions.keys() {
             if self.transitions.iter().all(|field| &field.name != name) {
@@ -438,35 +536,53 @@ impl IfaceImpl {
             }
         }
         for field in &self.transitions {
+            dup_transitions
+                .entry(field.name.clone())
+                .and_modify(|counter| *counter += 1)
+                .or_insert(0);
+
             if !schema.transitions.contains_key(&field.id) {
                 errors
                     .push(ImplInconsistency::SchemaTransitionAbsent(field.name.clone(), field.id));
             }
         }
 
+        dup_transitions.iter().for_each(|(field_name, &count)| {
+            if count > 1 {
+                status.add_warning(RepeatWarning::RepeatedTransitions(field_name.clone(), count));
+            }
+        });
         for name in iface.extensions.keys() {
             if self.extensions.iter().all(|field| &field.name != name) {
                 errors.push(ImplInconsistency::IfaceExtensionAbsent(name.clone()));
             }
         }
         for field in &self.extensions {
+            dup_extensions
+                .entry(field.name.clone())
+                .and_modify(|counter| *counter += 1)
+                .or_insert(0);
+
             if !schema.extensions.contains_key(&field.id) {
                 errors.push(ImplInconsistency::SchemaExtensionAbsent(field.name.clone(), field.id));
             }
         }
-
+        
+        dup_extensions.iter().for_each(|(field_name, &count)| {
+            if count > 1 {
+                status.add_warning(RepeatWarning::RepeatedExtensions(field_name.clone(), count));
+            }
+        });
         for var in &self.errors {
             if iface.errors.keys().all(|name| name != &var.name) {
                 errors.push(ImplInconsistency::IfaceErrorAbsent(var.name.clone()));
             }
         }
 
-        // TODO: Warn about repeated field names
-
         if errors.is_empty() {
             Ok(())
         } else {
-            Err(errors)
+            Err((status, errors))
         }
     }
 }
