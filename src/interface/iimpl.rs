@@ -375,62 +375,29 @@ pub enum ImplInconsistency {
 
     /// implementation references unknown interface error '{0}'.
     IfaceErrorAbsent(VariantName),
-}
 
-#[derive(Clone, PartialEq, Eq, Debug, Display, From)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-#[display(doc_comments)]
-pub enum RepeatWarning {
-    /// metadata field name {0} is repeated {1} times
+    /// metadata field '{0}' is repeated {1} times
     RepeatedMetaData(FieldName, i32),
 
-    /// global state field name {0} is repeated {1} times
+    /// global state field '{0}' is repeated {1} times
     RepeatedGlobalState(FieldName, i32),
 
-    /// assignments field name {0} is repeated {1} times
+    /// assignments field '{0}' is repeated {1} times
     RepeatedAssignments(FieldName, i32),
 
-    /// valencies field name {0} is repeated {1} times
+    /// valencies field '{0}' is repeated {1} times
     RepeatedValencies(FieldName, i32),
 
-    /// transition field name {0} is repeated {1} times
+    /// transition field '{0}' is repeated {1} times
     RepeatedTransitions(FieldName, i32),
 
-    /// extension field name {0} is repeated {1} times
+    /// extension field '{0}' is repeated {1} times
     RepeatedExtensions(FieldName, i32),
 }
 
-#[derive(Clone, PartialEq, Eq, Debug, Default)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-pub struct RepeatedStatus {
-    pub warnings: Vec<RepeatWarning>,
-}
-
-impl RepeatedStatus {
-    pub fn new() -> Self { Self { warnings: vec![] } }
-
-    pub fn add_warning(&mut self, warning: impl Into<RepeatWarning>) -> &Self {
-        self.warnings.push(warning.into());
-        self
-    }
-}
-
 impl IfaceImpl {
-    pub fn check(
-        &self,
-        iface: &Iface,
-        schema: &Schema,
-    ) -> Result<(), (RepeatedStatus, Vec<ImplInconsistency>)> {
+    pub fn check(&self, iface: &Iface, schema: &Schema) -> Result<(), Vec<ImplInconsistency>> {
         let mut errors = vec![];
-        let mut status = RepeatedStatus::new();
         let now = Utc::now();
         let mut dup_metadata = HashMap::new();
         let mut dup_global_state = HashMap::new();
@@ -462,7 +429,7 @@ impl IfaceImpl {
 
         dup_metadata.iter().for_each(|(field_name, &count)| {
             if count > 1 {
-                status.add_warning(RepeatWarning::RepeatedMetaData(field_name.clone(), count));
+                errors.push(ImplInconsistency::RepeatedMetaData(field_name.clone(), count));
             }
         });
 
@@ -483,7 +450,7 @@ impl IfaceImpl {
 
         dup_global_state.iter().for_each(|(field_name, &count)| {
             if count > 1 {
-                status.add_warning(RepeatWarning::RepeatedGlobalState(field_name.clone(), count));
+                errors.push(ImplInconsistency::RepeatedGlobalState(field_name.clone(), count));
             }
         });
 
@@ -505,7 +472,7 @@ impl IfaceImpl {
 
         dup_assignments.iter().for_each(|(field_name, &count)| {
             if count > 1 {
-                status.add_warning(RepeatWarning::RepeatedAssignments(field_name.clone(), count));
+                errors.push(ImplInconsistency::RepeatedAssignments(field_name.clone(), count));
             }
         });
 
@@ -526,7 +493,7 @@ impl IfaceImpl {
         }
         dup_valencies.iter().for_each(|(field_name, &count)| {
             if count > 1 {
-                status.add_warning(RepeatWarning::RepeatedValencies(field_name.clone(), count));
+                errors.push(ImplInconsistency::RepeatedValencies(field_name.clone(), count));
             }
         });
 
@@ -549,7 +516,7 @@ impl IfaceImpl {
 
         dup_transitions.iter().for_each(|(field_name, &count)| {
             if count > 1 {
-                status.add_warning(RepeatWarning::RepeatedTransitions(field_name.clone(), count));
+                errors.push(ImplInconsistency::RepeatedTransitions(field_name.clone(), count));
             }
         });
         for name in iface.extensions.keys() {
@@ -570,7 +537,7 @@ impl IfaceImpl {
 
         dup_extensions.iter().for_each(|(field_name, &count)| {
             if count > 1 {
-                status.add_warning(RepeatWarning::RepeatedExtensions(field_name.clone(), count));
+                errors.push(ImplInconsistency::RepeatedExtensions(field_name.clone(), count));
             }
         });
         for var in &self.errors {
@@ -582,7 +549,7 @@ impl IfaceImpl {
         if errors.is_empty() {
             Ok(())
         } else {
-            Err((status, errors))
+            Err(errors)
         }
     }
 }
