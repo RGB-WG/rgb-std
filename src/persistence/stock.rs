@@ -90,7 +90,7 @@ pub enum StockError<
 
     #[from]
     #[display(doc_comments)]
-    /// state for contract {0} is now known.
+    /// state for contract {0} is not known.
     ///
     /// It may happen due to RGB standard library bug, or indicate internal
     /// stash inconsistency and compromised stash data storage.

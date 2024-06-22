@@ -19,6 +19,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 
@@ -374,13 +375,37 @@ pub enum ImplInconsistency {
 
     /// implementation references unknown interface error '{0}'.
     IfaceErrorAbsent(VariantName),
+
+    /// metadata field '{0}' is repeated {1} times
+    RepeatedMetaData(FieldName, i32),
+
+    /// global state field '{0}' is repeated {1} times
+    RepeatedGlobalState(FieldName, i32),
+
+    /// assignments field '{0}' is repeated {1} times
+    RepeatedAssignments(FieldName, i32),
+
+    /// valencies field '{0}' is repeated {1} times
+    RepeatedValencies(FieldName, i32),
+
+    /// transition field '{0}' is repeated {1} times
+    RepeatedTransitions(FieldName, i32),
+
+    /// extension field '{0}' is repeated {1} times
+    RepeatedExtensions(FieldName, i32),
 }
 
 impl IfaceImpl {
     pub fn check(&self, iface: &Iface, schema: &Schema) -> Result<(), Vec<ImplInconsistency>> {
         let mut errors = vec![];
-
         let now = Utc::now();
+        let mut dup_metadata = HashMap::new();
+        let mut dup_global_state = HashMap::new();
+        let mut dup_assignments = HashMap::new();
+        let mut dup_valencies = HashMap::new();
+        let mut dup_transitions = HashMap::new();
+        let mut dup_extensions = HashMap::new();
+
         match Utc.timestamp_opt(self.timestamp, 0).single() {
             Some(ts) if ts > now => errors.push(ImplInconsistency::FutureTimestamp(ts)),
             None => errors.push(ImplInconsistency::InvalidTimestamp(self.timestamp)),
@@ -393,10 +418,21 @@ impl IfaceImpl {
             }
         }
         for field in &self.metadata {
+            dup_metadata
+                .entry(field.name.clone())
+                .and_modify(|counter| *counter += 1)
+                .or_insert(0);
             if !schema.meta_types.contains_key(&field.id) {
                 errors.push(ImplInconsistency::SchemaMetaAbsent(field.name.clone(), field.id));
             }
         }
+
+        dup_metadata
+            .iter()
+            .filter(|(_, &count)| count > 1)
+            .for_each(|(field_name, &count)| {
+                errors.push(ImplInconsistency::RepeatedMetaData(field_name.clone(), count));
+            });
 
         for name in iface.global_state.keys() {
             if self.global_state.iter().all(|field| &field.name != name) {
@@ -404,10 +440,21 @@ impl IfaceImpl {
             }
         }
         for field in &self.global_state {
+            dup_global_state
+                .entry(field.name.clone())
+                .and_modify(|counter| *counter += 1)
+                .or_insert(0);
             if !schema.global_types.contains_key(&field.id) {
                 errors.push(ImplInconsistency::SchemaGlobalAbsent(field.name.clone(), field.id));
             }
         }
+
+        dup_global_state
+            .iter()
+            .filter(|(_, &count)| count > 1)
+            .for_each(|(field_name, &count)| {
+                errors.push(ImplInconsistency::RepeatedGlobalState(field_name.clone(), count));
+            });
 
         for name in iface.assignments.keys() {
             if self.assignments.iter().all(|field| &field.name != name) {
@@ -415,11 +462,22 @@ impl IfaceImpl {
             }
         }
         for field in &self.assignments {
+            dup_assignments
+                .entry(field.name.clone())
+                .and_modify(|counter| *counter += 1)
+                .or_insert(0);
             if !schema.owned_types.contains_key(&field.id) {
                 errors
                     .push(ImplInconsistency::SchemaAssignmentAbsent(field.name.clone(), field.id));
             }
         }
+
+        dup_assignments
+            .iter()
+            .filter(|(_, &count)| count > 1)
+            .for_each(|(field_name, &count)| {
+                errors.push(ImplInconsistency::RepeatedAssignments(field_name.clone(), count));
+            });
 
         for name in iface.valencies.keys() {
             if self.valencies.iter().all(|field| &field.name != name) {
@@ -427,10 +485,21 @@ impl IfaceImpl {
             }
         }
         for field in &self.valencies {
+            dup_valencies
+                .entry(field.name.clone())
+                .and_modify(|counter| *counter += 1)
+                .or_insert(0);
+
             if !schema.valency_types.contains(&field.id) {
                 errors.push(ImplInconsistency::SchemaValencyAbsent(field.name.clone(), field.id));
             }
         }
+        dup_valencies
+            .iter()
+            .filter(|(_, &count)| count > 1)
+            .for_each(|(field_name, &count)| {
+                errors.push(ImplInconsistency::RepeatedValencies(field_name.clone(), count));
+            });
 
         for name in iface.transitions.keys() {
             if self.transitions.iter().all(|field| &field.name != name) {
@@ -438,11 +507,23 @@ impl IfaceImpl {
             }
         }
         for field in &self.transitions {
+            dup_transitions
+                .entry(field.name.clone())
+                .and_modify(|counter| *counter += 1)
+                .or_insert(0);
+
             if !schema.transitions.contains_key(&field.id) {
                 errors
                     .push(ImplInconsistency::SchemaTransitionAbsent(field.name.clone(), field.id));
             }
         }
+
+        dup_transitions
+            .iter()
+            .filter(|(_, &count)| count > 1)
+            .for_each(|(field_name, &count)| {
+                errors.push(ImplInconsistency::RepeatedTransitions(field_name.clone(), count));
+            });
 
         for name in iface.extensions.keys() {
             if self.extensions.iter().all(|field| &field.name != name) {
@@ -450,18 +531,28 @@ impl IfaceImpl {
             }
         }
         for field in &self.extensions {
+            dup_extensions
+                .entry(field.name.clone())
+                .and_modify(|counter| *counter += 1)
+                .or_insert(0);
+
             if !schema.extensions.contains_key(&field.id) {
                 errors.push(ImplInconsistency::SchemaExtensionAbsent(field.name.clone(), field.id));
             }
         }
+
+        dup_extensions
+            .iter()
+            .filter(|(_, &count)| count > 1)
+            .for_each(|(field_name, &count)| {
+                errors.push(ImplInconsistency::RepeatedExtensions(field_name.clone(), count));
+            });
 
         for var in &self.errors {
             if iface.errors.keys().all(|name| name != &var.name) {
                 errors.push(ImplInconsistency::IfaceErrorAbsent(var.name.clone()));
             }
         }
-
-        // TODO: Warn about repeated field names
 
         if errors.is_empty() {
             Ok(())
