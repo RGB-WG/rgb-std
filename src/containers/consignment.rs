@@ -384,11 +384,7 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
                 .known_transitions
                 .values()
                 .for_each(|transition| {
-                    transition.assignments.values().for_each(|assign| {
-                        assign.as_attachment().iter().for_each(|item| {
-                            let state = item
-                                .as_revealed_state()
-                                .expect("get revealed attached state failed");
+                    transition.assignments.values().filter_map(|assign| assign.as_attachment().and_then(Attach::as_revealed_state)).for_each(|assign| {
                             if !self.attachments.keys().any(|&id| id == state.id) {
                                 status.add_warning(Warning::Custom(format!(
                                     "attach id from data containers {:?} is not present in the \
