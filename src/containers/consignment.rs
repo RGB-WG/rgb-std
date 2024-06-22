@@ -376,25 +376,31 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
                 )));
             }
         }
+        index.bundle_ids().for_each(|bundle_id| {
+            let transition_bundle = index
+                .bundle(bundle_id)
+                .expect("index transition bundle failed");
+            transition_bundle
+                .known_transitions
+                .values()
+                .for_each(|transition| {
+                    transition.assignments.values().for_each(|assign| {
+                        assign.as_attachment().iter().for_each(|item| {
+                            let state = item
+                                .as_revealed_state()
+                                .expect("get revealed attached state failed");
+                            if !self.attachments.keys().any(|&id| id == state.id) {
+                                status.add_warning(Warning::Custom(format!(
+                                    "attach id from data containers {:?} is not present in the \
+                                     consignment",
+                                    state.id
+                                )));
+                            }
+                        })
+                    })
+                })
+        });
 
-        for bundle in self.bundles.iter() {
-            for transition_bundle in bundle.bundles() {
-                for transition in transition_bundle.known_transitions.values() {
-                    for assign in transition.assignments.values() {
-                        assign.as_attachment()
-                            .iter()
-                            .for_each(|item| {
-                                let state = item.as_revealed_state().unwrap();
-                                if !self.attachments.keys().any(|&id| id == state.id ) {
-                                    status.add_warning(Warning::Custom(format!(
-                                        "attach id {:?} is not present in the consignment"
-                                    , state.id)));
-                                }
-                            })
-                    }
-                }
-            }
-        }
         // TODO: check attach ids from data containers are present in operations
         // TODO: validate sigs and remove untrusted
 
