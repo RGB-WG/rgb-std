@@ -28,6 +28,7 @@ use rgb::{
     OutputAssignment, RevealedAttach, RevealedData, RevealedValue, VoidState, XOutpoint,
     XOutputSeal, XWitnessId,
 };
+use rgbinvoice::OwnedFraction;
 use strict_encoding::{FieldName, StrictDecode, StrictDumb, StrictEncode};
 use strict_types::typify::TypedVal;
 use strict_types::{decode, StrictVal, TypeSystem};
@@ -119,6 +120,58 @@ pub trait StateChange: Clone + Eq + StrictDumb + StrictEncode + StrictDecode {
     fn from_received(state: Self::State) -> Self;
     fn merge_spent(&mut self, state: Self::State);
     fn merge_received(&mut self, state: Self::State);
+}
+
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD, tags = custom)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub enum OwnedFractionChange {
+    #[display("-{0}")]
+    #[strict_type(tag = 0xFF)]
+    Dec(OwnedFraction),
+
+    #[display("0")]
+    #[strict_type(tag = 0, dumb)]
+    Zero,
+
+    #[display("+{0}")]
+    #[strict_type(tag = 0x01)]
+    Inc(OwnedFraction),
+}
+
+impl StateChange for OwnedFractionChange {
+    type State = OwnedFraction;
+
+    fn from_spent(state: Self::State) -> Self { OwnedFractionChange::Dec(state) }
+
+    fn from_received(state: Self::State) -> Self { OwnedFractionChange::Inc(state) }
+
+    fn merge_spent(&mut self, sub: Self::State) {
+        *self = match self {
+            OwnedFractionChange::Dec(neg) => OwnedFractionChange::Dec(*neg + sub),
+            OwnedFractionChange::Zero => OwnedFractionChange::Dec(sub),
+            OwnedFractionChange::Inc(pos) if *pos > sub => OwnedFractionChange::Inc(*pos - sub),
+            OwnedFractionChange::Inc(pos) if *pos == sub => OwnedFractionChange::Zero,
+            OwnedFractionChange::Inc(pos) if *pos < sub => OwnedFractionChange::Dec(sub - *pos),
+            OwnedFractionChange::Inc(_) => unreachable!(),
+        };
+    }
+
+    fn merge_received(&mut self, add: Self::State) {
+        *self = match self {
+            OwnedFractionChange::Inc(pos) => OwnedFractionChange::Inc(*pos + add),
+            OwnedFractionChange::Zero => OwnedFractionChange::Inc(add),
+            OwnedFractionChange::Dec(neg) if *neg > add => OwnedFractionChange::Dec(*neg - add),
+            OwnedFractionChange::Dec(neg) if *neg == add => OwnedFractionChange::Zero,
+            OwnedFractionChange::Dec(neg) if *neg < add => OwnedFractionChange::Inc(add - *neg),
+            OwnedFractionChange::Dec(_) => unreachable!(),
+        };
+    }
 }
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
