@@ -19,6 +19,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::cmp::Ordering;
 use std::collections::HashMap;
 
 use amplify::confinement::{SmallOrdSet, SmallVec};
@@ -155,10 +156,11 @@ impl StateChange for OwnedFractionChange {
         *self = match self {
             OwnedFractionChange::Dec(neg) => OwnedFractionChange::Dec(*neg + sub),
             OwnedFractionChange::Zero => OwnedFractionChange::Dec(sub),
-            OwnedFractionChange::Inc(pos) if *pos > sub => OwnedFractionChange::Inc(*pos - sub),
-            OwnedFractionChange::Inc(pos) if *pos == sub => OwnedFractionChange::Zero,
-            OwnedFractionChange::Inc(pos) if *pos < sub => OwnedFractionChange::Dec(sub - *pos),
-            OwnedFractionChange::Inc(_) => unreachable!(),
+            OwnedFractionChange::Inc(pos) => match sub.cmp(pos) {
+                Ordering::Less => OwnedFractionChange::Inc(*pos - sub),
+                Ordering::Equal => OwnedFractionChange::Zero,
+                Ordering::Greater => OwnedFractionChange::Dec(sub - *pos),
+            },
         };
     }
 
@@ -166,10 +168,11 @@ impl StateChange for OwnedFractionChange {
         *self = match self {
             OwnedFractionChange::Inc(pos) => OwnedFractionChange::Inc(*pos + add),
             OwnedFractionChange::Zero => OwnedFractionChange::Inc(add),
-            OwnedFractionChange::Dec(neg) if *neg > add => OwnedFractionChange::Dec(*neg - add),
-            OwnedFractionChange::Dec(neg) if *neg == add => OwnedFractionChange::Zero,
-            OwnedFractionChange::Dec(neg) if *neg < add => OwnedFractionChange::Inc(add - *neg),
-            OwnedFractionChange::Dec(_) => unreachable!(),
+            OwnedFractionChange::Dec(neg) => match add.cmp(neg) {
+                Ordering::Greater => OwnedFractionChange::Dec(*neg - add),
+                Ordering::Equal => OwnedFractionChange::Zero,
+                Ordering::Less => OwnedFractionChange::Inc(add - *neg),
+            },
         };
     }
 }
