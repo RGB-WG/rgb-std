@@ -174,7 +174,7 @@ impl StashReadProvider for MemStash {
     }
 
     fn get_sigs(&self, content_id: &ContentId) -> Result<Option<&ContentSigs>, Self::Error> {
-        Ok(self.sigs.get(&content_id))
+        Ok(self.sigs.get(content_id))
     }
 
     fn geneses(&self) -> Result<impl Iterator<Item = &Genesis>, Self::Error> {

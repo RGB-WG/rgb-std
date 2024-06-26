@@ -39,7 +39,8 @@ use strict_types::typesys::UnknownType;
 use strict_types::TypeSystem;
 
 use crate::containers::{
-    BundledWitness, Consignment, ContentId, ContentRef, ContentSigs, Kit, SealWitness, SigBlob, Supplement, TrustLevel
+    BundledWitness, Consignment, ContentId, ContentRef, ContentSigs, Kit, SealWitness, SigBlob,
+    Supplement, TrustLevel,
 };
 use crate::interface::{
     ContractBuilder, Iface, IfaceClass, IfaceId, IfaceImpl, IfaceRef, TransitionBuilder,
