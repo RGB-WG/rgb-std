@@ -625,7 +625,7 @@ pub trait StashReadProvider {
         content_ref: ContentRef,
     ) -> Result<impl Iterator<Item = Supplement>, Self::Error>;
 
-    fn get_sigs(&self, content_id: &ContentId) -> Result<Option<&ContentSigs>, Self::Error>;
+    fn sigs_for(&self, content_id: &ContentId) -> Result<Option<&ContentSigs>, Self::Error>;
     fn witness_ids(&self) -> Result<impl Iterator<Item = XWitnessId>, Self::Error>;
     fn bundle_ids(&self) -> Result<impl Iterator<Item = BundleId>, Self::Error>;
     fn bundle(&self, bundle_id: BundleId) -> Result<&TransitionBundle, ProviderError<Self::Error>>;

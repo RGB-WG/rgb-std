@@ -148,8 +148,8 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider, E: Error>
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum ConsignError {
-    /// unable to construct consignment: too many supplies provided.
-    TooManySupplies,
+    /// unable to construct consignment: too many supplements provided.
+    TooManySupplements,
 
     /// unable to construct consignment: too many terminals provided.
     TooManyTerminals,
@@ -653,13 +653,12 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         let secret_seals = secret_seals.as_ref();
 
         // initialize supplyments with btree set
-        let mut supplyments = BTreeSet::<Supplement>::new();
-        
+        let mut supplements = bset![];
+
         // get genesis supplyment by contract id
-        match self.stash.supplement(ContentRef::Genesis(contract_id))? {
-            Some(genesis_suppl) => supplyments.insert(genesis_suppl.clone()),
-            None => false,
-        };
+        self.stash
+            .supplement(ContentRef::Genesis(contract_id))?
+            .and_then(|genesis_suppl| Some(supplements.insert(genesis_suppl.clone())));
         // 1. Collect initial set of anchored bundles
         // 1.1. Get all public outputs
         let mut opouts = self.index.public_opouts(contract_id)?;
@@ -741,32 +740,21 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
         let genesis = self.stash.genesis(contract_id)?.clone();
         // get schema supplyment by schema id
-        match self
-            .stash
+        self.stash
             .supplement(ContentRef::Schema(genesis.schema_id))?
-        {
-            Some(schema_suppl) => supplyments.insert(schema_suppl.clone()),
-            None => false,
-        };
+            .and_then(|schema_suppl| Some(supplements.insert(schema_suppl.clone())));
 
         let schema_ifaces = self.stash.schema(genesis.schema_id)?.clone();
         let mut ifaces = BTreeMap::new();
         for (iface_id, iimpl) in schema_ifaces.iimpls {
             let iface = self.stash.iface(iface_id)?;
             // get iface and iimpl supplyment by iface id and iimpl id
-            match (
-                self.stash.supplement(ContentRef::Iface(iface.iface_id()))?,
-                self.stash
-                    .supplement(ContentRef::IfaceImpl(iimpl.impl_id()))?,
-            ) {
-                (Some(iface_suppl), Some(iimpl_suppl)) => {
-                    supplyments.insert(iface_suppl.clone());
-                    supplyments.insert(iimpl_suppl.clone())
-                }
-                (Some(iface_suppl), None) => supplyments.insert(iface_suppl.clone()),
-                (None, Some(iimpl_suppl)) => supplyments.insert(iimpl_suppl.clone()),
-                (None, None) => false,
-            };
+            self.stash
+                .supplement(ContentRef::Iface(iface.iface_id()))?
+                .and_then(|iface_suppl| Some(supplements.insert(iface_suppl.clone())));
+            self.stash
+                .supplement(ContentRef::IfaceImpl(iimpl.impl_id()))?
+                .and_then(|iimpl_suppl| Some(supplements.insert(iimpl_suppl.clone())));
 
             ifaces.insert(iface.clone(), iimpl);
         }
@@ -791,8 +779,8 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
         let (types, scripts) = self.stash.extract(&schema_ifaces.schema, ifaces.keys())?;
         let scripts = Confined::from_iter_unsafe(scripts.into_values());
-        let supplyments: Confined<BTreeSet<Supplement>, ZERO, U8> =
-            Confined::try_from(supplyments).map_err(|_| ConsignError::TooManySupplies)?;
+        let supplements: Confined<BTreeSet<Supplement>, ZERO, U8> =
+            Confined::try_from(supplements).map_err(|_| ConsignError::TooManySupplements)?;
 
         // TODO: Conceal everything we do not need
         // TODO: Add known sigs to the consignment
@@ -810,7 +798,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             attachments: none!(),
 
             signatures: none!(), // TODO: Collect signatures
-            supplements: supplyments,
+            supplements,
             types,
             scripts,
         })
