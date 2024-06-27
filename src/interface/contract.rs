@@ -168,9 +168,9 @@ impl StateChange for AmountChange {
             AmountChange::Inc(pos) => AmountChange::Inc(*pos + add),
             AmountChange::Zero => AmountChange::Inc(add),
             AmountChange::Dec(neg) => match add.cmp(neg) {
-                Ordering::Greater => AmountChange::Dec(*neg - add),
+                Ordering::Less => AmountChange::Dec(*neg - add),
                 Ordering::Equal => AmountChange::Zero,
-                Ordering::Less => AmountChange::Inc(add - *neg),
+                Ordering::Greater => AmountChange::Inc(add - *neg),
             },
         };
     }
