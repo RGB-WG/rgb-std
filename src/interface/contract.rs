@@ -19,6 +19,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::cmp::Ordering;
 use std::collections::HashMap;
 
 use amplify::confinement::{SmallOrdSet, SmallVec};
@@ -154,10 +155,11 @@ impl StateChange for AmountChange {
         *self = match self {
             AmountChange::Dec(neg) => AmountChange::Dec(*neg + sub),
             AmountChange::Zero => AmountChange::Dec(sub),
-            AmountChange::Inc(pos) if *pos > sub => AmountChange::Inc(*pos - sub),
-            AmountChange::Inc(pos) if *pos == sub => AmountChange::Zero,
-            AmountChange::Inc(pos) if *pos < sub => AmountChange::Dec(sub - *pos),
-            AmountChange::Inc(_) => unreachable!(),
+            AmountChange::Inc(pos) => match sub.cmp(pos) {
+                Ordering::Less => AmountChange::Inc(*pos - sub),
+                Ordering::Equal => AmountChange::Zero,
+                Ordering::Greater => AmountChange::Dec(sub - *pos),
+            },
         };
     }
 
@@ -165,10 +167,11 @@ impl StateChange for AmountChange {
         *self = match self {
             AmountChange::Inc(pos) => AmountChange::Inc(*pos + add),
             AmountChange::Zero => AmountChange::Inc(add),
-            AmountChange::Dec(neg) if *neg > add => AmountChange::Dec(*neg - add),
-            AmountChange::Dec(neg) if *neg == add => AmountChange::Zero,
-            AmountChange::Dec(neg) if *neg < add => AmountChange::Inc(add - *neg),
-            AmountChange::Dec(_) => unreachable!(),
+            AmountChange::Dec(neg) => match add.cmp(neg) {
+                Ordering::Less => AmountChange::Dec(*neg - add),
+                Ordering::Equal => AmountChange::Zero,
+                Ordering::Greater => AmountChange::Inc(add - *neg),
+            },
         };
     }
 }
