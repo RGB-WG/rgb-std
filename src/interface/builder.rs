@@ -21,9 +21,9 @@
 
 #![allow(clippy::result_large_err)]
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
-use amplify::confinement::{Confined, SmallOrdSet, TinyOrdMap, U16};
+use amplify::confinement::{Confined, SmallOrdSet, TinyOrdMap, U16, U8, ZERO};
 use amplify::{confinement, Wrapper};
 use chrono::Utc;
 use invoice::{Allocation, Amount};
@@ -35,11 +35,13 @@ use rgb::{
     RevealedAttach, RevealedData, RevealedValue, Schema, Transition, TransitionType, TypedAssigns,
     XChain, XOutpoint,
 };
-use rgbcore::{GlobalStateSchema, GlobalStateType, MetaType, Metadata, ValencyType};
+use rgbcore::{GlobalStateSchema, GlobalStateType, MetaType, Metadata, Operation, ValencyType};
 use strict_encoding::{FieldName, SerializeError, StrictSerialize};
 use strict_types::{decode, SemId, TypeSystem};
 
-use crate::containers::{BuilderSeal, ContainerVer, Contract, ValidConsignment};
+use crate::containers::{
+    BuilderSeal, ContainerVer, ContentRef, Contract, Supplement, ValidConsignment,
+};
 use crate::interface::contract::AttachedState;
 use crate::interface::resolver::DumbResolver;
 use crate::interface::{Iface, IfaceImpl, TransitionIface};
@@ -385,6 +387,20 @@ impl ContractBuilder {
     fn issue_contract_raw(self, timestamp: i64) -> Result<ValidConsignment<false>, BuilderError> {
         let (schema, iface, iimpl, global, assignments, types, asset_tags) =
             self.builder.complete(None);
+        let mut supplements = BTreeSet::<Supplement>::new();
+
+        // get schema supplement
+        let schema_suppl =
+            Supplement::new(ContentRef::Schema(schema.schema_id()), schema.developer.clone());
+        supplements.insert(schema_suppl);
+        // get iface supplement
+        let iface_suppl =
+            Supplement::new(ContentRef::Iface(iface.iface_id()), iface.developer.clone());
+        supplements.insert(iface_suppl);
+        // get iimpl supplement
+        let iimpl_suppl =
+            Supplement::new(ContentRef::IfaceImpl(iimpl.impl_id()), iimpl.developer.clone());
+        supplements.insert(iimpl_suppl);
 
         let genesis = Genesis {
             ffv: none!(),
@@ -401,10 +417,15 @@ impl ContractBuilder {
             issuer: self.issuer,
             validator: none!(),
         };
+        // get genesis supplement
+        let genesis_suppl =
+            Supplement::new(ContentRef::Genesis(genesis.contract_id()), genesis.issuer.clone());
+        supplements.insert(genesis_suppl);
 
         let ifaces = tiny_bmap! { iface => iimpl };
         let scripts = Confined::from_iter_unsafe(self.scripts.into_values());
-
+        let supplements: Confined<BTreeSet<Supplement>, ZERO, U8> =
+            Confined::try_from(supplements)?;
         let contract = Contract {
             version: ContainerVer::V2,
             transfer: false,
@@ -419,8 +440,8 @@ impl ContractBuilder {
             types,
             scripts,
 
-            supplements: none!(), // TODO: Add supplements
-            signatures: none!(),  // TODO: Add signatures
+            supplements,
+            signatures: none!(), // TODO: Add signatures
         };
 
         let valid_contract = contract
@@ -1434,5 +1455,23 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             .expect("too many assignments");
 
         (self.schema, self.iface, self.iimpl, self.global, assignments, self.types, self.asset_tags)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::str::FromStr;
+
+    use crate::containers::Kit;
+    use crate::persistence::{MemIndex, MemStash, MemState, Stock};
+
+    #[test]
+    fn test_import_kit() {
+        let kit = Kit::from_str(include_str!("../../asset/armored_kit.default"))
+            .unwrap()
+            .validate()
+            .unwrap();
+        let mut stock = Stock::<MemStash, MemState, MemIndex>::default();
+        stock.import_kit(kit).unwrap();
     }
 }
