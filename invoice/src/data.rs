@@ -135,6 +135,7 @@ impl OwnedFraction {
         Some(())
     }
 }
+
 impl KnownState for OwnedFraction {}
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default, Display)]

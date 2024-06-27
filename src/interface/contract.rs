@@ -169,9 +169,9 @@ impl StateChange for OwnedFractionChange {
             OwnedFractionChange::Inc(pos) => OwnedFractionChange::Inc(*pos + add),
             OwnedFractionChange::Zero => OwnedFractionChange::Inc(add),
             OwnedFractionChange::Dec(neg) => match add.cmp(neg) {
-                Ordering::Greater => OwnedFractionChange::Dec(*neg - add),
+                Ordering::Less => OwnedFractionChange::Dec(*neg - add),
                 Ordering::Equal => OwnedFractionChange::Zero,
-                Ordering::Less => OwnedFractionChange::Inc(add - *neg),
+                Ordering::Greater => OwnedFractionChange::Inc(add - *neg),
             },
         };
     }
