@@ -25,6 +25,7 @@ use rgb::{DataState, KnownState, RevealedData};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use strict_encoding::{StrictDeserialize, StrictSerialize};
+use strict_types::StrictVal;
 
 use crate::LIB_NAME_RGB_CONTRACT;
 
@@ -91,6 +92,50 @@ pub struct TokenIndex(u32);
 )]
 pub struct OwnedFraction(u64);
 
+impl OwnedFraction {
+    pub const ZERO: Self = OwnedFraction(0);
+
+    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
+        value.unwrap_uint::<u64>().into()
+    }
+
+    pub fn value(self) -> u64 { self.0 }
+
+    pub fn saturating_add(&self, other: impl Into<Self>) -> Self {
+        self.0.saturating_add(other.into().0).into()
+    }
+    pub fn saturating_sub(&self, other: impl Into<Self>) -> Self {
+        self.0.saturating_sub(other.into().0).into()
+    }
+
+    pub fn saturating_add_assign(&mut self, other: impl Into<Self>) {
+        *self = self.0.saturating_add(other.into().0).into();
+    }
+    pub fn saturating_sub_assign(&mut self, other: impl Into<Self>) {
+        *self = self.0.saturating_sub(other.into().0).into();
+    }
+
+    #[must_use]
+    pub fn checked_add(&self, other: impl Into<Self>) -> Option<Self> {
+        self.0.checked_add(other.into().0).map(Self)
+    }
+    #[must_use]
+    pub fn checked_sub(&self, other: impl Into<Self>) -> Option<Self> {
+        self.0.checked_sub(other.into().0).map(Self)
+    }
+
+    #[must_use]
+    pub fn checked_add_assign(&mut self, other: impl Into<Self>) -> Option<()> {
+        *self = self.0.checked_add(other.into().0).map(Self)?;
+        Some(())
+    }
+    #[must_use]
+    pub fn checked_sub_assign(&mut self, other: impl Into<Self>) -> Option<()> {
+        *self = self.0.checked_sub(other.into().0).map(Self)?;
+        Some(())
+    }
+}
+
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default, Display)]
 #[display("{1}@{0}")]
 #[derive(StrictType, StrictEncode, StrictDecode)]
@@ -154,5 +199,97 @@ impl FromStr for Allocation {
             )),
             None => Err(AllocationParseError::WrongFormat),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use strict_types::value::StrictNum;
+
+    use super::*;
+
+    #[test]
+    fn owned_fraction_from_str() {
+        let owned_fraction = match OwnedFraction::from_str("1") {
+            Ok(value) => value,
+            Err(_) => OwnedFraction::ZERO,
+        };
+
+        assert_eq!(owned_fraction.value(), 1);
+        assert_eq!(format!("{owned_fraction}"), "1");
+    }
+
+    #[test]
+    fn owned_fraction_from_strict_val() {
+        // note that the strict number is u128 but not u64
+        let owned_fraction =
+            OwnedFraction::from_strict_val_unchecked(&StrictVal::Number(StrictNum::Uint(1)));
+
+        assert_eq!(owned_fraction.value(), 1);
+        assert_eq!(format!("{owned_fraction}"), "1");
+    }
+
+    #[test]
+    fn owned_fraction_add_assign() {
+        let mut owned_fraction = match OwnedFraction::from_str("1") {
+            Ok(value) => value,
+            Err(_) => OwnedFraction::ZERO,
+        };
+
+        let _ = owned_fraction.checked_add_assign(OwnedFraction::ZERO);
+        assert_eq!(owned_fraction.value(), 1);
+        assert_eq!(format!("{owned_fraction}"), "1");
+    }
+
+    #[test]
+    fn owned_fraction_add() {
+        let owned_fraction = match OwnedFraction::from_str("1") {
+            Ok(value) => value,
+            Err(_) => OwnedFraction::ZERO,
+        };
+
+        let owned = match owned_fraction.checked_add(OwnedFraction::ZERO) {
+            Some(value) => value,
+            None => OwnedFraction::ZERO,
+        };
+        assert_eq!(owned.value(), 1);
+        assert_eq!(format!("{owned}"), "1");
+    }
+
+    #[test]
+    fn owned_fraction_sub() {
+        let owned_fraction = match OwnedFraction::from_str("1") {
+            Ok(value) => value,
+            Err(_) => OwnedFraction::ZERO,
+        };
+
+        let other_fraction = match OwnedFraction::from_str("1") {
+            Ok(value) => value,
+            Err(_) => OwnedFraction::ZERO,
+        };
+
+        let owned = match owned_fraction.checked_sub(other_fraction) {
+            Some(value) => value,
+            None => OwnedFraction::ZERO,
+        };
+        assert_eq!(owned.value(), 0);
+        assert_eq!(format!("{owned}"), "0");
+    }
+
+    #[test]
+    fn owned_fraction_sub_assign() {
+        let mut owned_fraction = match OwnedFraction::from_str("1") {
+            Ok(value) => value,
+            Err(_) => OwnedFraction::ZERO,
+        };
+
+        let other_fraction = match OwnedFraction::from_str("1") {
+            Ok(value) => value,
+            Err(_) => OwnedFraction::ZERO,
+        };
+
+        let _ = owned_fraction.checked_sub_assign(other_fraction);
+        assert_eq!(owned_fraction.value(), 0);
+        assert_eq!(format!("{owned_fraction}"), "0");
     }
 }
