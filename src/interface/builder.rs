@@ -21,9 +21,9 @@
 
 #![allow(clippy::result_large_err)]
 
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, HashSet};
 
-use amplify::confinement::{Confined, SmallOrdSet, TinyOrdMap, U16, U8, ZERO};
+use amplify::confinement::{Confined, SmallOrdSet, TinyOrdMap, U16};
 use amplify::{confinement, Wrapper};
 use chrono::Utc;
 use invoice::{Allocation, Amount};
@@ -387,20 +387,6 @@ impl ContractBuilder {
     fn issue_contract_raw(self, timestamp: i64) -> Result<ValidConsignment<false>, BuilderError> {
         let (schema, iface, iimpl, global, assignments, types, asset_tags) =
             self.builder.complete(None);
-        let mut supplements = BTreeSet::<Supplement>::new();
-
-        // get schema supplement
-        let schema_suppl =
-            Supplement::new(ContentRef::Schema(schema.schema_id()), schema.developer.clone());
-        supplements.insert(schema_suppl);
-        // get iface supplement
-        let iface_suppl =
-            Supplement::new(ContentRef::Iface(iface.iface_id()), iface.developer.clone());
-        supplements.insert(iface_suppl);
-        // get iimpl supplement
-        let iimpl_suppl =
-            Supplement::new(ContentRef::IfaceImpl(iimpl.impl_id()), iimpl.developer.clone());
-        supplements.insert(iimpl_suppl);
 
         let genesis = Genesis {
             ffv: none!(),
@@ -417,15 +403,15 @@ impl ContractBuilder {
             issuer: self.issuer,
             validator: none!(),
         };
-        // get genesis supplement
-        let genesis_suppl =
-            Supplement::new(ContentRef::Genesis(genesis.contract_id()), genesis.issuer.clone());
-        supplements.insert(genesis_suppl);
-
+        let supplements = confined_bset!(
+            Supplement::new(ContentRef::Schema(schema.schema_id()), schema.developer.clone()),
+            Supplement::new(ContentRef::Iface(iface.iface_id()), iface.developer.clone()),
+            Supplement::new(ContentRef::IfaceImpl(iimpl.impl_id()), iimpl.developer.clone()),
+            Supplement::new(ContentRef::Genesis(genesis.contract_id()), genesis.issuer.clone())
+        );
         let ifaces = tiny_bmap! { iface => iimpl };
         let scripts = Confined::from_iter_unsafe(self.scripts.into_values());
-        let supplements: Confined<BTreeSet<Supplement>, ZERO, U8> =
-            Confined::try_from(supplements)?;
+
         let contract = Contract {
             version: ContainerVer::V2,
             transfer: false,
