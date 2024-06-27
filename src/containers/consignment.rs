@@ -396,7 +396,8 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
     ///
     /// The function runs no actual validation, but still constructs
     /// [`ValidConsignment`] type, which is a violation of type safety.
-    pub unsafe fn assume_valid(self) -> ValidConsignment<TRANSFER> {
+    /// The method must be used only for tests.
+    pub fn assume_valid_unsafe(self) -> ValidConsignment<TRANSFER> {
         let validation_status = Status::with_failure(validation::Failure::Custom(s!(
             "consignment was assumed valid with no actual validation"
         )));
