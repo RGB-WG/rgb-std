@@ -26,7 +26,7 @@ use std::convert::Infallible;
 use std::error::Error;
 use std::fmt::Debug;
 
-use amplify::confinement::{Confined, U24, U8, ZERO};
+use amplify::confinement::{Confined, U24};
 use amplify::Wrapper;
 use bp::seals::txout::CloseMethod;
 use bp::Vout;
@@ -48,9 +48,9 @@ use super::{
 };
 use crate::containers::{
     AnchorSet, AnchoredBundles, Batch, BuilderSeal, BundledWitness, Consignment, ContainerVer,
-    ContentRef, Contract, Fascia, Kit, SealWitness, SupplItem, SupplSub, Supplement, Terminal,
-    TerminalSeal, Transfer, TransitionInfo, TransitionInfoError, ValidConsignment, ValidContract,
-    ValidKit, ValidTransfer, VelocityHint, SUPPL_ANNOT_VELOCITY,
+    ContentRef, Contract, Fascia, Kit, SealWitness, SupplItem, SupplSub, Terminal, TerminalSeal,
+    Transfer, TransitionInfo, TransitionInfoError, ValidConsignment, ValidContract, ValidKit,
+    ValidTransfer, VelocityHint, SUPPL_ANNOT_VELOCITY,
 };
 use crate::info::{ContractInfo, IfaceInfo, SchemaInfo};
 use crate::interface::resolver::DumbResolver;
@@ -658,7 +658,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         // get genesis supplyment by contract id
         self.stash
             .supplement(ContentRef::Genesis(contract_id))?
-            .and_then(|genesis_suppl| Some(supplements.insert(genesis_suppl.clone())));
+            .map(|genesis_suppl| supplements.insert(genesis_suppl.clone()));
         // 1. Collect initial set of anchored bundles
         // 1.1. Get all public outputs
         let mut opouts = self.index.public_opouts(contract_id)?;
@@ -742,7 +742,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         // get schema supplyment by schema id
         self.stash
             .supplement(ContentRef::Schema(genesis.schema_id))?
-            .and_then(|schema_suppl| Some(supplements.insert(schema_suppl.clone())));
+            .map(|schema_suppl| supplements.insert(schema_suppl.clone()));
 
         let schema_ifaces = self.stash.schema(genesis.schema_id)?.clone();
         let mut ifaces = BTreeMap::new();
@@ -751,10 +751,11 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             // get iface and iimpl supplyment by iface id and iimpl id
             self.stash
                 .supplement(ContentRef::Iface(iface.iface_id()))?
-                .and_then(|iface_suppl| Some(supplements.insert(iface_suppl.clone())));
+                .map(|iface_suppl| supplements.insert(iface_suppl.clone()));
+
             self.stash
                 .supplement(ContentRef::IfaceImpl(iimpl.impl_id()))?
-                .and_then(|iimpl_suppl| Some(supplements.insert(iimpl_suppl.clone())));
+                .map(|iimpl_suppl| supplements.insert(iimpl_suppl.clone()));
 
             ifaces.insert(iface.clone(), iimpl);
         }
@@ -779,7 +780,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
         let (types, scripts) = self.stash.extract(&schema_ifaces.schema, ifaces.keys())?;
         let scripts = Confined::from_iter_unsafe(scripts.into_values());
-        let supplements: Confined<BTreeSet<Supplement>, ZERO, U8> =
+        let supplements =
             Confined::try_from(supplements).map_err(|_| ConsignError::TooManySupplements)?;
 
         // TODO: Conceal everything we do not need
