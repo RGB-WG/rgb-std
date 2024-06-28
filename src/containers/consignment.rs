@@ -389,14 +389,14 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
         }
     }
 
-    /// Method to construct valid consignment which can be consumed by a stash
-    /// for debug purposes.
+    /// Method to forcefully construct a valid consignment, which can be consumed by a stash.
     ///
     /// # Safety
     ///
-    /// The function runs no actual validation, but still constructs
-    /// [`ValidConsignment`] type, which is a violation of type safety.
-    /// The method must be used only for tests.
+    /// Warning: this runs no actual validation, but still constructs a [`ValidConsignment`]. If
+    /// used improperly this could lead to loss of funds. The method must be used only for special
+    /// purposes where it's necessary to consume a consignment even though standard rules prevent
+    /// it. Use with extreme care and only if you know what you're doing.
     pub fn assume_valid_unsafe(self) -> ValidConsignment<TRANSFER> {
         let validation_status = Status::with_failure(validation::Failure::Custom(s!(
             "consignment was assumed valid with no actual validation"
