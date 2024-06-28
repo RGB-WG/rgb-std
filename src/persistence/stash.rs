@@ -39,8 +39,8 @@ use strict_types::typesys::UnknownType;
 use strict_types::TypeSystem;
 
 use crate::containers::{
-    BundledWitness, Consignment, ContentId, ContentRef, Kit, SealWitness, SigBlob, Supplement,
-    TrustLevel,
+    BundledWitness, Consignment, ContentId, ContentRef, ContentSigs, Kit, SealWitness, SigBlob,
+    Supplement, TrustLevel,
 };
 use crate::interface::{
     ContractBuilder, Iface, IfaceClass, IfaceId, IfaceImpl, IfaceRef, TransitionBuilder,
@@ -625,6 +625,7 @@ pub trait StashReadProvider {
         content_ref: ContentRef,
     ) -> Result<impl Iterator<Item = Supplement>, Self::Error>;
 
+    fn sigs_for(&self, content_id: &ContentId) -> Result<Option<&ContentSigs>, Self::Error>;
     fn witness_ids(&self) -> Result<impl Iterator<Item = XWitnessId>, Self::Error>;
     fn bundle_ids(&self) -> Result<impl Iterator<Item = BundleId>, Self::Error>;
     fn bundle(&self, bundle_id: BundleId) -> Result<&TransitionBundle, ProviderError<Self::Error>>;

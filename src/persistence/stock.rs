@@ -148,6 +148,9 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider, E: Error>
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum ConsignError {
+    /// unable to construct consignment: too many supplements provided.
+    TooManySupplements,
+
     /// unable to construct consignment: too many terminals provided.
     TooManyTerminals,
 
@@ -649,6 +652,13 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         let outputs = outputs.as_ref();
         let secret_seals = secret_seals.as_ref();
 
+        // initialize supplyments with btree set
+        let mut supplements = bset![];
+
+        // get genesis supplyment by contract id
+        self.stash
+            .supplement(ContentRef::Genesis(contract_id))?
+            .map(|genesis_suppl| supplements.insert(genesis_suppl.clone()));
         // 1. Collect initial set of anchored bundles
         // 1.1. Get all public outputs
         let mut opouts = self.index.public_opouts(contract_id)?;
@@ -729,10 +739,24 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         }
 
         let genesis = self.stash.genesis(contract_id)?.clone();
+        // get schema supplyment by schema id
+        self.stash
+            .supplement(ContentRef::Schema(genesis.schema_id))?
+            .map(|schema_suppl| supplements.insert(schema_suppl.clone()));
+
         let schema_ifaces = self.stash.schema(genesis.schema_id)?.clone();
         let mut ifaces = BTreeMap::new();
         for (iface_id, iimpl) in schema_ifaces.iimpls {
             let iface = self.stash.iface(iface_id)?;
+            // get iface and iimpl supplyment by iface id and iimpl id
+            self.stash
+                .supplement(ContentRef::Iface(iface.iface_id()))?
+                .map(|iface_suppl| supplements.insert(iface_suppl.clone()));
+
+            self.stash
+                .supplement(ContentRef::IfaceImpl(iimpl.impl_id()))?
+                .map(|iimpl_suppl| supplements.insert(iimpl_suppl.clone()));
+
             ifaces.insert(iface.clone(), iimpl);
         }
         let ifaces = Confined::from_collection_unsafe(ifaces);
@@ -756,6 +780,8 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
         let (types, scripts) = self.stash.extract(&schema_ifaces.schema, ifaces.keys())?;
         let scripts = Confined::from_iter_unsafe(scripts.into_values());
+        let supplements =
+            Confined::try_from(supplements).map_err(|_| ConsignError::TooManySupplements)?;
 
         // TODO: Conceal everything we do not need
         // TODO: Add known sigs to the consignment
@@ -772,8 +798,8 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             extensions: none!(),
             attachments: none!(),
 
-            signatures: none!(),  // TODO: Collect signatures
-            supplements: none!(), // TODO: Collect supplements
+            signatures: none!(), // TODO: Collect signatures
+            supplements,
             types,
             scripts,
         })
@@ -1134,5 +1160,106 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         seal: XChain<GraphSeal>,
     ) -> Result<bool, StockError<S, H, P>> {
         Ok(self.stash.store_secret_seal(seal)?)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::str::FromStr;
+
+    use baid64::FromBaid64Str;
+    use commit_verify::{DigestExt, Sha256};
+    use strict_encoding::TypeName;
+
+    use super::*;
+
+    #[test]
+    fn test_consign() {
+        let mut stock = Stock::<MemStash, MemState, MemIndex>::default();
+        let seal = XChain::with(
+            rgbcore::Layer1::Bitcoin,
+            GraphSeal::new_random_vout(bp::dbc::Method::OpretFirst, Vout::from_u32(0)),
+        );
+        let secret_seal = seal.conceal();
+
+        match stock.store_secret_seal(seal) {
+            Ok(_) => true,
+            Err(_) => false,
+        };
+        let contract_id =
+            ContractId::from_baid64_str("rgb:qFuT6DN8-9AuO95M-7R8R8Mc-AZvs7zG-obum1Va-BRnweKk")
+                .unwrap();
+        match stock.consign::<true>(contract_id, [], [secret_seal]) {
+            Ok(transfer) => println!("{:?}", transfer.supplements),
+            Err(_) => (),
+        };
+    }
+
+    #[test]
+    fn test_export_contract() {
+        let stock = Stock::<MemStash, MemState, MemIndex>::default();
+        let contract_id =
+            ContractId::from_baid64_str("rgb:qFuT6DN8-9AuO95M-7R8R8Mc-AZvs7zG-obum1Va-BRnweKk")
+                .unwrap();
+        match stock.export_contract(contract_id) {
+            Ok(contract) => println!("{:?}", contract.contract_id()),
+            Err(_) => (),
+        };
+    }
+
+    #[test]
+    fn test_export_schema() {
+        let stock = Stock::<MemStash, MemState, MemIndex>::default();
+        let hasher = Sha256::default();
+        let schema_id = SchemaId::from(hasher);
+        match stock.export_schema(schema_id) {
+            Ok(schema) => println!("{:?}", schema.kit_id()),
+            Err(_) => (),
+        };
+    }
+
+    #[test]
+    fn test_blank_builder_ifaceid() {
+        let stock = Stock::<MemStash, MemState, MemIndex>::default();
+        let hasher = Sha256::default();
+        let iface_id = IfaceId::from(hasher.clone());
+        let bytes_hash = hasher.finish();
+        let contract_id = ContractId::copy_from_slice(bytes_hash).unwrap();
+        match stock.blank_builder(contract_id, IfaceRef::Id(iface_id)) {
+            Ok(builder) => println!("{:?}", builder.transition_type()),
+            Err(_) => (),
+        };
+    }
+
+    #[test]
+    fn test_blank_builder_ifacename() {
+        let stock = Stock::<MemStash, MemState, MemIndex>::default();
+        let hasher = Sha256::default();
+        let bytes_hash = hasher.finish();
+        let contract_id = ContractId::copy_from_slice(bytes_hash).unwrap();
+        match stock.blank_builder(contract_id, IfaceRef::Name(TypeName::from_str("RGB20").unwrap()))
+        {
+            Ok(builder) => println!("{:?}", builder.transition_type()),
+            Err(_) => (),
+        };
+    }
+
+    #[test]
+    fn test_transition_builder() {
+        let stock = Stock::<MemStash, MemState, MemIndex>::default();
+        let hasher = Sha256::default();
+        let iface_id = IfaceId::from(hasher.clone());
+
+        let bytes_hash = hasher.finish();
+        let contract_id = ContractId::copy_from_slice(bytes_hash).unwrap();
+
+        match stock.transition_builder(
+            contract_id,
+            IfaceRef::Id(iface_id),
+            Some(FieldName::from_str("transfer").unwrap()),
+        ) {
+            Ok(builder) => println!("{:?}", builder.transition_type()),
+            Err(_) => (),
+        };
     }
 }
