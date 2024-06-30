@@ -35,11 +35,13 @@ use rgb::{
     RevealedAttach, RevealedData, RevealedValue, Schema, Transition, TransitionType, TypedAssigns,
     XChain, XOutpoint,
 };
-use rgbcore::{GlobalStateSchema, GlobalStateType, MetaType, Metadata, ValencyType};
+use rgbcore::{GlobalStateSchema, GlobalStateType, MetaType, Metadata, Operation, ValencyType};
 use strict_encoding::{FieldName, SerializeError, StrictSerialize};
 use strict_types::{decode, SemId, TypeSystem};
 
-use crate::containers::{BuilderSeal, ContainerVer, Contract, ValidConsignment};
+use crate::containers::{
+    BuilderSeal, ContainerVer, ContentRef, Contract, Supplement, ValidConsignment,
+};
 use crate::interface::contract::AttachedState;
 use crate::interface::resolver::DumbResolver;
 use crate::interface::{Iface, IfaceImpl, TransitionIface};
@@ -401,7 +403,12 @@ impl ContractBuilder {
             issuer: self.issuer,
             validator: none!(),
         };
-
+        let supplements = confined_bset!(
+            Supplement::new(ContentRef::Schema(schema.schema_id()), schema.developer.clone()),
+            Supplement::new(ContentRef::Iface(iface.iface_id()), iface.developer.clone()),
+            Supplement::new(ContentRef::IfaceImpl(iimpl.impl_id()), iimpl.developer.clone()),
+            Supplement::new(ContentRef::Genesis(genesis.contract_id()), genesis.issuer.clone())
+        );
         let ifaces = tiny_bmap! { iface => iimpl };
         let scripts = Confined::from_iter_unsafe(self.scripts.into_values());
 
@@ -419,8 +426,8 @@ impl ContractBuilder {
             types,
             scripts,
 
-            supplements: none!(), // TODO: Add supplements
-            signatures: none!(),  // TODO: Add signatures
+            supplements,
+            signatures: none!(), // TODO: Add signatures
         };
 
         let valid_contract = contract
@@ -1434,5 +1441,23 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             .expect("too many assignments");
 
         (self.schema, self.iface, self.iimpl, self.global, assignments, self.types, self.asset_tags)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::str::FromStr;
+
+    use crate::containers::Kit;
+    use crate::persistence::{MemIndex, MemStash, MemState, Stock};
+
+    #[test]
+    fn test_import_kit() {
+        let kit = Kit::from_str(include_str!("../../asset/armored_kit.default"))
+            .unwrap()
+            .validate()
+            .unwrap();
+        let mut stock = Stock::<MemStash, MemState, MemIndex>::default();
+        stock.import_kit(kit).unwrap();
     }
 }
