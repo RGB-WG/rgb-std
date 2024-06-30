@@ -297,10 +297,12 @@ impl From<Precision> for u64 {
 pub struct PrecisionError;
 
 #[derive(Getters, Copy, Clone, Eq, PartialEq, Hash, Debug)]
-#[getter(as_copy)]
 pub struct CoinAmount {
+    #[getter(as_copy)]
     int: u64,
+    #[getter(as_copy)]
     fract: u64,
+    #[getter(as_copy)]
     precision: Precision,
 }
 
@@ -458,8 +460,9 @@ mod test {
     #[allow(clippy::inconsistent_digit_grouping)]
     fn int_trailing_zeros() {
         let amount = CoinAmount::new(10_000__43_608_195u64, Precision::default());
-        assert_eq!(amount.int, 10_000);
-        assert_eq!(amount.fract, 436_081_95);
+        assert_eq!(amount.int(), 10_000);
+        assert_eq!(amount.fract(), 436_081_95);
+        assert_eq!(amount.precision(), Precision::default());
         assert_eq!(format!("{amount}"), "10000.43608195~8");
         assert_eq!(format!("{amount: >#}"), "10 000.43 608 195");
     }
@@ -468,8 +471,9 @@ mod test {
     #[allow(clippy::inconsistent_digit_grouping)]
     fn sub_fraction() {
         let amount = CoinAmount::new(10__00_008_195u64, Precision::default());
-        assert_eq!(amount.int, 10);
-        assert_eq!(amount.fract, 8195);
+        assert_eq!(amount.int(), 10);
+        assert_eq!(amount.fract(), 8195);
+        assert_eq!(amount.precision(), Precision::default());
         assert_eq!(format!("{amount}"), "10.00008195~8");
         assert_eq!(format!("{amount:#}"), "10.00 008 195");
     }
@@ -478,8 +482,9 @@ mod test {
     #[allow(clippy::inconsistent_digit_grouping)]
     fn small_fraction() {
         let amount = CoinAmount::new(10__00_000_500u64, Precision::default());
-        assert_eq!(amount.int, 10);
-        assert_eq!(amount.fract, 500);
+        assert_eq!(amount.int(), 10);
+        assert_eq!(amount.fract(), 500);
+        assert_eq!(amount.precision(), Precision::default());
         assert_eq!(format!("{amount}"), "10.000005~8");
         assert_eq!(format!("{amount:_>#}"), "10.00_000_500");
     }
@@ -488,8 +493,9 @@ mod test {
     #[allow(clippy::inconsistent_digit_grouping)]
     fn zero_fraction() {
         let amount = CoinAmount::new(10__00_000_000u64, Precision::default());
-        assert_eq!(amount.int, 10);
-        assert_eq!(amount.fract, 0);
+        assert_eq!(amount.int(), 10);
+        assert_eq!(amount.fract(), 0);
+        assert_eq!(amount.precision(), Precision::default());
         assert_eq!(format!("{amount}"), "10~8");
         assert_eq!(format!("{amount:_>#}"), "10.00_000_000");
     }
