@@ -366,6 +366,10 @@ where
     }
 }
 
+impl Stock {
+    pub fn in_memory() -> Self { Self::default() }
+}
+
 impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     pub fn with(stash_provider: S, state_provider: H, index_provider: P) -> Self {
         Stock {
