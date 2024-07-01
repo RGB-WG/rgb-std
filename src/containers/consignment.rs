@@ -376,6 +376,27 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
                 )));
             }
         }
+        index.bundle_ids().for_each(|bundle_id| {
+            let transition_bundle = index
+                .bundle(bundle_id)
+                .expect("index transition bundle failed");
+            transition_bundle
+                .known_transitions
+                .values()
+                .for_each(|transition| {
+                    transition.assignments.values().filter_map(|assign| assign.as_attachment().and_then(Attach::as_revealed_state)).for_each(|assign| {
+                            if !self.attachments.keys().any(|&id| id == state.id) {
+                                status.add_warning(Warning::Custom(format!(
+                                    "attach id from data containers {:?} is not present in the \
+                                     consignment",
+                                    state.id
+                                )));
+                            }
+                        })
+                    })
+                })
+        });
+
         // TODO: check attach ids from data containers are present in operations
         // TODO: validate sigs and remove untrusted
 
