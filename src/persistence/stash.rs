@@ -255,6 +255,15 @@ impl<P: StashProvider> Stash<P> {
             .map_err(StashError::ReadProvider)
     }
 
+    pub(super) fn sigs_for(
+        &self,
+        content_id: &ContentId,
+    ) -> Result<Option<&ContentSigs>, StashError<P>> {
+        self.provider
+            .sigs_for(content_id)
+            .map_err(StashError::ReadProvider)
+    }
+
     pub(super) fn supplement(
         &self,
         content_ref: ContentRef,

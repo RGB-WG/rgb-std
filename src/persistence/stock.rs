@@ -48,9 +48,9 @@ use super::{
 };
 use crate::containers::{
     AnchorSet, AnchoredBundles, Batch, BuilderSeal, BundledWitness, Consignment, ContainerVer,
-    ContentRef, Contract, Fascia, Kit, SealWitness, SupplItem, SupplSub, Terminal, TerminalSeal,
-    Transfer, TransitionInfo, TransitionInfoError, ValidConsignment, ValidContract, ValidKit,
-    ValidTransfer, VelocityHint, SUPPL_ANNOT_VELOCITY,
+    ContentId, ContentRef, Contract, Fascia, Kit, SealWitness, SupplItem, SupplSub, Terminal,
+    TerminalSeal, Transfer, TransitionInfo, TransitionInfoError, ValidConsignment, ValidContract,
+    ValidKit, ValidTransfer, VelocityHint, SUPPL_ANNOT_VELOCITY,
 };
 use crate::info::{ContractInfo, IfaceInfo, SchemaInfo};
 use crate::interface::resolver::DumbResolver;
@@ -148,6 +148,8 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider, E: Error>
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum ConsignError {
+    /// unable to construct consignment: too many signatures provided.
+    TooManySignatures,
     /// unable to construct consignment: too many supplements provided.
     TooManySupplements,
 
@@ -656,10 +658,17 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         let outputs = outputs.as_ref();
         let secret_seals = secret_seals.as_ref();
 
-        // initialize supplyments with btree set
+        // Initialize supplements with btree set
         let mut supplements = bset![];
-
-        // get genesis supplyment by contract id
+        // Initialize signatures with btree map
+        let mut signatures = bmap! {};
+        // Get genesis signature by contract id
+        self.stash
+            .sigs_for(&ContentId::Genesis(contract_id))?
+            .map(|genesis_sig| {
+                signatures.insert(ContentId::Genesis(contract_id), genesis_sig.clone())
+            });
+        // Get genesis supplement by contract id
         self.stash
             .supplement(ContentRef::Genesis(contract_id))?
             .map(|genesis_suppl| supplements.insert(genesis_suppl.clone()));
@@ -743,7 +752,13 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         }
 
         let genesis = self.stash.genesis(contract_id)?.clone();
-        // get schema supplyment by schema id
+        // Get schema signature by schema id
+        self.stash
+            .sigs_for(&ContentId::Schema(genesis.schema_id))?
+            .map(|schema_signature| {
+                signatures.insert(ContentId::Schema(genesis.schema_id), schema_signature.clone())
+            });
+        // Get schema supplement by schema id
         self.stash
             .supplement(ContentRef::Schema(genesis.schema_id))?
             .map(|schema_suppl| supplements.insert(schema_suppl.clone()));
@@ -752,7 +767,19 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         let mut ifaces = BTreeMap::new();
         for (iface_id, iimpl) in schema_ifaces.iimpls {
             let iface = self.stash.iface(iface_id)?;
-            // get iface and iimpl supplyment by iface id and iimpl id
+            // Get iface and iimpl signatures by iface id and iimpl id
+            self.stash
+                .sigs_for(&ContentId::Iface(iface.iface_id()))?
+                .map(|iface_signature| {
+                    signatures.insert(ContentId::Iface(iface.iface_id()), iface_signature.clone())
+                });
+            self.stash
+                .sigs_for(&ContentId::IfaceImpl(iimpl.impl_id()))?
+                .map(|iimpl_signature| {
+                    signatures
+                        .insert(ContentId::IfaceImpl(iimpl.impl_id()), iimpl_signature.clone())
+                });
+            // Get iface and iimpl supplement by iface id and iimpl id
             self.stash
                 .supplement(ContentRef::Iface(iface.iface_id()))?
                 .map(|iface_suppl| supplements.insert(iface_suppl.clone()));
@@ -786,7 +813,8 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         let scripts = Confined::from_iter_unsafe(scripts.into_values());
         let supplements =
             Confined::try_from(supplements).map_err(|_| ConsignError::TooManySupplements)?;
-
+        let signatures =
+            Confined::try_from(signatures).map_err(|_| ConsignError::TooManySignatures)?;
         // TODO: Conceal everything we do not need
         // TODO: Add known sigs to the consignment
 
@@ -802,7 +830,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             extensions: none!(),
             attachments: none!(),
 
-            signatures: none!(), // TODO: Collect signatures
+            signatures,
             supplements,
             types,
             scripts,
