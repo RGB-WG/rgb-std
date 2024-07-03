@@ -31,7 +31,7 @@ use rgb::{
 };
 use strict_types::TypeSystem;
 
-use super::Consignment;
+use super::{Consignment, XPubWitness};
 use crate::containers::anchors::ToWitnessId;
 use crate::SecretSeal;
 
@@ -45,6 +45,7 @@ pub struct IndexedConsignment<'c, const TRANSFER: bool> {
     op_witness_idx: BTreeMap<OpId, XWitnessId>,
     op_bundle_idx: BTreeMap<OpId, BundleId>,
     extension_idx: BTreeMap<OpId, &'c Extension>,
+    witness_idx: BTreeMap<XWitnessId, &'c XPubWitness>,
 }
 
 impl<'c, const TRANSFER: bool> Deref for IndexedConsignment<'c, TRANSFER> {
@@ -60,7 +61,9 @@ impl<'c, const TRANSFER: bool> IndexedConsignment<'c, TRANSFER> {
         let mut op_witness_idx = BTreeMap::new();
         let mut op_bundle_idx = BTreeMap::new();
         let mut extension_idx = BTreeMap::new();
+        let mut witness_idx = BTreeMap::new();
         for bw in &consignment.bundles {
+            witness_idx.insert(bw.pub_witness.to_witness_id(), &bw.pub_witness);
             for (anchor, bundle) in bw.anchored_bundles.pairs() {
                 let bundle_id = bundle.bundle_id();
                 let witness_id = bw.pub_witness.to_witness_id();
@@ -89,6 +92,7 @@ impl<'c, const TRANSFER: bool> IndexedConsignment<'c, TRANSFER> {
             op_witness_idx,
             op_bundle_idx,
             extension_idx,
+            witness_idx,
         }
     }
 
@@ -99,6 +103,10 @@ impl<'c, const TRANSFER: bool> IndexedConsignment<'c, TRANSFER> {
             .get(&opid)
             .and_then(|id| self.bundle_idx.get(id))
             .and_then(|bundle| bundle.known_transitions.get(&opid))
+    }
+
+    pub fn pub_witness(&self, id: XWitnessId) -> Option<&XPubWitness> {
+        self.witness_idx.get(&id).copied()
     }
 }
 
