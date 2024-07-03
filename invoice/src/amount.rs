@@ -359,7 +359,7 @@ impl Display for CoinAmount {
             panic!("disallowed fill character {} in coin amount formatting string", f.fill())
         }
         if f.precision().is_some() {
-            panic!("formatting precision exceeds must not be used for coin amounts")
+            panic!("formatting precision must not be used for coin amounts")
         }
         let fill = &f.fill().to_string();
         let to_chunks = |s: &str| -> String {
