@@ -30,6 +30,7 @@ use rgb::{
 };
 
 use crate::containers::{BundledWitness, Consignment, ToWitnessId};
+use crate::persistence::StoreTransaction;
 use crate::SecretSeal;
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
@@ -330,6 +331,24 @@ impl<P: IndexProvider> Index<P> {
     }
 }
 
+impl<P: IndexProvider> StoreTransaction for Index<P> {
+    type TransactionErr = IndexError<P>;
+
+    fn begin_transaction(&mut self) -> Result<(), Self::TransactionErr> {
+        self.provider
+            .begin_transaction()
+            .map_err(IndexError::WriteProvider)
+    }
+
+    fn commit_transaction(&mut self) -> Result<(), Self::TransactionErr> {
+        self.provider
+            .commit_transaction()
+            .map_err(IndexError::WriteProvider)
+    }
+
+    fn rollback_transaction(&mut self) { self.provider.rollback_transaction() }
+}
+
 pub trait IndexProvider: Debug + IndexReadProvider + IndexWriteProvider {}
 
 pub trait IndexReadProvider {
@@ -364,7 +383,7 @@ pub trait IndexReadProvider {
     ) -> Result<(XWitnessId, ContractId), IndexReadError<Self::Error>>;
 }
 
-pub trait IndexWriteProvider {
+pub trait IndexWriteProvider: StoreTransaction<TransactionErr = Self::Error> {
     type Error: Clone + Eq + Error;
 
     fn register_contract(&mut self, contract_id: ContractId) -> Result<bool, Self::Error>;

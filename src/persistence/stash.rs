@@ -45,7 +45,7 @@ use crate::containers::{
 use crate::interface::{
     ContractBuilder, Iface, IfaceClass, IfaceId, IfaceImpl, IfaceRef, TransitionBuilder,
 };
-use crate::persistence::ContractIfaceError;
+use crate::persistence::{ContractIfaceError, StoreTransaction};
 use crate::{MergeReveal, MergeRevealError, SecretSeal, LIB_NAME_RGB_STD};
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
@@ -595,6 +595,24 @@ impl<P: StashProvider> Stash<P> {
     }
 }
 
+impl<P: StashProvider> StoreTransaction for Stash<P> {
+    type TransactionErr = StashError<P>;
+
+    fn begin_transaction(&mut self) -> Result<(), Self::TransactionErr> {
+        self.provider
+            .begin_transaction()
+            .map_err(StashError::WriteProvider)
+    }
+
+    fn commit_transaction(&mut self) -> Result<(), Self::TransactionErr> {
+        self.provider
+            .commit_transaction()
+            .map_err(StashError::WriteProvider)
+    }
+
+    fn rollback_transaction(&mut self) { self.provider.rollback_transaction() }
+}
+
 pub trait StashProvider: Debug + StashReadProvider + StashWriteProvider {}
 
 pub trait StashReadProvider {
@@ -650,7 +668,7 @@ pub trait StashReadProvider {
     fn secret_seals(&self) -> Result<impl Iterator<Item = XChain<GraphSeal>>, Self::Error>;
 }
 
-pub trait StashWriteProvider {
+pub trait StashWriteProvider: StoreTransaction<TransactionErr = Self::Error> {
     type Error: Clone + Eq + Error;
 
     fn replace_schema(&mut self, schema: Schema) -> Result<bool, Self::Error>;

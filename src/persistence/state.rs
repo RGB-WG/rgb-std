@@ -26,6 +26,7 @@ use invoice::Amount;
 use rgb::{AssetTag, BlindingFactor, ContractHistory, ContractId, DataState};
 
 use crate::interface::AttachedState;
+use crate::persistence::StoreTransaction;
 use crate::resolvers::ResolveHeight;
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error)]
@@ -73,7 +74,7 @@ pub trait StateReadProvider {
     ) -> Result<Option<&ContractHistory>, Self::Error>;
 }
 
-pub trait StateWriteProvider {
+pub trait StateWriteProvider: StoreTransaction<TransactionErr = Self::Error> {
     type Error: Clone + Eq + Error;
 
     fn create_or_update_state<R: ResolveHeight>(

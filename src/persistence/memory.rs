@@ -41,7 +41,7 @@ use super::{
     ContractIfaceError, IndexInconsistency, IndexProvider, IndexReadError, IndexReadProvider,
     IndexWriteError, IndexWriteProvider, SchemaIfaces, StashInconsistency, StashProvider,
     StashProviderError, StashReadProvider, StashWriteProvider, StateProvider, StateReadProvider,
-    StateUpdateError, StateWriteProvider,
+    StateUpdateError, StateWriteProvider, StoreTransaction,
 };
 use crate::containers::{
     AnchorSet, ContentId, ContentRef, ContentSigs, SealWitness, SigBlob, Supplement, TrustLevel,
@@ -60,6 +60,8 @@ use crate::LIB_NAME_RGB_STD;
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 pub struct MemStash {
+    dirty: bool,
+
     schemata: TinyOrdMap<SchemaId, SchemaIfaces>,
     ifaces: TinyOrdMap<IfaceId, Iface>,
     geneses: TinyOrdMap<ContractId, Genesis>,
@@ -80,6 +82,22 @@ impl StrictDeserialize for MemStash {}
 
 impl MemStash {
     pub fn new() -> Self { MemStash::default() }
+}
+
+impl StoreTransaction for MemStash {
+    type TransactionErr = confinement::Error;
+
+    fn begin_transaction(&mut self) -> Result<(), Self::TransactionErr> {
+        self.dirty = true;
+        Ok(())
+    }
+
+    fn commit_transaction(&mut self) -> Result<(), Self::TransactionErr> {
+        // We do not do anything here since we do not actually save anything
+        Ok(())
+    }
+
+    fn rollback_transaction(&mut self) { unreachable!() }
 }
 
 impl StashProvider for MemStash {}
@@ -404,6 +422,7 @@ impl From<confinement::Error> for StateUpdateError<confinement::Error> {
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 pub struct MemState {
+    dirty: bool,
     history: TinyOrdMap<ContractId, ContractHistory>,
 }
 
@@ -412,6 +431,22 @@ impl StrictDeserialize for MemState {}
 
 impl MemState {
     pub fn new() -> Self { MemState::default() }
+}
+
+impl StoreTransaction for MemState {
+    type TransactionErr = confinement::Error;
+
+    fn begin_transaction(&mut self) -> Result<(), Self::TransactionErr> {
+        self.dirty = true;
+        Ok(())
+    }
+
+    fn commit_transaction(&mut self) -> Result<(), Self::TransactionErr> {
+        // We do not do anything here since we do not actually save anything
+        Ok(())
+    }
+
+    fn rollback_transaction(&mut self) { unreachable!() }
 }
 
 impl StateProvider for MemState {}
@@ -486,6 +521,7 @@ pub struct ContractIndex {
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 pub struct MemIndex {
+    dirty: bool,
     op_bundle_index: MediumOrdMap<OpId, BundleId>,
     bundle_contract_index: MediumOrdMap<BundleId, ContractId>,
     bundle_witness_index: MediumOrdMap<BundleId, XWitnessId>,
@@ -498,6 +534,22 @@ impl StrictDeserialize for MemIndex {}
 
 impl MemIndex {
     pub fn new() -> Self { MemIndex::default() }
+}
+
+impl StoreTransaction for MemIndex {
+    type TransactionErr = confinement::Error;
+
+    fn begin_transaction(&mut self) -> Result<(), Self::TransactionErr> {
+        self.dirty = true;
+        Ok(())
+    }
+
+    fn commit_transaction(&mut self) -> Result<(), Self::TransactionErr> {
+        // We do not do anything here since we do not actually save anything
+        Ok(())
+    }
+
+    fn rollback_transaction(&mut self) { unreachable!() }
 }
 
 impl IndexProvider for MemIndex {}
