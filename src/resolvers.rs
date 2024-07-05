@@ -19,8 +19,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use rgb::{WitnessAnchor, XWitnessId};
+use rgb::validation::{ResolveWitness, WitnessResolverError};
+use rgb::{WitnessAnchor, XWitnessId, XWitnessTx};
+
+use crate::containers::IndexedConsignment;
 
 pub trait ResolveHeight {
     fn resolve_height(&mut self, witness_id: XWitnessId) -> Result<WitnessAnchor, String>;
+}
+
+pub(crate) struct ConsignmentResolver<'cons, R: ResolveWitness, const TRANSFER: bool> {
+    pub consignment: &'cons IndexedConsignment<'cons, TRANSFER>,
+    pub fallback: R,
+}
+
+impl<'cons, R: ResolveWitness, const TRANSFER: bool> ResolveWitness
+    for ConsignmentResolver<'cons, R, TRANSFER>
+{
+    fn resolve_pub_witness(
+        &self,
+        witness_id: XWitnessId,
+    ) -> Result<XWitnessTx, WitnessResolverError> {
+        self.consignment
+            .pub_witness(witness_id)
+            .and_then(|p| p.map_ref(|pw| pw.tx.clone()).transpose())
+            .ok_or(WitnessResolverError::Unknown(witness_id))
+            .or_else(|_| self.fallback.resolve_pub_witness(witness_id))
+    }
 }
