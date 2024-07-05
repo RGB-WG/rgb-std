@@ -21,6 +21,8 @@
 
 use std::collections::BTreeSet;
 use std::convert::Infallible;
+#[cfg(feature = "fs")]
+use std::path::{Path, PathBuf};
 
 use aluvm::library::{Lib, LibId};
 use amplify::confinement::{
@@ -60,7 +62,11 @@ use crate::LIB_NAME_RGB_STD;
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 pub struct MemStash {
+    #[strict_type(skip)]
     dirty: bool,
+    #[cfg(feature = "fs")]
+    #[strict_type(skip)]
+    filename: PathBuf,
 
     schemata: TinyOrdMap<SchemaId, SchemaIfaces>,
     ifaces: TinyOrdMap<IfaceId, Iface>,
@@ -82,6 +88,12 @@ impl StrictDeserialize for MemStash {}
 
 impl MemStash {
     pub fn new() -> Self { MemStash::default() }
+
+    pub(crate) fn is_dirty(&self) -> bool { self.dirty }
+    #[cfg(feature = "fs")]
+    pub(crate) fn filename(&self) -> &Path { &self.filename }
+    #[cfg(feature = "fs")]
+    pub(crate) fn set_filename(&mut self, filename: PathBuf) { self.filename = filename }
 }
 
 impl StoreTransaction for MemStash {
@@ -422,7 +434,12 @@ impl From<confinement::Error> for StateUpdateError<confinement::Error> {
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 pub struct MemState {
+    #[strict_type(skip)]
     dirty: bool,
+    #[cfg(feature = "fs")]
+    #[strict_type(skip)]
+    filename: PathBuf,
+
     history: TinyOrdMap<ContractId, ContractHistory>,
 }
 
@@ -431,6 +448,12 @@ impl StrictDeserialize for MemState {}
 
 impl MemState {
     pub fn new() -> Self { MemState::default() }
+
+    pub(crate) fn is_dirty(&self) -> bool { self.dirty }
+    #[cfg(feature = "fs")]
+    pub(crate) fn filename(&self) -> &Path { &self.filename }
+    #[cfg(feature = "fs")]
+    pub(crate) fn set_filename(&mut self, filename: PathBuf) { self.filename = filename }
 }
 
 impl StoreTransaction for MemState {
@@ -521,7 +544,12 @@ pub struct ContractIndex {
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 pub struct MemIndex {
+    #[strict_type(skip)]
     dirty: bool,
+    #[cfg(feature = "fs")]
+    #[strict_type(skip)]
+    filename: PathBuf,
+
     op_bundle_index: MediumOrdMap<OpId, BundleId>,
     bundle_contract_index: MediumOrdMap<BundleId, ContractId>,
     bundle_witness_index: MediumOrdMap<BundleId, XWitnessId>,
@@ -534,6 +562,12 @@ impl StrictDeserialize for MemIndex {}
 
 impl MemIndex {
     pub fn new() -> Self { MemIndex::default() }
+
+    pub(crate) fn is_dirty(&self) -> bool { self.dirty }
+    #[cfg(feature = "fs")]
+    pub(crate) fn filename(&self) -> &Path { &self.filename }
+    #[cfg(feature = "fs")]
+    pub(crate) fn set_filename(&mut self, filename: PathBuf) { self.filename = filename }
 }
 
 impl StoreTransaction for MemIndex {
