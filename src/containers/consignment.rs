@@ -49,7 +49,7 @@ use super::{
 };
 use crate::containers::anchors::ToWitnessId;
 use crate::interface::{Iface, IfaceImpl};
-use crate::resolvers::ResolveHeight;
+use crate::resolvers::{ConsignmentResolver, ResolveHeight};
 use crate::{BundleExt, SecretSeal, LIB_NAME_RGB_STD};
 
 pub type Transfer = Consignment<true>;
@@ -349,7 +349,11 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
         testnet: bool,
     ) -> Result<ValidConsignment<TRANSFER>, (validation::Status, Consignment<TRANSFER>)> {
         let index = IndexedConsignment::new(&self);
-        let mut status = Validator::validate(&index, resolver, testnet);
+        let resolver = ConsignmentResolver {
+            consignment: &index,
+            fallback: resolver,
+        };
+        let mut status = Validator::validate(&index, &resolver, testnet);
 
         let validity = status.validity();
 

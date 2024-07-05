@@ -28,20 +28,12 @@ pub trait ResolveHeight {
     fn resolve_height(&mut self, witness_id: XWitnessId) -> Result<WitnessAnchor, String>;
 }
 
-pub struct ConsignmentResolver<'cons, R: ResolveWitness + ResolveHeight, const TRANSFER: bool> {
+pub(crate) struct ConsignmentResolver<'cons, R: ResolveWitness, const TRANSFER: bool> {
     pub consignment: &'cons IndexedConsignment<'cons, TRANSFER>,
     pub fallback: R,
 }
 
-impl<'cons, R: ResolveWitness + ResolveHeight, const TRANSFER: bool> ResolveHeight
-    for ConsignmentResolver<'cons, R, TRANSFER>
-{
-    fn resolve_height(&mut self, witness_id: XWitnessId) -> Result<WitnessAnchor, String> {
-        self.fallback.resolve_height(witness_id)
-    }
-}
-
-impl<'cons, R: ResolveWitness + ResolveHeight, const TRANSFER: bool> ResolveWitness
+impl<'cons, R: ResolveWitness, const TRANSFER: bool> ResolveWitness
     for ConsignmentResolver<'cons, R, TRANSFER>
 {
     fn resolve_pub_witness(
