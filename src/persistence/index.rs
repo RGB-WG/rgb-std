@@ -147,6 +147,9 @@ impl<P: IndexProvider> Index<P> {
     #[doc(hidden)]
     pub fn as_provider(&self) -> &P { &self.provider }
 
+    #[doc(hidden)]
+    pub(super) fn as_provider_mut(&mut self) -> &mut P { &mut self.provider }
+
     pub(super) fn index_consignment<const TRANSFER: bool>(
         &mut self,
         consignment: &Consignment<TRANSFER>,

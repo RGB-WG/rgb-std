@@ -22,7 +22,7 @@
 use std::collections::BTreeSet;
 use std::convert::Infallible;
 #[cfg(feature = "fs")]
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use aluvm::library::{Lib, LibId};
 use amplify::confinement::{
@@ -85,16 +85,6 @@ pub struct MemStash {
 
 impl StrictSerialize for MemStash {}
 impl StrictDeserialize for MemStash {}
-
-impl MemStash {
-    pub fn new() -> Self { MemStash::default() }
-
-    pub(crate) fn is_dirty(&self) -> bool { self.dirty }
-    #[cfg(feature = "fs")]
-    pub(crate) fn filename(&self) -> &Path { &self.filename }
-    #[cfg(feature = "fs")]
-    pub(crate) fn set_filename(&mut self, filename: PathBuf) { self.filename = filename }
-}
 
 impl StoreTransaction for MemStash {
     type TransactionErr = confinement::Error;
@@ -446,16 +436,6 @@ pub struct MemState {
 impl StrictSerialize for MemState {}
 impl StrictDeserialize for MemState {}
 
-impl MemState {
-    pub fn new() -> Self { MemState::default() }
-
-    pub(crate) fn is_dirty(&self) -> bool { self.dirty }
-    #[cfg(feature = "fs")]
-    pub(crate) fn filename(&self) -> &Path { &self.filename }
-    #[cfg(feature = "fs")]
-    pub(crate) fn set_filename(&mut self, filename: PathBuf) { self.filename = filename }
-}
-
 impl StoreTransaction for MemState {
     type TransactionErr = confinement::Error;
 
@@ -559,16 +539,6 @@ pub struct MemIndex {
 
 impl StrictSerialize for MemIndex {}
 impl StrictDeserialize for MemIndex {}
-
-impl MemIndex {
-    pub fn new() -> Self { MemIndex::default() }
-
-    pub(crate) fn is_dirty(&self) -> bool { self.dirty }
-    #[cfg(feature = "fs")]
-    pub(crate) fn filename(&self) -> &Path { &self.filename }
-    #[cfg(feature = "fs")]
-    pub(crate) fn set_filename(&mut self, filename: PathBuf) { self.filename = filename }
-}
 
 impl StoreTransaction for MemIndex {
     type TransactionErr = confinement::Error;
@@ -828,5 +798,124 @@ impl IndexWriteProvider for MemIndex {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(feature = "fs")]
+mod fs {
+    use std::path::{Path, PathBuf};
+
+    use amplify::confinement::U32;
+    use strict_encoding::{DeserializeError, SerializeError, StrictDeserialize, StrictSerialize};
+
+    use crate::persistence::fs::FsStored;
+    use crate::persistence::{MemIndex, MemStash, MemState};
+
+    impl FsStored for MemStash {
+        fn new(filename: impl ToOwned<Owned = PathBuf>) -> Self {
+            Self {
+                dirty: true,
+                filename: filename.to_owned(),
+                ..default!()
+            }
+        }
+
+        fn load(path: impl ToOwned<Owned = PathBuf>) -> Result<Self, DeserializeError> {
+            let path = path.to_owned();
+            let mut me = Self::strict_deserialize_from_file::<U32>(&path)?;
+            me.set_filename(path);
+            Ok(me)
+        }
+
+        fn is_dirty(&self) -> bool { self.dirty }
+
+        fn filename(&self) -> &Path { &self.filename }
+
+        fn set_filename(&mut self, filename: impl ToOwned<Owned = PathBuf>) -> PathBuf {
+            let prev = self.filename.to_owned();
+            self.filename = filename.to_owned();
+            self.dirty = self.filename != prev;
+            prev
+        }
+
+        fn store(&self) -> Result<(), SerializeError> {
+            if self.is_dirty() {
+                self.strict_serialize_to_file::<U32>(&self.filename())
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    impl FsStored for MemState {
+        fn new(filename: impl ToOwned<Owned = PathBuf>) -> Self {
+            Self {
+                dirty: true,
+                filename: filename.to_owned(),
+                ..default!()
+            }
+        }
+
+        fn load(path: impl ToOwned<Owned = PathBuf>) -> Result<Self, DeserializeError> {
+            let path = path.to_owned();
+            let mut me = Self::strict_deserialize_from_file::<U32>(&path)?;
+            me.set_filename(path);
+            Ok(me)
+        }
+
+        fn is_dirty(&self) -> bool { self.dirty }
+
+        fn filename(&self) -> &Path { &self.filename }
+
+        fn set_filename(&mut self, filename: impl ToOwned<Owned = PathBuf>) -> PathBuf {
+            let prev = self.filename.to_owned();
+            self.filename = filename.to_owned();
+            self.dirty = self.filename != prev;
+            prev
+        }
+
+        fn store(&self) -> Result<(), SerializeError> {
+            if self.is_dirty() {
+                self.strict_serialize_to_file::<U32>(&self.filename())
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    impl FsStored for MemIndex {
+        fn new(filename: impl ToOwned<Owned = PathBuf>) -> Self {
+            Self {
+                dirty: true,
+                filename: filename.to_owned(),
+                ..default!()
+            }
+        }
+
+        fn load(path: impl ToOwned<Owned = PathBuf>) -> Result<Self, DeserializeError> {
+            let path = path.to_owned();
+            let mut me = Self::strict_deserialize_from_file::<U32>(&path)?;
+            me.set_filename(path);
+            Ok(me)
+        }
+
+        fn is_dirty(&self) -> bool { self.dirty }
+
+        fn filename(&self) -> &Path { &self.filename }
+
+        fn set_filename(&mut self, filename: impl ToOwned<Owned = PathBuf>) -> PathBuf {
+            let prev = self.filename.to_owned();
+            self.filename = filename.to_owned();
+            self.dirty = self.filename != prev;
+            prev
+        }
+
+        fn store(&self) -> Result<(), SerializeError> {
+            if self.is_dirty() {
+                self.strict_serialize_to_file::<U32>(&self.filename())
+            } else {
+                Ok(())
+            }
+        }
     }
 }

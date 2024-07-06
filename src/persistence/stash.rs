@@ -205,6 +205,9 @@ impl<P: StashProvider> Stash<P> {
     #[doc(hidden)]
     pub fn as_provider(&self) -> &P { &self.provider }
 
+    #[doc(hidden)]
+    pub(super) fn as_provider_mut(&mut self) -> &mut P { &mut self.provider }
+
     pub(super) fn ifaces(&self) -> Result<impl Iterator<Item = &Iface> + '_, StashError<P>> {
         self.provider.ifaces().map_err(StashError::ReadProvider)
     }
