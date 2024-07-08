@@ -155,6 +155,7 @@ impl<T> XChainNet<T> {
         match network {
             Network::Mainnet => Self::BitcoinMainnet(data),
             Network::Testnet3 => Self::BitcoinTestnet(data),
+            Network::Testnet4 => Self::BitcoinTestnet(data),
             Network::Signet => Self::BitcoinSignet(data),
             Network::Regtest => Self::BitcoinRegtest(data),
         }
