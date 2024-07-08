@@ -424,7 +424,7 @@ impl ContractBuilder {
         };
 
         let valid_contract = contract
-            .validate(&mut DumbResolver, self.testnet)
+            .validate(DumbResolver, self.testnet)
             .map_err(|(status, _)| status)?;
 
         Ok(valid_contract)

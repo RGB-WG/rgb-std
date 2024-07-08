@@ -341,9 +341,9 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
         }
     }
 
-    pub fn validate(
+    pub fn validate<R: ResolveWitness>(
         self,
-        resolver: &impl ResolveWitness,
+        resolver: R,
         // TODO: Add sig validator
         //_: &impl SigValidator,
         testnet: bool,
