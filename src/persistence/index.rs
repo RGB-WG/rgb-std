@@ -23,11 +23,13 @@ use std::collections::BTreeSet;
 use std::error::Error;
 use std::fmt::Debug;
 
+use amplify::confinement;
 use rgb::{
     Assign, AssignmentType, BundleId, ContractId, ExposedState, Extension, Genesis, GenesisSeal,
     GraphSeal, OpId, Operation, Opout, TransitionBundle, TypedAssigns, XChain, XOutputSeal,
     XWitnessId,
 };
+use strict_encoding::SerializeError;
 
 use crate::containers::{BundledWitness, Consignment, ToWitnessId};
 use crate::persistence::StoreTransaction;
@@ -81,6 +83,10 @@ impl<P: IndexProvider> From<IndexWriteError<<P as IndexWriteProvider>::Error>> f
             IndexWriteError::Connectivity(e) => IndexError::WriteProvider(e),
         }
     }
+}
+
+impl From<confinement::Error> for IndexWriteError<SerializeError> {
+    fn from(err: confinement::Error) -> Self { IndexWriteError::Connectivity(err.into()) }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]

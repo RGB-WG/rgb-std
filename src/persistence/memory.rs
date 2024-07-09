@@ -36,7 +36,7 @@ use rgb::{
     Extension, Genesis, GenesisSeal, GraphSeal, Identity, OpId, Operation, Opout, Schema, SchemaId,
     SecretSeal, TransitionBundle, XChain, XOutputSeal, XWitnessId,
 };
-use strict_encoding::{StrictDeserialize, StrictSerialize};
+use strict_encoding::{SerializeError, StrictDeserialize, StrictSerialize};
 use strict_types::TypeSystem;
 
 use super::{
@@ -49,6 +49,7 @@ use crate::containers::{
     AnchorSet, ContentId, ContentRef, ContentSigs, SealWitness, SigBlob, Supplement, TrustLevel,
 };
 use crate::interface::{Iface, IfaceClass, IfaceId, IfaceImpl, IfaceRef};
+use crate::persistence::fs::FsStored;
 use crate::resolvers::ResolveHeight;
 use crate::LIB_NAME_RGB_STD;
 
@@ -87,7 +88,7 @@ impl StrictSerialize for MemStash {}
 impl StrictDeserialize for MemStash {}
 
 impl StoreTransaction for MemStash {
-    type TransactionErr = confinement::Error;
+    type TransactionErr = SerializeError;
 
     fn begin_transaction(&mut self) -> Result<(), Self::TransactionErr> {
         self.dirty = true;
@@ -95,7 +96,9 @@ impl StoreTransaction for MemStash {
     }
 
     fn commit_transaction(&mut self) -> Result<(), Self::TransactionErr> {
-        // We do not do anything here since we do not actually save anything
+        if self.dirty {
+            self.store()?;
+        }
         Ok(())
     }
 
@@ -288,9 +291,9 @@ impl StashReadProvider for MemStash {
 }
 
 impl StashWriteProvider for MemStash {
-    type Error = confinement::Error;
+    type Error = SerializeError;
 
-    fn replace_schema(&mut self, schema: Schema) -> Result<bool, confinement::Error> {
+    fn replace_schema(&mut self, schema: Schema) -> Result<bool, Self::Error> {
         let schema_id = schema.schema_id();
         if !self.schemata.contains_key(&schema_id) {
             self.schemata.insert(schema_id, SchemaIfaces::new(schema))?;
@@ -299,7 +302,7 @@ impl StashWriteProvider for MemStash {
         Ok(false)
     }
 
-    fn replace_iface(&mut self, iface: Iface) -> Result<bool, confinement::Error> {
+    fn replace_iface(&mut self, iface: Iface) -> Result<bool, Self::Error> {
         let iface_id = iface.iface_id();
         if !self.ifaces.contains_key(&iface_id) {
             self.ifaces.insert(iface_id, iface)?;
@@ -308,7 +311,7 @@ impl StashWriteProvider for MemStash {
         Ok(false)
     }
 
-    fn replace_iimpl(&mut self, iimpl: IfaceImpl) -> Result<bool, confinement::Error> {
+    fn replace_iimpl(&mut self, iimpl: IfaceImpl) -> Result<bool, Self::Error> {
         let schema_ifaces = self
             .schemata
             .get_mut(&iimpl.schema_id)
@@ -329,7 +332,7 @@ impl StashWriteProvider for MemStash {
         Ok(())
     }
 
-    fn add_supplement(&mut self, suppl: Supplement) -> Result<(), confinement::Error> {
+    fn add_supplement(&mut self, suppl: Supplement) -> Result<(), Self::Error> {
         match self.suppl.get_mut(&suppl.content_id) {
             None => {
                 self.suppl.insert(suppl.content_id, confined_bset![suppl])?;
@@ -339,25 +342,25 @@ impl StashWriteProvider for MemStash {
         Ok(())
     }
 
-    fn replace_genesis(&mut self, genesis: Genesis) -> Result<bool, confinement::Error> {
+    fn replace_genesis(&mut self, genesis: Genesis) -> Result<bool, Self::Error> {
         let contract_id = genesis.contract_id();
         let present = self.geneses.insert(contract_id, genesis)?.is_some();
         Ok(!present)
     }
 
-    fn replace_extension(&mut self, extension: Extension) -> Result<bool, confinement::Error> {
+    fn replace_extension(&mut self, extension: Extension) -> Result<bool, Self::Error> {
         let opid = extension.id();
         let present = self.extensions.insert(opid, extension)?.is_some();
         Ok(!present)
     }
 
-    fn replace_bundle(&mut self, bundle: TransitionBundle) -> Result<bool, confinement::Error> {
+    fn replace_bundle(&mut self, bundle: TransitionBundle) -> Result<bool, Self::Error> {
         let bundle_id = bundle.bundle_id();
         let present = self.bundles.insert(bundle_id, bundle)?.is_some();
         Ok(!present)
     }
 
-    fn replace_witness(&mut self, witness: SealWitness) -> Result<bool, confinement::Error> {
+    fn replace_witness(&mut self, witness: SealWitness) -> Result<bool, Self::Error> {
         let witness_id = witness.witness_id();
         let present = self.witnesses.insert(witness_id, witness)?.is_some();
         Ok(!present)
@@ -367,21 +370,21 @@ impl StashWriteProvider for MemStash {
         &mut self,
         id: AttachId,
         attach: MediumBlob,
-    ) -> Result<bool, confinement::Error> {
+    ) -> Result<bool, Self::Error> {
         let present = self.attachments.insert(id, attach)?.is_some();
         Ok(!present)
     }
 
-    fn consume_types(&mut self, types: TypeSystem) -> Result<(), confinement::Error> {
-        self.type_system.extend(types)
+    fn consume_types(&mut self, types: TypeSystem) -> Result<(), Self::Error> {
+        Ok(self.type_system.extend(types)?)
     }
 
-    fn replace_lib(&mut self, lib: Lib) -> Result<bool, confinement::Error> {
+    fn replace_lib(&mut self, lib: Lib) -> Result<bool, Self::Error> {
         let present = self.libs.insert(lib.id(), lib)?.is_some();
         Ok(!present)
     }
 
-    fn import_sigs<I>(&mut self, content_id: ContentId, sigs: I) -> Result<(), confinement::Error>
+    fn import_sigs<I>(&mut self, content_id: ContentId, sigs: I) -> Result<(), Self::Error>
     where I: IntoIterator<Item = (Identity, SigBlob)> {
         let sigs = sigs.into_iter().filter(|(id, _)| {
             match self.identities.get(id) {
@@ -404,7 +407,7 @@ impl StashWriteProvider for MemStash {
         Ok(())
     }
 
-    fn add_secret_seal(&mut self, seal: XChain<GraphSeal>) -> Result<bool, confinement::Error> {
+    fn add_secret_seal(&mut self, seal: XChain<GraphSeal>) -> Result<bool, Self::Error> {
         let present = self.secret_seals.contains(&seal);
         self.secret_seals.push(seal)?;
         Ok(!present)
@@ -437,7 +440,7 @@ impl StrictSerialize for MemState {}
 impl StrictDeserialize for MemState {}
 
 impl StoreTransaction for MemState {
-    type TransactionErr = confinement::Error;
+    type TransactionErr = SerializeError;
 
     fn begin_transaction(&mut self) -> Result<(), Self::TransactionErr> {
         self.dirty = true;
@@ -445,7 +448,9 @@ impl StoreTransaction for MemState {
     }
 
     fn commit_transaction(&mut self) -> Result<(), Self::TransactionErr> {
-        // We do not do anything here since we do not actually save anything
+        if self.dirty {
+            self.store()?;
+        }
         Ok(())
     }
 
@@ -466,7 +471,7 @@ impl StateReadProvider for MemState {
 }
 
 impl StateWriteProvider for MemState {
-    type Error = confinement::Error;
+    type Error = SerializeError;
 
     fn create_or_update_state<R: ResolveHeight>(
         &mut self,
@@ -476,7 +481,9 @@ impl StateWriteProvider for MemState {
         let state = self.history.get(&contract_id);
         let updated =
             updater(state.cloned()).map_err(|e| StateUpdateError::Resolver(e.to_string()))?;
-        self.history.insert(contract_id, updated)?;
+        self.history
+            .insert(contract_id, updated)
+            .map_err(|e| StateUpdateError::Connectivity(e.into()))?;
         Ok(())
     }
 
@@ -541,7 +548,7 @@ impl StrictSerialize for MemIndex {}
 impl StrictDeserialize for MemIndex {}
 
 impl StoreTransaction for MemIndex {
-    type TransactionErr = confinement::Error;
+    type TransactionErr = SerializeError;
 
     fn begin_transaction(&mut self) -> Result<(), Self::TransactionErr> {
         self.dirty = true;
@@ -549,7 +556,9 @@ impl StoreTransaction for MemIndex {
     }
 
     fn commit_transaction(&mut self) -> Result<(), Self::TransactionErr> {
-        // We do not do anything here since we do not actually save anything
+        if self.dirty {
+            self.store()?;
+        }
         Ok(())
     }
 
@@ -647,7 +656,7 @@ impl IndexReadProvider for MemIndex {
 }
 
 impl IndexWriteProvider for MemIndex {
-    type Error = confinement::Error;
+    type Error = SerializeError;
 
     fn register_contract(&mut self, contract_id: ContractId) -> Result<bool, Self::Error> {
         if !self.contract_index.contains_key(&contract_id) {
