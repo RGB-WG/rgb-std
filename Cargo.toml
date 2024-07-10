@@ -97,4 +97,4 @@ wasm-bindgen-test = "0.3"
 features = ["all"]
 
 [patch.crates-io]
-rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "resolvers" }
+rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "master" }
