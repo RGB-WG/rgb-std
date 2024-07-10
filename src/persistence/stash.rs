@@ -592,9 +592,14 @@ impl<P: StashProvider> Stash<P> {
         &mut self,
         seal: XChain<GraphSeal>,
     ) -> Result<bool, StashError<P>> {
-        self.provider
+        self.begin_transaction()?;
+        let seal = self
+            .provider
             .add_secret_seal(seal)
-            .map_err(StashError::WriteProvider)
+            .inspect_err(|_| self.rollback_transaction())
+            .map_err(StashError::WriteProvider)?;
+        self.commit_transaction()?;
+        Ok(seal)
     }
 }
 
