@@ -21,6 +21,8 @@
 
 use std::collections::BTreeSet;
 use std::convert::Infallible;
+#[cfg(feature = "fs")]
+use std::path::PathBuf;
 
 use aluvm::library::{Lib, LibId};
 use amplify::confinement::{
@@ -34,19 +36,20 @@ use rgb::{
     Extension, Genesis, GenesisSeal, GraphSeal, Identity, OpId, Operation, Opout, Schema, SchemaId,
     SecretSeal, TransitionBundle, XChain, XOutputSeal, XWitnessId,
 };
-use strict_encoding::{StrictDeserialize, StrictSerialize};
+use strict_encoding::{SerializeError, StrictDeserialize, StrictSerialize};
 use strict_types::TypeSystem;
 
 use super::{
     ContractIfaceError, IndexInconsistency, IndexProvider, IndexReadError, IndexReadProvider,
     IndexWriteError, IndexWriteProvider, SchemaIfaces, StashInconsistency, StashProvider,
     StashProviderError, StashReadProvider, StashWriteProvider, StateProvider, StateReadProvider,
-    StateUpdateError, StateWriteProvider,
+    StateUpdateError, StateWriteProvider, StoreTransaction,
 };
 use crate::containers::{
     AnchorSet, ContentId, ContentRef, ContentSigs, SealWitness, SigBlob, Supplement, TrustLevel,
 };
 use crate::interface::{Iface, IfaceClass, IfaceId, IfaceImpl, IfaceRef};
+use crate::persistence::fs::FsStored;
 use crate::resolvers::ResolveHeight;
 use crate::LIB_NAME_RGB_STD;
 
@@ -60,6 +63,12 @@ use crate::LIB_NAME_RGB_STD;
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 pub struct MemStash {
+    #[strict_type(skip)]
+    dirty: bool,
+    #[cfg(feature = "fs")]
+    #[strict_type(skip)]
+    filename: PathBuf,
+
     schemata: TinyOrdMap<SchemaId, SchemaIfaces>,
     ifaces: TinyOrdMap<IfaceId, Iface>,
     geneses: TinyOrdMap<ContractId, Genesis>,
@@ -78,8 +87,22 @@ pub struct MemStash {
 impl StrictSerialize for MemStash {}
 impl StrictDeserialize for MemStash {}
 
-impl MemStash {
-    pub fn new() -> Self { MemStash::default() }
+impl StoreTransaction for MemStash {
+    type TransactionErr = SerializeError;
+
+    fn begin_transaction(&mut self) -> Result<(), Self::TransactionErr> {
+        self.dirty = true;
+        Ok(())
+    }
+
+    fn commit_transaction(&mut self) -> Result<(), Self::TransactionErr> {
+        if self.dirty {
+            self.store()?;
+        }
+        Ok(())
+    }
+
+    fn rollback_transaction(&mut self) { unreachable!() }
 }
 
 impl StashProvider for MemStash {}
@@ -268,9 +291,9 @@ impl StashReadProvider for MemStash {
 }
 
 impl StashWriteProvider for MemStash {
-    type Error = confinement::Error;
+    type Error = SerializeError;
 
-    fn replace_schema(&mut self, schema: Schema) -> Result<bool, confinement::Error> {
+    fn replace_schema(&mut self, schema: Schema) -> Result<bool, Self::Error> {
         let schema_id = schema.schema_id();
         if !self.schemata.contains_key(&schema_id) {
             self.schemata.insert(schema_id, SchemaIfaces::new(schema))?;
@@ -279,7 +302,7 @@ impl StashWriteProvider for MemStash {
         Ok(false)
     }
 
-    fn replace_iface(&mut self, iface: Iface) -> Result<bool, confinement::Error> {
+    fn replace_iface(&mut self, iface: Iface) -> Result<bool, Self::Error> {
         let iface_id = iface.iface_id();
         if !self.ifaces.contains_key(&iface_id) {
             self.ifaces.insert(iface_id, iface)?;
@@ -288,7 +311,7 @@ impl StashWriteProvider for MemStash {
         Ok(false)
     }
 
-    fn replace_iimpl(&mut self, iimpl: IfaceImpl) -> Result<bool, confinement::Error> {
+    fn replace_iimpl(&mut self, iimpl: IfaceImpl) -> Result<bool, Self::Error> {
         let schema_ifaces = self
             .schemata
             .get_mut(&iimpl.schema_id)
@@ -309,7 +332,7 @@ impl StashWriteProvider for MemStash {
         Ok(())
     }
 
-    fn add_supplement(&mut self, suppl: Supplement) -> Result<(), confinement::Error> {
+    fn add_supplement(&mut self, suppl: Supplement) -> Result<(), Self::Error> {
         match self.suppl.get_mut(&suppl.content_id) {
             None => {
                 self.suppl.insert(suppl.content_id, confined_bset![suppl])?;
@@ -319,25 +342,25 @@ impl StashWriteProvider for MemStash {
         Ok(())
     }
 
-    fn replace_genesis(&mut self, genesis: Genesis) -> Result<bool, confinement::Error> {
+    fn replace_genesis(&mut self, genesis: Genesis) -> Result<bool, Self::Error> {
         let contract_id = genesis.contract_id();
         let present = self.geneses.insert(contract_id, genesis)?.is_some();
         Ok(!present)
     }
 
-    fn replace_extension(&mut self, extension: Extension) -> Result<bool, confinement::Error> {
+    fn replace_extension(&mut self, extension: Extension) -> Result<bool, Self::Error> {
         let opid = extension.id();
         let present = self.extensions.insert(opid, extension)?.is_some();
         Ok(!present)
     }
 
-    fn replace_bundle(&mut self, bundle: TransitionBundle) -> Result<bool, confinement::Error> {
+    fn replace_bundle(&mut self, bundle: TransitionBundle) -> Result<bool, Self::Error> {
         let bundle_id = bundle.bundle_id();
         let present = self.bundles.insert(bundle_id, bundle)?.is_some();
         Ok(!present)
     }
 
-    fn replace_witness(&mut self, witness: SealWitness) -> Result<bool, confinement::Error> {
+    fn replace_witness(&mut self, witness: SealWitness) -> Result<bool, Self::Error> {
         let witness_id = witness.witness_id();
         let present = self.witnesses.insert(witness_id, witness)?.is_some();
         Ok(!present)
@@ -347,21 +370,21 @@ impl StashWriteProvider for MemStash {
         &mut self,
         id: AttachId,
         attach: MediumBlob,
-    ) -> Result<bool, confinement::Error> {
+    ) -> Result<bool, Self::Error> {
         let present = self.attachments.insert(id, attach)?.is_some();
         Ok(!present)
     }
 
-    fn consume_types(&mut self, types: TypeSystem) -> Result<(), confinement::Error> {
-        self.type_system.extend(types)
+    fn consume_types(&mut self, types: TypeSystem) -> Result<(), Self::Error> {
+        Ok(self.type_system.extend(types)?)
     }
 
-    fn replace_lib(&mut self, lib: Lib) -> Result<bool, confinement::Error> {
+    fn replace_lib(&mut self, lib: Lib) -> Result<bool, Self::Error> {
         let present = self.libs.insert(lib.id(), lib)?.is_some();
         Ok(!present)
     }
 
-    fn import_sigs<I>(&mut self, content_id: ContentId, sigs: I) -> Result<(), confinement::Error>
+    fn import_sigs<I>(&mut self, content_id: ContentId, sigs: I) -> Result<(), Self::Error>
     where I: IntoIterator<Item = (Identity, SigBlob)> {
         let sigs = sigs.into_iter().filter(|(id, _)| {
             match self.identities.get(id) {
@@ -384,7 +407,7 @@ impl StashWriteProvider for MemStash {
         Ok(())
     }
 
-    fn add_secret_seal(&mut self, seal: XChain<GraphSeal>) -> Result<bool, confinement::Error> {
+    fn add_secret_seal(&mut self, seal: XChain<GraphSeal>) -> Result<bool, Self::Error> {
         let present = self.secret_seals.contains(&seal);
         self.secret_seals.push(seal)?;
         Ok(!present)
@@ -404,14 +427,34 @@ impl From<confinement::Error> for StateUpdateError<confinement::Error> {
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 pub struct MemState {
+    #[strict_type(skip)]
+    dirty: bool,
+    #[cfg(feature = "fs")]
+    #[strict_type(skip)]
+    filename: PathBuf,
+
     history: TinyOrdMap<ContractId, ContractHistory>,
 }
 
 impl StrictSerialize for MemState {}
 impl StrictDeserialize for MemState {}
 
-impl MemState {
-    pub fn new() -> Self { MemState::default() }
+impl StoreTransaction for MemState {
+    type TransactionErr = SerializeError;
+
+    fn begin_transaction(&mut self) -> Result<(), Self::TransactionErr> {
+        self.dirty = true;
+        Ok(())
+    }
+
+    fn commit_transaction(&mut self) -> Result<(), Self::TransactionErr> {
+        if self.dirty {
+            self.store()?;
+        }
+        Ok(())
+    }
+
+    fn rollback_transaction(&mut self) { unreachable!() }
 }
 
 impl StateProvider for MemState {}
@@ -428,7 +471,7 @@ impl StateReadProvider for MemState {
 }
 
 impl StateWriteProvider for MemState {
-    type Error = confinement::Error;
+    type Error = SerializeError;
 
     fn create_or_update_state<R: ResolveHeight>(
         &mut self,
@@ -438,7 +481,9 @@ impl StateWriteProvider for MemState {
         let state = self.history.get(&contract_id);
         let updated =
             updater(state.cloned()).map_err(|e| StateUpdateError::Resolver(e.to_string()))?;
-        self.history.insert(contract_id, updated)?;
+        self.history
+            .insert(contract_id, updated)
+            .map_err(|e| StateUpdateError::Connectivity(e.into()))?;
         Ok(())
     }
 
@@ -486,6 +531,12 @@ pub struct ContractIndex {
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 pub struct MemIndex {
+    #[strict_type(skip)]
+    dirty: bool,
+    #[cfg(feature = "fs")]
+    #[strict_type(skip)]
+    filename: PathBuf,
+
     op_bundle_index: MediumOrdMap<OpId, BundleId>,
     bundle_contract_index: MediumOrdMap<BundleId, ContractId>,
     bundle_witness_index: MediumOrdMap<BundleId, XWitnessId>,
@@ -496,8 +547,22 @@ pub struct MemIndex {
 impl StrictSerialize for MemIndex {}
 impl StrictDeserialize for MemIndex {}
 
-impl MemIndex {
-    pub fn new() -> Self { MemIndex::default() }
+impl StoreTransaction for MemIndex {
+    type TransactionErr = SerializeError;
+
+    fn begin_transaction(&mut self) -> Result<(), Self::TransactionErr> {
+        self.dirty = true;
+        Ok(())
+    }
+
+    fn commit_transaction(&mut self) -> Result<(), Self::TransactionErr> {
+        if self.dirty {
+            self.store()?;
+        }
+        Ok(())
+    }
+
+    fn rollback_transaction(&mut self) { unreachable!() }
 }
 
 impl IndexProvider for MemIndex {}
@@ -591,7 +656,7 @@ impl IndexReadProvider for MemIndex {
 }
 
 impl IndexWriteProvider for MemIndex {
-    type Error = confinement::Error;
+    type Error = SerializeError;
 
     fn register_contract(&mut self, contract_id: ContractId) -> Result<bool, Self::Error> {
         if !self.contract_index.contains_key(&contract_id) {
@@ -742,5 +807,124 @@ impl IndexWriteProvider for MemIndex {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(feature = "fs")]
+mod fs {
+    use std::path::{Path, PathBuf};
+
+    use amplify::confinement::U32;
+    use strict_encoding::{DeserializeError, SerializeError, StrictDeserialize, StrictSerialize};
+
+    use crate::persistence::fs::FsStored;
+    use crate::persistence::{MemIndex, MemStash, MemState};
+
+    impl FsStored for MemStash {
+        fn new(filename: impl ToOwned<Owned = PathBuf>) -> Self {
+            Self {
+                dirty: true,
+                filename: filename.to_owned(),
+                ..default!()
+            }
+        }
+
+        fn load(path: impl ToOwned<Owned = PathBuf>) -> Result<Self, DeserializeError> {
+            let path = path.to_owned();
+            let mut me = Self::strict_deserialize_from_file::<U32>(&path)?;
+            me.set_filename(path);
+            Ok(me)
+        }
+
+        fn is_dirty(&self) -> bool { self.dirty }
+
+        fn filename(&self) -> &Path { &self.filename }
+
+        fn set_filename(&mut self, filename: impl ToOwned<Owned = PathBuf>) -> PathBuf {
+            let prev = self.filename.to_owned();
+            self.filename = filename.to_owned();
+            self.dirty = self.filename != prev;
+            prev
+        }
+
+        fn store(&self) -> Result<(), SerializeError> {
+            if self.is_dirty() {
+                self.strict_serialize_to_file::<U32>(&self.filename())
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    impl FsStored for MemState {
+        fn new(filename: impl ToOwned<Owned = PathBuf>) -> Self {
+            Self {
+                dirty: true,
+                filename: filename.to_owned(),
+                ..default!()
+            }
+        }
+
+        fn load(path: impl ToOwned<Owned = PathBuf>) -> Result<Self, DeserializeError> {
+            let path = path.to_owned();
+            let mut me = Self::strict_deserialize_from_file::<U32>(&path)?;
+            me.set_filename(path);
+            Ok(me)
+        }
+
+        fn is_dirty(&self) -> bool { self.dirty }
+
+        fn filename(&self) -> &Path { &self.filename }
+
+        fn set_filename(&mut self, filename: impl ToOwned<Owned = PathBuf>) -> PathBuf {
+            let prev = self.filename.to_owned();
+            self.filename = filename.to_owned();
+            self.dirty = self.filename != prev;
+            prev
+        }
+
+        fn store(&self) -> Result<(), SerializeError> {
+            if self.is_dirty() {
+                self.strict_serialize_to_file::<U32>(&self.filename())
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    impl FsStored for MemIndex {
+        fn new(filename: impl ToOwned<Owned = PathBuf>) -> Self {
+            Self {
+                dirty: true,
+                filename: filename.to_owned(),
+                ..default!()
+            }
+        }
+
+        fn load(path: impl ToOwned<Owned = PathBuf>) -> Result<Self, DeserializeError> {
+            let path = path.to_owned();
+            let mut me = Self::strict_deserialize_from_file::<U32>(&path)?;
+            me.set_filename(path);
+            Ok(me)
+        }
+
+        fn is_dirty(&self) -> bool { self.dirty }
+
+        fn filename(&self) -> &Path { &self.filename }
+
+        fn set_filename(&mut self, filename: impl ToOwned<Owned = PathBuf>) -> PathBuf {
+            let prev = self.filename.to_owned();
+            self.filename = filename.to_owned();
+            self.dirty = self.filename != prev;
+            prev
+        }
+
+        fn store(&self) -> Result<(), SerializeError> {
+            if self.is_dirty() {
+                self.strict_serialize_to_file::<U32>(&self.filename())
+            } else {
+                Ok(())
+            }
+        }
     }
 }
