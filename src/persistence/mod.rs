@@ -55,3 +55,13 @@ pub use stock::{
     ComposeError, ConsignError, ContractIfaceError, FasciaError, InputError as StockInputError,
     Stock, StockError, StockErrorAll, StockErrorMem,
 };
+
+pub trait StoreTransaction {
+    type TransactionErr: std::error::Error;
+
+    fn begin_transaction(&mut self) -> Result<(), Self::TransactionErr>;
+
+    fn commit_transaction(&mut self) -> Result<(), Self::TransactionErr>;
+
+    fn rollback_transaction(&mut self);
+}

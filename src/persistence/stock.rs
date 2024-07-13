@@ -44,7 +44,7 @@ use super::{
     Index, IndexError, IndexInconsistency, IndexProvider, IndexReadProvider, IndexWriteProvider,
     MemIndex, MemStash, MemState, PersistedState, SchemaIfaces, Stash, StashDataError, StashError,
     StashInconsistency, StashProvider, StashReadProvider, StashWriteProvider, StateProvider,
-    StateReadProvider, StateUpdateError, StateWriteProvider,
+    StateReadProvider, StateUpdateError, StateWriteProvider, StoreTransaction,
 };
 use crate::containers::{
     AnchorSet, AnchoredBundles, Batch, BuilderSeal, BundledWitness, Consignment, ContainerVer,
@@ -370,6 +370,83 @@ where
 
 impl Stock {
     pub fn in_memory() -> Self { Self::default() }
+}
+
+#[cfg(feature = "fs")]
+mod fs {
+    use std::path::PathBuf;
+
+    use strict_encoding::{DeserializeError, SerializeError};
+
+    use super::*;
+    use crate::persistence::fs::FsStored;
+
+    impl<S: StashProvider, H: StateProvider, I: IndexProvider> Stock<S, H, I>
+    where
+        S: FsStored,
+        H: FsStored,
+        I: FsStored,
+    {
+        pub fn new(path: impl ToOwned<Owned = PathBuf>) -> Self {
+            let mut filename = path.to_owned();
+            filename.push("stash.dat");
+            let stash = S::new(filename);
+
+            let mut filename = path.to_owned();
+            filename.push("state.dat");
+            let state = H::new(filename);
+
+            let mut filename = path.to_owned();
+            filename.push("index.dat");
+            let index = I::new(filename);
+
+            Stock::with(stash, state, index)
+        }
+
+        pub fn load(path: impl ToOwned<Owned = PathBuf>) -> Result<Self, DeserializeError> {
+            let mut filename = path.to_owned();
+            filename.push("stash.dat");
+            let stash = S::load(filename)?;
+
+            let mut filename = path.to_owned();
+            filename.push("state.dat");
+            let state = H::load(filename)?;
+
+            let mut filename = path.to_owned();
+            filename.push("index.dat");
+            let index = I::load(filename)?;
+
+            Ok(Stock::with(stash, state, index))
+        }
+
+        pub fn is_dirty(&self) -> bool {
+            self.as_stash_provider().is_dirty() ||
+                self.as_state_provider().is_dirty() ||
+                self.as_index_provider().is_dirty()
+        }
+
+        pub fn set_path(&mut self, path: impl ToOwned<Owned = PathBuf>) {
+            let mut filename = path.to_owned();
+            filename.push("stash.dat");
+            self.stash.as_provider_mut().set_filename(filename);
+
+            let mut filename = path.to_owned();
+            filename.push("state.dat");
+            self.state.set_filename(filename);
+
+            let mut filename = path.to_owned();
+            filename.push("index.dat");
+            self.index.as_provider_mut().set_filename(filename);
+        }
+
+        pub fn store(&self) -> Result<(), SerializeError> {
+            self.as_stash_provider().store()?;
+            self.as_state_provider().store()?;
+            self.as_index_provider().store()?;
+
+            Ok(())
+        }
+    }
 }
 
 impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
@@ -1057,9 +1134,42 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         Ok(Batch { main, blanks })
     }
 
+    fn store_transaction<E: Error>(
+        &mut self,
+        f: impl FnOnce(&mut Stash<S>, &mut H, &mut Index<P>) -> Result<(), StockError<S, H, P, E>>,
+    ) -> Result<(), StockError<S, H, P, E>> {
+        self.state
+            .begin_transaction()
+            .map_err(StockError::StateWrite)?;
+        self.stash
+            .begin_transaction()
+            .inspect_err(|_| self.stash.rollback_transaction())?;
+        self.index.begin_transaction().inspect_err(|_| {
+            self.state.rollback_transaction();
+            self.stash.rollback_transaction();
+        })?;
+        f(&mut self.stash, &mut self.state, &mut self.index)?;
+        self.index
+            .commit_transaction()
+            .map_err(StockError::from)
+            .and_then(|_| {
+                self.state
+                    .commit_transaction()
+                    .map_err(StockError::StateWrite)
+            })
+            .and_then(|_| self.stash.commit_transaction().map_err(StockError::from))
+            .inspect_err(|_| {
+                self.state.rollback_transaction();
+                self.stash.rollback_transaction();
+                self.index.rollback_transaction();
+            })
+    }
+
     pub fn import_kit(&mut self, kit: ValidKit) -> Result<validation::Status, StockError<S, H, P>> {
         let (kit, status) = kit.split();
+        self.stash.begin_transaction()?;
         self.stash.consume_kit(kit)?;
+        self.stash.commit_transaction()?;
         Ok(status)
     }
 
@@ -1088,12 +1198,14 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         let (mut consignment, status) = consignment.split();
 
         consignment = self.stash.resolve_secrets(consignment)?;
-        self.state
-            .create_or_update_state::<R>(contract_id, |history| {
+        self.store_transaction(move |stash, state, index| {
+            state.create_or_update_state::<R>(contract_id, |history| {
                 consignment.update_history(history, resolver)
             })?;
-        self.index.index_consignment(&consignment)?;
-        self.stash.consume_consignment(consignment)?;
+            index.index_consignment(&consignment)?;
+            stash.consume_consignment(consignment)?;
+            Ok(())
+        })?;
 
         Ok(status)
     }
@@ -1110,25 +1222,25 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         &mut self,
         fascia: Fascia,
     ) -> Result<(), StockError<S, H, P, FasciaError>> {
-        let witness_id = fascia.witness_id();
-        self.stash
-            .consume_witness(SealWitness::new(fascia.witness.clone(), fascia.anchor.clone()))?;
+        self.store_transaction(move |stash, state, index| {
+            let witness_id = fascia.witness_id();
+            stash
+                .consume_witness(SealWitness::new(fascia.witness.clone(), fascia.anchor.clone()))?;
 
-        for (contract_id, bundle) in fascia.into_bundles() {
-            let ids1 = bundle
-                .known_transitions
-                .keys()
-                .copied()
-                .collect::<BTreeSet<_>>();
-            let ids2 = bundle.input_map.values().copied().collect::<BTreeSet<_>>();
-            if !ids1.is_subset(&ids2) {
-                return Err(FasciaError::InvalidBundle(contract_id, bundle.bundle_id()).into());
-            }
+            for (contract_id, bundle) in fascia.into_bundles() {
+                let ids1 = bundle
+                    .known_transitions
+                    .keys()
+                    .copied()
+                    .collect::<BTreeSet<_>>();
+                let ids2 = bundle.input_map.values().copied().collect::<BTreeSet<_>>();
+                if !ids1.is_subset(&ids2) {
+                    return Err(FasciaError::InvalidBundle(contract_id, bundle.bundle_id()).into());
+                }
 
-            self.index.index_bundle(contract_id, &bundle, witness_id)?;
+                index.index_bundle(contract_id, &bundle, witness_id)?;
 
-            self.state
-                .update_state::<DumbResolver>(contract_id, |history| {
+                state.update_state::<DumbResolver>(contract_id, |history| {
                     for transition in bundle.known_transitions.values() {
                         let witness_anchor = WitnessAnchor::from_mempool(witness_id);
                         history.add_transition(transition, witness_anchor);
@@ -1136,9 +1248,10 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
                     Ok(())
                 })?;
 
-            self.stash.consume_bundle(bundle)?;
-        }
-        Ok(())
+                stash.consume_bundle(bundle)?;
+            }
+            Ok(())
+        })
     }
 
     fn transition(&self, opid: OpId) -> Result<&Transition, StockError<S, H, P, ConsignError>> {

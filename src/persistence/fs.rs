@@ -19,99 +19,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-use amplify::confinement::U32;
-use strict_encoding::{DeserializeError, SerializeError, StrictDeserialize, StrictSerialize};
+use strict_encoding::{DeserializeError, SerializeError};
 
-use crate::persistence::{
-    IndexProvider, MemIndex, MemStash, MemState, StashProvider, StateProvider, Stock,
-};
+pub trait FsStored: Sized {
+    fn new(path: impl ToOwned<Owned = PathBuf>) -> Self;
+    fn load(path: impl ToOwned<Owned = PathBuf>) -> Result<Self, DeserializeError>;
 
-pub trait LoadFs: Sized {
-    fn load(path: impl AsRef<Path>) -> Result<Self, DeserializeError>;
-}
+    fn is_dirty(&self) -> bool;
+    fn filename(&self) -> &Path;
+    fn set_filename(&mut self, filename: impl ToOwned<Owned = PathBuf>) -> PathBuf;
 
-pub trait StoreFs {
-    fn store(&self, path: impl AsRef<Path>) -> Result<(), SerializeError>;
-}
-
-impl<S: StashProvider, H: StateProvider, I: IndexProvider> LoadFs for Stock<S, H, I>
-where
-    S: LoadFs,
-    H: LoadFs,
-    I: LoadFs,
-{
-    fn load(path: impl AsRef<Path>) -> Result<Self, DeserializeError> {
-        let path = path.as_ref();
-        let stash = S::load(path)?;
-        let state = H::load(path)?;
-        let index = I::load(path)?;
-
-        Ok(Stock::with(stash, state, index))
-    }
-}
-
-impl<S: StashProvider, H: StateProvider, I: IndexProvider> StoreFs for Stock<S, H, I>
-where
-    S: StoreFs,
-    H: StoreFs,
-    I: StoreFs,
-{
-    fn store(&self, path: impl AsRef<Path>) -> Result<(), SerializeError> {
-        let path = path.as_ref();
-        self.as_stash_provider().store(path)?;
-        self.as_state_provider().store(path)?;
-        self.as_index_provider().store(path)?;
-
-        Ok(())
-    }
-}
-
-impl LoadFs for MemStash {
-    fn load(path: impl AsRef<Path>) -> Result<Self, DeserializeError> {
-        let mut file = path.as_ref().to_owned();
-        file.push("stash.dat");
-        Self::strict_deserialize_from_file::<U32>(file)
-    }
-}
-
-impl StoreFs for MemStash {
-    fn store(&self, path: impl AsRef<Path>) -> Result<(), SerializeError> {
-        let mut file = path.as_ref().to_owned();
-        file.push("stash.dat");
-        self.strict_serialize_to_file::<U32>(file)
-    }
-}
-
-impl LoadFs for MemState {
-    fn load(path: impl AsRef<Path>) -> Result<Self, DeserializeError> {
-        let mut file = path.as_ref().to_owned();
-        file.push("state.dat");
-        Self::strict_deserialize_from_file::<U32>(file)
-    }
-}
-
-impl StoreFs for MemState {
-    fn store(&self, path: impl AsRef<Path>) -> Result<(), SerializeError> {
-        let mut file = path.as_ref().to_owned();
-        file.push("state.dat");
-        self.strict_serialize_to_file::<U32>(file)
-    }
-}
-
-impl LoadFs for MemIndex {
-    fn load(path: impl AsRef<Path>) -> Result<Self, DeserializeError> {
-        let mut file = path.as_ref().to_owned();
-        file.push("index.dat");
-        Self::strict_deserialize_from_file::<U32>(file)
-    }
-}
-
-impl StoreFs for MemIndex {
-    fn store(&self, path: impl AsRef<Path>) -> Result<(), SerializeError> {
-        let mut file = path.as_ref().to_owned();
-        file.push("index.dat");
-        self.strict_serialize_to_file::<U32>(file)
-    }
+    fn store(&self) -> Result<(), SerializeError>;
 }

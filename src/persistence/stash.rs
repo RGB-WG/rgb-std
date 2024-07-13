@@ -45,7 +45,7 @@ use crate::containers::{
 use crate::interface::{
     ContractBuilder, Iface, IfaceClass, IfaceId, IfaceImpl, IfaceRef, TransitionBuilder,
 };
-use crate::persistence::ContractIfaceError;
+use crate::persistence::{ContractIfaceError, StoreTransaction};
 use crate::{MergeReveal, MergeRevealError, SecretSeal, LIB_NAME_RGB_STD};
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
@@ -204,6 +204,9 @@ impl<P: StashProvider> Stash<P> {
 
     #[doc(hidden)]
     pub fn as_provider(&self) -> &P { &self.provider }
+
+    #[doc(hidden)]
+    pub(super) fn as_provider_mut(&mut self) -> &mut P { &mut self.provider }
 
     pub(super) fn ifaces(&self) -> Result<impl Iterator<Item = &Iface> + '_, StashError<P>> {
         self.provider.ifaces().map_err(StashError::ReadProvider)
@@ -589,10 +592,33 @@ impl<P: StashProvider> Stash<P> {
         &mut self,
         seal: XChain<GraphSeal>,
     ) -> Result<bool, StashError<P>> {
-        self.provider
+        self.begin_transaction()?;
+        let seal = self
+            .provider
             .add_secret_seal(seal)
+            .inspect_err(|_| self.rollback_transaction())
+            .map_err(StashError::WriteProvider)?;
+        self.commit_transaction()?;
+        Ok(seal)
+    }
+}
+
+impl<P: StashProvider> StoreTransaction for Stash<P> {
+    type TransactionErr = StashError<P>;
+
+    fn begin_transaction(&mut self) -> Result<(), Self::TransactionErr> {
+        self.provider
+            .begin_transaction()
             .map_err(StashError::WriteProvider)
     }
+
+    fn commit_transaction(&mut self) -> Result<(), Self::TransactionErr> {
+        self.provider
+            .commit_transaction()
+            .map_err(StashError::WriteProvider)
+    }
+
+    fn rollback_transaction(&mut self) { self.provider.rollback_transaction() }
 }
 
 pub trait StashProvider: Debug + StashReadProvider + StashWriteProvider {}
@@ -650,7 +676,7 @@ pub trait StashReadProvider {
     fn secret_seals(&self) -> Result<impl Iterator<Item = XChain<GraphSeal>>, Self::Error>;
 }
 
-pub trait StashWriteProvider {
+pub trait StashWriteProvider: StoreTransaction<TransactionErr = Self::Error> {
     type Error: Clone + Eq + Error;
 
     fn replace_schema(&mut self, schema: Schema) -> Result<bool, Self::Error>;
