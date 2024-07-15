@@ -49,6 +49,7 @@ use crate::containers::{
     AnchorSet, ContentId, ContentRef, ContentSigs, SealWitness, SigBlob, Supplement, TrustLevel,
 };
 use crate::interface::{Iface, IfaceClass, IfaceId, IfaceImpl, IfaceRef};
+#[cfg(feature = "fs")]
 use crate::persistence::fs::FsStored;
 use crate::resolvers::ResolveHeight;
 use crate::LIB_NAME_RGB_STD;
@@ -96,6 +97,7 @@ impl StoreTransaction for MemStash {
     }
 
     fn commit_transaction(&mut self) -> Result<(), Self::TransactionErr> {
+        #[cfg(feature = "fs")]
         if self.dirty {
             self.store()?;
         }
@@ -448,6 +450,7 @@ impl StoreTransaction for MemState {
     }
 
     fn commit_transaction(&mut self) -> Result<(), Self::TransactionErr> {
+        #[cfg(feature = "fs")]
         if self.dirty {
             self.store()?;
         }
@@ -556,6 +559,7 @@ impl StoreTransaction for MemIndex {
     }
 
     fn commit_transaction(&mut self) -> Result<(), Self::TransactionErr> {
+        #[cfg(feature = "fs")]
         if self.dirty {
             self.store()?;
         }

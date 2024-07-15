@@ -154,6 +154,7 @@ impl<P: IndexProvider> Index<P> {
     pub fn as_provider(&self) -> &P { &self.provider }
 
     #[doc(hidden)]
+    #[cfg(feature = "fs")]
     pub(super) fn as_provider_mut(&mut self) -> &mut P { &mut self.provider }
 
     pub(super) fn index_consignment<const TRANSFER: bool>(
