@@ -1327,17 +1327,13 @@ mod test {
         );
         let secret_seal = seal.conceal();
 
-        match stock.store_secret_seal(seal) {
-            Ok(_) => true,
-            Err(_) => false,
-        };
+        assert!(stock.store_secret_seal(seal).is_ok());
         let contract_id =
             ContractId::from_baid64_str("rgb:qFuT6DN8-9AuO95M-7R8R8Mc-AZvs7zG-obum1Va-BRnweKk")
                 .unwrap();
-        match stock.consign::<true>(contract_id, [], [secret_seal]) {
-            Ok(transfer) => println!("{:?}", transfer.supplements),
-            Err(_) => (),
-        };
+        if let Ok(transfer) = stock.consign::<true>(contract_id, [], [secret_seal]) {
+            println!("{:?}", transfer.supplements)
+        }
     }
 
     #[test]
@@ -1346,10 +1342,9 @@ mod test {
         let contract_id =
             ContractId::from_baid64_str("rgb:qFuT6DN8-9AuO95M-7R8R8Mc-AZvs7zG-obum1Va-BRnweKk")
                 .unwrap();
-        match stock.export_contract(contract_id) {
-            Ok(contract) => println!("{:?}", contract.contract_id()),
-            Err(_) => (),
-        };
+        if let Ok(contract) = stock.export_contract(contract_id) {
+            println!("{:?}", contract.contract_id())
+        }
     }
 
     #[test]
@@ -1357,10 +1352,9 @@ mod test {
         let stock = Stock::<MemStash, MemState, MemIndex>::default();
         let hasher = Sha256::default();
         let schema_id = SchemaId::from(hasher);
-        match stock.export_schema(schema_id) {
-            Ok(schema) => println!("{:?}", schema.kit_id()),
-            Err(_) => (),
-        };
+        if let Ok(schema) = stock.export_schema(schema_id) {
+            println!("{:?}", schema.kit_id())
+        }
     }
 
     #[test]
@@ -1370,10 +1364,9 @@ mod test {
         let iface_id = IfaceId::from(hasher.clone());
         let bytes_hash = hasher.finish();
         let contract_id = ContractId::copy_from_slice(bytes_hash).unwrap();
-        match stock.blank_builder(contract_id, IfaceRef::Id(iface_id)) {
-            Ok(builder) => println!("{:?}", builder.transition_type()),
-            Err(_) => (),
-        };
+        if let Ok(builder) = stock.blank_builder(contract_id, IfaceRef::Id(iface_id)) {
+            println!("{:?}", builder.transition_type())
+        }
     }
 
     #[test]
@@ -1382,11 +1375,11 @@ mod test {
         let hasher = Sha256::default();
         let bytes_hash = hasher.finish();
         let contract_id = ContractId::copy_from_slice(bytes_hash).unwrap();
-        match stock.blank_builder(contract_id, IfaceRef::Name(TypeName::from_str("RGB20").unwrap()))
+        if let Ok(builder) =
+            stock.blank_builder(contract_id, IfaceRef::Name(TypeName::from_str("RGB20").unwrap()))
         {
-            Ok(builder) => println!("{:?}", builder.transition_type()),
-            Err(_) => (),
-        };
+            println!("{:?}", builder.transition_type())
+        }
     }
 
     #[test]
@@ -1398,13 +1391,12 @@ mod test {
         let bytes_hash = hasher.finish();
         let contract_id = ContractId::copy_from_slice(bytes_hash).unwrap();
 
-        match stock.transition_builder(
+        if let Ok(builder) = stock.transition_builder(
             contract_id,
             IfaceRef::Id(iface_id),
             Some(FieldName::from_str("transfer").unwrap()),
         ) {
-            Ok(builder) => println!("{:?}", builder.transition_type()),
-            Err(_) => (),
-        };
+            println!("{:?}", builder.transition_type())
+        }
     }
 }
