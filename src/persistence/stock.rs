@@ -1327,7 +1327,9 @@ mod test {
         );
         let secret_seal = seal.conceal();
 
-        assert!(stock.store_secret_seal(seal).is_ok());
+        stock
+            .store_secret_seal(seal)
+            .expect_err("we can't store to FS and fail here since we have not filename assigned");
         let contract_id =
             ContractId::from_baid64_str("rgb:qFuT6DN8-9AuO95M-7R8R8Mc-AZvs7zG-obum1Va-BRnweKk")
                 .unwrap();
