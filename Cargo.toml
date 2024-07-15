@@ -29,9 +29,7 @@ strict_encoding = "2.7.0-beta.4"
 strict_types = "2.7.0-beta.4"
 commit_verify = { version = "0.11.0-beta.6", features = ["stl"] }
 bp-core = { version = "0.11.0-beta.6", features = ["stl"] }
-# TODO: To test testnet4 upstream and downstream, 
-# git dependencies were used temporarily during development
-bp-invoice = { git = "https://github.com/will-bitlight/bp-std.git", branch = "testnet4"}
+bp-invoice = { version = "0.11.0-beta.6" } # TODO: Update
 rgb-core = { version = "0.11.0-beta.6", features = ["stl"] }
 indexmap = "2.0.2"
 serde_crate = { package = "serde", version = "1", features = ["derive"] }
@@ -100,3 +98,4 @@ features = ["all"]
 
 [patch.crates-io]
 rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "master" }
+bp-invoice = { git = "https://github.com/BP-WG/bp-std.git", branch = "master"}
