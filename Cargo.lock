@@ -231,8 +231,7 @@ dependencies = [
 [[package]]
 name = "bp-consensus"
 version = "0.11.0-beta.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f126ed462c6b054ccd027d3ed59fdc0eed5d720cbada79e4d8b7ef8e4779d9b8"
+source = "git+https://github.com/BP-WG/bp-core?branch=master#1989b57875a33243070b387158f5061e5df5be49"
 dependencies = [
  "amplify",
  "chrono",
@@ -280,7 +279,7 @@ dependencies = [
 [[package]]
 name = "bp-invoice"
 version = "0.11.0-beta.6"
-source = "git+https://github.com/BP-WG/bp-std.git?branch=master#c7b1ef4d7b9828c52606f3367f0389b78f4a2b7a"
+source = "git+https://github.com/BP-WG/bp-std.git?branch=master#b664d65aeec68b11b42fa55d6b82d0e66228a0be"
 dependencies = [
  "amplify",
  "bech32",
