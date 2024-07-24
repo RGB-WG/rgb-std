@@ -52,7 +52,7 @@ use crate::interface::{Iface, IfaceClass, IfaceId, IfaceImpl, IfaceRef};
 #[cfg(feature = "fs")]
 use crate::persistence::fs::FsStored;
 use crate::resolvers::ResolveHeight;
-use crate::LIB_NAME_RGB_STD;
+use crate::LIB_NAME_RGB_STORAGE;
 
 //////////
 // STASH
@@ -62,7 +62,7 @@ use crate::LIB_NAME_RGB_STD;
 #[derive(Getters, Clone, Debug, Default)]
 #[getter(prefix = "debug_")]
 #[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[strict_type(lib = LIB_NAME_RGB_STORAGE)]
 pub struct MemStash {
     #[strict_type(skip)]
     dirty: bool,
@@ -427,7 +427,7 @@ impl From<confinement::Error> for StateUpdateError<confinement::Error> {
 #[derive(Getters, Clone, Debug, Default)]
 #[getter(prefix = "debug_")]
 #[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[strict_type(lib = LIB_NAME_RGB_STORAGE)]
 pub struct MemState {
     #[strict_type(skip)]
     dirty: bool,
@@ -518,7 +518,7 @@ impl From<confinement::Error> for IndexWriteError<confinement::Error> {
 
 #[derive(Clone, Debug, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[strict_type(lib = LIB_NAME_RGB_STORAGE)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
@@ -532,7 +532,7 @@ pub struct ContractIndex {
 #[derive(Getters, Clone, Debug, Default)]
 #[getter(prefix = "debug_")]
 #[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[strict_type(lib = LIB_NAME_RGB_STORAGE)]
 pub struct MemIndex {
     #[strict_type(skip)]
     dirty: bool,

@@ -24,6 +24,7 @@ pub use bp::stl::bp_core_stl;
 #[allow(unused_imports)]
 pub use commit_verify::stl::{commit_verify_stl, LIB_ID_COMMIT_VERIFY};
 use invoice::{Allocation, Amount};
+use rgb::stl::rgb_state_stl;
 pub use rgb::stl::{aluvm_stl, rgb_core_stl, LIB_ID_RGB};
 use strict_types::stl::{std_stl, strict_types_stl};
 use strict_types::typesys::SystemBuilder;
@@ -31,11 +32,17 @@ use strict_types::{CompileError, LibBuilder, SemId, SymbolicSys, TypeLib, TypeSy
 
 use super::{
     AssetSpec, BurnMeta, ContractSpec, ContractTerms, Error, IssueMeta, MediaType,
-    LIB_NAME_RGB_CONTRACT,
+    LIB_NAME_RGB_CONTRACT, LIB_NAME_RGB_STORAGE,
 };
 use crate::containers::{Contract, Kit, Transfer};
+use crate::persistence::{MemIndex, MemStash, MemState};
 use crate::stl::ProofOfReserves;
 use crate::LIB_NAME_RGB_STD;
+
+/// Strict types id for the library providing standard data types which may be
+/// used in RGB smart contracts.
+pub const LIB_ID_RGB_STORAGE: &str =
+    "stl:ZZBpExyg-zYQDRZh-1UZxjsV-VHmDa!K-ykNK3bQ-HOlVbHc#sinatra-sweet-clinic";
 
 /// Strict types id for the library providing standard data types which may be
 /// used in RGB smart contracts.
@@ -44,7 +51,7 @@ pub const LIB_ID_RGB_CONTRACT: &str =
 
 /// Strict types id for the library representing of RGB StdLib data types.
 pub const LIB_ID_RGB_STD: &str =
-    "stl:j4bMNJl$-401lZky-v4WMeak-hrOCZ2O-7kMes7m-MhtQB0E#genetic-joseph-analyze";
+    "stl:peektHMR-cVHolnW-j$54$lX-GfFsZFk-A0jQBM5-krtTqzc#clinic-couple-ibiza";
 
 fn _rgb_std_stl() -> Result<TypeLib, CompileError> {
     LibBuilder::new(libname!(LIB_NAME_RGB_STD), tiny_bset! {
@@ -79,6 +86,24 @@ fn _rgb_contract_stl() -> Result<TypeLib, CompileError> {
     .compile()
 }
 
+fn _rgb_storage_stl() -> Result<TypeLib, CompileError> {
+    LibBuilder::new(libname!(LIB_NAME_RGB_STORAGE), tiny_bset! {
+        std_stl().to_dependency(),
+        strict_types_stl().to_dependency(),
+        commit_verify_stl().to_dependency(),
+        bp_tx_stl().to_dependency(),
+        bp_core_stl().to_dependency(),
+        aluvm_stl().to_dependency(),
+        rgb_core_stl().to_dependency(),
+        rgb_state_stl().to_dependency(),
+        rgb_std_stl().to_dependency()
+    })
+    .transpile::<MemIndex>()
+    .transpile::<MemState>()
+    .transpile::<MemStash>()
+    .compile()
+}
+
 /// Generates strict type library representation of RGB StdLib data types.
 pub fn rgb_std_stl() -> TypeLib { _rgb_std_stl().expect("invalid strict type RGBStd library") }
 
@@ -86,6 +111,12 @@ pub fn rgb_std_stl() -> TypeLib { _rgb_std_stl().expect("invalid strict type RGB
 /// used in RGB smart contracts.
 pub fn rgb_contract_stl() -> TypeLib {
     _rgb_contract_stl().expect("invalid strict type RGBContract library")
+}
+
+/// Generates strict type library providing standard storage for state, contract
+/// state and index.
+pub fn rgb_storage_stl() -> TypeLib {
+    _rgb_storage_stl().expect("invalid strict type RGBStorage library")
 }
 
 #[derive(Debug)]
@@ -139,5 +170,11 @@ mod test {
     fn std_lib_id() {
         let lib = rgb_std_stl();
         assert_eq!(lib.id().to_string(), LIB_ID_RGB_STD);
+    }
+
+    #[test]
+    fn storage_lib_id() {
+        let lib = rgb_storage_stl();
+        assert_eq!(lib.id().to_string(), LIB_ID_RGB_STORAGE);
     }
 }
