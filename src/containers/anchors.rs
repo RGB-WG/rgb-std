@@ -27,7 +27,7 @@ use bp::dbc::opret::OpretProof;
 use bp::dbc::tapret::TapretProof;
 use bp::dbc::{anchor, Anchor};
 use bp::{Tx, Txid};
-use commit_verify::{mpc, CommitId, ReservedBytes};
+use commit_verify::{mpc, CommitId};
 use rgb::{
     BundleDisclosure, BundleId, ContractId, DbcProof, DiscloseHash, EAnchor, Operation, Transition,
     TransitionBundle, XChain, XWitnessId,
@@ -97,38 +97,42 @@ impl MergeReveal for XPubWitness {
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-pub enum PubWitnessData {
+pub enum PubWitness {
     #[strict_type(tag = 0x00)]
     Txid(Txid),
     #[strict_type(tag = 0x01)]
-    Tx(Tx),
-    // TODO: Add SPV as an option here
+    Tx(Tx), /* TODO: Consider using `UnsignedTx` here
+             * TODO: Add SPV as an option here */
 }
 
-impl PartialEq for PubWitnessData {
+impl PartialEq for PubWitness {
     fn eq(&self, other: &Self) -> bool { self.txid() == other.txid() }
 }
 
-impl Ord for PubWitnessData {
+impl Ord for PubWitness {
     fn cmp(&self, other: &Self) -> Ordering { self.txid().cmp(&other.txid()) }
 }
 
-impl PartialOrd for PubWitnessData {
+impl PartialOrd for PubWitness {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
 }
 
-impl PubWitnessData {
+impl PubWitness {
+    pub fn new(txid: Txid) -> Self { Self::Txid(txid) }
+
+    pub fn with(tx: Tx) -> Self { Self::Tx(tx) }
+
     pub fn txid(&self) -> Txid {
         match self {
-            PubWitnessData::Txid(txid) => *txid,
-            PubWitnessData::Tx(tx) => tx.txid(),
+            PubWitness::Txid(txid) => *txid,
+            PubWitness::Tx(tx) => tx.txid(),
         }
     }
 
     pub fn tx(&self) -> Option<&Tx> {
         match self {
-            PubWitnessData::Txid(_) => None,
-            PubWitnessData::Tx(tx) => Some(tx),
+            PubWitness::Txid(_) => None,
+            PubWitness::Tx(tx) => Some(tx),
         }
     }
 
@@ -145,61 +149,6 @@ impl PubWitnessData {
             (Self::Tx(tx1), Self::Tx(tx2)) if tx1.txid() == tx2.txid() => Ok(Self::Tx(tx1)),
             (a, b) => Err(MergeRevealError::TxidMismatch(a.txid(), b.txid())),
         }
-    }
-}
-
-#[derive(Clone, Eq, Debug)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-pub struct PubWitness {
-    pub data: PubWitnessData,
-    pub spv: ReservedBytes<1>,
-}
-
-impl PartialEq for PubWitness {
-    fn eq(&self, other: &Self) -> bool { self.data == other.data }
-}
-
-impl Ord for PubWitness {
-    fn cmp(&self, other: &Self) -> Ordering { self.data.cmp(&other.data) }
-}
-
-impl PartialOrd for PubWitness {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
-}
-
-impl PubWitness {
-    pub fn new(txid: Txid) -> Self {
-        PubWitness {
-            data: PubWitnessData::Txid(txid),
-            spv: none!(),
-        }
-    }
-
-    pub fn with(tx: Tx) -> Self {
-        PubWitness {
-            data: PubWitnessData::Tx(tx),
-            spv: none!(),
-        }
-    }
-
-    #[inline]
-    pub fn txid(&self) -> Txid { self.data.txid() }
-
-    #[inline]
-    pub fn tx(&self) -> Option<&Tx> { self.data.tx() }
-}
-
-impl PubWitness {
-    pub fn merge_reveal(mut self, other: Self) -> Result<Self, MergeRevealError> {
-        self.data = self.data.merge_reveal(other.data)?;
-        // TODO: process SPV
-        Ok(self)
     }
 }
 
