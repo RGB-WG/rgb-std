@@ -292,7 +292,7 @@ impl StrictSerialize for Fascia {}
 impl StrictDeserialize for Fascia {}
 
 impl Fascia {
-    pub fn witness_id(&self) -> XWitnessId { self.witness.map_ref(|w| w.txid) }
+    pub fn witness_id(&self) -> XWitnessId { self.witness.map_ref(|w| w.txid()) }
 
     pub fn into_bundles(self) -> impl IntoIterator<Item = (ContractId, TransitionBundle)> {
         self.bundles

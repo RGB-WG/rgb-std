@@ -67,7 +67,7 @@ pub trait ToWitnessId {
 }
 
 impl ToWitnessId for XPubWitness {
-    fn to_witness_id(&self) -> XWitnessId { self.map_ref(|w| w.txid) }
+    fn to_witness_id(&self) -> XWitnessId { self.map_ref(|w| w.txid()) }
 }
 
 impl MergeReveal for XPubWitness {
@@ -80,11 +80,70 @@ impl MergeReveal for XPubWitness {
             (XChain::Bitcoin(bitcoin), XChain::Liquid(liquid)) |
             (XChain::Liquid(liquid), XChain::Bitcoin(bitcoin)) => {
                 Err(MergeRevealError::ChainMismatch {
-                    bitcoin: bitcoin.txid,
-                    liquid: liquid.txid,
+                    bitcoin: bitcoin.txid(),
+                    liquid: liquid.txid(),
                 })
             }
             _ => unreachable!(),
+        }
+    }
+}
+
+#[derive(Clone, Eq, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD, tags = custom, dumb = Self::Txid(strict_dumb!()))]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub enum PubWitnessData {
+    #[strict_type(tag = 0x00)]
+    Txid(Txid),
+    #[strict_type(tag = 0x01)]
+    Tx(Tx),
+    // TODO: Add SPV as an option here
+}
+
+impl PartialEq for PubWitnessData {
+    fn eq(&self, other: &Self) -> bool { self.txid() == other.txid() }
+}
+
+impl Ord for PubWitnessData {
+    fn cmp(&self, other: &Self) -> Ordering { self.txid().cmp(&other.txid()) }
+}
+
+impl PartialOrd for PubWitnessData {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
+}
+
+impl PubWitnessData {
+    pub fn txid(&self) -> Txid {
+        match self {
+            PubWitnessData::Txid(txid) => *txid,
+            PubWitnessData::Tx(tx) => tx.txid(),
+        }
+    }
+
+    pub fn tx(&self) -> Option<&Tx> {
+        match self {
+            PubWitnessData::Txid(_) => None,
+            PubWitnessData::Tx(tx) => Some(tx),
+        }
+    }
+
+    pub fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {
+        match (self, other) {
+            (Self::Txid(txid1), Self::Txid(txid2)) if txid1 == txid2 => Ok(Self::Txid(txid1)),
+            (Self::Txid(txid), Self::Tx(tx)) | (Self::Txid(txid), Self::Tx(tx))
+                if txid == tx.txid() =>
+            {
+                Ok(Self::Tx(tx))
+            }
+            // TODO: tx1 and tx2 may differ on their witness data; take the one having most of the
+            // witness
+            (Self::Tx(tx1), Self::Tx(tx2)) if tx1.txid() == tx2.txid() => Ok(Self::Tx(tx1)),
+            (a, b) => Err(MergeRevealError::TxidMismatch(a.txid(), b.txid())),
         }
     }
 }
@@ -98,17 +157,16 @@ impl MergeReveal for XPubWitness {
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct PubWitness {
-    pub txid: Txid,
-    pub tx: Option<Tx>,
+    pub data: PubWitnessData,
     pub spv: ReservedBytes<1>,
 }
 
 impl PartialEq for PubWitness {
-    fn eq(&self, other: &Self) -> bool { self.txid == other.txid }
+    fn eq(&self, other: &Self) -> bool { self.data == other.data }
 }
 
 impl Ord for PubWitness {
-    fn cmp(&self, other: &Self) -> Ordering { self.txid.cmp(&other.txid) }
+    fn cmp(&self, other: &Self) -> Ordering { self.data.cmp(&other.data) }
 }
 
 impl PartialOrd for PubWitness {
@@ -118,27 +176,28 @@ impl PartialOrd for PubWitness {
 impl PubWitness {
     pub fn new(txid: Txid) -> Self {
         PubWitness {
-            txid,
-            tx: None,
+            data: PubWitnessData::Txid(txid),
             spv: none!(),
         }
     }
 
     pub fn with(tx: Tx) -> Self {
         PubWitness {
-            txid: tx.txid(),
-            tx: Some(tx),
+            data: PubWitnessData::Tx(tx),
             spv: none!(),
         }
     }
+
+    #[inline]
+    pub fn txid(&self) -> Txid { self.data.txid() }
+
+    #[inline]
+    pub fn tx(&self) -> Option<&Tx> { self.data.tx() }
 }
 
 impl PubWitness {
     pub fn merge_reveal(mut self, other: Self) -> Result<Self, MergeRevealError> {
-        if self.txid != other.txid {
-            return Err(MergeRevealError::TxidMismatch(self.txid, other.txid));
-        }
-        self.tx = self.tx.or(other.tx);
+        self.data = self.data.merge_reveal(other.data)?;
         // TODO: process SPV
         Ok(self)
     }
