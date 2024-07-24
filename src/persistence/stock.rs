@@ -1221,6 +1221,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     pub fn consume_fascia(
         &mut self,
         fascia: Fascia,
+        priority: u32,
     ) -> Result<(), StockError<S, H, P, FasciaError>> {
         self.store_transaction(move |stash, state, index| {
             let witness_id = fascia.witness_id();
@@ -1242,7 +1243,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
                 state.update_state::<DumbResolver>(contract_id, |history| {
                     for transition in bundle.known_transitions.values() {
-                        let witness_anchor = WitnessAnchor::from_mempool(witness_id);
+                        let witness_anchor = WitnessAnchor::from_mempool(witness_id, priority);
                         history.add_transition(transition, witness_anchor);
                     }
                     Ok(())
