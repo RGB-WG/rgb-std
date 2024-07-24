@@ -20,13 +20,31 @@
 // limitations under the License.
 
 use rgb::validation::{ResolveWitness, WitnessResolverError};
-use rgb::{WitnessAnchor, XWitnessId, XWitnessTx};
+use rgb::vm::WitnessAnchor;
+use rgb::{XWitnessId, XWitnessTx};
 
 use crate::containers::IndexedConsignment;
 
-pub trait ResolveHeight {
-    fn resolve_height(&mut self, witness_id: XWitnessId) -> Result<WitnessAnchor, String>;
+pub trait ResolveWitnessAnchor {
+    /// Resolves position of the witness anchor in the consensus data:
+    /// blockchain, state channel etc. Used for ordering of global state and for
+    /// ensuring that the we account only for the actual contract state after
+    /// blockchain re-orgs and channel updates.
+    ///
+    /// Witness resolution must happen as fast and as cheap as getting
+    /// key-values from HashMap. Thus, resolver must always be caching and
+    /// doesn't actually re-query indexers for deeply mined transactions.
+    fn resolve_witness_anchor(&mut self, witness_id: XWitnessId) -> Result<WitnessAnchor, String>;
 }
+
+impl<T: ResolveWitnessAnchor> ResolveWitnessAnchor for &mut T {
+    #[inline]
+    fn resolve_witness_anchor(&mut self, witness_id: XWitnessId) -> Result<WitnessAnchor, String> {
+        (*self).resolve_witness_anchor(witness_id)
+    }
+}
+
+// TODO: Implement caching witness resolver
 
 pub(crate) struct ConsignmentResolver<'cons, R: ResolveWitness, const TRANSFER: bool> {
     pub consignment: &'cons IndexedConsignment<'cons, TRANSFER>,

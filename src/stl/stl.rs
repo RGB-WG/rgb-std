@@ -24,8 +24,7 @@ pub use bp::stl::bp_core_stl;
 #[allow(unused_imports)]
 pub use commit_verify::stl::{commit_verify_stl, LIB_ID_COMMIT_VERIFY};
 use invoice::{Allocation, Amount};
-use rgb::stl::rgb_state_stl;
-pub use rgb::stl::{aluvm_stl, rgb_core_stl, LIB_ID_RGB};
+pub use rgb::stl::{aluvm_stl, rgb_commit_stl, rgb_logic_stl, LIB_ID_RGB_COMMIT, LIB_ID_RGB_LOGIC};
 use strict_types::stl::{std_stl, strict_types_stl};
 use strict_types::typesys::SystemBuilder;
 use strict_types::{CompileError, LibBuilder, SemId, SymbolicSys, TypeLib, TypeSystem};
@@ -42,7 +41,7 @@ use crate::LIB_NAME_RGB_STD;
 /// Strict types id for the library providing standard data types which may be
 /// used in RGB smart contracts.
 pub const LIB_ID_RGB_STORAGE: &str =
-    "stl:ZZBpExyg-zYQDRZh-1UZxjsV-VHmDa!K-ykNK3bQ-HOlVbHc#sinatra-sweet-clinic";
+    "stl:kiahgTk7-Udyz6Es-cuB4FO9-mmbjd5t-tF1g6dR-SLT1m4Y#nepal-proxy-zebra";
 
 /// Strict types id for the library providing standard data types which may be
 /// used in RGB smart contracts.
@@ -51,7 +50,7 @@ pub const LIB_ID_RGB_CONTRACT: &str =
 
 /// Strict types id for the library representing of RGB StdLib data types.
 pub const LIB_ID_RGB_STD: &str =
-    "stl:peektHMR-cVHolnW-j$54$lX-GfFsZFk-A0jQBM5-krtTqzc#clinic-couple-ibiza";
+    "stl:SB0gkjHC-w$83KN1-zSKpnyI-MGoU2n0-8RaJVPk-YIUCocc#soviet-basket-kimono";
 
 fn _rgb_std_stl() -> Result<TypeLib, CompileError> {
     LibBuilder::new(libname!(LIB_NAME_RGB_STD), tiny_bset! {
@@ -61,7 +60,8 @@ fn _rgb_std_stl() -> Result<TypeLib, CompileError> {
         bp_tx_stl().to_dependency(),
         bp_core_stl().to_dependency(),
         aluvm_stl().to_dependency(),
-        rgb_core_stl().to_dependency()
+        rgb_commit_stl().to_dependency(),
+        rgb_logic_stl().to_dependency(),
     })
     .transpile::<Transfer>()
     .transpile::<Contract>()
@@ -94,8 +94,8 @@ fn _rgb_storage_stl() -> Result<TypeLib, CompileError> {
         bp_tx_stl().to_dependency(),
         bp_core_stl().to_dependency(),
         aluvm_stl().to_dependency(),
-        rgb_core_stl().to_dependency(),
-        rgb_state_stl().to_dependency(),
+        rgb_commit_stl().to_dependency(),
+        rgb_logic_stl().to_dependency(),
         rgb_std_stl().to_dependency()
     })
     .transpile::<MemIndex>()

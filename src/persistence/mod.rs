@@ -43,13 +43,14 @@ pub use index::{
     Index, IndexError, IndexInconsistency, IndexProvider, IndexReadError, IndexReadProvider,
     IndexWriteError, IndexWriteProvider,
 };
-pub use memory::{MemIndex, MemStash, MemState};
+pub use memory::{MemContract, MemIndex, MemStash, MemState};
 pub use stash::{
     ProviderError as StashProviderError, SchemaIfaces, Stash, StashDataError, StashError,
     StashInconsistency, StashProvider, StashReadProvider, StashWriteProvider,
 };
 pub use state::{
-    PersistedState, StateProvider, StateReadProvider, StateUpdateError, StateWriteProvider,
+    ContractStateRead, ContractStateWrite, PersistedState, State, StateError, StateInconsistency,
+    StateProvider, StateReadProvider, StateWriteProvider,
 };
 pub use stock::{
     ComposeError, ConsignError, ContractIfaceError, FasciaError, InputError as StockInputError,

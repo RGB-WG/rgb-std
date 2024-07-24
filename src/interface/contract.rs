@@ -19,22 +19,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
 use amplify::confinement::{SmallOrdSet, SmallVec};
 use invoice::{Allocation, Amount};
+use rgb::vm::AssignmentWitness;
 use rgb::{
-    AssignmentWitness, AttachId, ContractId, ContractState, DataState, KnownState, MediaType, OpId,
-    OutputAssignment, RevealedAttach, RevealedData, RevealedValue, VoidState, XOutpoint,
-    XOutputSeal, XWitnessId,
+    AttachState, ContractId, DataState, OpId, RevealedAttach, RevealedData, RevealedValue, Schema,
+    VoidState, XOutpoint, XOutputSeal, XWitnessId,
 };
 use strict_encoding::{FieldName, StrictDecode, StrictDumb, StrictEncode};
 use strict_types::typify::TypedVal;
 use strict_types::{decode, StrictVal, TypeSystem};
 
+use crate::contract::{KnownState, OutputAssignment};
 use crate::info::ContractInfo;
-use crate::interface::{IfaceImpl, OutpointFilter, WitnessFilter};
+use crate::interface::{IfaceImpl, OutpointFilter};
+use crate::persistence::ContractStateRead;
 use crate::LIB_NAME_RGB_STD;
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
@@ -78,7 +81,7 @@ pub enum AllocatedState {
     #[from]
     #[from(RevealedAttach)]
     #[strict_type(tag = 3)]
-    Attachment(AttachedState),
+    Attachment(AttachState),
 }
 
 impl KnownState for AllocatedState {}
@@ -87,32 +90,7 @@ pub type OwnedAllocation = OutputAssignment<AllocatedState>;
 pub type RightsAllocation = OutputAssignment<VoidState>;
 pub type FungibleAllocation = OutputAssignment<Amount>;
 pub type DataAllocation = OutputAssignment<DataState>;
-pub type AttachAllocation = OutputAssignment<AttachedState>;
-
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD)]
-#[display("{id}:{media_type}")]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-pub struct AttachedState {
-    pub id: AttachId,
-    pub media_type: MediaType,
-}
-
-impl KnownState for AttachedState {}
-
-impl From<RevealedAttach> for AttachedState {
-    fn from(attach: RevealedAttach) -> Self {
-        AttachedState {
-            id: attach.id,
-            media_type: attach.media_type,
-        }
-    }
-}
+pub type AttachAllocation = OutputAssignment<AttachState>;
 
 pub trait StateChange: Clone + Eq + StrictDumb + StrictEncode + StrictDecode {
     type State: KnownState;
@@ -232,8 +210,9 @@ impl<C: StateChange> IfaceOp<C> {
 /// Contract state is an in-memory structure providing API to read structured
 /// data from the [`rgb::ContractHistory`].
 #[derive(Clone, Eq, PartialEq, Debug)]
-pub struct ContractIface {
-    pub state: ContractState,
+pub struct ContractIface<S: ContractStateRead> {
+    pub state: S,
+    pub schema: Schema,
     pub iface: IfaceImpl,
     pub types: TypeSystem,
     pub info: ContractInfo,
@@ -241,7 +220,7 @@ pub struct ContractIface {
 
 // TODO: Introduce witness checker: additional filter returning only those data
 //       which witnesses are mined
-impl ContractIface {
+impl<S: ContractStateRead> ContractIface<S> {
     pub fn contract_id(&self) -> ContractId { self.state.contract_id() }
 
     /// # Panics
@@ -254,34 +233,35 @@ impl ContractIface {
             .iface
             .global_type(&name)
             .ok_or(ContractError::FieldNameUnknown(name))?;
-        let type_schema = self
-            .state
+        let global_schema = self
             .schema
             .global_types
             .get(&type_id)
             .expect("schema doesn't match interface");
-        let state = unsafe { self.state.global_unchecked(type_id) };
-        let state = state
-            .into_iter()
+        let state = self
+            .state
+            .global(type_id)
+            .values()
             .map(|data| {
                 self.types
-                    .strict_deserialize_type(type_schema.sem_id, data.as_ref())
+                    .strict_deserialize_type(global_schema.sem_id, data.borrow().as_slice())
                     .map(TypedVal::unbox)
             })
-            .take(type_schema.max_items as usize)
+            .take(global_schema.max_items as usize)
             .collect::<Result<Vec<_>, _>>()?;
-        Ok(SmallVec::try_from_iter(state).expect("same or smaller collection size"))
+
+        Ok(SmallVec::from_collection_unsafe(state))
     }
 
-    fn extract_state<'c, S, U>(
+    fn extract_state<'c, A, U>(
         &'c self,
-        state: impl IntoIterator<Item = &'c OutputAssignment<S>> + 'c,
+        state: impl IntoIterator<Item = &'c OutputAssignment<A>> + 'c,
         name: impl Into<FieldName>,
         filter: impl OutpointFilter + 'c,
     ) -> Result<impl Iterator<Item = OutputAssignment<U>> + 'c, ContractError>
     where
-        S: Clone + KnownState + 'c,
-        U: From<S> + KnownState + 'c,
+        A: Clone + KnownState + 'c,
+        U: From<A> + KnownState + 'c,
     {
         let name = name.into();
         let type_id = self
@@ -293,7 +273,7 @@ impl ContractIface {
             .filter(move |outp| outp.opout.ty == type_id)
             .filter(move |outp| filter.include_outpoint(outp.seal))
             .cloned()
-            .map(OutputAssignment::<S>::transmute))
+            .map(OutputAssignment::<A>::transmute))
     }
 
     pub fn rights<'c>(
@@ -301,7 +281,7 @@ impl ContractIface {
         name: impl Into<FieldName>,
         filter: impl OutpointFilter + 'c,
     ) -> Result<impl Iterator<Item = RightsAllocation> + 'c, ContractError> {
-        self.extract_state(self.state.rights(), name, filter)
+        self.extract_state(self.state.rights_all(), name, filter)
     }
 
     pub fn fungible<'c>(
@@ -309,7 +289,7 @@ impl ContractIface {
         name: impl Into<FieldName>,
         filter: impl OutpointFilter + 'c,
     ) -> Result<impl Iterator<Item = FungibleAllocation> + 'c, ContractError> {
-        self.extract_state(self.state.fungibles(), name, filter)
+        self.extract_state(self.state.fungible_all(), name, filter)
     }
 
     pub fn data<'c>(
@@ -317,7 +297,7 @@ impl ContractIface {
         name: impl Into<FieldName>,
         filter: impl OutpointFilter + 'c,
     ) -> Result<impl Iterator<Item = DataAllocation> + 'c, ContractError> {
-        self.extract_state(self.state.data(), name, filter)
+        self.extract_state(self.state.data_all(), name, filter)
     }
 
     pub fn attachments<'c>(
@@ -325,7 +305,7 @@ impl ContractIface {
         name: impl Into<FieldName>,
         filter: impl OutpointFilter + 'c,
     ) -> Result<impl Iterator<Item = AttachAllocation> + 'c, ContractError> {
-        self.extract_state(self.state.attach(), name, filter)
+        self.extract_state(self.state.attach_all(), name, filter)
     }
 
     pub fn allocations<'c>(
@@ -347,11 +327,11 @@ impl ContractIface {
                 .map(OutputAssignment::<S>::transmute)
         }
 
-        f(filter, self.state.rights())
+        f(filter, self.state.rights_all())
             .map(OwnedAllocation::from)
-            .chain(f(filter, self.state.fungibles()).map(OwnedAllocation::from))
-            .chain(f(filter, self.state.data()).map(OwnedAllocation::from))
-            .chain(f(filter, self.state.attach()).map(OwnedAllocation::from))
+            .chain(f(filter, self.state.fungible_all()).map(OwnedAllocation::from))
+            .chain(f(filter, self.state.data_all()).map(OwnedAllocation::from))
+            .chain(f(filter, self.state.attach_all()).map(OwnedAllocation::from))
     }
 
     pub fn outpoint_allocations(
@@ -366,27 +346,21 @@ impl ContractIface {
         &'c self,
         state: impl IntoIterator<Item = OutputAssignment<C::State>> + 'c,
         allocations: impl Iterator<Item = OutputAssignment<C::State>> + 'c,
-        witness_filter: impl WitnessFilter + Copy,
-        // resolver: impl WitnessCheck + 'c,
     ) -> HashMap<XWitnessId, IfaceOp<C>>
     where
         C::State: 'c,
     {
         fn f<'a, S, U>(
-            filter: impl WitnessFilter + 'a,
             state: impl IntoIterator<Item = OutputAssignment<S>> + 'a,
         ) -> impl Iterator<Item = OutputAssignment<U>> + 'a
         where
             S: Clone + KnownState + 'a,
             U: From<S> + KnownState + 'a,
         {
-            state
-                .into_iter()
-                .filter(move |outp| filter.include_witness(outp.witness))
-                .map(OutputAssignment::<S>::transmute)
+            state.into_iter().map(OutputAssignment::<S>::transmute)
         }
 
-        let spent = f::<_, C::State>(witness_filter, state).map(OutputAssignment::from);
+        let spent = f::<_, C::State>(state).map(OutputAssignment::from);
         let mut ops = HashMap::<XWitnessId, IfaceOp<C>>::new();
         for alloc in spent {
             let AssignmentWitness::Present(witness_id) = alloc.witness else {
@@ -416,68 +390,56 @@ impl ContractIface {
     pub fn fungible_ops<C: StateChange<State = Amount>>(
         &self,
         name: impl Into<FieldName>,
-        witness_filter: impl WitnessFilter + Copy,
         outpoint_filter: impl OutpointFilter + Copy,
     ) -> Result<HashMap<XWitnessId, IfaceOp<C>>, ContractError> {
         Ok(self.operations(
             self.state
-                .fungibles()
-                .iter()
-                .cloned()
+                .fungible_all()
+                .copied()
                 .map(OutputAssignment::transmute),
             self.fungible(name, outpoint_filter)?,
-            witness_filter,
         ))
     }
 
     pub fn data_ops<C: StateChange<State = DataState>>(
         &self,
         name: impl Into<FieldName>,
-        witness_filter: impl WitnessFilter + Copy,
         outpoint_filter: impl OutpointFilter + Copy,
     ) -> Result<HashMap<XWitnessId, IfaceOp<C>>, ContractError> {
         Ok(self.operations(
             self.state
-                .data()
-                .iter()
+                .data_all()
                 .cloned()
                 .map(OutputAssignment::transmute),
             self.data(name, outpoint_filter)?,
-            witness_filter,
         ))
     }
 
     pub fn rights_ops<C: StateChange<State = VoidState>>(
         &self,
         name: impl Into<FieldName>,
-        witness_filter: impl WitnessFilter + Copy,
         outpoint_filter: impl OutpointFilter + Copy,
     ) -> Result<HashMap<XWitnessId, IfaceOp<C>>, ContractError> {
         Ok(self.operations(
             self.state
-                .rights()
-                .iter()
-                .cloned()
+                .rights_all()
+                .copied()
                 .map(OutputAssignment::transmute),
             self.rights(name, outpoint_filter)?,
-            witness_filter,
         ))
     }
 
-    pub fn attachment_ops<C: StateChange<State = AttachedState>>(
+    pub fn attachment_ops<C: StateChange<State = AttachState>>(
         &self,
         name: impl Into<FieldName>,
-        witness_filter: impl WitnessFilter + Copy,
         outpoint_filter: impl OutpointFilter + Copy,
     ) -> Result<HashMap<XWitnessId, IfaceOp<C>>, ContractError> {
         Ok(self.operations(
             self.state
-                .attach()
-                .iter()
+                .attach_all()
                 .cloned()
                 .map(OutputAssignment::transmute),
             self.attachments(name, outpoint_filter)?,
-            witness_filter,
         ))
     }
 }

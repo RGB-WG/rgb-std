@@ -37,7 +37,7 @@ use strict_encoding::{
 };
 use strict_types::{SemId, SymbolicSys, TypeLib};
 
-use crate::interface::{ContractIface, IfaceDisplay, IfaceImpl, VerNo};
+use crate::interface::{IfaceDisplay, IfaceImpl, VerNo};
 use crate::persistence::SchemaIfaces;
 use crate::LIB_NAME_RGB_STD;
 
@@ -340,7 +340,7 @@ pub struct TransitionIface {
 /// The instances implementing this trait are used as wrappers around
 /// [`ContractIface`] object, allowing a simple API matching the interface class
 /// requirements.
-pub trait IfaceClass: From<ContractIface> {
+pub trait IfaceClass {
     const IFACE_NAME: &'static str;
     const IFACE_IDS: &'static [IfaceId];
 

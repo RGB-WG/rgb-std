@@ -228,8 +228,9 @@ Consignmenttrue rec
                 bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                 liquid bytes len=32 wrapped aka=SecretSeal tag=1
               state rec RevealedAttach
-                id bytes len=32 aka=AttachId
-                mediaType enum MediaType any=255
+                file rec AttachState
+                  id bytes len=32 aka=AttachId
+                  mediaType enum MediaType any=255
                 salt is U64
               lock bytes len=2 aka=ReservedBytes2
             revealed rec tag=3
@@ -245,8 +246,9 @@ Consignmenttrue rec
                   vout is U32 aka=Vout
                   blinding is U64
               state rec RevealedAttach
-                id bytes len=32 aka=AttachId
-                mediaType enum MediaType any=255
+                file rec AttachState
+                  id bytes len=32 aka=AttachId
+                  mediaType enum MediaType any=255
                 salt is U64
               lock bytes len=2 aka=ReservedBytes2
     valencies set len=0..MAX8 aka=Valencies
@@ -436,8 +438,9 @@ Consignmenttrue rec
                   bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                   liquid bytes len=32 wrapped aka=SecretSeal tag=1
                 state rec RevealedAttach
-                  id bytes len=32 aka=AttachId
-                  mediaType enum MediaType any=255
+                  file rec AttachState
+                    id bytes len=32 aka=AttachId
+                    mediaType enum MediaType any=255
                   salt is U64
                 lock bytes len=2 aka=ReservedBytes2
               revealed rec tag=3
@@ -453,8 +456,9 @@ Consignmenttrue rec
                     vout is U32 aka=Vout
                     blinding is U64
                 state rec RevealedAttach
-                  id bytes len=32 aka=AttachId
-                  mediaType enum MediaType any=255
+                  file rec AttachState
+                    id bytes len=32 aka=AttachId
+                    mediaType enum MediaType any=255
                   salt is U64
                 lock bytes len=2 aka=ReservedBytes2
       redeemed map len=0..MAX8 aka=Redeemed
@@ -705,8 +709,9 @@ Consignmenttrue rec
                             bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                             liquid bytes len=32 wrapped aka=SecretSeal tag=1
                           state rec RevealedAttach
-                            id bytes len=32 aka=AttachId
-                            mediaType enum MediaType any=255
+                            file rec AttachState
+                              id bytes len=32 aka=AttachId
+                              mediaType enum MediaType any=255
                             salt is U64
                           lock bytes len=2 aka=ReservedBytes2
                         revealed rec tag=3
@@ -726,8 +731,9 @@ Consignmenttrue rec
                               vout is U32 aka=Vout
                               blinding is U64
                           state rec RevealedAttach
-                            id bytes len=32 aka=AttachId
-                            mediaType enum MediaType any=255
+                            file rec AttachState
+                              id bytes len=32 aka=AttachId
+                              mediaType enum MediaType any=255
                             salt is U64
                           lock bytes len=2 aka=ReservedBytes2
                 valencies set len=0..MAX8 aka=Valencies
@@ -968,8 +974,9 @@ Consignmenttrue rec
                             bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                             liquid bytes len=32 wrapped aka=SecretSeal tag=1
                           state rec RevealedAttach
-                            id bytes len=32 aka=AttachId
-                            mediaType enum MediaType any=255
+                            file rec AttachState
+                              id bytes len=32 aka=AttachId
+                              mediaType enum MediaType any=255
                             salt is U64
                           lock bytes len=2 aka=ReservedBytes2
                         revealed rec tag=3
@@ -989,8 +996,9 @@ Consignmenttrue rec
                               vout is U32 aka=Vout
                               blinding is U64
                           state rec RevealedAttach
-                            id bytes len=32 aka=AttachId
-                            mediaType enum MediaType any=255
+                            file rec AttachState
+                              id bytes len=32 aka=AttachId
+                              mediaType enum MediaType any=255
                             salt is U64
                           lock bytes len=2 aka=ReservedBytes2
                 valencies set len=0..MAX8 aka=Valencies
@@ -1235,8 +1243,9 @@ Consignmenttrue rec
                             bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                             liquid bytes len=32 wrapped aka=SecretSeal tag=1
                           state rec RevealedAttach
-                            id bytes len=32 aka=AttachId
-                            mediaType enum MediaType any=255
+                            file rec AttachState
+                              id bytes len=32 aka=AttachId
+                              mediaType enum MediaType any=255
                             salt is U64
                           lock bytes len=2 aka=ReservedBytes2
                         revealed rec tag=3
@@ -1256,8 +1265,9 @@ Consignmenttrue rec
                               vout is U32 aka=Vout
                               blinding is U64
                           state rec RevealedAttach
-                            id bytes len=32 aka=AttachId
-                            mediaType enum MediaType any=255
+                            file rec AttachState
+                              id bytes len=32 aka=AttachId
+                              mediaType enum MediaType any=255
                             salt is U64
                           lock bytes len=2 aka=ReservedBytes2
                 valencies set len=0..MAX8 aka=Valencies
@@ -1497,8 +1507,9 @@ Consignmenttrue rec
                             bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                             liquid bytes len=32 wrapped aka=SecretSeal tag=1
                           state rec RevealedAttach
-                            id bytes len=32 aka=AttachId
-                            mediaType enum MediaType any=255
+                            file rec AttachState
+                              id bytes len=32 aka=AttachId
+                              mediaType enum MediaType any=255
                             salt is U64
                           lock bytes len=2 aka=ReservedBytes2
                         revealed rec tag=3
@@ -1518,8 +1529,9 @@ Consignmenttrue rec
                               vout is U32 aka=Vout
                               blinding is U64
                           state rec RevealedAttach
-                            id bytes len=32 aka=AttachId
-                            mediaType enum MediaType any=255
+                            file rec AttachState
+                              id bytes len=32 aka=AttachId
+                              mediaType enum MediaType any=255
                             salt is U64
                           lock bytes len=2 aka=ReservedBytes2
                 valencies set len=0..MAX8 aka=Valencies

@@ -33,18 +33,19 @@ use bp::Vout;
 use chrono::Utc;
 use commit_verify::Conceal;
 use invoice::{Amount, Beneficiary, InvoiceState, NonFungible, RgbInvoice};
+use rgb::validation::{DbcProof, EAnchor};
 use rgb::{
-    validation, AssignmentType, BlindingFactor, BundleId, ContractHistory, ContractId,
-    ContractState, DbcProof, EAnchor, GraphSeal, Identity, OpId, Operation, Opout, SchemaId,
-    SecretSeal, Transition, WitnessAnchor, XChain, XOutpoint, XOutputSeal, XWitnessId,
+    validation, AssignmentType, BlindingFactor, BundleId, ContractId, GraphSeal, Identity, OpId,
+    Operation, Opout, SchemaId, SecretSeal, Transition, XChain, XOutpoint, XOutputSeal, XWitnessId,
 };
 use strict_encoding::FieldName;
 
 use super::{
-    Index, IndexError, IndexInconsistency, IndexProvider, IndexReadProvider, IndexWriteProvider,
-    MemIndex, MemStash, MemState, PersistedState, SchemaIfaces, Stash, StashDataError, StashError,
-    StashInconsistency, StashProvider, StashReadProvider, StashWriteProvider, StateProvider,
-    StateReadProvider, StateUpdateError, StateWriteProvider, StoreTransaction,
+    ContractStateRead, Index, IndexError, IndexInconsistency, IndexProvider, IndexReadProvider,
+    IndexWriteProvider, MemIndex, MemStash, MemState, PersistedState, SchemaIfaces, Stash,
+    StashDataError, StashError, StashInconsistency, StashProvider, StashReadProvider,
+    StashWriteProvider, State, StateError, StateInconsistency, StateProvider, StateReadProvider,
+    StateWriteProvider, StoreTransaction,
 };
 use crate::containers::{
     AnchorSet, AnchoredBundles, Batch, BuilderSeal, BundledWitness, Consignment, ContainerVer,
@@ -53,12 +54,11 @@ use crate::containers::{
     ValidKit, ValidTransfer, VelocityHint, SUPPL_ANNOT_VELOCITY,
 };
 use crate::info::{ContractInfo, IfaceInfo, SchemaInfo};
-use crate::interface::resolver::DumbResolver;
 use crate::interface::{
     BuilderError, ContractBuilder, ContractIface, Iface, IfaceClass, IfaceId, IfaceRef,
     TransitionBuilder,
 };
-use crate::resolvers::ResolveHeight;
+use crate::resolvers::ResolveWitnessAnchor;
 use crate::{MergeRevealError, RevealError};
 
 pub type ContractAssignments = HashMap<XOutputSeal, HashMap<Opout, PersistedState>>;
@@ -94,7 +94,7 @@ pub enum StockError<
     ///
     /// It may happen due to RGB standard library bug, or indicate internal
     /// stash inconsistency and compromised stash data storage.
-    StateInconsistency(ContractId),
+    StateInconsistency(StateInconsistency),
 
     #[from]
     #[display(doc_comments)]
@@ -106,6 +106,9 @@ pub enum StockError<
 
     #[from]
     StashData(StashDataError),
+
+    /// witness {0} can't be resolved: {1}
+    WitnessUnresolved(XWitnessId, String),
 }
 
 impl<S: StashProvider, H: StateProvider, P: IndexProvider, E: Error> From<StashError<S>>
@@ -121,6 +124,18 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider, E: Error> From<StashE
     }
 }
 
+impl<S: StashProvider, H: StateProvider, P: IndexProvider, E: Error> From<StateError<H>>
+    for StockError<S, H, P, E>
+{
+    fn from(err: StateError<H>) -> Self {
+        match err {
+            StateError::ReadProvider(err) => Self::StateRead(err),
+            StateError::WriteProvider(err) => Self::StateWrite(err),
+            StateError::Inconsistency(e) => Self::StateInconsistency(e),
+            StateError::Resolver(id, e) => Self::WitnessUnresolved(id, e),
+        }
+    }
+}
 impl<S: StashProvider, H: StateProvider, P: IndexProvider, E: Error> From<IndexError<P>>
     for StockError<S, H, P, E>
 {
@@ -129,18 +144,6 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider, E: Error> From<IndexE
             IndexError::ReadProvider(err) => Self::IndexRead(err),
             IndexError::WriteProvider(err) => Self::IndexWrite(err),
             IndexError::Inconsistency(e) => Self::IndexInconsistency(e),
-        }
-    }
-}
-
-impl<S: StashProvider, H: StateProvider, P: IndexProvider, E: Error>
-    From<StateUpdateError<<H as StateWriteProvider>::Error>> for StockError<S, H, P, E>
-{
-    fn from(err: StateUpdateError<<H as StateWriteProvider>::Error>) -> Self {
-        match err {
-            StateUpdateError::Resolver(err) => Self::Resolver(err),
-            StateUpdateError::Connectivity(err) => Self::StateWrite(err),
-            StateUpdateError::UnknownContract(err) => Self::StateInconsistency(err),
         }
     }
 }
@@ -307,6 +310,7 @@ macro_rules! stock_err_conv {
                     StockError::StashInconsistency(e) => StockError::StashInconsistency(e),
                     StockError::StateInconsistency(e) => StockError::StateInconsistency(e),
                     StockError::IndexInconsistency(e) => StockError::IndexInconsistency(e),
+                    StockError::WitnessUnresolved(id, e) => StockError::WitnessUnresolved(id, e),
                 }
             }
         }
@@ -349,7 +353,7 @@ pub struct Stock<
     P: IndexProvider = MemIndex,
 > {
     stash: Stash<S>,
-    state: H,
+    state: State<H>,
     index: Index<P>,
 }
 
@@ -432,7 +436,7 @@ mod fs {
 
             let mut filename = path.to_owned();
             filename.push("state.dat");
-            self.state.set_filename(filename);
+            self.state.as_provider_mut().set_filename(filename);
 
             let mut filename = path.to_owned();
             filename.push("index.dat");
@@ -453,7 +457,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     pub fn with(stash_provider: S, state_provider: H, index_provider: P) -> Self {
         Stock {
             stash: Stash::new(stash_provider),
-            state: state_provider,
+            state: State::new(state_provider),
             index: Index::new(index_provider),
         }
     }
@@ -461,7 +465,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     #[doc(hidden)]
     pub fn as_stash_provider(&self) -> &S { self.stash.as_provider() }
     #[doc(hidden)]
-    pub fn as_state_provider(&self) -> &H { &self.state }
+    pub fn as_state_provider(&self) -> &H { self.state.as_provider() }
     #[doc(hidden)]
     pub fn as_index_provider(&self) -> &P { self.index.as_provider() }
 
@@ -498,7 +502,8 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
     pub fn contracts_by<'a, C: IfaceClass + 'a>(
         &'a self,
-    ) -> Result<impl Iterator<Item = C::Info> + 'a, StockError<S, H, P>> {
+    ) -> Result<impl Iterator<Item = C::Info> + 'a, StockError<S, H, P>>
+    where C: From<ContractIface<H::ContractRead<'a>>> {
         Ok(self.stash.geneses_by::<C>()?.filter_map(|genesis| {
             self.contract_iface_class::<C>(genesis.contract_id())
                 .as_ref()
@@ -508,7 +513,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     }
 
     /// Iterates over ids of all contract assigning state to the provided set of
-    /// witness outputs.
+    /// output seals.
     pub fn contracts_assigning(
         &self,
         outputs: impl IntoIterator<Item = impl Into<XOutputSeal>>,
@@ -523,45 +528,39 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     fn contract_raw(
         &self,
         contract_id: ContractId,
-    ) -> Result<(&SchemaIfaces, &ContractHistory, ContractInfo), StockError<S, H, P>> {
-        let history = self
-            .state
-            .contract_state(contract_id)
-            .map_err(StockError::StateRead)?
-            .ok_or(StockError::StateInconsistency(contract_id))?;
-        let schema_id = history.schema_id();
+    ) -> Result<(&SchemaIfaces, H::ContractRead<'_>, ContractInfo), StockError<S, H, P>> {
+        let state = self.state.contract_state(contract_id)?;
+        let schema_id = state.schema_id();
         let schema_ifaces = self.stash.schema(schema_id)?;
         let info = ContractInfo::with(self.stash.genesis(contract_id)?);
-        Ok((schema_ifaces, history, info))
+        Ok((schema_ifaces, state, info))
     }
 
     pub fn contract_state(
         &self,
         contract_id: ContractId,
-    ) -> Result<ContractState, StockError<S, H, P>> {
-        let (schema_ifaces, history, _) = self.contract_raw(contract_id)?;
-        Ok(ContractState {
-            schema: schema_ifaces.schema.clone(),
-            history: history.clone(),
-        })
+    ) -> Result<H::ContractRead<'_>, StockError<S, H, P>> {
+        self.state
+            .contract_state(contract_id)
+            .map_err(StockError::from)
     }
 
-    pub fn contract_iface_class<C: IfaceClass>(
-        &self,
+    pub fn contract_iface_class<'a, C: IfaceClass>(
+        &'a self,
         contract_id: ContractId,
-    ) -> Result<C, StockError<S, H, P, ContractIfaceError>> {
-        let (schema_ifaces, history, info) = self.contract_raw(contract_id)?;
+    ) -> Result<C, StockError<S, H, P, ContractIfaceError>>
+    where
+        C: From<ContractIface<H::ContractRead<'a>>>,
+    {
+        let (schema_ifaces, state, info) = self.contract_raw(contract_id)?;
         let iimpl = self.stash.impl_for::<C>(schema_ifaces)?;
 
         let iface = self.stash.iface(iimpl.iface_id)?;
         let (types, _) = self.stash.extract(&schema_ifaces.schema, [iface])?;
 
-        let state = ContractState {
-            schema: schema_ifaces.schema.clone(),
-            history: history.clone(),
-        };
         Ok(ContractIface {
             state,
+            schema: schema_ifaces.schema.clone(),
             iface: iimpl.clone(),
             types,
             info,
@@ -574,8 +573,8 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         &self,
         contract_id: ContractId,
         iface: impl Into<IfaceRef>,
-    ) -> Result<ContractIface, StockError<S, H, P, ContractIfaceError>> {
-        let (schema_ifaces, history, info) = self.contract_raw(contract_id)?;
+    ) -> Result<ContractIface<H::ContractRead<'_>>, StockError<S, H, P, ContractIfaceError>> {
+        let (schema_ifaces, state, info) = self.contract_raw(contract_id)?;
         let iface = self.stash.iface(iface)?;
         let iface_id = iface.iface_id();
 
@@ -585,12 +584,9 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
         let (types, _) = self.stash.extract(&schema_ifaces.schema, [iface])?;
 
-        let state = ContractState {
-            schema: schema_ifaces.schema.clone(),
-            history: history.clone(),
-        };
         Ok(ContractIface {
             state,
+            schema: schema_ifaces.schema.clone(),
             iface: iimpl.clone(),
             types,
             info,
@@ -604,12 +600,12 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     ) -> Result<ContractAssignments, StockError<S, H, P>> {
         let outputs: BTreeSet<XOutpoint> = outpoints.into_iter().map(|o| o.into()).collect();
 
-        let history = self.contract_state(contract_id)?;
+        let state = self.contract_state(contract_id)?;
 
         let mut res =
             HashMap::<XOutputSeal, HashMap<Opout, PersistedState>>::with_capacity(outputs.len());
 
-        for item in history.fungibles() {
+        for item in state.fungible_all() {
             let outpoint = item.seal.into();
             if outputs.contains::<XOutpoint>(&outpoint) {
                 res.entry(item.seal).or_default().insert(
@@ -623,7 +619,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             }
         }
 
-        for item in history.data() {
+        for item in state.data_all() {
             let outpoint = item.seal.into();
             if outputs.contains::<XOutpoint>(&outpoint) {
                 res.entry(item.seal).or_default().insert(
@@ -633,7 +629,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             }
         }
 
-        for item in history.rights() {
+        for item in state.rights_all() {
             let outpoint = item.seal.into();
             if outputs.contains::<XOutpoint>(&outpoint) {
                 res.entry(item.seal)
@@ -642,7 +638,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             }
         }
 
-        for item in history.attach() {
+        for item in state.attach_all() {
             let outpoint = item.seal.into();
             if outputs.contains::<XOutpoint>(&outpoint) {
                 res.entry(item.seal).or_default().insert(
@@ -1136,11 +1132,13 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
     fn store_transaction<E: Error>(
         &mut self,
-        f: impl FnOnce(&mut Stash<S>, &mut H, &mut Index<P>) -> Result<(), StockError<S, H, P, E>>,
+        f: impl FnOnce(
+            &mut Stash<S>,
+            &mut State<H>,
+            &mut Index<P>,
+        ) -> Result<(), StockError<S, H, P, E>>,
     ) -> Result<(), StockError<S, H, P, E>> {
-        self.state
-            .begin_transaction()
-            .map_err(StockError::StateWrite)?;
+        self.state.begin_transaction()?;
         self.stash
             .begin_transaction()
             .inspect_err(|_| self.stash.rollback_transaction())?;
@@ -1152,11 +1150,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         self.index
             .commit_transaction()
             .map_err(StockError::from)
-            .and_then(|_| {
-                self.state
-                    .commit_transaction()
-                    .map_err(StockError::StateWrite)
-            })
+            .and_then(|_| self.state.commit_transaction().map_err(StockError::from))
             .and_then(|_| self.stash.commit_transaction().map_err(StockError::from))
             .inspect_err(|_| {
                 self.state.rollback_transaction();
@@ -1173,7 +1167,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         Ok(status)
     }
 
-    pub fn import_contract<R: ResolveHeight>(
+    pub fn import_contract<R: ResolveWitnessAnchor>(
         &mut self,
         contract: ValidContract,
         resolver: &mut R,
@@ -1181,7 +1175,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         self.consume_consignment(contract, resolver)
     }
 
-    pub fn accept_transfer<R: ResolveHeight>(
+    pub fn accept_transfer<R: ResolveWitnessAnchor>(
         &mut self,
         contract: ValidTransfer,
         resolver: &mut R,
@@ -1189,19 +1183,16 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         self.consume_consignment(contract, resolver)
     }
 
-    fn consume_consignment<R: ResolveHeight, const TRANSFER: bool>(
+    fn consume_consignment<R: ResolveWitnessAnchor, const TRANSFER: bool>(
         &mut self,
         consignment: ValidConsignment<TRANSFER>,
-        resolver: &mut R,
+        mut resolver: R,
     ) -> Result<validation::Status, StockError<S, H, P>> {
-        let contract_id = consignment.contract_id();
         let (mut consignment, status) = consignment.split();
 
         consignment = self.stash.resolve_secrets(consignment)?;
         self.store_transaction(move |stash, state, index| {
-            state.create_or_update_state::<R>(contract_id, |history| {
-                consignment.update_history(history, resolver)
-            })?;
+            state.update_from_consignment(&consignment, &mut resolver)?;
             index.index_consignment(&consignment)?;
             stash.consume_consignment(consignment)?;
             Ok(())
@@ -1218,10 +1209,10 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     ///
     /// Must be called before the consignment is created, when witness
     /// transaction is not yet mined.
-    pub fn consume_fascia(
+    pub fn consume_fascia<R: ResolveWitnessAnchor>(
         &mut self,
         fascia: Fascia,
-        priority: u32,
+        mut resolver: R,
     ) -> Result<(), StockError<S, H, P, FasciaError>> {
         self.store_transaction(move |stash, state, index| {
             let witness_id = fascia.witness_id();
@@ -1240,15 +1231,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
                 }
 
                 index.index_bundle(contract_id, &bundle, witness_id)?;
-
-                state.update_state::<DumbResolver>(contract_id, |history| {
-                    for transition in bundle.known_transitions.values() {
-                        let witness_anchor = WitnessAnchor::from_mempool(witness_id, priority);
-                        history.add_transition(transition, witness_anchor);
-                    }
-                    Ok(())
-                })?;
-
+                state.update_from_bundle(contract_id, &bundle, witness_id, &mut resolver)?;
                 stash.consume_bundle(bundle)?;
             }
             Ok(())
@@ -1318,6 +1301,7 @@ mod test {
     use strict_encoding::TypeName;
 
     use super::*;
+    use crate::containers::ConsignmentExt;
 
     #[test]
     fn test_consign() {

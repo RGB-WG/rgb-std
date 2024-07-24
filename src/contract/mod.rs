@@ -23,6 +23,6 @@ mod assignments;
 mod bundle;
 mod merge_reveal;
 
-pub use assignments::TypedAssignsExt;
+pub use assignments::{KnownState, OutputAssignment, TypedAssignsExt};
 pub use bundle::{BundleExt, RevealError};
 pub use merge_reveal::{MergeReveal, MergeRevealError};

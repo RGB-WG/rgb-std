@@ -22,11 +22,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::ops::Deref;
 
-use rgb::{AssignmentWitness, XOutpoint};
-
-pub trait WitnessFilter {
-    fn include_witness(&self, witness: impl Into<AssignmentWitness>) -> bool;
-}
+use rgb::XOutpoint;
 
 pub trait OutpointFilter {
     fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool;
@@ -110,87 +106,5 @@ impl<V> OutpointFilter for BTreeMap<XOutpoint, V> {
     fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
         let outpoint = outpoint.into();
         self.keys().any(|o| *o == outpoint)
-    }
-}
-
-// WitnessFilter
-
-impl WitnessFilter for FilterIncludeAll {
-    fn include_witness(&self, _: impl Into<AssignmentWitness>) -> bool { true }
-}
-
-impl<T: WitnessFilter> WitnessFilter for FilterExclude<T> {
-    fn include_witness(&self, witness: impl Into<AssignmentWitness>) -> bool {
-        !self.0.include_witness(witness.into())
-    }
-}
-
-impl<T: WitnessFilter> WitnessFilter for &T {
-    fn include_witness(&self, witness: impl Into<AssignmentWitness>) -> bool {
-        (*self).include_witness(witness)
-    }
-}
-
-impl<T: WitnessFilter> WitnessFilter for &mut T {
-    fn include_witness(&self, witness: impl Into<AssignmentWitness>) -> bool {
-        self.deref().include_witness(witness)
-    }
-}
-
-impl<T: WitnessFilter> WitnessFilter for Option<T> {
-    fn include_witness(&self, witness: impl Into<AssignmentWitness>) -> bool {
-        self.as_ref()
-            .map(|filter| filter.include_witness(witness))
-            .unwrap_or(true)
-    }
-}
-
-impl WitnessFilter for AssignmentWitness {
-    fn include_witness(&self, witness: impl Into<AssignmentWitness>) -> bool {
-        *self == witness.into()
-    }
-}
-
-impl<const LEN: usize> WitnessFilter for [AssignmentWitness; LEN] {
-    fn include_witness(&self, witness: impl Into<AssignmentWitness>) -> bool {
-        self.contains(&witness.into())
-    }
-}
-
-impl WitnessFilter for &[AssignmentWitness] {
-    fn include_witness(&self, witness: impl Into<AssignmentWitness>) -> bool {
-        self.contains(&witness.into())
-    }
-}
-
-impl WitnessFilter for Vec<AssignmentWitness> {
-    fn include_witness(&self, witness: impl Into<AssignmentWitness>) -> bool {
-        self.contains(&witness.into())
-    }
-}
-
-impl WitnessFilter for HashSet<AssignmentWitness> {
-    fn include_witness(&self, witness: impl Into<AssignmentWitness>) -> bool {
-        self.contains(&witness.into())
-    }
-}
-
-impl WitnessFilter for BTreeSet<AssignmentWitness> {
-    fn include_witness(&self, witness: impl Into<AssignmentWitness>) -> bool {
-        self.contains(&witness.into())
-    }
-}
-
-impl<V> WitnessFilter for HashMap<AssignmentWitness, V> {
-    fn include_witness(&self, witness: impl Into<AssignmentWitness>) -> bool {
-        let witness = witness.into();
-        self.keys().any(|w| *w == witness)
-    }
-}
-
-impl<V> WitnessFilter for BTreeMap<AssignmentWitness, V> {
-    fn include_witness(&self, witness: impl Into<AssignmentWitness>) -> bool {
-        let witness = witness.into();
-        self.keys().any(|w| *w == witness)
     }
 }

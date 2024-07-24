@@ -19,11 +19,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
+use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::ops::Deref;
 use std::str::FromStr;
-use std::{fmt, iter};
 
 use aluvm::library::Lib;
 use amplify::confinement::{
@@ -35,8 +35,8 @@ use baid64::{Baid64ParseError, DisplayBaid64, FromBaid64Str};
 use commit_verify::{CommitEncode, CommitEngine, CommitId, CommitmentId, DigestExt, Sha256};
 use rgb::validation::{ResolveWitness, Validator, Validity, Warning, CONSIGNMENT_MAX_LIBS};
 use rgb::{
-    impl_serde_baid64, validation, AttachId, BundleId, ContractHistory, ContractId, Extension,
-    Genesis, GraphSeal, Operation, Schema, SchemaId, XChain,
+    impl_serde_baid64, validation, AttachId, BundleId, ContractId, Extension, Genesis, GraphSeal,
+    Operation, Schema, SchemaId, XChain,
 };
 use rgbcore::validation::ConsignmentApi;
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
@@ -47,13 +47,39 @@ use super::{
     TerminalDisclose, ASCII_ARMOR_CONSIGNMENT_TYPE, ASCII_ARMOR_CONTRACT, ASCII_ARMOR_IFACE,
     ASCII_ARMOR_SCHEMA, ASCII_ARMOR_TERMINAL, ASCII_ARMOR_VERSION,
 };
-use crate::containers::anchors::ToWitnessId;
 use crate::interface::{Iface, IfaceImpl};
-use crate::resolvers::{ConsignmentResolver, ResolveHeight};
+use crate::resolvers::ConsignmentResolver;
 use crate::{BundleExt, SecretSeal, LIB_NAME_RGB_STD};
 
 pub type Transfer = Consignment<true>;
 pub type Contract = Consignment<false>;
+
+pub trait ConsignmentExt {
+    fn contract_id(&self) -> ContractId;
+    fn schema_id(&self) -> SchemaId;
+    fn genesis(&self) -> &Genesis;
+    fn extensions(&self) -> impl Iterator<Item = &Extension>;
+    fn bundled_witnesses(&self) -> impl Iterator<Item = &BundledWitness>;
+}
+
+impl<C: ConsignmentExt> ConsignmentExt for &C {
+    #[inline]
+    fn contract_id(&self) -> ContractId { (*self).contract_id() }
+
+    #[inline]
+    fn schema_id(&self) -> SchemaId { (*self).schema_id() }
+
+    #[inline]
+    fn genesis(&self) -> &Genesis { (*self).genesis() }
+
+    #[inline]
+    fn extensions(&self) -> impl Iterator<Item = &Extension> { (*self).extensions() }
+
+    #[inline]
+    fn bundled_witnesses(&self) -> impl Iterator<Item = &BundledWitness> {
+        (*self).bundled_witnesses()
+    }
+}
 
 /// Interface identifier.
 ///
@@ -229,15 +255,29 @@ impl<const TRANSFER: bool> CommitEncode for Consignment<TRANSFER> {
     }
 }
 
+impl<const TRANSFER: bool> ConsignmentExt for Consignment<TRANSFER> {
+    #[inline]
+    fn contract_id(&self) -> ContractId { self.genesis.contract_id() }
+
+    #[inline]
+    fn schema_id(&self) -> SchemaId { self.schema.schema_id() }
+
+    #[inline]
+    fn genesis(&self) -> &Genesis { &self.genesis }
+
+    #[inline]
+    fn extensions(&self) -> impl Iterator<Item = &Extension> { self.extensions.iter() }
+
+    #[inline]
+    fn bundled_witnesses(&self) -> impl Iterator<Item = &BundledWitness> { self.bundles.iter() }
+}
+
 impl<const TRANSFER: bool> Consignment<TRANSFER> {
     #[inline]
     pub fn consignment_id(&self) -> ConsignmentId { self.commit_id() }
 
     #[inline]
     pub fn schema_id(&self) -> SchemaId { self.schema.schema_id() }
-
-    #[inline]
-    pub fn contract_id(&self) -> ContractId { self.genesis.contract_id() }
 
     pub fn terminal_secrets(&self) -> impl Iterator<Item = (BundleId, XChain<SecretSeal>)> {
         self.terminals
@@ -253,58 +293,6 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
                 seal: *seal,
             })
         })
-    }
-
-    pub fn update_history<R: ResolveHeight>(
-        &self,
-        history: Option<ContractHistory>,
-        resolver: &mut R,
-    ) -> Result<ContractHistory, String> {
-        let mut history = history.unwrap_or_else(|| {
-            ContractHistory::with(self.schema_id(), self.contract_id(), &self.genesis)
-        });
-
-        let mut extension_idx = self
-            .extensions
-            .iter()
-            .map(Extension::id)
-            .zip(iter::repeat(false))
-            .collect::<BTreeMap<_, _>>();
-        let mut ordered_extensions = BTreeMap::new();
-        for bundled_witness in &self.bundles {
-            for bundle in bundled_witness.anchored_bundles.bundles() {
-                for transition in bundle.known_transitions.values() {
-                    let witness_anchor =
-                        resolver.resolve_height(bundled_witness.pub_witness.to_witness_id())?;
-
-                    history.add_transition(transition, witness_anchor);
-                    for (id, used) in &mut extension_idx {
-                        if *used {
-                            continue;
-                        }
-                        for input in &transition.inputs {
-                            if input.prev_out.op == *id {
-                                *used = true;
-                                if let Some(ord) = ordered_extensions.get_mut(id) {
-                                    if *ord > witness_anchor {
-                                        *ord = witness_anchor;
-                                    }
-                                } else {
-                                    ordered_extensions.insert(*id, witness_anchor);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        for extension in &self.extensions {
-            if let Some(witness_anchor) = ordered_extensions.get(&extension.id()) {
-                history.add_extension(extension, *witness_anchor);
-            }
-        }
-
-        Ok(history)
     }
 
     #[must_use]

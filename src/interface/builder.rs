@@ -30,17 +30,16 @@ use invoice::{Allocation, Amount};
 use rgb::validation::Scripts;
 use rgb::{
     validation, AltLayer1, AltLayer1Set, AssetTag, AssetTags, Assign, AssignmentType, Assignments,
-    BlindingFactor, ContractId, DataState, ExposedSeal, FungibleType, Genesis, GenesisSeal,
-    GlobalState, GraphSeal, Identity, Input, Layer1, MetadataError, Opout, OwnedStateSchema,
-    RevealedAttach, RevealedData, RevealedValue, Schema, Transition, TransitionType, TypedAssigns,
-    XChain, XOutpoint,
+    AttachState, BlindingFactor, ContractId, DataState, ExposedSeal, FungibleType, Genesis,
+    GenesisSeal, GlobalState, GraphSeal, Identity, Input, Layer1, MetadataError, Opout,
+    OwnedStateSchema, RevealedAttach, RevealedData, RevealedValue, Schema, Transition,
+    TransitionType, TypedAssigns, XChain, XOutpoint,
 };
 use rgbcore::{GlobalStateSchema, GlobalStateType, MetaType, Metadata, ValencyType};
 use strict_encoding::{FieldName, SerializeError, StrictSerialize};
 use strict_types::{decode, SemId, TypeSystem};
 
 use crate::containers::{BuilderSeal, ContainerVer, Contract, ValidConsignment};
-use crate::interface::contract::AttachedState;
 use crate::interface::resolver::DumbResolver;
 use crate::interface::{Iface, IfaceImpl, TransitionIface};
 use crate::persistence::PersistedState;
@@ -343,7 +342,7 @@ impl ContractBuilder {
         mut self,
         name: impl Into<FieldName>,
         seal: impl Into<BuilderSeal<GenesisSeal>>,
-        attachment: AttachedState,
+        attachment: AttachState,
     ) -> Result<Self, BuilderError> {
         let seal = seal.into();
         self.check_layer1(seal.layer1())?;
@@ -774,7 +773,7 @@ impl TransitionBuilder {
         mut self,
         name: impl Into<FieldName>,
         seal: impl Into<BuilderSeal<GraphSeal>>,
-        attachment: AttachedState,
+        attachment: AttachState,
     ) -> Result<Self, BuilderError> {
         self.builder = self.builder.add_attachment(name, seal, attachment)?;
         Ok(self)
@@ -1249,7 +1248,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         self,
         name: impl Into<FieldName>,
         seal: impl Into<BuilderSeal<Seal>>,
-        state: AttachedState,
+        state: AttachState,
     ) -> Result<Self, BuilderError> {
         debug_assert!(
             !self.deterministic,

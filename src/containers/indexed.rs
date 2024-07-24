@@ -24,10 +24,10 @@ use std::ops::Deref;
 
 use amplify::confinement::Collection;
 use commit_verify::Conceal;
-use rgb::validation::{ConsignmentApi, Scripts};
+use rgb::validation::{ConsignmentApi, EAnchor, Scripts};
 use rgb::{
-    BundleId, EAnchor, Extension, Genesis, OpId, OpRef, Operation, Schema, Transition,
-    TransitionBundle, XChain, XWitnessId,
+    BundleId, Extension, Genesis, OpId, OpRef, Operation, Schema, Transition, TransitionBundle,
+    XChain, XWitnessId,
 };
 use strict_types::TypeSystem;
 

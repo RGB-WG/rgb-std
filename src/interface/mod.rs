@@ -27,18 +27,18 @@ mod iface;
 mod iimpl;
 mod contract;
 mod builder;
-mod filters;
+mod filter;
 pub(crate) mod resolver;
 mod contractum;
 mod inheritance;
 
 pub use builder::{BuilderError, ContractBuilder, TransitionBuilder, TxOutpoint};
 pub use contract::{
-    AllocatedState, AmountChange, AttachAllocation, AttachedState, ContractError, ContractIface,
-    DataAllocation, FungibleAllocation, IfaceOp, OwnedAllocation, RightsAllocation, StateChange,
+    AllocatedState, AmountChange, AttachAllocation, ContractError, ContractIface, DataAllocation,
+    FungibleAllocation, IfaceOp, OwnedAllocation, RightsAllocation, StateChange,
 };
 pub use contractum::IfaceDisplay;
-pub use filters::{FilterExclude, FilterIncludeAll, OutpointFilter, WitnessFilter};
+pub use filter::{FilterExclude, FilterIncludeAll, OutpointFilter};
 pub use iface::{
     ArgMap, AssignIface, ExtensionIface, GenesisIface, GlobalIface, Iface, IfaceClass, IfaceId,
     IfaceInconsistency, IfaceRef, Modifier, OpName, OwnedIface, Req, TransitionIface, ValencyIface,
