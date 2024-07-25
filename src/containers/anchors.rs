@@ -27,7 +27,7 @@ use bp::dbc::opret::OpretProof;
 use bp::dbc::tapret::TapretProof;
 use bp::dbc::{anchor, Anchor};
 use bp::{Tx, Txid};
-use commit_verify::{mpc, CommitId, ReservedBytes};
+use commit_verify::{mpc, CommitId};
 use rgb::{
     BundleDisclosure, BundleId, ContractId, DbcProof, DiscloseHash, EAnchor, Operation, Transition,
     TransitionBundle, XChain, XWitnessId,
@@ -67,7 +67,7 @@ pub trait ToWitnessId {
 }
 
 impl ToWitnessId for XPubWitness {
-    fn to_witness_id(&self) -> XWitnessId { self.map_ref(|w| w.txid) }
+    fn to_witness_id(&self) -> XWitnessId { self.map_ref(|w| w.txid()) }
 }
 
 impl MergeReveal for XPubWitness {
@@ -80,8 +80,8 @@ impl MergeReveal for XPubWitness {
             (XChain::Bitcoin(bitcoin), XChain::Liquid(liquid)) |
             (XChain::Liquid(liquid), XChain::Bitcoin(bitcoin)) => {
                 Err(MergeRevealError::ChainMismatch {
-                    bitcoin: bitcoin.txid,
-                    liquid: liquid.txid,
+                    bitcoin: bitcoin.txid(),
+                    liquid: liquid.txid(),
                 })
             }
             _ => unreachable!(),
@@ -91,24 +91,26 @@ impl MergeReveal for XPubWitness {
 
 #[derive(Clone, Eq, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[strict_type(lib = LIB_NAME_RGB_STD, tags = custom, dumb = Self::Txid(strict_dumb!()))]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-pub struct PubWitness {
-    pub txid: Txid,
-    pub tx: Option<Tx>,
-    pub spv: ReservedBytes<1>,
+pub enum PubWitness {
+    #[strict_type(tag = 0x00)]
+    Txid(Txid),
+    #[strict_type(tag = 0x01)]
+    Tx(Tx), /* TODO: Consider using `UnsignedTx` here
+             * TODO: Add SPV as an option here */
 }
 
 impl PartialEq for PubWitness {
-    fn eq(&self, other: &Self) -> bool { self.txid == other.txid }
+    fn eq(&self, other: &Self) -> bool { self.txid() == other.txid() }
 }
 
 impl Ord for PubWitness {
-    fn cmp(&self, other: &Self) -> Ordering { self.txid.cmp(&other.txid) }
+    fn cmp(&self, other: &Self) -> Ordering { self.txid().cmp(&other.txid()) }
 }
 
 impl PartialOrd for PubWitness {
@@ -116,31 +118,37 @@ impl PartialOrd for PubWitness {
 }
 
 impl PubWitness {
-    pub fn new(txid: Txid) -> Self {
-        PubWitness {
-            txid,
-            tx: None,
-            spv: none!(),
+    pub fn new(txid: Txid) -> Self { Self::Txid(txid) }
+
+    pub fn with(tx: Tx) -> Self { Self::Tx(tx) }
+
+    pub fn txid(&self) -> Txid {
+        match self {
+            PubWitness::Txid(txid) => *txid,
+            PubWitness::Tx(tx) => tx.txid(),
         }
     }
 
-    pub fn with(tx: Tx) -> Self {
-        PubWitness {
-            txid: tx.txid(),
-            tx: Some(tx),
-            spv: none!(),
+    pub fn tx(&self) -> Option<&Tx> {
+        match self {
+            PubWitness::Txid(_) => None,
+            PubWitness::Tx(tx) => Some(tx),
         }
     }
-}
 
-impl PubWitness {
-    pub fn merge_reveal(mut self, other: Self) -> Result<Self, MergeRevealError> {
-        if self.txid != other.txid {
-            return Err(MergeRevealError::TxidMismatch(self.txid, other.txid));
+    pub fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {
+        match (self, other) {
+            (Self::Txid(txid1), Self::Txid(txid2)) if txid1 == txid2 => Ok(Self::Txid(txid1)),
+            (Self::Txid(txid), Self::Tx(tx)) | (Self::Txid(txid), Self::Tx(tx))
+                if txid == tx.txid() =>
+            {
+                Ok(Self::Tx(tx))
+            }
+            // TODO: tx1 and tx2 may differ on their witness data; take the one having most of the
+            // witness
+            (Self::Tx(tx1), Self::Tx(tx2)) if tx1.txid() == tx2.txid() => Ok(Self::Tx(tx1)),
+            (a, b) => Err(MergeRevealError::TxidMismatch(a.txid(), b.txid())),
         }
-        self.tx = self.tx.or(other.tx);
-        // TODO: process SPV
-        Ok(self)
     }
 }
 

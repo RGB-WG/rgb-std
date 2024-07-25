@@ -42,7 +42,7 @@ impl<'cons, R: ResolveWitness, const TRANSFER: bool> ResolveWitness
     ) -> Result<XWitnessTx, WitnessResolverError> {
         self.consignment
             .pub_witness(witness_id)
-            .and_then(|p| p.map_ref(|pw| pw.tx.clone()).transpose())
+            .and_then(|p| p.map_ref(|pw| pw.tx().cloned()).transpose())
             .ok_or(WitnessResolverError::Unknown(witness_id))
             .or_else(|_| self.fallback.resolve_pub_witness(witness_id))
     }
