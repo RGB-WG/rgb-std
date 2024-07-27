@@ -500,6 +500,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         Ok(self.stash.geneses()?.map(ContractInfo::with))
     }
 
+    #[allow(clippy::multiple_bound_locations)]
     pub fn contracts_by<'a, C: IfaceClass + 'a>(
         &'a self,
     ) -> Result<impl Iterator<Item = C::Info> + 'a, StockError<S, H, P>>
@@ -525,6 +526,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         Ok(self.index.contracts_assigning(outputs)?)
     }
 
+    #[allow(clippy::type_complexity)]
     fn contract_raw(
         &self,
         contract_id: ContractId,
@@ -545,6 +547,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             .map_err(StockError::from)
     }
 
+    #[allow(clippy::multiple_bound_locations)]
     pub fn contract_iface_class<'a, C: IfaceClass>(
         &'a self,
         contract_id: ContractId,

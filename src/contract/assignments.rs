@@ -143,8 +143,7 @@ impl<State: KnownState> OutputAssignment<State> {
         }
     }
 
-    pub fn transmute<S: KnownState>(self) -> OutputAssignment<S>
-    where S: From<State> {
+    pub fn transmute<S: KnownState + From<State>>(self) -> OutputAssignment<S> {
         OutputAssignment {
             opout: self.opout,
             seal: self.seal,
