@@ -28,8 +28,8 @@ use invoice::Amount;
 use rgb::vm::{ContractState, WitnessAnchor};
 use rgb::{
     AssetTag, AttachState, BlindingFactor, ContractId, DataState, Extension, Genesis, Operation,
-    RevealedAttach, RevealedData, RevealedValue, SchemaId, Transition, TransitionBundle, VoidState,
-    XWitnessId,
+    RevealedAttach, RevealedData, RevealedValue, Schema, SchemaId, Transition, TransitionBundle,
+    VoidState, XWitnessId,
 };
 
 use crate::containers::{ConsignmentExt, ToWitnessId};
@@ -151,7 +151,7 @@ impl<P: StateProvider> State<P> {
     ) -> Result<(), StateError<P>> {
         let mut state = self
             .as_provider_mut()
-            .register_contract(consignment.genesis(), consignment.contract_id())
+            .register_contract(consignment.schema(), consignment.genesis())
             .map_err(StateError::WriteProvider)?;
         let mut extension_idx = consignment
             .extensions()
@@ -223,7 +223,7 @@ impl<P: StateProvider> StoreTransaction for State<P> {
 pub trait StateProvider: Debug + StateReadProvider + StateWriteProvider {}
 
 pub trait StateReadProvider {
-    type ContractRead<'a>: ContractStateRead
+    type ContractRead<'a>: ContractStateRead<'a>
     where Self: 'a;
     type Error: Clone + Eq + Error;
 
@@ -240,8 +240,8 @@ pub trait StateWriteProvider: StoreTransaction<TransactionErr = Self::Error> {
 
     fn register_contract(
         &mut self,
+        schema: &Schema,
         genesis: &Genesis,
-        contract_id: ContractId,
     ) -> Result<Self::ContractWrite<'_>, Self::Error>;
 
     fn update_contract(
@@ -250,7 +250,7 @@ pub trait StateWriteProvider: StoreTransaction<TransactionErr = Self::Error> {
     ) -> Result<Option<Self::ContractWrite<'_>>, Self::Error>;
 }
 
-pub trait ContractStateRead: ContractState {
+pub trait ContractStateRead<'c>: ContractState<'c> {
     fn contract_id(&self) -> ContractId;
     fn schema_id(&self) -> SchemaId;
     fn rights_all(&self) -> impl Iterator<Item = &OutputAssignment<VoidState>>;

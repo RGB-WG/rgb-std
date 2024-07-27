@@ -57,6 +57,7 @@ pub type Contract = Consignment<false>;
 pub trait ConsignmentExt {
     fn contract_id(&self) -> ContractId;
     fn schema_id(&self) -> SchemaId;
+    fn schema(&self) -> &Schema;
     fn genesis(&self) -> &Genesis;
     fn extensions(&self) -> impl Iterator<Item = &Extension>;
     fn bundled_witnesses(&self) -> impl Iterator<Item = &BundledWitness>;
@@ -68,6 +69,9 @@ impl<C: ConsignmentExt> ConsignmentExt for &C {
 
     #[inline]
     fn schema_id(&self) -> SchemaId { (*self).schema_id() }
+
+    #[inline]
+    fn schema(&self) -> &Schema { (*self).schema() }
 
     #[inline]
     fn genesis(&self) -> &Genesis { (*self).genesis() }
@@ -261,6 +265,9 @@ impl<const TRANSFER: bool> ConsignmentExt for Consignment<TRANSFER> {
 
     #[inline]
     fn schema_id(&self) -> SchemaId { self.schema.schema_id() }
+
+    #[inline]
+    fn schema(&self) -> &Schema { &self.schema }
 
     #[inline]
     fn genesis(&self) -> &Genesis { &self.genesis }

@@ -20,19 +20,26 @@
 // limitations under the License.
 
 use std::borrow::Borrow;
-use std::collections::BTreeSet;
+use std::cmp::Ordering;
+use std::collections::{BTreeMap, BTreeSet};
 use std::convert::Infallible;
+use std::marker::PhantomData;
 #[cfg(feature = "fs")]
 use std::path::PathBuf;
+use std::{iter, mem};
 
 use aluvm::library::{Lib, LibId};
 use amplify::confinement::{
     self, Confined, LargeOrdMap, LargeOrdSet, MediumBlob, MediumOrdMap, MediumOrdSet, SmallOrdMap,
     TinyOrdMap, TinyOrdSet,
 };
+use amplify::num::u24;
 use bp::dbc::tapret::TapretCommitment;
 use commit_verify::{CommitId, Conceal};
-use rgb::vm::{ContractState, GlobalOrd, WitnessAnchor};
+use rgb::vm::{
+    ContractState, GlobalContractState, GlobalOrd, GlobalStateIter, UnknownGlobalStateType,
+    WitnessAnchor,
+};
 use rgb::{
     Assign, AssignmentType, Assignments, AssignmentsRef, AttachId, AttachState, BundleId,
     ContractId, DataState, ExposedSeal, ExposedState, Extension, FungibleState, Genesis,
@@ -464,7 +471,7 @@ impl StoreTransaction for MemState {
 impl StateProvider for MemState {}
 
 impl StateReadProvider for MemState {
-    type ContractRead<'a> = MemContractFiltered<'a>;
+    type ContractRead<'a> = MemContractFiltered<'a, 'a>;
     type Error = StateInconsistency;
 
     fn contract_state(
@@ -482,7 +489,7 @@ impl StateReadProvider for MemState {
         Ok(MemContractFiltered {
             filter: Box::new(filter),
             unfiltered,
-            _empty: empty!(),
+            _phantom: PhantomData,
         })
     }
 }
@@ -493,9 +500,10 @@ impl StateWriteProvider for MemState {
 
     fn register_contract(
         &mut self,
+        schema: &Schema,
         genesis: &Genesis,
-        contract_id: ContractId,
     ) -> Result<Self::ContractWrite<'_>, Self::Error> {
+        let contract_id = genesis.contract_id();
         // This crazy construction is caused by a stupidity of rust borrow checker
         let mut contract = if self.contracts.contains_key(&contract_id) {
             if let Some(contract) = self.contracts.get_mut(&contract_id) {
@@ -505,7 +513,7 @@ impl StateWriteProvider for MemState {
             }
         } else {
             self.contracts
-                .insert(contract_id, MemContract::new(genesis.schema_id, contract_id))?;
+                .insert(contract_id, MemContract::new(schema, contract_id))?;
             self.contracts.get_mut(&contract_id).expect("just inserted")
         };
         contract.add_genesis(genesis)?;
@@ -520,12 +528,26 @@ impl StateWriteProvider for MemState {
     }
 }
 
-// TODO: Consider uplifting to state module and make it universal for all state
-//       manager implementations
-pub struct MemContractFiltered<'mem> {
-    filter: Box<dyn Fn(XWitnessId) -> bool + 'mem>,
-    unfiltered: &'mem MemContract,
-    _empty: LargeOrdMap<GlobalOrd, DataState>,
+#[derive(Getters, Clone, Eq, PartialEq, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STORAGE)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct MemGlobalState {
+    known: LargeOrdMap<GlobalOrd, DataState>,
+    limit: u24,
+}
+
+impl MemGlobalState {
+    pub fn new(limit: u24) -> Self {
+        MemGlobalState {
+            known: empty!(),
+            limit,
+        }
+    }
 }
 
 /// Contract history accumulates raw data from the contract history, extracted
@@ -548,7 +570,7 @@ pub struct MemContract {
     #[getter(as_copy)]
     contract_id: ContractId,
     #[getter(skip)]
-    global: TinyOrdMap<GlobalStateType, LargeOrdMap<GlobalOrd, DataState>>,
+    global: TinyOrdMap<GlobalStateType, MemGlobalState>,
     rights: LargeOrdSet<OutputAssignment<VoidState>>,
     fungibles: LargeOrdSet<OutputAssignment<RevealedValue>>,
     data: LargeOrdSet<OutputAssignment<RevealedData>>,
@@ -556,11 +578,17 @@ pub struct MemContract {
 }
 
 impl MemContract {
-    pub fn new(schema_id: SchemaId, contract_id: ContractId) -> Self {
+    pub fn new(schema: &Schema, contract_id: ContractId) -> Self {
+        let global = TinyOrdMap::from_iter_unsafe(
+            schema
+                .global_types
+                .iter()
+                .map(|(ty, glob)| (*ty, MemGlobalState::new(glob.max_items))),
+        );
         MemContract {
-            schema_id,
+            schema_id: schema.schema_id(),
             contract_id,
-            global: empty!(),
+            global,
             rights: empty!(),
             fungibles: empty!(),
             data: empty!(),
@@ -572,24 +600,18 @@ impl MemContract {
         let opid = op.id();
 
         for (ty, state) in op.globals() {
-            let map = match self.global.get_mut(ty) {
-                Some(map) => map,
-                None => {
-                    // TODO: Do not panic here if we merge without checking against the schema
-                    self.global.insert(*ty, empty!()).expect(
-                        "consensus rules violation: do not add to the state consignments without \
-                         validation against the schema",
-                    );
-                    self.global.get_mut(ty).expect("just inserted")
-                }
-            };
+            let map = self
+                .global
+                .get_mut(ty)
+                .expect("global map must be initialized from the schema");
             for (idx, s) in state.iter().enumerate() {
                 let idx = idx as u16;
                 let glob_idx = GlobalOrd {
                     witness_anchor,
                     idx,
                 };
-                map.insert(glob_idx, s.clone())
+                map.known
+                    .insert(glob_idx, s.clone())
                     .expect("contract global state exceeded 2^32 items, which is unrealistic");
             }
         }
@@ -687,10 +709,96 @@ impl MemContract {
     }
 }
 
-impl<'mem> ContractState for MemContractFiltered<'mem> {
-    // TODO: Global state must be filtered!
-    fn global(&self, ty: GlobalStateType) -> &LargeOrdMap<GlobalOrd, impl Borrow<DataState>> {
-        self.unfiltered.global.get(&ty).unwrap_or(&self._empty)
+// TODO: Consider uplifting to state module and make it universal for all state
+//       manager implementations
+pub struct MemContractFiltered<'mem, 'me>
+where
+    'me: 'mem,
+    'mem: 'me,
+{
+    filter: Box<dyn Fn(XWitnessId) -> bool + 'mem>,
+    unfiltered: &'mem MemContract,
+    _phantom: PhantomData<&'me ()>,
+}
+
+impl<'mem, 'me> ContractState<'me> for MemContractFiltered<'mem, 'me>
+where
+    'me: 'mem,
+    'mem: 'me,
+{
+    fn global(
+        &'me self,
+        ty: GlobalStateType,
+    ) -> Result<GlobalContractState<impl GlobalStateIter + 'me>, UnknownGlobalStateType> {
+        type Src<'a> = &'a BTreeMap<GlobalOrd, DataState>;
+        type FilteredIter<'a> = Box<dyn Iterator<Item = (GlobalOrd, &'a DataState)> + 'a>;
+        struct Iter<'a> {
+            src: Src<'a>,
+            iter: FilteredIter<'a>,
+            last: Option<(GlobalOrd, &'a DataState)>,
+            depth: u24,
+            constructor: Box<dyn Fn(Src<'a>) -> FilteredIter<'a> + 'a>,
+        }
+        impl<'a> Iter<'a> {
+            fn swap(&mut self) -> FilteredIter<'a> {
+                let mut iter = (self.constructor)(&self.src);
+                mem::swap(&mut iter, &mut self.iter);
+                iter
+            }
+        }
+        impl<'a> GlobalStateIter for Iter<'a> {
+            type Data = &'a DataState;
+            fn size(&mut self) -> u24 {
+                let iter = self.swap();
+                // TODO: Consuming iterator just to count items is highly inefficient, but I do
+                //       not know any other way of computing this value
+                let size = iter.count();
+                u24::try_from(size as u32).expect("iterator size must fit u24 due to `take` limit")
+            }
+            fn prev(&mut self) -> Option<(GlobalOrd, Self::Data)> {
+                self.last = self.iter.next();
+                self.depth += u24::ONE;
+                self.last()
+            }
+            fn last(&mut self) -> Option<(GlobalOrd, Self::Data)> { self.last }
+            fn reset(&mut self, depth: u24) {
+                match self.depth.cmp(&depth) {
+                    Ordering::Less => {
+                        let mut iter = Box::new(iter::empty()) as FilteredIter;
+                        mem::swap(&mut self.iter, &mut iter);
+                        self.iter = Box::new(iter.skip(depth.to_usize() - depth.to_usize()))
+                    }
+                    Ordering::Equal => {}
+                    Ordering::Greater => {
+                        let iter = self.swap();
+                        self.iter = Box::new(iter.skip(depth.to_usize()));
+                    }
+                }
+            }
+        }
+
+        let state = self
+            .unfiltered
+            .global
+            .get(&ty)
+            .ok_or(UnknownGlobalStateType(ty))?;
+        let constructor = |src: Src<'mem>| -> FilteredIter<'mem> {
+            Box::new(
+                src.iter()
+                    .rev()
+                    .filter(|(ord, _)| ord.witness_id().map(|id| (self.filter)(id)).unwrap_or(true))
+                    .take(state.limit.to_usize())
+                    .map(|(ord, state)| (*ord, state)),
+            )
+        };
+        let iter = Iter {
+            src: state.known.as_inner(),
+            iter: constructor(state.known.as_inner()),
+            depth: u24::ZERO,
+            last: None,
+            constructor: Box::new(constructor),
+        };
+        Ok(GlobalContractState::new(iter))
     }
 
     fn rights(&self, outpoint: XOutpoint, ty: AssignmentType) -> u32 {
@@ -750,7 +858,11 @@ impl<'mem> ContractState for MemContractFiltered<'mem> {
     }
 }
 
-impl<'mem> ContractStateRead for MemContractFiltered<'mem> {
+impl<'mem, 'me> ContractStateRead<'me> for MemContractFiltered<'mem, 'me>
+where
+    'me: 'mem,
+    'mem: 'me,
+{
     #[inline]
     fn contract_id(&self) -> ContractId { self.unfiltered.contract_id }
 

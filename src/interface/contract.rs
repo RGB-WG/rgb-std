@@ -22,8 +22,9 @@
 use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::collections::HashMap;
+use std::marker::PhantomData;
 
-use amplify::confinement::{SmallOrdSet, SmallVec};
+use amplify::confinement::SmallOrdSet;
 use invoice::{Allocation, Amount};
 use rgb::vm::AssignmentWitness;
 use rgb::{
@@ -31,8 +32,7 @@ use rgb::{
     VoidState, XOutpoint, XOutputSeal, XWitnessId,
 };
 use strict_encoding::{FieldName, StrictDecode, StrictDumb, StrictEncode};
-use strict_types::typify::TypedVal;
-use strict_types::{decode, StrictVal, TypeSystem};
+use strict_types::{StrictVal, TypeSystem};
 
 use crate::contract::{KnownState, OutputAssignment};
 use crate::info::ContractInfo;
@@ -45,10 +45,6 @@ use crate::LIB_NAME_RGB_STD;
 pub enum ContractError {
     /// field name {0} is unknown to the contract interface
     FieldNameUnknown(FieldName),
-
-    #[from]
-    #[display(inner)]
-    Reify(decode::Error),
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Display, From)]
@@ -210,24 +206,26 @@ impl<C: StateChange> IfaceOp<C> {
 /// Contract state is an in-memory structure providing API to read structured
 /// data from the [`rgb::ContractHistory`].
 #[derive(Clone, Eq, PartialEq, Debug)]
-pub struct ContractIface<S: ContractStateRead> {
+pub struct ContractIface<'c, S: ContractStateRead<'c>> {
     pub state: S,
     pub schema: Schema,
     pub iface: IfaceImpl,
     pub types: TypeSystem,
     pub info: ContractInfo,
+    pub _phantom: PhantomData<&'c ()>,
 }
 
-// TODO: Introduce witness checker: additional filter returning only those data
-//       which witnesses are mined
-impl<S: ContractStateRead> ContractIface<S> {
+impl<'c, S: ContractStateRead<'c>> ContractIface<'c, S> {
     pub fn contract_id(&self) -> ContractId { self.state.contract_id() }
 
     /// # Panics
     ///
     /// If data are corrupted and contract schema doesn't match interface
     /// implementations.
-    pub fn global(&self, name: impl Into<FieldName>) -> Result<SmallVec<StrictVal>, ContractError> {
+    pub fn global(
+        &'c self,
+        name: impl Into<FieldName>,
+    ) -> Result<impl Iterator<Item = StrictVal> + 'c, ContractError> {
         let name = name.into();
         let type_id = self
             .iface
@@ -238,22 +236,19 @@ impl<S: ContractStateRead> ContractIface<S> {
             .global_types
             .get(&type_id)
             .expect("schema doesn't match interface");
-        let state = self
+        Ok(self
             .state
             .global(type_id)
-            .values()
+            .expect("schema doesn't match interface")
             .map(|data| {
                 self.types
                     .strict_deserialize_type(global_schema.sem_id, data.borrow().as_slice())
-                    .map(TypedVal::unbox)
-            })
-            .take(global_schema.max_items as usize)
-            .collect::<Result<Vec<_>, _>>()?;
-
-        Ok(SmallVec::from_collection_unsafe(state))
+                    .expect("unvalidated contract data in stash")
+                    .unbox()
+            }))
     }
 
-    fn extract_state<'c, A, U>(
+    fn extract_state<A, U>(
         &'c self,
         state: impl IntoIterator<Item = &'c OutputAssignment<A>> + 'c,
         name: impl Into<FieldName>,
@@ -276,7 +271,7 @@ impl<S: ContractStateRead> ContractIface<S> {
             .map(OutputAssignment::<A>::transmute))
     }
 
-    pub fn rights<'c>(
+    pub fn rights(
         &'c self,
         name: impl Into<FieldName>,
         filter: impl OutpointFilter + 'c,
@@ -284,7 +279,7 @@ impl<S: ContractStateRead> ContractIface<S> {
         self.extract_state(self.state.rights_all(), name, filter)
     }
 
-    pub fn fungible<'c>(
+    pub fn fungible(
         &'c self,
         name: impl Into<FieldName>,
         filter: impl OutpointFilter + 'c,
@@ -292,7 +287,7 @@ impl<S: ContractStateRead> ContractIface<S> {
         self.extract_state(self.state.fungible_all(), name, filter)
     }
 
-    pub fn data<'c>(
+    pub fn data(
         &'c self,
         name: impl Into<FieldName>,
         filter: impl OutpointFilter + 'c,
@@ -300,7 +295,7 @@ impl<S: ContractStateRead> ContractIface<S> {
         self.extract_state(self.state.data_all(), name, filter)
     }
 
-    pub fn attachments<'c>(
+    pub fn attachments(
         &'c self,
         name: impl Into<FieldName>,
         filter: impl OutpointFilter + 'c,
@@ -308,7 +303,7 @@ impl<S: ContractStateRead> ContractIface<S> {
         self.extract_state(self.state.attach_all(), name, filter)
     }
 
-    pub fn allocations<'c>(
+    pub fn allocations(
         &'c self,
         filter: impl OutpointFilter + Copy + 'c,
     ) -> impl Iterator<Item = OwnedAllocation> + 'c {
@@ -335,14 +330,14 @@ impl<S: ContractStateRead> ContractIface<S> {
     }
 
     pub fn outpoint_allocations(
-        &self,
+        &'c self,
         outpoint: XOutpoint,
-    ) -> impl Iterator<Item = OwnedAllocation> + '_ {
+    ) -> impl Iterator<Item = OwnedAllocation> + 'c {
         self.allocations(outpoint)
     }
 
     // TODO: Ignore blank state transition
-    fn operations<'c, C: StateChange>(
+    fn operations<C: StateChange>(
         &'c self,
         state: impl IntoIterator<Item = OutputAssignment<C::State>> + 'c,
         allocations: impl Iterator<Item = OutputAssignment<C::State>> + 'c,
@@ -388,9 +383,9 @@ impl<S: ContractStateRead> ContractIface<S> {
     }
 
     pub fn fungible_ops<C: StateChange<State = Amount>>(
-        &self,
+        &'c self,
         name: impl Into<FieldName>,
-        outpoint_filter: impl OutpointFilter + Copy,
+        outpoint_filter: impl OutpointFilter + Copy + 'c,
     ) -> Result<HashMap<XWitnessId, IfaceOp<C>>, ContractError> {
         Ok(self.operations(
             self.state
@@ -402,9 +397,9 @@ impl<S: ContractStateRead> ContractIface<S> {
     }
 
     pub fn data_ops<C: StateChange<State = DataState>>(
-        &self,
+        &'c self,
         name: impl Into<FieldName>,
-        outpoint_filter: impl OutpointFilter + Copy,
+        outpoint_filter: impl OutpointFilter + Copy + 'c,
     ) -> Result<HashMap<XWitnessId, IfaceOp<C>>, ContractError> {
         Ok(self.operations(
             self.state
@@ -416,9 +411,9 @@ impl<S: ContractStateRead> ContractIface<S> {
     }
 
     pub fn rights_ops<C: StateChange<State = VoidState>>(
-        &self,
+        &'c self,
         name: impl Into<FieldName>,
-        outpoint_filter: impl OutpointFilter + Copy,
+        outpoint_filter: impl OutpointFilter + Copy + 'c,
     ) -> Result<HashMap<XWitnessId, IfaceOp<C>>, ContractError> {
         Ok(self.operations(
             self.state
@@ -430,9 +425,9 @@ impl<S: ContractStateRead> ContractIface<S> {
     }
 
     pub fn attachment_ops<C: StateChange<State = AttachState>>(
-        &self,
+        &'c self,
         name: impl Into<FieldName>,
-        outpoint_filter: impl OutpointFilter + Copy,
+        outpoint_filter: impl OutpointFilter + Copy + 'c,
     ) -> Result<HashMap<XWitnessId, IfaceOp<C>>, ContractError> {
         Ok(self.operations(
             self.state

@@ -25,6 +25,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::convert::Infallible;
 use std::error::Error;
 use std::fmt::Debug;
+use std::marker::PhantomData;
 
 use amplify::confinement::{Confined, U24};
 use amplify::Wrapper;
@@ -504,7 +505,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     pub fn contracts_by<'a, C: IfaceClass + 'a>(
         &'a self,
     ) -> Result<impl Iterator<Item = C::Info> + 'a, StockError<S, H, P>>
-    where C: From<ContractIface<H::ContractRead<'a>>> {
+    where C: From<ContractIface<'a, H::ContractRead<'a>>> {
         Ok(self.stash.geneses_by::<C>()?.filter_map(|genesis| {
             self.contract_iface_class::<C>(genesis.contract_id())
                 .as_ref()
@@ -553,7 +554,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         contract_id: ContractId,
     ) -> Result<C, StockError<S, H, P, ContractIfaceError>>
     where
-        C: From<ContractIface<H::ContractRead<'a>>>,
+        C: From<ContractIface<'a, H::ContractRead<'a>>>,
     {
         let (schema_ifaces, state, info) = self.contract_raw(contract_id)?;
         let iimpl = self.stash.impl_for::<C>(schema_ifaces)?;
@@ -567,6 +568,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             iface: iimpl.clone(),
             types,
             info,
+            _phantom: PhantomData,
         }
         .into())
     }
@@ -593,6 +595,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             iface: iimpl.clone(),
             types,
             info,
+            _phantom: PhantomData,
         })
     }
 
