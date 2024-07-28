@@ -34,7 +34,7 @@ use rgb::{
 
 use crate::containers::{ConsignmentExt, ToWitnessId};
 use crate::contract::OutputAssignment;
-use crate::persistence::StoreTransaction;
+use crate::persistence::{StoreTransaction, UpdateRes};
 use crate::resolvers::ResolveWitnessAnchor;
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
@@ -200,6 +200,17 @@ impl<P: StateProvider> State<P> {
 
         Ok(())
     }
+
+    pub fn update_witnesses(
+        &mut self,
+        resolver: impl ResolveWitnessAnchor,
+        after_height: u32,
+    ) -> Result<UpdateRes, StateError<P>> {
+        Ok(self
+            .provider
+            .update_witnesses(resolver, after_height)
+            .map_err(StateError::WriteProvider)?)
+    }
 }
 
 impl<P: StateProvider> StoreTransaction for State<P> {
@@ -248,6 +259,12 @@ pub trait StateWriteProvider: StoreTransaction<TransactionErr = Self::Error> {
         &mut self,
         contract_id: ContractId,
     ) -> Result<Option<Self::ContractWrite<'_>>, Self::Error>;
+
+    fn update_witnesses(
+        &mut self,
+        resolver: impl ResolveWitnessAnchor,
+        after_height: u32,
+    ) -> Result<UpdateRes, Self::Error>;
 }
 
 pub trait ContractStateRead: ContractState {

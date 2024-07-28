@@ -28,12 +28,13 @@ use crate::containers::IndexedConsignment;
 pub trait ResolveWitnessAnchor {
     /// Resolves position of the witness anchor in the consensus data:
     /// blockchain, state channel etc. Used for ordering of global state and for
-    /// ensuring that the we account only for the actual contract state after
+    /// ensuring that the account only for the actual contract state after
     /// blockchain re-orgs and channel updates.
     ///
     /// Witness resolution must happen as fast and as cheap as getting
     /// key-values from HashMap. Thus, resolver must always be caching and
     /// doesn't actually re-query indexers for deeply mined transactions.
+    // TODO: Return WitnessOrd instead of WitnessAnchor
     fn resolve_witness_anchor(&mut self, witness_id: XWitnessId) -> Result<WitnessAnchor, String>;
 }
 

@@ -1293,6 +1293,20 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     ) -> Result<bool, StockError<S, H, P>> {
         Ok(self.stash.store_secret_seal(seal)?)
     }
+
+    pub fn update_witnesses(
+        &mut self,
+        resolver: impl ResolveWitnessAnchor,
+        after_height: u32,
+    ) -> Result<UpdateRes, StockError<S, H, P>> {
+        Ok(self.state.update_witnesses(resolver, after_height)?)
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub struct UpdateRes {
+    pub succeeded: usize,
+    pub failed: HashMap<XWitnessId, String>,
 }
 
 #[cfg(test)]

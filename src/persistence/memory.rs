@@ -23,6 +23,7 @@ use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::convert::Infallible;
+use std::num::NonZeroU32;
 #[cfg(feature = "fs")]
 use std::path::PathBuf;
 use std::{iter, mem};
@@ -54,6 +55,7 @@ use super::{
     IndexReadError, IndexReadProvider, IndexWriteError, IndexWriteProvider, SchemaIfaces,
     StashInconsistency, StashProvider, StashProviderError, StashReadProvider, StashWriteProvider,
     StateInconsistency, StateProvider, StateReadProvider, StateWriteProvider, StoreTransaction,
+    UpdateRes,
 };
 use crate::containers::{
     AnchorSet, ContentId, ContentRef, ContentSigs, SealWitness, SigBlob, Supplement, TrustLevel,
@@ -62,6 +64,7 @@ use crate::contract::{KnownState, OutputAssignment};
 use crate::interface::{Iface, IfaceClass, IfaceId, IfaceImpl, IfaceRef};
 #[cfg(feature = "fs")]
 use crate::persistence::fs::FsStored;
+use crate::resolvers::ResolveWitnessAnchor;
 use crate::{OpEl, LIB_NAME_RGB_STORAGE};
 
 //////////
@@ -512,6 +515,7 @@ impl StateWriteProvider for MemState {
         schema: &Schema,
         genesis: &Genesis,
     ) -> Result<Self::ContractWrite<'_>, Self::Error> {
+        // TODO: Add begin/commit transaction
         let contract_id = genesis.contract_id();
         // This crazy construction is caused by a stupidity of rust borrow checker
         let contract = if self.contracts.contains_key(&contract_id) {
@@ -542,6 +546,7 @@ impl StateWriteProvider for MemState {
         &mut self,
         contract_id: ContractId,
     ) -> Result<Option<Self::ContractWrite<'_>>, Self::Error> {
+        // TODO: Add begin/commit transaction
         Ok(self
             .contracts
             .get_mut(&contract_id)
@@ -557,6 +562,37 @@ impl StateWriteProvider for MemState {
                 }),
                 contract,
             }))
+    }
+
+    fn update_witnesses(
+        &mut self,
+        mut resolver: impl ResolveWitnessAnchor,
+        after_height: u32,
+    ) -> Result<UpdateRes, Self::Error> {
+        let after_height = NonZeroU32::new(after_height).unwrap_or(NonZeroU32::MIN);
+        let mut succeeded = 0;
+        let mut failed = map![];
+        self.begin_transaction()?;
+        let mut witnesses = LargeOrdMap::new();
+        mem::swap(&mut self.witnesses, &mut witnesses);
+        let mut witnesses = witnesses.unbox();
+        for (id, ord) in &mut witnesses {
+            if matches!(ord, WitnessOrd::OnChain(pos) if pos.height() < after_height) {
+                continue;
+            }
+            match resolver.resolve_witness_anchor(*id) {
+                Ok(new) => *ord = new.witness_ord,
+                Err(err) => {
+                    failed.insert(*id, err.to_string());
+                }
+            }
+            succeeded += 1;
+        }
+        let mut witnesses =
+            LargeOrdMap::try_from(witnesses).inspect_err(|_| self.rollback_transaction())?;
+        mem::swap(&mut self.witnesses, &mut witnesses);
+        self.commit_transaction()?;
+        Ok(UpdateRes { succeeded, failed })
     }
 }
 
