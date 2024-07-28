@@ -279,12 +279,32 @@ impl<'c, S: ContractStateRead<'c>> ContractIface<'c, S> {
         self.extract_state(self.state.rights_all(), name, filter)
     }
 
+    pub fn rights_all(
+        &'c self,
+        name: impl Into<FieldName>,
+        filter: impl OutpointFilter + 'c,
+    ) -> Result<Vec<RightsAllocation>, ContractError> {
+        Ok(self
+            .extract_state(self.state.rights_all(), name, filter)?
+            .collect())
+    }
+
     pub fn fungible(
         &'c self,
         name: impl Into<FieldName>,
         filter: impl OutpointFilter + 'c,
     ) -> Result<impl Iterator<Item = FungibleAllocation> + 'c, ContractError> {
         self.extract_state(self.state.fungible_all(), name, filter)
+    }
+
+    pub fn fungible_all(
+        &'c self,
+        name: impl Into<FieldName>,
+        filter: impl OutpointFilter + 'c,
+    ) -> Result<Vec<FungibleAllocation>, ContractError> {
+        Ok(self
+            .extract_state(self.state.fungible_all(), name, filter)?
+            .collect())
     }
 
     pub fn data(
@@ -295,12 +315,32 @@ impl<'c, S: ContractStateRead<'c>> ContractIface<'c, S> {
         self.extract_state(self.state.data_all(), name, filter)
     }
 
+    pub fn data_all(
+        &'c self,
+        name: impl Into<FieldName>,
+        filter: impl OutpointFilter + 'c,
+    ) -> Result<Vec<DataAllocation>, ContractError> {
+        Ok(self
+            .extract_state(self.state.data_all(), name, filter)?
+            .collect())
+    }
+
     pub fn attachments(
         &'c self,
         name: impl Into<FieldName>,
         filter: impl OutpointFilter + 'c,
     ) -> Result<impl Iterator<Item = AttachAllocation> + 'c, ContractError> {
         self.extract_state(self.state.attach_all(), name, filter)
+    }
+
+    pub fn attachments_all(
+        &'c self,
+        name: impl Into<FieldName>,
+        filter: impl OutpointFilter + 'c,
+    ) -> Result<Vec<AttachAllocation>, ContractError> {
+        Ok(self
+            .extract_state(self.state.attach_all(), name, filter)?
+            .collect())
     }
 
     pub fn allocations(
