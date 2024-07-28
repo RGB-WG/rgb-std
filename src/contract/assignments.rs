@@ -20,6 +20,7 @@
 // limitations under the License.
 
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::fmt::Debug;
 
 use amplify::confinement::SmallVec;
@@ -29,7 +30,7 @@ use rgb::vm::AssignmentWitness;
 use rgb::{
     Assign, AssignAttach, AssignData, AssignFungible, AssignRights, AssignmentType, AttachState,
     DataState, ExposedSeal, ExposedState, OpId, Opout, RevealedAttach, RevealedData, RevealedValue,
-    TypedAssigns, VoidState, XChain, XOutputSeal, XWitnessId,
+    TypedAssigns, VoidState, WitnessOrd, XChain, XOutputSeal, XWitnessId,
 };
 use strict_encoding::{StrictDecode, StrictDumb, StrictEncode};
 
@@ -152,10 +153,10 @@ impl<State: KnownState> OutputAssignment<State> {
         }
     }
 
-    pub fn check_witness(&self, filter: impl FnOnce(XWitnessId) -> bool) -> bool {
+    pub fn check_witness(&self, filter: &HashMap<XWitnessId, WitnessOrd>) -> bool {
         match self.witness {
             AssignmentWitness::Absent => true,
-            AssignmentWitness::Present(witness_id) => filter(witness_id),
+            AssignmentWitness::Present(witness_id) => filter.contains_key(&witness_id),
         }
     }
 }

@@ -223,7 +223,7 @@ impl<P: StateProvider> StoreTransaction for State<P> {
 pub trait StateProvider: Debug + StateReadProvider + StateWriteProvider {}
 
 pub trait StateReadProvider {
-    type ContractRead<'a>: ContractStateRead<'a>
+    type ContractRead<'a>: ContractStateRead
     where Self: 'a;
     type Error: Clone + Eq + Error;
 
@@ -250,7 +250,7 @@ pub trait StateWriteProvider: StoreTransaction<TransactionErr = Self::Error> {
     ) -> Result<Option<Self::ContractWrite<'_>>, Self::Error>;
 }
 
-pub trait ContractStateRead<'c>: ContractState<'c> {
+pub trait ContractStateRead: ContractState {
     fn contract_id(&self) -> ContractId;
     fn schema_id(&self) -> SchemaId;
     fn rights_all(&self) -> impl Iterator<Item = &OutputAssignment<VoidState>>;

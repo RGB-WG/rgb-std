@@ -22,7 +22,6 @@
 use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::collections::HashMap;
-use std::marker::PhantomData;
 
 use amplify::confinement::SmallOrdSet;
 use invoice::{Allocation, Amount};
@@ -206,16 +205,15 @@ impl<C: StateChange> IfaceOp<C> {
 /// Contract state is an in-memory structure providing API to read structured
 /// data from the [`rgb::ContractHistory`].
 #[derive(Clone, Eq, PartialEq, Debug)]
-pub struct ContractIface<'c, S: ContractStateRead<'c>> {
+pub struct ContractIface<S: ContractStateRead> {
     pub state: S,
     pub schema: Schema,
     pub iface: IfaceImpl,
     pub types: TypeSystem,
     pub info: ContractInfo,
-    pub _phantom: PhantomData<&'c ()>,
 }
 
-impl<'c, S: ContractStateRead<'c>> ContractIface<'c, S> {
+impl<S: ContractStateRead> ContractIface<S> {
     pub fn contract_id(&self) -> ContractId { self.state.contract_id() }
 
     /// # Panics
@@ -223,9 +221,9 @@ impl<'c, S: ContractStateRead<'c>> ContractIface<'c, S> {
     /// If data are corrupted and contract schema doesn't match interface
     /// implementations.
     pub fn global(
-        &'c self,
+        &self,
         name: impl Into<FieldName>,
-    ) -> Result<impl Iterator<Item = StrictVal> + 'c, ContractError> {
+    ) -> Result<impl Iterator<Item = StrictVal> + '_, ContractError> {
         let name = name.into();
         let type_id = self
             .iface
@@ -248,7 +246,7 @@ impl<'c, S: ContractStateRead<'c>> ContractIface<'c, S> {
             }))
     }
 
-    fn extract_state<A, U>(
+    fn extract_state<'c, A, U>(
         &'c self,
         state: impl IntoIterator<Item = &'c OutputAssignment<A>> + 'c,
         name: impl Into<FieldName>,
@@ -271,7 +269,7 @@ impl<'c, S: ContractStateRead<'c>> ContractIface<'c, S> {
             .map(OutputAssignment::<A>::transmute))
     }
 
-    pub fn rights(
+    pub fn rights<'c>(
         &'c self,
         name: impl Into<FieldName>,
         filter: impl OutpointFilter + 'c,
@@ -279,7 +277,7 @@ impl<'c, S: ContractStateRead<'c>> ContractIface<'c, S> {
         self.extract_state(self.state.rights_all(), name, filter)
     }
 
-    pub fn rights_all(
+    pub fn rights_all<'c>(
         &'c self,
         name: impl Into<FieldName>,
         filter: impl OutpointFilter + 'c,
@@ -289,7 +287,7 @@ impl<'c, S: ContractStateRead<'c>> ContractIface<'c, S> {
             .collect())
     }
 
-    pub fn fungible(
+    pub fn fungible<'c>(
         &'c self,
         name: impl Into<FieldName>,
         filter: impl OutpointFilter + 'c,
@@ -297,7 +295,7 @@ impl<'c, S: ContractStateRead<'c>> ContractIface<'c, S> {
         self.extract_state(self.state.fungible_all(), name, filter)
     }
 
-    pub fn fungible_all(
+    pub fn fungible_all<'c>(
         &'c self,
         name: impl Into<FieldName>,
         filter: impl OutpointFilter + 'c,
@@ -307,7 +305,7 @@ impl<'c, S: ContractStateRead<'c>> ContractIface<'c, S> {
             .collect())
     }
 
-    pub fn data(
+    pub fn data<'c>(
         &'c self,
         name: impl Into<FieldName>,
         filter: impl OutpointFilter + 'c,
@@ -315,7 +313,7 @@ impl<'c, S: ContractStateRead<'c>> ContractIface<'c, S> {
         self.extract_state(self.state.data_all(), name, filter)
     }
 
-    pub fn data_all(
+    pub fn data_all<'c>(
         &'c self,
         name: impl Into<FieldName>,
         filter: impl OutpointFilter + 'c,
@@ -325,7 +323,7 @@ impl<'c, S: ContractStateRead<'c>> ContractIface<'c, S> {
             .collect())
     }
 
-    pub fn attachments(
+    pub fn attachments<'c>(
         &'c self,
         name: impl Into<FieldName>,
         filter: impl OutpointFilter + 'c,
@@ -333,7 +331,7 @@ impl<'c, S: ContractStateRead<'c>> ContractIface<'c, S> {
         self.extract_state(self.state.attach_all(), name, filter)
     }
 
-    pub fn attachments_all(
+    pub fn attachments_all<'c>(
         &'c self,
         name: impl Into<FieldName>,
         filter: impl OutpointFilter + 'c,
@@ -343,7 +341,7 @@ impl<'c, S: ContractStateRead<'c>> ContractIface<'c, S> {
             .collect())
     }
 
-    pub fn allocations(
+    pub fn allocations<'c>(
         &'c self,
         filter: impl OutpointFilter + Copy + 'c,
     ) -> impl Iterator<Item = OwnedAllocation> + 'c {
@@ -370,14 +368,14 @@ impl<'c, S: ContractStateRead<'c>> ContractIface<'c, S> {
     }
 
     pub fn outpoint_allocations(
-        &'c self,
+        &self,
         outpoint: XOutpoint,
-    ) -> impl Iterator<Item = OwnedAllocation> + 'c {
+    ) -> impl Iterator<Item = OwnedAllocation> + '_ {
         self.allocations(outpoint)
     }
 
     // TODO: Ignore blank state transition
-    fn operations<C: StateChange>(
+    fn operations<'c, C: StateChange>(
         &'c self,
         state: impl IntoIterator<Item = OutputAssignment<C::State>> + 'c,
         allocations: impl Iterator<Item = OutputAssignment<C::State>> + 'c,
@@ -422,7 +420,7 @@ impl<'c, S: ContractStateRead<'c>> ContractIface<'c, S> {
         ops
     }
 
-    pub fn fungible_ops<C: StateChange<State = Amount>>(
+    pub fn fungible_ops<'c, C: StateChange<State = Amount>>(
         &'c self,
         name: impl Into<FieldName>,
         outpoint_filter: impl OutpointFilter + Copy + 'c,
@@ -436,7 +434,7 @@ impl<'c, S: ContractStateRead<'c>> ContractIface<'c, S> {
         ))
     }
 
-    pub fn data_ops<C: StateChange<State = DataState>>(
+    pub fn data_ops<'c, C: StateChange<State = DataState>>(
         &'c self,
         name: impl Into<FieldName>,
         outpoint_filter: impl OutpointFilter + Copy + 'c,
@@ -450,7 +448,7 @@ impl<'c, S: ContractStateRead<'c>> ContractIface<'c, S> {
         ))
     }
 
-    pub fn rights_ops<C: StateChange<State = VoidState>>(
+    pub fn rights_ops<'c, C: StateChange<State = VoidState>>(
         &'c self,
         name: impl Into<FieldName>,
         outpoint_filter: impl OutpointFilter + Copy + 'c,
@@ -464,7 +462,7 @@ impl<'c, S: ContractStateRead<'c>> ContractIface<'c, S> {
         ))
     }
 
-    pub fn attachment_ops<C: StateChange<State = AttachState>>(
+    pub fn attachment_ops<'c, C: StateChange<State = AttachState>>(
         &'c self,
         name: impl Into<FieldName>,
         outpoint_filter: impl OutpointFilter + Copy + 'c,

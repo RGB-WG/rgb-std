@@ -26,3 +26,23 @@ mod merge_reveal;
 pub use assignments::{KnownState, OutputAssignment, TypedAssignsExt};
 pub use bundle::{BundleExt, RevealError};
 pub use merge_reveal::{MergeReveal, MergeRevealError};
+use rgb::vm::AssignmentWitness;
+use rgb::OpId;
+
+use crate::LIB_NAME_RGB_STD;
+
+/// Reference to operation element.
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
+#[display("{op}/{no}")]
+pub struct OpEl {
+    pub op: OpId,
+    pub no: u16,
+    pub witness: AssignmentWitness,
+}
+
+impl OpEl {
+    pub fn new(op: OpId, no: u16, witness: AssignmentWitness) -> OpEl { OpEl { op, no, witness } }
+}
