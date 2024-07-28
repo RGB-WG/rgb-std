@@ -495,7 +495,7 @@ impl StateReadProvider for MemState {
 }
 
 impl StateWriteProvider for MemState {
-    type ContractWrite<'a> = &'a mut MemContract;
+    type ContractWrite<'a> = MemContractWriter<'a>;
     type Error = SerializeError;
 
     fn register_contract(
@@ -505,7 +505,7 @@ impl StateWriteProvider for MemState {
     ) -> Result<Self::ContractWrite<'_>, Self::Error> {
         let contract_id = genesis.contract_id();
         // This crazy construction is caused by a stupidity of rust borrow checker
-        let mut contract = if self.contracts.contains_key(&contract_id) {
+        let contract = if self.contracts.contains_key(&contract_id) {
             if let Some(contract) = self.contracts.get_mut(&contract_id) {
                 contract
             } else {
@@ -516,15 +516,38 @@ impl StateWriteProvider for MemState {
                 .insert(contract_id, MemContract::new(schema, contract_id))?;
             self.contracts.get_mut(&contract_id).expect("just inserted")
         };
-        contract.add_genesis(genesis)?;
-        Ok(contract)
+        let mut writer = MemContractWriter {
+            writer: Box::new(|wa: WitnessAnchor| -> Result<(), SerializeError> {
+                // NB: We do not check the existence of the witness since we have a newer
+                // version anyway and even if it is known we have to replace it
+                self.witnesses.insert(wa.witness_id, wa.witness_ord)?;
+                Ok(())
+            }),
+            contract,
+        };
+        writer.add_genesis(genesis)?;
+        Ok(writer)
     }
 
     fn update_contract(
         &mut self,
         contract_id: ContractId,
     ) -> Result<Option<Self::ContractWrite<'_>>, Self::Error> {
-        Ok(self.contracts.get_mut(&contract_id))
+        Ok(self
+            .contracts
+            .get_mut(&contract_id)
+            .map(|contract| MemContractWriter {
+                // We can't move this constructor to a dedicated method due to the rust borrower
+                // checker
+                writer: Box::new(|wa: WitnessAnchor| -> Result<(), SerializeError> {
+                    // NB: We do not check the existence of the witness since we have a newer
+                    // version anyway and even if it is known we have to replace
+                    // it
+                    self.witnesses.insert(wa.witness_id, wa.witness_ord)?;
+                    Ok(())
+                }),
+                contract,
+            }))
     }
 }
 
@@ -709,8 +732,6 @@ impl MemContract {
     }
 }
 
-// TODO: Consider uplifting to state module and make it universal for all state
-//       manager implementations
 pub struct MemContractFiltered<'mem, 'me>
 where
     'me: 'mem,
@@ -902,7 +923,12 @@ where
     }
 }
 
-impl ContractStateWrite for &mut MemContract {
+pub struct MemContractWriter<'mem> {
+    writer: Box<dyn FnMut(WitnessAnchor) -> Result<(), SerializeError> + 'mem>,
+    contract: &'mem mut MemContract,
+}
+
+impl<'mem> ContractStateWrite for MemContractWriter<'mem> {
     type Error = SerializeError;
 
     /// # Panics
@@ -910,7 +936,7 @@ impl ContractStateWrite for &mut MemContract {
     /// If genesis violates RGB consensus rules and wasn't checked against the
     /// schema before adding to the history.
     fn add_genesis(&mut self, genesis: &Genesis) -> Result<(), Self::Error> {
-        self.add_operation(genesis, None);
+        self.contract.add_operation(genesis, None);
         Ok(())
     }
 
@@ -923,7 +949,9 @@ impl ContractStateWrite for &mut MemContract {
         transition: &Transition,
         witness_anchor: WitnessAnchor,
     ) -> Result<(), Self::Error> {
-        self.add_operation(transition, Some(witness_anchor));
+        (self.writer)(witness_anchor)?;
+        self.contract
+            .add_operation(transition, Some(witness_anchor));
         Ok(())
     }
 
@@ -936,7 +964,8 @@ impl ContractStateWrite for &mut MemContract {
         extension: &Extension,
         witness_anchor: WitnessAnchor,
     ) -> Result<(), Self::Error> {
-        self.add_operation(extension, Some(witness_anchor));
+        (self.writer)(witness_anchor)?;
+        self.contract.add_operation(extension, Some(witness_anchor));
         Ok(())
     }
 }
