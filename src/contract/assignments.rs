@@ -156,7 +156,9 @@ impl<State: KnownState> OutputAssignment<State> {
     pub fn check_witness(&self, filter: &HashMap<XWitnessId, WitnessOrd>) -> bool {
         match self.witness {
             AssignmentWitness::Absent => true,
-            AssignmentWitness::Present(witness_id) => filter.contains_key(&witness_id),
+            AssignmentWitness::Present(witness_id) => {
+                !matches!(filter.get(&witness_id), None | Some(WitnessOrd::Archived))
+            }
         }
     }
 }
