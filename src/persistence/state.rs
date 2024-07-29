@@ -206,10 +206,9 @@ impl<P: StateProvider> State<P> {
         resolver: impl ResolveWitnessAnchor,
         after_height: u32,
     ) -> Result<UpdateRes, StateError<P>> {
-        Ok(self
-            .provider
+        self.provider
             .update_witnesses(resolver, after_height)
-            .map_err(StateError::WriteProvider)?)
+            .map_err(StateError::WriteProvider)
     }
 }
 

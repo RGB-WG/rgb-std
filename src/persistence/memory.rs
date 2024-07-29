@@ -492,8 +492,7 @@ impl StateReadProvider for MemState {
                 unfiltered
                     .global
                     .values()
-                    .map(|state| state.known.keys())
-                    .flatten()
+                    .flat_map(|state| state.known.keys())
                     .any(|el| el.witness == id) ||
                     unfiltered.rights.iter().any(|a| a.witness == id) ||
                     unfiltered.fungibles.iter().any(|a| a.witness == id) ||
@@ -791,7 +790,7 @@ impl<'mem> ContractState for MemContractFiltered<'mem> {
         }
         impl<'a> Iter<'a> {
             fn swap(&mut self) -> FilteredIter<'a> {
-                let mut iter = (self.constructor)(&self.src);
+                let mut iter = (self.constructor)(self.src);
                 mem::swap(&mut iter, &mut self.iter);
                 iter
             }
