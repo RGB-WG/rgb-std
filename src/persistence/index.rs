@@ -177,7 +177,7 @@ impl<P: IndexProvider> Index<P> {
         {
             let witness_id = pub_witness.to_witness_id();
             for bundle in anchored_bundles.bundles() {
-                self.index_bundle(contract_id, bundle, witness_id)?;
+                self.index_bundle(contract_id, bundle, witness_id, false)?;
             }
         }
 
@@ -238,16 +238,23 @@ impl<P: IndexProvider> Index<P> {
         Ok(())
     }
 
+    /// # Arguments
+    ///
+    /// - `replace_witness` defines whether a bundle id, if present, must be
+    ///   associated with newer witness. The only use case for that is when
+    ///   consuming fascia for lightning channel transactions on channel
+    ///   updates.
     pub(crate) fn index_bundle(
         &mut self,
         contract_id: ContractId,
         bundle: &TransitionBundle,
         witness_id: XWitnessId,
+        replace_witness: bool,
     ) -> Result<(), IndexError<P>> {
         let bundle_id = bundle.bundle_id();
 
         self.provider
-            .register_bundle(bundle_id, witness_id, contract_id)?;
+            .register_bundle(bundle_id, witness_id, contract_id, replace_witness)?;
 
         for (opid, transition) in &bundle.known_transitions {
             self.provider.register_operation(*opid, bundle_id)?;
@@ -398,11 +405,18 @@ pub trait IndexWriteProvider: StoreTransaction<TransactionErr = Self::Error> {
 
     fn register_contract(&mut self, contract_id: ContractId) -> Result<bool, Self::Error>;
 
+    /// # Arguments
+    ///
+    /// - `replace_witness` defines whether a bundle id, if present, must be
+    ///   associated with newer witness. The only use case for that is when
+    ///   consuming fascia for lightning channel transactions on channel
+    ///   updates.
     fn register_bundle(
         &mut self,
         bundle_id: BundleId,
         witness_id: XWitnessId,
         contract_id: ContractId,
+        replace_witness: bool,
     ) -> Result<bool, IndexWriteError<Self::Error>>;
 
     fn register_operation(

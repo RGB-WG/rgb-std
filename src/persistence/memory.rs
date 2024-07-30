@@ -676,18 +676,21 @@ impl IndexWriteProvider for MemIndex {
         bundle_id: BundleId,
         witness_id: XWitnessId,
         contract_id: ContractId,
+        replace_witness: bool,
     ) -> Result<bool, IndexWriteError<Self::Error>> {
-        if let Some(alt) = self
-            .bundle_witness_index
-            .get(&bundle_id)
-            .filter(|alt| *alt != &witness_id)
-        {
-            return Err(IndexInconsistency::DistinctBundleWitness {
-                bundle_id,
-                present: *alt,
-                expected: witness_id,
+        if !replace_witness {
+            if let Some(alt) = self
+                .bundle_witness_index
+                .get(&bundle_id)
+                .filter(|alt| *alt != &witness_id)
+            {
+                return Err(IndexInconsistency::DistinctBundleWitness {
+                    bundle_id,
+                    present: *alt,
+                    expected: witness_id,
+                }
+                .into());
             }
-            .into());
         }
         if let Some(alt) = self
             .bundle_contract_index

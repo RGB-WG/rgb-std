@@ -1218,9 +1218,17 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     ///
     /// Must be called before the consignment is created, when witness
     /// transaction is not yet mined.
+    ///
+    /// # Arguments
+    ///
+    /// - `replace_witness` defines whether a bundle id, if present, must be
+    ///   associated with newer witness. The only use case for that is when
+    ///   consuming fascia for lightning channel transactions on channel
+    ///   updates.
     pub fn consume_fascia(
         &mut self,
         fascia: Fascia,
+        replace_witness: bool,
     ) -> Result<(), StockError<S, H, P, FasciaError>> {
         self.store_transaction(move |stash, state, index| {
             let witness_id = fascia.witness_id();
@@ -1238,7 +1246,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
                     return Err(FasciaError::InvalidBundle(contract_id, bundle.bundle_id()).into());
                 }
 
-                index.index_bundle(contract_id, &bundle, witness_id)?;
+                index.index_bundle(contract_id, &bundle, witness_id, replace_witness)?;
 
                 state.update_state::<DumbResolver>(contract_id, |history| {
                     for transition in bundle.known_transitions.values() {
