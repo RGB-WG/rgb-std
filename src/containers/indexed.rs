@@ -22,8 +22,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Deref;
 
-use rgb::validation::{ConsignmentApi, EAnchor, Scripts};
-use rgb::vm::OpRef;
+use rgb::validation::{ConsignmentApi, EAnchor, OpRef, Scripts};
 use rgb::{
     BundleId, Extension, Genesis, OpId, Operation, Schema, Transition, TransitionBundle, XWitnessId,
 };

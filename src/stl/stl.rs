@@ -41,7 +41,7 @@ use crate::LIB_NAME_RGB_STD;
 /// Strict types id for the library providing standard data types which may be
 /// used in RGB smart contracts.
 pub const LIB_ID_RGB_STORAGE: &str =
-    "stl:DKVsldZ8-zYwnjtp-igdl80j-eifV0Ef-asKEvF6-JyZP3to#song-wave-story";
+    "stl:aHl1Tsu8-RxChWD4-DXqrqOO-qFlJXsK-0uWYfDv-H5BgmxE#plastic-shelter-podium";
 
 /// Strict types id for the library providing standard data types which may be
 /// used in RGB smart contracts.

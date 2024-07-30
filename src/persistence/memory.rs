@@ -23,6 +23,7 @@ use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::convert::Infallible;
+use std::fmt::{Debug, Formatter};
 use std::num::NonZeroU32;
 #[cfg(feature = "fs")]
 use std::path::PathBuf;
@@ -38,8 +39,8 @@ use bp::dbc::tapret::TapretCommitment;
 use commit_verify::{CommitId, Conceal};
 use rgb::validation::ResolveWitness;
 use rgb::vm::{
-    ContractStateAccess, GlobalContractState, GlobalOrd, GlobalStateIter, TxOrd,
-    UnknownGlobalStateType, WitnessOrd,
+    AnchoredOpRef, ContractStateAccess, ContractStateEvolve, GlobalContractState, GlobalOrd,
+    GlobalStateIter, TxOrd, UnknownGlobalStateType, WitnessOrd,
 };
 use rgb::{
     Assign, AssignmentType, Assignments, AssignmentsRef, AttachId, AttachState, BundleId,
@@ -445,7 +446,7 @@ pub struct MemState {
     filename: PathBuf,
 
     witnesses: LargeOrdMap<XWitnessId, TxOrd>,
-    contracts: TinyOrdMap<ContractId, MemContract>,
+    contracts: TinyOrdMap<ContractId, MemContractState>,
 }
 
 impl StrictSerialize for MemState {}
@@ -473,7 +474,7 @@ impl StoreTransaction for MemState {
 impl StateProvider for MemState {}
 
 impl StateReadProvider for MemState {
-    type ContractRead<'a> = MemContractFiltered<'a>;
+    type ContractRead<'a> = MemContract<&'a MemContractState>;
     type Error = StateInconsistency;
 
     fn contract_state(
@@ -501,7 +502,7 @@ impl StateReadProvider for MemState {
             })
             .map(|(id, ord)| (*id, *ord))
             .collect();
-        Ok(MemContractFiltered { filter, unfiltered })
+        Ok(MemContract { filter, unfiltered })
     }
 }
 
@@ -525,7 +526,7 @@ impl StateWriteProvider for MemState {
             }
         } else {
             self.contracts
-                .insert(contract_id, MemContract::new(schema, contract_id))?;
+                .insert(contract_id, MemContractState::new(schema, contract_id))?;
             self.contracts.get_mut(&contract_id).expect("just inserted")
         };
         let mut writer = MemContractWriter {
@@ -621,7 +622,7 @@ impl MemGlobalState {
 /// NB: MemContract provides an in-memory contract state used during contract
 /// validation. It does not support filtering by witness transaction validity
 /// and thus must not be used in any other cases in its explicit form. Pls see
-/// [`MemContractFiltered`] instead.
+/// [`MemContract`] instead.
 #[derive(Getters, Clone, Eq, PartialEq, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STORAGE)]
@@ -630,7 +631,7 @@ impl MemGlobalState {
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-pub struct MemContract {
+pub struct MemContractState {
     #[getter(as_copy)]
     schema_id: SchemaId,
     #[getter(as_copy)]
@@ -643,7 +644,7 @@ pub struct MemContract {
     attach: LargeOrdSet<OutputAssignment<RevealedAttach>>,
 }
 
-impl MemContract {
+impl MemContractState {
     pub fn new(schema: &Schema, contract_id: ContractId) -> Self {
         let global = TinyOrdMap::from_iter_unsafe(
             schema
@@ -651,7 +652,7 @@ impl MemContract {
                 .iter()
                 .map(|(ty, glob)| (*ty, MemGlobalState::new(glob.max_items))),
         );
-        MemContract {
+        MemContractState {
             schema_id: schema.schema_id(),
             contract_id,
             global,
@@ -771,12 +772,18 @@ impl MemContract {
     }
 }
 
-pub struct MemContractFiltered<'mem> {
+pub struct MemContract<M: Borrow<MemContractState>> {
     filter: HashMap<XWitnessId, TxOrd>,
-    unfiltered: &'mem MemContract,
+    unfiltered: M,
 }
 
-impl<'mem> ContractStateAccess for MemContractFiltered<'mem> {
+impl<M: Borrow<MemContractState>> Debug for MemContract<M> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str("MemContractFiltered { .. }")
+    }
+}
+
+impl<M: Borrow<MemContractState>> ContractStateAccess for MemContract<M> {
     fn global(
         &self,
         ty: GlobalStateType,
@@ -833,6 +840,7 @@ impl<'mem> ContractStateAccess for MemContractFiltered<'mem> {
 
         let state = self
             .unfiltered
+            .borrow()
             .global
             .get(&ty)
             .ok_or(UnknownGlobalStateType(ty))?;
@@ -866,6 +874,7 @@ impl<'mem> ContractStateAccess for MemContractFiltered<'mem> {
 
     fn rights(&self, outpoint: XOutpoint, ty: AssignmentType) -> u32 {
         self.unfiltered
+            .borrow()
             .rights
             .iter()
             .filter(|assignment| {
@@ -881,6 +890,7 @@ impl<'mem> ContractStateAccess for MemContractFiltered<'mem> {
         ty: AssignmentType,
     ) -> impl DoubleEndedIterator<Item = FungibleState> {
         self.unfiltered
+            .borrow()
             .fungibles
             .iter()
             .filter(move |assignment| {
@@ -896,6 +906,7 @@ impl<'mem> ContractStateAccess for MemContractFiltered<'mem> {
         ty: AssignmentType,
     ) -> impl DoubleEndedIterator<Item = impl Borrow<DataState>> {
         self.unfiltered
+            .borrow()
             .data
             .iter()
             .filter(move |assignment| {
@@ -911,6 +922,7 @@ impl<'mem> ContractStateAccess for MemContractFiltered<'mem> {
         ty: AssignmentType,
     ) -> impl DoubleEndedIterator<Item = impl Borrow<AttachState>> {
         self.unfiltered
+            .borrow()
             .attach
             .iter()
             .filter(move |assignment| {
@@ -921,16 +933,74 @@ impl<'mem> ContractStateAccess for MemContractFiltered<'mem> {
     }
 }
 
-impl<'mem> ContractStateRead for MemContractFiltered<'mem> {
+impl ContractStateEvolve for MemContract<MemContractState> {
+    type Context<'ctx> = (&'ctx Schema, ContractId);
+
+    fn init(context: Self::Context<'_>) -> Self {
+        Self {
+            filter: empty!(),
+            unfiltered: MemContractState::new(context.0, context.1),
+        }
+    }
+
+    fn evolve_state(&mut self, op: AnchoredOpRef) -> Result<(), confinement::Error> {
+        fn ordering(filter: &HashMap<XWitnessId, TxOrd>, witness_id: XWitnessId) -> WitnessOrd {
+            let ord = filter.get(&witness_id).expect("unknown witness id");
+            WitnessOrd {
+                pub_ord: *ord,
+                witness_id,
+            }
+        }
+        (move || -> Result<(), SerializeError> {
+            fn writer(me: &mut MemContract<MemContractState>) -> MemContractWriter {
+                MemContractWriter {
+                    writer: Box::new(|ord: WitnessOrd| -> Result<(), SerializeError> {
+                        // NB: We do not check the existence of the witness since we have a newer
+                        // version anyway and even if it is known we have to replace it
+                        me.filter.insert(ord.witness_id, ord.pub_ord);
+                        Ok(())
+                    }),
+                    contract: &mut me.unfiltered,
+                }
+            }
+            match op {
+                AnchoredOpRef::Genesis(genesis) => {
+                    let mut writer = writer(self);
+                    writer.add_genesis(genesis)
+                }
+                AnchoredOpRef::Transition(transition, witness_id) => {
+                    let ord = ordering(&self.filter, witness_id);
+                    let mut writer = writer(self);
+                    writer.add_transition(transition, ord)
+                }
+                AnchoredOpRef::Extension(extension, witness_id) => {
+                    let ord = ordering(&self.filter, witness_id);
+                    let mut writer = writer(self);
+                    writer.add_extension(extension, ord)
+                }
+            }
+        })()
+        .map_err(|err| match err {
+            SerializeError::Io(_) => {
+                unreachable!("I/O errors are not possible for memory structures")
+            }
+            SerializeError::Confinement(e) => e,
+        })?;
+        Ok(())
+    }
+}
+
+impl<M: Borrow<MemContractState>> ContractStateRead for MemContract<M> {
     #[inline]
-    fn contract_id(&self) -> ContractId { self.unfiltered.contract_id }
+    fn contract_id(&self) -> ContractId { self.unfiltered.borrow().contract_id }
 
     #[inline]
-    fn schema_id(&self) -> SchemaId { self.unfiltered.schema_id }
+    fn schema_id(&self) -> SchemaId { self.unfiltered.borrow().schema_id }
 
     #[inline]
     fn rights_all(&self) -> impl Iterator<Item = &OutputAssignment<VoidState>> {
         self.unfiltered
+            .borrow()
             .rights
             .iter()
             .filter(|assignment| assignment.check_witness(&self.filter))
@@ -939,6 +1009,7 @@ impl<'mem> ContractStateRead for MemContractFiltered<'mem> {
     #[inline]
     fn fungible_all(&self) -> impl Iterator<Item = &OutputAssignment<RevealedValue>> {
         self.unfiltered
+            .borrow()
             .fungibles
             .iter()
             .filter(|assignment| assignment.check_witness(&self.filter))
@@ -947,6 +1018,7 @@ impl<'mem> ContractStateRead for MemContractFiltered<'mem> {
     #[inline]
     fn data_all(&self) -> impl Iterator<Item = &OutputAssignment<RevealedData>> {
         self.unfiltered
+            .borrow()
             .data
             .iter()
             .filter(|assignment| assignment.check_witness(&self.filter))
@@ -955,6 +1027,7 @@ impl<'mem> ContractStateRead for MemContractFiltered<'mem> {
     #[inline]
     fn attach_all(&self) -> impl Iterator<Item = &OutputAssignment<RevealedAttach>> {
         self.unfiltered
+            .borrow()
             .attach
             .iter()
             .filter(|assignment| assignment.check_witness(&self.filter))
@@ -963,7 +1036,7 @@ impl<'mem> ContractStateRead for MemContractFiltered<'mem> {
 
 pub struct MemContractWriter<'mem> {
     writer: Box<dyn FnMut(WitnessOrd) -> Result<(), SerializeError> + 'mem>,
-    contract: &'mem mut MemContract,
+    contract: &'mem mut MemContractState,
 }
 
 impl<'mem> ContractStateWrite for MemContractWriter<'mem> {
