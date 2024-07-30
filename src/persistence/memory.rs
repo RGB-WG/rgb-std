@@ -36,16 +36,17 @@ use amplify::confinement::{
 use amplify::num::u24;
 use bp::dbc::tapret::TapretCommitment;
 use commit_verify::{CommitId, Conceal};
+use rgb::validation::ResolveWitness;
 use rgb::vm::{
-    AssignmentWitness, ContractState, GlobalContractState, GlobalOrd, GlobalStateIter,
-    UnknownGlobalStateType, WitnessAnchor,
+    ContractStateAccess, GlobalContractState, GlobalOrd, GlobalStateIter, TxOrd,
+    UnknownGlobalStateType, WitnessOrd,
 };
 use rgb::{
     Assign, AssignmentType, Assignments, AssignmentsRef, AttachId, AttachState, BundleId,
     ContractId, DataState, ExposedSeal, ExposedState, Extension, FungibleState, Genesis,
     GenesisSeal, GlobalStateType, GraphSeal, Identity, OpId, Operation, Opout, RevealedAttach,
     RevealedData, RevealedValue, Schema, SchemaId, SecretSeal, Transition, TransitionBundle,
-    TypedAssigns, VoidState, WitnessOrd, XChain, XOutpoint, XOutputSeal, XWitnessId,
+    TypedAssigns, VoidState, XChain, XOutpoint, XOutputSeal, XWitnessId,
 };
 use strict_encoding::{SerializeError, StrictDeserialize, StrictSerialize};
 use strict_types::TypeSystem;
@@ -64,7 +65,6 @@ use crate::contract::{KnownState, OutputAssignment};
 use crate::interface::{Iface, IfaceClass, IfaceId, IfaceImpl, IfaceRef};
 #[cfg(feature = "fs")]
 use crate::persistence::fs::FsStored;
-use crate::resolvers::ResolveWitnessAnchor;
 use crate::{OpEl, LIB_NAME_RGB_STORAGE};
 
 //////////
@@ -444,7 +444,7 @@ pub struct MemState {
     #[strict_type(skip)]
     filename: PathBuf,
 
-    witnesses: LargeOrdMap<XWitnessId, WitnessOrd>,
+    witnesses: LargeOrdMap<XWitnessId, TxOrd>,
     contracts: TinyOrdMap<ContractId, MemContract>,
 }
 
@@ -488,7 +488,7 @@ impl StateReadProvider for MemState {
             .witnesses
             .iter()
             .filter(|(id, _)| {
-                let id = **id;
+                let id = Some(**id);
                 unfiltered
                     .global
                     .values()
@@ -529,10 +529,10 @@ impl StateWriteProvider for MemState {
             self.contracts.get_mut(&contract_id).expect("just inserted")
         };
         let mut writer = MemContractWriter {
-            writer: Box::new(|wa: WitnessAnchor| -> Result<(), SerializeError> {
+            writer: Box::new(|ord: WitnessOrd| -> Result<(), SerializeError> {
                 // NB: We do not check the existence of the witness since we have a newer
                 // version anyway and even if it is known we have to replace it
-                self.witnesses.insert(wa.witness_id, wa.witness_ord)?;
+                self.witnesses.insert(ord.witness_id, ord.pub_ord)?;
                 Ok(())
             }),
             contract,
@@ -552,11 +552,11 @@ impl StateWriteProvider for MemState {
             .map(|contract| MemContractWriter {
                 // We can't move this constructor to a dedicated method due to the rust borrower
                 // checker
-                writer: Box::new(|wa: WitnessAnchor| -> Result<(), SerializeError> {
+                writer: Box::new(|ord: WitnessOrd| -> Result<(), SerializeError> {
                     // NB: We do not check the existence of the witness since we have a newer
                     // version anyway and even if it is known we have to replace
                     // it
-                    self.witnesses.insert(wa.witness_id, wa.witness_ord)?;
+                    self.witnesses.insert(ord.witness_id, ord.pub_ord)?;
                     Ok(())
                 }),
                 contract,
@@ -565,7 +565,7 @@ impl StateWriteProvider for MemState {
 
     fn update_witnesses(
         &mut self,
-        mut resolver: impl ResolveWitnessAnchor,
+        resolver: impl ResolveWitness,
         after_height: u32,
     ) -> Result<UpdateRes, Self::Error> {
         let after_height = NonZeroU32::new(after_height).unwrap_or(NonZeroU32::MIN);
@@ -576,11 +576,11 @@ impl StateWriteProvider for MemState {
         mem::swap(&mut self.witnesses, &mut witnesses);
         let mut witnesses = witnesses.unbox();
         for (id, ord) in &mut witnesses {
-            if matches!(ord, WitnessOrd::OnChain(pos) if pos.height() < after_height) {
+            if matches!(ord, TxOrd::OnChain(pos) if pos.height() < after_height) {
                 continue;
             }
-            match resolver.resolve_witness_anchor(*id) {
-                Ok(new) => *ord = new.witness_ord,
+            match resolver.resolve_pub_witness_ord(*id) {
+                Ok(new) => *ord = new,
                 Err(err) => {
                     failed.insert(*id, err.to_string());
                 }
@@ -618,7 +618,10 @@ impl MemGlobalState {
 /// the state data, but it doesn't interpret or validates the state against the
 /// schema.
 ///
-/// To access the valid contract state use [`Contract`] APIs.
+/// NB: MemContract provides an in-memory contract state used during contract
+/// validation. It does not support filtering by witness transaction validity
+/// and thus must not be used in any other cases in its explicit form. Pls see
+/// [`MemContractFiltered`] instead.
 #[derive(Getters, Clone, Eq, PartialEq, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STORAGE)]
@@ -659,7 +662,8 @@ impl MemContract {
         }
     }
 
-    fn add_operation(&mut self, op: &impl Operation, witness_id: AssignmentWitness) {
+    // TODO: Use `OpRef` type instead of `op` and `witness_id`
+    fn add_operation(&mut self, op: &impl Operation, witness_id: Option<XWitnessId>) {
         let opid = op.id();
 
         for (ty, state) in op.globals() {
@@ -720,7 +724,7 @@ impl MemContract {
 
     fn add_assignments<Seal: ExposedSeal>(
         &mut self,
-        witness_id: AssignmentWitness,
+        witness_id: Option<XWitnessId>,
         opid: OpId,
         assignments: &Assignments<Seal>,
     ) {
@@ -729,7 +733,7 @@ impl MemContract {
             assignments: &[Assign<State, Seal>],
             opid: OpId,
             ty: AssignmentType,
-            witness_id: AssignmentWitness,
+            witness_id: Option<XWitnessId>,
         ) {
             for (no, seal, state) in assignments
                 .iter()
@@ -737,12 +741,10 @@ impl MemContract {
                 .filter_map(|(n, a)| a.to_revealed().map(|(seal, state)| (n, seal, state)))
             {
                 let assigned_state = match witness_id {
-                    AssignmentWitness::Present(witness_id) => {
+                    Some(witness_id) => {
                         OutputAssignment::with_witness(seal, witness_id, state, opid, ty, no as u16)
                     }
-                    AssignmentWitness::Absent => {
-                        OutputAssignment::with_no_witness(seal, state, opid, ty, no as u16)
-                    }
+                    None => OutputAssignment::with_no_witness(seal, state, opid, ty, no as u16),
                 };
                 contract_state
                     .push(assigned_state)
@@ -770,11 +772,11 @@ impl MemContract {
 }
 
 pub struct MemContractFiltered<'mem> {
-    filter: HashMap<XWitnessId, WitnessOrd>,
+    filter: HashMap<XWitnessId, TxOrd>,
     unfiltered: &'mem MemContract,
 }
 
-impl<'mem> ContractState for MemContractFiltered<'mem> {
+impl<'mem> ContractStateAccess for MemContractFiltered<'mem> {
     fn global(
         &self,
         ty: GlobalStateType,
@@ -840,11 +842,11 @@ impl<'mem> ContractState for MemContractFiltered<'mem> {
                 src.iter()
                     .rev()
                     .filter_map(|(el, data)| {
-                        let ord = match el.witness.witness_id() {
-                            None => GlobalOrd::genesis(el.no),
+                        let ord = match el.witness {
+                            None => GlobalOrd::genesis(el.op, el.no),
                             Some(id) => {
                                 let ord = self.filter.get(&id)?;
-                                GlobalOrd::with_witness(id, *ord, el.no)
+                                GlobalOrd::with_witness(el.op, id, *ord, el.no)
                             }
                         };
                         Some((ord, data))
@@ -960,7 +962,7 @@ impl<'mem> ContractStateRead for MemContractFiltered<'mem> {
 }
 
 pub struct MemContractWriter<'mem> {
-    writer: Box<dyn FnMut(WitnessAnchor) -> Result<(), SerializeError> + 'mem>,
+    writer: Box<dyn FnMut(WitnessOrd) -> Result<(), SerializeError> + 'mem>,
     contract: &'mem mut MemContract,
 }
 
@@ -972,8 +974,7 @@ impl<'mem> ContractStateWrite for MemContractWriter<'mem> {
     /// If genesis violates RGB consensus rules and wasn't checked against the
     /// schema before adding to the history.
     fn add_genesis(&mut self, genesis: &Genesis) -> Result<(), Self::Error> {
-        self.contract
-            .add_operation(genesis, AssignmentWitness::Absent);
+        self.contract.add_operation(genesis, None);
         Ok(())
     }
 
@@ -984,11 +985,11 @@ impl<'mem> ContractStateWrite for MemContractWriter<'mem> {
     fn add_transition(
         &mut self,
         transition: &Transition,
-        witness_anchor: WitnessAnchor,
+        ord: WitnessOrd,
     ) -> Result<(), Self::Error> {
-        (self.writer)(witness_anchor)?;
+        (self.writer)(ord)?;
         self.contract
-            .add_operation(transition, AssignmentWitness::Present(witness_anchor.witness_id));
+            .add_operation(transition, Some(ord.witness_id));
         Ok(())
     }
 
@@ -996,14 +997,9 @@ impl<'mem> ContractStateWrite for MemContractWriter<'mem> {
     ///
     /// If state extension violates RGB consensus rules and wasn't checked
     /// against the schema before adding to the history.
-    fn add_extension(
-        &mut self,
-        extension: &Extension,
-        witness_anchor: WitnessAnchor,
-    ) -> Result<(), Self::Error> {
-        (self.writer)(witness_anchor)?;
-        self.contract
-            .add_operation(extension, AssignmentWitness::Present(witness_anchor.witness_id));
+    fn add_extension(&mut self, extension: &Extension, ord: WitnessOrd) -> Result<(), Self::Error> {
+        (self.writer)(ord)?;
+        self.contract.add_operation(extension, Some(ord.witness_id));
         Ok(())
     }
 }

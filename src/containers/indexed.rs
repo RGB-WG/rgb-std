@@ -22,18 +22,15 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Deref;
 
-use amplify::confinement::Collection;
-use commit_verify::Conceal;
 use rgb::validation::{ConsignmentApi, EAnchor, Scripts};
+use rgb::vm::OpRef;
 use rgb::{
-    BundleId, Extension, Genesis, OpId, OpRef, Operation, Schema, Transition, TransitionBundle,
-    XChain, XWitnessId,
+    BundleId, Extension, Genesis, OpId, Operation, Schema, Transition, TransitionBundle, XWitnessId,
 };
 use strict_types::TypeSystem;
 
 use super::{Consignment, XPubWitness};
 use crate::containers::anchors::ToWitnessId;
-use crate::SecretSeal;
 
 // TODO: Transform consignment into this type instead of composing over it
 #[derive(Clone, Debug)]
@@ -122,21 +119,11 @@ impl<'c, const TRANSFER: bool> ConsignmentApi for IndexedConsignment<'c, TRANSFE
             return Some(OpRef::Genesis(&self.genesis));
         }
         self.transition(opid)
-            .map(OpRef::from)
-            .or_else(|| self.extension(opid).map(OpRef::from))
+            .map(OpRef::Transition)
+            .or_else(|| self.extension(opid).map(OpRef::Extension))
     }
 
     fn genesis(&self) -> &Genesis { &self.genesis }
-
-    fn terminals<'iter>(&self) -> impl Iterator<Item = (BundleId, XChain<SecretSeal>)> + 'iter {
-        let mut set = BTreeSet::new();
-        for (bundle_id, terminal) in &self.terminals {
-            for seal in &terminal.seals {
-                set.push((*bundle_id, seal.conceal()));
-            }
-        }
-        set.into_iter()
-    }
 
     fn bundle_ids<'iter>(&self) -> impl Iterator<Item = BundleId> + 'iter {
         self.bundle_idx

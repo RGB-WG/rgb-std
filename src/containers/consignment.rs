@@ -48,6 +48,7 @@ use super::{
     ASCII_ARMOR_SCHEMA, ASCII_ARMOR_TERMINAL, ASCII_ARMOR_VERSION,
 };
 use crate::interface::{Iface, IfaceImpl};
+use crate::persistence::MemContract;
 use crate::resolvers::ConsignmentResolver;
 use crate::{BundleExt, SecretSeal, LIB_NAME_RGB_STD};
 
@@ -348,7 +349,12 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
             consignment: &index,
             fallback: resolver,
         };
-        let mut status = Validator::validate(&index, &resolver, testnet);
+        let mut status = Validator::<MemContract, _, _>::validate(
+            &index,
+            &resolver,
+            testnet,
+            (&self.schema, self.contract_id()),
+        );
 
         let validity = status.validity();
 

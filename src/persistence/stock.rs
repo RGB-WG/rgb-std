@@ -33,7 +33,7 @@ use bp::Vout;
 use chrono::Utc;
 use commit_verify::Conceal;
 use invoice::{Amount, Beneficiary, InvoiceState, NonFungible, RgbInvoice};
-use rgb::validation::{DbcProof, EAnchor};
+use rgb::validation::{DbcProof, EAnchor, ResolveWitness, WitnessResolverError};
 use rgb::{
     validation, AssignmentType, BlindingFactor, BundleId, ContractId, GraphSeal, Identity, OpId,
     Operation, Opout, SchemaId, SecretSeal, Transition, XChain, XOutpoint, XOutputSeal, XWitnessId,
@@ -58,7 +58,6 @@ use crate::interface::{
     BuilderError, ContractBuilder, ContractIface, Iface, IfaceClass, IfaceId, IfaceRef,
     TransitionBuilder,
 };
-use crate::resolvers::ResolveWitnessAnchor;
 use crate::{MergeRevealError, RevealError};
 
 pub type ContractAssignments = HashMap<XOutputSeal, HashMap<Opout, PersistedState>>;
@@ -108,7 +107,7 @@ pub enum StockError<
     StashData(StashDataError),
 
     /// witness {0} can't be resolved: {1}
-    WitnessUnresolved(XWitnessId, String),
+    WitnessUnresolved(XWitnessId, WitnessResolverError),
 }
 
 impl<S: StashProvider, H: StateProvider, P: IndexProvider, E: Error> From<StashError<S>>
@@ -1170,32 +1169,32 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         Ok(status)
     }
 
-    pub fn import_contract<R: ResolveWitnessAnchor>(
+    pub fn import_contract<R: ResolveWitness>(
         &mut self,
         contract: ValidContract,
-        resolver: &mut R,
+        resolver: R,
     ) -> Result<validation::Status, StockError<S, H, P>> {
         self.consume_consignment(contract, resolver)
     }
 
-    pub fn accept_transfer<R: ResolveWitnessAnchor>(
+    pub fn accept_transfer<R: ResolveWitness>(
         &mut self,
         contract: ValidTransfer,
-        resolver: &mut R,
+        resolver: R,
     ) -> Result<validation::Status, StockError<S, H, P>> {
         self.consume_consignment(contract, resolver)
     }
 
-    fn consume_consignment<R: ResolveWitnessAnchor, const TRANSFER: bool>(
+    fn consume_consignment<R: ResolveWitness, const TRANSFER: bool>(
         &mut self,
         consignment: ValidConsignment<TRANSFER>,
-        mut resolver: R,
+        resolver: R,
     ) -> Result<validation::Status, StockError<S, H, P>> {
         let (mut consignment, status) = consignment.split();
 
         consignment = self.stash.resolve_secrets(consignment)?;
         self.store_transaction(move |stash, state, index| {
-            state.update_from_consignment(&consignment, &mut resolver)?;
+            state.update_from_consignment(&consignment, &resolver)?;
             index.index_consignment(&consignment)?;
             stash.consume_consignment(consignment)?;
             Ok(())
@@ -1212,10 +1211,10 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     ///
     /// Must be called before the consignment is created, when witness
     /// transaction is not yet mined.
-    pub fn consume_fascia<R: ResolveWitnessAnchor>(
+    pub fn consume_fascia<R: ResolveWitness>(
         &mut self,
         fascia: Fascia,
-        mut resolver: R,
+        resolver: R,
     ) -> Result<(), StockError<S, H, P, FasciaError>> {
         self.store_transaction(move |stash, state, index| {
             let witness_id = fascia.witness_id();
@@ -1234,7 +1233,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
                 }
 
                 index.index_bundle(contract_id, &bundle, witness_id)?;
-                state.update_from_bundle(contract_id, &bundle, witness_id, &mut resolver)?;
+                state.update_from_bundle(contract_id, &bundle, witness_id, &resolver)?;
                 stash.consume_bundle(bundle)?;
             }
             Ok(())
@@ -1296,7 +1295,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
     pub fn update_witnesses(
         &mut self,
-        resolver: impl ResolveWitnessAnchor,
+        resolver: impl ResolveWitness,
         after_height: u32,
     ) -> Result<UpdateRes, StockError<S, H, P>> {
         Ok(self.state.update_witnesses(resolver, after_height)?)

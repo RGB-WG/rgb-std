@@ -26,8 +26,7 @@ mod merge_reveal;
 pub use assignments::{KnownState, OutputAssignment, TypedAssignsExt};
 pub use bundle::{BundleExt, RevealError};
 pub use merge_reveal::{MergeReveal, MergeRevealError};
-use rgb::vm::AssignmentWitness;
-use rgb::OpId;
+use rgb::{OpId, XWitnessId};
 
 use crate::LIB_NAME_RGB_STD;
 
@@ -40,9 +39,9 @@ use crate::LIB_NAME_RGB_STD;
 pub struct OpEl {
     pub op: OpId,
     pub no: u16,
-    pub witness: AssignmentWitness,
+    pub witness: Option<XWitnessId>,
 }
 
 impl OpEl {
-    pub fn new(op: OpId, no: u16, witness: AssignmentWitness) -> OpEl { OpEl { op, no, witness } }
+    pub fn new(op: OpId, no: u16, witness: Option<XWitnessId>) -> OpEl { OpEl { op, no, witness } }
 }
