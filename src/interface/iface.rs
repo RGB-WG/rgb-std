@@ -37,8 +37,8 @@ use strict_encoding::{
 };
 use strict_types::{SemId, SymbolicSys, TypeLib};
 
-use crate::interface::{IfaceDisplay, IfaceImpl, VerNo};
-use crate::persistence::SchemaIfaces;
+use crate::interface::{ContractIface, IfaceDisplay, IfaceImpl, VerNo};
+use crate::persistence::{ContractStateRead, SchemaIfaces};
 use crate::LIB_NAME_RGB_STD;
 
 /// Interface identifier.
@@ -336,24 +336,25 @@ pub struct TransitionIface {
 ///
 /// Interface standards like RGB20, RGB21 and RGB25 are actually interface
 /// classes.
-///
-/// The instances implementing this trait are used as wrappers around
-/// [`ContractIface`] object, allowing a simple API matching the interface class
-/// requirements.
-pub trait IfaceClass {
+pub trait IfaceClass: Clone + Default {
     const IFACE_NAME: &'static str;
     const IFACE_IDS: &'static [IfaceId];
 
-    /// An object which allows to configure specific interface features to
-    /// select one interface from the class.
-    type Features: Sized + Clone + Default;
+    type Wrapper<S: ContractStateRead>: IfaceWrapper<S>;
 
+    fn stl(&self) -> TypeLib;
+    fn iface(&self) -> Iface;
+    fn iface_id(&self) -> IfaceId;
+}
+
+/// The instances implementing this trait are used as wrappers around
+/// [`ContractIface`] object, allowing a simple API matching the interface class
+/// requirements.
+pub trait IfaceWrapper<S: ContractStateRead> {
     /// Object which represent concise summary about a contract;
     type Info: Clone + Eq + Debug;
 
-    fn iface(features: Self::Features) -> Iface;
-    fn iface_id(features: Self::Features) -> IfaceId;
-    fn stl() -> TypeLib;
+    fn with(iface: ContractIface<S>) -> Self;
 
     /// Constructs information object describing a specific class in terms of
     /// the interface class.

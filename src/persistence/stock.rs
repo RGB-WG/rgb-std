@@ -56,7 +56,7 @@ use crate::containers::{
 use crate::info::{ContractInfo, IfaceInfo, SchemaInfo};
 use crate::interface::{
     BuilderError, ContractBuilder, ContractIface, Iface, IfaceClass, IfaceId, IfaceRef,
-    TransitionBuilder,
+    IfaceWrapper, TransitionBuilder,
 };
 use crate::{MergeRevealError, RevealError};
 
@@ -502,12 +502,16 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     #[allow(clippy::multiple_bound_locations)]
     pub fn contracts_by<'a, C: IfaceClass + 'a>(
         &'a self,
-    ) -> Result<impl Iterator<Item = C::Info> + 'a, StockError<S, H, P>>
-    where C: From<ContractIface<H::ContractRead<'a>>> {
+    ) -> Result<
+        impl Iterator<
+            Item = <C::Wrapper<H::ContractRead<'_>> as IfaceWrapper<H::ContractRead<'_>>>::Info,
+        > + 'a,
+        StockError<S, H, P>,
+    > {
         Ok(self.stash.geneses_by::<C>()?.filter_map(|genesis| {
             self.contract_iface_class::<C>(genesis.contract_id())
                 .as_ref()
-                .map(C::info)
+                .map(<C::Wrapper<H::ContractRead<'_>> as IfaceWrapper<H::ContractRead<'_>>>::info)
                 .ok()
         }))
     }
@@ -547,27 +551,23 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     }
 
     #[allow(clippy::multiple_bound_locations)]
-    pub fn contract_iface_class<'a, C: IfaceClass>(
-        &'a self,
+    pub fn contract_iface_class<C: IfaceClass>(
+        &self,
         contract_id: ContractId,
-    ) -> Result<C, StockError<S, H, P, ContractIfaceError>>
-    where
-        C: From<ContractIface<H::ContractRead<'a>>>,
-    {
+    ) -> Result<C::Wrapper<H::ContractRead<'_>>, StockError<S, H, P, ContractIfaceError>> {
         let (schema_ifaces, state, info) = self.contract_raw(contract_id)?;
         let iimpl = self.stash.impl_for::<C>(schema_ifaces)?;
 
         let iface = self.stash.iface(iimpl.iface_id)?;
         let (types, _) = self.stash.extract(&schema_ifaces.schema, [iface])?;
 
-        Ok(ContractIface {
+        Ok(C::Wrapper::with(ContractIface {
             state,
             schema: schema_ifaces.schema.clone(),
             iface: iimpl.clone(),
             types,
             info,
-        }
-        .into())
+        }))
     }
 
     /// Returns the best matching abstract interface to a contract.

@@ -41,7 +41,8 @@ pub use contractum::IfaceDisplay;
 pub use filter::{FilterExclude, FilterIncludeAll, OutpointFilter};
 pub use iface::{
     ArgMap, AssignIface, ExtensionIface, GenesisIface, GlobalIface, Iface, IfaceClass, IfaceId,
-    IfaceInconsistency, IfaceRef, Modifier, OpName, OwnedIface, Req, TransitionIface, ValencyIface,
+    IfaceInconsistency, IfaceRef, IfaceWrapper, Modifier, OpName, OwnedIface, Req, TransitionIface,
+    ValencyIface,
 };
 pub use iimpl::{IfaceImpl, ImplId, NamedField, NamedType, NamedVariant, SchemaTypeIndex};
 pub use inheritance::{CheckInheritance, ExtensionError, InheritanceFailure};
