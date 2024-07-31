@@ -138,7 +138,7 @@ impl<P: StateProvider> State<P> {
                 .resolve_pub_witness_ord(witness_id)
                 .map_err(|e| StateError::Resolver(witness_id, e))?;
             updater
-                .add_transition(transition, WitnessOrd::with(witness_id, ord))
+                .add_transition(transition, witness_id, ord)
                 .map_err(StateError::WriteProvider)?;
         }
         Ok(())
@@ -163,13 +163,12 @@ impl<P: StateProvider> State<P> {
             for bundle in bundled_witness.anchored_bundles.bundles() {
                 for transition in bundle.known_transitions.values() {
                     let witness_id = bundled_witness.pub_witness.to_witness_id();
-                    let ord = resolver
+                    let witness_ord = resolver
                         .resolve_pub_witness_ord(witness_id)
                         .map_err(|e| StateError::Resolver(witness_id, e))?;
-                    let witness_ord = WitnessOrd::with(witness_id, ord);
 
                     state
-                        .add_transition(transition, witness_ord)
+                        .add_transition(transition, witness_id, witness_ord)
                         .map_err(StateError::WriteProvider)?;
                     for (id, used) in &mut extension_idx {
                         if *used {
@@ -178,12 +177,13 @@ impl<P: StateProvider> State<P> {
                         for input in &transition.inputs {
                             if input.prev_out.op == *id {
                                 *used = true;
-                                if let Some(witness_ord2) = ordered_extensions.get_mut(id) {
+                                if let Some((_, witness_ord2)) = ordered_extensions.get_mut(id) {
+                                    // TODO: Double-check this ordering
                                     if *witness_ord2 > witness_ord {
                                         *witness_ord2 = witness_ord;
                                     }
                                 } else {
-                                    ordered_extensions.insert(*id, witness_ord);
+                                    ordered_extensions.insert(*id, (witness_id, witness_ord));
                                 }
                             }
                         }
@@ -192,11 +192,12 @@ impl<P: StateProvider> State<P> {
             }
         }
         for extension in consignment.extensions() {
-            if let Some(witness_ord) = ordered_extensions.get(&extension.id()) {
+            if let Some((witness_id, witness_ord)) = ordered_extensions.get(&extension.id()) {
                 state
-                    .add_extension(extension, *witness_ord)
+                    .add_extension(extension, *witness_id, *witness_ord)
                     .map_err(StateError::WriteProvider)?;
             }
+            // TODO: Do something otherwise
         }
 
         Ok(())
@@ -284,12 +285,14 @@ pub trait ContractStateWrite {
     fn add_transition(
         &mut self,
         transition: &Transition,
+        witness_id: XWitnessId,
         witness_ord: WitnessOrd,
     ) -> Result<(), Self::Error>;
 
     fn add_extension(
         &mut self,
         extension: &Extension,
+        witness_id: XWitnessId,
         witness_ord: WitnessOrd,
     ) -> Result<(), Self::Error>;
 }

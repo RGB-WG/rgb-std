@@ -20,7 +20,7 @@
 // limitations under the License.
 
 use rgb::validation::{ResolveWitness, WitnessResolverError};
-use rgb::vm::{TxOrd, XWitnessId, XWitnessTx};
+use rgb::vm::{WitnessOrd, XWitnessId, XWitnessTx};
 
 use crate::containers::IndexedConsignment;
 
@@ -48,7 +48,7 @@ impl<'cons, R: ResolveWitness, const TRANSFER: bool> ResolveWitness
     fn resolve_pub_witness_ord(
         &self,
         witness_id: XWitnessId,
-    ) -> Result<TxOrd, WitnessResolverError> {
+    ) -> Result<WitnessOrd, WitnessResolverError> {
         self.fallback.resolve_pub_witness_ord(witness_id)
     }
 }

@@ -20,7 +20,7 @@
 // limitations under the License.
 
 use rgb::validation::{ResolveWitness, WitnessResolverError};
-use rgb::vm::{TxOrd, XWitnessTx};
+use rgb::vm::{WitnessOrd, XWitnessTx};
 use strict_encoding::StrictDumb;
 
 use crate::XWitnessId;
@@ -32,7 +32,7 @@ impl ResolveWitness for DumbResolver {
         Ok(XWitnessTx::strict_dumb())
     }
 
-    fn resolve_pub_witness_ord(&self, _: XWitnessId) -> Result<TxOrd, WitnessResolverError> {
-        Ok(TxOrd::strict_dumb())
+    fn resolve_pub_witness_ord(&self, _: XWitnessId) -> Result<WitnessOrd, WitnessResolverError> {
+        Ok(WitnessOrd::strict_dumb())
     }
 }

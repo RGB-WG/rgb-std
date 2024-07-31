@@ -26,7 +26,7 @@ use std::fmt::Debug;
 use amplify::confinement::SmallVec;
 use commit_verify::Conceal;
 use invoice::Amount;
-use rgb::vm::TxOrd;
+use rgb::vm::WitnessOrd;
 use rgb::{
     Assign, AssignAttach, AssignData, AssignFungible, AssignRights, AssignmentType, AttachState,
     DataState, ExposedSeal, ExposedState, OpId, Opout, RevealedAttach, RevealedData, RevealedValue,
@@ -153,10 +153,12 @@ impl<State: KnownState> OutputAssignment<State> {
         }
     }
 
-    pub fn check_witness(&self, filter: &HashMap<XWitnessId, TxOrd>) -> bool {
+    pub fn check_witness(&self, filter: &HashMap<XWitnessId, WitnessOrd>) -> bool {
         match self.witness {
             None => true,
-            Some(witness_id) => !matches!(filter.get(&witness_id), None | Some(TxOrd::Archived)),
+            Some(witness_id) => {
+                !matches!(filter.get(&witness_id), None | Some(WitnessOrd::Archived))
+            }
         }
     }
 }
