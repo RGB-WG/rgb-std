@@ -178,8 +178,7 @@ impl<P: StateProvider> State<P> {
                             if input.prev_out.op == *id {
                                 *used = true;
                                 if let Some((_, witness_ord2)) = ordered_extensions.get_mut(id) {
-                                    // TODO: Double-check this ordering
-                                    if *witness_ord2 > witness_ord {
+                                    if *witness_ord2 < witness_ord {
                                         *witness_ord2 = witness_ord;
                                     }
                                 } else {
@@ -197,7 +196,9 @@ impl<P: StateProvider> State<P> {
                     .add_extension(extension, *witness_id, *witness_ord)
                     .map_err(StateError::WriteProvider)?;
             }
-            // TODO: Do something otherwise
+            // Otherwise consignment includes state extensions which are not
+            // used in transaction graph. This must not be the case for the
+            // validated consignments.
         }
 
         Ok(())

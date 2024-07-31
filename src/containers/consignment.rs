@@ -383,6 +383,8 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
         }
         // TODO: check attach ids from data containers are present in operations
         // TODO: validate sigs and remove untrusted
+        // TODO: Check that all extensions present in the consignment are used by state
+        // transitions
 
         if validity != Validity::Valid {
             Err((status, self))
