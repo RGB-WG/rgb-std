@@ -43,9 +43,9 @@ use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 use strict_types::TypeSystem;
 
 use super::{
-    BundledWitness, ContainerVer, ContentId, ContentSigs, IndexedConsignment, Supplement, Terminal,
-    TerminalDisclose, ASCII_ARMOR_CONSIGNMENT_TYPE, ASCII_ARMOR_CONTRACT, ASCII_ARMOR_IFACE,
-    ASCII_ARMOR_SCHEMA, ASCII_ARMOR_TERMINAL, ASCII_ARMOR_VERSION,
+    BundledWitness, ContainerVer, ContentId, ContentSigs, IndexedConsignment, Supplement,
+    ASCII_ARMOR_CONSIGNMENT_TYPE, ASCII_ARMOR_CONTRACT, ASCII_ARMOR_IFACE, ASCII_ARMOR_SCHEMA,
+    ASCII_ARMOR_TERMINAL, ASCII_ARMOR_VERSION,
 };
 use crate::interface::{Iface, IfaceImpl};
 use crate::persistence::{MemContract, MemContractState};
@@ -185,8 +185,8 @@ pub struct Consignment<const TRANSFER: bool> {
     /// contract.
     pub transfer: bool,
 
-    /// Set of seals which are history terminals.
-    pub terminals: SmallOrdMap<BundleId, Terminal>,
+    /// Set of secret seals which are history terminals.
+    pub terminals: SmallOrdMap<BundleId, XChain<SecretSeal>>,
 
     /// Genesis data.
     pub genesis: Genesis,
@@ -246,7 +246,7 @@ impl<const TRANSFER: bool> CommitEncode for Consignment<TRANSFER> {
         e.commit_to_set(&LargeOrdSet::from_iter_unsafe(
             self.extensions.iter().map(Extension::disclose_hash),
         ));
-        e.commit_to_set(&SmallOrdSet::from_iter_unsafe(self.terminals_disclose()));
+        e.commit_to_map(&self.terminals);
 
         e.commit_to_set(&SmallOrdSet::from_iter_unsafe(self.attachments.keys().copied()));
         e.commit_to_set(&TinyOrdSet::from_iter_unsafe(
@@ -287,36 +287,27 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
     #[inline]
     pub fn schema_id(&self) -> SchemaId { self.schema.schema_id() }
 
-    pub fn terminal_secrets(&self) -> impl Iterator<Item = (BundleId, XChain<SecretSeal>)> {
-        self.terminals
-            .clone()
-            .into_iter()
-            .flat_map(|(id, term)| term.secrets().map(move |secret| (id, secret)))
-    }
-
-    pub fn terminals_disclose(&self) -> impl Iterator<Item = TerminalDisclose> + '_ {
-        self.terminals.iter().flat_map(|(id, term)| {
-            term.seals.iter().map(|seal| TerminalDisclose {
-                bundle_id: *id,
-                seal: *seal,
-            })
-        })
-    }
-
-    #[must_use]
-    pub fn reveal_bundle_seal(mut self, bundle_id: BundleId, revealed: XChain<GraphSeal>) -> Self {
+    pub fn reveal_terminal_seals<E>(
+        mut self,
+        f: impl Fn(XChain<SecretSeal>) -> Result<Option<XChain<GraphSeal>>, E>,
+    ) -> Result<Self, E> {
         // We need to clone since ordered set does not allow us to mutate members.
         let mut bundles = LargeOrdSet::with_capacity(self.bundles.len());
         for mut bundled_witness in self.bundles {
-            for bundle in bundled_witness.anchored_bundles.bundles_mut() {
-                if bundle.bundle_id() == bundle_id {
-                    bundle.reveal_seal(revealed);
+            for (bundle_id, secret) in &self.terminals {
+                if let Some(seal) = f(*secret)? {
+                    for bundle in bundled_witness.anchored_bundles.bundles_mut() {
+                        if bundle.bundle_id() == *bundle_id {
+                            bundle.reveal_seal(seal);
+                            break;
+                        }
+                    }
                 }
             }
             bundles.push(bundled_witness).ok();
         }
         self.bundles = bundles;
-        self
+        Ok(self)
     }
 
     pub fn into_contract(self) -> Contract {

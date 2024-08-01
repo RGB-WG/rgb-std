@@ -31,7 +31,6 @@ use amplify::Wrapper;
 use bp::seals::txout::CloseMethod;
 use bp::Vout;
 use chrono::Utc;
-use commit_verify::Conceal;
 use invoice::{Amount, Beneficiary, InvoiceState, NonFungible, RgbInvoice};
 use rgb::validation::{DbcProof, EAnchor, ResolveWitness, WitnessResolverError};
 use rgb::{
@@ -49,9 +48,9 @@ use super::{
 };
 use crate::containers::{
     AnchorSet, AnchoredBundles, Batch, BuilderSeal, BundledWitness, Consignment, ContainerVer,
-    ContentId, ContentRef, Contract, Fascia, Kit, SealWitness, SupplItem, SupplSub, Terminal,
-    TerminalSeal, Transfer, TransitionInfo, TransitionInfoError, ValidConsignment, ValidContract,
-    ValidKit, ValidTransfer, VelocityHint, SUPPL_ANNOT_VELOCITY,
+    ContentId, ContentRef, Contract, Fascia, Kit, SealWitness, SupplItem, SupplSub, Transfer,
+    TransitionInfo, TransitionInfoError, ValidConsignment, ValidContract, ValidKit, ValidTransfer,
+    VelocityHint, SUPPL_ANNOT_VELOCITY,
 };
 use crate::info::{ContractInfo, IfaceInfo, SchemaInfo};
 use crate::interface::{
@@ -161,9 +160,6 @@ pub enum ConsignError {
     /// unable to construct consignment: history size too large, resulting in
     /// too many transitions.
     TooManyBundles,
-
-    /// public state at operation output {0} is concealed.
-    ConcealedPublicState(Opout),
 
     #[from]
     #[display(inner)]
@@ -764,7 +760,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         // 1.3. Collect all state transitions assigning state to the provided outpoints
         let mut bundled_witnesses = BTreeMap::<BundleId, BundledWitness>::new();
         let mut transitions = BTreeMap::<OpId, Transition>::new();
-        let mut terminals = BTreeMap::<BundleId, Terminal>::new();
+        let mut terminals = BTreeMap::<BundleId, XChain<SecretSeal>>::new();
         for opout in opouts {
             if opout.op == contract_id {
                 continue; // we skip genesis since it will be present anywhere
@@ -774,28 +770,14 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             transitions.insert(opout.op, transition.clone());
 
             let bundle_id = self.index.bundle_id_for_op(transition.id())?;
-            // 2. Collect seals from terminal transitions to add to the consignment
+            // 2. Collect secret seals from terminal transitions to add to the consignment
             //    terminals
-            for (type_id, typed_assignments) in transition.assignments.iter() {
+            for typed_assignments in transition.assignments.values() {
                 for index in 0..typed_assignments.len_u16() {
                     let seal = typed_assignments.to_confidential_seals()[index as usize];
                     if secret_seals.contains(&seal) {
-                        terminals
-                            .entry(bundle_id)
-                            .or_insert(Terminal::new(seal.map(TerminalSeal::from)))
-                            .seals
-                            .push(seal.map(TerminalSeal::from))
-                            .map_err(|_| ConsignError::TooManyTerminals)?;
-                    } else if opout.no == index && opout.ty == *type_id {
-                        if let Some(seal) = typed_assignments
-                            .revealed_seal_at(index)
-                            .expect("index exists")
-                        {
-                            let seal = seal.map(|s| s.conceal()).map(TerminalSeal::from);
-                            terminals.insert(bundle_id, Terminal::new(seal));
-                        } else {
-                            return Err(ConsignError::ConcealedPublicState(opout).into());
-                        }
+                        let res = terminals.insert(bundle_id, seal);
+                        assert_eq!(res, None);
                     }
                 }
             }
@@ -1313,7 +1295,7 @@ mod test {
     use std::str::FromStr;
 
     use baid64::FromBaid64Str;
-    use commit_verify::{DigestExt, Sha256};
+    use commit_verify::{Conceal, DigestExt, Sha256};
     use strict_encoding::TypeName;
 
     use super::*;

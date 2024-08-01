@@ -24,7 +24,6 @@
 use bp::seals::txout::{BlindSeal, CloseMethod, SealTxid};
 use bp::secp256k1::rand::{thread_rng, RngCore};
 use bp::Vout;
-use commit_verify::Conceal;
 use rgb::{GraphSeal, Layer1, SecretSeal, TxoSeal, XChain};
 
 use crate::LIB_NAME_RGB_STD;
@@ -105,62 +104,6 @@ impl VoutSeal {
 impl From<VoutSeal> for GraphSeal {
     fn from(seal: VoutSeal) -> Self {
         Self::with_blinded_vout(seal.method, seal.vout, seal.blinding)
-    }
-}
-
-/// Seal endpoint is a confidential seal which may be linked to the witness
-/// transaction, but does not contain information about its id.
-///
-/// Seal endpoint can be either a pointer to the output in the witness
-/// transaction, plus blinding factor value, or a confidential seal
-/// [`SecretSeal`] value pointing some external unknown transaction
-/// output
-///
-/// Seal endpoint is required in situations where sender assigns state to the
-/// witness transaction output on behalf of receiver
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, From)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD, tags = custom, dumb = Self::ConcealedUtxo(strict_dumb!()))]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-pub enum TerminalSeal {
-    /// External transaction output in concealed form (see [`SecretSeal`])
-    #[from]
-    #[strict_type(tag = 0)]
-    ConcealedUtxo(SecretSeal),
-
-    /// Seal contained within the witness transaction
-    #[from]
-    #[strict_type(tag = 1)]
-    WitnessVout(VoutSeal),
-}
-
-impl TerminalSeal {
-    /// Constructs [`TerminalSeal`] for the witness transaction. Uses
-    /// `thread_rng` to initialize blinding factor.
-    pub fn new_vout(method: CloseMethod, vout: impl Into<Vout>) -> TerminalSeal {
-        TerminalSeal::WitnessVout(VoutSeal::new(method, vout))
-    }
-
-    pub fn secret_seal(&self) -> Option<SecretSeal> {
-        match self {
-            TerminalSeal::ConcealedUtxo(seal) => Some(*seal),
-            TerminalSeal::WitnessVout(_) => None,
-        }
-    }
-}
-
-impl Conceal for TerminalSeal {
-    type Concealed = SecretSeal;
-
-    fn conceal(&self) -> Self::Concealed {
-        match *self {
-            TerminalSeal::ConcealedUtxo(hash) => hash,
-            TerminalSeal::WitnessVout(seal) => GraphSeal::from(seal).conceal(),
-        }
     }
 }
 
