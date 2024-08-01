@@ -434,7 +434,11 @@ impl<const TRANSFER: bool> StrictArmor for Consignment<TRANSFER> {
 
 impl<const TRANSFER: bool> FromStr for Consignment<TRANSFER> {
     type Err = armor::StrictArmorError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_ascii_armored_str(s) }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_ascii_armored_str(s)
+
+        // TODO: Ensure that contract.transfer == TRANSFER
+    }
 }
 
 #[cfg(test)]
@@ -457,10 +461,10 @@ mod test {
         assert!(
             Contract::from_str(
                 r#"-----BEGIN RGB CONSIGNMENT-----
-Id: rgb:csg:poAMvm9j-NdapxqA-MJ!5dwP-d!IIt2A-T!5OiXE-Tl54Yew#guide-campus-arctic
+Id: rgb:csg:Kej4ueIS-4VLOUQe-SpFUOCe-BzEZ$Lt-C4PNmJC-J0Um7WM#cigar-pretend-mayor
 Version: 2
 Type: contract
-Contract: rgb:qm7P!06T-uuBQT56-ovwOLzx-9Gka7Nb-84Nwo8g-blLb8kw
+Contract: rgb:T24t0N1D-eiInTgb-BXlrrXz-$7OgV6n-WJWHPUD-BWNuqZw
 Schema: rgb:sch:CyqM42yAdM1moWyNZPQedAYt73BM$k9z$dKLUXY1voA#cello-global-deluxe
 Check-SHA256: 181748dae0c83cbb44f6ccfdaddf6faca0bc4122a9f35fef47bab9aea023e4a1
 
@@ -530,10 +534,10 @@ Check-SHA256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
         assert!(
             Transfer::from_str(
                 r#"-----BEGIN RGB CONSIGNMENT-----
-Id: rgb:csg:poAMvm9j-NdapxqA-MJ!5dwP-d!IIt2A-T!5OiXE-Tl54Yew#guide-campus-arctic
+Id: rgb:csg:Kej4ueIS-4VLOUQe-SpFUOCe-BzEZ$Lt-C4PNmJC-J0Um7WM#cigar-pretend-mayor
 Version: 2
-Type: contract
-Contract: rgb:qm7P!06T-uuBQT56-ovwOLzx-9Gka7Nb-84Nwo8g-blLb8kw
+Type: transfer
+Contract: rgb:T24t0N1D-eiInTgb-BXlrrXz-$7OgV6n-WJWHPUD-BWNuqZw
 Schema: rgb:sch:CyqM42yAdM1moWyNZPQedAYt73BM$k9z$dKLUXY1voA#cello-global-deluxe
 Check-SHA256: 181748dae0c83cbb44f6ccfdaddf6faca0bc4122a9f35fef47bab9aea023e4a1
 
@@ -552,7 +556,7 @@ Check-SHA256: 181748dae0c83cbb44f6ccfdaddf6faca0bc4122a9f35fef47bab9aea023e4a1
                 r#"-----BEGIN RGB CONSIGNMENT-----
 Id: rgb:csg:aaaaaaaa-aaaaaaa-aaaaaaa-aaaaaaa-aaaaaaa-aaaaaaa#guide-campus-arctic
 Version: 2
-Type: contract
+Type: transfer
 Contract: rgb:qm7P!06T-uuBQT56-ovwOLzx-9Gka7Nb-84Nwo8g-blLb8kw
 Schema: rgb:sch:CyqM42yAdM1moWyNZPQedAYt73BM$k9z$dKLUXY1voA#cello-global-deluxe
 Check-SHA256: 181748dae0c83cbb44f6ccfdaddf6faca0bc4122a9f35fef47bab9aea023e4a1
@@ -572,7 +576,7 @@ Check-SHA256: 181748dae0c83cbb44f6ccfdaddf6faca0bc4122a9f35fef47bab9aea023e4a1
                 r#"-----BEGIN RGB CONSIGNMENT-----
 Id: rgb:csg:poAMvm9j-NdapxqA-MJ!5dwP-d!IIt2A-T!5OiXE-Tl54Yew#guide-campus-arctic
 Version: 2
-Type: contract
+Type: transfer
 Contract: rgb:qm7P!06T-uuBQT56-ovwOLzx-9Gka7Nb-84Nwo8g-blLb8kw
 Schema: rgb:sch:CyqM42yAdM1moWyNZPQedAYt73BM$k9z$dKLUXY1voA#cello-global-deluxe
 Check-SHA256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
