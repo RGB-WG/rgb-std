@@ -781,7 +781,7 @@ impl MemContractState {
     }
 }
 
-pub struct MemContract<M: Borrow<MemContractState>> {
+pub struct MemContract<M: Borrow<MemContractState> = MemContractState> {
     filter: HashMap<XWitnessId, WitnessOrd>,
     unfiltered: M,
 }
