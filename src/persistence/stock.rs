@@ -704,8 +704,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         &self,
         contract_id: ContractId,
     ) -> Result<Contract, StockError<S, H, P, ConsignError>> {
-        let mut consignment = self.consign::<false>(contract_id, [], [])?;
-        consignment.transfer = false;
+        let consignment = self.consign::<false>(contract_id, [], [])?;
         Ok(consignment)
     }
 
@@ -715,8 +714,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         outputs: impl AsRef<[XOutputSeal]>,
         secret_seals: impl AsRef<[XChain<SecretSeal>]>,
     ) -> Result<Transfer, StockError<S, H, P, ConsignError>> {
-        let mut consignment = self.consign(contract_id, outputs, secret_seals)?;
-        consignment.transfer = true;
+        let consignment = self.consign(contract_id, outputs, secret_seals)?;
         Ok(consignment)
     }
 

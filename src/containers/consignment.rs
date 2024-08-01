@@ -30,7 +30,7 @@ use amplify::confinement::{
     Confined, LargeOrdSet, MediumBlob, SmallOrdMap, SmallOrdSet, TinyOrdMap, TinyOrdSet,
 };
 use amplify::{ByteArray, Bytes32};
-use armor::{ArmorHeader, AsciiArmor, StrictArmor};
+use armor::{ArmorHeader, AsciiArmor, StrictArmor, StrictArmorError};
 use baid64::{Baid64ParseError, DisplayBaid64, FromBaid64Str};
 use commit_verify::{CommitEncode, CommitEngine, CommitId, CommitmentId, DigestExt, Sha256};
 use rgb::validation::{ResolveWitness, Validator, Validity, Warning, CONSIGNMENT_MAX_LIBS};
@@ -421,14 +421,42 @@ impl<const TRANSFER: bool> StrictArmor for Consignment<TRANSFER> {
         }
         headers
     }
+    fn parse_armor_headers(&mut self, headers: Vec<ArmorHeader>) -> Result<(), StrictArmorError> {
+        // TODO: Check remaining headers - terminals, version, iface, contract, schema
+        if let Some(header) = headers
+            .iter()
+            .find(|header| header.title == ASCII_ARMOR_CONSIGNMENT_TYPE)
+        {
+            if self.transfer && header.values.len() != 1 && header.values[0] != "transfer" {
+                // TODO: Add header-specific errors to StrictArmorError
+                // return Err(Strict)
+            }
+        }
+        Ok(())
+    }
+}
+
+// TODO: Remove after header-specific variants are added to StrictArmorError
+#[derive(Debug, Display, Error, From)]
+pub enum ConsignmentParseError {
+    #[display(inner)]
+    #[from]
+    Armor(armor::StrictArmorError),
+
+    #[display("required consignment type doesn't match the actual type")]
+    Type,
 }
 
 impl<const TRANSFER: bool> FromStr for Consignment<TRANSFER> {
-    type Err = armor::StrictArmorError;
+    type Err = ConsignmentParseError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Self::from_ascii_armored_str(s)
+        let consignment = Self::from_ascii_armored_str(s)?;
 
-        // TODO: Ensure that contract.transfer == TRANSFER
+        if consignment.transfer != TRANSFER {
+            return Err(ConsignmentParseError::Type);
+        }
+
+        Ok(consignment)
     }
 }
 
@@ -438,35 +466,20 @@ mod test {
 
     #[test]
     fn contract_str_round_trip() {
-        let contract = Contract::from_str(include_str!("../../asset/armored_contract.default"))
+        let mut contract = Contract::from_str(include_str!("../../asset/armored_contract.default"))
             .expect("contract from str should work");
         assert_eq!(
             contract.to_string(),
             include_str!("../../asset/armored_contract.default"),
             "contract string round trip fails"
         );
+        contract.transfer = true;
+        eprintln!("{contract}");
     }
 
     #[test]
     fn error_contract_strs() {
-        assert!(
-            Contract::from_str(
-                r#"-----BEGIN RGB CONSIGNMENT-----
-Id: rgb:csg:Kej4ueIS-4VLOUQe-SpFUOCe-BzEZ$Lt-C4PNmJC-J0Um7WM#cigar-pretend-mayor
-Version: 2
-Type: contract
-Contract: rgb:T24t0N1D-eiInTgb-BXlrrXz-$7OgV6n-WJWHPUD-BWNuqZw
-Schema: rgb:sch:CyqM42yAdM1moWyNZPQedAYt73BM$k9z$dKLUXY1voA#cello-global-deluxe
-Check-SHA256: 181748dae0c83cbb44f6ccfdaddf6faca0bc4122a9f35fef47bab9aea023e4a1
-
-0ssI2000000000000000000000000000000000000000000000000000000D0CRI`I$>^aZh38Qb#nj!
-0000000000000000000000d59ZDjxe00000000dDb8~4rVQz13d2MfXa{vGU00000000000000000000
-0000000000000
-
------END RGB CONSIGNMENT-----"#
-            )
-            .is_ok()
-        );
+        assert!(Contract::from_str(include_str!("../../asset/armored_contract.default")).is_ok());
 
         // Wrong Id
         assert!(
@@ -522,24 +535,8 @@ Check-SHA256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
     #[test]
     fn error_transfer_strs() {
-        assert!(
-            Transfer::from_str(
-                r#"-----BEGIN RGB CONSIGNMENT-----
-Id: rgb:csg:Kej4ueIS-4VLOUQe-SpFUOCe-BzEZ$Lt-C4PNmJC-J0Um7WM#cigar-pretend-mayor
-Version: 2
-Type: transfer
-Contract: rgb:T24t0N1D-eiInTgb-BXlrrXz-$7OgV6n-WJWHPUD-BWNuqZw
-Schema: rgb:sch:CyqM42yAdM1moWyNZPQedAYt73BM$k9z$dKLUXY1voA#cello-global-deluxe
-Check-SHA256: 181748dae0c83cbb44f6ccfdaddf6faca0bc4122a9f35fef47bab9aea023e4a1
-
-0ssI2000000000000000000000000000000000000000000000000000000D0CRI`I$>^aZh38Qb#nj!
-0000000000000000000000d59ZDjxe00000000dDb8~4rVQz13d2MfXa{vGU00000000000000000000
-0000000000000
-
------END RGB CONSIGNMENT-----"#
-            )
-            .is_ok()
-        );
+        let s = include_str!("../../asset/armored_transfer.default");
+        assert!(matches!(Transfer::from_str(s), Ok(_)));
 
         // Wrong Id
         assert!(
@@ -548,11 +545,11 @@ Check-SHA256: 181748dae0c83cbb44f6ccfdaddf6faca0bc4122a9f35fef47bab9aea023e4a1
 Id: rgb:csg:aaaaaaaa-aaaaaaa-aaaaaaa-aaaaaaa-aaaaaaa-aaaaaaa#guide-campus-arctic
 Version: 2
 Type: transfer
-Contract: rgb:qm7P!06T-uuBQT56-ovwOLzx-9Gka7Nb-84Nwo8g-blLb8kw
+Contract: rgb:T24t0N1D-eiInTgb-BXlrrXz-$7OgV6n-WJWHPUD-BWNuqZw
 Schema: rgb:sch:CyqM42yAdM1moWyNZPQedAYt73BM$k9z$dKLUXY1voA#cello-global-deluxe
-Check-SHA256: 181748dae0c83cbb44f6ccfdaddf6faca0bc4122a9f35fef47bab9aea023e4a1
+Check-SHA256: 562a944631243e23a8de1d2aa2a5621be13351fc6f4d9aa8127c12ac4fb54d97
 
-0ssI2000000000000000000000000000000000000000000000000000000D0CRI`I$>^aZh38Qb#nj!
+0s#O3000000000000000000000000000000000000000000000000000000D0CRI`I$>^aZh38Qb#nj!
 0000000000000000000000d59ZDjxe00000000dDb8~4rVQz13d2MfXa{vGU00000000000000000000
 0000000000000
 
@@ -565,14 +562,14 @@ Check-SHA256: 181748dae0c83cbb44f6ccfdaddf6faca0bc4122a9f35fef47bab9aea023e4a1
         assert!(
             Transfer::from_str(
                 r#"-----BEGIN RGB CONSIGNMENT-----
-Id: rgb:csg:poAMvm9j-NdapxqA-MJ!5dwP-d!IIt2A-T!5OiXE-Tl54Yew#guide-campus-arctic
+Id: rgb:csg:9jMKgkmP-alPghZC-bu65ctP-GT5tKgM-cAbaTLT-rhu8xQo#urban-athena-adam
 Version: 2
 Type: transfer
-Contract: rgb:qm7P!06T-uuBQT56-ovwOLzx-9Gka7Nb-84Nwo8g-blLb8kw
+Contract: rgb:T24t0N1D-eiInTgb-BXlrrXz-$7OgV6n-WJWHPUD-BWNuqZw
 Schema: rgb:sch:CyqM42yAdM1moWyNZPQedAYt73BM$k9z$dKLUXY1voA#cello-global-deluxe
 Check-SHA256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
-0ssI2000000000000000000000000000000000000000000000000000000D0CRI`I$>^aZh38Qb#nj!
+0s#O3000000000000000000000000000000000000000000000000000000D0CRI`I$>^aZh38Qb#nj!
 0000000000000000000000d59ZDjxe00000000dDb8~4rVQz13d2MfXa{vGU00000000000000000000
 0000000000000
 
@@ -580,5 +577,30 @@ Check-SHA256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
             )
             .is_err()
         );
+
+        // Wrong type
+        // TODO: Uncomment once ASCII headers get checked
+        /*assert!(matches!(
+            Transfer::from_str(
+                r#"-----BEGIN RGB CONSIGNMENT-----
+Id: rgb:csg:9jMKgkmP-alPghZC-bu65ctP-GT5tKgM-cAbaTLT-rhu8xQo#urban-athena-adam
+Version: 2
+Type: contract
+Contract: rgb:T24t0N1D-eiInTgb-BXlrrXz-$7OgV6n-WJWHPUD-BWNuqZw
+Schema: rgb:sch:CyqM42yAdM1moWyNZPQedAYt73BM$k9z$dKLUXY1voA#cello-global-deluxe
+Check-SHA256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+0s#O3000000000000000000000000000000000000000000000000000000D0CRI`I$>^aZh38Qb#nj!
+0000000000000000000000d59ZDjxe00000000dDb8~4rVQz13d2MfXa{vGU00000000000000000000
+0000000000000
+
+-----END RGB CONSIGNMENT-----"#
+            ),
+            Err(ConsignmentParseError::Type)
+        ));*/
+        assert!(matches!(
+            Transfer::from_str(include_str!("../../asset/armored_contract.default")),
+            Err(ConsignmentParseError::Type)
+        ));
     }
 }

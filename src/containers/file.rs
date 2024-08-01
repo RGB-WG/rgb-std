@@ -358,7 +358,7 @@ mod test {
     fn almost_default_transfer() -> Transfer {
         Transfer {
             version: Default::default(),
-            transfer: Default::default(),
+            transfer: true,
             terminals: Default::default(),
             genesis: rgb::Genesis {
                 ffv: Default::default(),
@@ -406,39 +406,26 @@ mod test {
 
     #[test]
     fn transfer_save_load_round_trip() {
-        let mut transfer_file = OpenOptions::new()
-            .read(true)
-            .open(DEFAULT_TRANSFER_PATH)
-            .unwrap();
-        let transfer = Transfer::load(transfer_file).expect("fail to load transfer.default");
+        let transfer =
+            Transfer::load_file(DEFAULT_TRANSFER_PATH).expect("fail to load transfer.default");
 
         let default_transfer = almost_default_transfer();
         assert_eq!(&transfer, &default_transfer, "transfer default is not same as before");
 
-        transfer_file = OpenOptions::new()
-            .write(true)
-            .open(DEFAULT_TRANSFER_PATH)
-            .unwrap();
         default_transfer
-            .save(transfer_file)
+            .save_file(DEFAULT_TRANSFER_PATH)
             .expect("fail to export transfer");
 
-        transfer_file = OpenOptions::new()
-            .read(true)
-            .open(DEFAULT_TRANSFER_PATH)
-            .unwrap();
-        let transfer = Transfer::load(transfer_file).expect("fail to load transfer.default");
+        let transfer =
+            Transfer::load_file(DEFAULT_TRANSFER_PATH).expect("fail to load transfer.default");
         assert_eq!(&transfer, &default_transfer, "transfer roudtrip does not work");
     }
 
     #[cfg(feature = "fs")]
     #[test]
     fn armored_transfer_save_load_round_trip() {
-        let transfer_file = OpenOptions::new()
-            .read(true)
-            .open(DEFAULT_TRANSFER_PATH)
-            .unwrap();
-        let transfer = Transfer::load(transfer_file).expect("fail to load transfer.default");
+        let transfer =
+            Transfer::load_file(DEFAULT_TRANSFER_PATH).expect("fail to load transfer.default");
         let unarmored_transfer =
             Transfer::load_armored(ARMORED_TRANSFER_PATH).expect("fail to export armored transfer");
         assert_eq!(transfer, unarmored_transfer, "transfer unarmored is not the same");
