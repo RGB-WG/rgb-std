@@ -18,8 +18,9 @@ ConsignmentId commitment hasher=SHA256 tagged=urn:lnp-bp:rgb:consignment#2024-03
     DiscloseHash element
   DiscloseHash set len=0..MAX32
     DiscloseHash element
-  TerminalDisclose set len=0..MAX16
-    TerminalDisclose element
+  XChainSecretSeal map len=0..MAX16
+    BundleId mapKey
+    XChainSecretSeal mapValue
   AttachId set len=0..MAX16
     AttachId element
   SupplId set len=0..MAX8
@@ -35,8 +36,9 @@ Consignmenttrue rec
   version enum ContainerVer v2=2
   transfer enum Bool false=0 true=1
   terminals map len=0..MAX16
-    value rec Terminal
-      seals set len=0..MAX16
+    value union XChainSecretSeal
+      bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
+      liquid bytes len=32 wrapped aka=SecretSeal tag=1
   genesis rec Genesis
     ffv is U16 aka=Ffv
     schemaId bytes len=32 aka=SchemaId
@@ -258,6 +260,7 @@ Consignmenttrue rec
     Extension rec
       ffv is U16 aka=Ffv
       contractId bytes len=32 aka=ContractId
+      nonce is U8
       extensionType is U16 aka=ExtensionType
       metadata map len=0..MAX8 aka=Metadata
         key is U16 aka=MetaType
@@ -494,6 +497,7 @@ Consignmenttrue rec
               value rec Transition
                 ffv is U16 aka=Ffv
                 contractId bytes len=32 aka=ContractId
+                nonce is U8
                 transitionType is U16 aka=TransitionType
                 metadata map len=0..MAX8 aka=Metadata
                   key is U16 aka=MetaType
@@ -759,6 +763,7 @@ Consignmenttrue rec
               value rec Transition
                 ffv is U16 aka=Ffv
                 contractId bytes len=32 aka=ContractId
+                nonce is U8
                 transitionType is U16 aka=TransitionType
                 metadata map len=0..MAX8 aka=Metadata
                   key is U16 aka=MetaType
@@ -1028,6 +1033,7 @@ Consignmenttrue rec
               value rec Transition
                 ffv is U16 aka=Ffv
                 contractId bytes len=32 aka=ContractId
+                nonce is U8
                 transitionType is U16 aka=TransitionType
                 metadata map len=0..MAX8 aka=Metadata
                   key is U16 aka=MetaType
@@ -1292,6 +1298,7 @@ Consignmenttrue rec
               value rec Transition
                 ffv is U16 aka=Ffv
                 contractId bytes len=32 aka=ContractId
+                nonce is U8
                 transitionType is U16 aka=TransitionType
                 metadata map len=0..MAX8 aka=Metadata
                   key is U16 aka=MetaType

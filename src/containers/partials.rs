@@ -221,7 +221,7 @@ impl Batch {
 
     pub fn set_priority(&mut self, priority: u8) {
         self.main.transition.nonce = priority;
-        for mut info in &mut self.blanks {
+        for info in &mut self.blanks {
             info.transition.nonce = priority;
         }
     }

@@ -1,5 +1,5 @@
 {-
-  Id: stl:w4Hvo8zW-bFpTGAI-W6Zn$9u-qqXq$cI-ef0vzlQ-hg!AEZs#carol-edgar-escape
+  Id: stl:R5kQAOh4-zB20Wn0-2z3MtK!-dNvcxhT-nZOmQtF-DWVziK4#forget-radar-macro
   Name: RGBStd
   Version: 0.11.0
   Description: RGB standard library
@@ -50,7 +50,17 @@ import BPCore#garbo-radius-peru
   use BlindSealTxid#media-judge-anita
   use TxPtr#italian-july-eddie
 
-import RGBCommit#orbit-airport-voice
+import Std#ralph-blue-lucky
+  use AlphaCaps#picnic-soprano-aurora
+  use AsciiPrintable#ultra-sunset-format
+  use Bool#oxygen-complex-duet
+  use AlphaNumDash#sponsor-snake-nice
+  use AlphaCapsNum#aladdin-zebra-marble
+  use AlphaNumLodash#percent-bingo-caesar
+  use AlphaCapsLodash#duet-hammer-labor
+  use AlphaSmallLodash#pioneer-eagle-spell
+
+import RGBCommit#miranda-blue-promise
   use ExtensionSchema#active-eddie-empty
   use BundleId#carmen-farmer-diesel
   use AttachState#lady-japan-fiesta
@@ -63,18 +73,15 @@ import RGBCommit#orbit-airport-voice
   use AssetTags#anita-nice-deliver
   use VoidState#email-snow-safari
   use DataState#short-noise-postal
-  use Transition#company-combat-disney
   use TransitionType#picture-reflex-brigade
   use Occurrences#source-olga-mirage
   use AssignVoidStateBlindSealTxPtr#profit-granite-fuji
   use Schema#vocal-hammer-logic
-  use Extension#bandit-consul-empire
   use MediaType#isabel-heaven-north
   use AssignmentsBlindSealTxPtr#village-result-bahama
   use ValencyType#aloha-dublin-brush
   use PedersenCommitment#pupil-scale-jerome
   use ConcealedFungible#story-shrink-aloha
-  use TransitionBundle#method-match-logic
   use GlobalStateSchema#silk-college-august
   use AssignRevealedAttachBlindSealTxid#local-memo-modern
   use TypedAssignsBlindSealTxid#garlic-project-zigzag
@@ -94,6 +101,7 @@ import RGBCommit#orbit-airport-voice
   use XChainBlindSealTxPtr#senator-limbo-raymond
   use Opout#yoga-samba-karma
   use AssignVoidStateBlindSealTxid#senior-beyond-cement
+  use Transition#decimal-motel-echo
   use SchemaId#ramirez-patron-simon
   use OpId#picnic-single-gloria
   use ContractId#uniform-welcome-papa
@@ -101,6 +109,7 @@ import RGBCommit#orbit-airport-voice
   use Inputs#herman-liberal-galaxy
   use XChainPubWitness#carrot-import-nova
   use Identity#smart-pioneer-nominal
+  use Extension#wheel-holiday-promo
   use AltLayer1#edison-survive-nitro
   use AssetTag#slang-amber-club
   use Input#actor-minus-multi
@@ -112,24 +121,14 @@ import RGBCommit#orbit-airport-voice
   use Valencies#light-letter-comet
   use GlobalState#stadium-barcode-bazaar
   use Redeemed#mile-lady-perfect
+  use TransitionBundle#taxi-repair-stella
   use RevealedAttach#slalom-phantom-voyage
   use Genesis#round-sound-nectar
-  use XChainTerminalSeal#canada-nova-barcode
   use Metadata#member-nobody-imitate
   use FungibleType#matrix-optimal-sinatra
   use ConcealedAttach#meter-arizona-albino
   use RevealedData#olivia-copper-stamp
   use AssignRevealedValueBlindSealTxid#photo-jump-silicon
-
-import Std#ralph-blue-lucky
-  use AlphaCaps#picnic-soprano-aurora
-  use AsciiPrintable#ultra-sunset-format
-  use Bool#oxygen-complex-duet
-  use AlphaNumDash#sponsor-snake-nice
-  use AlphaCapsNum#aladdin-zebra-marble
-  use AlphaNumLodash#percent-bingo-caesar
-  use AlphaCapsLodash#duet-hammer-labor
-  use AlphaSmallLodash#pioneer-eagle-spell
 
 import CommitVerify#tennis-peace-olympic
   use MerkleHash#horse-popcorn-bundle
@@ -162,7 +161,7 @@ import Bitcoin#signal-color-cipher
   use XOnlyPk#clever-swim-carpet
 
 
-@mnemonic(lazarus-horse-silk)
+@mnemonic(fabric-lazarus-social)
 data AnchoredBundles   : tapret#1 (BPCore.AnchorMerkleProofTapretProof, RGBCommit.TransitionBundle)
                        | opret (BPCore.AnchorMerkleProofOpretProof, RGBCommit.TransitionBundle)
                        | double (tapretAnchor BPCore.AnchorMerkleProofTapretProof
@@ -185,10 +184,10 @@ data AssignIface       : ownedState OwnedIface
 @mnemonic(explore-spiral-darwin)
 data BundledWitness    : pubWitness RGBCommit.XChainPubWitness, anchoredBundles AnchoredBundles
 
-@mnemonic(quest-ferrari-dialog)
+@mnemonic(common-caesar-export)
 data Consignmentfalse  : version ContainerVer
                        , transfer Std.Bool
-                       , terminals {RGBCommit.BundleId -> Terminal}
+                       , terminals {RGBCommit.BundleId -> RGBCommit.XChainSecretSeal}
                        , genesis RGBCommit.Genesis
                        , extensions {RGBCommit.Extension ^ ..0xffffffff}
                        , bundles {BundledWitness ^ ..0xffffffff}
@@ -200,10 +199,10 @@ data Consignmentfalse  : version ContainerVer
                        , attachments {RGBCommit.AttachId -> [Byte ^ ..0xffffff]}
                        , signatures {ContentId -> ^ ..0xff ContentSigs}
 
-@mnemonic(salute-client-between)
+@mnemonic(virus-solar-suzuki)
 data Consignmenttrue   : version ContainerVer
                        , transfer Std.Bool
-                       , terminals {RGBCommit.BundleId -> Terminal}
+                       , terminals {RGBCommit.BundleId -> RGBCommit.XChainSecretSeal}
                        , genesis RGBCommit.Genesis
                        , extensions {RGBCommit.Extension ^ ..0xffffffff}
                        , bundles {BundledWitness ^ ..0xffffffff}
@@ -384,13 +383,6 @@ data Supplement        : contentId ContentRef
                        , creator RGBCommit.Identity
                        , annotations {SupplSub -> ^ ..0xff SupplMap}
 
-@mnemonic(lithium-torso-parent)
-data Terminal          : seals {RGBCommit.XChainTerminalSeal}
-
-@mnemonic(amadeus-athena-lagoon)
-data TerminalSeal      : concealedUtxo BPCore.SecretSeal
-                       | witnessVout VoutSeal
-
 @mnemonic(sigma-rose-cubic)
 data TransitionIface   : modifier Modifier
                        , optional Std.Bool
@@ -408,10 +400,5 @@ data ValencyIface      : required Std.Bool
 @mnemonic(textile-next-stretch)
 data VerNo             : v0 | v1
 
-
-@mnemonic(pixel-arctic-flame)
-data VoutSeal          : method BPCore.Method
-                       , vout Bitcoin.Vout
-                       , blinding U64
 
 
