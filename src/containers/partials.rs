@@ -218,6 +218,13 @@ impl Batch {
         self.blanks.iter().for_each(|i| methods |= i.method);
         methods
     }
+
+    pub fn set_priority(&mut self, priority: u8) {
+        self.main.transition.nonce = priority;
+        for mut info in &mut self.blanks {
+            info.transition.nonce = priority;
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]

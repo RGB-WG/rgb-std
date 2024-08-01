@@ -909,6 +909,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             prev_outputs,
             method,
             beneficiary_vout,
+            u8::MAX,
             allocator,
             |_, _| BlindingFactor::random(),
             |_, _| rand::random(),
@@ -925,6 +926,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         prev_outputs: impl IntoIterator<Item = impl Into<XOutputSeal>>,
         method: CloseMethod,
         beneficiary_vout: Option<impl Into<Vout>>,
+        priority: u8,
         allocator: impl Fn(ContractId, AssignmentType, VelocityHint) -> Option<Vout>,
         pedersen_blinder: impl Fn(ContractId, AssignmentType) -> BlindingFactor,
         seal_blinder: impl Fn(ContractId, AssignmentType) -> u64,
@@ -1109,7 +1111,9 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
         let main = TransitionInfo::new(main_transition, main_inputs)
             .map_err(|_| ComposeError::TooManyInputs)?;
-        Ok(Batch { main, blanks })
+        let mut batch = Batch { main, blanks };
+        batch.set_priority(priority);
+        Ok(batch)
     }
 
     fn store_transaction<E: Error>(
