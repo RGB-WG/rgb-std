@@ -24,11 +24,12 @@ use std::path::{Path, PathBuf};
 use strict_encoding::{DeserializeError, SerializeError};
 
 pub trait FsStored: Sized {
-    fn new(path: impl ToOwned<Owned = PathBuf>) -> Self;
-    fn load(path: impl ToOwned<Owned = PathBuf>) -> Result<Self, DeserializeError>;
+    fn new(path: impl ToOwned<Owned = PathBuf>, autosave: bool) -> Self;
+    fn load(path: impl ToOwned<Owned = PathBuf>, autosave: bool) -> Result<Self, DeserializeError>;
 
     fn is_dirty(&self) -> bool;
     fn filename(&self) -> Option<&Path>;
+    fn autosave(&mut self);
     fn set_filename(&mut self, filename: impl ToOwned<Owned = PathBuf>) -> Option<PathBuf>;
 
     fn store(&self) -> Result<(), SerializeError>;

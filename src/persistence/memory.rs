@@ -82,6 +82,9 @@ pub struct MemStash {
     dirty: bool,
     #[cfg(feature = "fs")]
     #[strict_type(skip)]
+    autosave: bool,
+    #[cfg(feature = "fs")]
+    #[strict_type(skip)]
     filename: Option<PathBuf>,
 
     schemata: TinyOrdMap<SchemaId, SchemaIfaces>,
@@ -106,6 +109,8 @@ impl MemStash {
     pub fn in_memory() -> Self {
         Self {
             dirty: false,
+            #[cfg(feature = "fs")]
+            autosave: false,
             #[cfg(feature = "fs")]
             filename: None,
             schemata: empty!(),
@@ -135,7 +140,7 @@ impl StoreTransaction for MemStash {
 
     fn commit_transaction(&mut self) -> Result<(), Self::TransactionErr> {
         #[cfg(feature = "fs")]
-        if self.dirty {
+        if self.dirty && self.autosave {
             self.store()?;
         }
         Ok(())
@@ -466,6 +471,9 @@ pub struct MemState {
     dirty: bool,
     #[cfg(feature = "fs")]
     #[strict_type(skip)]
+    autosave: bool,
+    #[cfg(feature = "fs")]
+    #[strict_type(skip)]
     filename: Option<PathBuf>,
 
     witnesses: LargeOrdMap<XWitnessId, WitnessOrd>,
@@ -479,6 +487,8 @@ impl MemState {
     pub fn in_memory() -> Self {
         Self {
             dirty: false,
+            #[cfg(feature = "fs")]
+            autosave: false,
             #[cfg(feature = "fs")]
             filename: None,
             witnesses: empty!(),
@@ -497,7 +507,7 @@ impl StoreTransaction for MemState {
 
     fn commit_transaction(&mut self) -> Result<(), Self::TransactionErr> {
         #[cfg(feature = "fs")]
-        if self.dirty {
+        if self.dirty && self.autosave {
             self.store()?;
         }
         Ok(())
@@ -1166,6 +1176,9 @@ pub struct MemIndex {
     dirty: bool,
     #[cfg(feature = "fs")]
     #[strict_type(skip)]
+    autosave: bool,
+    #[cfg(feature = "fs")]
+    #[strict_type(skip)]
     filename: Option<PathBuf>,
 
     op_bundle_index: MediumOrdMap<OpId, BundleId>,
@@ -1182,6 +1195,8 @@ impl MemIndex {
     pub fn in_memory() -> Self {
         Self {
             dirty: false,
+            #[cfg(feature = "fs")]
+            autosave: false,
             #[cfg(feature = "fs")]
             filename: None,
             op_bundle_index: empty!(),
@@ -1203,7 +1218,7 @@ impl StoreTransaction for MemIndex {
 
     fn commit_transaction(&mut self) -> Result<(), Self::TransactionErr> {
         #[cfg(feature = "fs")]
-        if self.dirty {
+        if self.dirty && self.autosave {
             self.store()?;
         }
         Ok(())
@@ -1453,17 +1468,22 @@ mod fs {
     use crate::persistence::{MemIndex, MemStash, MemState};
 
     impl FsStored for MemStash {
-        fn new(filename: impl ToOwned<Owned = PathBuf>) -> Self {
+        fn new(filename: impl ToOwned<Owned = PathBuf>, autosave: bool) -> Self {
             Self {
                 dirty: true,
+                autosave,
                 filename: Some(filename.to_owned()),
                 ..Self::in_memory()
             }
         }
 
-        fn load(path: impl ToOwned<Owned = PathBuf>) -> Result<Self, DeserializeError> {
+        fn load(
+            path: impl ToOwned<Owned = PathBuf>,
+            autosave: bool,
+        ) -> Result<Self, DeserializeError> {
             let path = path.to_owned();
             let mut me = Self::strict_deserialize_from_file::<U32>(&path)?;
+            me.autosave = autosave;
             me.set_filename(path);
             Ok(me)
         }
@@ -1471,6 +1491,8 @@ mod fs {
         fn is_dirty(&self) -> bool { self.dirty }
 
         fn filename(&self) -> Option<&Path> { self.filename.as_deref() }
+
+        fn autosave(&mut self) { self.autosave = true; }
 
         fn set_filename(&mut self, filename: impl ToOwned<Owned = PathBuf>) -> Option<PathBuf> {
             let prev = self.filename.to_owned();
@@ -1490,24 +1512,31 @@ mod fs {
     }
 
     impl FsStored for MemState {
-        fn new(filename: impl ToOwned<Owned = PathBuf>) -> Self {
+        fn new(filename: impl ToOwned<Owned = PathBuf>, autosave: bool) -> Self {
             Self {
                 dirty: true,
+                autosave,
                 filename: Some(filename.to_owned()),
                 ..Self::in_memory()
             }
         }
 
-        fn load(path: impl ToOwned<Owned = PathBuf>) -> Result<Self, DeserializeError> {
+        fn load(
+            path: impl ToOwned<Owned = PathBuf>,
+            autosave: bool,
+        ) -> Result<Self, DeserializeError> {
             let path = path.to_owned();
             let mut me = Self::strict_deserialize_from_file::<U32>(&path)?;
             me.set_filename(path);
+            me.autosave = autosave;
             Ok(me)
         }
 
         fn is_dirty(&self) -> bool { self.dirty }
 
         fn filename(&self) -> Option<&Path> { self.filename.as_deref() }
+
+        fn autosave(&mut self) { self.autosave = true }
 
         fn set_filename(&mut self, filename: impl ToOwned<Owned = PathBuf>) -> Option<PathBuf> {
             let prev = self.filename.to_owned();
@@ -1527,24 +1556,31 @@ mod fs {
     }
 
     impl FsStored for MemIndex {
-        fn new(filename: impl ToOwned<Owned = PathBuf>) -> Self {
+        fn new(filename: impl ToOwned<Owned = PathBuf>, autosave: bool) -> Self {
             Self {
                 dirty: true,
+                autosave,
                 filename: Some(filename.to_owned()),
                 ..Self::in_memory()
             }
         }
 
-        fn load(path: impl ToOwned<Owned = PathBuf>) -> Result<Self, DeserializeError> {
+        fn load(
+            path: impl ToOwned<Owned = PathBuf>,
+            autosave: bool,
+        ) -> Result<Self, DeserializeError> {
             let path = path.to_owned();
             let mut me = Self::strict_deserialize_from_file::<U32>(&path)?;
             me.set_filename(path);
+            me.autosave = autosave;
             Ok(me)
         }
 
         fn is_dirty(&self) -> bool { self.dirty }
 
         fn filename(&self) -> Option<&Path> { self.filename.as_deref() }
+
+        fn autosave(&mut self) { self.autosave = true }
 
         fn set_filename(&mut self, filename: impl ToOwned<Owned = PathBuf>) -> Option<PathBuf> {
             let prev = self.filename.to_owned();

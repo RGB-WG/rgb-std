@@ -390,36 +390,45 @@ mod fs {
         H: FsStored,
         I: FsStored,
     {
-        pub fn new(path: impl ToOwned<Owned = PathBuf>) -> Self {
+        pub fn new(path: impl ToOwned<Owned = PathBuf>, autosave: bool) -> Self {
             let mut filename = path.to_owned();
             filename.push("stash.dat");
-            let stash = S::new(filename);
+            let stash = S::new(filename, autosave);
 
             let mut filename = path.to_owned();
             filename.push("state.dat");
-            let state = H::new(filename);
+            let state = H::new(filename, autosave);
 
             let mut filename = path.to_owned();
             filename.push("index.dat");
-            let index = I::new(filename);
+            let index = I::new(filename, autosave);
 
             Stock::with(stash, state, index)
         }
 
-        pub fn load(path: impl ToOwned<Owned = PathBuf>) -> Result<Self, DeserializeError> {
+        pub fn load(
+            path: impl ToOwned<Owned = PathBuf>,
+            autosave: bool,
+        ) -> Result<Self, DeserializeError> {
             let mut filename = path.to_owned();
             filename.push("stash.dat");
-            let stash = S::load(filename)?;
+            let stash = S::load(filename, autosave)?;
 
             let mut filename = path.to_owned();
             filename.push("state.dat");
-            let state = H::load(filename)?;
+            let state = H::load(filename, autosave)?;
 
             let mut filename = path.to_owned();
             filename.push("index.dat");
-            let index = I::load(filename)?;
+            let index = I::load(filename, autosave)?;
 
             Ok(Stock::with(stash, state, index))
+        }
+
+        pub fn autosave(&mut self) {
+            self.stash.as_provider_mut().autosave();
+            self.state.as_provider_mut().autosave();
+            self.index.as_provider_mut().autosave();
         }
 
         pub fn is_dirty(&self) -> bool {
