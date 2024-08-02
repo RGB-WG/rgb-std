@@ -106,6 +106,7 @@ impl MemStash {
     pub fn in_memory() -> Self {
         Self {
             dirty: false,
+            #[cfg(feature = "fs")]
             filename: None,
             schemata: empty!(),
             ifaces: empty!(),
@@ -478,6 +479,7 @@ impl MemState {
     pub fn in_memory() -> Self {
         Self {
             dirty: false,
+            #[cfg(feature = "fs")]
             filename: None,
             witnesses: empty!(),
             contracts: empty!(),
@@ -1190,6 +1192,7 @@ impl MemIndex {
     pub fn in_memory() -> Self {
         Self {
             dirty: false,
+            #[cfg(feature = "fs")]
             filename: None,
             op_bundle_index: empty!(),
             bundle_contract_index: empty!(),
