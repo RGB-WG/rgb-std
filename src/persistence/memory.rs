@@ -73,10 +73,10 @@ use crate::LIB_NAME_RGB_STORAGE;
 //////////
 
 /// Hoard is an in-memory stash useful for WASM implementations.
-#[derive(Getters, Clone, Debug, Default)]
+#[derive(Getters, Clone, Debug)]
 #[getter(prefix = "debug_")]
-#[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STORAGE)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STORAGE, dumb = Self::in_memory())]
 pub struct MemStash {
     #[strict_type(skip)]
     dirty: bool,
@@ -101,6 +101,28 @@ pub struct MemStash {
 
 impl StrictSerialize for MemStash {}
 impl StrictDeserialize for MemStash {}
+
+impl MemStash {
+    pub fn in_memory() -> Self {
+        Self {
+            dirty: false,
+            filename: None,
+            schemata: empty!(),
+            ifaces: empty!(),
+            geneses: empty!(),
+            suppl: empty!(),
+            bundles: empty!(),
+            extensions: empty!(),
+            witnesses: empty!(),
+            attachments: empty!(),
+            secret_seals: empty!(),
+            type_system: none!(),
+            identities: empty!(),
+            libs: empty!(),
+            sigs: empty!(),
+        }
+    }
+}
 
 impl StoreTransaction for MemStash {
     type TransactionErr = SerializeError;
@@ -434,10 +456,10 @@ impl StashWriteProvider for MemStash {
 // STATE
 //////////
 
-#[derive(Getters, Clone, Debug, Default)]
+#[derive(Getters, Clone, Debug)]
 #[getter(prefix = "debug_")]
-#[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STORAGE)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STORAGE, dumb = Self::in_memory())]
 pub struct MemState {
     #[strict_type(skip)]
     dirty: bool,
@@ -451,6 +473,17 @@ pub struct MemState {
 
 impl StrictSerialize for MemState {}
 impl StrictDeserialize for MemState {}
+
+impl MemState {
+    pub fn in_memory() -> Self {
+        Self {
+            dirty: false,
+            filename: None,
+            witnesses: empty!(),
+            contracts: empty!(),
+        }
+    }
+}
 
 impl StoreTransaction for MemState {
     type TransactionErr = SerializeError;
@@ -1132,10 +1165,10 @@ pub struct ContractIndex {
     outpoint_opouts: MediumOrdMap<XOutputSeal, MediumOrdSet<Opout>>,
 }
 
-#[derive(Getters, Clone, Debug, Default)]
+#[derive(Getters, Clone, Debug)]
 #[getter(prefix = "debug_")]
-#[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STORAGE)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STORAGE, dumb = Self::in_memory())]
 pub struct MemIndex {
     #[strict_type(skip)]
     dirty: bool,
@@ -1152,6 +1185,20 @@ pub struct MemIndex {
 
 impl StrictSerialize for MemIndex {}
 impl StrictDeserialize for MemIndex {}
+
+impl MemIndex {
+    pub fn in_memory() -> Self {
+        Self {
+            dirty: false,
+            filename: None,
+            op_bundle_index: empty!(),
+            bundle_contract_index: empty!(),
+            bundle_witness_index: empty!(),
+            contract_index: empty!(),
+            terminal_index: empty!(),
+        }
+    }
+}
 
 impl StoreTransaction for MemIndex {
     type TransactionErr = SerializeError;
@@ -1421,7 +1468,7 @@ mod fs {
             Self {
                 dirty: true,
                 filename: Some(filename.to_owned()),
-                ..default!()
+                ..Self::in_memory()
             }
         }
 
@@ -1458,7 +1505,7 @@ mod fs {
             Self {
                 dirty: true,
                 filename: Some(filename.to_owned()),
-                ..default!()
+                ..Self::in_memory()
             }
         }
 
@@ -1495,7 +1542,7 @@ mod fs {
             Self {
                 dirty: true,
                 filename: Some(filename.to_owned()),
-                ..default!()
+                ..Self::in_memory()
             }
         }
 
