@@ -82,7 +82,7 @@ pub struct MemStash {
     dirty: bool,
     #[cfg(feature = "fs")]
     #[strict_type(skip)]
-    filename: PathBuf,
+    filename: Option<PathBuf>,
 
     schemata: TinyOrdMap<SchemaId, SchemaIfaces>,
     ifaces: TinyOrdMap<IfaceId, Iface>,
@@ -443,7 +443,7 @@ pub struct MemState {
     dirty: bool,
     #[cfg(feature = "fs")]
     #[strict_type(skip)]
-    filename: PathBuf,
+    filename: Option<PathBuf>,
 
     witnesses: LargeOrdMap<XWitnessId, WitnessOrd>,
     contracts: TinyOrdMap<ContractId, MemContractState>,
@@ -1141,7 +1141,7 @@ pub struct MemIndex {
     dirty: bool,
     #[cfg(feature = "fs")]
     #[strict_type(skip)]
-    filename: PathBuf,
+    filename: Option<PathBuf>,
 
     op_bundle_index: MediumOrdMap<OpId, BundleId>,
     bundle_contract_index: MediumOrdMap<BundleId, ContractId>,
@@ -1420,7 +1420,7 @@ mod fs {
         fn new(filename: impl ToOwned<Owned = PathBuf>) -> Self {
             Self {
                 dirty: true,
-                filename: filename.to_owned(),
+                filename: Some(filename.to_owned()),
                 ..default!()
             }
         }
@@ -1434,21 +1434,22 @@ mod fs {
 
         fn is_dirty(&self) -> bool { self.dirty }
 
-        fn filename(&self) -> &Path { &self.filename }
+        fn filename(&self) -> Option<&Path> { self.filename.as_deref() }
 
-        fn set_filename(&mut self, filename: impl ToOwned<Owned = PathBuf>) -> PathBuf {
+        fn set_filename(&mut self, filename: impl ToOwned<Owned = PathBuf>) -> Option<PathBuf> {
             let prev = self.filename.to_owned();
-            self.filename = filename.to_owned();
+            self.filename = Some(filename.to_owned());
             self.dirty = self.filename != prev;
             prev
         }
 
         fn store(&self) -> Result<(), SerializeError> {
             if self.is_dirty() {
-                self.strict_serialize_to_file::<U32>(&self.filename())
-            } else {
-                Ok(())
+                if let Some(filename) = self.filename() {
+                    return self.strict_serialize_to_file::<U32>(filename);
+                }
             }
+            Ok(())
         }
     }
 
@@ -1456,7 +1457,7 @@ mod fs {
         fn new(filename: impl ToOwned<Owned = PathBuf>) -> Self {
             Self {
                 dirty: true,
-                filename: filename.to_owned(),
+                filename: Some(filename.to_owned()),
                 ..default!()
             }
         }
@@ -1470,21 +1471,22 @@ mod fs {
 
         fn is_dirty(&self) -> bool { self.dirty }
 
-        fn filename(&self) -> &Path { &self.filename }
+        fn filename(&self) -> Option<&Path> { self.filename.as_deref() }
 
-        fn set_filename(&mut self, filename: impl ToOwned<Owned = PathBuf>) -> PathBuf {
+        fn set_filename(&mut self, filename: impl ToOwned<Owned = PathBuf>) -> Option<PathBuf> {
             let prev = self.filename.to_owned();
-            self.filename = filename.to_owned();
+            self.filename = Some(filename.to_owned());
             self.dirty = self.filename != prev;
             prev
         }
 
         fn store(&self) -> Result<(), SerializeError> {
             if self.is_dirty() {
-                self.strict_serialize_to_file::<U32>(&self.filename())
-            } else {
-                Ok(())
+                if let Some(filename) = self.filename() {
+                    return self.strict_serialize_to_file::<U32>(filename);
+                }
             }
+            Ok(())
         }
     }
 
@@ -1492,7 +1494,7 @@ mod fs {
         fn new(filename: impl ToOwned<Owned = PathBuf>) -> Self {
             Self {
                 dirty: true,
-                filename: filename.to_owned(),
+                filename: Some(filename.to_owned()),
                 ..default!()
             }
         }
@@ -1506,21 +1508,22 @@ mod fs {
 
         fn is_dirty(&self) -> bool { self.dirty }
 
-        fn filename(&self) -> &Path { &self.filename }
+        fn filename(&self) -> Option<&Path> { self.filename.as_deref() }
 
-        fn set_filename(&mut self, filename: impl ToOwned<Owned = PathBuf>) -> PathBuf {
+        fn set_filename(&mut self, filename: impl ToOwned<Owned = PathBuf>) -> Option<PathBuf> {
             let prev = self.filename.to_owned();
-            self.filename = filename.to_owned();
+            self.filename = Some(filename.to_owned());
             self.dirty = self.filename != prev;
             prev
         }
 
         fn store(&self) -> Result<(), SerializeError> {
             if self.is_dirty() {
-                self.strict_serialize_to_file::<U32>(&self.filename())
-            } else {
-                Ok(())
+                if let Some(filename) = self.filename() {
+                    return self.strict_serialize_to_file::<U32>(filename);
+                }
             }
+            Ok(())
         }
     }
 }

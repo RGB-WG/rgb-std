@@ -28,8 +28,8 @@ pub trait FsStored: Sized {
     fn load(path: impl ToOwned<Owned = PathBuf>) -> Result<Self, DeserializeError>;
 
     fn is_dirty(&self) -> bool;
-    fn filename(&self) -> &Path;
-    fn set_filename(&mut self, filename: impl ToOwned<Owned = PathBuf>) -> PathBuf;
+    fn filename(&self) -> Option<&Path>;
+    fn set_filename(&mut self, filename: impl ToOwned<Owned = PathBuf>) -> Option<PathBuf>;
 
     fn store(&self) -> Result<(), SerializeError>;
 }
