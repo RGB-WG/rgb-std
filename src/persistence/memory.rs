@@ -39,8 +39,8 @@ use bp::dbc::tapret::TapretCommitment;
 use commit_verify::{CommitId, Conceal};
 use rgb::validation::ResolveWitness;
 use rgb::vm::{
-    AnchoredOpRef, ContractStateAccess, ContractStateEvolve, GlobalContractState, GlobalOrd,
-    GlobalStateIter, UnknownGlobalStateType, WitnessOrd,
+    ContractStateAccess, ContractStateEvolve, GlobalContractState, GlobalOrd, GlobalStateIter,
+    OrdOpRef, UnknownGlobalStateType, WitnessOrd,
 };
 use rgb::{
     Assign, AssignmentType, Assignments, AssignmentsRef, AttachId, AttachState, BundleId,
@@ -710,7 +710,7 @@ impl MemContractState {
         }
     }
 
-    fn add_operation(&mut self, op: AnchoredOpRef) {
+    fn add_operation(&mut self, op: OrdOpRef) {
         let opid = op.id();
 
         for (ty, state) in op.globals() {
@@ -999,13 +999,7 @@ impl ContractStateEvolve for MemContract<MemContractState> {
         }
     }
 
-    fn evolve_state(&mut self, op: AnchoredOpRef) -> Result<(), confinement::Error> {
-        fn ordering(
-            filter: &HashMap<XWitnessId, WitnessOrd>,
-            witness_id: XWitnessId,
-        ) -> WitnessOrd {
-            *filter.get(&witness_id).expect("unknown witness id")
-        }
+    fn evolve_state(&mut self, op: OrdOpRef) -> Result<(), confinement::Error> {
         (move || -> Result<(), SerializeError> {
             fn writer(me: &mut MemContract<MemContractState>) -> MemContractWriter {
                 MemContractWriter {
@@ -1022,17 +1016,15 @@ impl ContractStateEvolve for MemContract<MemContractState> {
                 }
             }
             match op {
-                AnchoredOpRef::Genesis(genesis) => {
+                OrdOpRef::Genesis(genesis) => {
                     let mut writer = writer(self);
                     writer.add_genesis(genesis)
                 }
-                AnchoredOpRef::Transition(transition, witness_id) => {
-                    let ord = ordering(&self.filter, witness_id);
+                OrdOpRef::Transition(transition, witness_id, ord) => {
                     let mut writer = writer(self);
                     writer.add_transition(transition, witness_id, ord)
                 }
-                AnchoredOpRef::Extension(extension, witness_id) => {
-                    let ord = ordering(&self.filter, witness_id);
+                OrdOpRef::Extension(extension, witness_id, ord) => {
                     let mut writer = writer(self);
                     writer.add_extension(extension, witness_id, ord)
                 }
@@ -1105,7 +1097,7 @@ impl<'mem> ContractStateWrite for MemContractWriter<'mem> {
     /// If genesis violates RGB consensus rules and wasn't checked against the
     /// schema before adding to the history.
     fn add_genesis(&mut self, genesis: &Genesis) -> Result<(), Self::Error> {
-        self.contract.add_operation(AnchoredOpRef::Genesis(genesis));
+        self.contract.add_operation(OrdOpRef::Genesis(genesis));
         Ok(())
     }
 
@@ -1121,7 +1113,7 @@ impl<'mem> ContractStateWrite for MemContractWriter<'mem> {
     ) -> Result<(), Self::Error> {
         (self.writer)(witness_id, ord)?;
         self.contract
-            .add_operation(AnchoredOpRef::Transition(transition, witness_id));
+            .add_operation(OrdOpRef::Transition(transition, witness_id, ord));
         Ok(())
     }
 
@@ -1137,7 +1129,7 @@ impl<'mem> ContractStateWrite for MemContractWriter<'mem> {
     ) -> Result<(), Self::Error> {
         (self.writer)(witness_id, ord)?;
         self.contract
-            .add_operation(AnchoredOpRef::Extension(extension, witness_id));
+            .add_operation(OrdOpRef::Extension(extension, witness_id, ord));
         Ok(())
     }
 }
