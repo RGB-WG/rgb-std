@@ -38,7 +38,7 @@ use crate::containers::{ConsignmentExt, ToWitnessId};
 use crate::contract::OutputAssignment;
 use crate::persistence::{StoreTransaction, UpdateRes};
 
-#[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
+#[derive(Debug, Display, Error, From)]
 #[display(inner)]
 pub enum StateError<P: StateProvider> {
     /// Connectivity errors which may be recoverable and temporary.
@@ -272,7 +272,7 @@ pub trait StateReadProvider {
 pub trait StateWriteProvider: StoreTransaction<TransactionErr = Self::Error> {
     type ContractWrite<'a>: ContractStateWrite<Error = Self::Error>
     where Self: 'a;
-    type Error: Clone + Eq + Error;
+    type Error: Error;
 
     fn register_contract(
         &mut self,
@@ -302,7 +302,7 @@ pub trait ContractStateRead: ContractStateAccess {
 }
 
 pub trait ContractStateWrite {
-    type Error: Clone + Eq + Error;
+    type Error: Error;
 
     fn add_genesis(&mut self, genesis: &Genesis) -> Result<(), Self::Error>;
 
