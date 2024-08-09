@@ -29,13 +29,12 @@ use rgb::{
     GraphSeal, OpId, Operation, Opout, TransitionBundle, TypedAssigns, XChain, XOutputSeal,
     XWitnessId,
 };
-use strict_encoding::SerializeError;
 
 use crate::containers::{BundledWitness, ConsignmentExt, ToWitnessId};
-use crate::persistence::StoreTransaction;
+use crate::persistence::{StoreError, StoreTransaction};
 use crate::SecretSeal;
 
-#[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
+#[derive(Debug, Display, Error, From)]
 #[display(inner)]
 pub enum IndexError<P: IndexProvider> {
     /// Connectivity errors which may be recoverable and temporary.
@@ -85,7 +84,7 @@ impl<P: IndexProvider> From<IndexWriteError<<P as IndexWriteProvider>::Error>> f
     }
 }
 
-impl From<confinement::Error> for IndexWriteError<SerializeError> {
+impl From<confinement::Error> for IndexWriteError<StoreError> {
     fn from(err: confinement::Error) -> Self { IndexWriteError::Connectivity(err.into()) }
 }
 
@@ -386,7 +385,7 @@ pub trait IndexReadProvider {
 }
 
 pub trait IndexWriteProvider: StoreTransaction<TransactionErr = Self::Error> {
-    type Error: Clone + Eq + Error;
+    type Error: Error;
 
     fn register_contract(&mut self, contract_id: ContractId) -> Result<bool, Self::Error>;
 

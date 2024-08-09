@@ -19,18 +19,36 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::path::{Path, PathBuf};
+use std::error::Error;
+use std::fmt::Debug;
 
-use strict_encoding::{DeserializeError, SerializeError};
+use amplify::confinement;
 
-pub trait FsStored: Sized {
-    fn new(path: impl ToOwned<Owned = PathBuf>, autosave: bool) -> Self;
-    fn load(path: impl ToOwned<Owned = PathBuf>, autosave: bool) -> Result<Self, DeserializeError>;
+#[derive(Debug, Display, Error)]
+#[display(inner)]
+pub struct StoreError(pub Box<dyn Error + Send>);
+
+impl From<confinement::Error> for StoreError {
+    fn from(err: confinement::Error) -> Self { Self(Box::new(err)) }
+}
+
+pub trait StoreProvider: Send + Debug {
+    type Object;
+
+    fn load(&self) -> Result<Self::Object, StoreError>;
+    fn store(&self, object: &Self::Object) -> Result<(), StoreError>;
+}
+
+pub trait Stored: Sized {
+    fn new_stored(provider: impl StoreProvider<Object = Self> + 'static, autosave: bool) -> Self;
+    fn load(
+        provider: impl StoreProvider<Object = Self> + 'static,
+        autosave: bool,
+    ) -> Result<Self, StoreError>;
 
     fn is_dirty(&self) -> bool;
-    fn filename(&self) -> Option<&Path>;
     fn autosave(&mut self);
-    fn set_filename(&mut self, filename: impl ToOwned<Owned = PathBuf>) -> Option<PathBuf>;
+    fn make_stored(&mut self, provider: impl StoreProvider<Object = Self> + 'static) -> bool;
 
-    fn store(&self) -> Result<(), SerializeError>;
+    fn store(&self) -> Result<(), StoreError>;
 }

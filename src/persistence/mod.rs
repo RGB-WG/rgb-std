@@ -36,8 +36,7 @@ mod state;
 mod index;
 
 mod memory;
-#[cfg(feature = "fs")]
-pub mod fs;
+mod store;
 
 pub use index::{
     Index, IndexError, IndexInconsistency, IndexProvider, IndexReadError, IndexReadProvider,
@@ -56,6 +55,7 @@ pub use stock::{
     ComposeError, ConsignError, ContractIfaceError, FasciaError, InputError as StockInputError,
     Stock, StockError, StockErrorAll, StockErrorMem, UpdateRes,
 };
+pub use store::{StoreError, StoreProvider, Stored};
 
 pub trait StoreTransaction {
     type TransactionErr: std::error::Error;
