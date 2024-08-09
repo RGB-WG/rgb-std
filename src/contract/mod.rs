@@ -26,7 +26,7 @@ mod merge_reveal;
 pub use assignments::{KnownState, OutputAssignment, TypedAssignsExt};
 pub use bundle::{BundleExt, RevealError};
 pub use merge_reveal::{MergeReveal, MergeRevealError};
-use rgb::vm::AnchoredOpRef;
+use rgb::vm::OrdOpRef;
 use rgb::{OpId, XWitnessId};
 
 use crate::LIB_NAME_RGB_STD;
@@ -46,12 +46,12 @@ pub enum OpWitness {
     Extension(XWitnessId),
 }
 
-impl From<AnchoredOpRef<'_>> for OpWitness {
-    fn from(aor: AnchoredOpRef) -> Self {
+impl From<OrdOpRef<'_>> for OpWitness {
+    fn from(aor: OrdOpRef) -> Self {
         match aor {
-            AnchoredOpRef::Genesis(_) => OpWitness::Genesis,
-            AnchoredOpRef::Transition(_, witness_id) => OpWitness::Transition(witness_id),
-            AnchoredOpRef::Extension(_, witness_id) => OpWitness::Transition(witness_id),
+            OrdOpRef::Genesis(_) => OpWitness::Genesis,
+            OrdOpRef::Transition(_, witness_id, ..) => OpWitness::Transition(witness_id),
+            OrdOpRef::Extension(_, witness_id, ..) => OpWitness::Transition(witness_id),
         }
     }
 }
