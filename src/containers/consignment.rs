@@ -536,7 +536,7 @@ Check-SHA256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
     #[test]
     fn error_transfer_strs() {
         let s = include_str!("../../asset/armored_transfer.default");
-        assert!(matches!(Transfer::from_str(s), Ok(_)));
+        assert!(Transfer::from_str(s).is_ok());
 
         // Wrong Id
         assert!(

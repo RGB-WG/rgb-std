@@ -549,7 +549,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             .map_err(StockError::from)
     }
 
-    #[allow(clippy::multiple_bound_locations)]
+    #[allow(clippy::multiple_bound_locations, clippy::type_complexity)]
     pub fn contract_iface_class<C: IfaceClass>(
         &self,
         contract_id: ContractId,

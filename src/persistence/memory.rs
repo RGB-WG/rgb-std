@@ -1000,36 +1000,34 @@ impl ContractStateEvolve for MemContract<MemContractState> {
     }
 
     fn evolve_state(&mut self, op: OrdOpRef) -> Result<(), confinement::Error> {
-        (move || -> Result<(), SerializeError> {
-            fn writer(me: &mut MemContract<MemContractState>) -> MemContractWriter {
-                MemContractWriter {
-                    writer: Box::new(
-                        |witness_id: XWitnessId, ord: WitnessOrd| -> Result<(), SerializeError> {
-                            // NB: We do not check the existence of the witness since we have a
-                            // newer version anyway and even if it is
-                            // known we have to replace it
-                            me.filter.insert(witness_id, ord);
-                            Ok(())
-                        },
-                    ),
-                    contract: &mut me.unfiltered,
-                }
+        fn writer(me: &mut MemContract<MemContractState>) -> MemContractWriter {
+            MemContractWriter {
+                writer: Box::new(
+                    |witness_id: XWitnessId, ord: WitnessOrd| -> Result<(), SerializeError> {
+                        // NB: We do not check the existence of the witness since we have a
+                        // newer version anyway and even if it is
+                        // known we have to replace it
+                        me.filter.insert(witness_id, ord);
+                        Ok(())
+                    },
+                ),
+                contract: &mut me.unfiltered,
             }
-            match op {
-                OrdOpRef::Genesis(genesis) => {
-                    let mut writer = writer(self);
-                    writer.add_genesis(genesis)
-                }
-                OrdOpRef::Transition(transition, witness_id, ord) => {
-                    let mut writer = writer(self);
-                    writer.add_transition(transition, witness_id, ord)
-                }
-                OrdOpRef::Extension(extension, witness_id, ord) => {
-                    let mut writer = writer(self);
-                    writer.add_extension(extension, witness_id, ord)
-                }
+        }
+        match op {
+            OrdOpRef::Genesis(genesis) => {
+                let mut writer = writer(self);
+                writer.add_genesis(genesis)
             }
-        })()
+            OrdOpRef::Transition(transition, witness_id, ord) => {
+                let mut writer = writer(self);
+                writer.add_transition(transition, witness_id, ord)
+            }
+            OrdOpRef::Extension(extension, witness_id, ord) => {
+                let mut writer = writer(self);
+                writer.add_extension(extension, witness_id, ord)
+            }
+        }
         .map_err(|err| match err {
             SerializeError::Io(_) => {
                 unreachable!("I/O errors are not possible for memory structures")
