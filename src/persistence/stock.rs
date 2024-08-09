@@ -368,7 +368,10 @@ where
 }
 
 impl Stock {
-    pub fn in_memory() -> Self { Self::default() }
+    #[inline]
+    pub fn in_memory() -> Self {
+        Self::with(MemStash::in_memory(), MemState::in_memory(), MemIndex::in_memory())
+    }
 }
 
 #[cfg(feature = "fs")]
@@ -1306,16 +1309,14 @@ mod test {
 
     #[test]
     fn test_consign() {
-        let mut stock = Stock::<MemStash, MemState, MemIndex>::default();
+        let mut stock = Stock::in_memory();
         let seal = XChain::with(
             rgbcore::Layer1::Bitcoin,
             GraphSeal::new_random_vout(bp::dbc::Method::OpretFirst, Vout::from_u32(0)),
         );
         let secret_seal = seal.conceal();
 
-        stock
-            .store_secret_seal(seal)
-            .expect_err("we can't store to FS and fail here since we have not filename assigned");
+        stock.store_secret_seal(seal).unwrap();
         let contract_id =
             ContractId::from_baid64_str("rgb:qFuT6DN8-9AuO95M-7R8R8Mc-AZvs7zG-obum1Va-BRnweKk")
                 .unwrap();
@@ -1326,7 +1327,7 @@ mod test {
 
     #[test]
     fn test_export_contract() {
-        let stock = Stock::<MemStash, MemState, MemIndex>::default();
+        let stock = Stock::in_memory();
         let contract_id =
             ContractId::from_baid64_str("rgb:qFuT6DN8-9AuO95M-7R8R8Mc-AZvs7zG-obum1Va-BRnweKk")
                 .unwrap();
@@ -1337,7 +1338,7 @@ mod test {
 
     #[test]
     fn test_export_schema() {
-        let stock = Stock::<MemStash, MemState, MemIndex>::default();
+        let stock = Stock::in_memory();
         let hasher = Sha256::default();
         let schema_id = SchemaId::from(hasher);
         if let Ok(schema) = stock.export_schema(schema_id) {
@@ -1347,7 +1348,7 @@ mod test {
 
     #[test]
     fn test_blank_builder_ifaceid() {
-        let stock = Stock::<MemStash, MemState, MemIndex>::default();
+        let stock = Stock::in_memory();
         let hasher = Sha256::default();
         let iface_id = IfaceId::from(hasher.clone());
         let bytes_hash = hasher.finish();
@@ -1359,7 +1360,7 @@ mod test {
 
     #[test]
     fn test_blank_builder_ifacename() {
-        let stock = Stock::<MemStash, MemState, MemIndex>::default();
+        let stock = Stock::in_memory();
         let hasher = Sha256::default();
         let bytes_hash = hasher.finish();
         let contract_id = ContractId::copy_from_slice(bytes_hash).unwrap();
@@ -1372,7 +1373,7 @@ mod test {
 
     #[test]
     fn test_transition_builder() {
-        let stock = Stock::<MemStash, MemState, MemIndex>::default();
+        let stock = Stock::in_memory();
         let hasher = Sha256::default();
         let iface_id = IfaceId::from(hasher.clone());
 
