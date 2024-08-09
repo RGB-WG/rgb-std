@@ -45,7 +45,7 @@ use super::{
     IndexWriteProvider, MemIndex, MemStash, MemState, PersistedState, SchemaIfaces, Stash,
     StashDataError, StashError, StashInconsistency, StashProvider, StashReadProvider,
     StashWriteProvider, State, StateError, StateInconsistency, StateProvider, StateReadProvider,
-    StateWriteProvider, StoreProvider, StoreTransaction, Stored,
+    StateWriteProvider, StockStoreProvider, StoreError, StoreProvider, StoreTransaction, Stored,
 };
 use crate::containers::{
     AnchorSet, AnchoredBundles, Batch, BuilderSeal, BundledWitness, Consignment, ContainerVer,
@@ -381,30 +381,15 @@ where
     H: Stored,
     I: Stored,
 {
-    pub fn new_stored(
-        stash_provider: impl StoreProvider<Object = S> + 'static,
-        state_provider: impl StoreProvider<Object = H> + 'static,
-        index_provider: impl StoreProvider<Object = I> + 'static,
-        autosave: bool,
-    ) -> Self {
-        let stash = S::new_stored(stash_provider, autosave);
-        let state = H::new_stored(state_provider, autosave);
-        let index = I::new_stored(index_provider, autosave);
-
-        Stock::with(stash, state, index)
-    }
-
-    pub fn load(
-        stash_provider: impl StoreProvider<Object = S> + 'static,
-        state_provider: impl StoreProvider<Object = H> + 'static,
-        index_provider: impl StoreProvider<Object = I> + 'static,
-        autosave: bool,
-    ) -> Result<Self, String> {
-        let stash = S::load(stash_provider, autosave)?;
-        let state = H::load(state_provider, autosave)?;
-        let index = I::load(index_provider, autosave)?;
-
-        Ok(Stock::with(stash, state, index))
+    pub fn load<P>(provider: P, autosave: bool) -> Result<Self, StoreError>
+    where P: StoreProvider<Self> + 'static {
+        let mut stock = provider.load()?;
+        if autosave {
+            stock.stash.as_provider_mut().autosave();
+            stock.state.as_provider_mut().autosave();
+            stock.index.as_provider_mut().autosave();
+        }
+        Ok(stock)
     }
 
     pub fn autosave(&mut self) {
@@ -419,21 +404,12 @@ where
             self.as_index_provider().is_dirty()
     }
 
-    pub fn make_stored(
-        &mut self,
-        stash_provider: impl StoreProvider<Object = S> + 'static,
-        state_provider: impl StoreProvider<Object = H> + 'static,
-        index_provider: impl StoreProvider<Object = I> + 'static,
-    ) -> bool {
-        let _1 = self.stash.as_provider_mut().make_stored(stash_provider);
-        let _2 = self.state.as_provider_mut().make_stored(state_provider);
-        let _3 = self.index.as_provider_mut().make_stored(index_provider);
-        assert_eq!(_1, _2);
-        assert_eq!(_2, _3);
-        _1
+    pub fn make_stored<P>(&mut self, provider: P) -> bool
+    where P: StockStoreProvider<S, H, I> + 'static {
+        provider.make_stored(self)
     }
 
-    pub fn store(&self) -> Result<(), String> {
+    pub fn store(&self) -> Result<(), StoreError> {
         self.as_stash_provider().store()?;
         self.as_state_provider().store()?;
         self.as_index_provider().store()?;
@@ -457,6 +433,13 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     pub fn as_state_provider(&self) -> &H { self.state.as_provider() }
     #[doc(hidden)]
     pub fn as_index_provider(&self) -> &P { self.index.as_provider() }
+
+    #[doc(hidden)]
+    pub fn as_stash_provider_mut(&mut self) -> &mut S { self.stash.as_provider_mut() }
+    #[doc(hidden)]
+    pub fn as_state_provider_mut(&mut self) -> &mut H { self.state.as_provider_mut() }
+    #[doc(hidden)]
+    pub fn as_index_provider_mut(&mut self) -> &mut P { self.index.as_provider_mut() }
 
     pub fn ifaces(&self) -> Result<impl Iterator<Item = IfaceInfo> + '_, StockError<S, H, P>> {
         let names = self

@@ -55,7 +55,7 @@ pub use stock::{
     ComposeError, ConsignError, ContractIfaceError, FasciaError, InputError as StockInputError,
     Stock, StockError, StockErrorAll, StockErrorMem, UpdateRes,
 };
-pub use store::{StoreError, StoreProvider, Stored};
+pub use store::{StockStoreProvider, StoreError, StoreProvider, Stored};
 
 pub trait StoreTransaction {
     type TransactionErr: std::error::Error;

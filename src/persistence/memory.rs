@@ -84,7 +84,7 @@ pub struct MemStash {
 
     #[getter(skip)]
     #[strict_type(skip)]
-    store_provider: Option<Box<dyn StoreProvider<Object = Self>>>,
+    store_provider: Option<Box<dyn StoreProvider<Self>>>,
 
     schemata: TinyOrdMap<SchemaId, SchemaIfaces>,
     ifaces: TinyOrdMap<IfaceId, Iface>,
@@ -473,7 +473,7 @@ pub struct MemState {
 
     #[getter(skip)]
     #[strict_type(skip)]
-    store_provider: Option<Box<dyn StoreProvider<Object = Self>>>,
+    store_provider: Option<Box<dyn StoreProvider<Self>>>,
 
     witnesses: LargeOrdMap<XWitnessId, WitnessOrd>,
     contracts: TinyOrdMap<ContractId, MemContractState>,
@@ -1178,7 +1178,7 @@ pub struct MemIndex {
 
     #[getter(skip)]
     #[strict_type(skip)]
-    store_provider: Option<Box<dyn StoreProvider<Object = Self>>>,
+    store_provider: Option<Box<dyn StoreProvider<Self>>>,
 
     op_bundle_index: MediumOrdMap<OpId, BundleId>,
     bundle_contract_index: MediumOrdMap<BundleId, ContractId>,
@@ -1458,10 +1458,7 @@ mod store {
     use crate::persistence::{MemIndex, MemStash, MemState, StoreError, StoreProvider};
 
     impl Stored for MemStash {
-        fn new_stored(
-            provider: impl StoreProvider<Object = Self> + 'static,
-            autosave: bool,
-        ) -> Self {
+        fn new_stored(provider: impl StoreProvider<Self> + 'static, autosave: bool) -> Self {
             Self {
                 dirty: true,
                 autosave,
@@ -1471,7 +1468,7 @@ mod store {
         }
 
         fn load(
-            provider: impl StoreProvider<Object = Self> + 'static,
+            provider: impl StoreProvider<Self> + 'static,
             autosave: bool,
         ) -> Result<Self, StoreError> {
             let mut me = provider.load()?;
@@ -1484,7 +1481,7 @@ mod store {
 
         fn autosave(&mut self) { self.autosave = true; }
 
-        fn make_stored(&mut self, provider: impl StoreProvider<Object = Self> + 'static) -> bool {
+        fn make_stored(&mut self, provider: impl StoreProvider<Self> + 'static) -> bool {
             let res = self.store_provider.is_some();
             self.store_provider = Some(Box::new(provider));
             self.dirty = true;
@@ -1502,10 +1499,7 @@ mod store {
     }
 
     impl Stored for MemState {
-        fn new_stored(
-            provider: impl StoreProvider<Object = Self> + 'static,
-            autosave: bool,
-        ) -> Self {
+        fn new_stored(provider: impl StoreProvider<Self> + 'static, autosave: bool) -> Self {
             Self {
                 dirty: true,
                 autosave,
@@ -1515,7 +1509,7 @@ mod store {
         }
 
         fn load(
-            provider: impl StoreProvider<Object = Self> + 'static,
+            provider: impl StoreProvider<Self> + 'static,
             autosave: bool,
         ) -> Result<Self, StoreError> {
             let mut me = provider.load()?;
@@ -1528,7 +1522,7 @@ mod store {
 
         fn autosave(&mut self) { self.autosave = true; }
 
-        fn make_stored(&mut self, provider: impl StoreProvider<Object = Self> + 'static) -> bool {
+        fn make_stored(&mut self, provider: impl StoreProvider<Self> + 'static) -> bool {
             let res = self.store_provider.is_some();
             self.store_provider = Some(Box::new(provider));
             self.dirty = true;
@@ -1546,10 +1540,7 @@ mod store {
     }
 
     impl Stored for MemIndex {
-        fn new_stored(
-            provider: impl StoreProvider<Object = Self> + 'static,
-            autosave: bool,
-        ) -> Self {
+        fn new_stored(provider: impl StoreProvider<Self> + 'static, autosave: bool) -> Self {
             Self {
                 dirty: true,
                 autosave,
@@ -1559,7 +1550,7 @@ mod store {
         }
 
         fn load(
-            provider: impl StoreProvider<Object = Self> + 'static,
+            provider: impl StoreProvider<Self> + 'static,
             autosave: bool,
         ) -> Result<Self, StoreError> {
             let mut me = provider.load()?;
@@ -1572,7 +1563,7 @@ mod store {
 
         fn autosave(&mut self) { self.autosave = true; }
 
-        fn make_stored(&mut self, provider: impl StoreProvider<Object = Self> + 'static) -> bool {
+        fn make_stored(&mut self, provider: impl StoreProvider<Self> + 'static) -> bool {
             let res = self.store_provider.is_some();
             self.store_provider = Some(Box::new(provider));
             self.dirty = true;
