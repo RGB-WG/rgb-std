@@ -51,7 +51,8 @@ pub use file::{FileContent, LoadError, UniversalFile};
 pub use indexed::IndexedConsignment;
 pub use kit::{Kit, KitId, ValidKit};
 pub use partials::{
-    Batch, BundleDichotomy, CloseMethodSet, Fascia, TransitionInfo, TransitionInfoError,
+    Batch, BundleDichotomy, CloseMethodSet, Dichotomy, Fascia, TransitionDichotomy, TransitionInfo,
+    TransitionInfoError,
 };
 pub use seal::{BuilderSeal, VoutSeal};
 pub use suppl::{

@@ -28,6 +28,7 @@ use std::fmt::Debug;
 
 use amplify::confinement::{Confined, U24};
 use amplify::Wrapper;
+use bp::dbc::Method;
 use bp::seals::txout::CloseMethod;
 use bp::Vout;
 use chrono::Utc;
@@ -35,7 +36,8 @@ use invoice::{Amount, Beneficiary, InvoiceState, NonFungible, RgbInvoice};
 use rgb::validation::{DbcProof, EAnchor, ResolveWitness, WitnessResolverError};
 use rgb::{
     validation, AssignmentType, BlindingFactor, BundleId, ContractId, GraphSeal, Identity, OpId,
-    Operation, Opout, SchemaId, SecretSeal, Transition, XChain, XOutpoint, XOutputSeal, XWitnessId,
+    Operation, Opout, SchemaId, SecretSeal, Transition, TxoSeal, XChain, XOutpoint, XOutputSeal,
+    XWitnessId,
 };
 use strict_encoding::FieldName;
 
@@ -49,8 +51,8 @@ use super::{
 use crate::containers::{
     AnchorSet, AnchoredBundles, Batch, BuilderSeal, BundledWitness, Consignment, ContainerVer,
     ContentId, ContentRef, Contract, Fascia, Kit, SealWitness, SupplItem, SupplSub, Transfer,
-    TransitionInfo, TransitionInfoError, ValidConsignment, ValidContract, ValidKit, ValidTransfer,
-    VelocityHint, SUPPL_ANNOT_VELOCITY,
+    TransitionDichotomy, TransitionInfo, TransitionInfoError, ValidConsignment, ValidContract,
+    ValidKit, ValidTransfer, VelocityHint, SUPPL_ANNOT_VELOCITY,
 };
 use crate::info::{ContractInfo, IfaceInfo, SchemaInfo};
 use crate::interface::{
@@ -1009,16 +1011,36 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         let mut main_inputs = Vec::<XOutputSeal>::new();
         let mut sum_inputs = Amount::ZERO;
         let mut data_inputs = vec![];
+
+        // If there are inputs which are using different seal closing method from our
+        // wallet (and thus main state transition) we need to put them aside and
+        // allocate a different state transition spending them as a change.
+        let mut wrong_builder =
+            self.transition_builder(contract_id, iface.clone(), invoice.operation.clone())?;
+        let mut wrong_inputs = Vec::<XOutputSeal>::new();
+
         for (output, list) in
             self.contract_assignments_for(contract_id, prev_outputs.iter().copied())?
         {
-            main_inputs.push(output);
+            if output.method() == method {
+                main_inputs.push(output)
+            } else {
+                wrong_inputs.push(output)
+            };
             for (opout, mut state) in list {
-                main_builder = main_builder.add_input(opout, state.clone())?;
-                if opout.ty != assignment_id {
+                if output.method() == method {
+                    main_builder = main_builder.add_input(opout, state.clone())?;
+                } else {
+                    wrong_builder = wrong_builder.add_input(opout, state.clone())?;
+                }
+                if opout.ty != assignment_id || output.method() != method {
                     let seal = output_for_assignment(contract_id, opout.ty)?;
                     state.update_blinding(pedersen_blinder(contract_id, assignment_id));
-                    main_builder = main_builder.add_owned_state_raw(opout.ty, seal, state)?;
+                    if output.method() == method {
+                        main_builder = main_builder.add_owned_state_raw(opout.ty, seal, state)?;
+                    } else {
+                        wrong_builder = wrong_builder.add_owned_state_raw(opout.ty, seal, state)?;
+                    }
                 } else if let PersistedState::Amount(value, _, _) = state {
                     sum_inputs += value;
                 } else if let PersistedState::Data(value, _) = state {
@@ -1094,27 +1116,69 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         // Construct blank transitions
         let mut blanks = Confined::<Vec<_>, 0, { U24 - 1 }>::with_capacity(spent_state.len());
         for (id, list) in spent_state {
-            let mut blank_builder = self.blank_builder(id, iface.clone())?;
-            let mut outputs = Vec::with_capacity(list.len());
+            let mut blank_builder_tapret = self.blank_builder(id, iface.clone())?;
+            let mut blank_builder_opret = self.blank_builder(id, iface.clone())?;
+            let mut outputs_tapret = Vec::with_capacity(list.len());
+            let mut outputs_opret = Vec::with_capacity(list.len());
             for (output, assigns) in list {
-                outputs.push(output);
+                match output.method() {
+                    Method::TapretFirst => outputs_tapret.push(output),
+                    Method::OpretFirst => outputs_opret.push(output),
+                }
                 for (opout, state) in assigns {
                     let seal = output_for_assignment(id, opout.ty)?;
-                    blank_builder = blank_builder
-                        .add_input(opout, state.clone())?
-                        .add_owned_state_raw(opout.ty, seal, state)?;
+                    match output.method() {
+                        Method::TapretFirst => {
+                            blank_builder_tapret = blank_builder_tapret
+                                .add_input(opout, state.clone())?
+                                .add_owned_state_raw(opout.ty, seal, state)?
+                        }
+                        Method::OpretFirst => {
+                            blank_builder_opret = blank_builder_opret
+                                .add_input(opout, state.clone())?
+                                .add_owned_state_raw(opout.ty, seal, state)?
+                        }
+                    }
                 }
             }
 
-            let transition = blank_builder.complete_transition()?;
-            let info = TransitionInfo::new(transition, outputs)
-                .map_err(|_| ComposeError::TooManyInputs)?;
-            blanks.push(info).map_err(|_| ComposeError::TooManyBlanks)?;
+            let mut dicho = vec![];
+            for (blank_builder, outputs) in
+                [(blank_builder_tapret, outputs_tapret), (blank_builder_opret, outputs_opret)]
+            {
+                if !blank_builder.has_inputs() {
+                    continue;
+                }
+                let transition = blank_builder.complete_transition()?;
+                let info = TransitionInfo::new(transition, outputs).map_err(|e| {
+                    debug_assert!(!matches!(e, TransitionInfoError::CloseMethodDivergence(_)));
+                    ComposeError::TooManyInputs
+                })?;
+                dicho.push(info);
+            }
+            blanks
+                .push(TransitionDichotomy::from_iter(dicho))
+                .map_err(|_| ComposeError::TooManyBlanks)?;
         }
 
-        let main = TransitionInfo::new(main_transition, main_inputs)
-            .map_err(|_| ComposeError::TooManyInputs)?;
-        let mut batch = Batch { main, blanks };
+        let first = TransitionInfo::new(main_transition, main_inputs).map_err(|e| {
+            debug_assert!(!matches!(e, TransitionInfoError::CloseMethodDivergence(_)));
+            ComposeError::TooManyInputs
+        })?;
+        let second = if wrong_builder.has_inputs() {
+            Some(TransitionInfo::new(wrong_builder.complete_transition()?, wrong_inputs).map_err(
+                |e| {
+                    debug_assert!(!matches!(e, TransitionInfoError::CloseMethodDivergence(_)));
+                    ComposeError::TooManyInputs
+                },
+            )?)
+        } else {
+            None
+        };
+        let mut batch = Batch {
+            main: TransitionDichotomy::with(first, second),
+            blanks,
+        };
         batch.set_priority(priority);
         Ok(batch)
     }

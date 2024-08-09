@@ -259,6 +259,16 @@ pub struct Dichotomy<T: StrictDumb + StrictEncode + StrictDecode> {
     pub second: Option<T>,
 }
 
+impl<T: StrictDumb + StrictEncode + StrictDecode> FromIterator<T> for Dichotomy<T> {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        let mut iter = iter.into_iter();
+        let first = iter.next().expect("iterator must have at least one item");
+        let second = iter.next();
+        assert!(iter.next().is_none(), "iterator must have at most two items");
+        Self { first, second }
+    }
+}
+
 impl<T: StrictDumb + StrictEncode + StrictDecode> IntoIterator for Dichotomy<T> {
     type Item = T;
     type IntoIter = vec::IntoIter<T>;

@@ -797,6 +797,8 @@ impl TransitionBuilder {
         Ok(self)
     }
 
+    pub fn has_inputs(&self) -> bool { !self.inputs.is_empty() }
+
     pub fn complete_transition(self) -> Result<Transition, BuilderError> {
         let (_, _, _, global, assignments, _, _) = self.builder.complete(Some(&self.inputs));
 
