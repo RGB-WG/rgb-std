@@ -21,54 +21,14 @@
 
 use std::collections::{btree_map, BTreeMap};
 
-use amplify::confinement::{Confined, NonEmptyBlob, SmallOrdSet};
+use amplify::confinement::{Confined, NonEmptyBlob};
 use commit_verify::StrictHash;
-use rgb::{BundleId, ContractId, Identity, SchemaId, XChain};
+use rgb::{ContractId, Identity, SchemaId};
 use strict_encoding::StrictDumb;
 
-use super::{SupplId, TerminalSeal};
+use super::SupplId;
 use crate::interface::{IfaceId, ImplId};
-use crate::{SecretSeal, LIB_NAME_RGB_STD};
-
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-pub struct TerminalDisclose {
-    pub bundle_id: BundleId,
-    pub seal: XChain<TerminalSeal>,
-}
-
-#[derive(Clone, Eq, PartialEq, Debug)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-pub struct Terminal {
-    pub seals: SmallOrdSet<XChain<TerminalSeal>>,
-}
-
-impl Terminal {
-    pub fn new(seal: XChain<TerminalSeal>) -> Self {
-        Terminal {
-            seals: small_bset![seal],
-        }
-    }
-
-    pub fn secrets(&self) -> impl Iterator<Item = XChain<SecretSeal>> {
-        self.seals
-            .clone()
-            .into_iter()
-            .filter_map(|seal| seal.map_ref(TerminalSeal::secret_seal).transpose())
-    }
-}
+use crate::LIB_NAME_RGB_STD;
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]

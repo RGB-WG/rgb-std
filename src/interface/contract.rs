@@ -25,7 +25,6 @@ use std::collections::HashMap;
 
 use amplify::confinement::SmallOrdSet;
 use invoice::{Allocation, Amount};
-use rgb::vm::AssignmentWitness;
 use rgb::{
     AttachState, ContractId, DataState, OpId, RevealedAttach, RevealedData, RevealedValue, Schema,
     VoidState, XOutpoint, XOutputSeal, XWitnessId,
@@ -396,7 +395,7 @@ impl<S: ContractStateRead> ContractIface<S> {
         let spent = f::<_, C::State>(state).map(OutputAssignment::from);
         let mut ops = HashMap::<XWitnessId, IfaceOp<C>>::new();
         for alloc in spent {
-            let AssignmentWitness::Present(witness_id) = alloc.witness else {
+            let Some(witness_id) = alloc.witness else {
                 continue;
             };
             if let Some(op) = ops.get_mut(&witness_id) {
@@ -407,7 +406,7 @@ impl<S: ContractStateRead> ContractIface<S> {
         }
 
         for alloc in allocations {
-            let AssignmentWitness::Present(witness_id) = alloc.witness else {
+            let Some(witness_id) = alloc.witness else {
                 continue;
             };
             if let Some(op) = ops.get_mut(&witness_id) {

@@ -99,4 +99,4 @@ features = ["all"]
 [patch.crates-io]
 bp-consensus = { git = "https://github.com/BP-WG/bp-core", branch = "master" }
 bp-invoice = { git = "https://github.com/BP-WG/bp-std.git", branch = "master" }
-rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "mining" }
+rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "contract-state2" }

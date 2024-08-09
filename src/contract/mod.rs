@@ -26,23 +26,64 @@ mod merge_reveal;
 pub use assignments::{KnownState, OutputAssignment, TypedAssignsExt};
 pub use bundle::{BundleExt, RevealError};
 pub use merge_reveal::{MergeReveal, MergeRevealError};
-use rgb::vm::AssignmentWitness;
-use rgb::OpId;
+use rgb::vm::AnchoredOpRef;
+use rgb::{OpId, XWitnessId};
 
 use crate::LIB_NAME_RGB_STD;
 
-/// Reference to operation element.
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
-#[display("{op}/{no}")]
-pub struct OpEl {
-    pub op: OpId,
-    pub no: u16,
-    pub witness: AssignmentWitness,
+#[strict_type(lib = LIB_NAME_RGB_STD, tags = order)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub enum OpWitness {
+    #[strict_type(dumb)]
+    Genesis,
+    Transition(XWitnessId),
+    Extension(XWitnessId),
 }
 
-impl OpEl {
-    pub fn new(op: OpId, no: u16, witness: AssignmentWitness) -> OpEl { OpEl { op, no, witness } }
+impl From<AnchoredOpRef<'_>> for OpWitness {
+    fn from(aor: AnchoredOpRef) -> Self {
+        match aor {
+            AnchoredOpRef::Genesis(_) => OpWitness::Genesis,
+            AnchoredOpRef::Transition(_, witness_id) => OpWitness::Transition(witness_id),
+            AnchoredOpRef::Extension(_, witness_id) => OpWitness::Transition(witness_id),
+        }
+    }
+}
+
+impl OpWitness {
+    #[inline]
+    pub fn witness_id(&self) -> Option<XWitnessId> {
+        match self {
+            OpWitness::Genesis => None,
+            OpWitness::Transition(witness_id) | OpWitness::Extension(witness_id) => {
+                Some(*witness_id)
+            }
+        }
+    }
+}
+
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct GlobalOut {
+    pub opid: OpId,
+    pub nonce: u8,
+    pub index: u16,
+    pub op_witness: OpWitness,
+}
+
+impl GlobalOut {
+    #[inline]
+    pub fn witness_id(&self) -> Option<XWitnessId> { self.op_witness.witness_id() }
 }

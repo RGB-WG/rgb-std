@@ -434,6 +434,7 @@ impl ContractBuilder {
 pub struct TransitionBuilder {
     contract_id: ContractId,
     builder: OperationBuilder<GraphSeal>,
+    nonce: u8,
     transition_type: TransitionType,
     inputs: TinyOrdMap<Input, PersistedState>,
 }
@@ -530,6 +531,7 @@ impl TransitionBuilder {
         Self {
             contract_id,
             builder: OperationBuilder::with(iface, schema, iimpl, types),
+            nonce: u8::MAX,
             transition_type,
             inputs: none!(),
         }
@@ -546,6 +548,7 @@ impl TransitionBuilder {
         Self {
             contract_id,
             builder: OperationBuilder::deterministic(iface, schema, iimpl, types),
+            nonce: u8::MAX,
             transition_type,
             inputs: none!(),
         }
@@ -554,6 +557,11 @@ impl TransitionBuilder {
     pub fn type_system(&self) -> &TypeSystem { self.builder.type_system() }
 
     pub fn transition_type(&self) -> TransitionType { self.transition_type }
+
+    pub fn set_nonce(mut self, nonce: u8) -> Self {
+        self.nonce = nonce;
+        self
+    }
 
     #[inline]
     pub fn asset_tag(&self, name: impl Into<FieldName>) -> Result<AssetTag, BuilderError> {
@@ -795,6 +803,7 @@ impl TransitionBuilder {
         let transition = Transition {
             ffv: none!(),
             contract_id: self.contract_id,
+            nonce: self.nonce,
             transition_type: self.transition_type,
             metadata: empty!(),
             globals: global,

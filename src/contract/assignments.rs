@@ -26,11 +26,11 @@ use std::fmt::Debug;
 use amplify::confinement::SmallVec;
 use commit_verify::Conceal;
 use invoice::Amount;
-use rgb::vm::AssignmentWitness;
+use rgb::vm::WitnessOrd;
 use rgb::{
     Assign, AssignAttach, AssignData, AssignFungible, AssignRights, AssignmentType, AttachState,
     DataState, ExposedSeal, ExposedState, OpId, Opout, RevealedAttach, RevealedData, RevealedValue,
-    TypedAssigns, VoidState, WitnessOrd, XChain, XOutputSeal, XWitnessId,
+    TypedAssigns, VoidState, XChain, XOutputSeal, XWitnessId,
 };
 use strict_encoding::{StrictDecode, StrictDumb, StrictEncode};
 
@@ -62,7 +62,7 @@ pub struct OutputAssignment<State: KnownState> {
     pub opout: Opout,
     pub seal: XOutputSeal,
     pub state: State,
-    pub witness: AssignmentWitness,
+    pub witness: Option<XWitnessId>,
 }
 
 impl<State: KnownState> PartialEq for OutputAssignment<State> {
@@ -140,7 +140,7 @@ impl<State: KnownState> OutputAssignment<State> {
                  information since it comes from genesis or extension",
             ),
             state,
-            witness: AssignmentWitness::Absent,
+            witness: None,
         }
     }
 
@@ -155,8 +155,8 @@ impl<State: KnownState> OutputAssignment<State> {
 
     pub fn check_witness(&self, filter: &HashMap<XWitnessId, WitnessOrd>) -> bool {
         match self.witness {
-            AssignmentWitness::Absent => true,
-            AssignmentWitness::Present(witness_id) => {
+            None => true,
+            Some(witness_id) => {
                 !matches!(filter.get(&witness_id), None | Some(WitnessOrd::Archived))
             }
         }

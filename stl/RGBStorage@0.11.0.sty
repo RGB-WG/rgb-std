@@ -1,5 +1,5 @@
 {-
-  Id: stl:DKVsldZ8-zYwnjtp-igdl80j-eifV0Ef-asKEvF6-JyZP3to#song-wave-story
+  Id: stl:aHl1Tsu8-RxChWD4-DXqrqOO-qFlJXsK-0uWYfDv-H5BgmxE#plastic-shelter-podium
   Name: RGBStorage
   Version: 0.11.0
   Description: RGB storage library
@@ -51,15 +51,15 @@ import BPCore#garbo-radius-peru
   use BlindSealTxid#media-judge-anita
   use TxPtr#italian-july-eddie
 
-import RGBLogic#target-locate-justin
-  use AssignmentWitness#camilla-bison-chant
+import RGBLogic#lobster-dilemma-famous
+  use TxPos#john-invest-weekend
+  use TxOrd#sonar-nissan-clinic
 
 import RGBCommit#orbit-airport-voice
   use ExtensionSchema#active-eddie-empty
   use BundleId#carmen-farmer-diesel
   use AttachState#lady-japan-fiesta
   use GlobalValues#pilot-boris-alice
-  use WitnessPos#snow-local-tonight
   use MetaValue#split-package-recycle
   use InputMap#octavia-north-gram
   use GenesisSchema#iron-forbid-hamlet
@@ -120,7 +120,6 @@ import RGBCommit#orbit-airport-voice
   use Redeemed#mile-lady-perfect
   use RevealedAttach#slalom-phantom-voyage
   use Genesis#round-sound-nectar
-  use WitnessOrd#chief-digital-vitamin
   use Metadata#member-nobody-imitate
   use FungibleType#matrix-optimal-sinatra
   use XChainPubWitness#figure-gram-wave
@@ -131,7 +130,6 @@ import RGBCommit#orbit-airport-voice
 import RGBStd#carol-edgar-escape
   use PubWitness#paper-visa-storm
   use ContentRef#polo-ramirez-parker
-  use OutputAssignmentVoidState#concept-private-garlic
   use SigBlob#insect-cello-avalon
   use AnnotationName#domino-waiter-orlando
   use TransitionIface#axiom-parker-pyramid
@@ -143,13 +141,14 @@ import RGBStd#carol-edgar-escape
   use Annotations#spend-linda-romeo
   use AssignIface#fractal-baker-outside
   use VerNo#textile-next-stretch
-  use OutputAssignmentRevealedData#spoon-info-snow
   use NamedFieldValencyType#invest-apollo-inca
   use ImplId#seminar-data-table
   use SupplSub#canoe-denmark-short
   use SealWitness#vanilla-crimson-zero
+  use OutputAssignmentRevealedData#dinner-honey-saturn
   use Supplement#caviar-zebra-precise
   use SupplId#pilot-claudia-minute
+  use OutputAssignmentRevealedAttach#miami-diagram-mineral
   use NamedFieldExtensionType#tuna-archer-melon
   use AnchorSet#shadow-dominic-pencil
   use NamedFieldGlobalStateType#museum-ohio-arizona
@@ -160,16 +159,16 @@ import RGBStd#carol-edgar-escape
   use Modifier#saturn-escort-jordan
   use NamedFieldAssignmentType#origin-caramel-flipper
   use TrustLevel#cobra-script-albino
-  use OutputAssignmentRevealedValue#farmer-giraffe-norway
-  use OutputAssignmentRevealedAttach#hawaii-analog-rubber
+  use OpEl#square-panic-shoe
   use NamedFieldMetaType#prefix-carmen-artist
   use NamedVariantu8#star-pilgrim-pilgrim
   use GlobalIface#concert-combat-charm
-  use OpEl#period-opera-chicken
   use SchemaIfaces#fossil-nepal-airline
+  use OutputAssignmentRevealedValue#aspect-caramel-diana
   use SupplMap#sailor-observe-bundle
   use OwnedIface#delphi-athlete-fresh
   use ContentId#scarlet-portal-office
+  use OutputAssignmentVoidState#mars-alabama-public
 
 import Std#ralph-blue-lucky
   use AlphaCaps#picnic-soprano-aurora
@@ -219,8 +218,8 @@ import Bitcoin#signal-color-cipher
 @mnemonic(carol-salute-aroma)
 data ContractIndex     : publicOpouts {RGBCommit.Opout ^ ..0xffffff}, outpointOpouts {RGBCommit.XChainExplicitSealTxid -> ^ ..0xffffff {RGBCommit.Opout ^ ..0xffffff}}
 
-@mnemonic(quasi-battery-mirror)
-data MemContract       : schemaId RGBCommit.SchemaId
+@mnemonic(shake-square-wizard)
+data MemContractState  : schemaId RGBCommit.SchemaId
                        , contractId RGBCommit.ContractId
                        , global {RGBCommit.GlobalStateType -> ^ ..0xff MemGlobalState}
                        , rights {RGBStd.OutputAssignmentVoidState ^ ..0xffffffff}
@@ -228,7 +227,7 @@ data MemContract       : schemaId RGBCommit.SchemaId
                        , data {RGBStd.OutputAssignmentRevealedData ^ ..0xffffffff}
                        , attach {RGBStd.OutputAssignmentRevealedAttach ^ ..0xffffffff}
 
-@mnemonic(chamber-academy-academy)
+@mnemonic(numeric-plasma-tunnel)
 data MemGlobalState    : known {RGBStd.OpEl -> ^ ..0xffffffff RGBCommit.DataState}, limit U24
 
 @mnemonic(flower-unicorn-bazaar)
@@ -253,7 +252,7 @@ data MemStash          : schemata {RGBCommit.SchemaId -> ^ ..0xff RGBStd.SchemaI
                        , libs {AluVM.LibId -> AluVM.Lib}
                        , sigs {RGBStd.ContentId -> RGBStd.ContentSigs}
 
-@mnemonic(forum-context-flood)
-data MemState          : witnesses {RGBCommit.XChainTxid -> ^ ..0xffffffff RGBCommit.WitnessOrd}, contracts {RGBCommit.ContractId -> ^ ..0xff MemContract}
+@mnemonic(maximum-blonde-herbert)
+data MemState          : witnesses {RGBCommit.XChainTxid -> ^ ..0xffffffff RGBLogic.TxOrd}, contracts {RGBCommit.ContractId -> ^ ..0xff MemContractState}
 
 

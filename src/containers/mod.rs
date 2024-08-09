@@ -43,8 +43,8 @@ pub use anchors::{
     AnchorSet, AnchoredBundles, BundledWitness, PubWitness, SealWitness, ToWitnessId, XPubWitness,
 };
 pub use consignment::{
-    Consignment, ConsignmentExt, ConsignmentId, Contract, Transfer, ValidConsignment,
-    ValidContract, ValidTransfer,
+    Consignment, ConsignmentExt, ConsignmentId, ConsignmentParseError, Contract, Transfer,
+    ValidConsignment, ValidContract, ValidTransfer,
 };
 pub use disclosure::Disclosure;
 pub use file::{FileContent, LoadError, UniversalFile};
@@ -53,15 +53,14 @@ pub use kit::{Kit, KitId, ValidKit};
 pub use partials::{
     Batch, BundleDichotomy, CloseMethodSet, Fascia, TransitionInfo, TransitionInfoError,
 };
-pub use seal::{BuilderSeal, TerminalSeal, VoutSeal};
+pub use seal::{BuilderSeal, VoutSeal};
 pub use suppl::{
     AnnotationName, Annotations, ContentRef, SupplId, SupplItem, SupplMap, SupplSub, Supplement,
     TickerSuppl, VelocityHint, SUPPL_ANNOT_IFACE_CLASS, SUPPL_ANNOT_IFACE_FEATURES,
     SUPPL_ANNOT_VELOCITY,
 };
 pub use util::{
-    ContainerVer, ContentId, ContentSigs, DumbValidator, SigBlob, SigValidator, Terminal,
-    TerminalDisclose, TrustLevel,
+    ContainerVer, ContentId, ContentSigs, DumbValidator, SigBlob, SigValidator, TrustLevel,
 };
 
 pub const ASCII_ARMOR_NAME: &str = "Name";

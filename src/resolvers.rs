@@ -20,30 +20,9 @@
 // limitations under the License.
 
 use rgb::validation::{ResolveWitness, WitnessResolverError};
-use rgb::vm::WitnessAnchor;
-use rgb::{XWitnessId, XWitnessTx};
+use rgb::vm::{WitnessOrd, XWitnessId, XWitnessTx};
 
 use crate::containers::IndexedConsignment;
-
-pub trait ResolveWitnessAnchor {
-    /// Resolves position of the witness anchor in the consensus data:
-    /// blockchain, state channel etc. Used for ordering of global state and for
-    /// ensuring that the account only for the actual contract state after
-    /// blockchain re-orgs and channel updates.
-    ///
-    /// Witness resolution must happen as fast and as cheap as getting
-    /// key-values from HashMap. Thus, resolver must always be caching and
-    /// doesn't actually re-query indexers for deeply mined transactions.
-    // TODO: Return WitnessOrd instead of WitnessAnchor
-    fn resolve_witness_anchor(&mut self, witness_id: XWitnessId) -> Result<WitnessAnchor, String>;
-}
-
-impl<T: ResolveWitnessAnchor> ResolveWitnessAnchor for &mut T {
-    #[inline]
-    fn resolve_witness_anchor(&mut self, witness_id: XWitnessId) -> Result<WitnessAnchor, String> {
-        (*self).resolve_witness_anchor(witness_id)
-    }
-}
 
 // TODO: Implement caching witness resolver
 
@@ -64,5 +43,12 @@ impl<'cons, R: ResolveWitness, const TRANSFER: bool> ResolveWitness
             .and_then(|p| p.map_ref(|pw| pw.tx().cloned()).transpose())
             .ok_or(WitnessResolverError::Unknown(witness_id))
             .or_else(|_| self.fallback.resolve_pub_witness(witness_id))
+    }
+
+    fn resolve_pub_witness_ord(
+        &self,
+        witness_id: XWitnessId,
+    ) -> Result<WitnessOrd, WitnessResolverError> {
+        self.fallback.resolve_pub_witness_ord(witness_id)
     }
 }

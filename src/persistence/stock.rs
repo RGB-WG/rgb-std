@@ -31,9 +31,8 @@ use amplify::Wrapper;
 use bp::seals::txout::CloseMethod;
 use bp::Vout;
 use chrono::Utc;
-use commit_verify::Conceal;
 use invoice::{Amount, Beneficiary, InvoiceState, NonFungible, RgbInvoice};
-use rgb::validation::{DbcProof, EAnchor};
+use rgb::validation::{DbcProof, EAnchor, ResolveWitness, WitnessResolverError};
 use rgb::{
     validation, AssignmentType, BlindingFactor, BundleId, ContractId, GraphSeal, Identity, OpId,
     Operation, Opout, SchemaId, SecretSeal, Transition, XChain, XOutpoint, XOutputSeal, XWitnessId,
@@ -49,16 +48,15 @@ use super::{
 };
 use crate::containers::{
     AnchorSet, AnchoredBundles, Batch, BuilderSeal, BundledWitness, Consignment, ContainerVer,
-    ContentId, ContentRef, Contract, Fascia, Kit, SealWitness, SupplItem, SupplSub, Terminal,
-    TerminalSeal, Transfer, TransitionInfo, TransitionInfoError, ValidConsignment, ValidContract,
-    ValidKit, ValidTransfer, VelocityHint, SUPPL_ANNOT_VELOCITY,
+    ContentId, ContentRef, Contract, Fascia, Kit, SealWitness, SupplItem, SupplSub, Transfer,
+    TransitionInfo, TransitionInfoError, ValidConsignment, ValidContract, ValidKit, ValidTransfer,
+    VelocityHint, SUPPL_ANNOT_VELOCITY,
 };
 use crate::info::{ContractInfo, IfaceInfo, SchemaInfo};
 use crate::interface::{
     BuilderError, ContractBuilder, ContractIface, Iface, IfaceClass, IfaceId, IfaceRef,
-    TransitionBuilder,
+    IfaceWrapper, TransitionBuilder,
 };
-use crate::resolvers::ResolveWitnessAnchor;
 use crate::{MergeRevealError, RevealError};
 
 pub type ContractAssignments = HashMap<XOutputSeal, HashMap<Opout, PersistedState>>;
@@ -108,7 +106,7 @@ pub enum StockError<
     StashData(StashDataError),
 
     /// witness {0} can't be resolved: {1}
-    WitnessUnresolved(XWitnessId, String),
+    WitnessUnresolved(XWitnessId, WitnessResolverError),
 }
 
 impl<S: StashProvider, H: StateProvider, P: IndexProvider, E: Error> From<StashError<S>>
@@ -162,9 +160,6 @@ pub enum ConsignError {
     /// unable to construct consignment: history size too large, resulting in
     /// too many transitions.
     TooManyBundles,
-
-    /// public state at operation output {0} is concealed.
-    ConcealedPublicState(Opout),
 
     #[from]
     #[display(inner)]
@@ -503,12 +498,16 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     #[allow(clippy::multiple_bound_locations)]
     pub fn contracts_by<'a, C: IfaceClass + 'a>(
         &'a self,
-    ) -> Result<impl Iterator<Item = C::Info> + 'a, StockError<S, H, P>>
-    where C: From<ContractIface<H::ContractRead<'a>>> {
+    ) -> Result<
+        impl Iterator<
+            Item = <C::Wrapper<H::ContractRead<'_>> as IfaceWrapper<H::ContractRead<'_>>>::Info,
+        > + 'a,
+        StockError<S, H, P>,
+    > {
         Ok(self.stash.geneses_by::<C>()?.filter_map(|genesis| {
             self.contract_iface_class::<C>(genesis.contract_id())
                 .as_ref()
-                .map(C::info)
+                .map(<C::Wrapper<H::ContractRead<'_>> as IfaceWrapper<H::ContractRead<'_>>>::info)
                 .ok()
         }))
     }
@@ -548,27 +547,23 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     }
 
     #[allow(clippy::multiple_bound_locations)]
-    pub fn contract_iface_class<'a, C: IfaceClass>(
-        &'a self,
+    pub fn contract_iface_class<C: IfaceClass>(
+        &self,
         contract_id: ContractId,
-    ) -> Result<C, StockError<S, H, P, ContractIfaceError>>
-    where
-        C: From<ContractIface<H::ContractRead<'a>>>,
-    {
+    ) -> Result<C::Wrapper<H::ContractRead<'_>>, StockError<S, H, P, ContractIfaceError>> {
         let (schema_ifaces, state, info) = self.contract_raw(contract_id)?;
         let iimpl = self.stash.impl_for::<C>(schema_ifaces)?;
 
         let iface = self.stash.iface(iimpl.iface_id)?;
         let (types, _) = self.stash.extract(&schema_ifaces.schema, [iface])?;
 
-        Ok(ContractIface {
+        Ok(C::Wrapper::with(ContractIface {
             state,
             schema: schema_ifaces.schema.clone(),
             iface: iimpl.clone(),
             types,
             info,
-        }
-        .into())
+        }))
     }
 
     /// Returns the best matching abstract interface to a contract.
@@ -709,8 +704,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         &self,
         contract_id: ContractId,
     ) -> Result<Contract, StockError<S, H, P, ConsignError>> {
-        let mut consignment = self.consign::<false>(contract_id, [], [])?;
-        consignment.transfer = false;
+        let consignment = self.consign::<false>(contract_id, [], [])?;
         Ok(consignment)
     }
 
@@ -720,8 +714,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         outputs: impl AsRef<[XOutputSeal]>,
         secret_seals: impl AsRef<[XChain<SecretSeal>]>,
     ) -> Result<Transfer, StockError<S, H, P, ConsignError>> {
-        let mut consignment = self.consign(contract_id, outputs, secret_seals)?;
-        consignment.transfer = true;
+        let consignment = self.consign(contract_id, outputs, secret_seals)?;
         Ok(consignment)
     }
 
@@ -765,7 +758,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         // 1.3. Collect all state transitions assigning state to the provided outpoints
         let mut bundled_witnesses = BTreeMap::<BundleId, BundledWitness>::new();
         let mut transitions = BTreeMap::<OpId, Transition>::new();
-        let mut terminals = BTreeMap::<BundleId, Terminal>::new();
+        let mut terminals = BTreeMap::<BundleId, XChain<SecretSeal>>::new();
         for opout in opouts {
             if opout.op == contract_id {
                 continue; // we skip genesis since it will be present anywhere
@@ -775,28 +768,14 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             transitions.insert(opout.op, transition.clone());
 
             let bundle_id = self.index.bundle_id_for_op(transition.id())?;
-            // 2. Collect seals from terminal transitions to add to the consignment
+            // 2. Collect secret seals from terminal transitions to add to the consignment
             //    terminals
-            for (type_id, typed_assignments) in transition.assignments.iter() {
+            for typed_assignments in transition.assignments.values() {
                 for index in 0..typed_assignments.len_u16() {
                     let seal = typed_assignments.to_confidential_seals()[index as usize];
                     if secret_seals.contains(&seal) {
-                        terminals
-                            .entry(bundle_id)
-                            .or_insert(Terminal::new(seal.map(TerminalSeal::from)))
-                            .seals
-                            .push(seal.map(TerminalSeal::from))
-                            .map_err(|_| ConsignError::TooManyTerminals)?;
-                    } else if opout.no == index && opout.ty == *type_id {
-                        if let Some(seal) = typed_assignments
-                            .revealed_seal_at(index)
-                            .expect("index exists")
-                        {
-                            let seal = seal.map(|s| s.conceal()).map(TerminalSeal::from);
-                            terminals.insert(bundle_id, Terminal::new(seal));
-                        } else {
-                            return Err(ConsignError::ConcealedPublicState(opout).into());
-                        }
+                        let res = terminals.insert(bundle_id, seal);
+                        assert_eq!(res, None);
                     }
                 }
             }
@@ -930,6 +909,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             prev_outputs,
             method,
             beneficiary_vout,
+            u8::MAX,
             allocator,
             |_, _| BlindingFactor::random(),
             |_, _| rand::random(),
@@ -946,6 +926,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         prev_outputs: impl IntoIterator<Item = impl Into<XOutputSeal>>,
         method: CloseMethod,
         beneficiary_vout: Option<impl Into<Vout>>,
+        priority: u8,
         allocator: impl Fn(ContractId, AssignmentType, VelocityHint) -> Option<Vout>,
         pedersen_blinder: impl Fn(ContractId, AssignmentType) -> BlindingFactor,
         seal_blinder: impl Fn(ContractId, AssignmentType) -> u64,
@@ -1130,7 +1111,9 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
         let main = TransitionInfo::new(main_transition, main_inputs)
             .map_err(|_| ComposeError::TooManyInputs)?;
-        Ok(Batch { main, blanks })
+        let mut batch = Batch { main, blanks };
+        batch.set_priority(priority);
+        Ok(batch)
     }
 
     fn store_transaction<E: Error>(
@@ -1170,32 +1153,32 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         Ok(status)
     }
 
-    pub fn import_contract<R: ResolveWitnessAnchor>(
+    pub fn import_contract<R: ResolveWitness>(
         &mut self,
         contract: ValidContract,
-        resolver: &mut R,
+        resolver: R,
     ) -> Result<validation::Status, StockError<S, H, P>> {
         self.consume_consignment(contract, resolver)
     }
 
-    pub fn accept_transfer<R: ResolveWitnessAnchor>(
+    pub fn accept_transfer<R: ResolveWitness>(
         &mut self,
         contract: ValidTransfer,
-        resolver: &mut R,
+        resolver: R,
     ) -> Result<validation::Status, StockError<S, H, P>> {
         self.consume_consignment(contract, resolver)
     }
 
-    fn consume_consignment<R: ResolveWitnessAnchor, const TRANSFER: bool>(
+    fn consume_consignment<R: ResolveWitness, const TRANSFER: bool>(
         &mut self,
         consignment: ValidConsignment<TRANSFER>,
-        mut resolver: R,
+        resolver: R,
     ) -> Result<validation::Status, StockError<S, H, P>> {
         let (mut consignment, status) = consignment.split();
 
         consignment = self.stash.resolve_secrets(consignment)?;
         self.store_transaction(move |stash, state, index| {
-            state.update_from_consignment(&consignment, &mut resolver)?;
+            state.update_from_consignment(&consignment, &resolver)?;
             index.index_consignment(&consignment)?;
             stash.consume_consignment(consignment)?;
             Ok(())
@@ -1212,10 +1195,10 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     ///
     /// Must be called before the consignment is created, when witness
     /// transaction is not yet mined.
-    pub fn consume_fascia<R: ResolveWitnessAnchor>(
+    pub fn consume_fascia<R: ResolveWitness>(
         &mut self,
         fascia: Fascia,
-        mut resolver: R,
+        resolver: R,
     ) -> Result<(), StockError<S, H, P, FasciaError>> {
         self.store_transaction(move |stash, state, index| {
             let witness_id = fascia.witness_id();
@@ -1234,7 +1217,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
                 }
 
                 index.index_bundle(contract_id, &bundle, witness_id)?;
-                state.update_from_bundle(contract_id, &bundle, witness_id, &mut resolver)?;
+                state.update_from_bundle(contract_id, &bundle, witness_id, &resolver)?;
                 stash.consume_bundle(bundle)?;
             }
             Ok(())
@@ -1251,9 +1234,10 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     }
 
     fn bundled_witness(&self, bundle_id: BundleId) -> Result<BundledWitness, StockError<S, H, P>> {
-        let (witness_id, contract_id) = self.index.bundle_info(bundle_id)?;
+        let (witness_ids, contract_id) = self.index.bundle_info(bundle_id)?;
 
         let bundle = self.stash.bundle(bundle_id)?.clone();
+        let witness_id = self.state.select_valid_witness(witness_ids)?;
         let witness = self.stash.witness(witness_id)?;
         let anchor = witness.anchors.clone();
         let (tapret, opret) = match anchor {
@@ -1296,7 +1280,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
     pub fn update_witnesses(
         &mut self,
-        resolver: impl ResolveWitnessAnchor,
+        resolver: impl ResolveWitness,
         after_height: u32,
     ) -> Result<UpdateRes, StockError<S, H, P>> {
         Ok(self.state.update_witnesses(resolver, after_height)?)
@@ -1314,7 +1298,7 @@ mod test {
     use std::str::FromStr;
 
     use baid64::FromBaid64Str;
-    use commit_verify::{DigestExt, Sha256};
+    use commit_verify::{Conceal, DigestExt, Sha256};
     use strict_encoding::TypeName;
 
     use super::*;

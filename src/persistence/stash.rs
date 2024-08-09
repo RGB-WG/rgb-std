@@ -466,15 +466,11 @@ impl<P: StashProvider> Stash<P> {
         &self,
         mut consignment: Consignment<TRANSFER>,
     ) -> Result<Consignment<TRANSFER>, StashError<P>> {
-        for (bundle_id, secret) in consignment.terminal_secrets() {
-            if let Some(seal) = self
-                .provider
+        consignment = consignment.reveal_terminal_seals(|secret| {
+            self.provider
                 .seal_secret(secret)
-                .map_err(StashError::ReadProvider)?
-            {
-                consignment = consignment.reveal_bundle_seal(bundle_id, seal);
-            }
-        }
+                .map_err(StashError::ReadProvider)
+        })?;
         Ok(consignment)
     }
 

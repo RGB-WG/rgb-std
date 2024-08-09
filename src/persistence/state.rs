@@ -19,13 +19,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt::Debug;
 use std::iter;
 
 use invoice::Amount;
-use rgb::vm::{ContractState, WitnessAnchor};
+use rgb::validation::{ResolveWitness, WitnessResolverError};
+use rgb::vm::{ContractStateAccess, WitnessOrd};
 use rgb::{
     AssetTag, AttachState, BlindingFactor, ContractId, DataState, Extension, Genesis, Operation,
     RevealedAttach, RevealedData, RevealedValue, Schema, SchemaId, Transition, TransitionBundle,
@@ -35,7 +37,6 @@ use rgb::{
 use crate::containers::{ConsignmentExt, ToWitnessId};
 use crate::contract::OutputAssignment;
 use crate::persistence::{StoreTransaction, UpdateRes};
-use crate::resolvers::ResolveWitnessAnchor;
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(inner)]
@@ -48,7 +49,7 @@ pub enum StateError<P: StateProvider> {
 
     /// witness {0} can't be resolved: {1}
     #[display(doc_comments)]
-    Resolver(XWitnessId, String),
+    Resolver(XWitnessId, WitnessResolverError),
 
     /// {0}
     ///
@@ -64,6 +65,9 @@ pub enum StateError<P: StateProvider> {
 pub enum StateInconsistency {
     /// contract state {0} is not known.
     UnknownContract(ContractId),
+    /// valid (non-archived) witness is absent in the list of witnesses for a
+    /// state transition bundle.
+    AbsentValidWitness,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Hash)]
@@ -121,12 +125,29 @@ impl<P: StateProvider> State<P> {
             .map_err(StateError::ReadProvider)
     }
 
-    pub fn update_from_bundle<R: ResolveWitnessAnchor>(
+    pub fn select_valid_witness(
+        &self,
+        witness_ids: impl IntoIterator<Item = impl Borrow<XWitnessId>>,
+    ) -> Result<XWitnessId, StateError<P>> {
+        for witness_id in witness_ids {
+            let witness_id = *witness_id.borrow();
+            if self
+                .provider
+                .is_valid_witness(witness_id)
+                .map_err(StateError::ReadProvider)?
+            {
+                return Ok(witness_id);
+            }
+        }
+        Err(StateError::Inconsistency(StateInconsistency::AbsentValidWitness))
+    }
+
+    pub fn update_from_bundle<R: ResolveWitness>(
         &mut self,
         contract_id: ContractId,
         bundle: &TransitionBundle,
         witness_id: XWitnessId,
-        mut resolver: R,
+        resolver: R,
     ) -> Result<(), StateError<P>> {
         let mut updater = self
             .as_provider_mut()
@@ -134,20 +155,20 @@ impl<P: StateProvider> State<P> {
             .map_err(StateError::WriteProvider)?
             .ok_or(StateInconsistency::UnknownContract(contract_id))?;
         for transition in bundle.known_transitions.values() {
-            let witness_anchor = resolver
-                .resolve_witness_anchor(witness_id)
+            let ord = resolver
+                .resolve_pub_witness_ord(witness_id)
                 .map_err(|e| StateError::Resolver(witness_id, e))?;
             updater
-                .add_transition(transition, witness_anchor)
+                .add_transition(transition, witness_id, ord)
                 .map_err(StateError::WriteProvider)?;
         }
         Ok(())
     }
 
-    pub fn update_from_consignment<R: ResolveWitnessAnchor>(
+    pub fn update_from_consignment<R: ResolveWitness>(
         &mut self,
         consignment: impl ConsignmentExt,
-        mut resolver: R,
+        resolver: R,
     ) -> Result<(), StateError<P>> {
         let mut state = self
             .as_provider_mut()
@@ -163,12 +184,12 @@ impl<P: StateProvider> State<P> {
             for bundle in bundled_witness.anchored_bundles.bundles() {
                 for transition in bundle.known_transitions.values() {
                     let witness_id = bundled_witness.pub_witness.to_witness_id();
-                    let witness_anchor = resolver
-                        .resolve_witness_anchor(witness_id)
+                    let witness_ord = resolver
+                        .resolve_pub_witness_ord(witness_id)
                         .map_err(|e| StateError::Resolver(witness_id, e))?;
 
                     state
-                        .add_transition(transition, witness_anchor)
+                        .add_transition(transition, witness_id, witness_ord)
                         .map_err(StateError::WriteProvider)?;
                     for (id, used) in &mut extension_idx {
                         if *used {
@@ -177,12 +198,12 @@ impl<P: StateProvider> State<P> {
                         for input in &transition.inputs {
                             if input.prev_out.op == *id {
                                 *used = true;
-                                if let Some(ord) = ordered_extensions.get_mut(id) {
-                                    if *ord > witness_anchor {
-                                        *ord = witness_anchor;
+                                if let Some((_, witness_ord2)) = ordered_extensions.get_mut(id) {
+                                    if *witness_ord2 < witness_ord {
+                                        *witness_ord2 = witness_ord;
                                     }
                                 } else {
-                                    ordered_extensions.insert(*id, witness_anchor);
+                                    ordered_extensions.insert(*id, (witness_id, witness_ord));
                                 }
                             }
                         }
@@ -191,11 +212,14 @@ impl<P: StateProvider> State<P> {
             }
         }
         for extension in consignment.extensions() {
-            if let Some(witness_anchor) = ordered_extensions.get(&extension.id()) {
+            if let Some((witness_id, witness_ord)) = ordered_extensions.get(&extension.id()) {
                 state
-                    .add_extension(extension, *witness_anchor)
+                    .add_extension(extension, *witness_id, *witness_ord)
                     .map_err(StateError::WriteProvider)?;
             }
+            // Otherwise consignment includes state extensions which are not
+            // used in transaction graph. This must not be the case for the
+            // validated consignments.
         }
 
         Ok(())
@@ -203,7 +227,7 @@ impl<P: StateProvider> State<P> {
 
     pub fn update_witnesses(
         &mut self,
-        resolver: impl ResolveWitnessAnchor,
+        resolver: impl ResolveWitness,
         after_height: u32,
     ) -> Result<UpdateRes, StateError<P>> {
         self.provider
@@ -241,6 +265,8 @@ pub trait StateReadProvider {
         &self,
         contract_id: ContractId,
     ) -> Result<Self::ContractRead<'_>, Self::Error>;
+
+    fn is_valid_witness(&self, witness_id: XWitnessId) -> Result<bool, Self::Error>;
 }
 
 pub trait StateWriteProvider: StoreTransaction<TransactionErr = Self::Error> {
@@ -261,12 +287,12 @@ pub trait StateWriteProvider: StoreTransaction<TransactionErr = Self::Error> {
 
     fn update_witnesses(
         &mut self,
-        resolver: impl ResolveWitnessAnchor,
+        resolver: impl ResolveWitness,
         after_height: u32,
     ) -> Result<UpdateRes, Self::Error>;
 }
 
-pub trait ContractStateRead: ContractState {
+pub trait ContractStateRead: ContractStateAccess {
     fn contract_id(&self) -> ContractId;
     fn schema_id(&self) -> SchemaId;
     fn rights_all(&self) -> impl Iterator<Item = &OutputAssignment<VoidState>>;
@@ -283,12 +309,14 @@ pub trait ContractStateWrite {
     fn add_transition(
         &mut self,
         transition: &Transition,
-        witness_anchor: WitnessAnchor,
+        witness_id: XWitnessId,
+        witness_ord: WitnessOrd,
     ) -> Result<(), Self::Error>;
 
     fn add_extension(
         &mut self,
         extension: &Extension,
-        witness_anchor: WitnessAnchor,
+        witness_id: XWitnessId,
+        witness_ord: WitnessOrd,
     ) -> Result<(), Self::Error>;
 }
