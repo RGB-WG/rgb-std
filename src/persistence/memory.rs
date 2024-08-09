@@ -503,7 +503,6 @@ impl StoreTransaction for MemState {
     }
 
     fn commit_transaction(&mut self) -> Result<(), Self::TransactionErr> {
-        #[cfg(feature = "fs")]
         if self.dirty && self.autosave {
             self.store()?;
         }
@@ -1215,7 +1214,6 @@ impl StoreTransaction for MemIndex {
     }
 
     fn commit_transaction(&mut self) -> Result<(), Self::TransactionErr> {
-        #[cfg(feature = "fs")]
         if self.dirty && self.autosave {
             self.store()?;
         }
@@ -1455,8 +1453,7 @@ impl IndexWriteProvider for MemIndex {
     }
 }
 
-#[cfg(feature = "fs")]
-mod fs {
+mod store {
     use crate::persistence::store::Stored;
     use crate::persistence::{MemIndex, MemStash, MemState, StoreError, StoreProvider};
 
