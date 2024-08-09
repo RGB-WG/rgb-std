@@ -28,9 +28,10 @@ use bp::dbc::tapret::TapretProof;
 use bp::dbc::{anchor, Anchor};
 use bp::{Tx, Txid};
 use commit_verify::{mpc, CommitId};
+use rgb::validation::{DbcProof, EAnchor};
 use rgb::{
-    BundleDisclosure, BundleId, ContractId, DbcProof, DiscloseHash, EAnchor, Operation, Transition,
-    TransitionBundle, XChain, XWitnessId,
+    BundleDisclosure, BundleId, ContractId, DiscloseHash, Operation, Transition, TransitionBundle,
+    XChain, XWitnessId,
 };
 use strict_encoding::StrictDumb;
 

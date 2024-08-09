@@ -20,11 +20,12 @@
 // limitations under the License.
 
 use rgb::validation::{ResolveWitness, WitnessResolverError};
+use rgb::vm::WitnessAnchor;
 use rgb::XWitnessTx;
 use strict_encoding::StrictDumb;
 
-use crate::resolvers::ResolveHeight;
-use crate::{WitnessAnchor, XWitnessId};
+use crate::resolvers::ResolveWitnessAnchor;
+use crate::XWitnessId;
 
 pub(crate) struct DumbResolver;
 
@@ -34,8 +35,8 @@ impl ResolveWitness for DumbResolver {
     }
 }
 
-impl ResolveHeight for DumbResolver {
-    fn resolve_height(&mut self, _: XWitnessId) -> Result<WitnessAnchor, String> {
+impl ResolveWitnessAnchor for DumbResolver {
+    fn resolve_witness_anchor(&mut self, _: XWitnessId) -> Result<WitnessAnchor, String> {
         Ok(WitnessAnchor::strict_dumb())
     }
 }

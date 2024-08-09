@@ -31,7 +31,7 @@ use rgb::{
 };
 use strict_encoding::SerializeError;
 
-use crate::containers::{BundledWitness, Consignment, ToWitnessId};
+use crate::containers::{BundledWitness, ConsignmentExt, ToWitnessId};
 use crate::persistence::StoreTransaction;
 use crate::SecretSeal;
 
@@ -157,23 +157,23 @@ impl<P: IndexProvider> Index<P> {
     #[cfg(feature = "fs")]
     pub(super) fn as_provider_mut(&mut self) -> &mut P { &mut self.provider }
 
-    pub(super) fn index_consignment<const TRANSFER: bool>(
+    pub(super) fn index_consignment(
         &mut self,
-        consignment: &Consignment<TRANSFER>,
+        consignment: impl ConsignmentExt,
     ) -> Result<(), IndexError<P>> {
         let contract_id = consignment.contract_id();
 
         self.provider
             .register_contract(contract_id)
             .map_err(IndexError::WriteProvider)?;
-        self.index_genesis(contract_id, &consignment.genesis)?;
-        for extension in &consignment.extensions {
+        self.index_genesis(contract_id, consignment.genesis())?;
+        for extension in consignment.extensions() {
             self.index_extension(contract_id, extension)?;
         }
         for BundledWitness {
             pub_witness,
             anchored_bundles,
-        } in &consignment.bundles
+        } in consignment.bundled_witnesses()
         {
             let witness_id = pub_witness.to_witness_id();
             for bundle in anchored_bundles.bundles() {

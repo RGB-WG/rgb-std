@@ -43,7 +43,8 @@ pub use anchors::{
     AnchorSet, AnchoredBundles, BundledWitness, PubWitness, SealWitness, ToWitnessId, XPubWitness,
 };
 pub use consignment::{
-    Consignment, ConsignmentId, Contract, Transfer, ValidConsignment, ValidContract, ValidTransfer,
+    Consignment, ConsignmentExt, ConsignmentId, Contract, Transfer, ValidConsignment,
+    ValidContract, ValidTransfer,
 };
 pub use disclosure::Disclosure;
 pub use file::{FileContent, LoadError, UniversalFile};

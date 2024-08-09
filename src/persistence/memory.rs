@@ -19,40 +19,53 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::BTreeSet;
+use std::borrow::Borrow;
+use std::cmp::Ordering;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::convert::Infallible;
+use std::num::NonZeroU32;
 #[cfg(feature = "fs")]
 use std::path::PathBuf;
+use std::{iter, mem};
 
 use aluvm::library::{Lib, LibId};
 use amplify::confinement::{
-    self, Confined, LargeOrdMap, MediumBlob, MediumOrdMap, MediumOrdSet, SmallOrdMap, TinyOrdMap,
-    TinyOrdSet,
+    self, Confined, LargeOrdMap, LargeOrdSet, MediumBlob, MediumOrdMap, MediumOrdSet, SmallOrdMap,
+    TinyOrdMap, TinyOrdSet,
 };
+use amplify::num::u24;
 use bp::dbc::tapret::TapretCommitment;
 use commit_verify::{CommitId, Conceal};
+use rgb::vm::{
+    AssignmentWitness, ContractState, GlobalContractState, GlobalOrd, GlobalStateIter,
+    UnknownGlobalStateType, WitnessAnchor,
+};
 use rgb::{
-    Assign, AssignmentType, AttachId, BundleId, ContractHistory, ContractId, ExposedState,
-    Extension, Genesis, GenesisSeal, GraphSeal, Identity, OpId, Operation, Opout, Schema, SchemaId,
-    SecretSeal, TransitionBundle, XChain, XOutputSeal, XWitnessId,
+    Assign, AssignmentType, Assignments, AssignmentsRef, AttachId, AttachState, BundleId,
+    ContractId, DataState, ExposedSeal, ExposedState, Extension, FungibleState, Genesis,
+    GenesisSeal, GlobalStateType, GraphSeal, Identity, OpId, Operation, Opout, RevealedAttach,
+    RevealedData, RevealedValue, Schema, SchemaId, SecretSeal, Transition, TransitionBundle,
+    TypedAssigns, VoidState, WitnessOrd, XChain, XOutpoint, XOutputSeal, XWitnessId,
 };
 use strict_encoding::{SerializeError, StrictDeserialize, StrictSerialize};
 use strict_types::TypeSystem;
 
 use super::{
-    ContractIfaceError, IndexInconsistency, IndexProvider, IndexReadError, IndexReadProvider,
-    IndexWriteError, IndexWriteProvider, SchemaIfaces, StashInconsistency, StashProvider,
-    StashProviderError, StashReadProvider, StashWriteProvider, StateProvider, StateReadProvider,
-    StateUpdateError, StateWriteProvider, StoreTransaction,
+    ContractIfaceError, ContractStateRead, ContractStateWrite, IndexInconsistency, IndexProvider,
+    IndexReadError, IndexReadProvider, IndexWriteError, IndexWriteProvider, SchemaIfaces,
+    StashInconsistency, StashProvider, StashProviderError, StashReadProvider, StashWriteProvider,
+    StateInconsistency, StateProvider, StateReadProvider, StateWriteProvider, StoreTransaction,
+    UpdateRes,
 };
 use crate::containers::{
     AnchorSet, ContentId, ContentRef, ContentSigs, SealWitness, SigBlob, Supplement, TrustLevel,
 };
+use crate::contract::{KnownState, OutputAssignment};
 use crate::interface::{Iface, IfaceClass, IfaceId, IfaceImpl, IfaceRef};
 #[cfg(feature = "fs")]
 use crate::persistence::fs::FsStored;
-use crate::resolvers::ResolveHeight;
-use crate::LIB_NAME_RGB_STD;
+use crate::resolvers::ResolveWitnessAnchor;
+use crate::{OpEl, LIB_NAME_RGB_STORAGE};
 
 //////////
 // STASH
@@ -62,7 +75,7 @@ use crate::LIB_NAME_RGB_STD;
 #[derive(Getters, Clone, Debug, Default)]
 #[getter(prefix = "debug_")]
 #[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[strict_type(lib = LIB_NAME_RGB_STORAGE)]
 pub struct MemStash {
     #[strict_type(skip)]
     dirty: bool,
@@ -420,14 +433,10 @@ impl StashWriteProvider for MemStash {
 // STATE
 //////////
 
-impl From<confinement::Error> for StateUpdateError<confinement::Error> {
-    fn from(err: confinement::Error) -> Self { StateUpdateError::Connectivity(err) }
-}
-
 #[derive(Getters, Clone, Debug, Default)]
 #[getter(prefix = "debug_")]
 #[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[strict_type(lib = LIB_NAME_RGB_STORAGE)]
 pub struct MemState {
     #[strict_type(skip)]
     dirty: bool,
@@ -435,7 +444,8 @@ pub struct MemState {
     #[strict_type(skip)]
     filename: PathBuf,
 
-    history: TinyOrdMap<ContractId, ContractHistory>,
+    witnesses: LargeOrdMap<XWitnessId, WitnessOrd>,
+    contracts: TinyOrdMap<ContractId, MemContract>,
 }
 
 impl StrictSerialize for MemState {}
@@ -463,43 +473,537 @@ impl StoreTransaction for MemState {
 impl StateProvider for MemState {}
 
 impl StateReadProvider for MemState {
-    type Error = confinement::Error;
+    type ContractRead<'a> = MemContractFiltered<'a>;
+    type Error = StateInconsistency;
 
     fn contract_state(
         &self,
         contract_id: ContractId,
-    ) -> Result<Option<&ContractHistory>, Self::Error> {
-        Ok(self.history.get(&contract_id))
+    ) -> Result<Self::ContractRead<'_>, Self::Error> {
+        let unfiltered = self
+            .contracts
+            .get(&contract_id)
+            .ok_or(StateInconsistency::UnknownContract(contract_id))?;
+        let filter = self
+            .witnesses
+            .iter()
+            .filter(|(id, _)| {
+                let id = **id;
+                unfiltered
+                    .global
+                    .values()
+                    .flat_map(|state| state.known.keys())
+                    .any(|el| el.witness == id) ||
+                    unfiltered.rights.iter().any(|a| a.witness == id) ||
+                    unfiltered.fungibles.iter().any(|a| a.witness == id) ||
+                    unfiltered.data.iter().any(|a| a.witness == id) ||
+                    unfiltered.attach.iter().any(|a| a.witness == id)
+            })
+            .map(|(id, ord)| (*id, *ord))
+            .collect();
+        Ok(MemContractFiltered { filter, unfiltered })
     }
 }
 
 impl StateWriteProvider for MemState {
+    type ContractWrite<'a> = MemContractWriter<'a>;
     type Error = SerializeError;
 
-    fn create_or_update_state<R: ResolveHeight>(
+    fn register_contract(
+        &mut self,
+        schema: &Schema,
+        genesis: &Genesis,
+    ) -> Result<Self::ContractWrite<'_>, Self::Error> {
+        // TODO: Add begin/commit transaction
+        let contract_id = genesis.contract_id();
+        // This crazy construction is caused by a stupidity of rust borrow checker
+        let contract = if self.contracts.contains_key(&contract_id) {
+            if let Some(contract) = self.contracts.get_mut(&contract_id) {
+                contract
+            } else {
+                unreachable!();
+            }
+        } else {
+            self.contracts
+                .insert(contract_id, MemContract::new(schema, contract_id))?;
+            self.contracts.get_mut(&contract_id).expect("just inserted")
+        };
+        let mut writer = MemContractWriter {
+            writer: Box::new(|wa: WitnessAnchor| -> Result<(), SerializeError> {
+                // NB: We do not check the existence of the witness since we have a newer
+                // version anyway and even if it is known we have to replace it
+                self.witnesses.insert(wa.witness_id, wa.witness_ord)?;
+                Ok(())
+            }),
+            contract,
+        };
+        writer.add_genesis(genesis)?;
+        Ok(writer)
+    }
+
+    fn update_contract(
         &mut self,
         contract_id: ContractId,
-        updater: impl FnOnce(Option<ContractHistory>) -> Result<ContractHistory, String>,
-    ) -> Result<(), StateUpdateError<Self::Error>> {
-        let state = self.history.get(&contract_id);
-        let updated =
-            updater(state.cloned()).map_err(|e| StateUpdateError::Resolver(e.to_string()))?;
-        self.history
-            .insert(contract_id, updated)
-            .map_err(|e| StateUpdateError::Connectivity(e.into()))?;
+    ) -> Result<Option<Self::ContractWrite<'_>>, Self::Error> {
+        // TODO: Add begin/commit transaction
+        Ok(self
+            .contracts
+            .get_mut(&contract_id)
+            .map(|contract| MemContractWriter {
+                // We can't move this constructor to a dedicated method due to the rust borrower
+                // checker
+                writer: Box::new(|wa: WitnessAnchor| -> Result<(), SerializeError> {
+                    // NB: We do not check the existence of the witness since we have a newer
+                    // version anyway and even if it is known we have to replace
+                    // it
+                    self.witnesses.insert(wa.witness_id, wa.witness_ord)?;
+                    Ok(())
+                }),
+                contract,
+            }))
+    }
+
+    fn update_witnesses(
+        &mut self,
+        mut resolver: impl ResolveWitnessAnchor,
+        after_height: u32,
+    ) -> Result<UpdateRes, Self::Error> {
+        let after_height = NonZeroU32::new(after_height).unwrap_or(NonZeroU32::MIN);
+        let mut succeeded = 0;
+        let mut failed = map![];
+        self.begin_transaction()?;
+        let mut witnesses = LargeOrdMap::new();
+        mem::swap(&mut self.witnesses, &mut witnesses);
+        let mut witnesses = witnesses.unbox();
+        for (id, ord) in &mut witnesses {
+            if matches!(ord, WitnessOrd::OnChain(pos) if pos.height() < after_height) {
+                continue;
+            }
+            match resolver.resolve_witness_anchor(*id) {
+                Ok(new) => *ord = new.witness_ord,
+                Err(err) => {
+                    failed.insert(*id, err.to_string());
+                }
+            }
+            succeeded += 1;
+        }
+        let mut witnesses =
+            LargeOrdMap::try_from(witnesses).inspect_err(|_| self.rollback_transaction())?;
+        mem::swap(&mut self.witnesses, &mut witnesses);
+        self.commit_transaction()?;
+        Ok(UpdateRes { succeeded, failed })
+    }
+}
+
+#[derive(Getters, Clone, Eq, PartialEq, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STORAGE)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
+pub struct MemGlobalState {
+    known: LargeOrdMap<OpEl, DataState>,
+    limit: u24,
+}
+
+impl MemGlobalState {
+    pub fn new(limit: u24) -> Self {
+        MemGlobalState {
+            known: empty!(),
+            limit,
+        }
+    }
+}
+
+/// Contract history accumulates raw data from the contract history, extracted
+/// from a series of consignments over the time. It does consensus ordering of
+/// the state data, but it doesn't interpret or validates the state against the
+/// schema.
+///
+/// To access the valid contract state use [`Contract`] APIs.
+#[derive(Getters, Clone, Eq, PartialEq, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STORAGE)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct MemContract {
+    #[getter(as_copy)]
+    schema_id: SchemaId,
+    #[getter(as_copy)]
+    contract_id: ContractId,
+    #[getter(skip)]
+    global: TinyOrdMap<GlobalStateType, MemGlobalState>,
+    rights: LargeOrdSet<OutputAssignment<VoidState>>,
+    fungibles: LargeOrdSet<OutputAssignment<RevealedValue>>,
+    data: LargeOrdSet<OutputAssignment<RevealedData>>,
+    attach: LargeOrdSet<OutputAssignment<RevealedAttach>>,
+}
+
+impl MemContract {
+    pub fn new(schema: &Schema, contract_id: ContractId) -> Self {
+        let global = TinyOrdMap::from_iter_unsafe(
+            schema
+                .global_types
+                .iter()
+                .map(|(ty, glob)| (*ty, MemGlobalState::new(glob.max_items))),
+        );
+        MemContract {
+            schema_id: schema.schema_id(),
+            contract_id,
+            global,
+            rights: empty!(),
+            fungibles: empty!(),
+            data: empty!(),
+            attach: empty!(),
+        }
+    }
+
+    fn add_operation(&mut self, op: &impl Operation, witness_id: AssignmentWitness) {
+        let opid = op.id();
+
+        for (ty, state) in op.globals() {
+            let map = self
+                .global
+                .get_mut(ty)
+                .expect("global map must be initialized from the schema");
+            for (idx, s) in state.iter().enumerate() {
+                let el = OpEl::new(opid, idx as u16, witness_id);
+                map.known
+                    .insert(el, s.clone())
+                    .expect("contract global state exceeded 2^32 items, which is unrealistic");
+            }
+        }
+
+        // We skip removing of invalidated state for the cases of re-orgs or unmined
+        // witness transactions committing to the new state.
+        // TODO: Expose an API to prune historic state by witness txid
+        /*
+        // Remove invalidated state
+        for input in &op.inputs() {
+            if let Some(o) = self.rights.iter().find(|r| r.opout == input.prev_out) {
+                let o = o.clone(); // need this b/c of borrow checker
+                self.rights
+                    .remove(&o)
+                    .expect("collection allows zero elements");
+            }
+            if let Some(o) = self.fungibles.iter().find(|r| r.opout == input.prev_out) {
+                let o = o.clone();
+                self.fungibles
+                    .remove(&o)
+                    .expect("collection allows zero elements");
+            }
+            if let Some(o) = self.data.iter().find(|r| r.opout == input.prev_out) {
+                let o = o.clone();
+                self.data
+                    .remove(&o)
+                    .expect("collection allows zero elements");
+            }
+            if let Some(o) = self.attach.iter().find(|r| r.opout == input.prev_out) {
+                let o = o.clone();
+                self.attach
+                    .remove(&o)
+                    .expect("collection allows zero elements");
+            }
+        }
+         */
+
+        match op.assignments() {
+            AssignmentsRef::Genesis(assignments) => {
+                self.add_assignments(witness_id, opid, assignments)
+            }
+            AssignmentsRef::Graph(assignments) => {
+                self.add_assignments(witness_id, opid, assignments)
+            }
+        }
+    }
+
+    fn add_assignments<Seal: ExposedSeal>(
+        &mut self,
+        witness_id: AssignmentWitness,
+        opid: OpId,
+        assignments: &Assignments<Seal>,
+    ) {
+        fn process<State: ExposedState + KnownState, Seal: ExposedSeal>(
+            contract_state: &mut LargeOrdSet<OutputAssignment<State>>,
+            assignments: &[Assign<State, Seal>],
+            opid: OpId,
+            ty: AssignmentType,
+            witness_id: AssignmentWitness,
+        ) {
+            for (no, seal, state) in assignments
+                .iter()
+                .enumerate()
+                .filter_map(|(n, a)| a.to_revealed().map(|(seal, state)| (n, seal, state)))
+            {
+                let assigned_state = match witness_id {
+                    AssignmentWitness::Present(witness_id) => {
+                        OutputAssignment::with_witness(seal, witness_id, state, opid, ty, no as u16)
+                    }
+                    AssignmentWitness::Absent => {
+                        OutputAssignment::with_no_witness(seal, state, opid, ty, no as u16)
+                    }
+                };
+                contract_state
+                    .push(assigned_state)
+                    .expect("contract state exceeded 2^32 items, which is unrealistic");
+            }
+        }
+
+        for (ty, assignments) in assignments.iter() {
+            match assignments {
+                TypedAssigns::Declarative(assignments) => {
+                    process(&mut self.rights, assignments, opid, *ty, witness_id)
+                }
+                TypedAssigns::Fungible(assignments) => {
+                    process(&mut self.fungibles, assignments, opid, *ty, witness_id)
+                }
+                TypedAssigns::Structured(assignments) => {
+                    process(&mut self.data, assignments, opid, *ty, witness_id)
+                }
+                TypedAssigns::Attachment(assignments) => {
+                    process(&mut self.attach, assignments, opid, *ty, witness_id)
+                }
+            }
+        }
+    }
+}
+
+pub struct MemContractFiltered<'mem> {
+    filter: HashMap<XWitnessId, WitnessOrd>,
+    unfiltered: &'mem MemContract,
+}
+
+impl<'mem> ContractState for MemContractFiltered<'mem> {
+    fn global(
+        &self,
+        ty: GlobalStateType,
+    ) -> Result<GlobalContractState<impl GlobalStateIter>, UnknownGlobalStateType> {
+        type Src<'a> = &'a BTreeMap<OpEl, DataState>;
+        type FilteredIter<'a> = Box<dyn Iterator<Item = (GlobalOrd, &'a DataState)> + 'a>;
+        struct Iter<'a> {
+            src: Src<'a>,
+            iter: FilteredIter<'a>,
+            last: Option<(GlobalOrd, &'a DataState)>,
+            depth: u24,
+            constructor: Box<dyn Fn(Src<'a>) -> FilteredIter<'a> + 'a>,
+        }
+        impl<'a> Iter<'a> {
+            fn swap(&mut self) -> FilteredIter<'a> {
+                let mut iter = (self.constructor)(self.src);
+                mem::swap(&mut iter, &mut self.iter);
+                iter
+            }
+        }
+        impl<'a> GlobalStateIter for Iter<'a> {
+            type Data = &'a DataState;
+            fn size(&mut self) -> u24 {
+                let iter = self.swap();
+                // TODO: Consuming iterator just to count items is highly inefficient, but I do
+                //       not know any other way of computing this value
+                let size = iter.count();
+                u24::try_from(size as u32).expect("iterator size must fit u24 due to `take` limit")
+            }
+            fn prev(&mut self) -> Option<(GlobalOrd, Self::Data)> {
+                self.last = self.iter.next();
+                self.depth += u24::ONE;
+                self.last()
+            }
+            fn last(&mut self) -> Option<(GlobalOrd, Self::Data)> { self.last }
+            fn reset(&mut self, depth: u24) {
+                match self.depth.cmp(&depth) {
+                    Ordering::Less => {
+                        let mut iter = Box::new(iter::empty()) as FilteredIter;
+                        mem::swap(&mut self.iter, &mut iter);
+                        self.iter = Box::new(iter.skip(depth.to_usize() - depth.to_usize()))
+                    }
+                    Ordering::Equal => {}
+                    Ordering::Greater => {
+                        let iter = self.swap();
+                        self.iter = Box::new(iter.skip(depth.to_usize()));
+                    }
+                }
+            }
+        }
+        // We need this due to the limitations of the rust compiler to enforce lifetimes
+        // on closures
+        fn constrained<'a, F: Fn(Src<'a>) -> FilteredIter<'a>>(f: F) -> F { f }
+
+        let state = self
+            .unfiltered
+            .global
+            .get(&ty)
+            .ok_or(UnknownGlobalStateType(ty))?;
+
+        let constructor = constrained(move |src: Src<'_>| -> FilteredIter<'_> {
+            Box::new(
+                src.iter()
+                    .rev()
+                    .filter_map(|(el, data)| {
+                        let ord = match el.witness.witness_id() {
+                            None => GlobalOrd::genesis(el.no),
+                            Some(id) => {
+                                let ord = self.filter.get(&id)?;
+                                GlobalOrd::with_witness(id, *ord, el.no)
+                            }
+                        };
+                        Some((ord, data))
+                    })
+                    .take(state.limit.to_usize()),
+            )
+        });
+        let iter = Iter {
+            src: state.known.as_inner(),
+            iter: constructor(state.known.as_inner()),
+            depth: u24::ZERO,
+            last: None,
+            constructor: Box::new(constructor),
+        };
+        Ok(GlobalContractState::new(iter))
+    }
+
+    fn rights(&self, outpoint: XOutpoint, ty: AssignmentType) -> u32 {
+        self.unfiltered
+            .rights
+            .iter()
+            .filter(|assignment| {
+                assignment.seal.to_outpoint() == outpoint && assignment.opout.ty == ty
+            })
+            .filter(|assignment| assignment.check_witness(&self.filter))
+            .count() as u32
+    }
+
+    fn fungible(
+        &self,
+        outpoint: XOutpoint,
+        ty: AssignmentType,
+    ) -> impl DoubleEndedIterator<Item = FungibleState> {
+        self.unfiltered
+            .fungibles
+            .iter()
+            .filter(move |assignment| {
+                assignment.seal.to_outpoint() == outpoint && assignment.opout.ty == ty
+            })
+            .filter(|assignment| assignment.check_witness(&self.filter))
+            .map(|assignment| assignment.state.value)
+    }
+
+    fn data(
+        &self,
+        outpoint: XOutpoint,
+        ty: AssignmentType,
+    ) -> impl DoubleEndedIterator<Item = impl Borrow<DataState>> {
+        self.unfiltered
+            .data
+            .iter()
+            .filter(move |assignment| {
+                assignment.seal.to_outpoint() == outpoint && assignment.opout.ty == ty
+            })
+            .filter(|assignment| assignment.check_witness(&self.filter))
+            .map(|assignment| &assignment.state.value)
+    }
+
+    fn attach(
+        &self,
+        outpoint: XOutpoint,
+        ty: AssignmentType,
+    ) -> impl DoubleEndedIterator<Item = impl Borrow<AttachState>> {
+        self.unfiltered
+            .attach
+            .iter()
+            .filter(move |assignment| {
+                assignment.seal.to_outpoint() == outpoint && assignment.opout.ty == ty
+            })
+            .filter(|assignment| assignment.check_witness(&self.filter))
+            .map(|assignment| &assignment.state.file)
+    }
+}
+
+impl<'mem> ContractStateRead for MemContractFiltered<'mem> {
+    #[inline]
+    fn contract_id(&self) -> ContractId { self.unfiltered.contract_id }
+
+    #[inline]
+    fn schema_id(&self) -> SchemaId { self.unfiltered.schema_id }
+
+    #[inline]
+    fn rights_all(&self) -> impl Iterator<Item = &OutputAssignment<VoidState>> {
+        self.unfiltered
+            .rights
+            .iter()
+            .filter(|assignment| assignment.check_witness(&self.filter))
+    }
+
+    #[inline]
+    fn fungible_all(&self) -> impl Iterator<Item = &OutputAssignment<RevealedValue>> {
+        self.unfiltered
+            .fungibles
+            .iter()
+            .filter(|assignment| assignment.check_witness(&self.filter))
+    }
+
+    #[inline]
+    fn data_all(&self) -> impl Iterator<Item = &OutputAssignment<RevealedData>> {
+        self.unfiltered
+            .data
+            .iter()
+            .filter(|assignment| assignment.check_witness(&self.filter))
+    }
+
+    #[inline]
+    fn attach_all(&self) -> impl Iterator<Item = &OutputAssignment<RevealedAttach>> {
+        self.unfiltered
+            .attach
+            .iter()
+            .filter(|assignment| assignment.check_witness(&self.filter))
+    }
+}
+
+pub struct MemContractWriter<'mem> {
+    writer: Box<dyn FnMut(WitnessAnchor) -> Result<(), SerializeError> + 'mem>,
+    contract: &'mem mut MemContract,
+}
+
+impl<'mem> ContractStateWrite for MemContractWriter<'mem> {
+    type Error = SerializeError;
+
+    /// # Panics
+    ///
+    /// If genesis violates RGB consensus rules and wasn't checked against the
+    /// schema before adding to the history.
+    fn add_genesis(&mut self, genesis: &Genesis) -> Result<(), Self::Error> {
+        self.contract
+            .add_operation(genesis, AssignmentWitness::Absent);
         Ok(())
     }
 
-    fn update_state<R: ResolveHeight>(
+    /// # Panics
+    ///
+    /// If state transition violates RGB consensus rules and wasn't checked
+    /// against the schema before adding to the history.
+    fn add_transition(
         &mut self,
-        contract_id: ContractId,
-        mut updater: impl FnMut(&mut ContractHistory) -> Result<(), String>,
-    ) -> Result<(), StateUpdateError<Self::Error>> {
-        let state = self
-            .history
-            .get_mut(&contract_id)
-            .ok_or(StateUpdateError::UnknownContract(contract_id))?;
-        updater(state).map_err(|e| StateUpdateError::Resolver(e.to_string()))?;
+        transition: &Transition,
+        witness_anchor: WitnessAnchor,
+    ) -> Result<(), Self::Error> {
+        (self.writer)(witness_anchor)?;
+        self.contract
+            .add_operation(transition, AssignmentWitness::Present(witness_anchor.witness_id));
+        Ok(())
+    }
+
+    /// # Panics
+    ///
+    /// If state extension violates RGB consensus rules and wasn't checked
+    /// against the schema before adding to the history.
+    fn add_extension(
+        &mut self,
+        extension: &Extension,
+        witness_anchor: WitnessAnchor,
+    ) -> Result<(), Self::Error> {
+        (self.writer)(witness_anchor)?;
+        self.contract
+            .add_operation(extension, AssignmentWitness::Present(witness_anchor.witness_id));
         Ok(())
     }
 }
@@ -518,7 +1022,7 @@ impl From<confinement::Error> for IndexWriteError<confinement::Error> {
 
 #[derive(Clone, Debug, Default)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[strict_type(lib = LIB_NAME_RGB_STORAGE)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
@@ -532,7 +1036,7 @@ pub struct ContractIndex {
 #[derive(Getters, Clone, Debug, Default)]
 #[getter(prefix = "debug_")]
 #[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[strict_type(lib = LIB_NAME_RGB_STORAGE)]
 pub struct MemIndex {
     #[strict_type(skip)]
     dirty: bool,

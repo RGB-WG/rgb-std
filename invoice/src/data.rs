@@ -21,7 +21,7 @@
 
 use std::str::FromStr;
 
-use rgb::{DataState, KnownState, RevealedData};
+use rgb::{DataState, RevealedData};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use strict_encoding::{StrictDeserialize, StrictSerialize};
@@ -155,8 +155,6 @@ impl Allocation {
 
 impl StrictSerialize for Allocation {}
 impl StrictDeserialize for Allocation {}
-
-impl KnownState for Allocation {}
 
 impl From<RevealedData> for Allocation {
     fn from(data: RevealedData) -> Self {
