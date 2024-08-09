@@ -23,7 +23,7 @@ use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 use std::hash::{Hash, Hasher};
 use std::ops::{BitOr, BitOrAssign};
-use std::vec;
+use std::{iter, vec};
 
 use amplify::confinement::{Confined, U24};
 use bp::seals::txout::CloseMethod;
@@ -31,7 +31,7 @@ use rgb::{
     ContractId, OpId, Operation, Transition, TransitionBundle, TxoSeal, XOutpoint, XOutputSeal,
     XWitnessId,
 };
-use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
+use strict_encoding::{StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize};
 
 use crate::containers::{AnchorSet, XPubWitness};
 use crate::LIB_NAME_RGB_STD;
@@ -194,8 +194,8 @@ pub enum TransitionInfoError {
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct Batch {
-    pub main: TransitionInfo,
-    pub blanks: Confined<Vec<TransitionInfo>, 0, { U24 - 1 }>,
+    pub main: TransitionDichotomy,
+    pub blanks: Confined<Vec<TransitionDichotomy>, 0, { U24 - 1 }>,
 }
 
 impl StrictSerialize for Batch {}
@@ -203,31 +203,50 @@ impl StrictDeserialize for Batch {}
 
 impl IntoIterator for Batch {
     type Item = TransitionInfo;
-    type IntoIter = vec::IntoIter<TransitionInfo>;
+    type IntoIter = iter::FlatMap<
+        vec::IntoIter<Dichotomy<TransitionInfo>>,
+        vec::IntoIter<TransitionInfo>,
+        fn(Dichotomy<TransitionInfo>) -> <Dichotomy<TransitionInfo> as IntoIterator>::IntoIter,
+    >;
 
     fn into_iter(self) -> Self::IntoIter {
         let mut vec = self.blanks.into_inner();
         vec.push(self.main);
-        vec.into_iter()
+        vec.into_iter().flat_map(TransitionDichotomy::into_iter)
     }
 }
 
 impl Batch {
     pub fn close_method_set(&self) -> CloseMethodSet {
-        let mut methods = CloseMethodSet::from(self.main.method);
-        self.blanks.iter().for_each(|i| methods |= i.method);
+        let mut methods = CloseMethodSet::from(self.main.first.method);
+        self.main.second.as_ref().map(|info| methods |= info.method);
+        self.blanks.iter().for_each(|i| methods |= i.first.method);
+        self.blanks
+            .iter()
+            .filter_map(|i| i.second.as_ref())
+            .for_each(|i| methods |= i.method);
         methods
     }
 
     pub fn set_priority(&mut self, priority: u8) {
-        self.main.transition.nonce = priority;
+        self.main.first.transition.nonce = priority;
+        self.main
+            .second
+            .as_mut()
+            .map(|info| info.transition.nonce = priority);
         for info in &mut self.blanks {
-            info.transition.nonce = priority;
+            info.first.transition.nonce = priority;
+            info.second
+                .as_mut()
+                .map(|info| info.transition.nonce = priority);
         }
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+pub type BundleDichotomy = Dichotomy<TransitionBundle>;
+pub type TransitionDichotomy = Dichotomy<TransitionInfo>;
+
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(
@@ -235,14 +254,14 @@ impl Batch {
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-pub struct BundleDichotomy {
-    pub first: TransitionBundle,
-    pub second: Option<TransitionBundle>,
+pub struct Dichotomy<T: StrictDumb + StrictEncode + StrictDecode> {
+    pub first: T,
+    pub second: Option<T>,
 }
 
-impl IntoIterator for BundleDichotomy {
-    type Item = TransitionBundle;
-    type IntoIter = vec::IntoIter<TransitionBundle>;
+impl<T: StrictDumb + StrictEncode + StrictDecode> IntoIterator for Dichotomy<T> {
+    type Item = T;
+    type IntoIter = vec::IntoIter<T>;
 
     fn into_iter(self) -> Self::IntoIter {
         let mut vec = Vec::with_capacity(2);
@@ -254,12 +273,10 @@ impl IntoIterator for BundleDichotomy {
     }
 }
 
-impl BundleDichotomy {
-    pub fn with(first: TransitionBundle, second: Option<TransitionBundle>) -> Self {
-        Self { first, second }
-    }
+impl<T: StrictDumb + StrictEncode + StrictDecode> Dichotomy<T> {
+    pub fn with(first: T, second: Option<T>) -> Self { Self { first, second } }
 
-    pub fn iter(&self) -> vec::IntoIter<&TransitionBundle> {
+    pub fn iter(&self) -> vec::IntoIter<&T> {
         let mut vec = Vec::with_capacity(2);
         vec.push(&self.first);
         if let Some(ref s) = self.second {
