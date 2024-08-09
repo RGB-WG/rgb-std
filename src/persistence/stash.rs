@@ -48,7 +48,7 @@ use crate::interface::{
 use crate::persistence::{ContractIfaceError, StoreTransaction};
 use crate::{MergeReveal, MergeRevealError, SecretSeal, LIB_NAME_RGB_STD};
 
-#[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
+#[derive(Debug, Display, Error, From)]
 #[display(inner)]
 pub enum StashError<P: StashProvider> {
     /// Connectivity errors which may be recoverable and temporary.
@@ -675,7 +675,7 @@ pub trait StashReadProvider {
 }
 
 pub trait StashWriteProvider: StoreTransaction<TransactionErr = Self::Error> {
-    type Error: Clone + Eq + Error;
+    type Error: Error;
 
     fn replace_schema(&mut self, schema: Schema) -> Result<bool, Self::Error>;
     fn replace_iface(&mut self, iface: Iface) -> Result<bool, Self::Error>;

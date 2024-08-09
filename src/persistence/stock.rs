@@ -45,7 +45,7 @@ use super::{
     IndexWriteProvider, MemIndex, MemStash, MemState, PersistedState, SchemaIfaces, Stash,
     StashDataError, StashError, StashInconsistency, StashProvider, StashReadProvider,
     StashWriteProvider, State, StateError, StateInconsistency, StateProvider, StateReadProvider,
-    StateWriteProvider, StoreTransaction,
+    StateWriteProvider, StoreProvider, StoreTransaction, Stored,
 };
 use crate::containers::{
     AnchorSet, AnchoredBundles, Batch, BuilderSeal, BundledWitness, Consignment, ContainerVer,
@@ -62,7 +62,7 @@ use crate::{MergeRevealError, RevealError};
 
 pub type ContractAssignments = HashMap<XOutputSeal, HashMap<Opout, PersistedState>>;
 
-#[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
+#[derive(Debug, Display, Error, From)]
 #[display(inner)]
 pub enum StockError<
     S: StashProvider = MemStash,
@@ -375,89 +375,70 @@ impl Stock {
     }
 }
 
-#[cfg(feature = "fs")]
-mod fs {
-    use std::path::PathBuf;
+impl<S: StashProvider, H: StateProvider, I: IndexProvider> Stock<S, H, I>
+where
+    S: Stored,
+    H: Stored,
+    I: Stored,
+{
+    pub fn new_stored(
+        stash_provider: impl StoreProvider<Object = S> + 'static,
+        state_provider: impl StoreProvider<Object = H> + 'static,
+        index_provider: impl StoreProvider<Object = I> + 'static,
+        autosave: bool,
+    ) -> Self {
+        let stash = S::new_stored(stash_provider, autosave);
+        let state = H::new_stored(state_provider, autosave);
+        let index = I::new_stored(index_provider, autosave);
 
-    use strict_encoding::{DeserializeError, SerializeError};
+        Stock::with(stash, state, index)
+    }
 
-    use super::*;
-    use crate::persistence::fs::FsStored;
+    pub fn load(
+        stash_provider: impl StoreProvider<Object = S> + 'static,
+        state_provider: impl StoreProvider<Object = H> + 'static,
+        index_provider: impl StoreProvider<Object = I> + 'static,
+        autosave: bool,
+    ) -> Result<Self, String> {
+        let stash = S::load(stash_provider, autosave)?;
+        let state = H::load(state_provider, autosave)?;
+        let index = I::load(index_provider, autosave)?;
 
-    impl<S: StashProvider, H: StateProvider, I: IndexProvider> Stock<S, H, I>
-    where
-        S: FsStored,
-        H: FsStored,
-        I: FsStored,
-    {
-        pub fn new(path: impl ToOwned<Owned = PathBuf>, autosave: bool) -> Self {
-            let mut filename = path.to_owned();
-            filename.push("stash.dat");
-            let stash = S::new(filename, autosave);
+        Ok(Stock::with(stash, state, index))
+    }
 
-            let mut filename = path.to_owned();
-            filename.push("state.dat");
-            let state = H::new(filename, autosave);
+    pub fn autosave(&mut self) {
+        self.stash.as_provider_mut().autosave();
+        self.state.as_provider_mut().autosave();
+        self.index.as_provider_mut().autosave();
+    }
 
-            let mut filename = path.to_owned();
-            filename.push("index.dat");
-            let index = I::new(filename, autosave);
+    pub fn is_dirty(&self) -> bool {
+        self.as_stash_provider().is_dirty() ||
+            self.as_state_provider().is_dirty() ||
+            self.as_index_provider().is_dirty()
+    }
 
-            Stock::with(stash, state, index)
-        }
+    pub fn make_stored(
+        &mut self,
+        stash_provider: impl StoreProvider<Object = S> + 'static,
+        state_provider: impl StoreProvider<Object = H> + 'static,
+        index_provider: impl StoreProvider<Object = I> + 'static,
+    ) -> bool {
+        let _1 = self.stash.as_provider_mut().make_stored(stash_provider);
+        let _2 = self.state.as_provider_mut().make_stored(state_provider);
+        let _3 = self.index.as_provider_mut().make_stored(index_provider);
+        assert_eq!(_1, _2);
+        assert_eq!(_2, _3);
+        _1
+    }
 
-        pub fn load(
-            path: impl ToOwned<Owned = PathBuf>,
-            autosave: bool,
-        ) -> Result<Self, DeserializeError> {
-            let mut filename = path.to_owned();
-            filename.push("stash.dat");
-            let stash = S::load(filename, autosave)?;
+    pub fn store(&self) -> Result<(), String> {
+        self.as_stash_provider().store()?;
+        self.as_state_provider().store()?;
+        self.as_index_provider().store()?;
 
-            let mut filename = path.to_owned();
-            filename.push("state.dat");
-            let state = H::load(filename, autosave)?;
-
-            let mut filename = path.to_owned();
-            filename.push("index.dat");
-            let index = I::load(filename, autosave)?;
-
-            Ok(Stock::with(stash, state, index))
-        }
-
-        pub fn autosave(&mut self) {
-            self.stash.as_provider_mut().autosave();
-            self.state.as_provider_mut().autosave();
-            self.index.as_provider_mut().autosave();
-        }
-
-        pub fn is_dirty(&self) -> bool {
-            self.as_stash_provider().is_dirty()
-                || self.as_state_provider().is_dirty()
-                || self.as_index_provider().is_dirty()
-        }
-
-        pub fn set_path(&mut self, path: impl ToOwned<Owned = PathBuf>) {
-            let mut filename = path.to_owned();
-            filename.push("stash.dat");
-            self.stash.as_provider_mut().set_filename(filename);
-
-            let mut filename = path.to_owned();
-            filename.push("state.dat");
-            self.state.as_provider_mut().set_filename(filename);
-
-            let mut filename = path.to_owned();
-            filename.push("index.dat");
-            self.index.as_provider_mut().set_filename(filename);
-        }
-
-        pub fn store(&self) -> Result<(), SerializeError> {
-            self.as_stash_provider().store()?;
-            self.as_state_provider().store()?;
-            self.as_index_provider().store()?;
-
-            Ok(())
-        }
+        Ok(())
     }
 }
 
