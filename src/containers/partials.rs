@@ -219,7 +219,9 @@ impl IntoIterator for Batch {
 impl Batch {
     pub fn close_method_set(&self) -> CloseMethodSet {
         let mut methods = CloseMethodSet::from(self.main.first.method);
-        self.main.second.as_ref().map(|info| methods |= info.method);
+        if let Some(info) = &self.main.second {
+            methods |= info.method;
+        }
         self.blanks.iter().for_each(|i| methods |= i.first.method);
         self.blanks
             .iter()
@@ -230,15 +232,14 @@ impl Batch {
 
     pub fn set_priority(&mut self, priority: u8) {
         self.main.first.transition.nonce = priority;
-        self.main
-            .second
-            .as_mut()
-            .map(|info| info.transition.nonce = priority);
+        if let Some(info) = &mut self.main.second {
+            info.transition.nonce = priority;
+        }
         for info in &mut self.blanks {
             info.first.transition.nonce = priority;
-            info.second
-                .as_mut()
-                .map(|info| info.transition.nonce = priority);
+            if let Some(info) = &mut info.second {
+                info.transition.nonce = priority;
+            }
         }
     }
 }
