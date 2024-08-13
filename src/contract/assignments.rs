@@ -67,20 +67,10 @@ pub struct OutputAssignment<State: KnownState> {
 
 impl<State: KnownState> PartialEq for OutputAssignment<State> {
     fn eq(&self, other: &Self) -> bool {
-        if self.opout == other.opout &&
-            (self.seal != other.seal ||
-                self.witness != other.witness ||
-                self.state != other.state)
-        {
-            panic!(
-                "RGB was provided with an updated operation using different witness transaction. \
-                 This may happen for instance when some ephemeral state (like a commitment or \
-                 HTLC transactions in the lightning channels) is added to the stash.\nThis error \
-                 means the software uses RGB stash in an invalid way and has business logic bug \
-                 which has to be fixed.\nOperation in stash: {:?}\nNew operation: {:?}\n",
-                self, other
-            )
-        }
+        // We ignore difference in witness transactions, state and seal definitions here
+        // in order to support updates from the ephemeral state of the lightning
+        // channels. See <https://github.com/RGB-WG/rgb-std/issues/238#issuecomment-2283822128>
+        // for the details.
         self.opout == other.opout
     }
 }
