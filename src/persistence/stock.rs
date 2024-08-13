@@ -19,7 +19,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::cmp::Ordering;
 use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::convert::Infallible;
@@ -28,14 +27,16 @@ use std::fmt::Debug;
 
 use amplify::confinement::{Confined, U24};
 use amplify::Wrapper;
+use bp::dbc::Method;
 use bp::seals::txout::CloseMethod;
 use bp::Vout;
 use chrono::Utc;
 use invoice::{Amount, Beneficiary, InvoiceState, NonFungible, RgbInvoice};
 use rgb::validation::{DbcProof, EAnchor, ResolveWitness, WitnessResolverError};
 use rgb::{
-    validation, AssignmentType, BlindingFactor, BundleId, ContractId, GraphSeal, Identity, OpId,
-    Operation, Opout, SchemaId, SecretSeal, Transition, XChain, XOutpoint, XOutputSeal, XWitnessId,
+    validation, AssignmentType, BlindingFactor, BundleId, ContractId, DataState, GraphSeal,
+    Identity, OpId, Operation, Opout, SchemaId, SecretSeal, Transition, TxoSeal, XChain, XOutpoint,
+    XOutputSeal, XWitnessId,
 };
 use strict_encoding::FieldName;
 
@@ -49,8 +50,8 @@ use super::{
 use crate::containers::{
     AnchorSet, AnchoredBundles, Batch, BuilderSeal, BundledWitness, Consignment, ContainerVer,
     ContentId, ContentRef, Contract, Fascia, Kit, SealWitness, SupplItem, SupplSub, Transfer,
-    TransitionInfo, TransitionInfoError, ValidConsignment, ValidContract, ValidKit, ValidTransfer,
-    VelocityHint, SUPPL_ANNOT_VELOCITY,
+    TransitionDichotomy, TransitionInfo, TransitionInfoError, ValidConsignment, ValidContract,
+    ValidKit, ValidTransfer, VelocityHint, SUPPL_ANNOT_VELOCITY,
 };
 use crate::info::{ContractInfo, IfaceInfo, SchemaInfo};
 use crate::interface::{
@@ -987,6 +988,13 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             .assignments_type(&assignment_name)
             .ok_or(BuilderError::InvalidStateField(assignment_name.clone()))?;
 
+        // If there are inputs which are using different seal closing method from our
+        // wallet (and thus main state transition) we need to put them aside and
+        // allocate a different state transition spending them as a change.
+        let mut alt_builder =
+            self.transition_builder(contract_id, iface.clone(), invoice.operation.clone())?;
+        let mut alt_inputs = Vec::<XOutputSeal>::new();
+
         let layer1 = invoice.beneficiary.chain_network().layer1();
         let beneficiary = match (invoice.beneficiary.into_inner(), beneficiary_vout) {
             (Beneficiary::BlindedSeal(seal), None) => {
@@ -1008,63 +1016,125 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         // 2. Prepare transition
         let mut main_inputs = Vec::<XOutputSeal>::new();
         let mut sum_inputs = Amount::ZERO;
+        let mut sum_alt = Amount::ZERO;
         let mut data_inputs = vec![];
+        let mut data_main = true;
+        let lookup_state =
+            if let InvoiceState::Data(NonFungible::RGB21(allocation)) = &invoice.owned_state {
+                Some(DataState::from(allocation.clone()))
+            } else {
+                None
+            };
+
         for (output, list) in
             self.contract_assignments_for(contract_id, prev_outputs.iter().copied())?
         {
-            main_inputs.push(output);
+            if output.method() == method {
+                main_inputs.push(output)
+            } else {
+                alt_inputs.push(output)
+            };
             for (opout, mut state) in list {
-                main_builder = main_builder.add_input(opout, state.clone())?;
+                if output.method() == method {
+                    main_builder = main_builder.add_input(opout, state.clone())?;
+                } else {
+                    alt_builder = alt_builder.add_input(opout, state.clone())?;
+                }
                 if opout.ty != assignment_id {
                     let seal = output_for_assignment(contract_id, opout.ty)?;
                     state.update_blinding(pedersen_blinder(contract_id, assignment_id));
-                    main_builder = main_builder.add_owned_state_raw(opout.ty, seal, state)?;
+                    if output.method() == method {
+                        main_builder = main_builder.add_owned_state_raw(opout.ty, seal, state)?;
+                    } else {
+                        alt_builder = alt_builder.add_owned_state_raw(opout.ty, seal, state)?;
+                    }
                 } else if let PersistedState::Amount(value, _, _) = state {
                     sum_inputs += value;
+                    if output.method() != method {
+                        sum_alt += value;
+                    }
                 } else if let PersistedState::Data(value, _) = state {
+                    if lookup_state.as_ref() == Some(&value) && output.method() != method {
+                        data_main = false;
+                    }
                     data_inputs.push(value);
                 }
             }
         }
         // Add change
-        let main_transition = match invoice.owned_state.clone() {
+        match invoice.owned_state.clone() {
             InvoiceState::Amount(amt) => {
-                match sum_inputs.cmp(&amt) {
-                    Ordering::Greater => {
-                        let seal = output_for_assignment(contract_id, assignment_id)?;
-                        main_builder = main_builder.add_fungible_state_raw(
-                            assignment_id,
-                            seal,
-                            sum_inputs - amt,
-                            pedersen_blinder(contract_id, assignment_id),
-                        )?;
-                    }
-                    Ordering::Less => return Err(ComposeError::InsufficientState.into()),
-                    Ordering::Equal => {}
+                if sum_inputs < amt {
+                    return Err(ComposeError::InsufficientState.into());
                 }
-                main_builder
-                    .add_fungible_state_raw(
+                let change_seal = output_for_assignment(contract_id, assignment_id)?;
+                let blinding_beneficiary = pedersen_blinder(contract_id, assignment_id);
+                let blinding_change = pedersen_blinder(contract_id, assignment_id);
+                let sum_main = sum_inputs - sum_alt;
+
+                // Pay beneficiary
+                let mut paid_main = Amount::ZERO;
+                let mut paid_alt = Amount::ZERO;
+                if sum_inputs > amt {
+                    paid_main = if sum_main < amt { sum_main } else { amt };
+                    main_builder = main_builder.add_fungible_state_raw(
                         assignment_id,
                         beneficiary,
-                        amt,
-                        pedersen_blinder(contract_id, assignment_id),
-                    )?
-                    .complete_transition()?
+                        paid_main,
+                        blinding_beneficiary,
+                    )?;
+                    if sum_main < amt {
+                        paid_alt = amt - sum_main;
+                        alt_builder = alt_builder.add_fungible_state_raw(
+                            assignment_id,
+                            beneficiary,
+                            paid_alt,
+                            blinding_beneficiary,
+                        )?;
+                    }
+                }
+
+                // Pay change
+                if sum_main > paid_main {
+                    main_builder = main_builder.add_fungible_state_raw(
+                        assignment_id,
+                        change_seal,
+                        sum_main - paid_main,
+                        blinding_change,
+                    )?;
+                }
+                if sum_alt > paid_alt {
+                    alt_builder = alt_builder.add_fungible_state_raw(
+                        assignment_id,
+                        change_seal,
+                        sum_alt - paid_alt,
+                        blinding_change,
+                    )?;
+                }
             }
             InvoiceState::Data(data) => match data {
                 NonFungible::RGB21(allocation) => {
-                    if !data_inputs.into_iter().any(|x| x == allocation.into()) {
+                    let lookup_state = DataState::from(allocation);
+                    if !data_inputs.into_iter().any(|x| x == lookup_state) {
                         return Err(ComposeError::InsufficientState.into());
                     }
 
-                    main_builder
-                        .add_data_raw(
+                    let seal = seal_blinder(contract_id, assignment_id);
+                    if data_main {
+                        main_builder = main_builder.add_data_raw(
                             assignment_id,
                             beneficiary,
                             allocation,
-                            seal_blinder(contract_id, assignment_id),
-                        )?
-                        .complete_transition()?
+                            seal,
+                        )?;
+                    } else {
+                        alt_builder = alt_builder.add_data_raw(
+                            assignment_id,
+                            beneficiary,
+                            allocation,
+                            seal,
+                        )?;
+                    }
                 }
             },
             _ => {
@@ -1073,7 +1143,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
                      supported"
                 )
             }
-        };
+        }
 
         // 3. Prepare other transitions
         // Enumerate state
@@ -1094,27 +1164,77 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         // Construct blank transitions
         let mut blanks = Confined::<Vec<_>, 0, { U24 - 1 }>::with_capacity(spent_state.len());
         for (id, list) in spent_state {
-            let mut blank_builder = self.blank_builder(id, iface.clone())?;
-            let mut outputs = Vec::with_capacity(list.len());
+            let mut blank_builder_tapret = self.blank_builder(id, iface.clone())?;
+            let mut blank_builder_opret = self.blank_builder(id, iface.clone())?;
+            let mut outputs_tapret = Vec::with_capacity(list.len());
+            let mut outputs_opret = Vec::with_capacity(list.len());
             for (output, assigns) in list {
-                outputs.push(output);
+                match output.method() {
+                    Method::TapretFirst => outputs_tapret.push(output),
+                    Method::OpretFirst => outputs_opret.push(output),
+                }
                 for (opout, state) in assigns {
                     let seal = output_for_assignment(id, opout.ty)?;
-                    blank_builder = blank_builder
-                        .add_input(opout, state.clone())?
-                        .add_owned_state_raw(opout.ty, seal, state)?;
+                    match output.method() {
+                        Method::TapretFirst => {
+                            blank_builder_tapret = blank_builder_tapret
+                                .add_input(opout, state.clone())?
+                                .add_owned_state_raw(opout.ty, seal, state)?
+                        }
+                        Method::OpretFirst => {
+                            blank_builder_opret = blank_builder_opret
+                                .add_input(opout, state.clone())?
+                                .add_owned_state_raw(opout.ty, seal, state)?
+                        }
+                    }
                 }
             }
 
-            let transition = blank_builder.complete_transition()?;
-            let info = TransitionInfo::new(transition, outputs)
-                .map_err(|_| ComposeError::TooManyInputs)?;
-            blanks.push(info).map_err(|_| ComposeError::TooManyBlanks)?;
+            let mut dicho = vec![];
+            for (blank_builder, outputs) in
+                [(blank_builder_tapret, outputs_tapret), (blank_builder_opret, outputs_opret)]
+            {
+                if !blank_builder.has_inputs() {
+                    continue;
+                }
+                let transition = blank_builder.complete_transition()?;
+                let info = TransitionInfo::new(transition, outputs).map_err(|e| {
+                    debug_assert!(!matches!(e, TransitionInfoError::CloseMethodDivergence(_)));
+                    ComposeError::TooManyInputs
+                })?;
+                dicho.push(info);
+            }
+            blanks
+                .push(TransitionDichotomy::from_iter(dicho))
+                .map_err(|_| ComposeError::TooManyBlanks)?;
         }
 
-        let main = TransitionInfo::new(main_transition, main_inputs)
-            .map_err(|_| ComposeError::TooManyInputs)?;
-        let mut batch = Batch { main, blanks };
+        let (first_builder, second_builder) =
+            match (main_builder.has_inputs(), alt_builder.has_inputs()) {
+                (true, true) => (main_builder, Some(alt_builder)),
+                (true, false) => (main_builder, None),
+                (false, true) => (alt_builder, None),
+                (false, false) => return Err(ComposeError::InsufficientState.into()),
+            };
+        let first = TransitionInfo::new(first_builder.complete_transition()?, main_inputs)
+            .map_err(|e| {
+                debug_assert!(!matches!(e, TransitionInfoError::CloseMethodDivergence(_)));
+                ComposeError::TooManyInputs
+            })?;
+        let second = if let Some(second_builder) = second_builder {
+            Some(TransitionInfo::new(second_builder.complete_transition()?, alt_inputs).map_err(
+                |e| {
+                    debug_assert!(!matches!(e, TransitionInfoError::CloseMethodDivergence(_)));
+                    ComposeError::TooManyInputs
+                },
+            )?)
+        } else {
+            None
+        };
+        let mut batch = Batch {
+            main: TransitionDichotomy::with(first, second),
+            blanks,
+        };
         batch.set_priority(priority);
         Ok(batch)
     }
