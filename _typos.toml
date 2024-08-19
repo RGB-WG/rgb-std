@@ -1,0 +1,15 @@
+[files]
+# exclude the directory "stl/"
+extend-exclude = ["stl/"]
+
+[default.extend-words]
+# Don't correct the name "Jon Atack".
+Atack = "Atack"
+
+[default]
+extend-ignore-re = [
+    # Don't correct RGB address
+    "[0-9A-Za-z]{7}-[0-9A-Za-z]{9}-[0-9A-Za-z]{9}-[0-9A-Za-z]{9}-[0-9A-Za-z]{9}-[0-9A-Za-z]{6}",
+    "rgb:[0-9A-Za-z-]+",
+    "[0-9A-Za-z]{49}"
+]
