@@ -279,7 +279,7 @@ impl OwnedIface {
 
 impl Modifier {
     pub fn is_final(self) -> bool { self == Self::Final }
-    pub fn can_be_overriden_by(self, other: Modifier) -> bool {
+    pub fn can_be_overridden_by(self, other: Modifier) -> bool {
         matches!((self, other), (Self::Abstract | Self::Override, Self::Override | Self::Final))
     }
 }
@@ -561,7 +561,7 @@ impl GenesisIface {
         let op = OpName::Genesis;
         if self.modifier.is_final() {
             errors.push(ExtensionError::OpFinal(op.clone()));
-        } else if !self.modifier.can_be_overriden_by(ext.modifier) {
+        } else if !self.modifier.can_be_overridden_by(ext.modifier) {
             errors.push(ExtensionError::OpNoOverride(op.clone()));
         }
 
@@ -586,7 +586,7 @@ impl TransitionIface {
         let op = OpName::Transition(op_name);
         if self.modifier.is_final() {
             errors.push(ExtensionError::OpFinal(op.clone()));
-        } else if !self.modifier.can_be_overriden_by(ext.modifier) {
+        } else if !self.modifier.can_be_overridden_by(ext.modifier) {
             errors.push(ExtensionError::OpNoOverride(op.clone()));
         }
         self.optional = self.optional.max(ext.optional);
@@ -623,7 +623,7 @@ impl ExtensionIface {
         let op = OpName::Transition(op_name);
         if self.modifier.is_final() {
             errors.push(ExtensionError::OpFinal(op.clone()));
-        } else if !self.modifier.can_be_overriden_by(ext.modifier) {
+        } else if !self.modifier.can_be_overridden_by(ext.modifier) {
             errors.push(ExtensionError::OpNoOverride(op.clone()));
         }
         self.optional = self.optional.max(ext.optional);

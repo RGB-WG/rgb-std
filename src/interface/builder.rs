@@ -763,8 +763,8 @@ impl TransitionBuilder {
         allocation: impl Into<Allocation>,
         blinding: u64,
     ) -> Result<Self, BuilderError> {
-        let revelead_state = RevealedData::with_salt(allocation.into(), blinding.into());
-        self.builder = self.builder.add_data_raw(type_id, seal, revelead_state)?;
+        let revealed_state = RevealedData::with_salt(allocation.into(), blinding.into());
+        self.builder = self.builder.add_data_raw(type_id, seal, revealed_state)?;
         Ok(self)
     }
 
