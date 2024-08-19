@@ -849,7 +849,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
             ifaces.insert(iface.clone(), iimpl);
         }
-        let ifaces = Confined::from_collection_unsafe(ifaces);
+        let ifaces = Confined::from_checked(ifaces);
 
         let mut bundles = BTreeMap::<XWitnessId, BundledWitness>::new();
         for bw in bundled_witnesses.into_values() {
@@ -869,7 +869,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             Confined::try_from(terminals).map_err(|_| ConsignError::TooManyTerminals)?;
 
         let (types, scripts) = self.stash.extract(&schema_ifaces.schema, ifaces.keys())?;
-        let scripts = Confined::from_iter_unsafe(scripts.into_values());
+        let scripts = Confined::from_iter_checked(scripts.into_values());
         let supplements =
             Confined::try_from(supplements).map_err(|_| ConsignError::TooManySupplements)?;
         let signatures =
@@ -1021,7 +1021,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         let mut data_main = true;
         let lookup_state =
             if let InvoiceState::Data(NonFungible::RGB21(allocation)) = &invoice.owned_state {
-                Some(DataState::from(allocation.clone()))
+                Some(DataState::from(*allocation))
             } else {
                 None
             };

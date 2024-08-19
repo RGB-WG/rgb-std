@@ -511,7 +511,7 @@ impl<P: StashProvider> Stash<P> {
 
         let (ifaces, iimpls): (BTreeSet<_>, BTreeSet<_>) = consignment
             .ifaces
-            .into_inner()
+            .release()
             .into_iter()
             .fold((bset!(), bset!()), |(mut keys, mut values), (k, v)| {
                 keys.insert(k);
@@ -521,12 +521,12 @@ impl<P: StashProvider> Stash<P> {
 
         self.consume_kit(Kit {
             version: consignment.version,
-            ifaces: Confined::from_collection_unsafe(ifaces),
+            ifaces: Confined::from_checked(ifaces),
             schemata: tiny_bset![consignment.schema],
-            iimpls: Confined::from_collection_unsafe(iimpls),
+            iimpls: Confined::from_checked(iimpls),
             supplements: consignment.supplements,
             types: consignment.types,
-            scripts: Confined::from_collection_unsafe(consignment.scripts.into_inner()),
+            scripts: Confined::from_checked(consignment.scripts.release()),
             signatures: consignment.signatures,
         })
     }

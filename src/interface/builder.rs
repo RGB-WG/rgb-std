@@ -402,7 +402,7 @@ impl ContractBuilder {
         };
 
         let ifaces = tiny_bmap! { iface => iimpl };
-        let scripts = Confined::from_iter_unsafe(self.scripts.into_values());
+        let scripts = Confined::from_iter_checked(self.scripts.into_values());
 
         let contract = Contract {
             version: ContainerVer::V2,
@@ -809,7 +809,7 @@ impl TransitionBuilder {
             transition_type: self.transition_type,
             metadata: empty!(),
             globals: global,
-            inputs: SmallOrdSet::from_iter_unsafe(self.inputs.into_keys()).into(),
+            inputs: SmallOrdSet::from_iter_checked(self.inputs.into_keys()).into(),
             assignments,
             valencies: none!(),
             witness: none!(),

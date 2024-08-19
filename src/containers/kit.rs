@@ -151,21 +151,21 @@ impl CommitEncode for Kit {
     fn commit_encode(&self, e: &mut CommitEngine) {
         e.commit_to_serialized(&self.version);
 
-        e.commit_to_set(&TinyOrdSet::from_iter_unsafe(
+        e.commit_to_set(&TinyOrdSet::from_iter_checked(
             self.ifaces.iter().map(|iface| iface.iface_id()),
         ));
-        e.commit_to_set(&TinyOrdSet::from_iter_unsafe(
+        e.commit_to_set(&TinyOrdSet::from_iter_checked(
             self.schemata.iter().map(|schema| schema.schema_id()),
         ));
-        e.commit_to_set(&TinyOrdSet::from_iter_unsafe(
+        e.commit_to_set(&TinyOrdSet::from_iter_checked(
             self.iimpls.iter().map(|iimpl| iimpl.impl_id()),
         ));
-        e.commit_to_set(&TinyOrdSet::from_iter_unsafe(
+        e.commit_to_set(&TinyOrdSet::from_iter_checked(
             self.supplements.iter().map(|suppl| suppl.suppl_id()),
         ));
 
         e.commit_to_serialized(&self.types.id());
-        e.commit_to_set(&SmallOrdSet::from_iter_unsafe(self.scripts.iter().map(|lib| lib.id())));
+        e.commit_to_set(&SmallOrdSet::from_iter_checked(self.scripts.iter().map(|lib| lib.id())));
 
         e.commit_to_map(&self.signatures);
     }

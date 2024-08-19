@@ -19,9 +19,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::{btree_map, BTreeMap};
+use std::collections::btree_map;
 
-use amplify::confinement::{Confined, NonEmptyBlob};
+use amplify::confinement::{NonEmptyBlob, NonEmptyOrdMap};
 use commit_verify::StrictHash;
 use rgb::{ContractId, Identity, SchemaId};
 use strict_encoding::StrictDumb;
@@ -121,11 +121,11 @@ impl Default for SigBlob {
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
-pub struct ContentSigs(Confined<BTreeMap<Identity, SigBlob>, 1, 10>);
+pub struct ContentSigs(NonEmptyOrdMap<Identity, SigBlob, 10>);
 
 impl StrictDumb for ContentSigs {
     fn strict_dumb() -> Self {
-        confined_bmap! { strict_dumb!() => SigBlob::default() }
+        Self(NonEmptyOrdMap::with_key_value(strict_dumb!(), SigBlob::default()))
     }
 }
 

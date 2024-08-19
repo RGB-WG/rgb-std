@@ -374,7 +374,7 @@ impl StashWriteProvider for MemStash {
     fn add_supplement(&mut self, suppl: Supplement) -> Result<(), Self::Error> {
         match self.suppl.get_mut(&suppl.content_id) {
             None => {
-                self.suppl.insert(suppl.content_id, confined_bset![suppl])?;
+                self.suppl.insert(suppl.content_id, tiny_bset![suppl])?;
             }
             Some(suppls) => suppls.push(suppl)?,
         }
@@ -622,7 +622,7 @@ impl StateWriteProvider for MemState {
         self.begin_transaction()?;
         let mut witnesses = LargeOrdMap::new();
         mem::swap(&mut self.witnesses, &mut witnesses);
-        let mut witnesses = witnesses.unbox();
+        let mut witnesses = witnesses.release();
         for (id, ord) in &mut witnesses {
             if matches!(ord, WitnessOrd::Mined(pos) if pos.height() < after_height) {
                 continue;
@@ -693,7 +693,7 @@ pub struct MemContractState {
 
 impl MemContractState {
     pub fn new(schema: &Schema, contract_id: ContractId) -> Self {
-        let global = TinyOrdMap::from_iter_unsafe(
+        let global = TinyOrdMap::from_iter_checked(
             schema
                 .global_types
                 .iter()
@@ -919,8 +919,8 @@ impl<M: Borrow<MemContractState>> ContractStateAccess for MemContract<M> {
             )
         });
         let iter = Iter {
-            src: state.known.as_inner(),
-            iter: constructor(state.known.as_inner()),
+            src: state.known.as_unconfined(),
+            iter: constructor(state.known.as_unconfined()),
             depth: u24::ZERO,
             last: None,
             constructor: Box::new(constructor),
@@ -1243,7 +1243,7 @@ impl IndexReadProvider for MemIndex {
             .contract_index
             .get(&contract_id)
             .ok_or(IndexInconsistency::ContractAbsent(contract_id))?;
-        Ok(index.public_opouts.to_inner())
+        Ok(index.public_opouts.to_unconfined())
     }
 
     fn opouts_by_outputs(
@@ -1389,9 +1389,7 @@ impl IndexWriteProvider for MemIndex {
                         opouts.push(opout)?;
                     }
                     None => {
-                        index
-                            .outpoint_opouts
-                            .insert(output, confined_bset!(opout))?;
+                        index.outpoint_opouts.insert(output, medium_bset!(opout))?;
                     }
                 }
             }
@@ -1430,9 +1428,7 @@ impl IndexWriteProvider for MemIndex {
                         opouts.push(opout)?;
                     }
                     None => {
-                        index
-                            .outpoint_opouts
-                            .insert(output, confined_bset!(opout))?;
+                        index.outpoint_opouts.insert(output, medium_bset!(opout))?;
                     }
                 }
             }

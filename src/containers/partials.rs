@@ -20,12 +20,12 @@
 // limitations under the License.
 
 use std::cmp::Ordering;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::hash::{Hash, Hasher};
 use std::ops::{BitOr, BitOrAssign};
 use std::{iter, vec};
 
-use amplify::confinement::{Confined, U24};
+use amplify::confinement::{Confined, NonEmptyOrdMap, U24};
 use bp::seals::txout::CloseMethod;
 use rgb::{
     ContractId, OpId, Operation, Transition, TransitionBundle, TxoSeal, XOutpoint, XOutputSeal,
@@ -210,7 +210,7 @@ impl IntoIterator for Batch {
     >;
 
     fn into_iter(self) -> Self::IntoIter {
-        let mut vec = self.blanks.into_inner();
+        let mut vec = self.blanks.release();
         vec.push(self.main);
         vec.into_iter().flat_map(TransitionDichotomy::into_iter)
     }
@@ -311,7 +311,7 @@ impl<T: StrictDumb + StrictEncode + StrictDecode> Dichotomy<T> {
 pub struct Fascia {
     pub witness: XPubWitness,
     pub anchor: AnchorSet,
-    pub bundles: Confined<BTreeMap<ContractId, BundleDichotomy>, 1, U24>,
+    pub bundles: NonEmptyOrdMap<ContractId, BundleDichotomy, U24>,
 }
 
 impl StrictDumb for Fascia {
@@ -319,7 +319,7 @@ impl StrictDumb for Fascia {
         Fascia {
             witness: strict_dumb!(),
             anchor: strict_dumb!(),
-            bundles: confined_bmap![strict_dumb!() => strict_dumb!()],
+            bundles: NonEmptyOrdMap::with_key_value(strict_dumb!(), strict_dumb!()),
         }
     }
 }

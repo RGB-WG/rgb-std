@@ -264,11 +264,11 @@ impl StrictDumb for AnchorSet {
 impl AnchorSet {
     pub fn known_bundle_ids(&self) -> impl Iterator<Item = BundleId> {
         let map = match self {
-            AnchorSet::Tapret(tapret) => tapret.mpc_proof.to_known_message_map().into_inner(),
-            AnchorSet::Opret(opret) => opret.mpc_proof.to_known_message_map().into_inner(),
+            AnchorSet::Tapret(tapret) => tapret.mpc_proof.to_known_message_map().release(),
+            AnchorSet::Opret(opret) => opret.mpc_proof.to_known_message_map().release(),
             AnchorSet::Double { tapret, opret } => {
-                let mut map = tapret.mpc_proof.to_known_message_map().into_inner();
-                map.extend(opret.mpc_proof.to_known_message_map().into_inner());
+                let mut map = tapret.mpc_proof.to_known_message_map().release();
+                map.extend(opret.mpc_proof.to_known_message_map().release());
                 map
             }
         };
