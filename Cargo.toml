@@ -11,7 +11,7 @@ default-members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.11.0-beta.6"
+version = "0.11.0-beta.7"
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
 homepage = "https://github.com/RGB-WG"
 repository = "https://github.com/RGB-WG/rgb-std"

@@ -681,7 +681,7 @@ dependencies = [
 
 [[package]]
 name = "rgb-invoice"
-version = "0.11.0-beta.6"
+version = "0.11.0-beta.7"
 dependencies = [
  "amplify",
  "baid64",
@@ -700,7 +700,7 @@ dependencies = [
 
 [[package]]
 name = "rgb-std"
-version = "0.11.0-beta.6"
+version = "0.11.0-beta.7"
 dependencies = [
  "aluvm",
  "amplify",
@@ -724,7 +724,7 @@ dependencies = [
 
 [[package]]
 name = "rgb-stl"
-version = "0.11.0-beta.6"
+version = "0.11.0-beta.7"
 dependencies = [
  "amplify",
  "commit_verify",
