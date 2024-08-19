@@ -57,11 +57,7 @@ impl MediaType {
         let (ty, subty) = s.split_once('/').expect("invalid static media type string");
         MediaType {
             ty: MediaRegName::from(ty),
-            subtype: if subty == "*" {
-                None
-            } else {
-                Some(MediaRegName::from(subty))
-            },
+            subtype: if subty == "*" { None } else { Some(MediaRegName::from(subty)) },
             charset: None,
         }
     }
@@ -90,11 +86,7 @@ impl fmt::Display for MediaType {
             f,
             "{}/{}",
             self.ty,
-            if let Some(subty) = &self.subtype {
-                subty.to_string()
-            } else {
-                s!("*")
-            }
+            if let Some(subty) = &self.subtype { subty.to_string() } else { s!("*") }
         )
     }
 }

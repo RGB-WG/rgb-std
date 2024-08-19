@@ -398,11 +398,7 @@ impl<const TRANSFER: bool> StrictArmor for Consignment<TRANSFER> {
             ArmorHeader::new(ASCII_ARMOR_VERSION, format!("{:#}", self.version)),
             ArmorHeader::new(
                 ASCII_ARMOR_CONSIGNMENT_TYPE,
-                if self.transfer {
-                    s!("transfer")
-                } else {
-                    s!("contract")
-                },
+                if self.transfer { s!("transfer") } else { s!("contract") },
             ),
             ArmorHeader::new(ASCII_ARMOR_CONTRACT, self.contract_id().to_string()),
             ArmorHeader::new(ASCII_ARMOR_SCHEMA, self.schema.schema_id().to_string()),

@@ -423,9 +423,9 @@ mod fs {
         }
 
         pub fn is_dirty(&self) -> bool {
-            self.as_stash_provider().is_dirty() ||
-                self.as_state_provider().is_dirty() ||
-                self.as_index_provider().is_dirty()
+            self.as_stash_provider().is_dirty()
+                || self.as_state_provider().is_dirty()
+                || self.as_index_provider().is_dirty()
         }
 
         pub fn set_path(&mut self, path: impl ToOwned<Owned = PathBuf>) {
@@ -772,8 +772,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             transitions.insert(opout.op, transition.clone());
 
             let bundle_id = self.index.bundle_id_for_op(transition.id())?;
-            // 2. Collect secret seals from terminal transitions to add to the consignment
-            //    terminals
+            // 2. Collect secret seals from terminal transitions to add to the consignment terminals
             for typed_assignments in transition.assignments.values() {
                 for index in 0..typed_assignments.len_u16() {
                     let seal = typed_assignments.to_confidential_seals()[index as usize];

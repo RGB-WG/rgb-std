@@ -301,8 +301,8 @@ impl StashReadProvider for MemStash {
             .witnesses
             .iter()
             .filter_map(|(witness_id, witness)| match &witness.anchors {
-                AnchorSet::Tapret(anchor) |
-                AnchorSet::Double {
+                AnchorSet::Tapret(anchor)
+                | AnchorSet::Double {
                     tapret: anchor,
                     opret: _,
                 } => Some((*witness_id, TapretCommitment {
@@ -529,11 +529,11 @@ impl StateReadProvider for MemState {
                     .global
                     .values()
                     .flat_map(|state| state.known.keys())
-                    .any(|out| out.witness_id() == id) ||
-                    unfiltered.rights.iter().any(|a| a.witness == id) ||
-                    unfiltered.fungibles.iter().any(|a| a.witness == id) ||
-                    unfiltered.data.iter().any(|a| a.witness == id) ||
-                    unfiltered.attach.iter().any(|a| a.witness == id)
+                    .any(|out| out.witness_id() == id)
+                    || unfiltered.rights.iter().any(|a| a.witness == id)
+                    || unfiltered.fungibles.iter().any(|a| a.witness == id)
+                    || unfiltered.data.iter().any(|a| a.witness == id)
+                    || unfiltered.attach.iter().any(|a| a.witness == id)
             })
             .map(|(id, ord)| (*id, *ord))
             .collect();

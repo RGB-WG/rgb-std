@@ -137,11 +137,7 @@ impl CheckInheritance for Schema {
             }
         }
 
-        if status.is_empty() {
-            Ok(())
-        } else {
-            Err(status)
-        }
+        if status.is_empty() { Ok(()) } else { Err(status) }
     }
 }
 
@@ -212,11 +208,7 @@ where T: OpSchema
             }
         }
 
-        if status.is_empty() {
-            Ok(())
-        } else {
-            Err(status)
-        }
+        if status.is_empty() { Ok(()) } else { Err(status) }
     }
 }
 
@@ -511,11 +503,7 @@ impl Iface {
             .map_err(|_| errors.push(ExtensionError::InheritanceOverflow))
             .ok();
 
-        if errors.is_empty() {
-            Ok(self)
-        } else {
-            Err(errors)
-        }
+        if errors.is_empty() { Ok(self) } else { Err(errors) }
     }
 }
 
@@ -587,11 +575,7 @@ impl GenesisIface {
         check_presence(&mut self.valencies, ext.valencies, op.clone(), "valency", &mut errors);
         check_presence(&mut self.errors, ext.errors, op.clone(), "error", &mut errors);
 
-        if errors.is_empty() {
-            Ok(self)
-        } else {
-            Err(errors)
-        }
+        if errors.is_empty() { Ok(self) } else { Err(errors) }
     }
 }
 
@@ -619,8 +603,8 @@ impl TransitionIface {
         check_presence(&mut self.errors, ext.errors, op.clone(), "error", &mut errors);
 
         if ext.default_assignment.is_some() {
-            if self.default_assignment.is_some() &&
-                self.default_assignment != ext.default_assignment
+            if self.default_assignment.is_some()
+                && self.default_assignment != ext.default_assignment
             {
                 errors.push(ExtensionError::OpDefaultOverride(op.clone()));
             } else {
@@ -628,11 +612,7 @@ impl TransitionIface {
             }
         }
 
-        if errors.is_empty() {
-            Ok(self)
-        } else {
-            Err(errors)
-        }
+        if errors.is_empty() { Ok(self) } else { Err(errors) }
     }
 }
 
@@ -660,8 +640,8 @@ impl ExtensionIface {
         check_presence(&mut self.errors, ext.errors, op.clone(), "error", &mut errors);
 
         if ext.default_assignment.is_some() {
-            if self.default_assignment.is_some() &&
-                self.default_assignment != ext.default_assignment
+            if self.default_assignment.is_some()
+                && self.default_assignment != ext.default_assignment
             {
                 errors.push(ExtensionError::OpDefaultOverride(op.clone()));
             } else {
@@ -669,11 +649,7 @@ impl ExtensionIface {
             }
         }
 
-        if errors.is_empty() {
-            Ok(self)
-        } else {
-            Err(errors)
-        }
+        if errors.is_empty() { Ok(self) } else { Err(errors) }
     }
 }
 
