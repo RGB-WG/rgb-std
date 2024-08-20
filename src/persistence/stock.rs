@@ -1060,38 +1060,38 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
                 }
             }
         }
-        // Add change
+        // Add payments to beneficiary and change
         match invoice.owned_state.clone() {
             InvoiceState::Amount(amt) => {
+                // Pay beneficiary
                 if sum_inputs < amt {
                     return Err(ComposeError::InsufficientState.into());
                 }
-                let change_seal = output_for_assignment(contract_id, assignment_id)?;
-                let blinding_beneficiary = pedersen_blinder(contract_id, assignment_id);
-                let blinding_change = pedersen_blinder(contract_id, assignment_id);
-                let sum_main = sum_inputs - sum_alt;
 
-                // Pay beneficiary
-                let mut paid_main = Amount::ZERO;
-                let mut paid_alt = Amount::ZERO;
-                if sum_inputs > amt {
-                    paid_main = if sum_main < amt { sum_main } else { amt };
+                let sum_main = sum_inputs - sum_alt;
+                let (paid_main, paid_alt) =
+                    if sum_main < amt { (sum_main, amt - sum_main) } else { (amt, Amount::ZERO) };
+                let blinding_beneficiary = pedersen_blinder(contract_id, assignment_id);
+
+                if paid_main > Amount::ZERO {
                     main_builder = main_builder.add_fungible_state_raw(
                         assignment_id,
                         beneficiary,
                         paid_main,
                         blinding_beneficiary,
                     )?;
-                    if sum_main < amt {
-                        paid_alt = amt - sum_main;
-                        alt_builder = alt_builder.add_fungible_state_raw(
-                            assignment_id,
-                            beneficiary,
-                            paid_alt,
-                            blinding_beneficiary,
-                        )?;
-                    }
                 }
+                if paid_alt > Amount::ZERO {
+                    alt_builder = alt_builder.add_fungible_state_raw(
+                        assignment_id,
+                        beneficiary,
+                        paid_alt,
+                        blinding_beneficiary,
+                    )?;
+                }
+
+                let blinding_change = pedersen_blinder(contract_id, assignment_id);
+                let change_seal = output_for_assignment(contract_id, assignment_id)?;
 
                 // Pay change
                 if sum_main > paid_main {
