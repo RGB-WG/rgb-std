@@ -136,9 +136,9 @@ pub enum InvoiceParseError {
 
 impl RgbInvoice {
     fn has_params(&self) -> bool {
-        self.expiry.is_some() ||
-            self.transports != vec![RgbTransport::UnspecifiedMeans] ||
-            !self.unknown_query.is_empty()
+        self.expiry.is_some()
+            || self.transports != vec![RgbTransport::UnspecifiedMeans]
+            || !self.unknown_query.is_empty()
     }
 
     fn query_params(&self) -> IndexMap<String, String> {

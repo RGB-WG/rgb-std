@@ -236,25 +236,25 @@ impl<const TRANSFER: bool> CommitEncode for Consignment<TRANSFER> {
 
         e.commit_to_serialized(&self.contract_id());
         e.commit_to_serialized(&self.genesis.disclose_hash());
-        e.commit_to_set(&TinyOrdSet::from_iter_unsafe(
+        e.commit_to_set(&TinyOrdSet::from_iter_checked(
             self.ifaces.values().map(|iimpl| iimpl.impl_id()),
         ));
 
-        e.commit_to_set(&LargeOrdSet::from_iter_unsafe(
+        e.commit_to_set(&LargeOrdSet::from_iter_checked(
             self.bundles.iter().map(BundledWitness::disclose_hash),
         ));
-        e.commit_to_set(&LargeOrdSet::from_iter_unsafe(
+        e.commit_to_set(&LargeOrdSet::from_iter_checked(
             self.extensions.iter().map(Extension::disclose_hash),
         ));
         e.commit_to_map(&self.terminals);
 
-        e.commit_to_set(&SmallOrdSet::from_iter_unsafe(self.attachments.keys().copied()));
-        e.commit_to_set(&TinyOrdSet::from_iter_unsafe(
+        e.commit_to_set(&SmallOrdSet::from_iter_checked(self.attachments.keys().copied()));
+        e.commit_to_set(&TinyOrdSet::from_iter_checked(
             self.supplements.iter().map(|suppl| suppl.suppl_id()),
         ));
 
         e.commit_to_serialized(&self.types.id());
-        e.commit_to_set(&SmallOrdSet::from_iter_unsafe(self.scripts.iter().map(|lib| lib.id())));
+        e.commit_to_set(&SmallOrdSet::from_iter_checked(self.scripts.iter().map(|lib| lib.id())));
 
         e.commit_to_map(&self.signatures);
     }
@@ -398,11 +398,7 @@ impl<const TRANSFER: bool> StrictArmor for Consignment<TRANSFER> {
             ArmorHeader::new(ASCII_ARMOR_VERSION, format!("{:#}", self.version)),
             ArmorHeader::new(
                 ASCII_ARMOR_CONSIGNMENT_TYPE,
-                if self.transfer {
-                    s!("transfer")
-                } else {
-                    s!("contract")
-                },
+                if self.transfer { s!("transfer") } else { s!("contract") },
             ),
             ArmorHeader::new(ASCII_ARMOR_CONTRACT, self.contract_id().to_string()),
             ArmorHeader::new(ASCII_ARMOR_SCHEMA, self.schema.schema_id().to_string()),
@@ -470,7 +466,7 @@ mod test {
             .expect("contract from str should work");
         assert_eq!(
             contract.to_string(),
-            include_str!("../../asset/armored_contract.default"),
+            include_str!("../../asset/armored_contract.default").replace('\r', ""),
             "contract string round trip fails"
         );
         contract.transfer = true;
@@ -528,7 +524,7 @@ Check-SHA256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
             .expect("transfer from str should work");
         assert_eq!(
             transfer.to_string(),
-            include_str!("../../asset/armored_transfer.default"),
+            include_str!("../../asset/armored_transfer.default").replace('\r', ""),
             "transfer string round trip fails"
         );
     }

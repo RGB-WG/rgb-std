@@ -74,7 +74,7 @@ impl<'c, const TRANSFER: bool> IndexedConsignment<'c, TRANSFER> {
         for extension in &consignment.extensions {
             extension_idx.insert(extension.id(), extension);
         }
-        let scripts = Scripts::from_iter_unsafe(
+        let scripts = Scripts::from_iter_checked(
             consignment
                 .scripts
                 .iter()

@@ -78,8 +78,8 @@ impl MergeReveal for XPubWitness {
                 one.merge_reveal(two).map(XChain::Bitcoin)
             }
             (XChain::Liquid(one), XChain::Liquid(two)) => one.merge_reveal(two).map(XChain::Liquid),
-            (XChain::Bitcoin(bitcoin), XChain::Liquid(liquid)) |
-            (XChain::Liquid(liquid), XChain::Bitcoin(bitcoin)) => {
+            (XChain::Bitcoin(bitcoin), XChain::Liquid(liquid))
+            | (XChain::Liquid(liquid), XChain::Bitcoin(bitcoin)) => {
                 Err(MergeRevealError::ChainMismatch {
                     bitcoin: bitcoin.txid(),
                     liquid: liquid.txid(),
@@ -264,11 +264,11 @@ impl StrictDumb for AnchorSet {
 impl AnchorSet {
     pub fn known_bundle_ids(&self) -> impl Iterator<Item = BundleId> {
         let map = match self {
-            AnchorSet::Tapret(tapret) => tapret.mpc_proof.to_known_message_map().into_inner(),
-            AnchorSet::Opret(opret) => opret.mpc_proof.to_known_message_map().into_inner(),
+            AnchorSet::Tapret(tapret) => tapret.mpc_proof.to_known_message_map().release(),
+            AnchorSet::Opret(opret) => opret.mpc_proof.to_known_message_map().release(),
             AnchorSet::Double { tapret, opret } => {
-                let mut map = tapret.mpc_proof.to_known_message_map().into_inner();
-                map.extend(opret.mpc_proof.to_known_message_map().into_inner());
+                let mut map = tapret.mpc_proof.to_known_message_map().release();
+                map.extend(opret.mpc_proof.to_known_message_map().release());
                 map
             }
         };
@@ -284,17 +284,17 @@ impl AnchorSet {
         match (self, other) {
             (Self::Tapret(anchor), Self::Tapret(a)) => Ok(Self::Tapret(anchor.merge_reveal(a)?)),
             (Self::Opret(anchor), Self::Opret(a)) => Ok(Self::Opret(anchor.merge_reveal(a)?)),
-            (Self::Tapret(tapret), Self::Opret(opret)) |
-            (Self::Opret(opret), Self::Tapret(tapret)) => Ok(Self::Double { tapret, opret }),
+            (Self::Tapret(tapret), Self::Opret(opret))
+            | (Self::Opret(opret), Self::Tapret(tapret)) => Ok(Self::Double { tapret, opret }),
 
-            (Self::Double { tapret, opret }, Self::Tapret(t)) |
-            (Self::Tapret(t), Self::Double { tapret, opret }) => Ok(Self::Double {
+            (Self::Double { tapret, opret }, Self::Tapret(t))
+            | (Self::Tapret(t), Self::Double { tapret, opret }) => Ok(Self::Double {
                 tapret: tapret.merge_reveal(t)?,
                 opret,
             }),
 
-            (Self::Double { tapret, opret }, Self::Opret(o)) |
-            (Self::Opret(o), Self::Double { tapret, opret }) => Ok(Self::Double {
+            (Self::Double { tapret, opret }, Self::Opret(o))
+            | (Self::Opret(o), Self::Double { tapret, opret }) => Ok(Self::Double {
                 tapret,
                 opret: opret.merge_reveal(o)?,
             }),
@@ -466,8 +466,8 @@ impl AnchoredBundles {
             (
                 AnchoredBundles::Tapret(tapret_anchor, tapret_bundle),
                 AnchoredBundles::Opret(opret_anchor, opret_bundle),
-            ) |
-            (
+            )
+            | (
                 AnchoredBundles::Opret(opret_anchor, opret_bundle),
                 AnchoredBundles::Tapret(tapret_anchor, tapret_bundle),
             ) => Ok(AnchoredBundles::Double {
@@ -485,8 +485,8 @@ impl AnchoredBundles {
                     opret_bundle,
                 },
                 AnchoredBundles::Tapret(t, bundle),
-            ) |
-            (
+            )
+            | (
                 AnchoredBundles::Tapret(t, bundle),
                 AnchoredBundles::Double {
                     tapret_anchor,
@@ -509,8 +509,8 @@ impl AnchoredBundles {
                     opret_bundle,
                 },
                 AnchoredBundles::Opret(o, bundle),
-            ) |
-            (
+            )
+            | (
                 AnchoredBundles::Opret(o, bundle),
                 AnchoredBundles::Double {
                     tapret_anchor,

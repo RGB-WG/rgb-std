@@ -98,10 +98,10 @@ pub enum ChainNet {
 impl ChainNet {
     pub fn layer1(&self) -> Layer1 {
         match self {
-            ChainNet::BitcoinMainnet |
-            ChainNet::BitcoinTestnet |
-            ChainNet::BitcoinSignet |
-            ChainNet::BitcoinRegtest => Layer1::Bitcoin,
+            ChainNet::BitcoinMainnet
+            | ChainNet::BitcoinTestnet
+            | ChainNet::BitcoinSignet
+            | ChainNet::BitcoinRegtest => Layer1::Bitcoin,
             ChainNet::LiquidMainnet | ChainNet::LiquidTestnet => Layer1::Liquid,
         }
     }
@@ -110,10 +110,10 @@ impl ChainNet {
         match self {
             ChainNet::BitcoinMainnet | ChainNet::LiquidMainnet => true,
 
-            ChainNet::BitcoinTestnet |
-            ChainNet::BitcoinSignet |
-            ChainNet::BitcoinRegtest |
-            ChainNet::LiquidTestnet => false,
+            ChainNet::BitcoinTestnet
+            | ChainNet::BitcoinSignet
+            | ChainNet::BitcoinRegtest
+            | ChainNet::LiquidTestnet => false,
         }
     }
 
@@ -174,12 +174,12 @@ impl<T> XChainNet<T> {
 
     pub fn into_inner(self) -> T {
         match self {
-            XChainNet::BitcoinMainnet(inner) |
-            XChainNet::BitcoinTestnet(inner) |
-            XChainNet::BitcoinSignet(inner) |
-            XChainNet::BitcoinRegtest(inner) |
-            XChainNet::LiquidMainnet(inner) |
-            XChainNet::LiquidTestnet(inner) => inner,
+            XChainNet::BitcoinMainnet(inner)
+            | XChainNet::BitcoinTestnet(inner)
+            | XChainNet::BitcoinSignet(inner)
+            | XChainNet::BitcoinRegtest(inner)
+            | XChainNet::LiquidMainnet(inner)
+            | XChainNet::LiquidTestnet(inner) => inner,
         }
     }
 

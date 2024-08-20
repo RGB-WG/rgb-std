@@ -423,9 +423,9 @@ mod fs {
         }
 
         pub fn is_dirty(&self) -> bool {
-            self.as_stash_provider().is_dirty() ||
-                self.as_state_provider().is_dirty() ||
-                self.as_index_provider().is_dirty()
+            self.as_stash_provider().is_dirty()
+                || self.as_state_provider().is_dirty()
+                || self.as_index_provider().is_dirty()
         }
 
         pub fn set_path(&mut self, path: impl ToOwned<Owned = PathBuf>) {
@@ -772,8 +772,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             transitions.insert(opout.op, transition.clone());
 
             let bundle_id = self.index.bundle_id_for_op(transition.id())?;
-            // 2. Collect secret seals from terminal transitions to add to the consignment
-            //    terminals
+            // 2. Collect secret seals from terminal transitions to add to the consignment terminals
             for typed_assignments in transition.assignments.values() {
                 for index in 0..typed_assignments.len_u16() {
                     let seal = typed_assignments.to_confidential_seals()[index as usize];
@@ -849,7 +848,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
             ifaces.insert(iface.clone(), iimpl);
         }
-        let ifaces = Confined::from_collection_unsafe(ifaces);
+        let ifaces = Confined::from_checked(ifaces);
 
         let mut bundles = BTreeMap::<XWitnessId, BundledWitness>::new();
         for bw in bundled_witnesses.into_values() {
@@ -869,7 +868,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             Confined::try_from(terminals).map_err(|_| ConsignError::TooManyTerminals)?;
 
         let (types, scripts) = self.stash.extract(&schema_ifaces.schema, ifaces.keys())?;
-        let scripts = Confined::from_iter_unsafe(scripts.into_values());
+        let scripts = Confined::from_iter_checked(scripts.into_values());
         let supplements =
             Confined::try_from(supplements).map_err(|_| ConsignError::TooManySupplements)?;
         let signatures =
@@ -1021,7 +1020,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         let mut data_main = true;
         let lookup_state =
             if let InvoiceState::Data(NonFungible::RGB21(allocation)) = &invoice.owned_state {
-                Some(DataState::from(allocation.clone()))
+                Some(DataState::from(*allocation))
             } else {
                 None
             };
@@ -1061,38 +1060,38 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
                 }
             }
         }
-        // Add change
+        // Add payments to beneficiary and change
         match invoice.owned_state.clone() {
             InvoiceState::Amount(amt) => {
+                // Pay beneficiary
                 if sum_inputs < amt {
                     return Err(ComposeError::InsufficientState.into());
                 }
-                let change_seal = output_for_assignment(contract_id, assignment_id)?;
-                let blinding_beneficiary = pedersen_blinder(contract_id, assignment_id);
-                let blinding_change = pedersen_blinder(contract_id, assignment_id);
-                let sum_main = sum_inputs - sum_alt;
 
-                // Pay beneficiary
-                let mut paid_main = Amount::ZERO;
-                let mut paid_alt = Amount::ZERO;
-                if sum_inputs > amt {
-                    paid_main = if sum_main < amt { sum_main } else { amt };
+                let sum_main = sum_inputs - sum_alt;
+                let (paid_main, paid_alt) =
+                    if sum_main < amt { (sum_main, amt - sum_main) } else { (amt, Amount::ZERO) };
+                let blinding_beneficiary = pedersen_blinder(contract_id, assignment_id);
+
+                if paid_main > Amount::ZERO {
                     main_builder = main_builder.add_fungible_state_raw(
                         assignment_id,
                         beneficiary,
                         paid_main,
                         blinding_beneficiary,
                     )?;
-                    if sum_main < amt {
-                        paid_alt = amt - sum_main;
-                        alt_builder = alt_builder.add_fungible_state_raw(
-                            assignment_id,
-                            beneficiary,
-                            paid_alt,
-                            blinding_beneficiary,
-                        )?;
-                    }
                 }
+                if paid_alt > Amount::ZERO {
+                    alt_builder = alt_builder.add_fungible_state_raw(
+                        assignment_id,
+                        beneficiary,
+                        paid_alt,
+                        blinding_beneficiary,
+                    )?;
+                }
+
+                let blinding_change = pedersen_blinder(contract_id, assignment_id);
+                let change_seal = output_for_assignment(contract_id, assignment_id)?;
 
                 // Pay change
                 if sum_main > paid_main {

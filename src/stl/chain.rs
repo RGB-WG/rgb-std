@@ -49,8 +49,7 @@ impl ProofOfReserves {
         let vout: u32 = utxo.unwrap_struct("vout").unwrap_uint();
         let utxo = Outpoint::new(txid, vout);
 
-        let proof =
-            SmallBlob::from_collection_unsafe(value.unwrap_struct("proof").unwrap_bytes().into());
+        let proof = SmallBlob::from_checked(value.unwrap_struct("proof").unwrap_bytes().into());
 
         Self { utxo, proof }
     }

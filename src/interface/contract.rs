@@ -168,7 +168,7 @@ impl<C: StateChange> IfaceOp<C> {
     fn from_spent(alloc: OutputAssignment<C::State>) -> Self {
         Self {
             opids: none!(),
-            inputs: confined_bset![alloc.opout.op],
+            inputs: small_bset![alloc.opout.op],
             state_change: C::from_spent(alloc.state),
             payers: none!(),
             // TODO: Do something with beneficiary info
@@ -177,7 +177,7 @@ impl<C: StateChange> IfaceOp<C> {
     }
     fn from_received(alloc: OutputAssignment<C::State>) -> Self {
         Self {
-            opids: confined_bset![alloc.opout.op],
+            opids: small_bset![alloc.opout.op],
             inputs: none!(),
             state_change: C::from_received(alloc.state),
             // TODO: Do something with payer info

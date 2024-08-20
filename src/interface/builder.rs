@@ -402,7 +402,7 @@ impl ContractBuilder {
         };
 
         let ifaces = tiny_bmap! { iface => iimpl };
-        let scripts = Confined::from_iter_unsafe(self.scripts.into_values());
+        let scripts = Confined::from_iter_checked(self.scripts.into_values());
 
         let contract = Contract {
             version: ContainerVer::V2,
@@ -763,8 +763,8 @@ impl TransitionBuilder {
         allocation: impl Into<Allocation>,
         blinding: u64,
     ) -> Result<Self, BuilderError> {
-        let revelead_state = RevealedData::with_salt(allocation.into(), blinding.into());
-        self.builder = self.builder.add_data_raw(type_id, seal, revelead_state)?;
+        let revealed_state = RevealedData::with_salt(allocation.into(), blinding.into());
+        self.builder = self.builder.add_data_raw(type_id, seal, revealed_state)?;
         Ok(self)
     }
 
@@ -809,7 +809,7 @@ impl TransitionBuilder {
             transition_type: self.transition_type,
             metadata: empty!(),
             globals: global,
-            inputs: SmallOrdSet::from_iter_unsafe(self.inputs.into_keys()).into(),
+            inputs: SmallOrdSet::from_iter_checked(self.inputs.into_keys()).into(),
             assignments,
             valencies: none!(),
             witness: none!(),

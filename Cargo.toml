@@ -11,7 +11,7 @@ default-members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.11.0-beta.6"
+version = "0.11.0-beta.7"
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
 homepage = "https://github.com/RGB-WG"
 repository = "https://github.com/RGB-WG/rgb-std"
@@ -22,16 +22,16 @@ edition = "2021"
 license = "Apache-2.0"
 
 [workspace.dependencies]
-amplify = "4.6.0"
+amplify = "4.7.0"
 ascii-armor = "0.7.1"
 baid64 = "0.2.2"
-strict_encoding = "2.7.0-beta.4"
-strict_types = "2.7.0-beta.4"
-commit_verify = { version = "0.11.0-beta.6", features = ["stl"] }
-bp-core = { version = "0.11.0-beta.6", features = ["stl"] }
-bp-invoice = { version = "0.11.0-beta.6" } # TODO: Update
-rgb-core = { version = "0.11.0-beta.6", features = ["stl"] }
-indexmap = "2.0.2"
+strict_encoding = "2.7.0-rc.1"
+strict_types = "2.7.0-rc.1"
+commit_verify = { version = "0.11.0-beta.7", features = ["stl"] }
+bp-core = { version = "0.11.0-beta.7", features = ["stl"] }
+bp-invoice = { version = "0.11.0-beta.7" }
+rgb-core = { version = "0.11.0-beta.7", features = ["stl"] }
+indexmap = "2.4.0"
 serde_crate = { package = "serde", version = "1", features = ["derive"] }
 
 [package]
@@ -62,7 +62,7 @@ commit_verify = { workspace = true }
 bp-core = { workspace = true }
 rgb-core = { workspace = true }
 rgb-invoice = { version = "0.11.0-beta.6", path = "invoice" }
-aluvm = "0.11.0-beta.6"
+aluvm = "0.11.0-beta.7"
 base85 = "=2.0.0"
 chrono = "0.4.38"
 indexmap = { workspace = true }
@@ -95,8 +95,3 @@ wasm-bindgen-test = "0.3"
 
 [package.metadata.docs.rs]
 features = ["all"]
-
-[patch.crates-io]
-bp-consensus = { git = "https://github.com/BP-WG/bp-core", branch = "master" }
-bp-invoice = { git = "https://github.com/BP-WG/bp-std.git", branch = "master" }
-rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "master" }

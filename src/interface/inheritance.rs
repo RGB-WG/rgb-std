@@ -137,11 +137,7 @@ impl CheckInheritance for Schema {
             }
         }
 
-        if status.is_empty() {
-            Ok(())
-        } else {
-            Err(status)
-        }
+        if status.is_empty() { Ok(()) } else { Err(status) }
     }
 }
 
@@ -212,11 +208,7 @@ where T: OpSchema
             }
         }
 
-        if status.is_empty() {
-            Ok(())
-        } else {
-            Err(status)
-        }
+        if status.is_empty() { Ok(()) } else { Err(status) }
     }
 }
 
@@ -287,7 +279,7 @@ impl OwnedIface {
 
 impl Modifier {
     pub fn is_final(self) -> bool { self == Self::Final }
-    pub fn can_be_overriden_by(self, other: Modifier) -> bool {
+    pub fn can_be_overridden_by(self, other: Modifier) -> bool {
         matches!((self, other), (Self::Abstract | Self::Override, Self::Override | Self::Final))
     }
 }
@@ -511,11 +503,7 @@ impl Iface {
             .map_err(|_| errors.push(ExtensionError::InheritanceOverflow))
             .ok();
 
-        if errors.is_empty() {
-            Ok(self)
-        } else {
-            Err(errors)
-        }
+        if errors.is_empty() { Ok(self) } else { Err(errors) }
     }
 }
 
@@ -573,7 +561,7 @@ impl GenesisIface {
         let op = OpName::Genesis;
         if self.modifier.is_final() {
             errors.push(ExtensionError::OpFinal(op.clone()));
-        } else if !self.modifier.can_be_overriden_by(ext.modifier) {
+        } else if !self.modifier.can_be_overridden_by(ext.modifier) {
             errors.push(ExtensionError::OpNoOverride(op.clone()));
         }
 
@@ -587,11 +575,7 @@ impl GenesisIface {
         check_presence(&mut self.valencies, ext.valencies, op.clone(), "valency", &mut errors);
         check_presence(&mut self.errors, ext.errors, op.clone(), "error", &mut errors);
 
-        if errors.is_empty() {
-            Ok(self)
-        } else {
-            Err(errors)
-        }
+        if errors.is_empty() { Ok(self) } else { Err(errors) }
     }
 }
 
@@ -602,7 +586,7 @@ impl TransitionIface {
         let op = OpName::Transition(op_name);
         if self.modifier.is_final() {
             errors.push(ExtensionError::OpFinal(op.clone()));
-        } else if !self.modifier.can_be_overriden_by(ext.modifier) {
+        } else if !self.modifier.can_be_overridden_by(ext.modifier) {
             errors.push(ExtensionError::OpNoOverride(op.clone()));
         }
         self.optional = self.optional.max(ext.optional);
@@ -619,8 +603,8 @@ impl TransitionIface {
         check_presence(&mut self.errors, ext.errors, op.clone(), "error", &mut errors);
 
         if ext.default_assignment.is_some() {
-            if self.default_assignment.is_some() &&
-                self.default_assignment != ext.default_assignment
+            if self.default_assignment.is_some()
+                && self.default_assignment != ext.default_assignment
             {
                 errors.push(ExtensionError::OpDefaultOverride(op.clone()));
             } else {
@@ -628,11 +612,7 @@ impl TransitionIface {
             }
         }
 
-        if errors.is_empty() {
-            Ok(self)
-        } else {
-            Err(errors)
-        }
+        if errors.is_empty() { Ok(self) } else { Err(errors) }
     }
 }
 
@@ -643,7 +623,7 @@ impl ExtensionIface {
         let op = OpName::Transition(op_name);
         if self.modifier.is_final() {
             errors.push(ExtensionError::OpFinal(op.clone()));
-        } else if !self.modifier.can_be_overriden_by(ext.modifier) {
+        } else if !self.modifier.can_be_overridden_by(ext.modifier) {
             errors.push(ExtensionError::OpNoOverride(op.clone()));
         }
         self.optional = self.optional.max(ext.optional);
@@ -660,8 +640,8 @@ impl ExtensionIface {
         check_presence(&mut self.errors, ext.errors, op.clone(), "error", &mut errors);
 
         if ext.default_assignment.is_some() {
-            if self.default_assignment.is_some() &&
-                self.default_assignment != ext.default_assignment
+            if self.default_assignment.is_some()
+                && self.default_assignment != ext.default_assignment
             {
                 errors.push(ExtensionError::OpDefaultOverride(op.clone()));
             } else {
@@ -669,11 +649,7 @@ impl ExtensionIface {
             }
         }
 
-        if errors.is_empty() {
-            Ok(self)
-        } else {
-            Err(errors)
-        }
+        if errors.is_empty() { Ok(self) } else { Err(errors) }
     }
 }
 
@@ -685,7 +661,7 @@ impl IfaceImpl {
             return None;
         }
 
-        self.metadata = Confined::from_iter_unsafe(base.metadata.keys().filter_map(|name| {
+        self.metadata = Confined::from_iter_checked(base.metadata.keys().filter_map(|name| {
             self.metadata
                 .iter()
                 .find(|i| parent.metadata.contains_key(name) && &i.name == name)
@@ -693,35 +669,37 @@ impl IfaceImpl {
         }));
 
         self.global_state =
-            Confined::from_iter_unsafe(base.global_state.keys().filter_map(|name| {
+            Confined::from_iter_checked(base.global_state.keys().filter_map(|name| {
                 self.global_state
                     .iter()
                     .find(|i| parent.global_state.contains_key(name) && &i.name == name)
                     .cloned()
             }));
 
-        self.assignments = Confined::from_iter_unsafe(base.assignments.keys().filter_map(|name| {
-            self.assignments
-                .iter()
-                .find(|i| parent.assignments.contains_key(name) && &i.name == name)
-                .cloned()
-        }));
+        self.assignments =
+            Confined::from_iter_checked(base.assignments.keys().filter_map(|name| {
+                self.assignments
+                    .iter()
+                    .find(|i| parent.assignments.contains_key(name) && &i.name == name)
+                    .cloned()
+            }));
 
-        self.valencies = Confined::from_iter_unsafe(base.assignments.keys().filter_map(|name| {
+        self.valencies = Confined::from_iter_checked(base.assignments.keys().filter_map(|name| {
             self.valencies
                 .iter()
                 .find(|i| parent.valencies.contains_key(name) && &i.name == name)
                 .cloned()
         }));
 
-        self.transitions = Confined::from_iter_unsafe(base.transitions.keys().filter_map(|name| {
-            self.transitions
-                .iter()
-                .find(|i| parent.transitions.contains_key(name) && &i.name == name)
-                .cloned()
-        }));
+        self.transitions =
+            Confined::from_iter_checked(base.transitions.keys().filter_map(|name| {
+                self.transitions
+                    .iter()
+                    .find(|i| parent.transitions.contains_key(name) && &i.name == name)
+                    .cloned()
+            }));
 
-        self.extensions = Confined::from_iter_unsafe(base.extensions.keys().filter_map(|name| {
+        self.extensions = Confined::from_iter_checked(base.extensions.keys().filter_map(|name| {
             self.extensions
                 .iter()
                 .find(|i| parent.extensions.contains_key(name) && &i.name == name)

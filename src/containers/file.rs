@@ -404,6 +404,7 @@ mod test {
         }
     }
 
+    #[cfg(feature = "fs")]
     #[test]
     fn transfer_save_load_round_trip() {
         let transfer =

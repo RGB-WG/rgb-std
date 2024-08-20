@@ -22,8 +22,8 @@
 //! Module defines API used by providers of persistent data for RGB contracts.
 //!
 //! These data include:
-//! 1. Stash: a consensus-critical data for client-side-validation which must be
-//!    preserved and backed up.
+//! 1. Stash: a consensus-critical data for client-side-validation which must be preserved and
+//!    backed up.
 //! 2. Contract state, updated with each enclosed consignment and disclosure.
 //! 3. Index over stash, which simplifies construction of new consignments.
 //!
