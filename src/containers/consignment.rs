@@ -466,7 +466,7 @@ mod test {
             .expect("contract from str should work");
         assert_eq!(
             contract.to_string(),
-            include_str!("../../asset/armored_contract.default"),
+            include_str!("../../asset/armored_contract.default").replace('\r', ""),
             "contract string round trip fails"
         );
         contract.transfer = true;
@@ -524,7 +524,7 @@ Check-SHA256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
             .expect("transfer from str should work");
         assert_eq!(
             transfer.to_string(),
-            include_str!("../../asset/armored_transfer.default"),
+            include_str!("../../asset/armored_transfer.default").replace('\r', ""),
             "transfer string round trip fails"
         );
     }

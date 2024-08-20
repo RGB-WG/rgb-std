@@ -277,15 +277,12 @@ mod test {
         let kit = Kit::from_str(include_str!("../../asset/armored_kit.default"))
             .expect("kit from str should work");
 
-        assert_eq!(
-            kit.to_string(),
-            include_str!("../../asset/armored_kit.default"),
-            "kit string round trip fails"
-        );
+        let hardcoded = include_str!("../../asset/armored_kit.default").replace('\r', "");
+        assert_eq!(kit.to_string(), hardcoded, "kit string round trip fails");
 
         assert_eq!(
             kit.validate().unwrap().to_string(),
-            include_str!("../../asset/armored_kit.default"),
+            hardcoded,
             "validated kit string round trip fails"
         );
     }
