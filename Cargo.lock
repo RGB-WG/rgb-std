@@ -122,9 +122,9 @@ dependencies = [
 
 [[package]]
 name = "ascii-armor"
-version = "0.7.1"
+version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9ad861dfcd5f348ac79e0df2e70494641c62d3ac37587af68c52a16ab355afdb"
+checksum = "e4966ac403dc4a666d8131dfe4df684f45acc68d4c7e768db89c463aa5617910"
 dependencies = [
  "amplify",
  "baid64",
@@ -192,9 +192,9 @@ checksum = "b048fb63fd8b5923fc5aa7b340d8e156aec7ec02f0c78fa8a6ddc2613f6f71de"
 
 [[package]]
 name = "blake3"
-version = "1.5.3"
+version = "1.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e9ec96fe9a81b5e365f9db71fe00edc4fe4ca2cc7dcb7861f0603012a7caa210"
+checksum = "d82033247fd8e890df8f740e407ad4d038debb9eb1f40533fffb32e7d17dc6f7"
 dependencies = [
  "arrayref",
  "arrayvec",
@@ -660,7 +660,7 @@ dependencies = [
 [[package]]
 name = "rgb-core"
 version = "0.11.0-beta.7"
-source = "git+https://github.com/RGB-WG/rgb-core?branch=nonce#495f03528c5ae2dd277a3d39fb5cc6e6e98b47d3"
+source = "git+https://github.com/RGB-WG/rgb-core?branch=nonce#d465448967220b5b5575557fab850a899ae104a4"
 dependencies = [
  "aluvm",
  "amplify",

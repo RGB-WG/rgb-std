@@ -904,13 +904,13 @@ impl<M: Borrow<MemContractState>> ContractStateAccess for MemContract<M> {
                     .filter_map(|(out, data)| {
                         let ord = match out.op_witness {
                             OpWitness::Genesis => GlobalOrd::genesis(out.index),
-                            OpWitness::Transition(id) => {
+                            OpWitness::Transition(id, ty) => {
                                 let ord = self.filter.get(&id)?;
-                                GlobalOrd::transition(out.opid, out.index, out.nonce, *ord)
+                                GlobalOrd::transition(out.opid, out.index, ty, out.nonce, *ord)
                             }
-                            OpWitness::Extension(id) => {
+                            OpWitness::Extension(id, ty) => {
                                 let ord = self.filter.get(&id)?;
-                                GlobalOrd::extension(out.opid, out.index, out.nonce, *ord)
+                                GlobalOrd::extension(out.opid, out.index, ty, out.nonce, *ord)
                             }
                         };
                         Some((ord, data))

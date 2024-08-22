@@ -27,7 +27,7 @@ pub use assignments::{KnownState, OutputAssignment, TypedAssignsExt};
 pub use bundle::{BundleExt, RevealError};
 pub use merge_reveal::{MergeReveal, MergeRevealError};
 use rgb::vm::OrdOpRef;
-use rgb::{OpId, XWitnessId};
+use rgb::{ExtensionType, OpId, TransitionType, XWitnessId};
 
 use crate::LIB_NAME_RGB_STD;
 
@@ -42,16 +42,20 @@ use crate::LIB_NAME_RGB_STD;
 pub enum OpWitness {
     #[strict_type(dumb)]
     Genesis,
-    Transition(XWitnessId),
-    Extension(XWitnessId),
+    Transition(XWitnessId, TransitionType),
+    Extension(XWitnessId, ExtensionType),
 }
 
 impl From<OrdOpRef<'_>> for OpWitness {
     fn from(aor: OrdOpRef) -> Self {
         match aor {
             OrdOpRef::Genesis(_) => OpWitness::Genesis,
-            OrdOpRef::Transition(_, witness_id, ..) => OpWitness::Transition(witness_id),
-            OrdOpRef::Extension(_, witness_id, ..) => OpWitness::Extension(witness_id),
+            OrdOpRef::Transition(op, witness_id, ..) => {
+                OpWitness::Transition(witness_id, op.transition_type)
+            }
+            OrdOpRef::Extension(op, witness_id, ..) => {
+                OpWitness::Extension(witness_id, op.extension_type)
+            }
         }
     }
 }
@@ -61,7 +65,7 @@ impl OpWitness {
     pub fn witness_id(&self) -> Option<XWitnessId> {
         match self {
             OpWitness::Genesis => None,
-            OpWitness::Transition(witness_id) | OpWitness::Extension(witness_id) => {
+            OpWitness::Transition(witness_id, _) | OpWitness::Extension(witness_id, _) => {
                 Some(*witness_id)
             }
         }
