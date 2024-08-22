@@ -78,7 +78,7 @@ impl OpWitness {
 )]
 pub struct GlobalOut {
     pub opid: OpId,
-    pub nonce: u8,
+    pub nonce: u64,
     pub index: u16,
     pub op_witness: OpWitness,
 }

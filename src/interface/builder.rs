@@ -434,7 +434,7 @@ impl ContractBuilder {
 pub struct TransitionBuilder {
     contract_id: ContractId,
     builder: OperationBuilder<GraphSeal>,
-    nonce: u8,
+    nonce: u64,
     transition_type: TransitionType,
     inputs: TinyOrdMap<Input, PersistedState>,
 }
@@ -531,7 +531,7 @@ impl TransitionBuilder {
         Self {
             contract_id,
             builder: OperationBuilder::with(iface, schema, iimpl, types),
-            nonce: u8::MAX,
+            nonce: u64::MAX,
             transition_type,
             inputs: none!(),
         }
@@ -548,7 +548,7 @@ impl TransitionBuilder {
         Self {
             contract_id,
             builder: OperationBuilder::deterministic(iface, schema, iimpl, types),
-            nonce: u8::MAX,
+            nonce: u64::MAX,
             transition_type,
             inputs: none!(),
         }
@@ -558,7 +558,7 @@ impl TransitionBuilder {
 
     pub fn transition_type(&self) -> TransitionType { self.transition_type }
 
-    pub fn set_nonce(mut self, nonce: u8) -> Self {
+    pub fn set_nonce(mut self, nonce: u64) -> Self {
         self.nonce = nonce;
         self
     }
