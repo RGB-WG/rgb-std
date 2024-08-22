@@ -51,7 +51,7 @@ impl From<OrdOpRef<'_>> for OpWitness {
         match aor {
             OrdOpRef::Genesis(_) => OpWitness::Genesis,
             OrdOpRef::Transition(_, witness_id, ..) => OpWitness::Transition(witness_id),
-            OrdOpRef::Extension(_, witness_id, ..) => OpWitness::Transition(witness_id),
+            OrdOpRef::Extension(_, witness_id, ..) => OpWitness::Extension(witness_id),
         }
     }
 }
