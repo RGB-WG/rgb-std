@@ -168,7 +168,7 @@ impl FromStr for Details {
 }
 
 impl From<&'static str> for Details {
-    fn from(s: &'static str) -> Self { Self::from_str(s).expect("invalid ticker name") }
+    fn from(s: &'static str) -> Self { Self::from_str(s).expect("invalid details") }
 }
 
 impl TryFrom<String> for Details {
