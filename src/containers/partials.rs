@@ -230,7 +230,7 @@ impl Batch {
         methods
     }
 
-    pub fn set_priority(&mut self, priority: u8) {
+    pub fn set_priority(&mut self, priority: u64) {
         self.main.first.transition.nonce = priority;
         if let Some(info) = &mut self.main.second {
             info.transition.nonce = priority;

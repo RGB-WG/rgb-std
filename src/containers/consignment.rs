@@ -462,25 +462,20 @@ mod test {
 
     #[test]
     fn contract_str_round_trip() {
-        let mut contract = Contract::from_str(include_str!("../../asset/armored_contract.default"))
-            .expect("contract from str should work");
-        assert_eq!(
-            contract.to_string(),
-            include_str!("../../asset/armored_contract.default").replace('\r', ""),
-            "contract string round trip fails"
-        );
+        let s = include_str!("../../asset/armored_contract.default");
+        let mut contract = Contract::from_str(s).unwrap();
+        assert_eq!(contract.to_string(), s.replace('\r', ""), "contract string round trip fails");
         contract.transfer = true;
         eprintln!("{contract}");
     }
 
     #[test]
     fn error_contract_strs() {
-        assert!(Contract::from_str(include_str!("../../asset/armored_contract.default")).is_ok());
+        Contract::from_str(include_str!("../../asset/armored_contract.default")).unwrap();
 
         // Wrong Id
-        assert!(
-            Contract::from_str(
-                r#"-----BEGIN RGB CONSIGNMENT-----
+        Contract::from_str(
+            r#"-----BEGIN RGB CONSIGNMENT-----
 Id: rgb:csg:aaaaaaaa-aaaaaaa-aaaaaaa-aaaaaaa-aaaaaaa-aaaaaaa#guide-campus-arctic
 Version: 2
 Type: contract
@@ -492,15 +487,13 @@ Check-SHA256: 181748dae0c83cbb44f6ccfdaddf6faca0bc4122a9f35fef47bab9aea023e4a1
 0000000000000000000000d59ZDjxe00000000dDb8~4rVQz13d2MfXa{vGU00000000000000000000
 0000000000000
 
------END RGB CONSIGNMENT-----"#
-            )
-            .is_err()
-        );
+-----END RGB CONSIGNMENT-----"#,
+        )
+        .unwrap_err();
 
         // Wrong checksum
-        assert!(
-            Contract::from_str(
-                r#"-----BEGIN RGB CONSIGNMENT-----
+        Contract::from_str(
+            r#"-----BEGIN RGB CONSIGNMENT-----
 Id: rgb:csg:poAMvm9j-NdapxqA-MJ!5dwP-d!IIt2A-T!5OiXE-Tl54Yew#guide-campus-arctic
 Version: 2
 Type: contract
@@ -512,32 +505,26 @@ Check-SHA256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 0000000000000000000000d59ZDjxe00000000dDb8~4rVQz13d2MfXa{vGU00000000000000000000
 0000000000000
 
------END RGB CONSIGNMENT-----"#
-            )
-            .is_err()
-        );
+-----END RGB CONSIGNMENT-----"#,
+        )
+        .unwrap_err();
     }
 
     #[test]
     fn transfer_str_round_trip() {
-        let transfer = Transfer::from_str(include_str!("../../asset/armored_transfer.default"))
-            .expect("transfer from str should work");
-        assert_eq!(
-            transfer.to_string(),
-            include_str!("../../asset/armored_transfer.default").replace('\r', ""),
-            "transfer string round trip fails"
-        );
+        let s = include_str!("../../asset/armored_transfer.default");
+        let transfer = Transfer::from_str(s).unwrap();
+        assert_eq!(transfer.to_string(), s.replace('\r', ""), "transfer string round trip fails");
     }
 
     #[test]
     fn error_transfer_strs() {
         let s = include_str!("../../asset/armored_transfer.default");
-        assert!(Transfer::from_str(s).is_ok());
+        Transfer::from_str(s).unwrap();
 
         // Wrong Id
-        assert!(
-            Transfer::from_str(
-                r#"-----BEGIN RGB CONSIGNMENT-----
+        Transfer::from_str(
+            r#"-----BEGIN RGB CONSIGNMENT-----
 Id: rgb:csg:aaaaaaaa-aaaaaaa-aaaaaaa-aaaaaaa-aaaaaaa-aaaaaaa#guide-campus-arctic
 Version: 2
 Type: transfer
@@ -549,15 +536,14 @@ Check-SHA256: 562a944631243e23a8de1d2aa2a5621be13351fc6f4d9aa8127c12ac4fb54d97
 0000000000000000000000d59ZDjxe00000000dDb8~4rVQz13d2MfXa{vGU00000000000000000000
 0000000000000
 
------END RGB CONSIGNMENT-----"#
-            )
-            .is_err()
-        );
+-----END RGB CONSIGNMENT-----"#,
+        )
+        .unwrap_err();
 
         // Wrong checksum
-        assert!(
-            Transfer::from_str(
-                r#"-----BEGIN RGB CONSIGNMENT-----
+
+        Transfer::from_str(
+            r#"-----BEGIN RGB CONSIGNMENT-----
 Id: rgb:csg:9jMKgkmP-alPghZC-bu65ctP-GT5tKgM-cAbaTLT-rhu8xQo#urban-athena-adam
 Version: 2
 Type: transfer
@@ -569,10 +555,9 @@ Check-SHA256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 0000000000000000000000d59ZDjxe00000000dDb8~4rVQz13d2MfXa{vGU00000000000000000000
 0000000000000
 
------END RGB CONSIGNMENT-----"#
-            )
-            .is_err()
-        );
+-----END RGB CONSIGNMENT-----"#,
+        )
+        .unwrap_err();
 
         // Wrong type
         // TODO: Uncomment once ASCII headers get checked
