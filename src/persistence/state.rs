@@ -26,6 +26,7 @@ use std::fmt::Debug;
 use std::iter;
 
 use invoice::Amount;
+use nonasync::persistence::Persisting;
 use rgb::validation::{ResolveWitness, WitnessResolverError};
 use rgb::vm::{ContractStateAccess, WitnessOrd};
 use rgb::{
@@ -254,7 +255,7 @@ impl<P: StateProvider> StoreTransaction for State<P> {
     fn rollback_transaction(&mut self) { self.provider.rollback_transaction() }
 }
 
-pub trait StateProvider: Debug + StateReadProvider + StateWriteProvider {}
+pub trait StateProvider: Debug + Persisting + StateReadProvider + StateWriteProvider {}
 
 pub trait StateReadProvider {
     type ContractRead<'a>: ContractStateRead

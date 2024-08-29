@@ -35,6 +35,7 @@ use amplify::confinement::{
 use amplify::num::u24;
 use bp::dbc::tapret::TapretCommitment;
 use commit_verify::{CommitId, Conceal};
+use nonasync::persistence::{Persistence, PersistenceError, Persisting};
 use rgb::validation::ResolveWitness;
 use rgb::vm::{
     ContractStateAccess, ContractStateEvolve, GlobalContractState, GlobalOrd, GlobalStateIter,
@@ -54,8 +55,8 @@ use super::{
     ContractIfaceError, ContractStateRead, ContractStateWrite, IndexInconsistency, IndexProvider,
     IndexReadError, IndexReadProvider, IndexWriteError, IndexWriteProvider, SchemaIfaces,
     StashInconsistency, StashProvider, StashProviderError, StashReadProvider, StashWriteProvider,
-    StateInconsistency, StateProvider, StateReadProvider, StateWriteProvider, StoreError,
-    StoreProvider, StoreTransaction, Stored, UpdateRes,
+    StateInconsistency, StateProvider, StateReadProvider, StateWriteProvider, StoreTransaction,
+    UpdateRes,
 };
 use crate::containers::{
     AnchorSet, ContentId, ContentRef, ContentSigs, SealWitness, SigBlob, Supplement, TrustLevel,
@@ -63,6 +64,16 @@ use crate::containers::{
 use crate::contract::{GlobalOut, KnownState, OpWitness, OutputAssignment};
 use crate::interface::{Iface, IfaceClass, IfaceId, IfaceImpl, IfaceRef};
 use crate::LIB_NAME_RGB_STORAGE;
+
+#[derive(Debug, Display, Error, From)]
+#[display(inner)]
+pub enum MemError {
+    #[from]
+    Persistence(PersistenceError),
+
+    #[from]
+    Confinement(confinement::Error),
+}
 
 //////////
 // STASH
@@ -74,17 +85,9 @@ use crate::LIB_NAME_RGB_STORAGE;
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STORAGE, dumb = Self::in_memory())]
 pub struct MemStash {
-    #[getter(prefix = "is_", as_copy)]
-    #[strict_type(skip)]
-    dirty: bool,
-
-    #[getter(prefix = "is_", as_copy)]
-    #[strict_type(skip)]
-    autosave: bool,
-
     #[getter(skip)]
     #[strict_type(skip)]
-    store_provider: Option<Box<dyn StoreProvider<Self>>>,
+    persistence: Option<Persistence<Self>>,
 
     schemata: TinyOrdMap<SchemaId, SchemaIfaces>,
     ifaces: TinyOrdMap<IfaceId, Iface>,
@@ -107,9 +110,7 @@ impl StrictDeserialize for MemStash {}
 impl MemStash {
     pub fn in_memory() -> Self {
         Self {
-            dirty: false,
-            autosave: false,
-            store_provider: None,
+            persistence: none!(),
             schemata: empty!(),
             ifaces: empty!(),
             geneses: empty!(),
@@ -127,21 +128,23 @@ impl MemStash {
     }
 }
 
+impl Persisting for MemStash {
+    #[inline]
+    fn persistence(&self) -> Option<&Persistence<Self>> { self.persistence.as_ref() }
+    #[inline]
+    fn persistence_mut(&mut self) -> Option<&mut Persistence<Self>> { self.persistence.as_mut() }
+}
+
 impl StoreTransaction for MemStash {
-    type TransactionErr = StoreError;
-
+    type TransactionErr = MemError;
+    #[inline]
     fn begin_transaction(&mut self) -> Result<(), Self::TransactionErr> {
-        self.dirty = true;
+        self.mark_dirty();
         Ok(())
     }
-
-    fn commit_transaction(&mut self) -> Result<(), Self::TransactionErr> {
-        if self.dirty && self.autosave {
-            self.store()?;
-        }
-        Ok(())
-    }
-
+    #[inline]
+    fn commit_transaction(&mut self) -> Result<(), Self::TransactionErr> { Ok(self.store()?) }
+    #[inline]
     fn rollback_transaction(&mut self) { unreachable!() }
 }
 
@@ -331,7 +334,7 @@ impl StashReadProvider for MemStash {
 }
 
 impl StashWriteProvider for MemStash {
-    type Error = StoreError;
+    type Error = MemError;
 
     fn replace_schema(&mut self, schema: Schema) -> Result<bool, Self::Error> {
         let schema_id = schema.schema_id();
@@ -463,17 +466,9 @@ impl StashWriteProvider for MemStash {
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STORAGE, dumb = Self::in_memory())]
 pub struct MemState {
-    #[getter(prefix = "is_", as_copy)]
-    #[strict_type(skip)]
-    dirty: bool,
-
-    #[getter(prefix = "is_", as_copy)]
-    #[strict_type(skip)]
-    autosave: bool,
-
     #[getter(skip)]
     #[strict_type(skip)]
-    store_provider: Option<Box<dyn StoreProvider<Self>>>,
+    persistence: Option<Persistence<Self>>,
 
     witnesses: LargeOrdMap<XWitnessId, WitnessOrd>,
     contracts: TinyOrdMap<ContractId, MemContractState>,
@@ -485,30 +480,30 @@ impl StrictDeserialize for MemState {}
 impl MemState {
     pub fn in_memory() -> Self {
         Self {
-            dirty: false,
-            autosave: false,
-            store_provider: None,
+            persistence: none!(),
             witnesses: empty!(),
             contracts: empty!(),
         }
     }
 }
 
+impl Persisting for MemState {
+    #[inline]
+    fn persistence(&self) -> Option<&Persistence<Self>> { self.persistence.as_ref() }
+    #[inline]
+    fn persistence_mut(&mut self) -> Option<&mut Persistence<Self>> { self.persistence.as_mut() }
+}
+
 impl StoreTransaction for MemState {
-    type TransactionErr = StoreError;
-
+    type TransactionErr = MemError;
+    #[inline]
     fn begin_transaction(&mut self) -> Result<(), Self::TransactionErr> {
-        self.dirty = true;
+        self.mark_dirty();
         Ok(())
     }
-
-    fn commit_transaction(&mut self) -> Result<(), Self::TransactionErr> {
-        if self.dirty && self.autosave {
-            self.store()?;
-        }
-        Ok(())
-    }
-
+    #[inline]
+    fn commit_transaction(&mut self) -> Result<(), Self::TransactionErr> { Ok(self.store()?) }
+    #[inline]
     fn rollback_transaction(&mut self) { unreachable!() }
 }
 
@@ -557,7 +552,7 @@ impl StateReadProvider for MemState {
 
 impl StateWriteProvider for MemState {
     type ContractWrite<'a> = MemContractWriter<'a>;
-    type Error = StoreError;
+    type Error = MemError;
 
     fn register_contract(
         &mut self,
@@ -1036,9 +1031,10 @@ impl ContractStateEvolve for MemContract<MemContractState> {
         }
         .map_err(|err| {
             // TODO: remove once evolve_state would accept arbitrary errors
-            *err.0
-                .downcast::<confinement::Error>()
-                .expect("only confinement errors are possible")
+            match err {
+                MemError::Persistence(_) => unreachable!("only confinement errors are possible"),
+                MemError::Confinement(e) => e,
+            }
         })?;
         Ok(())
     }
@@ -1094,7 +1090,7 @@ pub struct MemContractWriter<'mem> {
 }
 
 impl<'mem> ContractStateWrite for MemContractWriter<'mem> {
-    type Error = StoreError;
+    type Error = MemError;
 
     /// # Panics
     ///
@@ -1168,17 +1164,9 @@ pub struct ContractIndex {
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STORAGE, dumb = Self::in_memory())]
 pub struct MemIndex {
-    #[getter(prefix = "is_", as_copy)]
-    #[strict_type(skip)]
-    dirty: bool,
-
-    #[getter(prefix = "is_", as_copy)]
-    #[strict_type(skip)]
-    autosave: bool,
-
     #[getter(skip)]
     #[strict_type(skip)]
-    store_provider: Option<Box<dyn StoreProvider<Self>>>,
+    persistence: Option<Persistence<Self>>,
 
     op_bundle_index: MediumOrdMap<OpId, BundleId>,
     bundle_contract_index: MediumOrdMap<BundleId, ContractId>,
@@ -1193,9 +1181,7 @@ impl StrictDeserialize for MemIndex {}
 impl MemIndex {
     pub fn in_memory() -> Self {
         Self {
-            dirty: false,
-            autosave: false,
-            store_provider: None,
+            persistence: None,
             op_bundle_index: empty!(),
             bundle_contract_index: empty!(),
             bundle_witness_index: empty!(),
@@ -1205,21 +1191,23 @@ impl MemIndex {
     }
 }
 
+impl Persisting for MemIndex {
+    #[inline]
+    fn persistence(&self) -> Option<&Persistence<Self>> { self.persistence.as_ref() }
+    #[inline]
+    fn persistence_mut(&mut self) -> Option<&mut Persistence<Self>> { self.persistence.as_mut() }
+}
+
 impl StoreTransaction for MemIndex {
-    type TransactionErr = StoreError;
-
+    type TransactionErr = MemError;
+    #[inline]
     fn begin_transaction(&mut self) -> Result<(), Self::TransactionErr> {
-        self.dirty = true;
+        self.mark_dirty();
         Ok(())
     }
-
-    fn commit_transaction(&mut self) -> Result<(), Self::TransactionErr> {
-        if self.dirty && self.autosave {
-            self.store()?;
-        }
-        Ok(())
-    }
-
+    #[inline]
+    fn commit_transaction(&mut self) -> Result<(), Self::TransactionErr> { Ok(self.store()?) }
+    #[inline]
     fn rollback_transaction(&mut self) { unreachable!() }
 }
 
@@ -1314,7 +1302,7 @@ impl IndexReadProvider for MemIndex {
 }
 
 impl IndexWriteProvider for MemIndex {
-    type Error = StoreError;
+    type Error = MemError;
 
     fn register_contract(&mut self, contract_id: ContractId) -> Result<bool, Self::Error> {
         if !self.contract_index.contains_key(&contract_id) {
@@ -1450,133 +1438,5 @@ impl IndexWriteProvider for MemIndex {
             }
         }
         Ok(())
-    }
-}
-
-mod store {
-    use crate::persistence::store::Stored;
-    use crate::persistence::{MemIndex, MemStash, MemState, StoreError, StoreProvider};
-
-    impl Stored for MemStash {
-        fn new_stored(provider: impl StoreProvider<Self> + 'static, autosave: bool) -> Self {
-            Self {
-                dirty: true,
-                autosave,
-                store_provider: Some(Box::new(provider)),
-                ..Self::in_memory()
-            }
-        }
-
-        fn load(
-            provider: impl StoreProvider<Self> + 'static,
-            autosave: bool,
-        ) -> Result<Self, StoreError> {
-            let mut me = provider.load()?;
-            me.autosave = autosave;
-            me.store_provider = Some(Box::new(provider));
-            Ok(me)
-        }
-
-        fn is_dirty(&self) -> bool { self.dirty }
-
-        fn autosave(&mut self) { self.autosave = true; }
-
-        fn make_stored(&mut self, provider: impl StoreProvider<Self> + 'static) -> bool {
-            let res = self.store_provider.is_some();
-            self.store_provider = Some(Box::new(provider));
-            self.dirty = true;
-            res
-        }
-
-        fn store(&self) -> Result<(), StoreError> {
-            if self.is_dirty() {
-                if let Some(provider) = &self.store_provider {
-                    provider.store(self)?;
-                }
-            }
-            Ok(())
-        }
-    }
-
-    impl Stored for MemState {
-        fn new_stored(provider: impl StoreProvider<Self> + 'static, autosave: bool) -> Self {
-            Self {
-                dirty: true,
-                autosave,
-                store_provider: Some(Box::new(provider)),
-                ..Self::in_memory()
-            }
-        }
-
-        fn load(
-            provider: impl StoreProvider<Self> + 'static,
-            autosave: bool,
-        ) -> Result<Self, StoreError> {
-            let mut me = provider.load()?;
-            me.autosave = autosave;
-            me.store_provider = Some(Box::new(provider));
-            Ok(me)
-        }
-
-        fn is_dirty(&self) -> bool { self.dirty }
-
-        fn autosave(&mut self) { self.autosave = true; }
-
-        fn make_stored(&mut self, provider: impl StoreProvider<Self> + 'static) -> bool {
-            let res = self.store_provider.is_some();
-            self.store_provider = Some(Box::new(provider));
-            self.dirty = true;
-            res
-        }
-
-        fn store(&self) -> Result<(), StoreError> {
-            if self.is_dirty() {
-                if let Some(provider) = &self.store_provider {
-                    provider.store(self)?;
-                }
-            }
-            Ok(())
-        }
-    }
-
-    impl Stored for MemIndex {
-        fn new_stored(provider: impl StoreProvider<Self> + 'static, autosave: bool) -> Self {
-            Self {
-                dirty: true,
-                autosave,
-                store_provider: Some(Box::new(provider)),
-                ..Self::in_memory()
-            }
-        }
-
-        fn load(
-            provider: impl StoreProvider<Self> + 'static,
-            autosave: bool,
-        ) -> Result<Self, StoreError> {
-            let mut me = provider.load()?;
-            me.autosave = autosave;
-            me.store_provider = Some(Box::new(provider));
-            Ok(me)
-        }
-
-        fn is_dirty(&self) -> bool { self.dirty }
-
-        fn autosave(&mut self) { self.autosave = true; }
-
-        fn make_stored(&mut self, provider: impl StoreProvider<Self> + 'static) -> bool {
-            let res = self.store_provider.is_some();
-            self.store_provider = Some(Box::new(provider));
-            self.dirty = true;
-            res
-        }
-
-        fn store(&self) -> Result<(), StoreError> {
-            if self.is_dirty() {
-                if let Some(provider) = &self.store_provider {
-                    provider.store(self)?;
-                }
-            }
-            Ok(())
-        }
     }
 }

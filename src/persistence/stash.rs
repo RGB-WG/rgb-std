@@ -29,6 +29,7 @@ use amplify::confinement::{Confined, MediumBlob, TinyOrdMap};
 use bp::dbc::anchor::MergeError;
 use bp::dbc::tapret::TapretCommitment;
 use commit_verify::mpc;
+use nonasync::persistence::Persisting;
 use rgb::validation::Scripts;
 use rgb::{
     AttachId, BundleId, ContractId, Extension, Genesis, GraphSeal, Identity, OpId, Operation,
@@ -618,7 +619,7 @@ impl<P: StashProvider> StoreTransaction for Stash<P> {
     fn rollback_transaction(&mut self) { self.provider.rollback_transaction() }
 }
 
-pub trait StashProvider: Debug + StashReadProvider + StashWriteProvider {}
+pub trait StashProvider: Debug + Persisting + StashReadProvider + StashWriteProvider {}
 
 pub trait StashReadProvider {
     /// Error type which must indicate problems on data retrieval.

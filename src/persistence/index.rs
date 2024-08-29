@@ -24,6 +24,7 @@ use std::error::Error;
 use std::fmt::Debug;
 
 use amplify::confinement;
+use nonasync::persistence::Persisting;
 use rgb::{
     Assign, AssignmentType, BundleId, ContractId, ExposedState, Extension, Genesis, GenesisSeal,
     GraphSeal, OpId, Operation, Opout, TransitionBundle, TypedAssigns, XChain, XOutputSeal,
@@ -31,7 +32,7 @@ use rgb::{
 };
 
 use crate::containers::{BundledWitness, ConsignmentExt, ToWitnessId};
-use crate::persistence::{StoreError, StoreTransaction};
+use crate::persistence::{MemError, StoreTransaction};
 use crate::SecretSeal;
 
 #[derive(Debug, Display, Error, From)]
@@ -84,7 +85,7 @@ impl<P: IndexProvider> From<IndexWriteError<<P as IndexWriteProvider>::Error>> f
     }
 }
 
-impl From<confinement::Error> for IndexWriteError<StoreError> {
+impl From<confinement::Error> for IndexWriteError<MemError> {
     fn from(err: confinement::Error) -> Self { IndexWriteError::Connectivity(err.into()) }
 }
 
@@ -349,7 +350,7 @@ impl<P: IndexProvider> StoreTransaction for Index<P> {
     fn rollback_transaction(&mut self) { self.provider.rollback_transaction() }
 }
 
-pub trait IndexProvider: Debug + IndexReadProvider + IndexWriteProvider {}
+pub trait IndexProvider: Debug + Persisting + IndexReadProvider + IndexWriteProvider {}
 
 pub trait IndexReadProvider {
     type Error: Clone + Eq + Error;

@@ -32,6 +32,7 @@ use bp::seals::txout::CloseMethod;
 use bp::Vout;
 use chrono::Utc;
 use invoice::{Amount, Beneficiary, InvoiceState, NonFungible, RgbInvoice};
+use nonasync::persistence::{PersistenceError, PersistenceProvider};
 use rgb::validation::{DbcProof, EAnchor, ResolveWitness, WitnessResolverError};
 use rgb::{
     validation, AssignmentType, BlindingFactor, BundleId, ContractId, DataState, GraphSeal,
@@ -45,7 +46,7 @@ use super::{
     IndexWriteProvider, MemIndex, MemStash, MemState, PersistedState, SchemaIfaces, Stash,
     StashDataError, StashError, StashInconsistency, StashProvider, StashReadProvider,
     StashWriteProvider, State, StateError, StateInconsistency, StateProvider, StateReadProvider,
-    StateWriteProvider, StockStoreProvider, StoreError, StoreProvider, StoreTransaction, Stored,
+    StateWriteProvider, StoreTransaction,
 };
 use crate::containers::{
     AnchorSet, AnchoredBundles, Batch, BuilderSeal, BundledWitness, Consignment, ContainerVer,
@@ -375,44 +376,48 @@ impl Stock {
     }
 }
 
-impl<S: StashProvider, H: StateProvider, I: IndexProvider> Stock<S, H, I>
-where
-    S: Stored,
-    H: Stored,
-    I: Stored,
-{
-    pub fn load<P>(provider: P, autosave: bool) -> Result<Self, StoreError>
-    where P: StoreProvider<Self> + 'static {
-        let mut stock = provider.load()?;
-        if autosave {
-            stock.stash.as_provider_mut().autosave();
-            stock.state.as_provider_mut().autosave();
-            stock.index.as_provider_mut().autosave();
-        }
-        Ok(stock)
+impl<S: StashProvider, H: StateProvider, I: IndexProvider> Stock<S, H, I> {
+    pub fn load<P>(provider: P, autosave: bool) -> Result<Self, PersistenceError>
+    where P: Clone
+            + PersistenceProvider<S>
+            + PersistenceProvider<H>
+            + PersistenceProvider<I>
+            + 'static {
+        let stash = S::load(provider.clone(), autosave)?;
+        let state = H::load(provider.clone(), autosave)?;
+        let index = I::load(provider, autosave)?;
+        Ok(Self::with(stash, state, index))
     }
 
-    pub fn autosave(&mut self) {
-        self.stash.as_provider_mut().autosave();
-        self.state.as_provider_mut().autosave();
-        self.index.as_provider_mut().autosave();
+    pub fn make_persistent<P>(
+        &mut self,
+        provider: P,
+        autosave: bool,
+    ) -> Result<bool, PersistenceError>
+    where
+        P: Clone
+            + PersistenceProvider<S>
+            + PersistenceProvider<H>
+            + PersistenceProvider<I>
+            + 'static,
+    {
+        Ok(self
+            .as_stash_provider_mut()
+            .make_persistent(provider.clone(), autosave)?
+            && self
+                .as_state_provider_mut()
+                .make_persistent(provider.clone(), autosave)?
+            && self
+                .as_index_provider_mut()
+                .make_persistent(provider, autosave)?)
     }
 
-    pub fn is_dirty(&self) -> bool {
-        self.as_stash_provider().is_dirty() ||
-            self.as_state_provider().is_dirty() ||
-            self.as_index_provider().is_dirty()
-    }
+    pub fn store(&mut self) -> Result<(), PersistenceError> {
+        // TODO: Revert on failure
 
-    pub fn make_stored<P>(&mut self, provider: P) -> bool
-    where P: StockStoreProvider<S, H, I> + 'static {
-        provider.make_stored(self)
-    }
-
-    pub fn store(&self) -> Result<(), StoreError> {
-        self.as_stash_provider().store()?;
-        self.as_state_provider().store()?;
-        self.as_index_provider().store()?;
+        self.as_stash_provider_mut().store()?;
+        self.as_state_provider_mut().store()?;
+        self.as_index_provider_mut().store()?;
 
         Ok(())
     }
