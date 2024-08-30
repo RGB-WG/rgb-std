@@ -32,7 +32,7 @@ use bp::seals::txout::CloseMethod;
 use bp::Vout;
 use chrono::Utc;
 use invoice::{Amount, Beneficiary, InvoiceState, NonFungible, RgbInvoice};
-use nonasync::persistence::{PersistenceError, PersistenceProvider};
+use nonasync::persistence::{CloneNoPersistence, PersistenceError, PersistenceProvider};
 use rgb::validation::{DbcProof, EAnchor, ResolveWitness, WitnessResolverError};
 use rgb::{
     validation, AssignmentType, BlindingFactor, BundleId, ContractId, DataState, GraphSeal,
@@ -343,7 +343,7 @@ stock_err_conv!(ContractIfaceError, InputError);
 pub type StockErrorMem<E = Infallible> = StockError<MemStash, MemState, MemIndex, E>;
 pub type StockErrorAll<S = MemStash, H = MemState, P = MemIndex> = StockError<S, H, P, InputError>;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Stock<
     S: StashProvider = MemStash,
     H: StateProvider = MemState,
@@ -352,6 +352,16 @@ pub struct Stock<
     stash: Stash<S>,
     state: State<H>,
     index: Index<P>,
+}
+
+impl<S: StashProvider, H: StateProvider, P: IndexProvider> CloneNoPersistence for Stock<S, H, P> {
+    fn clone_no_persistence(&self) -> Self {
+        Self {
+            stash: self.stash.clone_no_persistence(),
+            state: self.state.clone_no_persistence(),
+            index: self.index.clone_no_persistence(),
+        }
+    }
 }
 
 impl<S: StashProvider, H: StateProvider, P: IndexProvider> Default for Stock<S, H, P>

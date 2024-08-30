@@ -35,7 +35,7 @@ use amplify::confinement::{
 use amplify::num::u24;
 use bp::dbc::tapret::TapretCommitment;
 use commit_verify::{CommitId, Conceal};
-use nonasync::persistence::{Persistence, PersistenceError, Persisting};
+use nonasync::persistence::{CloneNoPersistence, Persistence, PersistenceError, Persisting};
 use rgb::validation::ResolveWitness;
 use rgb::vm::{
     ContractStateAccess, ContractStateEvolve, GlobalContractState, GlobalOrd, GlobalStateIter,
@@ -124,6 +124,27 @@ impl MemStash {
             identities: empty!(),
             libs: empty!(),
             sigs: empty!(),
+        }
+    }
+}
+
+impl CloneNoPersistence for MemStash {
+    fn clone_no_persistence(&self) -> Self {
+        Self {
+            persistence: None,
+            schemata: self.schemata.clone(),
+            ifaces: self.ifaces.clone(),
+            geneses: self.geneses.clone(),
+            suppl: self.suppl.clone(),
+            bundles: self.bundles.clone(),
+            extensions: self.extensions.clone(),
+            witnesses: self.witnesses.clone(),
+            attachments: self.attachments.clone(),
+            secret_seals: self.secret_seals.clone(),
+            type_system: self.type_system.clone(),
+            identities: self.identities.clone(),
+            libs: self.libs.clone(),
+            sigs: self.sigs.clone(),
         }
     }
 }
@@ -483,6 +504,16 @@ impl MemState {
             persistence: none!(),
             witnesses: empty!(),
             contracts: empty!(),
+        }
+    }
+}
+
+impl CloneNoPersistence for MemState {
+    fn clone_no_persistence(&self) -> Self {
+        Self {
+            persistence: None,
+            witnesses: self.witnesses.clone(),
+            contracts: self.contracts.clone(),
         }
     }
 }
@@ -1187,6 +1218,19 @@ impl MemIndex {
             bundle_witness_index: empty!(),
             contract_index: empty!(),
             terminal_index: empty!(),
+        }
+    }
+}
+
+impl CloneNoPersistence for MemIndex {
+    fn clone_no_persistence(&self) -> Self {
+        Self {
+            persistence: None,
+            op_bundle_index: self.op_bundle_index.clone(),
+            bundle_contract_index: self.bundle_contract_index.clone(),
+            bundle_witness_index: self.bundle_witness_index.clone(),
+            contract_index: self.contract_index.clone(),
+            terminal_index: self.terminal_index.clone(),
         }
     }
 }

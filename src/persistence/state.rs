@@ -26,7 +26,7 @@ use std::fmt::Debug;
 use std::iter;
 
 use invoice::Amount;
-use nonasync::persistence::Persisting;
+use nonasync::persistence::{CloneNoPersistence, Persisting};
 use rgb::validation::{ResolveWitness, WitnessResolverError};
 use rgb::vm::{ContractStateAccess, WitnessOrd};
 use rgb::{
@@ -92,9 +92,17 @@ impl PersistedState {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct State<P: StateProvider> {
     provider: P,
+}
+
+impl<P: StateProvider> CloneNoPersistence for State<P> {
+    fn clone_no_persistence(&self) -> Self {
+        Self {
+            provider: self.provider.clone_no_persistence(),
+        }
+    }
 }
 
 impl<P: StateProvider> Default for State<P>
@@ -255,7 +263,10 @@ impl<P: StateProvider> StoreTransaction for State<P> {
     fn rollback_transaction(&mut self) { self.provider.rollback_transaction() }
 }
 
-pub trait StateProvider: Debug + Persisting + StateReadProvider + StateWriteProvider {}
+pub trait StateProvider:
+    Debug + CloneNoPersistence + Persisting + StateReadProvider + StateWriteProvider
+{
+}
 
 pub trait StateReadProvider {
     type ContractRead<'a>: ContractStateRead

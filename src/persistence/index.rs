@@ -24,7 +24,7 @@ use std::error::Error;
 use std::fmt::Debug;
 
 use amplify::confinement;
-use nonasync::persistence::Persisting;
+use nonasync::persistence::{CloneNoPersistence, Persisting};
 use rgb::{
     Assign, AssignmentType, BundleId, ContractId, ExposedState, Extension, Genesis, GenesisSeal,
     GraphSeal, OpId, Operation, Opout, TransitionBundle, TypedAssigns, XChain, XOutputSeal,
@@ -124,9 +124,17 @@ pub enum IndexInconsistency {
     BundleWitnessUnknown(BundleId),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Index<P: IndexProvider> {
     provider: P,
+}
+
+impl<P: IndexProvider> CloneNoPersistence for Index<P> {
+    fn clone_no_persistence(&self) -> Self {
+        Self {
+            provider: self.provider.clone_no_persistence(),
+        }
+    }
 }
 
 impl<P: IndexProvider> Default for Index<P>
@@ -350,7 +358,10 @@ impl<P: IndexProvider> StoreTransaction for Index<P> {
     fn rollback_transaction(&mut self) { self.provider.rollback_transaction() }
 }
 
-pub trait IndexProvider: Debug + Persisting + IndexReadProvider + IndexWriteProvider {}
+pub trait IndexProvider:
+    Debug + CloneNoPersistence + Persisting + IndexReadProvider + IndexWriteProvider
+{
+}
 
 pub trait IndexReadProvider {
     type Error: Clone + Eq + Error;
