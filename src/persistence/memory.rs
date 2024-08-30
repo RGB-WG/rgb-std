@@ -192,8 +192,8 @@ impl StashReadProvider for MemStash {
             .values()
             .find(|iimpl| C::IFACE_IDS.contains(&iimpl.iface_id))
             .or_else(|| {
-                schema_ifaces.iimpls.keys().find_map(|id| {
-                    let iface = self.iface(id.clone()).ok()?;
+                C::IFACE_IDS.iter().find_map(|id| {
+                    let iface = self.iface(*id).ok()?;
                     iface.find_abstractable_impl(schema_ifaces)
                 })
             })
