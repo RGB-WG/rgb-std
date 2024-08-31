@@ -411,15 +411,16 @@ impl<S: StashProvider, H: StateProvider, I: IndexProvider> Stock<S, H, I> {
             + PersistenceProvider<I>
             + 'static,
     {
-        Ok(self
+        let a = self
             .as_stash_provider_mut()
-            .make_persistent(provider.clone(), autosave)?
-            && self
-                .as_state_provider_mut()
-                .make_persistent(provider.clone(), autosave)?
-            && self
-                .as_index_provider_mut()
-                .make_persistent(provider, autosave)?)
+            .make_persistent(provider.clone(), autosave)?;
+        let b = self
+            .as_state_provider_mut()
+            .make_persistent(provider.clone(), autosave)?;
+        let c = self
+            .as_index_provider_mut()
+            .make_persistent(provider, autosave)?;
+        Ok(a && b && c)
     }
 
     pub fn store(&mut self) -> Result<(), PersistenceError> {
