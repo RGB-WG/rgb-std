@@ -588,7 +588,7 @@ checksum = "f2b8f3a258db515d5e91a904ce4ae3f73e091149b90cadbdb93d210bee07f63b"
 [[package]]
 name = "nonasync"
 version = "0.1.0"
-source = "git+https://github.com/rust-amplify/amplify-nonasync#d52db387df2282a73984d2d5ef238135d5267930"
+source = "git+https://github.com/rust-amplify/amplify-nonasync#b1bf3542060beabe3dcdf66517be6ee3eb2ac302"
 dependencies = [
  "amplify 5.0.0-beta.1",
 ]

@@ -154,6 +154,8 @@ impl Persisting for MemStash {
     fn persistence(&self) -> Option<&Persistence<Self>> { self.persistence.as_ref() }
     #[inline]
     fn persistence_mut(&mut self) -> Option<&mut Persistence<Self>> { self.persistence.as_mut() }
+    #[inline]
+    fn as_mut_persistence(&mut self) -> &mut Option<Persistence<Self>> { &mut self.persistence }
 }
 
 impl StoreTransaction for MemStash {
@@ -523,6 +525,8 @@ impl Persisting for MemState {
     fn persistence(&self) -> Option<&Persistence<Self>> { self.persistence.as_ref() }
     #[inline]
     fn persistence_mut(&mut self) -> Option<&mut Persistence<Self>> { self.persistence.as_mut() }
+    #[inline]
+    fn as_mut_persistence(&mut self) -> &mut Option<Persistence<Self>> { &mut self.persistence }
 }
 
 impl StoreTransaction for MemState {
@@ -1240,6 +1244,8 @@ impl Persisting for MemIndex {
     fn persistence(&self) -> Option<&Persistence<Self>> { self.persistence.as_ref() }
     #[inline]
     fn persistence_mut(&mut self) -> Option<&mut Persistence<Self>> { self.persistence.as_mut() }
+    #[inline]
+    fn as_mut_persistence(&mut self) -> &mut Option<Persistence<Self>> { &mut self.persistence }
 }
 
 impl StoreTransaction for MemIndex {
