@@ -20,6 +20,7 @@
 // limitations under the License.
 
 use std::path::PathBuf;
+use std::{fs, io};
 
 use amplify::confinement::U32 as U32MAX;
 use nonasync::persistence::{PersistenceError, PersistenceProvider};
@@ -35,7 +36,9 @@ pub struct FsBinStore {
 }
 
 impl FsBinStore {
-    pub fn new(path: PathBuf) -> Self {
+    pub fn new(path: PathBuf) -> io::Result<Self> {
+        fs::create_dir_all(&path)?;
+
         let mut stash = path.clone();
         stash.push("stash.dat");
         let mut state = path.clone();
@@ -43,11 +46,11 @@ impl FsBinStore {
         let mut index = path.clone();
         index.push("index.dat");
 
-        Self {
+        Ok(Self {
             stash,
             state,
             index,
-        }
+        })
     }
 }
 impl PersistenceProvider<MemStash> for FsBinStore {
