@@ -708,7 +708,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         &self,
         contract_id: ContractId,
     ) -> Result<Contract, StockError<S, H, P, ConsignError>> {
-        let consignment = self.consign::<false>(contract_id, [], [])?;
+        let consignment = self.consign::<false>(contract_id, [], None)?;
         Ok(consignment)
     }
 
@@ -716,9 +716,9 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         &self,
         contract_id: ContractId,
         outputs: impl AsRef<[XOutputSeal]>,
-        secret_seals: impl AsRef<[XChain<SecretSeal>]>,
+        secret_seal: Option<XChain<SecretSeal>>,
     ) -> Result<Transfer, StockError<S, H, P, ConsignError>> {
-        let consignment = self.consign(contract_id, outputs, secret_seals)?;
+        let consignment = self.consign(contract_id, outputs, secret_seal)?;
         Ok(consignment)
     }
 
@@ -726,10 +726,9 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         &self,
         contract_id: ContractId,
         outputs: impl AsRef<[XOutputSeal]>,
-        secret_seals: impl AsRef<[XChain<SecretSeal>]>,
+        secret_seal: Option<XChain<SecretSeal>>,
     ) -> Result<Consignment<TRANSFER>, StockError<S, H, P, ConsignError>> {
         let outputs = outputs.as_ref();
-        let secret_seals = secret_seals.as_ref();
 
         // Initialize supplements with btree set
         let mut supplements = bset![];
@@ -754,10 +753,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             self.index
                 .opouts_by_outputs(contract_id, outputs.iter().copied())?,
         );
-        opouts.extend(
-            self.index
-                .opouts_by_terminals(secret_seals.iter().copied())?,
-        );
+        opouts.extend(self.index.opouts_by_terminals(secret_seal.into_iter())?);
 
         // 1.3. Collect all state transitions assigning state to the provided outpoints
         let mut bundled_witnesses = BTreeMap::<BundleId, BundledWitness>::new();
@@ -776,7 +772,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             for typed_assignments in transition.assignments.values() {
                 for index in 0..typed_assignments.len_u16() {
                     let seal = typed_assignments.to_confidential_seals()[index as usize];
-                    if secret_seals.contains(&seal) {
+                    if secret_seal == Some(seal) {
                         let res = terminals.insert(bundle_id, seal);
                         assert_eq!(res, None);
                     }
@@ -1439,7 +1435,7 @@ mod test {
         let contract_id =
             ContractId::from_baid64_str("rgb:qFuT6DN8-9AuO95M-7R8R8Mc-AZvs7zG-obum1Va-BRnweKk")
                 .unwrap();
-        if let Ok(transfer) = stock.consign::<true>(contract_id, [], [secret_seal]) {
+        if let Ok(transfer) = stock.consign::<true>(contract_id, [], Some(secret_seal)) {
             println!("{:?}", transfer.supplements)
         }
     }
