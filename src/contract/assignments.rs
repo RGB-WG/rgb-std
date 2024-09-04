@@ -71,7 +71,12 @@ impl<State: KnownState> PartialEq for OutputAssignment<State> {
         // in order to support updates from the ephemeral state of the lightning
         // channels. See <https://github.com/RGB-WG/rgb-std/issues/238#issuecomment-2283822128>
         // for the details.
-        self.opout == other.opout
+        let res = self.opout == other.opout && self.seal == other.seal;
+        #[cfg(debug_assertions)]
+        if res {
+            debug_assert_eq!(self.state, other.state);
+        }
+        res
     }
 }
 
@@ -84,7 +89,10 @@ impl<State: KnownState> Ord for OutputAssignment<State> {
         if self == other {
             return Ordering::Equal;
         }
-        self.opout.cmp(&other.opout)
+        match self.opout.cmp(&other.opout) {
+            Ordering::Equal => self.seal.cmp(&other.seal),
+            ordering => ordering,
+        }
     }
 }
 
