@@ -24,18 +24,18 @@ use std::error::Error;
 use std::fmt::Debug;
 
 use amplify::confinement;
+use nonasync::persistence::{CloneNoPersistence, Persisting};
 use rgb::{
     Assign, AssignmentType, BundleId, ContractId, ExposedState, Extension, Genesis, GenesisSeal,
     GraphSeal, OpId, Operation, Opout, TransitionBundle, TypedAssigns, XChain, XOutputSeal,
     XWitnessId,
 };
-use strict_encoding::SerializeError;
 
 use crate::containers::{BundledWitness, ConsignmentExt, ToWitnessId};
-use crate::persistence::StoreTransaction;
+use crate::persistence::{MemError, StoreTransaction};
 use crate::SecretSeal;
 
-#[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
+#[derive(Debug, Display, Error, From)]
 #[display(inner)]
 pub enum IndexError<P: IndexProvider> {
     /// Connectivity errors which may be recoverable and temporary.
@@ -85,7 +85,7 @@ impl<P: IndexProvider> From<IndexWriteError<<P as IndexWriteProvider>::Error>> f
     }
 }
 
-impl From<confinement::Error> for IndexWriteError<SerializeError> {
+impl From<confinement::Error> for IndexWriteError<MemError> {
     fn from(err: confinement::Error) -> Self { IndexWriteError::Connectivity(err.into()) }
 }
 
@@ -124,9 +124,17 @@ pub enum IndexInconsistency {
     BundleWitnessUnknown(BundleId),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Index<P: IndexProvider> {
     provider: P,
+}
+
+impl<P: IndexProvider> CloneNoPersistence for Index<P> {
+    fn clone_no_persistence(&self) -> Self {
+        Self {
+            provider: self.provider.clone_no_persistence(),
+        }
+    }
 }
 
 impl<P: IndexProvider> Default for Index<P>
@@ -146,7 +154,6 @@ impl<P: IndexProvider> Index<P> {
     pub fn as_provider(&self) -> &P { &self.provider }
 
     #[doc(hidden)]
-    #[cfg(feature = "fs")]
     pub(super) fn as_provider_mut(&mut self) -> &mut P { &mut self.provider }
 
     pub(super) fn index_consignment(
@@ -351,7 +358,10 @@ impl<P: IndexProvider> StoreTransaction for Index<P> {
     fn rollback_transaction(&mut self) { self.provider.rollback_transaction() }
 }
 
-pub trait IndexProvider: Debug + IndexReadProvider + IndexWriteProvider {}
+pub trait IndexProvider:
+    Debug + CloneNoPersistence + Persisting + IndexReadProvider + IndexWriteProvider
+{
+}
 
 pub trait IndexReadProvider {
     type Error: Clone + Eq + Error;
@@ -386,7 +396,7 @@ pub trait IndexReadProvider {
 }
 
 pub trait IndexWriteProvider: StoreTransaction<TransactionErr = Self::Error> {
-    type Error: Clone + Eq + Error;
+    type Error: Error;
 
     fn register_contract(&mut self, contract_id: ContractId) -> Result<bool, Self::Error>;
 

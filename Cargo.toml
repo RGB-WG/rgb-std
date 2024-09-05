@@ -23,6 +23,7 @@ license = "Apache-2.0"
 
 [workspace.dependencies]
 amplify = "4.7.0"
+nonasync = "0.1.0"
 ascii-armor = "0.7.1"
 baid64 = "0.2.2"
 strict_encoding = "2.7.0-rc.1"
@@ -54,6 +55,7 @@ crate-type = ["cdylib", "rlib"] # We need this for WASM
 
 [dependencies]
 amplify = { workspace = true }
+nonasync = { workspace = true }
 ascii-armor = { workspace = true }
 baid64 = { workspace = true }
 strict_encoding = { workspace = true }
@@ -97,4 +99,5 @@ wasm-bindgen-test = "0.3"
 features = ["all"]
 
 [patch.crates-io]
+nonasync = { git = "https://github.com/rust-amplify/amplify-nonasync" }
 rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "nonce" }

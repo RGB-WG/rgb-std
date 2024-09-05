@@ -26,6 +26,7 @@ use std::fmt::Debug;
 use std::iter;
 
 use invoice::Amount;
+use nonasync::persistence::{CloneNoPersistence, Persisting};
 use rgb::validation::{ResolveWitness, WitnessResolverError};
 use rgb::vm::{ContractStateAccess, WitnessOrd};
 use rgb::{
@@ -38,7 +39,7 @@ use crate::containers::{ConsignmentExt, ToWitnessId};
 use crate::contract::OutputAssignment;
 use crate::persistence::{StoreTransaction, UpdateRes};
 
-#[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
+#[derive(Debug, Display, Error, From)]
 #[display(inner)]
 pub enum StateError<P: StateProvider> {
     /// Connectivity errors which may be recoverable and temporary.
@@ -91,9 +92,17 @@ impl PersistedState {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct State<P: StateProvider> {
     provider: P,
+}
+
+impl<P: StateProvider> CloneNoPersistence for State<P> {
+    fn clone_no_persistence(&self) -> Self {
+        Self {
+            provider: self.provider.clone_no_persistence(),
+        }
+    }
 }
 
 impl<P: StateProvider> Default for State<P>
@@ -254,7 +263,10 @@ impl<P: StateProvider> StoreTransaction for State<P> {
     fn rollback_transaction(&mut self) { self.provider.rollback_transaction() }
 }
 
-pub trait StateProvider: Debug + StateReadProvider + StateWriteProvider {}
+pub trait StateProvider:
+    Debug + CloneNoPersistence + Persisting + StateReadProvider + StateWriteProvider
+{
+}
 
 pub trait StateReadProvider {
     type ContractRead<'a>: ContractStateRead
@@ -272,7 +284,7 @@ pub trait StateReadProvider {
 pub trait StateWriteProvider: StoreTransaction<TransactionErr = Self::Error> {
     type ContractWrite<'a>: ContractStateWrite<Error = Self::Error>
     where Self: 'a;
-    type Error: Clone + Eq + Error;
+    type Error: Error;
 
     fn register_contract(
         &mut self,
@@ -302,7 +314,7 @@ pub trait ContractStateRead: ContractStateAccess {
 }
 
 pub trait ContractStateWrite {
-    type Error: Clone + Eq + Error;
+    type Error: Error;
 
     fn add_genesis(&mut self, genesis: &Genesis) -> Result<(), Self::Error>;
 

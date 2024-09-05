@@ -19,17 +19,75 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
+use std::{fs, io};
 
-use strict_encoding::{DeserializeError, SerializeError};
+use amplify::confinement::U32 as U32MAX;
+use nonasync::persistence::{PersistenceError, PersistenceProvider};
+use strict_encoding::{StrictDeserialize, StrictSerialize};
 
-pub trait FsStored: Sized {
-    fn new(path: impl ToOwned<Owned = PathBuf>) -> Self;
-    fn load(path: impl ToOwned<Owned = PathBuf>) -> Result<Self, DeserializeError>;
+use crate::persistence::{MemIndex, MemStash, MemState};
 
-    fn is_dirty(&self) -> bool;
-    fn filename(&self) -> Option<&Path>;
-    fn set_filename(&mut self, filename: impl ToOwned<Owned = PathBuf>) -> Option<PathBuf>;
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub struct FsBinStore {
+    pub stash: PathBuf,
+    pub state: PathBuf,
+    pub index: PathBuf,
+}
 
-    fn store(&self) -> Result<(), SerializeError>;
+impl FsBinStore {
+    pub fn new(path: PathBuf) -> io::Result<Self> {
+        fs::create_dir_all(&path)?;
+
+        let mut stash = path.clone();
+        stash.push("stash.dat");
+        let mut state = path.clone();
+        state.push("state.dat");
+        let mut index = path.clone();
+        index.push("index.dat");
+
+        Ok(Self {
+            stash,
+            state,
+            index,
+        })
+    }
+}
+impl PersistenceProvider<MemStash> for FsBinStore {
+    fn load(&self) -> Result<MemStash, PersistenceError> {
+        MemStash::strict_deserialize_from_file::<U32MAX>(&self.stash)
+            .map_err(PersistenceError::with)
+    }
+
+    fn store(&self, object: &MemStash) -> Result<(), PersistenceError> {
+        object
+            .strict_serialize_to_file::<U32MAX>(&self.stash)
+            .map_err(PersistenceError::with)
+    }
+}
+
+impl PersistenceProvider<MemState> for FsBinStore {
+    fn load(&self) -> Result<MemState, PersistenceError> {
+        MemState::strict_deserialize_from_file::<U32MAX>(&self.state)
+            .map_err(PersistenceError::with)
+    }
+
+    fn store(&self, object: &MemState) -> Result<(), PersistenceError> {
+        object
+            .strict_serialize_to_file::<U32MAX>(&self.state)
+            .map_err(PersistenceError::with)
+    }
+}
+
+impl PersistenceProvider<MemIndex> for FsBinStore {
+    fn load(&self) -> Result<MemIndex, PersistenceError> {
+        MemIndex::strict_deserialize_from_file::<U32MAX>(&self.index)
+            .map_err(PersistenceError::with)
+    }
+
+    fn store(&self, object: &MemIndex) -> Result<(), PersistenceError> {
+        object
+            .strict_serialize_to_file::<U32MAX>(&self.index)
+            .map_err(PersistenceError::with)
+    }
 }

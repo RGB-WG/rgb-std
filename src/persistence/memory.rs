@@ -25,8 +25,6 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::convert::Infallible;
 use std::fmt::{Debug, Formatter};
 use std::num::NonZeroU32;
-#[cfg(feature = "fs")]
-use std::path::PathBuf;
 use std::{iter, mem};
 
 use aluvm::library::{Lib, LibId};
@@ -37,6 +35,7 @@ use amplify::confinement::{
 use amplify::num::u24;
 use bp::dbc::tapret::TapretCommitment;
 use commit_verify::{CommitId, Conceal};
+use nonasync::persistence::{CloneNoPersistence, Persistence, PersistenceError, Persisting};
 use rgb::validation::ResolveWitness;
 use rgb::vm::{
     ContractStateAccess, ContractStateEvolve, GlobalContractState, GlobalOrd, GlobalStateIter,
@@ -49,7 +48,7 @@ use rgb::{
     RevealedData, RevealedValue, Schema, SchemaId, SecretSeal, Transition, TransitionBundle,
     TypedAssigns, VoidState, XChain, XOutpoint, XOutputSeal, XWitnessId,
 };
-use strict_encoding::{SerializeError, StrictDeserialize, StrictSerialize};
+use strict_encoding::{StrictDeserialize, StrictSerialize};
 use strict_types::TypeSystem;
 
 use super::{
@@ -64,25 +63,31 @@ use crate::containers::{
 };
 use crate::contract::{GlobalOut, KnownState, OpWitness, OutputAssignment};
 use crate::interface::{Iface, IfaceClass, IfaceId, IfaceImpl, IfaceRef};
-#[cfg(feature = "fs")]
-use crate::persistence::fs::FsStored;
 use crate::LIB_NAME_RGB_STORAGE;
+
+#[derive(Debug, Display, Error, From)]
+#[display(inner)]
+pub enum MemError {
+    #[from]
+    Persistence(PersistenceError),
+
+    #[from]
+    Confinement(confinement::Error),
+}
 
 //////////
 // STASH
 //////////
 
 /// Hoard is an in-memory stash useful for WASM implementations.
-#[derive(Getters, Clone, Debug)]
+#[derive(Getters, Debug)]
 #[getter(prefix = "debug_")]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STORAGE, dumb = Self::in_memory())]
 pub struct MemStash {
+    #[getter(skip)]
     #[strict_type(skip)]
-    dirty: bool,
-    #[cfg(feature = "fs")]
-    #[strict_type(skip)]
-    filename: Option<PathBuf>,
+    persistence: Option<Persistence<Self>>,
 
     schemata: TinyOrdMap<SchemaId, SchemaIfaces>,
     ifaces: TinyOrdMap<IfaceId, Iface>,
@@ -105,9 +110,7 @@ impl StrictDeserialize for MemStash {}
 impl MemStash {
     pub fn in_memory() -> Self {
         Self {
-            dirty: false,
-            #[cfg(feature = "fs")]
-            filename: None,
+            persistence: none!(),
             schemata: empty!(),
             ifaces: empty!(),
             geneses: empty!(),
@@ -125,22 +128,46 @@ impl MemStash {
     }
 }
 
-impl StoreTransaction for MemStash {
-    type TransactionErr = SerializeError;
-
-    fn begin_transaction(&mut self) -> Result<(), Self::TransactionErr> {
-        self.dirty = true;
-        Ok(())
-    }
-
-    fn commit_transaction(&mut self) -> Result<(), Self::TransactionErr> {
-        #[cfg(feature = "fs")]
-        if self.dirty {
-            self.store()?;
+impl CloneNoPersistence for MemStash {
+    fn clone_no_persistence(&self) -> Self {
+        Self {
+            persistence: None,
+            schemata: self.schemata.clone(),
+            ifaces: self.ifaces.clone(),
+            geneses: self.geneses.clone(),
+            suppl: self.suppl.clone(),
+            bundles: self.bundles.clone(),
+            extensions: self.extensions.clone(),
+            witnesses: self.witnesses.clone(),
+            attachments: self.attachments.clone(),
+            secret_seals: self.secret_seals.clone(),
+            type_system: self.type_system.clone(),
+            identities: self.identities.clone(),
+            libs: self.libs.clone(),
+            sigs: self.sigs.clone(),
         }
+    }
+}
+
+impl Persisting for MemStash {
+    #[inline]
+    fn persistence(&self) -> Option<&Persistence<Self>> { self.persistence.as_ref() }
+    #[inline]
+    fn persistence_mut(&mut self) -> Option<&mut Persistence<Self>> { self.persistence.as_mut() }
+    #[inline]
+    fn as_mut_persistence(&mut self) -> &mut Option<Persistence<Self>> { &mut self.persistence }
+}
+
+impl StoreTransaction for MemStash {
+    type TransactionErr = MemError;
+    #[inline]
+    fn begin_transaction(&mut self) -> Result<(), Self::TransactionErr> {
+        self.mark_dirty();
         Ok(())
     }
-
+    #[inline]
+    fn commit_transaction(&mut self) -> Result<(), Self::TransactionErr> { Ok(self.store()?) }
+    #[inline]
     fn rollback_transaction(&mut self) { unreachable!() }
 }
 
@@ -330,7 +357,7 @@ impl StashReadProvider for MemStash {
 }
 
 impl StashWriteProvider for MemStash {
-    type Error = SerializeError;
+    type Error = MemError;
 
     fn replace_schema(&mut self, schema: Schema) -> Result<bool, Self::Error> {
         let schema_id = schema.schema_id();
@@ -457,16 +484,14 @@ impl StashWriteProvider for MemStash {
 // STATE
 //////////
 
-#[derive(Getters, Clone, Debug)]
+#[derive(Getters, Debug)]
 #[getter(prefix = "debug_")]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STORAGE, dumb = Self::in_memory())]
 pub struct MemState {
+    #[getter(skip)]
     #[strict_type(skip)]
-    dirty: bool,
-    #[cfg(feature = "fs")]
-    #[strict_type(skip)]
-    filename: Option<PathBuf>,
+    persistence: Option<Persistence<Self>>,
 
     witnesses: LargeOrdMap<XWitnessId, WitnessOrd>,
     contracts: TinyOrdMap<ContractId, MemContractState>,
@@ -478,31 +503,42 @@ impl StrictDeserialize for MemState {}
 impl MemState {
     pub fn in_memory() -> Self {
         Self {
-            dirty: false,
-            #[cfg(feature = "fs")]
-            filename: None,
+            persistence: none!(),
             witnesses: empty!(),
             contracts: empty!(),
         }
     }
 }
 
-impl StoreTransaction for MemState {
-    type TransactionErr = SerializeError;
-
-    fn begin_transaction(&mut self) -> Result<(), Self::TransactionErr> {
-        self.dirty = true;
-        Ok(())
-    }
-
-    fn commit_transaction(&mut self) -> Result<(), Self::TransactionErr> {
-        #[cfg(feature = "fs")]
-        if self.dirty {
-            self.store()?;
+impl CloneNoPersistence for MemState {
+    fn clone_no_persistence(&self) -> Self {
+        Self {
+            persistence: None,
+            witnesses: self.witnesses.clone(),
+            contracts: self.contracts.clone(),
         }
+    }
+}
+
+impl Persisting for MemState {
+    #[inline]
+    fn persistence(&self) -> Option<&Persistence<Self>> { self.persistence.as_ref() }
+    #[inline]
+    fn persistence_mut(&mut self) -> Option<&mut Persistence<Self>> { self.persistence.as_mut() }
+    #[inline]
+    fn as_mut_persistence(&mut self) -> &mut Option<Persistence<Self>> { &mut self.persistence }
+}
+
+impl StoreTransaction for MemState {
+    type TransactionErr = MemError;
+    #[inline]
+    fn begin_transaction(&mut self) -> Result<(), Self::TransactionErr> {
+        self.mark_dirty();
         Ok(())
     }
-
+    #[inline]
+    fn commit_transaction(&mut self) -> Result<(), Self::TransactionErr> { Ok(self.store()?) }
+    #[inline]
     fn rollback_transaction(&mut self) { unreachable!() }
 }
 
@@ -551,7 +587,7 @@ impl StateReadProvider for MemState {
 
 impl StateWriteProvider for MemState {
     type ContractWrite<'a> = MemContractWriter<'a>;
-    type Error = SerializeError;
+    type Error = MemError;
 
     fn register_contract(
         &mut self,
@@ -574,7 +610,7 @@ impl StateWriteProvider for MemState {
         };
         let mut writer = MemContractWriter {
             writer: Box::new(
-                |witness_id: XWitnessId, ord: WitnessOrd| -> Result<(), SerializeError> {
+                |witness_id: XWitnessId, ord: WitnessOrd| -> Result<(), confinement::Error> {
                     // NB: We do not check the existence of the witness since we have a newer
                     // version anyway and even if it is known we have to replace it
                     self.witnesses.insert(witness_id, ord)?;
@@ -599,7 +635,7 @@ impl StateWriteProvider for MemState {
                 // We can't move this constructor to a dedicated method due to the rust borrower
                 // checker
                 writer: Box::new(
-                    |witness_id: XWitnessId, ord: WitnessOrd| -> Result<(), SerializeError> {
+                    |witness_id: XWitnessId, ord: WitnessOrd| -> Result<(), confinement::Error> {
                         // NB: We do not check the existence of the witness since we have a newer
                         // version anyway and even if it is known we have to replace
                         // it
@@ -1003,7 +1039,7 @@ impl ContractStateEvolve for MemContract<MemContractState> {
         fn writer(me: &mut MemContract<MemContractState>) -> MemContractWriter {
             MemContractWriter {
                 writer: Box::new(
-                    |witness_id: XWitnessId, ord: WitnessOrd| -> Result<(), SerializeError> {
+                    |witness_id: XWitnessId, ord: WitnessOrd| -> Result<(), confinement::Error> {
                         // NB: We do not check the existence of the witness since we have a
                         // newer version anyway and even if it is
                         // known we have to replace it
@@ -1028,11 +1064,12 @@ impl ContractStateEvolve for MemContract<MemContractState> {
                 writer.add_extension(extension, witness_id, ord)
             }
         }
-        .map_err(|err| match err {
-            SerializeError::Io(_) => {
-                unreachable!("I/O errors are not possible for memory structures")
+        .map_err(|err| {
+            // TODO: remove once evolve_state would accept arbitrary errors
+            match err {
+                MemError::Persistence(_) => unreachable!("only confinement errors are possible"),
+                MemError::Confinement(e) => e,
             }
-            SerializeError::Confinement(e) => e,
         })?;
         Ok(())
     }
@@ -1083,12 +1120,12 @@ impl<M: Borrow<MemContractState>> ContractStateRead for MemContract<M> {
 }
 
 pub struct MemContractWriter<'mem> {
-    writer: Box<dyn FnMut(XWitnessId, WitnessOrd) -> Result<(), SerializeError> + 'mem>,
+    writer: Box<dyn FnMut(XWitnessId, WitnessOrd) -> Result<(), confinement::Error> + 'mem>,
     contract: &'mem mut MemContractState,
 }
 
 impl<'mem> ContractStateWrite for MemContractWriter<'mem> {
-    type Error = SerializeError;
+    type Error = MemError;
 
     /// # Panics
     ///
@@ -1157,16 +1194,14 @@ pub struct ContractIndex {
     outpoint_opouts: MediumOrdMap<XOutputSeal, MediumOrdSet<Opout>>,
 }
 
-#[derive(Getters, Clone, Debug)]
+#[derive(Getters, Debug)]
 #[getter(prefix = "debug_")]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STORAGE, dumb = Self::in_memory())]
 pub struct MemIndex {
+    #[getter(skip)]
     #[strict_type(skip)]
-    dirty: bool,
-    #[cfg(feature = "fs")]
-    #[strict_type(skip)]
-    filename: Option<PathBuf>,
+    persistence: Option<Persistence<Self>>,
 
     op_bundle_index: MediumOrdMap<OpId, BundleId>,
     bundle_contract_index: MediumOrdMap<BundleId, ContractId>,
@@ -1181,9 +1216,7 @@ impl StrictDeserialize for MemIndex {}
 impl MemIndex {
     pub fn in_memory() -> Self {
         Self {
-            dirty: false,
-            #[cfg(feature = "fs")]
-            filename: None,
+            persistence: None,
             op_bundle_index: empty!(),
             bundle_contract_index: empty!(),
             bundle_witness_index: empty!(),
@@ -1193,22 +1226,38 @@ impl MemIndex {
     }
 }
 
-impl StoreTransaction for MemIndex {
-    type TransactionErr = SerializeError;
-
-    fn begin_transaction(&mut self) -> Result<(), Self::TransactionErr> {
-        self.dirty = true;
-        Ok(())
-    }
-
-    fn commit_transaction(&mut self) -> Result<(), Self::TransactionErr> {
-        #[cfg(feature = "fs")]
-        if self.dirty {
-            self.store()?;
+impl CloneNoPersistence for MemIndex {
+    fn clone_no_persistence(&self) -> Self {
+        Self {
+            persistence: None,
+            op_bundle_index: self.op_bundle_index.clone(),
+            bundle_contract_index: self.bundle_contract_index.clone(),
+            bundle_witness_index: self.bundle_witness_index.clone(),
+            contract_index: self.contract_index.clone(),
+            terminal_index: self.terminal_index.clone(),
         }
+    }
+}
+
+impl Persisting for MemIndex {
+    #[inline]
+    fn persistence(&self) -> Option<&Persistence<Self>> { self.persistence.as_ref() }
+    #[inline]
+    fn persistence_mut(&mut self) -> Option<&mut Persistence<Self>> { self.persistence.as_mut() }
+    #[inline]
+    fn as_mut_persistence(&mut self) -> &mut Option<Persistence<Self>> { &mut self.persistence }
+}
+
+impl StoreTransaction for MemIndex {
+    type TransactionErr = MemError;
+    #[inline]
+    fn begin_transaction(&mut self) -> Result<(), Self::TransactionErr> {
+        self.mark_dirty();
         Ok(())
     }
-
+    #[inline]
+    fn commit_transaction(&mut self) -> Result<(), Self::TransactionErr> { Ok(self.store()?) }
+    #[inline]
     fn rollback_transaction(&mut self) { unreachable!() }
 }
 
@@ -1303,7 +1352,7 @@ impl IndexReadProvider for MemIndex {
 }
 
 impl IndexWriteProvider for MemIndex {
-    type Error = SerializeError;
+    type Error = MemError;
 
     fn register_contract(&mut self, contract_id: ContractId) -> Result<bool, Self::Error> {
         if !self.contract_index.contains_key(&contract_id) {
@@ -1439,127 +1488,5 @@ impl IndexWriteProvider for MemIndex {
             }
         }
         Ok(())
-    }
-}
-
-#[cfg(feature = "fs")]
-mod fs {
-    use std::path::{Path, PathBuf};
-
-    use amplify::confinement::U32;
-    use strict_encoding::{DeserializeError, SerializeError, StrictDeserialize, StrictSerialize};
-
-    use crate::persistence::fs::FsStored;
-    use crate::persistence::{MemIndex, MemStash, MemState};
-
-    impl FsStored for MemStash {
-        fn new(filename: impl ToOwned<Owned = PathBuf>) -> Self {
-            Self {
-                dirty: true,
-                filename: Some(filename.to_owned()),
-                ..Self::in_memory()
-            }
-        }
-
-        fn load(path: impl ToOwned<Owned = PathBuf>) -> Result<Self, DeserializeError> {
-            let path = path.to_owned();
-            let mut me = Self::strict_deserialize_from_file::<U32>(&path)?;
-            me.set_filename(path);
-            Ok(me)
-        }
-
-        fn is_dirty(&self) -> bool { self.dirty }
-
-        fn filename(&self) -> Option<&Path> { self.filename.as_deref() }
-
-        fn set_filename(&mut self, filename: impl ToOwned<Owned = PathBuf>) -> Option<PathBuf> {
-            let prev = self.filename.to_owned();
-            self.filename = Some(filename.to_owned());
-            self.dirty = self.filename != prev;
-            prev
-        }
-
-        fn store(&self) -> Result<(), SerializeError> {
-            if self.is_dirty() {
-                if let Some(filename) = self.filename() {
-                    return self.strict_serialize_to_file::<U32>(filename);
-                }
-            }
-            Ok(())
-        }
-    }
-
-    impl FsStored for MemState {
-        fn new(filename: impl ToOwned<Owned = PathBuf>) -> Self {
-            Self {
-                dirty: true,
-                filename: Some(filename.to_owned()),
-                ..Self::in_memory()
-            }
-        }
-
-        fn load(path: impl ToOwned<Owned = PathBuf>) -> Result<Self, DeserializeError> {
-            let path = path.to_owned();
-            let mut me = Self::strict_deserialize_from_file::<U32>(&path)?;
-            me.set_filename(path);
-            Ok(me)
-        }
-
-        fn is_dirty(&self) -> bool { self.dirty }
-
-        fn filename(&self) -> Option<&Path> { self.filename.as_deref() }
-
-        fn set_filename(&mut self, filename: impl ToOwned<Owned = PathBuf>) -> Option<PathBuf> {
-            let prev = self.filename.to_owned();
-            self.filename = Some(filename.to_owned());
-            self.dirty = self.filename != prev;
-            prev
-        }
-
-        fn store(&self) -> Result<(), SerializeError> {
-            if self.is_dirty() {
-                if let Some(filename) = self.filename() {
-                    return self.strict_serialize_to_file::<U32>(filename);
-                }
-            }
-            Ok(())
-        }
-    }
-
-    impl FsStored for MemIndex {
-        fn new(filename: impl ToOwned<Owned = PathBuf>) -> Self {
-            Self {
-                dirty: true,
-                filename: Some(filename.to_owned()),
-                ..Self::in_memory()
-            }
-        }
-
-        fn load(path: impl ToOwned<Owned = PathBuf>) -> Result<Self, DeserializeError> {
-            let path = path.to_owned();
-            let mut me = Self::strict_deserialize_from_file::<U32>(&path)?;
-            me.set_filename(path);
-            Ok(me)
-        }
-
-        fn is_dirty(&self) -> bool { self.dirty }
-
-        fn filename(&self) -> Option<&Path> { self.filename.as_deref() }
-
-        fn set_filename(&mut self, filename: impl ToOwned<Owned = PathBuf>) -> Option<PathBuf> {
-            let prev = self.filename.to_owned();
-            self.filename = Some(filename.to_owned());
-            self.dirty = self.filename != prev;
-            prev
-        }
-
-        fn store(&self) -> Result<(), SerializeError> {
-            if self.is_dirty() {
-                if let Some(filename) = self.filename() {
-                    return self.strict_serialize_to_file::<U32>(filename);
-                }
-            }
-            Ok(())
-        }
     }
 }

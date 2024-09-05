@@ -32,6 +32,7 @@ use bp::seals::txout::CloseMethod;
 use bp::Vout;
 use chrono::Utc;
 use invoice::{Amount, Beneficiary, InvoiceState, NonFungible, RgbInvoice};
+use nonasync::persistence::{CloneNoPersistence, PersistenceError, PersistenceProvider};
 use rgb::validation::{DbcProof, EAnchor, ResolveWitness, WitnessResolverError};
 use rgb::{
     validation, AssignmentType, BlindingFactor, BundleId, ContractId, DataState, GraphSeal,
@@ -62,7 +63,7 @@ use crate::{MergeRevealError, RevealError};
 
 pub type ContractAssignments = HashMap<XOutputSeal, HashMap<Opout, PersistedState>>;
 
-#[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
+#[derive(Debug, Display, Error, From)]
 #[display(inner)]
 pub enum StockError<
     S: StashProvider = MemStash,
@@ -342,7 +343,7 @@ stock_err_conv!(ContractIfaceError, InputError);
 pub type StockErrorMem<E = Infallible> = StockError<MemStash, MemState, MemIndex, E>;
 pub type StockErrorAll<S = MemStash, H = MemState, P = MemIndex> = StockError<S, H, P, InputError>;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Stock<
     S: StashProvider = MemStash,
     H: StateProvider = MemState,
@@ -351,6 +352,16 @@ pub struct Stock<
     stash: Stash<S>,
     state: State<H>,
     index: Index<P>,
+}
+
+impl<S: StashProvider, H: StateProvider, P: IndexProvider> CloneNoPersistence for Stock<S, H, P> {
+    fn clone_no_persistence(&self) -> Self {
+        Self {
+            stash: self.stash.clone_no_persistence(),
+            state: self.state.clone_no_persistence(),
+            index: self.index.clone_no_persistence(),
+        }
+    }
 }
 
 impl<S: StashProvider, H: StateProvider, P: IndexProvider> Default for Stock<S, H, P>
@@ -375,80 +386,51 @@ impl Stock {
     }
 }
 
-#[cfg(feature = "fs")]
-mod fs {
-    use std::path::PathBuf;
+impl<S: StashProvider, H: StateProvider, I: IndexProvider> Stock<S, H, I> {
+    pub fn load<P>(provider: P, autosave: bool) -> Result<Self, PersistenceError>
+    where P: Clone
+            + PersistenceProvider<S>
+            + PersistenceProvider<H>
+            + PersistenceProvider<I>
+            + 'static {
+        let stash = S::load(provider.clone(), autosave)?;
+        let state = H::load(provider.clone(), autosave)?;
+        let index = I::load(provider, autosave)?;
+        Ok(Self::with(stash, state, index))
+    }
 
-    use strict_encoding::{DeserializeError, SerializeError};
-
-    use super::*;
-    use crate::persistence::fs::FsStored;
-
-    impl<S: StashProvider, H: StateProvider, I: IndexProvider> Stock<S, H, I>
+    pub fn make_persistent<P>(
+        &mut self,
+        provider: P,
+        autosave: bool,
+    ) -> Result<bool, PersistenceError>
     where
-        S: FsStored,
-        H: FsStored,
-        I: FsStored,
+        P: Clone
+            + PersistenceProvider<S>
+            + PersistenceProvider<H>
+            + PersistenceProvider<I>
+            + 'static,
     {
-        pub fn new(path: impl ToOwned<Owned = PathBuf>) -> Self {
-            let mut filename = path.to_owned();
-            filename.push("stash.dat");
-            let stash = S::new(filename);
+        let a = self
+            .as_stash_provider_mut()
+            .make_persistent(provider.clone(), autosave)?;
+        let b = self
+            .as_state_provider_mut()
+            .make_persistent(provider.clone(), autosave)?;
+        let c = self
+            .as_index_provider_mut()
+            .make_persistent(provider, autosave)?;
+        Ok(a && b && c)
+    }
 
-            let mut filename = path.to_owned();
-            filename.push("state.dat");
-            let state = H::new(filename);
+    pub fn store(&mut self) -> Result<(), PersistenceError> {
+        // TODO: Revert on failure
 
-            let mut filename = path.to_owned();
-            filename.push("index.dat");
-            let index = I::new(filename);
+        self.as_stash_provider_mut().store()?;
+        self.as_state_provider_mut().store()?;
+        self.as_index_provider_mut().store()?;
 
-            Stock::with(stash, state, index)
-        }
-
-        pub fn load(path: impl ToOwned<Owned = PathBuf>) -> Result<Self, DeserializeError> {
-            let mut filename = path.to_owned();
-            filename.push("stash.dat");
-            let stash = S::load(filename)?;
-
-            let mut filename = path.to_owned();
-            filename.push("state.dat");
-            let state = H::load(filename)?;
-
-            let mut filename = path.to_owned();
-            filename.push("index.dat");
-            let index = I::load(filename)?;
-
-            Ok(Stock::with(stash, state, index))
-        }
-
-        pub fn is_dirty(&self) -> bool {
-            self.as_stash_provider().is_dirty()
-                || self.as_state_provider().is_dirty()
-                || self.as_index_provider().is_dirty()
-        }
-
-        pub fn set_path(&mut self, path: impl ToOwned<Owned = PathBuf>) {
-            let mut filename = path.to_owned();
-            filename.push("stash.dat");
-            self.stash.as_provider_mut().set_filename(filename);
-
-            let mut filename = path.to_owned();
-            filename.push("state.dat");
-            self.state.as_provider_mut().set_filename(filename);
-
-            let mut filename = path.to_owned();
-            filename.push("index.dat");
-            self.index.as_provider_mut().set_filename(filename);
-        }
-
-        pub fn store(&self) -> Result<(), SerializeError> {
-            self.as_stash_provider().store()?;
-            self.as_state_provider().store()?;
-            self.as_index_provider().store()?;
-
-            Ok(())
-        }
+        Ok(())
     }
 }
 
@@ -467,6 +449,13 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     pub fn as_state_provider(&self) -> &H { self.state.as_provider() }
     #[doc(hidden)]
     pub fn as_index_provider(&self) -> &P { self.index.as_provider() }
+
+    #[doc(hidden)]
+    pub fn as_stash_provider_mut(&mut self) -> &mut S { self.stash.as_provider_mut() }
+    #[doc(hidden)]
+    pub fn as_state_provider_mut(&mut self) -> &mut H { self.state.as_provider_mut() }
+    #[doc(hidden)]
+    pub fn as_index_provider_mut(&mut self) -> &mut P { self.index.as_provider_mut() }
 
     pub fn ifaces(&self) -> Result<impl Iterator<Item = IfaceInfo> + '_, StockError<S, H, P>> {
         let names = self
