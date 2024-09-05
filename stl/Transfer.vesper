@@ -260,7 +260,7 @@ Consignmenttrue rec
     Extension rec
       ffv is U16 aka=Ffv
       contractId bytes len=32 aka=ContractId
-      nonce is U8
+      nonce is U64
       extensionType is U16 aka=ExtensionType
       metadata map len=0..MAX8 aka=Metadata
         key is U16 aka=MetaType
@@ -497,7 +497,7 @@ Consignmenttrue rec
               value rec Transition
                 ffv is U16 aka=Ffv
                 contractId bytes len=32 aka=ContractId
-                nonce is U8
+                nonce is U64
                 transitionType is U16 aka=TransitionType
                 metadata map len=0..MAX8 aka=Metadata
                   key is U16 aka=MetaType
@@ -763,7 +763,7 @@ Consignmenttrue rec
               value rec Transition
                 ffv is U16 aka=Ffv
                 contractId bytes len=32 aka=ContractId
-                nonce is U8
+                nonce is U64
                 transitionType is U16 aka=TransitionType
                 metadata map len=0..MAX8 aka=Metadata
                   key is U16 aka=MetaType
@@ -1033,7 +1033,7 @@ Consignmenttrue rec
               value rec Transition
                 ffv is U16 aka=Ffv
                 contractId bytes len=32 aka=ContractId
-                nonce is U8
+                nonce is U64
                 transitionType is U16 aka=TransitionType
                 metadata map len=0..MAX8 aka=Metadata
                   key is U16 aka=MetaType
@@ -1298,7 +1298,7 @@ Consignmenttrue rec
               value rec Transition
                 ffv is U16 aka=Ffv
                 contractId bytes len=32 aka=ContractId
-                nonce is U8
+                nonce is U64
                 transitionType is U16 aka=TransitionType
                 metadata map len=0..MAX8 aka=Metadata
                   key is U16 aka=MetaType
