@@ -50,6 +50,7 @@ impl KnownState for RevealedValue {}
 impl KnownState for RevealedData {}
 impl KnownState for RevealedAttach {}
 
+#[allow(clippy::derived_hash_with_manual_eq)]
 #[derive(Copy, Clone, Eq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
