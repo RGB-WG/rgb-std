@@ -307,6 +307,7 @@ pub trait StateWriteProvider: StoreTransaction<TransactionErr = Self::Error> {
 pub trait ContractStateRead: ContractStateAccess {
     fn contract_id(&self) -> ContractId;
     fn schema_id(&self) -> SchemaId;
+    fn witness_info(&self, witness_id: XWitnessId) -> Option<WitnessOrd>;
     fn rights_all(&self) -> impl Iterator<Item = &OutputAssignment<VoidState>>;
     fn fungible_all(&self) -> impl Iterator<Item = &OutputAssignment<RevealedValue>>;
     fn data_all(&self) -> impl Iterator<Item = &OutputAssignment<RevealedData>>;
