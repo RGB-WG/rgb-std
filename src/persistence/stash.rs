@@ -28,6 +28,7 @@ use amplify::confinement;
 use amplify::confinement::{Confined, MediumBlob, TinyOrdMap};
 use bp::dbc::anchor::MergeError;
 use bp::dbc::tapret::TapretCommitment;
+use bp::seals::txout::CloseMethod;
 use commit_verify::mpc;
 use nonasync::persistence::{CloneNoPersistence, Persisting};
 use rgb::validation::Scripts;
@@ -117,6 +118,9 @@ pub enum StashInconsistency {
 
     /// information about witness {0} is absent.
     WitnessAbsent(XWitnessId),
+
+    /// witness {0} for the bundle {1} misses contract {2} information in {3} anchor.
+    WitnessMissesContract(XWitnessId, BundleId, ContractId, CloseMethod),
 
     /// bundle {0} is absent.
     BundleAbsent(BundleId),

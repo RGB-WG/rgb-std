@@ -1352,24 +1352,46 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             AnchorSet::Opret(opret) => (None, Some(opret)),
             AnchorSet::Double { tapret, opret } => (Some(tapret), Some(opret)),
         };
-        let mut anchor = None;
-        if let Some(a) = tapret {
-            if let Ok(a) = a.to_merkle_proof(contract_id) {
-                anchor = Some(EAnchor::new(a.mpc_proof, DbcProof::Tapret(a.dbc_proof)));
+        let Ok(tapret) = tapret.map(|a| a.to_merkle_proof(contract_id)).transpose() else {
+            return Err(StashInconsistency::WitnessMissesContract(
+                witness_id,
+                bundle_id,
+                contract_id,
+                CloseMethod::TapretFirst,
+            )
+            .into());
+        };
+        let Ok(opret) = opret.map(|a| a.to_merkle_proof(contract_id)).transpose() else {
+            return Err(StashInconsistency::WitnessMissesContract(
+                witness_id,
+                bundle_id,
+                contract_id,
+                CloseMethod::OpretFirst,
+            )
+            .into());
+        };
+        let anchored_bundles = match (opret, tapret) {
+            (Some(opret), Some(tapret)) => AnchoredBundles::Double {
+                tapret_anchor: tapret,
+                tapret_bundle: bundle.clone(),
+                opret_anchor: opret,
+                opret_bundle: bundle,
+            },
+            (Some(opret), None) => AnchoredBundles::with(
+                EAnchor::new(opret.mpc_proof, DbcProof::Opret(opret.dbc_proof)),
+                bundle,
+            ),
+            (None, Some(tapret)) => AnchoredBundles::with(
+                EAnchor::new(tapret.mpc_proof, DbcProof::Tapret(tapret.dbc_proof)),
+                bundle,
+            ),
+            (None, None) => {
+                return Err(
+                    StashInconsistency::BundleMissedInAnchors(bundle_id, contract_id).into()
+                );
             }
-        }
-        if anchor.is_none() {
-            if let Some(a) = opret {
-                if let Ok(a) = a.to_merkle_proof(contract_id) {
-                    anchor = Some(EAnchor::new(a.mpc_proof, DbcProof::Opret(a.dbc_proof)));
-                }
-            }
-        }
-        let Some(anchor) = anchor else {
-            return Err(StashInconsistency::BundleMissedInAnchors(bundle_id, contract_id).into());
         };
 
-        let anchored_bundles = AnchoredBundles::with(anchor, bundle);
         // TODO: Conceal all transitions except the one we need
 
         Ok(BundledWitness {
