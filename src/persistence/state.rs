@@ -189,31 +189,29 @@ impl<P: StateProvider> State<P> {
             .zip(iter::repeat(false))
             .collect::<BTreeMap<_, _>>();
         let mut ordered_extensions = BTreeMap::new();
-        for bundled_witness in consignment.bundled_witnesses() {
-            for bundle in bundled_witness.anchored_bundles.bundles() {
-                for transition in bundle.known_transitions.values() {
-                    let witness_id = bundled_witness.pub_witness.to_witness_id();
-                    let witness_ord = resolver
-                        .resolve_pub_witness_ord(witness_id)
-                        .map_err(|e| StateError::Resolver(witness_id, e))?;
+        for witness_bundle in consignment.bundled_witnesses() {
+            for transition in witness_bundle.bundle.known_transitions.values() {
+                let witness_id = witness_bundle.pub_witness.to_witness_id();
+                let witness_ord = resolver
+                    .resolve_pub_witness_ord(witness_id)
+                    .map_err(|e| StateError::Resolver(witness_id, e))?;
 
-                    state
-                        .add_transition(transition, witness_id, witness_ord)
-                        .map_err(StateError::WriteProvider)?;
-                    for (id, used) in &mut extension_idx {
-                        if *used {
-                            continue;
-                        }
-                        for input in &transition.inputs {
-                            if input.prev_out.op == *id {
-                                *used = true;
-                                if let Some((_, witness_ord2)) = ordered_extensions.get_mut(id) {
-                                    if *witness_ord2 < witness_ord {
-                                        *witness_ord2 = witness_ord;
-                                    }
-                                } else {
-                                    ordered_extensions.insert(*id, (witness_id, witness_ord));
+                state
+                    .add_transition(transition, witness_id, witness_ord)
+                    .map_err(StateError::WriteProvider)?;
+                for (id, used) in &mut extension_idx {
+                    if *used {
+                        continue;
+                    }
+                    for input in &transition.inputs {
+                        if input.prev_out.op == *id {
+                            *used = true;
+                            if let Some((_, witness_ord2)) = ordered_extensions.get_mut(id) {
+                                if *witness_ord2 < witness_ord {
+                                    *witness_ord2 = witness_ord;
                                 }
+                            } else {
+                                ordered_extensions.insert(*id, (witness_id, witness_ord));
                             }
                         }
                     }

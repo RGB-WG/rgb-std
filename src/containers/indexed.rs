@@ -36,7 +36,7 @@ use crate::containers::anchors::ToWitnessId;
 pub struct IndexedConsignment<'c, const TRANSFER: bool> {
     consignment: &'c Consignment<TRANSFER>,
     scripts: Scripts,
-    anchor_idx: BTreeMap<BundleId, (XWitnessId, EAnchor)>,
+    anchor_idx: BTreeMap<BundleId, (XWitnessId, &'c EAnchor)>,
     bundle_idx: BTreeMap<BundleId, &'c TransitionBundle>,
     op_witness_idx: BTreeMap<OpId, XWitnessId>,
     op_bundle_idx: BTreeMap<OpId, BundleId>,
@@ -58,17 +58,17 @@ impl<'c, const TRANSFER: bool> IndexedConsignment<'c, TRANSFER> {
         let mut op_bundle_idx = BTreeMap::new();
         let mut extension_idx = BTreeMap::new();
         let mut witness_idx = BTreeMap::new();
-        for bw in &consignment.bundles {
-            witness_idx.insert(bw.pub_witness.to_witness_id(), &bw.pub_witness);
-            for (anchor, bundle) in bw.anchored_bundles.pairs() {
-                let bundle_id = bundle.bundle_id();
-                let witness_id = bw.pub_witness.to_witness_id();
-                bundle_idx.insert(bundle_id, bundle);
-                anchor_idx.insert(bundle_id, (witness_id, anchor));
-                for opid in bundle.known_transitions.keys() {
-                    op_witness_idx.insert(*opid, witness_id);
-                    op_bundle_idx.insert(*opid, bundle_id);
-                }
+        for witness_bundle in &consignment.bundles {
+            witness_idx
+                .insert(witness_bundle.pub_witness.to_witness_id(), &witness_bundle.pub_witness);
+            let bundle = &witness_bundle.bundle;
+            let bundle_id = bundle.bundle_id();
+            let witness_id = witness_bundle.pub_witness.to_witness_id();
+            bundle_idx.insert(bundle_id, bundle);
+            anchor_idx.insert(bundle_id, (witness_id, &witness_bundle.anchor));
+            for opid in witness_bundle.bundle.known_transitions.keys() {
+                op_witness_idx.insert(*opid, witness_id);
+                op_bundle_idx.insert(*opid, bundle_id);
             }
         }
         for extension in &consignment.extensions {
@@ -137,7 +137,7 @@ impl<'c, const TRANSFER: bool> ConsignmentApi for IndexedConsignment<'c, TRANSFE
     }
 
     fn anchor(&self, bundle_id: BundleId) -> Option<(XWitnessId, &EAnchor)> {
-        self.anchor_idx.get(&bundle_id).map(|(id, set)| (*id, set))
+        self.anchor_idx.get(&bundle_id).map(|(id, set)| (*id, *set))
     }
 
     fn op_witness_id(&self, opid: OpId) -> Option<XWitnessId> {

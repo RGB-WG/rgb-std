@@ -24,14 +24,16 @@ use std::error::Error;
 use std::fmt::Debug;
 
 use aluvm::library::{Lib, LibId};
-use amplify::confinement;
 use amplify::confinement::{Confined, MediumBlob, TinyOrdMap};
+use amplify::{confinement, ByteArray};
 use bp::dbc::anchor::MergeError;
 use bp::dbc::tapret::TapretCommitment;
+use bp::dbc::Anchor;
 use bp::seals::txout::CloseMethod;
 use commit_verify::mpc;
+use commit_verify::mpc::MerkleBlock;
 use nonasync::persistence::{CloneNoPersistence, Persisting};
-use rgb::validation::Scripts;
+use rgb::validation::{DbcProof, Scripts};
 use rgb::{
     AttachId, BundleId, ContractId, Extension, Genesis, GraphSeal, Identity, OpId, Operation,
     Schema, SchemaId, TransitionBundle, XChain, XWitnessId,
@@ -41,8 +43,8 @@ use strict_types::typesys::UnknownType;
 use strict_types::TypeSystem;
 
 use crate::containers::{
-    BundledWitness, Consignment, ConsignmentExt, ContentId, ContentRef, ContentSigs, Kit,
-    SealWitness, SigBlob, Supplement, TrustLevel,
+    AnchorSet, Consignment, ConsignmentExt, ContentId, ContentRef, ContentSigs, Kit, SealWitness,
+    SigBlob, Supplement, TrustLevel, WitnessBundle,
 };
 use crate::interface::{
     ContractBuilder, Iface, IfaceClass, IfaceId, IfaceImpl, IfaceRef, TransitionBuilder,
@@ -546,26 +548,31 @@ impl<P: StashProvider> Stash<P> {
     fn consume_bundled_witness(
         &mut self,
         contract_id: ContractId,
-        bundled_witness: BundledWitness,
+        bundled_witness: WitnessBundle,
     ) -> Result<(), StashError<P>> {
-        let BundledWitness {
+        let WitnessBundle {
             pub_witness,
-            anchored_bundles,
+            bundle,
+            anchor,
         } = bundled_witness;
 
         // TODO: Save pub witness transaction and SPVs
 
-        for bundle in anchored_bundles.bundles().cloned() {
-            let bundle_id = bundle.bundle_id();
-            self.consume_bundle(bundle)?;
+        let bundle_id = bundle.bundle_id();
+        self.consume_bundle(bundle)?;
 
-            let anchors = anchored_bundles.to_anchor_set(contract_id, bundle_id)?;
-            let witness = SealWitness {
-                public: pub_witness.clone(),
-                anchors,
-            };
-            self.consume_witness(witness)?;
-        }
+        let proto = mpc::ProtocolId::from_byte_array(contract_id.to_byte_array());
+        let msg = mpc::Message::from_byte_array(bundle_id.to_byte_array());
+        let merkle_block = MerkleBlock::with(&anchor.mpc_proof, proto, msg)?;
+        let anchors = match anchor.dbc_proof {
+            DbcProof::Tapret(tapret) => AnchorSet::Tapret(Anchor::new(merkle_block, tapret)),
+            DbcProof::Opret(opret) => AnchorSet::Opret(Anchor::new(merkle_block, opret)),
+        };
+        let witness = SealWitness {
+            public: pub_witness.clone(),
+            anchors,
+        };
+        self.consume_witness(witness)?;
 
         Ok(())
     }
