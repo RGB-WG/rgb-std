@@ -43,7 +43,7 @@ use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 use strict_types::TypeSystem;
 
 use super::{
-    BundledWitness, ContainerVer, ContentId, ContentSigs, IndexedConsignment, Supplement,
+    ContainerVer, ContentId, ContentSigs, IndexedConsignment, Supplement, WitnessBundle,
     ASCII_ARMOR_CONSIGNMENT_TYPE, ASCII_ARMOR_CONTRACT, ASCII_ARMOR_IFACE, ASCII_ARMOR_SCHEMA,
     ASCII_ARMOR_TERMINAL, ASCII_ARMOR_VERSION,
 };
@@ -61,7 +61,7 @@ pub trait ConsignmentExt {
     fn schema(&self) -> &Schema;
     fn genesis(&self) -> &Genesis;
     fn extensions(&self) -> impl Iterator<Item = &Extension>;
-    fn bundled_witnesses(&self) -> impl Iterator<Item = &BundledWitness>;
+    fn bundled_witnesses(&self) -> impl Iterator<Item = &WitnessBundle>;
 }
 
 impl<C: ConsignmentExt> ConsignmentExt for &C {
@@ -81,7 +81,7 @@ impl<C: ConsignmentExt> ConsignmentExt for &C {
     fn extensions(&self) -> impl Iterator<Item = &Extension> { (*self).extensions() }
 
     #[inline]
-    fn bundled_witnesses(&self) -> impl Iterator<Item = &BundledWitness> {
+    fn bundled_witnesses(&self) -> impl Iterator<Item = &WitnessBundle> {
         (*self).bundled_witnesses()
     }
 }
@@ -196,7 +196,7 @@ pub struct Consignment<const TRANSFER: bool> {
 
     /// All bundled state transitions contained in the consignment, together
     /// with their witness data.
-    pub bundles: LargeOrdSet<BundledWitness>,
+    pub bundles: LargeOrdSet<WitnessBundle>,
 
     /// Schema (plus root schema, if any) under which contract is issued.
     pub schema: Schema,
@@ -241,7 +241,7 @@ impl<const TRANSFER: bool> CommitEncode for Consignment<TRANSFER> {
         ));
 
         e.commit_to_set(&LargeOrdSet::from_iter_checked(
-            self.bundles.iter().map(BundledWitness::disclose_hash),
+            self.bundles.iter().map(WitnessBundle::commit_id),
         ));
         e.commit_to_set(&LargeOrdSet::from_iter_checked(
             self.extensions.iter().map(Extension::disclose_hash),
@@ -277,7 +277,7 @@ impl<const TRANSFER: bool> ConsignmentExt for Consignment<TRANSFER> {
     fn extensions(&self) -> impl Iterator<Item = &Extension> { self.extensions.iter() }
 
     #[inline]
-    fn bundled_witnesses(&self) -> impl Iterator<Item = &BundledWitness> { self.bundles.iter() }
+    fn bundled_witnesses(&self) -> impl Iterator<Item = &WitnessBundle> { self.bundles.iter() }
 }
 
 impl<const TRANSFER: bool> Consignment<TRANSFER> {
@@ -293,18 +293,16 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
     ) -> Result<Self, E> {
         // We need to clone since ordered set does not allow us to mutate members.
         let mut bundles = LargeOrdSet::with_capacity(self.bundles.len());
-        for mut bundled_witness in self.bundles {
+        for mut witness_bundle in self.bundles {
             for (bundle_id, secret) in &self.terminals {
                 if let Some(seal) = f(*secret)? {
-                    for bundle in bundled_witness.anchored_bundles.bundles_mut() {
-                        if bundle.bundle_id() == *bundle_id {
-                            bundle.reveal_seal(seal);
-                            break;
-                        }
+                    if witness_bundle.bundle.bundle_id() == *bundle_id {
+                        witness_bundle.bundle.reveal_seal(seal);
+                        break;
                     }
                 }
             }
-            bundles.push(bundled_witness).ok();
+            bundles.push(witness_bundle).ok();
         }
         self.bundles = bundles;
         Ok(self)

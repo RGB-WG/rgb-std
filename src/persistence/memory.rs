@@ -1212,7 +1212,7 @@ pub struct MemIndex {
     bundle_contract_index: MediumOrdMap<BundleId, ContractId>,
     bundle_witness_index: MediumOrdMap<BundleId, TinyOrdSet<XWitnessId>>,
     contract_index: TinyOrdMap<ContractId, ContractIndex>,
-    terminal_index: MediumOrdMap<XChain<SecretSeal>, Opout>,
+    terminal_index: MediumOrdMap<XChain<SecretSeal>, TinyOrdSet<Opout>>,
 }
 
 impl StrictSerialize for MemIndex {}
@@ -1329,7 +1329,8 @@ impl IndexReadProvider for MemIndex {
             .terminal_index
             .iter()
             .filter(|(seal, _)| terminals.contains(*seal))
-            .map(|(_, opout)| *opout)
+            .flat_map(|(_, opout)| opout.iter())
+            .copied()
             .collect())
     }
 
@@ -1432,9 +1433,9 @@ impl IndexWriteProvider for MemIndex {
             .get_mut(&contract_id)
             .ok_or(IndexInconsistency::ContractAbsent(contract_id))?;
 
-        for (no, a) in vec.iter().enumerate() {
+        for (no, assign) in vec.iter().enumerate() {
             let opout = Opout::new(opid, type_id, no as u16);
-            if let Assign::ConfidentialState { seal, .. } | Assign::Revealed { seal, .. } = a {
+            if let Assign::ConfidentialState { seal, .. } | Assign::Revealed { seal, .. } = assign {
                 let output = seal
                     .to_output_seal()
                     .expect("genesis seals always have outpoint");
@@ -1447,11 +1448,10 @@ impl IndexWriteProvider for MemIndex {
                     }
                 }
             }
-            if let Assign::Confidential { seal, .. } | Assign::ConfidentialSeal { seal, .. } = a {
-                self.terminal_index.insert(*seal, opout)?;
-            }
         }
-        Ok(())
+
+        // We need two cycles due to the borrow checker
+        self.extend_terminals(vec, opid, type_id)
     }
 
     fn index_transition_assignments<State: ExposedState>(
@@ -1486,10 +1486,44 @@ impl IndexWriteProvider for MemIndex {
                     }
                 }
             }
+        }
+
+        // We need two cycles due to the borrow checker
+        self.extend_terminals(vec, opid, type_id)
+    }
+}
+
+impl MemIndex {
+    fn extend_terminals<State: ExposedState, Seal: ExposedSeal>(
+        &mut self,
+        vec: &[Assign<State, Seal>],
+        opid: OpId,
+        type_id: AssignmentType,
+    ) -> Result<(), IndexWriteError<MemError>> {
+        for (no, assign) in vec.iter().enumerate() {
+            let opout = Opout::new(opid, type_id, no as u16);
             if let Assign::Confidential { seal, .. } | Assign::ConfidentialSeal { seal, .. } =
                 assign
             {
-                self.terminal_index.insert(*seal, opout)?;
+                self.add_terminal(*seal, opout)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn add_terminal(
+        &mut self,
+        seal: XChain<SecretSeal>,
+        opout: Opout,
+    ) -> Result<(), IndexWriteError<MemError>> {
+        match self
+            .terminal_index
+            .remove(&seal)
+            .expect("can have zero elements")
+        {
+            Some(mut existing_opouts) => existing_opouts.push(opout)?,
+            None => {
+                self.terminal_index.insert(seal, tiny_bset![opout])?;
             }
         }
         Ok(())
