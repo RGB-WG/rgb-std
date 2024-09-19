@@ -27,13 +27,13 @@ use std::fmt::Debug;
 
 use amplify::confinement::{Confined, U24};
 use amplify::Wrapper;
-use bp::dbc::Method;
+use bp::dbc::{Anchor, Method};
 use bp::seals::txout::CloseMethod;
 use bp::Vout;
 use chrono::Utc;
 use invoice::{Amount, Beneficiary, InvoiceState, NonFungible, RgbInvoice};
 use nonasync::persistence::{CloneNoPersistence, PersistenceError, PersistenceProvider};
-use rgb::validation::{DbcProof, EAnchor, ResolveWitness, WitnessResolverError};
+use rgb::validation::{DbcProof, ResolveWitness, WitnessResolverError};
 use rgb::{
     validation, AssignmentType, BlindingFactor, BundleId, ContractId, DataState, GraphSeal,
     Identity, OpId, Operation, Opout, SchemaId, SecretSeal, Transition, TxoSeal, XChain, XOutpoint,
@@ -49,17 +49,17 @@ use super::{
     StateWriteProvider, StoreTransaction,
 };
 use crate::containers::{
-    AnchorSet, AnchoredBundles, Batch, BuilderSeal, BundledWitness, Consignment, ContainerVer,
-    ContentId, ContentRef, Contract, Fascia, Kit, SealWitness, SupplItem, SupplSub, Transfer,
-    TransitionDichotomy, TransitionInfo, TransitionInfoError, ValidConsignment, ValidContract,
-    ValidKit, ValidTransfer, VelocityHint, SUPPL_ANNOT_VELOCITY,
+    AnchorSet, Batch, BuilderSeal, Consignment, ContainerVer, ContentId, ContentRef, Contract,
+    Fascia, Kit, SealWitness, SupplItem, SupplSub, Transfer, TransitionDichotomy, TransitionInfo,
+    TransitionInfoError, ValidConsignment, ValidContract, ValidKit, ValidTransfer, VelocityHint,
+    WitnessBundle, SUPPL_ANNOT_VELOCITY,
 };
 use crate::info::{ContractInfo, IfaceInfo, SchemaInfo};
 use crate::interface::{
     BuilderError, ContractBuilder, ContractIface, Iface, IfaceClass, IfaceId, IfaceRef,
     IfaceWrapper, TransitionBuilder,
 };
-use crate::{MergeRevealError, RevealError};
+use crate::{BundleExt, MergeRevealError, RevealError};
 
 pub type ContractAssignments = HashMap<XOutputSeal, HashMap<Opout, PersistedState>>;
 
@@ -745,7 +745,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         opouts.extend(self.index.opouts_by_terminals(secret_seal.into_iter())?);
 
         // 1.3. Collect all state transitions assigning state to the provided outpoints
-        let mut bundled_witnesses = BTreeMap::<BundleId, BundledWitness>::new();
+        let mut witness_bundles = BTreeMap::<BundleId, WitnessBundle>::new();
         let mut transitions = BTreeMap::<OpId, Transition>::new();
         let mut terminals = BTreeMap::<BundleId, XChain<SecretSeal>>::new();
         for opout in opouts {
@@ -768,8 +768,8 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
                 }
             }
 
-            if let Entry::Vacant(entry) = bundled_witnesses.entry(bundle_id) {
-                let bw = self.bundled_witness(bundle_id)?;
+            if let Entry::Vacant(entry) = witness_bundles.entry(bundle_id) {
+                let bw = self.witness_bundle(bundle_id)?;
                 entry.insert(bw);
             }
         }
@@ -787,10 +787,10 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             ids.extend(transition.inputs().iter().map(|input| input.prev_out.op));
             transitions.insert(id, transition.clone());
             let bundle_id = self.index.bundle_id_for_op(transition.id())?;
-            bundled_witnesses
+            witness_bundles
                 .entry(bundle_id)
-                .or_insert(self.bundled_witness(bundle_id)?.clone())
-                .anchored_bundles
+                .or_insert(self.witness_bundle(bundle_id)?.clone())
+                .bundle
                 .reveal_transition(transition.clone())?;
         }
 
@@ -835,15 +835,15 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         }
         let ifaces = Confined::from_checked(ifaces);
 
-        let mut bundles = BTreeMap::<XWitnessId, BundledWitness>::new();
-        for bw in bundled_witnesses.into_values() {
-            let witness_id = bw.witness_id();
+        let mut bundles = BTreeMap::<XWitnessId, WitnessBundle>::new();
+        for witness_bundle in witness_bundles.into_values() {
+            let witness_id = witness_bundle.witness_id();
             match bundles.get_mut(&witness_id) {
                 Some(prev) => {
-                    *prev = prev.clone().merge_reveal(bw)?;
+                    *prev = prev.clone().merge_reveal(witness_bundle)?;
                 }
                 None => {
-                    bundles.insert(witness_id, bw);
+                    bundles.insert(witness_id, witness_bundle);
                 }
             }
         }
@@ -1340,41 +1340,44 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             .ok_or(ConsignError::Concealed(bundle_id, opid).into())
     }
 
-    fn bundled_witness(&self, bundle_id: BundleId) -> Result<BundledWitness, StockError<S, H, P>> {
+    fn witness_bundle(&self, bundle_id: BundleId) -> Result<WitnessBundle, StockError<S, H, P>> {
         let (witness_ids, contract_id) = self.index.bundle_info(bundle_id)?;
 
         let bundle = self.stash.bundle(bundle_id)?.clone();
         let witness_id = self.state.select_valid_witness(witness_ids)?;
         let witness = self.stash.witness(witness_id)?;
-        let anchor = witness.anchors.clone();
-        let (tapret, opret) = match anchor {
-            AnchorSet::Tapret(tapret) => (Some(tapret), None),
-            AnchorSet::Opret(opret) => (None, Some(opret)),
-            AnchorSet::Double { tapret, opret } => (Some(tapret), Some(opret)),
-        };
-        let mut anchor = None;
-        if let Some(a) = tapret {
-            if let Ok(a) = a.to_merkle_proof(contract_id) {
-                anchor = Some(EAnchor::new(a.mpc_proof, DbcProof::Tapret(a.dbc_proof)));
+        let (merkle_block, dbc) = match (bundle.close_method, &witness.anchors) {
+            (
+                CloseMethod::TapretFirst,
+                AnchorSet::Tapret(tapret) | AnchorSet::Double { tapret, .. },
+            ) => (&tapret.mpc_proof, DbcProof::Tapret(tapret.dbc_proof.clone())),
+            (
+                CloseMethod::OpretFirst,
+                AnchorSet::Opret(opret) | AnchorSet::Double { opret, .. },
+            ) => (&opret.mpc_proof, DbcProof::Opret(opret.dbc_proof)),
+            _ => {
+                return Err(
+                    StashInconsistency::BundleMissedInAnchors(bundle_id, contract_id).into()
+                );
             }
-        }
-        if anchor.is_none() {
-            if let Some(a) = opret {
-                if let Ok(a) = a.to_merkle_proof(contract_id) {
-                    anchor = Some(EAnchor::new(a.mpc_proof, DbcProof::Opret(a.dbc_proof)));
-                }
-            }
-        }
-        let Some(anchor) = anchor else {
-            return Err(StashInconsistency::BundleMissedInAnchors(bundle_id, contract_id).into());
         };
+        let Ok(mpc_proof) = merkle_block.to_merkle_proof(contract_id.into()) else {
+            return Err(StashInconsistency::WitnessMissesContract(
+                witness_id,
+                bundle_id,
+                contract_id,
+                CloseMethod::OpretFirst,
+            )
+            .into());
+        };
+        let anchor = Anchor::new(mpc_proof, dbc);
 
-        let anchored_bundles = AnchoredBundles::with(anchor, bundle);
         // TODO: Conceal all transitions except the one we need
 
-        Ok(BundledWitness {
+        Ok(WitnessBundle {
             pub_witness: witness.public.clone(),
-            anchored_bundles,
+            bundle,
+            anchor,
         })
     }
 

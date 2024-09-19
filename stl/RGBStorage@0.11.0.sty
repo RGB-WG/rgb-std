@@ -1,5 +1,5 @@
 {-
-  Id: stl:ieoE!c74-z5Us1Cc-j6$RdoB-BWAdWBF-jwE9Vu7-sFCnYdI#lopez-alert-slow
+  Id: stl:YBgLtVmT-FuzNBPe-1fxIqay-JW4Evd5-Za7fm9w-GLF6JAg#transit-xray-giraffe
   Name: RGBStorage
   Version: 0.11.0
   Description: RGB storage library
@@ -11,7 +11,7 @@
 @context
 typelib RGBStorage
 
-import RGBStd#picnic-reverse-convert
+import RGBStd#western-craft-bogart
   use PubWitness#paper-visa-storm
   use ContentRef#polo-ramirez-parker
   use SigBlob#insect-cello-avalon
@@ -231,12 +231,12 @@ data MemContractState  : schemaId RGBCommit.SchemaId
 @mnemonic(gilbert-torpedo-digital)
 data MemGlobalState    : known {RGBStd.GlobalOut -> ^ ..0xffffffff RGBCommit.DataState}, limit U24
 
-@mnemonic(origin-flame-actor)
+@mnemonic(savage-joshua-clone)
 data MemIndex          : opBundleIndex {RGBCommit.OpId -> ^ ..0xffffff RGBCommit.BundleId}
                        , bundleContractIndex {RGBCommit.BundleId -> ^ ..0xffffff RGBCommit.ContractId}
                        , bundleWitnessIndex {RGBCommit.BundleId -> ^ ..0xffffff {RGBCommit.XChainTxid ^ ..0xff}}
                        , contractIndex {RGBCommit.ContractId -> ^ ..0xff ContractIndex}
-                       , terminalIndex {RGBCommit.XChainSecretSeal -> ^ ..0xffffff RGBCommit.Opout}
+                       , terminalIndex {RGBCommit.XChainSecretSeal -> ^ ..0xffffff {RGBCommit.Opout ^ ..0xff}}
 
 @mnemonic(ultra-sweden-limbo)
 data MemStash          : schemata {RGBCommit.SchemaId -> ^ ..0xff RGBStd.SchemaIfaces}

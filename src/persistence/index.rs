@@ -31,7 +31,7 @@ use rgb::{
     XWitnessId,
 };
 
-use crate::containers::{BundledWitness, ConsignmentExt, ToWitnessId};
+use crate::containers::{ConsignmentExt, ToWitnessId, WitnessBundle};
 use crate::persistence::{MemError, StoreTransaction};
 use crate::SecretSeal;
 
@@ -169,15 +169,14 @@ impl<P: IndexProvider> Index<P> {
         for extension in consignment.extensions() {
             self.index_extension(contract_id, extension)?;
         }
-        for BundledWitness {
+        for WitnessBundle {
             pub_witness,
-            anchored_bundles,
+            bundle,
+            anchor: _,
         } in consignment.bundled_witnesses()
         {
             let witness_id = pub_witness.to_witness_id();
-            for bundle in anchored_bundles.bundles() {
-                self.index_bundle(contract_id, bundle, witness_id)?;
-            }
+            self.index_bundle(contract_id, bundle, witness_id)?;
         }
 
         Ok(())

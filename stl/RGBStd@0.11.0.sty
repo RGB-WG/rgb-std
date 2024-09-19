@@ -1,5 +1,5 @@
 {-
-  Id: stl:MRRNRLeI-muTBg22-pcaBEA2-MSllDDH-4RCDD6n-8ku826s#picnic-reverse-convert
+  Id: stl:H1HLPfyC-5YLlAk!-KWhcUo1-0vtex!9-ODxSmIA-zj1J$qc#western-craft-bogart
   Name: RGBStd
   Version: 0.11.0
   Description: RGB standard library
@@ -106,6 +106,9 @@ import RGBCommit#tuna-safari-design
   use RevealedData#olivia-copper-stamp
   use AssignRevealedValueBlindSealTxid#photo-jump-silicon
 
+import RGBLogic#explain-marvin-bless
+  use DbcProof#needle-change-forest
+
 import CommitVerify#miller-pancake-elastic
   use MerkleHash#horse-popcorn-bundle
   use MerkleProof#price-aloha-grid
@@ -122,9 +125,8 @@ import BPCore#totem-holiday-helena
   use TapretRightBranch#miracle-patriot-touch
   use BlindSealTxPtr#fortune-iron-salmon
   use OpretProof#good-village-flex
-  use AnchorMerkleProofTapretProof#meter-mobile-appear
   use SecretSeal#dollar-iris-wizard
-  use AnchorMerkleProofOpretProof#prime-salsa-magnet
+  use AnchorMerkleProofDbcProof#flash-justice-paradox
   use BlindSealTxid#media-judge-anita
   use TxPtr#italian-july-eddie
 
@@ -161,14 +163,6 @@ import Bitcoin#signal-color-cipher
   use XOnlyPk#clever-swim-carpet
 
 
-@mnemonic(moses-apropos-river)
-data AnchoredBundles   : tapret#1 (BPCore.AnchorMerkleProofTapretProof, RGBCommit.TransitionBundle)
-                       | opret (BPCore.AnchorMerkleProofOpretProof, RGBCommit.TransitionBundle)
-                       | double (tapretAnchor BPCore.AnchorMerkleProofTapretProof
-                       , tapretBundle RGBCommit.TransitionBundle
-                       , opretAnchor BPCore.AnchorMerkleProofOpretProof
-                       , opretBundle RGBCommit.TransitionBundle)
-
 @mnemonic(domino-waiter-orlando)
 data AnnotationName    : Std.AlphaCaps, [Std.AlphaNumDash ^ ..0xfe]
 
@@ -181,16 +175,13 @@ data AssignIface       : ownedState OwnedIface
                        , required Std.Bool
                        , multiple Std.Bool
 
-@mnemonic(explore-spiral-darwin)
-data BundledWitness    : pubWitness RGBCommit.XChainPubWitness, anchoredBundles AnchoredBundles
-
-@mnemonic(message-liberal-paul)
+@mnemonic(tango-hotel-jamaica)
 data Consignmentfalse  : version ContainerVer
                        , transfer Std.Bool
                        , terminals {RGBCommit.BundleId -> RGBCommit.XChainSecretSeal}
                        , genesis RGBCommit.Genesis
                        , extensions {RGBCommit.Extension ^ ..0xffffffff}
-                       , bundles {BundledWitness ^ ..0xffffffff}
+                       , bundles {WitnessBundle ^ ..0xffffffff}
                        , schema RGBCommit.Schema
                        , ifaces {Iface -> ^ ..0xff IfaceImpl}
                        , supplements {Supplement ^ ..0xff}
@@ -199,13 +190,13 @@ data Consignmentfalse  : version ContainerVer
                        , attachments {RGBCommit.AttachId -> [Byte ^ ..0xffffff]}
                        , signatures {ContentId -> ^ ..0xff ContentSigs}
 
-@mnemonic(cubic-night-image)
+@mnemonic(postage-canary-oxygen)
 data Consignmenttrue   : version ContainerVer
                        , transfer Std.Bool
                        , terminals {RGBCommit.BundleId -> RGBCommit.XChainSecretSeal}
                        , genesis RGBCommit.Genesis
                        , extensions {RGBCommit.Extension ^ ..0xffffffff}
-                       , bundles {BundledWitness ^ ..0xffffffff}
+                       , bundles {WitnessBundle ^ ..0xffffffff}
                        , schema RGBCommit.Schema
                        , ifaces {Iface -> ^ ..0xff IfaceImpl}
                        , supplements {Supplement ^ ..0xff}
@@ -400,5 +391,10 @@ data ValencyIface      : required Std.Bool
 @mnemonic(textile-next-stretch)
 data VerNo             : v0 | v1
 
+
+@mnemonic(special-almond-anatomy)
+data WitnessBundle     : pubWitness RGBCommit.XChainPubWitness
+                       , anchor BPCore.AnchorMerkleProofDbcProof
+                       , bundle RGBCommit.TransitionBundle
 
 
