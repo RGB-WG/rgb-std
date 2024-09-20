@@ -95,12 +95,13 @@ pub type FungibleAllocation = OutputAssignment<Amount>;
 pub type DataAllocation = OutputAssignment<DataState>;
 pub type AttachAllocation = OutputAssignment<AttachState>;
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
+#[display(lowercase)]
 pub enum OpDirection {
     Issued,
     Received,
