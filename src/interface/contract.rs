@@ -400,27 +400,26 @@ impl<S: ContractStateRead> ContractIface<S> {
         &self,
         filter_outpoints: impl AssignmentsFilter + Clone,
         filter_witnesses: impl AssignmentsFilter + Clone,
-    ) -> Result<Vec<ContractOp>, ContractError> {
-        Ok(self
-            .history_fungible(filter_outpoints.clone(), filter_witnesses.clone())?
+    ) -> Vec<ContractOp> {
+        self.history_fungible(filter_outpoints.clone(), filter_witnesses.clone())
             .into_iter()
             .map(ContractOp::Fungible)
             .chain(
-                self.history_rights(filter_outpoints.clone(), filter_witnesses.clone())?
+                self.history_rights(filter_outpoints.clone(), filter_witnesses.clone())
                     .into_iter()
                     .map(ContractOp::Rights),
             )
             .chain(
-                self.history_data(filter_outpoints.clone(), filter_witnesses.clone())?
+                self.history_data(filter_outpoints.clone(), filter_witnesses.clone())
                     .into_iter()
                     .map(ContractOp::Data),
             )
             .chain(
-                self.history_attach(filter_outpoints, filter_witnesses)?
+                self.history_attach(filter_outpoints, filter_witnesses)
                     .into_iter()
                     .map(ContractOp::Attach),
             )
-            .collect())
+            .collect()
     }
 
     fn operations<
@@ -433,7 +432,7 @@ impl<S: ContractStateRead> ContractIface<S> {
         state: impl Fn(&'c S) -> I,
         filter_outpoints: impl AssignmentsFilter,
         filter_witnesses: impl AssignmentsFilter,
-    ) -> Result<Vec<Op>, ContractError>
+    ) -> Vec<Op>
     where
         Op::State: From<T>,
     {
@@ -505,14 +504,14 @@ impl<S: ContractStateRead> ContractIface<S> {
             };
         }
 
-        Ok(ops)
+        ops
     }
 
     pub fn history_fungible(
         &self,
         filter_outpoints: impl AssignmentsFilter,
         filter_witnesses: impl AssignmentsFilter,
-    ) -> Result<Vec<FungibleOp>, ContractError> {
+    ) -> Vec<FungibleOp> {
         self.operations(|state| state.fungible_all(), filter_outpoints, filter_witnesses)
     }
 
@@ -520,7 +519,7 @@ impl<S: ContractStateRead> ContractIface<S> {
         &self,
         filter_outpoints: impl AssignmentsFilter,
         filter_witnesses: impl AssignmentsFilter,
-    ) -> Result<Vec<NonFungibleOp<VoidState>>, ContractError> {
+    ) -> Vec<NonFungibleOp<VoidState>> {
         self.operations(|state| state.rights_all(), filter_outpoints, filter_witnesses)
     }
 
@@ -528,7 +527,7 @@ impl<S: ContractStateRead> ContractIface<S> {
         &self,
         filter_outpoints: impl AssignmentsFilter,
         filter_witnesses: impl AssignmentsFilter,
-    ) -> Result<Vec<NonFungibleOp<DataState>>, ContractError> {
+    ) -> Vec<NonFungibleOp<DataState>> {
         self.operations(|state| state.data_all(), filter_outpoints, filter_witnesses)
     }
 
@@ -536,7 +535,7 @@ impl<S: ContractStateRead> ContractIface<S> {
         &self,
         filter_outpoints: impl AssignmentsFilter,
         filter_witnesses: impl AssignmentsFilter,
-    ) -> Result<Vec<NonFungibleOp<AttachState>>, ContractError> {
+    ) -> Vec<NonFungibleOp<AttachState>> {
         self.operations(|state| state.attach_all(), filter_outpoints, filter_witnesses)
     }
 
