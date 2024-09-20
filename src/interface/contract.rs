@@ -30,7 +30,7 @@ use rgb::{
 use strict_encoding::{FieldName, StrictDecode, StrictDumb, StrictEncode};
 use strict_types::{StrictVal, TypeSystem};
 
-use crate::contract::{FungibleState, KnownState, OutputAssignment, WitnessInfo};
+use crate::contract::{KnownState, OutputAssignment, WitnessInfo};
 use crate::info::ContractInfo;
 use crate::interface::{AssignmentsFilter, IfaceImpl};
 use crate::persistence::ContractStateRead;
@@ -90,27 +90,52 @@ pub type AttachAllocation = OutputAssignment<AttachState>;
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-pub enum ContractOp<S: KnownState> {
+pub enum NonFungibleOp<S: KnownState> {
     Genesis {
-        issued: S,
+        state: S,
+        to: XOutputSeal,
+    },
+    Received {
+        opid: OpId,
+        state: S,
+        to: XOutputSeal,
+        witness: WitnessInfo,
+    },
+    Sent {
+        opid: OpId,
+        state: S,
+        to: XOutputSeal,
+        witness: WitnessInfo,
+    },
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub enum FungibleOp {
+    Genesis {
+        issued: Amount,
         to: BTreeSet<XOutputSeal>,
     },
     Received {
         opids: BTreeSet<OpId>,
-        amount: S,
+        amount: Amount,
         to: BTreeSet<XOutputSeal>,
         witness: WitnessInfo,
     },
     Sent {
         opids: BTreeSet<OpId>,
-        amount: S,
+        amount: Amount,
         to: BTreeSet<XOutputSeal>,
         witness: WitnessInfo,
     },
 }
 
-impl<S: FungibleState> ContractOp<S> {
-    fn new_genesis(our_allocations: &HashSet<OutputAssignment<S>>) -> Self {
+impl FungibleOp {
+    fn new_genesis(our_allocations: &HashSet<OutputAssignment<Amount>>) -> Self {
         let to = our_allocations.iter().map(|a| a.seal).collect();
         let issued = our_allocations.iter().map(|a| a.state.clone()).sum();
         Self::Genesis { issued, to }
@@ -118,8 +143,8 @@ impl<S: FungibleState> ContractOp<S> {
 
     fn new_sent(
         witness: WitnessInfo,
-        ext_allocations: &HashSet<OutputAssignment<S>>,
-        our_allocations: &HashSet<OutputAssignment<S>>,
+        ext_allocations: &HashSet<OutputAssignment<Amount>>,
+        our_allocations: &HashSet<OutputAssignment<Amount>>,
     ) -> Self {
         let opids = our_allocations.iter().map(|a| a.opout.op).collect();
         let to = ext_allocations.iter().map(|a| a.seal).collect();
@@ -133,7 +158,10 @@ impl<S: FungibleState> ContractOp<S> {
         }
     }
 
-    fn new_received(witness: WitnessInfo, our_allocations: &HashSet<OutputAssignment<S>>) -> Self {
+    fn new_received(
+        witness: WitnessInfo,
+        our_allocations: &HashSet<OutputAssignment<Amount>>,
+    ) -> Self {
         let opids = our_allocations.iter().map(|a| a.opout.op).collect();
         let to = our_allocations.iter().map(|a| a.seal).collect();
         let amount = our_allocations.iter().map(|a| a.state.clone()).sum();
@@ -293,31 +321,30 @@ impl<S: ContractStateRead> ContractIface<S> {
 
     pub fn fungible_operations(
         &self,
-        state_name: impl Into<FieldName>,
         filter_outpoints: impl AssignmentsFilter,
         filter_witnesses: impl AssignmentsFilter,
-    ) -> Result<Vec<ContractOp<Amount>>, ContractError> {
-        let state_name = state_name.into();
-
+    ) -> Result<Vec<FungibleOp>, ContractError> {
         // get all allocations which ever belonged to this wallet and store them by witness id
-        let allocations_our_outpoint = self.fungible(state_name.clone(), filter_outpoints)?.fold(
-            HashMap::<_, HashSet<_>>::new(),
-            |mut map, a| {
-                map.entry(a.witness).or_default().insert(a);
+        let allocations_our_outpoint = self
+            .state
+            .fungible_all()
+            .filter(move |outp| filter_outpoints.should_include(outp.seal, outp.witness))
+            .fold(HashMap::<_, HashSet<_>>::new(), |mut map, a| {
+                map.entry(a.witness).or_default().insert(a.transmute());
                 map
-            },
-        );
+            });
         // get all allocations which has a witness transaction belonging to this wallet
-        let allocations_our_witness = self.fungible(state_name, filter_witnesses)?.fold(
-            HashMap::<_, HashSet<_>>::new(),
-            |mut map, a| {
+        let allocations_our_witness = self
+            .state
+            .fungible_all()
+            .filter(move |outp| filter_witnesses.should_include(outp.seal, outp.witness))
+            .fold(HashMap::<_, HashSet<_>>::new(), |mut map, a| {
                 let witness = a.witness.expect(
                     "all empty witnesses must be already filtered out by wallet.filter_witness()",
                 );
-                map.entry(witness).or_default().insert(a);
+                map.entry(witness).or_default().insert(a.transmute());
                 map
-            },
-        );
+            });
 
         // gather all witnesses from both sets
         let mut witness_ids = allocations_our_witness
@@ -330,7 +357,7 @@ impl<S: ContractStateRead> ContractIface<S> {
         let mut ops = Vec::with_capacity(witness_ids.len() + 1);
         // add allocations with no witness to the beginning of the history
         if let Some(genesis_allocations) = allocations_our_outpoint.get(&None) {
-            ops.push(ContractOp::new_genesis(genesis_allocations));
+            ops.push(FungibleOp::new_genesis(genesis_allocations));
         }
         for witness_id in witness_ids {
             let our_outpoint = allocations_our_outpoint.get(&Some(witness_id));
@@ -345,7 +372,7 @@ impl<S: ContractStateRead> ContractIface<S> {
                 (Some(our_allocations), Some(all_allocations)) => {
                     // all_allocations - our_allocations = external payments
                     let ext_allocations = all_allocations.difference(our_allocations);
-                    ContractOp::new_sent(
+                    FungibleOp::new_sent(
                         witness_info,
                         &ext_allocations.copied().collect(),
                         our_allocations,
@@ -353,12 +380,12 @@ impl<S: ContractStateRead> ContractIface<S> {
                 }
                 // the same as above, but the payment has no change
                 (None, Some(ext_allocations)) => {
-                    ContractOp::new_sent(witness_info, ext_allocations, &set![])
+                    FungibleOp::new_sent(witness_info, ext_allocations, &set![])
                 }
                 // we own allocation but the witness transaction was made by other wallet:
                 // this is an incoming payment to us.
                 (Some(our_allocations), None) => {
-                    ContractOp::new_received(witness_info, our_allocations)
+                    FungibleOp::new_received(witness_info, our_allocations)
                 }
                 // these can't get into the `witness_ids` due to the used filters
                 (None, None) => unreachable!("broken allocation filters"),

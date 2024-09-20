@@ -22,8 +22,6 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::iter::Sum;
-use std::ops::{Add, AddAssign, Sub, SubAssign};
 
 use amplify::confinement::SmallVec;
 use commit_verify::Conceal;
@@ -51,10 +49,6 @@ impl KnownState for AttachState {}
 impl KnownState for RevealedValue {}
 impl KnownState for RevealedData {}
 impl KnownState for RevealedAttach {}
-
-pub trait FungibleState: KnownState + Sum + Add + AddAssign + Sub + SubAssign {}
-
-impl FungibleState for Amount {}
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
