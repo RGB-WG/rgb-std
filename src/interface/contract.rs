@@ -115,12 +115,12 @@ pub enum OpDirection {
     serde(crate = "serde_crate", rename_all = "camelCase", tag = "type")
 )]
 pub struct ContractOp {
-    direction: OpDirection,
-    ty: AssignmentType,
-    opids: BTreeSet<OpId>,
-    state: AllocatedState,
-    to: BTreeSet<XOutputSeal>,
-    witness: Option<WitnessInfo>,
+    pub direction: OpDirection,
+    pub ty: AssignmentType,
+    pub opids: BTreeSet<OpId>,
+    pub state: AllocatedState,
+    pub to: BTreeSet<XOutputSeal>,
+    pub witness: Option<WitnessInfo>,
 }
 
 fn reduce_to_ty(allocations: impl IntoIterator<Item = OwnedAllocation>) -> AssignmentType {
