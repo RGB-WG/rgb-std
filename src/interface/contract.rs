@@ -151,7 +151,6 @@ impl ContractOp {
     fn non_fungible_sent(
         witness: WitnessInfo,
         ext_allocations: HashSet<OwnedAllocation>,
-        _: HashSet<OwnedAllocation>,
     ) -> impl ExactSizeIterator<Item = Self> {
         ext_allocations.into_iter().map(move |a| Self {
             direction: OpDirection::Sent,
@@ -194,18 +193,10 @@ impl ContractOp {
         }
     }
 
-    fn fungible_sent(
-        witness: WitnessInfo,
-        ext_allocations: HashSet<OwnedAllocation>,
-        our_allocations: HashSet<OwnedAllocation>,
-    ) -> Self {
-        let opids = our_allocations.iter().map(|a| a.opout.op).collect();
+    fn fungible_sent(witness: WitnessInfo, ext_allocations: HashSet<OwnedAllocation>) -> Self {
+        let opids = ext_allocations.iter().map(|a| a.opout.op).collect();
         let to = ext_allocations.iter().map(|a| a.seal).collect();
-        let mut amount = ext_allocations
-            .iter()
-            .map(|a| a.state.unwrap_fungible())
-            .sum();
-        amount -= our_allocations
+        let amount = ext_allocations
             .iter()
             .map(|a| a.state.unwrap_fungible())
             .sum();
@@ -464,31 +455,26 @@ impl<S: ContractStateRead> ContractIface<S> {
                 // a specific allocation is listed in the first tuple pattern field.
                 (Some(our_allocations), Some(all_allocations)) => {
                     // all_allocations - our_allocations = external payments
-                    let ext_allocations = all_allocations.difference(&our_allocations);
+                    let ext_allocations = all_allocations
+                        .difference(&our_allocations)
+                        .cloned()
+                        .collect::<HashSet<_>>();
+                    // This was a blank state transition with no external payment
+                    if ext_allocations.is_empty() {
+                        continue;
+                    }
                     if T::IS_FUNGIBLE {
-                        ops.push(ContractOp::fungible_sent(
-                            witness_info,
-                            ext_allocations.cloned().collect(),
-                            our_allocations,
-                        ))
+                        ops.push(ContractOp::fungible_sent(witness_info, ext_allocations))
                     } else {
-                        ops.extend(ContractOp::non_fungible_sent(
-                            witness_info,
-                            ext_allocations.cloned().collect(),
-                            our_allocations,
-                        ))
+                        ops.extend(ContractOp::non_fungible_sent(witness_info, ext_allocations))
                     }
                 }
                 // the same as above, but the payment has no change
                 (None, Some(ext_allocations)) => {
                     if T::IS_FUNGIBLE {
-                        ops.push(ContractOp::fungible_sent(witness_info, ext_allocations, set![]))
+                        ops.push(ContractOp::fungible_sent(witness_info, ext_allocations))
                     } else {
-                        ops.extend(ContractOp::non_fungible_sent(
-                            witness_info,
-                            ext_allocations,
-                            set![],
-                        ))
+                        ops.extend(ContractOp::non_fungible_sent(witness_info, ext_allocations))
                     }
                 }
                 // we own allocation but the witness transaction was made by other wallet:
