@@ -21,13 +21,11 @@
 
 use std::borrow::Borrow;
 use std::cmp::Ordering;
-use std::collections::HashMap;
 
-use amplify::confinement::SmallOrdSet;
 use invoice::{Allocation, Amount};
 use rgb::{
-    AttachState, ContractId, DataState, OpId, RevealedAttach, RevealedData, RevealedValue, Schema,
-    VoidState, XOutpoint, XOutputSeal, XWitnessId,
+    AttachState, ContractId, DataState, RevealedAttach, RevealedData, RevealedValue, Schema,
+    VoidState, XOutpoint,
 };
 use strict_encoding::{FieldName, StrictDecode, StrictDumb, StrictEncode};
 use strict_types::{StrictVal, TypeSystem};
@@ -145,59 +143,6 @@ impl StateChange for AmountChange {
                 Ordering::Greater => AmountChange::Inc(add - *neg),
             },
         };
-    }
-}
-
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-pub struct IfaceOp<S: StateChange> {
-    pub opids: SmallOrdSet<OpId>,  // may come from multiple bundles
-    pub inputs: SmallOrdSet<OpId>, // may come from multiple bundles
-    pub state_change: S,
-    pub payers: SmallOrdSet<XOutputSeal>,
-    pub beneficiaries: SmallOrdSet<XOutputSeal>,
-}
-
-impl<C: StateChange> IfaceOp<C> {
-    fn from_spent(alloc: OutputAssignment<C::State>) -> Self {
-        Self {
-            opids: none!(),
-            inputs: small_bset![alloc.opout.op],
-            state_change: C::from_spent(alloc.state),
-            payers: none!(),
-            // TODO: Do something with beneficiary info
-            beneficiaries: none!(),
-        }
-    }
-    fn from_received(alloc: OutputAssignment<C::State>) -> Self {
-        Self {
-            opids: small_bset![alloc.opout.op],
-            inputs: none!(),
-            state_change: C::from_received(alloc.state),
-            // TODO: Do something with payer info
-            payers: none!(),
-            beneficiaries: none!(),
-        }
-    }
-    fn merge_spent(&mut self, alloc: OutputAssignment<C::State>) {
-        self.inputs
-            .push(alloc.opout.op)
-            .expect("internal inconsistency of stash data");
-        self.state_change.merge_spent(alloc.state);
-        // TODO: Do something with beneficiary info
-    }
-    fn merge_received(&mut self, alloc: OutputAssignment<C::State>) {
-        self.opids
-            .push(alloc.opout.op)
-            .expect("internal inconsistency of stash data");
-        self.state_change.merge_received(alloc.state);
-        // TODO: Do something with payer info
     }
 }
 
@@ -371,107 +316,5 @@ impl<S: ContractStateRead> ContractIface<S> {
         outpoint: XOutpoint,
     ) -> impl Iterator<Item = OwnedAllocation> + '_ {
         self.allocations(outpoint)
-    }
-
-    // TODO: Ignore blank state transition
-    fn operations<'c, C: StateChange>(
-        &'c self,
-        state: impl IntoIterator<Item = OutputAssignment<C::State>> + 'c,
-        allocations: impl Iterator<Item = OutputAssignment<C::State>> + 'c,
-    ) -> HashMap<XWitnessId, IfaceOp<C>>
-    where
-        C::State: 'c,
-    {
-        fn f<'a, S, U>(
-            state: impl IntoIterator<Item = OutputAssignment<S>> + 'a,
-        ) -> impl Iterator<Item = OutputAssignment<U>> + 'a
-        where
-            S: Clone + KnownState + 'a,
-            U: From<S> + KnownState + 'a,
-        {
-            state.into_iter().map(OutputAssignment::<S>::transmute)
-        }
-
-        let spent = f::<_, C::State>(state).map(OutputAssignment::from);
-        let mut ops = HashMap::<XWitnessId, IfaceOp<C>>::new();
-        for alloc in spent {
-            let Some(witness_id) = alloc.witness else {
-                continue;
-            };
-            if let Some(op) = ops.get_mut(&witness_id) {
-                op.merge_spent(alloc);
-            } else {
-                ops.insert(witness_id, IfaceOp::from_spent(alloc));
-            }
-        }
-
-        for alloc in allocations {
-            let Some(witness_id) = alloc.witness else {
-                continue;
-            };
-            if let Some(op) = ops.get_mut(&witness_id) {
-                op.merge_received(alloc);
-            } else {
-                ops.insert(witness_id, IfaceOp::from_received(alloc));
-            }
-        }
-
-        ops
-    }
-
-    pub fn fungible_ops<'c, C: StateChange<State = Amount>>(
-        &'c self,
-        name: impl Into<FieldName>,
-        outpoint_filter: impl OutpointFilter + Copy + 'c,
-    ) -> Result<HashMap<XWitnessId, IfaceOp<C>>, ContractError> {
-        Ok(self.operations(
-            self.state
-                .fungible_all()
-                .copied()
-                .map(OutputAssignment::transmute),
-            self.fungible(name, outpoint_filter)?,
-        ))
-    }
-
-    pub fn data_ops<'c, C: StateChange<State = DataState>>(
-        &'c self,
-        name: impl Into<FieldName>,
-        outpoint_filter: impl OutpointFilter + Copy + 'c,
-    ) -> Result<HashMap<XWitnessId, IfaceOp<C>>, ContractError> {
-        Ok(self.operations(
-            self.state
-                .data_all()
-                .cloned()
-                .map(OutputAssignment::transmute),
-            self.data(name, outpoint_filter)?,
-        ))
-    }
-
-    pub fn rights_ops<'c, C: StateChange<State = VoidState>>(
-        &'c self,
-        name: impl Into<FieldName>,
-        outpoint_filter: impl OutpointFilter + Copy + 'c,
-    ) -> Result<HashMap<XWitnessId, IfaceOp<C>>, ContractError> {
-        Ok(self.operations(
-            self.state
-                .rights_all()
-                .copied()
-                .map(OutputAssignment::transmute),
-            self.rights(name, outpoint_filter)?,
-        ))
-    }
-
-    pub fn attachment_ops<'c, C: StateChange<State = AttachState>>(
-        &'c self,
-        name: impl Into<FieldName>,
-        outpoint_filter: impl OutpointFilter + Copy + 'c,
-    ) -> Result<HashMap<XWitnessId, IfaceOp<C>>, ContractError> {
-        Ok(self.operations(
-            self.state
-                .attach_all()
-                .cloned()
-                .map(OutputAssignment::transmute),
-            self.attachments(name, outpoint_filter)?,
-        ))
     }
 }
