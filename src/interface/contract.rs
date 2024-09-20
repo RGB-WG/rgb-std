@@ -88,11 +88,24 @@ pub type AttachAllocation = OutputAssignment<AttachState>;
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
+    serde(crate = "serde_crate", rename_all = "camelCase", tag = "form")
+)]
+pub enum ContractOp {
+    Rights(NonFungibleOp<VoidState>),
+    Fungible(FungibleOp),
+    Data(NonFungibleOp<DataState>),
+    Attach(NonFungibleOp<AttachState>),
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase", tag = "type")
 )]
 pub enum NonFungibleOp<S: KnownState> {
     Genesis {
-        state: S,
+        issued: S,
         to: XOutputSeal,
     },
     Received {
@@ -109,11 +122,46 @@ pub enum NonFungibleOp<S: KnownState> {
     },
 }
 
+impl<S: KnownState> NonFungibleOp<S> {
+    fn new_genesis(
+        our_allocations: HashSet<OutputAssignment<S>>,
+    ) -> impl ExactSizeIterator<Item = Self> {
+        our_allocations.into_iter().map(|a| Self::Genesis {
+            issued: a.state,
+            to: a.seal,
+        })
+    }
+
+    fn new_sent(
+        witness: WitnessInfo,
+        ext_allocations: HashSet<OutputAssignment<S>>,
+    ) -> impl ExactSizeIterator<Item = Self> {
+        ext_allocations.into_iter().map(move |a| Self::Sent {
+            opid: a.opout.op,
+            state: a.state,
+            to: a.seal,
+            witness,
+        })
+    }
+
+    fn new_received(
+        witness: WitnessInfo,
+        our_allocations: HashSet<OutputAssignment<S>>,
+    ) -> impl ExactSizeIterator<Item = Self> {
+        our_allocations.into_iter().map(move |a| Self::Received {
+            opid: a.opout.op,
+            state: a.state,
+            to: a.seal,
+            witness,
+        })
+    }
+}
+
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
+    serde(crate = "serde_crate", rename_all = "camelCase", tag = "type")
 )]
 pub enum FungibleOp {
     Genesis {
@@ -319,7 +367,34 @@ impl<S: ContractStateRead> ContractIface<S> {
         self.allocations(outpoint)
     }
 
-    pub fn fungible_operations(
+    pub fn history(
+        &self,
+        filter_outpoints: impl AssignmentsFilter + Clone,
+        filter_witnesses: impl AssignmentsFilter + Clone,
+    ) -> Result<Vec<ContractOp>, ContractError> {
+        Ok(self
+            .history_fungible(filter_outpoints.clone(), filter_witnesses.clone())?
+            .into_iter()
+            .map(ContractOp::Fungible)
+            .chain(
+                self.history_rights(filter_outpoints.clone(), filter_witnesses.clone())?
+                    .into_iter()
+                    .map(ContractOp::Rights),
+            )
+            .chain(
+                self.history_data(filter_outpoints.clone(), filter_witnesses.clone())?
+                    .into_iter()
+                    .map(ContractOp::Data),
+            )
+            .chain(
+                self.history_attach(filter_outpoints, filter_witnesses)?
+                    .into_iter()
+                    .map(ContractOp::Attach),
+            )
+            .collect())
+    }
+
+    pub fn history_fungible(
         &self,
         filter_outpoints: impl AssignmentsFilter,
         filter_witnesses: impl AssignmentsFilter,
@@ -391,6 +466,111 @@ impl<S: ContractStateRead> ContractIface<S> {
                 (None, None) => unreachable!("broken allocation filters"),
             };
             ops.push(op);
+        }
+
+        Ok(ops)
+    }
+
+    pub fn history_rights(
+        &self,
+        filter_outpoints: impl AssignmentsFilter,
+        filter_witnesses: impl AssignmentsFilter,
+    ) -> Result<Vec<NonFungibleOp<VoidState>>, ContractError> {
+        self.history_non_fungible(|state| state.rights_all(), filter_outpoints, filter_witnesses)
+    }
+
+    pub fn history_data(
+        &self,
+        filter_outpoints: impl AssignmentsFilter,
+        filter_witnesses: impl AssignmentsFilter,
+    ) -> Result<Vec<NonFungibleOp<DataState>>, ContractError> {
+        self.history_non_fungible(|state| state.data_all(), filter_outpoints, filter_witnesses)
+    }
+
+    pub fn history_attach(
+        &self,
+        filter_outpoints: impl AssignmentsFilter,
+        filter_witnesses: impl AssignmentsFilter,
+    ) -> Result<Vec<NonFungibleOp<AttachState>>, ContractError> {
+        self.history_non_fungible(|state| state.attach_all(), filter_outpoints, filter_witnesses)
+    }
+
+    fn history_non_fungible<
+        'c,
+        State: KnownState + From<T>,
+        T: KnownState + 'c,
+        I: Iterator<Item = &'c OutputAssignment<T>>,
+    >(
+        &'c self,
+        state: impl Fn(&'c S) -> I,
+        filter_outpoints: impl AssignmentsFilter,
+        filter_witnesses: impl AssignmentsFilter,
+    ) -> Result<Vec<NonFungibleOp<State>>, ContractError> {
+        // get all allocations which ever belonged to this wallet and store them by witness id
+        let mut allocations_our_outpoint = state(&self.state)
+            .filter(move |outp| filter_outpoints.should_include(outp.seal, outp.witness))
+            .fold(HashMap::<_, HashSet<_>>::new(), |mut map, a| {
+                map.entry(a.witness)
+                    .or_default()
+                    .insert(a.clone().transmute());
+                map
+            });
+        // get all allocations which has a witness transaction belonging to this wallet
+        let mut allocations_our_witness = state(&self.state)
+            .filter(move |outp| filter_witnesses.should_include(outp.seal, outp.witness))
+            .fold(HashMap::<_, HashSet<_>>::new(), |mut map, a| {
+                let witness = a.witness.expect(
+                    "all empty witnesses must be already filtered out by wallet.filter_witness()",
+                );
+                map.entry(witness)
+                    .or_default()
+                    .insert(a.clone().transmute());
+                map
+            });
+
+        // gather all witnesses from both sets
+        let mut witness_ids = allocations_our_witness
+            .keys()
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        witness_ids.extend(allocations_our_outpoint.keys().filter_map(|x| *x));
+
+        // reconstruct contract history from the wallet perspective
+        let mut ops = Vec::with_capacity(witness_ids.len() + 1);
+        // add allocations with no witness to the beginning of the history
+        if let Some(genesis_allocations) = allocations_our_outpoint.remove(&None) {
+            ops.extend(NonFungibleOp::new_genesis(genesis_allocations));
+        }
+        for witness_id in witness_ids {
+            let our_outpoint = allocations_our_outpoint.remove(&Some(witness_id));
+            let our_witness = allocations_our_witness.remove(&witness_id);
+            let witness_info = self.witness_info(witness_id).expect(
+                "witness id was returned from the contract state above, so it must be there",
+            );
+            match (our_outpoint, our_witness) {
+                // we own both allocation and witness transaction: these allocations are changes and
+                // outgoing payments. The difference between the change and the payments are whether
+                // a specific allocation is listed in the first tuple pattern field.
+                (Some(our_allocations), Some(all_allocations)) => {
+                    // all_allocations - our_allocations = external payments
+                    let ext_allocations = all_allocations.difference(&our_allocations);
+                    ops.extend(NonFungibleOp::new_sent(
+                        witness_info,
+                        ext_allocations.cloned().collect(),
+                    ))
+                }
+                // the same as above, but the payment has no change
+                (None, Some(ext_allocations)) => {
+                    ops.extend(NonFungibleOp::new_sent(witness_info, ext_allocations))
+                }
+                // we own allocation but the witness transaction was made by other wallet:
+                // this is an incoming payment to us.
+                (Some(our_allocations), None) => {
+                    ops.extend(NonFungibleOp::new_received(witness_info, our_allocations))
+                }
+                // these can't get into the `witness_ids` due to the used filters
+                (None, None) => unreachable!("broken allocation filters"),
+            };
         }
 
         Ok(ops)

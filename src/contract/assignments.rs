@@ -22,6 +22,7 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::hash::Hash;
 
 use amplify::confinement::SmallVec;
 use commit_verify::Conceal;
@@ -39,7 +40,7 @@ use crate::LIB_NAME_RGB_STD;
 /// Trait used by contract state. Unlike [`ExposedState`] it doesn't allow
 /// concealment of the state, i.e. may contain incomplete data without blinding
 /// factors, asset tags etc.
-pub trait KnownState: Debug + StrictDumb + StrictEncode + StrictDecode + Eq + Clone {}
+pub trait KnownState: Debug + StrictDumb + StrictEncode + StrictDecode + Eq + Clone + Hash {}
 
 impl KnownState for () {}
 impl KnownState for VoidState {}
