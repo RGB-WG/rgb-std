@@ -32,7 +32,7 @@ use strict_types::{StrictVal, TypeSystem};
 
 use crate::contract::{KnownState, OutputAssignment};
 use crate::info::ContractInfo;
-use crate::interface::{IfaceImpl, OutpointFilter};
+use crate::interface::{AssignmentsFilter, IfaceImpl};
 use crate::persistence::ContractStateRead;
 use crate::LIB_NAME_RGB_STD;
 
@@ -194,7 +194,21 @@ impl<S: ContractStateRead> ContractIface<S> {
         &'c self,
         state: impl IntoIterator<Item = &'c OutputAssignment<A>> + 'c,
         name: impl Into<FieldName>,
-        filter: impl OutpointFilter + 'c,
+        filter: impl AssignmentsFilter + 'c,
+    ) -> Result<impl Iterator<Item = OutputAssignment<U>> + 'c, ContractError>
+    where
+        A: Clone + KnownState + 'c,
+        U: From<A> + KnownState + 'c,
+    {
+        Ok(self
+            .extract_state_unfiltered(state, name)?
+            .filter(move |outp| filter.should_include(outp.seal, outp.witness)))
+    }
+
+    fn extract_state_unfiltered<'c, A, U>(
+        &'c self,
+        state: impl IntoIterator<Item = &'c OutputAssignment<A>> + 'c,
+        name: impl Into<FieldName>,
     ) -> Result<impl Iterator<Item = OutputAssignment<U>> + 'c, ContractError>
     where
         A: Clone + KnownState + 'c,
@@ -208,7 +222,6 @@ impl<S: ContractStateRead> ContractIface<S> {
         Ok(state
             .into_iter()
             .filter(move |outp| outp.opout.ty == type_id)
-            .filter(move |outp| filter.include_outpoint(outp.seal))
             .cloned()
             .map(OutputAssignment::<A>::transmute))
     }
@@ -216,7 +229,7 @@ impl<S: ContractStateRead> ContractIface<S> {
     pub fn rights<'c>(
         &'c self,
         name: impl Into<FieldName>,
-        filter: impl OutpointFilter + 'c,
+        filter: impl AssignmentsFilter + 'c,
     ) -> Result<impl Iterator<Item = RightsAllocation> + 'c, ContractError> {
         self.extract_state(self.state.rights_all(), name, filter)
     }
@@ -224,7 +237,7 @@ impl<S: ContractStateRead> ContractIface<S> {
     pub fn fungible<'c>(
         &'c self,
         name: impl Into<FieldName>,
-        filter: impl OutpointFilter + 'c,
+        filter: impl AssignmentsFilter + 'c,
     ) -> Result<impl Iterator<Item = FungibleAllocation> + 'c, ContractError> {
         self.extract_state(self.state.fungible_all(), name, filter)
     }
@@ -232,7 +245,7 @@ impl<S: ContractStateRead> ContractIface<S> {
     pub fn data<'c>(
         &'c self,
         name: impl Into<FieldName>,
-        filter: impl OutpointFilter + 'c,
+        filter: impl AssignmentsFilter + 'c,
     ) -> Result<impl Iterator<Item = DataAllocation> + 'c, ContractError> {
         self.extract_state(self.state.data_all(), name, filter)
     }
@@ -240,17 +253,17 @@ impl<S: ContractStateRead> ContractIface<S> {
     pub fn attachments<'c>(
         &'c self,
         name: impl Into<FieldName>,
-        filter: impl OutpointFilter + 'c,
+        filter: impl AssignmentsFilter + 'c,
     ) -> Result<impl Iterator<Item = AttachAllocation> + 'c, ContractError> {
         self.extract_state(self.state.attach_all(), name, filter)
     }
 
     pub fn allocations<'c>(
         &'c self,
-        filter: impl OutpointFilter + Copy + 'c,
+        filter: impl AssignmentsFilter + Copy + 'c,
     ) -> impl Iterator<Item = OwnedAllocation> + 'c {
         fn f<'a, S, U>(
-            filter: impl OutpointFilter + 'a,
+            filter: impl AssignmentsFilter + 'a,
             state: impl IntoIterator<Item = &'a OutputAssignment<S>> + 'a,
         ) -> impl Iterator<Item = OutputAssignment<U>> + 'a
         where
@@ -259,7 +272,7 @@ impl<S: ContractStateRead> ContractIface<S> {
         {
             state
                 .into_iter()
-                .filter(move |outp| filter.include_outpoint(outp.seal))
+                .filter(move |outp| filter.should_include(outp.seal, outp.witness))
                 .cloned()
                 .map(OutputAssignment::<S>::transmute)
         }

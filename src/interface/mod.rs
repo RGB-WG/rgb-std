@@ -38,7 +38,7 @@ pub use contract::{
     FungibleAllocation, OwnedAllocation, RightsAllocation, StateChange,
 };
 pub use contractum::IfaceDisplay;
-pub use filter::{FilterExclude, FilterIncludeAll, OutpointFilter};
+pub use filter::{AssignmentsFilter, FilterExclude, FilterIncludeAll};
 pub use iface::{
     ArgMap, AssignIface, ExtensionIface, GenesisIface, GlobalIface, Iface, IfaceClass, IfaceId,
     IfaceInconsistency, IfaceRef, IfaceWrapper, Modifier, OpName, OwnedIface, Req, TransitionIface,
