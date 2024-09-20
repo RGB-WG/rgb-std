@@ -20,9 +20,7 @@
 // limitations under the License.
 
 use std::borrow::Borrow;
-use std::cmp::Ordering;
 use std::collections::{BTreeSet, HashMap, HashSet};
-use std::iter::Sum;
 
 use invoice::{Allocation, Amount};
 use rgb::{
@@ -32,7 +30,7 @@ use rgb::{
 use strict_encoding::{FieldName, StrictDecode, StrictDumb, StrictEncode};
 use strict_types::{StrictVal, TypeSystem};
 
-use crate::contract::{KnownState, OutputAssignment, WitnessInfo};
+use crate::contract::{FungibleState, KnownState, OutputAssignment, WitnessInfo};
 use crate::info::ContractInfo;
 use crate::interface::{AssignmentsFilter, IfaceImpl};
 use crate::persistence::ContractStateRead;
@@ -86,132 +84,64 @@ pub type FungibleAllocation = OutputAssignment<Amount>;
 pub type DataAllocation = OutputAssignment<DataState>;
 pub type AttachAllocation = OutputAssignment<AttachState>;
 
-pub trait StateChange: Clone + Eq + StrictDumb + StrictEncode + StrictDecode {
-    type State: KnownState;
-    fn from_spent(state: Self::State) -> Self;
-    fn from_received(state: Self::State) -> Self;
-    fn merge_spent(&mut self, state: Self::State);
-    fn merge_received(&mut self, state: Self::State);
-}
-
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD, tags = custom)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-pub enum AmountChange {
-    #[display("-{0}")]
-    #[strict_type(tag = 0xFF)]
-    Dec(Amount),
-
-    #[display("0")]
-    #[strict_type(tag = 0, dumb)]
-    Zero,
-
-    #[display("+{0}")]
-    #[strict_type(tag = 0x01)]
-    Inc(Amount),
-}
-
-impl StateChange for AmountChange {
-    type State = Amount;
-
-    fn from_spent(state: Self::State) -> Self { AmountChange::Dec(state) }
-
-    fn from_received(state: Self::State) -> Self { AmountChange::Inc(state) }
-
-    fn merge_spent(&mut self, sub: Self::State) {
-        *self = match self {
-            AmountChange::Dec(neg) => AmountChange::Dec(*neg + sub),
-            AmountChange::Zero => AmountChange::Dec(sub),
-            AmountChange::Inc(pos) => match sub.cmp(pos) {
-                Ordering::Less => AmountChange::Inc(*pos - sub),
-                Ordering::Equal => AmountChange::Zero,
-                Ordering::Greater => AmountChange::Dec(sub - *pos),
-            },
-        };
-    }
-
-    fn merge_received(&mut self, add: Self::State) {
-        *self = match self {
-            AmountChange::Inc(pos) => AmountChange::Inc(*pos + add),
-            AmountChange::Zero => AmountChange::Inc(add),
-            AmountChange::Dec(neg) => match add.cmp(neg) {
-                Ordering::Less => AmountChange::Dec(*neg - add),
-                Ordering::Equal => AmountChange::Zero,
-                Ordering::Greater => AmountChange::Inc(add - *neg),
-            },
-        };
-    }
-}
-
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-pub struct ContractOp<S: StateChange> {
-    pub opids: BTreeSet<OpId>, // may come from multiple bundles
-    pub state_change: S,
-    pub seals: BTreeSet<XOutputSeal>,
-    pub witness: Option<WitnessInfo>,
+pub enum ContractOp<S: KnownState> {
+    Genesis {
+        issued: S,
+        to: BTreeSet<XOutputSeal>,
+    },
+    Received {
+        opids: BTreeSet<OpId>,
+        amount: S,
+        to: BTreeSet<XOutputSeal>,
+        witness: WitnessInfo,
+    },
+    Sent {
+        opids: BTreeSet<OpId>,
+        amount: S,
+        to: BTreeSet<XOutputSeal>,
+        witness: WitnessInfo,
+    },
 }
 
-impl<S: StateChange> ContractOp<S> {
-    fn new_genesis(our_allocations: &HashSet<OutputAssignment<S::State>>) -> Self
-    where S::State: Sum {
-        let opids = our_allocations.iter().map(|a| a.opout.op).collect();
-        let seals = our_allocations.iter().map(|a| a.seal).collect();
-        let state_change =
-            StateChange::from_received(our_allocations.iter().map(|a| a.state.clone()).sum());
-        Self {
-            opids,
-            state_change,
-            seals,
-            witness: None,
-        }
+impl<S: FungibleState> ContractOp<S> {
+    fn new_genesis(our_allocations: &HashSet<OutputAssignment<S>>) -> Self {
+        let to = our_allocations.iter().map(|a| a.seal).collect();
+        let issued = our_allocations.iter().map(|a| a.state.clone()).sum();
+        Self::Genesis { issued, to }
     }
 
     fn new_sent(
         witness: WitnessInfo,
-        ext_allocations: &HashSet<OutputAssignment<S::State>>,
-        our_allocations: &HashSet<OutputAssignment<S::State>>,
-    ) -> Self
-    where
-        S::State: Sum,
-    {
+        ext_allocations: &HashSet<OutputAssignment<S>>,
+        our_allocations: &HashSet<OutputAssignment<S>>,
+    ) -> Self {
         let opids = our_allocations.iter().map(|a| a.opout.op).collect();
-        let seals = ext_allocations.iter().map(|a| a.seal).collect();
-        let mut state_change = S::from_spent(ext_allocations.iter().map(|a| a.state.clone()).sum());
-        state_change.merge_received(our_allocations.iter().map(|a| a.state.clone()).sum());
-        Self {
+        let to = ext_allocations.iter().map(|a| a.seal).collect();
+        let mut amount = ext_allocations.iter().map(|a| a.state.clone()).sum();
+        amount -= our_allocations.iter().map(|a| a.state.clone()).sum();
+        Self::Sent {
             opids,
-            state_change,
-            seals,
-            witness: Some(witness),
+            amount,
+            to,
+            witness,
         }
     }
 
-    fn new_received(
-        witness: WitnessInfo,
-        our_allocations: &HashSet<OutputAssignment<S::State>>,
-    ) -> Self
-    where
-        S::State: Sum,
-    {
+    fn new_received(witness: WitnessInfo, our_allocations: &HashSet<OutputAssignment<S>>) -> Self {
         let opids = our_allocations.iter().map(|a| a.opout.op).collect();
-        let seals = our_allocations.iter().map(|a| a.seal).collect();
-        let state_change =
-            StateChange::from_received(our_allocations.iter().map(|a| a.state.clone()).sum());
-        Self {
+        let to = our_allocations.iter().map(|a| a.seal).collect();
+        let amount = our_allocations.iter().map(|a| a.state.clone()).sum();
+        Self::Received {
             opids,
-            state_change,
-            seals,
-            witness: Some(witness),
+            amount,
+            to,
+            witness,
         }
     }
 }
@@ -366,7 +296,7 @@ impl<S: ContractStateRead> ContractIface<S> {
         state_name: impl Into<FieldName>,
         filter_outpoints: impl AssignmentsFilter,
         filter_witnesses: impl AssignmentsFilter,
-    ) -> Result<Vec<ContractOp<AmountChange>>, ContractError> {
+    ) -> Result<Vec<ContractOp<Amount>>, ContractError> {
         let state_name = state_name.into();
 
         // get all allocations which ever belonged to this wallet and store them by witness id
