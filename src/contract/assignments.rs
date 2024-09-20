@@ -142,6 +142,7 @@ impl<State: KnownState> OutputAssignment<State> {
         }
     }
 
+    /// Transmutes output assignment from one form of state to another
     pub fn transmute<S: KnownState + From<State>>(self) -> OutputAssignment<S> {
         OutputAssignment {
             opout: self.opout,
