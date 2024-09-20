@@ -526,8 +526,14 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         let state = self.state.contract_state(contract_id)?;
         let schema_id = state.schema_id();
         let schema_ifaces = self.stash.schema(schema_id)?;
-        let info = ContractInfo::with(self.stash.genesis(contract_id)?);
-        Ok((schema_ifaces, state, info))
+        Ok((schema_ifaces, state, self.contract_info(contract_id)?))
+    }
+
+    pub fn contract_info(
+        &self,
+        contract_id: ContractId,
+    ) -> Result<ContractInfo, StockError<S, H, P>> {
+        Ok(ContractInfo::with(self.stash.genesis(contract_id)?))
     }
 
     pub fn contract_state(
