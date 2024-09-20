@@ -1083,7 +1083,7 @@ impl<M: Borrow<MemContractState>> ContractStateRead for MemContract<M> {
     fn schema_id(&self) -> SchemaId { self.unfiltered.borrow().schema_id }
 
     #[inline]
-    fn witness_info(&self, witness_id: XWitnessId) -> Option<WitnessOrd> {
+    fn witness_ord(&self, witness_id: XWitnessId) -> Option<WitnessOrd> {
         self.filter.get(&witness_id).copied()
     }
 

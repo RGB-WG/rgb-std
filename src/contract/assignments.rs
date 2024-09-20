@@ -50,6 +50,19 @@ impl KnownState for RevealedValue {}
 impl KnownState for RevealedData {}
 impl KnownState for RevealedAttach {}
 
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct WitnessInfo {
+    pub id: XWitnessId,
+    pub ord: WitnessOrd,
+}
+
 #[allow(clippy::derived_hash_with_manual_eq)]
 #[derive(Copy, Clone, Eq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
