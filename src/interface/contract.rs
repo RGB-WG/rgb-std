@@ -380,18 +380,9 @@ impl<S: ContractStateRead> ContractIface<S> {
     ) -> Vec<ContractOp> {
         self.history_fungible(filter_outpoints.clone(), filter_witnesses.clone())
             .into_iter()
-            .chain(
-                self.history_rights(filter_outpoints.clone(), filter_witnesses.clone())
-                    .into_iter(),
-            )
-            .chain(
-                self.history_data(filter_outpoints.clone(), filter_witnesses.clone())
-                    .into_iter(),
-            )
-            .chain(
-                self.history_attach(filter_outpoints, filter_witnesses)
-                    .into_iter(),
-            )
+            .chain(self.history_rights(filter_outpoints.clone(), filter_witnesses.clone()))
+            .chain(self.history_data(filter_outpoints.clone(), filter_witnesses.clone()))
+            .chain(self.history_attach(filter_outpoints, filter_witnesses))
             .collect()
     }
 
