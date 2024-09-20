@@ -30,7 +30,6 @@ use amplify::{ByteArray, Bytes32};
 use baid64::{Baid64ParseError, DisplayBaid64, FromBaid64Str};
 use chrono::{DateTime, TimeZone, Utc};
 use commit_verify::{CommitId, CommitmentId, DigestExt, Sha256};
-use rgb::vm::WitnessOrd;
 use rgb::{ContractId, Identity, Occurrences, SchemaId, XWitnessId};
 use strict_encoding::{
     FieldName, StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize,
@@ -40,7 +39,7 @@ use strict_types::{SemId, SymbolicSys, TypeLib};
 
 use crate::interface::{ContractIface, IfaceDisplay, IfaceImpl, VerNo};
 use crate::persistence::{ContractStateRead, SchemaIfaces};
-use crate::LIB_NAME_RGB_STD;
+use crate::{WitnessInfo, LIB_NAME_RGB_STD};
 
 /// Interface identifier.
 ///
@@ -364,7 +363,7 @@ pub trait IfaceWrapper<S: ContractStateRead> {
     fn schema_id(&self) -> SchemaId;
 
     /// Returns information about a witness, if it is known to the contract state.
-    fn witness_info(&self, witness_id: XWitnessId) -> Option<WitnessOrd>;
+    fn witness_info(&self, witness_id: XWitnessId) -> Option<WitnessInfo>;
 }
 
 /// Interface definition.
