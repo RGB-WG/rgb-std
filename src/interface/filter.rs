@@ -22,88 +22,110 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::ops::Deref;
 
-use rgb::XOutpoint;
+use rgb::{XOutpoint, XWitnessId};
 
-pub trait OutpointFilter {
-    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool;
+pub trait AssignmentsFilter {
+    fn should_include(
+        &self,
+        outpoint: impl Into<XOutpoint>,
+        witness_id: Option<XWitnessId>,
+    ) -> bool;
 }
 
 pub struct FilterIncludeAll;
 pub struct FilterExclude<T>(pub T);
 
-impl OutpointFilter for FilterIncludeAll {
-    fn include_outpoint(&self, _: impl Into<XOutpoint>) -> bool { true }
+impl AssignmentsFilter for FilterIncludeAll {
+    fn should_include(&self, _: impl Into<XOutpoint>, _: Option<XWitnessId>) -> bool { true }
 }
 
-impl<T: OutpointFilter> OutpointFilter for FilterExclude<T> {
-    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
-        !self.0.include_outpoint(outpoint.into())
+impl<T: AssignmentsFilter> AssignmentsFilter for FilterExclude<T> {
+    fn should_include(
+        &self,
+        outpoint: impl Into<XOutpoint>,
+        witness_id: Option<XWitnessId>,
+    ) -> bool {
+        !self.0.should_include(outpoint.into(), witness_id)
     }
 }
 
-impl<T: OutpointFilter> OutpointFilter for &T {
-    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
-        (*self).include_outpoint(outpoint)
+impl<T: AssignmentsFilter> AssignmentsFilter for &T {
+    fn should_include(
+        &self,
+        outpoint: impl Into<XOutpoint>,
+        witness_id: Option<XWitnessId>,
+    ) -> bool {
+        (*self).should_include(outpoint, witness_id)
     }
 }
 
-impl<T: OutpointFilter> OutpointFilter for &mut T {
-    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
-        self.deref().include_outpoint(outpoint)
+impl<T: AssignmentsFilter> AssignmentsFilter for &mut T {
+    fn should_include(
+        &self,
+        outpoint: impl Into<XOutpoint>,
+        witness_id: Option<XWitnessId>,
+    ) -> bool {
+        self.deref().should_include(outpoint, witness_id)
     }
 }
 
-impl<T: OutpointFilter> OutpointFilter for Option<T> {
-    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
+impl<T: AssignmentsFilter> AssignmentsFilter for Option<T> {
+    fn should_include(
+        &self,
+        outpoint: impl Into<XOutpoint>,
+        witness_id: Option<XWitnessId>,
+    ) -> bool {
         self.as_ref()
-            .map(|filter| filter.include_outpoint(outpoint))
+            .map(|filter| filter.should_include(outpoint, witness_id))
             .unwrap_or(true)
     }
 }
 
-impl OutpointFilter for XOutpoint {
-    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool { *self == outpoint.into() }
+impl AssignmentsFilter for XOutpoint {
+    fn should_include(&self, outpoint: impl Into<XOutpoint>, _: Option<XWitnessId>) -> bool {
+        *self == outpoint.into()
+    }
 }
 
-impl<const LEN: usize> OutpointFilter for [XOutpoint; LEN] {
-    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
+impl<const LEN: usize> AssignmentsFilter for [XOutpoint; LEN] {
+    fn should_include(&self, outpoint: impl Into<XOutpoint>, _: Option<XWitnessId>) -> bool {
         self.contains(&outpoint.into())
     }
 }
 
-impl OutpointFilter for &[XOutpoint] {
-    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
+impl AssignmentsFilter for &[XOutpoint] {
+    fn should_include(&self, outpoint: impl Into<XOutpoint>, _: Option<XWitnessId>) -> bool {
         self.contains(&outpoint.into())
     }
 }
 
-impl OutpointFilter for Vec<XOutpoint> {
-    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
+impl AssignmentsFilter for Vec<XOutpoint> {
+    fn should_include(&self, outpoint: impl Into<XOutpoint>, _: Option<XWitnessId>) -> bool {
         self.contains(&outpoint.into())
     }
 }
 
-impl OutpointFilter for HashSet<XOutpoint> {
-    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
+impl AssignmentsFilter for HashSet<XOutpoint> {
+    fn should_include(&self, outpoint: impl Into<XOutpoint>, _: Option<XWitnessId>) -> bool {
         self.contains(&outpoint.into())
     }
 }
 
-impl OutpointFilter for BTreeSet<XOutpoint> {
-    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
+impl AssignmentsFilter for BTreeSet<XOutpoint> {
+    fn should_include(&self, outpoint: impl Into<XOutpoint>, _: Option<XWitnessId>) -> bool {
         self.contains(&outpoint.into())
     }
 }
 
-impl<V> OutpointFilter for HashMap<XOutpoint, V> {
-    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
+impl<V> AssignmentsFilter for HashMap<XOutpoint, V> {
+    fn should_include(&self, outpoint: impl Into<XOutpoint>, _: Option<XWitnessId>) -> bool {
         let outpoint = outpoint.into();
         self.keys().any(|o| *o == outpoint)
     }
 }
 
-impl<V> OutpointFilter for BTreeMap<XOutpoint, V> {
-    fn include_outpoint(&self, outpoint: impl Into<XOutpoint>) -> bool {
+impl<V> AssignmentsFilter for BTreeMap<XOutpoint, V> {
+    fn should_include(&self, outpoint: impl Into<XOutpoint>, _: Option<XWitnessId>) -> bool {
         let outpoint = outpoint.into();
         self.keys().any(|o| *o == outpoint)
     }

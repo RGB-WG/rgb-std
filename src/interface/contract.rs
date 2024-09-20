@@ -20,21 +20,19 @@
 // limitations under the License.
 
 use std::borrow::Borrow;
-use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap, HashSet};
 
-use amplify::confinement::SmallOrdSet;
 use invoice::{Allocation, Amount};
 use rgb::{
-    AttachState, ContractId, DataState, OpId, RevealedAttach, RevealedData, RevealedValue, Schema,
-    VoidState, XOutpoint, XOutputSeal, XWitnessId,
+    AssignmentType, AttachState, ContractId, DataState, OpId, RevealedAttach, RevealedData,
+    RevealedValue, Schema, VoidState, XOutpoint, XOutputSeal, XWitnessId,
 };
 use strict_encoding::{FieldName, StrictDecode, StrictDumb, StrictEncode};
 use strict_types::{StrictVal, TypeSystem};
 
-use crate::contract::{KnownState, OutputAssignment};
+use crate::contract::{KnownState, OutputAssignment, WitnessInfo};
 use crate::info::ContractInfo;
-use crate::interface::{IfaceImpl, OutpointFilter};
+use crate::interface::{AssignmentsFilter, IfaceImpl};
 use crate::persistence::ContractStateRead;
 use crate::LIB_NAME_RGB_STD;
 
@@ -78,7 +76,18 @@ pub enum AllocatedState {
     Attachment(AttachState),
 }
 
-impl KnownState for AllocatedState {}
+impl KnownState for AllocatedState {
+    const IS_FUNGIBLE: bool = false;
+}
+
+impl AllocatedState {
+    fn unwrap_fungible(&self) -> Amount {
+        match self {
+            AllocatedState::Amount(amount) => *amount,
+            _ => panic!("unwrapping non-fungible state"),
+        }
+    }
+}
 
 pub type OwnedAllocation = OutputAssignment<AllocatedState>;
 pub type RightsAllocation = OutputAssignment<VoidState>;
@@ -86,118 +95,136 @@ pub type FungibleAllocation = OutputAssignment<Amount>;
 pub type DataAllocation = OutputAssignment<DataState>;
 pub type AttachAllocation = OutputAssignment<AttachState>;
 
-pub trait StateChange: Clone + Eq + StrictDumb + StrictEncode + StrictDecode {
-    type State: KnownState;
-    fn from_spent(state: Self::State) -> Self;
-    fn from_received(state: Self::State) -> Self;
-    fn merge_spent(&mut self, state: Self::State);
-    fn merge_received(&mut self, state: Self::State);
-}
-
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD, tags = custom)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-pub enum AmountChange {
-    #[display("-{0}")]
-    #[strict_type(tag = 0xFF)]
-    Dec(Amount),
-
-    #[display("0")]
-    #[strict_type(tag = 0, dumb)]
-    Zero,
-
-    #[display("+{0}")]
-    #[strict_type(tag = 0x01)]
-    Inc(Amount),
-}
-
-impl StateChange for AmountChange {
-    type State = Amount;
-
-    fn from_spent(state: Self::State) -> Self { AmountChange::Dec(state) }
-
-    fn from_received(state: Self::State) -> Self { AmountChange::Inc(state) }
-
-    fn merge_spent(&mut self, sub: Self::State) {
-        *self = match self {
-            AmountChange::Dec(neg) => AmountChange::Dec(*neg + sub),
-            AmountChange::Zero => AmountChange::Dec(sub),
-            AmountChange::Inc(pos) => match sub.cmp(pos) {
-                Ordering::Less => AmountChange::Inc(*pos - sub),
-                Ordering::Equal => AmountChange::Zero,
-                Ordering::Greater => AmountChange::Dec(sub - *pos),
-            },
-        };
-    }
-
-    fn merge_received(&mut self, add: Self::State) {
-        *self = match self {
-            AmountChange::Inc(pos) => AmountChange::Inc(*pos + add),
-            AmountChange::Zero => AmountChange::Inc(add),
-            AmountChange::Dec(neg) => match add.cmp(neg) {
-                Ordering::Less => AmountChange::Dec(*neg - add),
-                Ordering::Equal => AmountChange::Zero,
-                Ordering::Greater => AmountChange::Inc(add - *neg),
-            },
-        };
-    }
+#[display(lowercase)]
+pub enum OpDirection {
+    Issued,
+    Received,
+    Sent,
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
+    serde(crate = "serde_crate", rename_all = "camelCase", tag = "type")
 )]
-pub struct IfaceOp<S: StateChange> {
-    pub opids: SmallOrdSet<OpId>,  // may come from multiple bundles
-    pub inputs: SmallOrdSet<OpId>, // may come from multiple bundles
-    pub state_change: S,
-    pub payers: SmallOrdSet<XOutputSeal>,
-    pub beneficiaries: SmallOrdSet<XOutputSeal>,
+pub struct ContractOp {
+    pub direction: OpDirection,
+    pub ty: AssignmentType,
+    pub opids: BTreeSet<OpId>,
+    pub state: AllocatedState,
+    pub to: BTreeSet<XOutputSeal>,
+    pub witness: Option<WitnessInfo>,
 }
 
-impl<C: StateChange> IfaceOp<C> {
-    fn from_spent(alloc: OutputAssignment<C::State>) -> Self {
+fn reduce_to_ty(allocations: impl IntoIterator<Item = OwnedAllocation>) -> AssignmentType {
+    allocations
+        .into_iter()
+        .map(|a| a.opout.ty)
+        .reduce(|ty1, ty2| {
+            assert_eq!(ty1, ty2);
+            ty1
+        })
+        .expect("empty list of allocations")
+}
+
+impl ContractOp {
+    fn non_fungible_genesis(
+        our_allocations: HashSet<OwnedAllocation>,
+    ) -> impl ExactSizeIterator<Item = Self> {
+        our_allocations.into_iter().map(|a| Self {
+            direction: OpDirection::Issued,
+            ty: a.opout.ty,
+            opids: bset![a.opout.op],
+            state: a.state,
+            to: bset![a.seal],
+            witness: None,
+        })
+    }
+
+    fn non_fungible_sent(
+        witness: WitnessInfo,
+        ext_allocations: HashSet<OwnedAllocation>,
+    ) -> impl ExactSizeIterator<Item = Self> {
+        ext_allocations.into_iter().map(move |a| Self {
+            direction: OpDirection::Sent,
+            ty: a.opout.ty,
+            opids: bset![a.opout.op],
+            state: a.state,
+            to: bset![a.seal],
+            witness: Some(witness),
+        })
+    }
+
+    fn non_fungible_received(
+        witness: WitnessInfo,
+        our_allocations: HashSet<OwnedAllocation>,
+    ) -> impl ExactSizeIterator<Item = Self> {
+        our_allocations.into_iter().map(move |a| Self {
+            direction: OpDirection::Received,
+            ty: a.opout.ty,
+            opids: bset![a.opout.op],
+            state: a.state,
+            to: bset![a.seal],
+            witness: Some(witness),
+        })
+    }
+
+    fn fungible_genesis(our_allocations: HashSet<OwnedAllocation>) -> Self {
+        let to = our_allocations.iter().map(|a| a.seal).collect();
+        let opids = our_allocations.iter().map(|a| a.opout.op).collect();
+        let issued = our_allocations
+            .iter()
+            .map(|a| a.state.unwrap_fungible())
+            .sum();
         Self {
-            opids: none!(),
-            inputs: small_bset![alloc.opout.op],
-            state_change: C::from_spent(alloc.state),
-            payers: none!(),
-            // TODO: Do something with beneficiary info
-            beneficiaries: none!(),
+            direction: OpDirection::Issued,
+            ty: reduce_to_ty(our_allocations),
+            opids,
+            state: AllocatedState::Amount(issued),
+            to,
+            witness: None,
         }
     }
-    fn from_received(alloc: OutputAssignment<C::State>) -> Self {
+
+    fn fungible_sent(witness: WitnessInfo, ext_allocations: HashSet<OwnedAllocation>) -> Self {
+        let opids = ext_allocations.iter().map(|a| a.opout.op).collect();
+        let to = ext_allocations.iter().map(|a| a.seal).collect();
+        let amount = ext_allocations
+            .iter()
+            .map(|a| a.state.unwrap_fungible())
+            .sum();
         Self {
-            opids: small_bset![alloc.opout.op],
-            inputs: none!(),
-            state_change: C::from_received(alloc.state),
-            // TODO: Do something with payer info
-            payers: none!(),
-            beneficiaries: none!(),
+            direction: OpDirection::Sent,
+            ty: reduce_to_ty(ext_allocations),
+            opids,
+            state: AllocatedState::Amount(amount),
+            to,
+            witness: Some(witness),
         }
     }
-    fn merge_spent(&mut self, alloc: OutputAssignment<C::State>) {
-        self.inputs
-            .push(alloc.opout.op)
-            .expect("internal inconsistency of stash data");
-        self.state_change.merge_spent(alloc.state);
-        // TODO: Do something with beneficiary info
-    }
-    fn merge_received(&mut self, alloc: OutputAssignment<C::State>) {
-        self.opids
-            .push(alloc.opout.op)
-            .expect("internal inconsistency of stash data");
-        self.state_change.merge_received(alloc.state);
-        // TODO: Do something with payer info
+
+    fn fungible_received(witness: WitnessInfo, our_allocations: HashSet<OwnedAllocation>) -> Self {
+        let opids = our_allocations.iter().map(|a| a.opout.op).collect();
+        let to = our_allocations.iter().map(|a| a.seal).collect();
+        let amount = our_allocations
+            .iter()
+            .map(|a| a.state.unwrap_fungible())
+            .sum();
+        Self {
+            direction: OpDirection::Received,
+            ty: reduce_to_ty(our_allocations),
+            opids,
+            state: AllocatedState::Amount(amount),
+            to,
+            witness: Some(witness),
+        }
     }
 }
 
@@ -249,7 +276,21 @@ impl<S: ContractStateRead> ContractIface<S> {
         &'c self,
         state: impl IntoIterator<Item = &'c OutputAssignment<A>> + 'c,
         name: impl Into<FieldName>,
-        filter: impl OutpointFilter + 'c,
+        filter: impl AssignmentsFilter + 'c,
+    ) -> Result<impl Iterator<Item = OutputAssignment<U>> + 'c, ContractError>
+    where
+        A: Clone + KnownState + 'c,
+        U: From<A> + KnownState + 'c,
+    {
+        Ok(self
+            .extract_state_unfiltered(state, name)?
+            .filter(move |outp| filter.should_include(outp.seal, outp.witness)))
+    }
+
+    fn extract_state_unfiltered<'c, A, U>(
+        &'c self,
+        state: impl IntoIterator<Item = &'c OutputAssignment<A>> + 'c,
+        name: impl Into<FieldName>,
     ) -> Result<impl Iterator<Item = OutputAssignment<U>> + 'c, ContractError>
     where
         A: Clone + KnownState + 'c,
@@ -263,7 +304,6 @@ impl<S: ContractStateRead> ContractIface<S> {
         Ok(state
             .into_iter()
             .filter(move |outp| outp.opout.ty == type_id)
-            .filter(move |outp| filter.include_outpoint(outp.seal))
             .cloned()
             .map(OutputAssignment::<A>::transmute))
     }
@@ -271,81 +311,41 @@ impl<S: ContractStateRead> ContractIface<S> {
     pub fn rights<'c>(
         &'c self,
         name: impl Into<FieldName>,
-        filter: impl OutpointFilter + 'c,
+        filter: impl AssignmentsFilter + 'c,
     ) -> Result<impl Iterator<Item = RightsAllocation> + 'c, ContractError> {
         self.extract_state(self.state.rights_all(), name, filter)
-    }
-
-    pub fn rights_all<'c>(
-        &'c self,
-        name: impl Into<FieldName>,
-        filter: impl OutpointFilter + 'c,
-    ) -> Result<Vec<RightsAllocation>, ContractError> {
-        Ok(self
-            .extract_state(self.state.rights_all(), name, filter)?
-            .collect())
     }
 
     pub fn fungible<'c>(
         &'c self,
         name: impl Into<FieldName>,
-        filter: impl OutpointFilter + 'c,
+        filter: impl AssignmentsFilter + 'c,
     ) -> Result<impl Iterator<Item = FungibleAllocation> + 'c, ContractError> {
         self.extract_state(self.state.fungible_all(), name, filter)
-    }
-
-    pub fn fungible_all<'c>(
-        &'c self,
-        name: impl Into<FieldName>,
-        filter: impl OutpointFilter + 'c,
-    ) -> Result<Vec<FungibleAllocation>, ContractError> {
-        Ok(self
-            .extract_state(self.state.fungible_all(), name, filter)?
-            .collect())
     }
 
     pub fn data<'c>(
         &'c self,
         name: impl Into<FieldName>,
-        filter: impl OutpointFilter + 'c,
+        filter: impl AssignmentsFilter + 'c,
     ) -> Result<impl Iterator<Item = DataAllocation> + 'c, ContractError> {
         self.extract_state(self.state.data_all(), name, filter)
-    }
-
-    pub fn data_all<'c>(
-        &'c self,
-        name: impl Into<FieldName>,
-        filter: impl OutpointFilter + 'c,
-    ) -> Result<Vec<DataAllocation>, ContractError> {
-        Ok(self
-            .extract_state(self.state.data_all(), name, filter)?
-            .collect())
     }
 
     pub fn attachments<'c>(
         &'c self,
         name: impl Into<FieldName>,
-        filter: impl OutpointFilter + 'c,
+        filter: impl AssignmentsFilter + 'c,
     ) -> Result<impl Iterator<Item = AttachAllocation> + 'c, ContractError> {
         self.extract_state(self.state.attach_all(), name, filter)
     }
 
-    pub fn attachments_all<'c>(
-        &'c self,
-        name: impl Into<FieldName>,
-        filter: impl OutpointFilter + 'c,
-    ) -> Result<Vec<AttachAllocation>, ContractError> {
-        Ok(self
-            .extract_state(self.state.attach_all(), name, filter)?
-            .collect())
-    }
-
     pub fn allocations<'c>(
         &'c self,
-        filter: impl OutpointFilter + Copy + 'c,
+        filter: impl AssignmentsFilter + Copy + 'c,
     ) -> impl Iterator<Item = OwnedAllocation> + 'c {
         fn f<'a, S, U>(
-            filter: impl OutpointFilter + 'a,
+            filter: impl AssignmentsFilter + 'a,
             state: impl IntoIterator<Item = &'a OutputAssignment<S>> + 'a,
         ) -> impl Iterator<Item = OutputAssignment<U>> + 'a
         where
@@ -354,7 +354,7 @@ impl<S: ContractStateRead> ContractIface<S> {
         {
             state
                 .into_iter()
-                .filter(move |outp| filter.include_outpoint(outp.seal))
+                .filter(move |outp| filter.should_include(outp.seal, outp.witness))
                 .cloned()
                 .map(OutputAssignment::<S>::transmute)
         }
@@ -373,105 +373,155 @@ impl<S: ContractStateRead> ContractIface<S> {
         self.allocations(outpoint)
     }
 
-    // TODO: Ignore blank state transition
-    fn operations<'c, C: StateChange>(
+    pub fn history(
+        &self,
+        filter_outpoints: impl AssignmentsFilter + Clone,
+        filter_witnesses: impl AssignmentsFilter + Clone,
+    ) -> Vec<ContractOp> {
+        self.history_fungible(filter_outpoints.clone(), filter_witnesses.clone())
+            .into_iter()
+            .chain(self.history_rights(filter_outpoints.clone(), filter_witnesses.clone()))
+            .chain(self.history_data(filter_outpoints.clone(), filter_witnesses.clone()))
+            .chain(self.history_attach(filter_outpoints, filter_witnesses))
+            .collect()
+    }
+
+    fn operations<'c, T: KnownState + 'c, I: Iterator<Item = &'c OutputAssignment<T>>>(
         &'c self,
-        state: impl IntoIterator<Item = OutputAssignment<C::State>> + 'c,
-        allocations: impl Iterator<Item = OutputAssignment<C::State>> + 'c,
-    ) -> HashMap<XWitnessId, IfaceOp<C>>
+        state: impl Fn(&'c S) -> I,
+        filter_outpoints: impl AssignmentsFilter,
+        filter_witnesses: impl AssignmentsFilter,
+    ) -> Vec<ContractOp>
     where
-        C::State: 'c,
+        AllocatedState: From<T>,
     {
-        fn f<'a, S, U>(
-            state: impl IntoIterator<Item = OutputAssignment<S>> + 'a,
-        ) -> impl Iterator<Item = OutputAssignment<U>> + 'a
-        where
-            S: Clone + KnownState + 'a,
-            U: From<S> + KnownState + 'a,
-        {
-            state.into_iter().map(OutputAssignment::<S>::transmute)
-        }
+        // get all allocations which ever belonged to this wallet and store them by witness id
+        let mut allocations_our_outpoint = state(&self.state)
+            .filter(move |outp| filter_outpoints.should_include(outp.seal, outp.witness))
+            .fold(HashMap::<_, HashSet<_>>::new(), |mut map, a| {
+                map.entry(a.witness)
+                    .or_default()
+                    .insert(a.clone().transmute::<AllocatedState>());
+                map
+            });
+        // get all allocations which has a witness transaction belonging to this wallet
+        let mut allocations_our_witness = state(&self.state)
+            .filter(move |outp| filter_witnesses.should_include(outp.seal, outp.witness))
+            .fold(HashMap::<_, HashSet<_>>::new(), |mut map, a| {
+                let witness = a.witness.expect(
+                    "all empty witnesses must be already filtered out by wallet.filter_witness()",
+                );
+                map.entry(witness)
+                    .or_default()
+                    .insert(a.clone().transmute::<AllocatedState>());
+                map
+            });
 
-        let spent = f::<_, C::State>(state).map(OutputAssignment::from);
-        let mut ops = HashMap::<XWitnessId, IfaceOp<C>>::new();
-        for alloc in spent {
-            let Some(witness_id) = alloc.witness else {
-                continue;
-            };
-            if let Some(op) = ops.get_mut(&witness_id) {
-                op.merge_spent(alloc);
+        // gather all witnesses from both sets
+        let mut witness_ids = allocations_our_witness
+            .keys()
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        witness_ids.extend(allocations_our_outpoint.keys().filter_map(|x| *x));
+
+        // reconstruct contract history from the wallet perspective
+        let mut ops = Vec::with_capacity(witness_ids.len() + 1);
+        // add allocations with no witness to the beginning of the history
+        if let Some(genesis_allocations) = allocations_our_outpoint.remove(&None) {
+            if T::IS_FUNGIBLE {
+                ops.push(ContractOp::fungible_genesis(genesis_allocations));
             } else {
-                ops.insert(witness_id, IfaceOp::from_spent(alloc));
+                ops.extend(ContractOp::non_fungible_genesis(genesis_allocations));
             }
         }
-
-        for alloc in allocations {
-            let Some(witness_id) = alloc.witness else {
-                continue;
+        for witness_id in witness_ids {
+            let our_outpoint = allocations_our_outpoint.remove(&Some(witness_id));
+            let our_witness = allocations_our_witness.remove(&witness_id);
+            let witness_info = self.witness_info(witness_id).expect(
+                "witness id was returned from the contract state above, so it must be there",
+            );
+            match (our_outpoint, our_witness) {
+                // we own both allocation and witness transaction: these allocations are changes and
+                // outgoing payments. The difference between the change and the payments are whether
+                // a specific allocation is listed in the first tuple pattern field.
+                (Some(our_allocations), Some(all_allocations)) => {
+                    // all_allocations - our_allocations = external payments
+                    let ext_allocations = all_allocations
+                        .difference(&our_allocations)
+                        .cloned()
+                        .collect::<HashSet<_>>();
+                    // This was a blank state transition with no external payment
+                    if ext_allocations.is_empty() {
+                        continue;
+                    }
+                    if T::IS_FUNGIBLE {
+                        ops.push(ContractOp::fungible_sent(witness_info, ext_allocations))
+                    } else {
+                        ops.extend(ContractOp::non_fungible_sent(witness_info, ext_allocations))
+                    }
+                }
+                // the same as above, but the payment has no change
+                (None, Some(ext_allocations)) => {
+                    if T::IS_FUNGIBLE {
+                        ops.push(ContractOp::fungible_sent(witness_info, ext_allocations))
+                    } else {
+                        ops.extend(ContractOp::non_fungible_sent(witness_info, ext_allocations))
+                    }
+                }
+                // we own allocation but the witness transaction was made by other wallet:
+                // this is an incoming payment to us.
+                (Some(our_allocations), None) => {
+                    if T::IS_FUNGIBLE {
+                        ops.push(ContractOp::fungible_received(witness_info, our_allocations))
+                    } else {
+                        ops.extend(ContractOp::non_fungible_received(witness_info, our_allocations))
+                    }
+                }
+                // these can't get into the `witness_ids` due to the used filters
+                (None, None) => unreachable!("broken allocation filters"),
             };
-            if let Some(op) = ops.get_mut(&witness_id) {
-                op.merge_received(alloc);
-            } else {
-                ops.insert(witness_id, IfaceOp::from_received(alloc));
-            }
         }
 
         ops
     }
 
-    pub fn fungible_ops<'c, C: StateChange<State = Amount>>(
-        &'c self,
-        name: impl Into<FieldName>,
-        outpoint_filter: impl OutpointFilter + Copy + 'c,
-    ) -> Result<HashMap<XWitnessId, IfaceOp<C>>, ContractError> {
-        Ok(self.operations(
-            self.state
-                .fungible_all()
-                .copied()
-                .map(OutputAssignment::transmute),
-            self.fungible(name, outpoint_filter)?,
-        ))
+    pub fn history_fungible(
+        &self,
+        filter_outpoints: impl AssignmentsFilter,
+        filter_witnesses: impl AssignmentsFilter,
+    ) -> Vec<ContractOp> {
+        self.operations(|state| state.fungible_all(), filter_outpoints, filter_witnesses)
     }
 
-    pub fn data_ops<'c, C: StateChange<State = DataState>>(
-        &'c self,
-        name: impl Into<FieldName>,
-        outpoint_filter: impl OutpointFilter + Copy + 'c,
-    ) -> Result<HashMap<XWitnessId, IfaceOp<C>>, ContractError> {
-        Ok(self.operations(
-            self.state
-                .data_all()
-                .cloned()
-                .map(OutputAssignment::transmute),
-            self.data(name, outpoint_filter)?,
-        ))
+    pub fn history_rights(
+        &self,
+        filter_outpoints: impl AssignmentsFilter,
+        filter_witnesses: impl AssignmentsFilter,
+    ) -> Vec<ContractOp> {
+        self.operations(|state| state.rights_all(), filter_outpoints, filter_witnesses)
     }
 
-    pub fn rights_ops<'c, C: StateChange<State = VoidState>>(
-        &'c self,
-        name: impl Into<FieldName>,
-        outpoint_filter: impl OutpointFilter + Copy + 'c,
-    ) -> Result<HashMap<XWitnessId, IfaceOp<C>>, ContractError> {
-        Ok(self.operations(
-            self.state
-                .rights_all()
-                .copied()
-                .map(OutputAssignment::transmute),
-            self.rights(name, outpoint_filter)?,
-        ))
+    pub fn history_data(
+        &self,
+        filter_outpoints: impl AssignmentsFilter,
+        filter_witnesses: impl AssignmentsFilter,
+    ) -> Vec<ContractOp> {
+        self.operations(|state| state.data_all(), filter_outpoints, filter_witnesses)
     }
 
-    pub fn attachment_ops<'c, C: StateChange<State = AttachState>>(
-        &'c self,
-        name: impl Into<FieldName>,
-        outpoint_filter: impl OutpointFilter + Copy + 'c,
-    ) -> Result<HashMap<XWitnessId, IfaceOp<C>>, ContractError> {
-        Ok(self.operations(
-            self.state
-                .attach_all()
-                .cloned()
-                .map(OutputAssignment::transmute),
-            self.attachments(name, outpoint_filter)?,
-        ))
+    pub fn history_attach(
+        &self,
+        filter_outpoints: impl AssignmentsFilter,
+        filter_witnesses: impl AssignmentsFilter,
+    ) -> Vec<ContractOp> {
+        self.operations(|state| state.attach_all(), filter_outpoints, filter_witnesses)
+    }
+
+    pub fn witness_info(&self, witness_id: XWitnessId) -> Option<WitnessInfo> {
+        let ord = self.state.witness_ord(witness_id)?;
+        Some(WitnessInfo {
+            id: witness_id,
+            ord,
+        })
     }
 }

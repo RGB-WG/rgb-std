@@ -23,7 +23,7 @@ mod assignments;
 mod bundle;
 mod merge_reveal;
 
-pub use assignments::{KnownState, OutputAssignment, TypedAssignsExt};
+pub use assignments::{KnownState, OutputAssignment, TypedAssignsExt, WitnessInfo};
 pub use bundle::{BundleExt, RevealError};
 pub use merge_reveal::{MergeReveal, MergeRevealError};
 use rgb::vm::OrdOpRef;
