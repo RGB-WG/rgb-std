@@ -1516,7 +1516,10 @@ impl MemIndex {
             .remove(&seal)
             .expect("can have zero elements")
         {
-            Some(mut existing_opouts) => existing_opouts.push(opout)?,
+            Some(mut existing_opouts) => {
+                existing_opouts.push(opout)?;
+                let _ = self.terminal_index.insert(seal, existing_opouts);
+            }
             None => {
                 self.terminal_index.insert(seal, tiny_bset![opout])?;
             }
