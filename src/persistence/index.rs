@@ -171,12 +171,13 @@ impl<P: IndexProvider> Index<P> {
         }
         for WitnessBundle {
             pub_witness,
-            bundle,
-            anchor: _,
+            anchored_bundles,
         } in consignment.bundled_witnesses()
         {
             let witness_id = pub_witness.to_witness_id();
-            self.index_bundle(contract_id, bundle, witness_id)?;
+            for bundle in anchored_bundles.bundles() {
+                self.index_bundle(contract_id, bundle, witness_id)?;
+            }
         }
 
         Ok(())
@@ -334,7 +335,7 @@ impl<P: IndexProvider> Index<P> {
     pub(super) fn bundle_info(
         &self,
         bundle_id: BundleId,
-    ) -> Result<(impl Iterator<Item = XWitnessId> + '_, ContractId), IndexError<P>> {
+    ) -> Result<(XWitnessId, ContractId), IndexError<P>> {
         Ok(self.provider.bundle_info(bundle_id)?)
     }
 }
@@ -391,7 +392,7 @@ pub trait IndexReadProvider {
     fn bundle_info(
         &self,
         bundle_id: BundleId,
-    ) -> Result<(impl Iterator<Item = XWitnessId>, ContractId), IndexReadError<Self::Error>>;
+    ) -> Result<(XWitnessId, ContractId), IndexReadError<Self::Error>>;
 }
 
 pub trait IndexWriteProvider: StoreTransaction<TransactionErr = Self::Error> {

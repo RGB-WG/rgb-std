@@ -19,7 +19,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt::Debug;
@@ -66,6 +65,8 @@ pub enum StateError<P: StateProvider> {
 pub enum StateInconsistency {
     /// contract state {0} is not known.
     UnknownContract(ContractId),
+    /// a witness is absent in the list of witnesses for a state transition bundle.
+    AbsentWitness,
     /// valid (non-archived) witness is absent in the list of witnesses for a
     /// state transition bundle.
     AbsentValidWitness,
@@ -134,21 +135,10 @@ impl<P: StateProvider> State<P> {
             .map_err(StateError::ReadProvider)
     }
 
-    pub fn select_valid_witness(
-        &self,
-        witness_ids: impl IntoIterator<Item = impl Borrow<XWitnessId>>,
-    ) -> Result<XWitnessId, StateError<P>> {
-        for witness_id in witness_ids {
-            let witness_id = *witness_id.borrow();
-            if self
-                .provider
-                .is_valid_witness(witness_id)
-                .map_err(StateError::ReadProvider)?
-            {
-                return Ok(witness_id);
-            }
-        }
-        Err(StateError::Inconsistency(StateInconsistency::AbsentValidWitness))
+    pub fn is_valid_witness(&self, witness_id: XWitnessId) -> Result<bool, StateError<P>> {
+        self.provider
+            .is_valid_witness(witness_id)
+            .map_err(StateError::ReadProvider)
     }
 
     pub fn update_from_bundle<R: ResolveWitness>(
@@ -190,7 +180,7 @@ impl<P: StateProvider> State<P> {
             .collect::<BTreeMap<_, _>>();
         let mut ordered_extensions = BTreeMap::new();
         for witness_bundle in consignment.bundled_witnesses() {
-            for transition in witness_bundle.bundle.known_transitions.values() {
+            for transition in witness_bundle.known_transitions() {
                 let witness_id = witness_bundle.pub_witness.to_witness_id();
                 let witness_ord = resolver
                     .resolve_pub_witness_ord(witness_id)

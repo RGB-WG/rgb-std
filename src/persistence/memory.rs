@@ -580,7 +580,7 @@ impl StateReadProvider for MemState {
         let ord = self
             .witnesses
             .get(&witness_id)
-            .ok_or(StateInconsistency::AbsentValidWitness)?;
+            .ok_or(StateInconsistency::AbsentWitness)?;
         Ok(ord.is_valid())
     }
 }
@@ -1205,7 +1205,7 @@ pub struct MemIndex {
 
     op_bundle_index: MediumOrdMap<OpId, BundleId>,
     bundle_contract_index: MediumOrdMap<BundleId, ContractId>,
-    bundle_witness_index: MediumOrdMap<BundleId, TinyOrdSet<XWitnessId>>,
+    bundle_witness_index: MediumOrdMap<BundleId, XWitnessId>,
     contract_index: TinyOrdMap<ContractId, ContractIndex>,
     terminal_index: MediumOrdMap<XChain<SecretSeal>, TinyOrdSet<Opout>>,
 }
@@ -1339,8 +1339,8 @@ impl IndexReadProvider for MemIndex {
     fn bundle_info(
         &self,
         bundle_id: BundleId,
-    ) -> Result<(impl Iterator<Item = XWitnessId>, ContractId), IndexReadError<Self::Error>> {
-        let witness_ids = self
+    ) -> Result<(XWitnessId, ContractId), IndexReadError<Self::Error>> {
+        let witness_id = self
             .bundle_witness_index
             .get(&bundle_id)
             .ok_or(IndexInconsistency::BundleWitnessUnknown(bundle_id))?;
@@ -1348,7 +1348,7 @@ impl IndexReadProvider for MemIndex {
             .bundle_contract_index
             .get(&bundle_id)
             .ok_or(IndexInconsistency::BundleContractUnknown(bundle_id))?;
-        Ok((witness_ids.iter().copied(), *contract_id))
+        Ok((*witness_id, *contract_id))
     }
 }
 
@@ -1382,12 +1382,7 @@ impl IndexWriteProvider for MemIndex {
             }
             .into());
         }
-        let mut set = self
-            .bundle_witness_index
-            .remove(&bundle_id)?
-            .unwrap_or_default();
-        set.push(witness_id)?;
-        self.bundle_witness_index.insert(bundle_id, set)?;
+        self.bundle_witness_index.insert(bundle_id, witness_id)?;
         let present2 = self
             .bundle_contract_index
             .insert(bundle_id, contract_id)?

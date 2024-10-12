@@ -1,5 +1,5 @@
 {-
-  Id: stl:YBgLtVmT-FuzNBPe-1fxIqay-JW4Evd5-Za7fm9w-GLF6JAg#transit-xray-giraffe
+  Id: stl:7gJzyOSk-9kGbkdS-oKUNJvS-tk6p!Hw-!uhig0T-fkZgi4g#serial-cake-educate
   Name: RGBStorage
   Version: 0.11.0
   Description: RGB storage library
@@ -10,50 +10,6 @@
 
 @context
 typelib RGBStorage
-
-import RGBStd#western-craft-bogart
-  use PubWitness#paper-visa-storm
-  use ContentRef#polo-ramirez-parker
-  use SigBlob#insect-cello-avalon
-  use AnnotationName#domino-waiter-orlando
-  use TransitionIface#axiom-parker-pyramid
-  use NamedFieldTransitionType#express-brush-desire
-  use ExtensionIface#model-ramirez-mentor
-  use Iface#violin-student-system
-  use IfaceId#nova-cola-carbon
-  use ValencyIface#buzzer-holiday-fiber
-  use Annotations#spend-linda-romeo
-  use AssignIface#fractal-baker-outside
-  use VerNo#textile-next-stretch
-  use NamedFieldValencyType#invest-apollo-inca
-  use ImplId#seminar-data-table
-  use SupplSub#canoe-denmark-short
-  use SealWitness#vanilla-crimson-zero
-  use OutputAssignmentRevealedData#dinner-honey-saturn
-  use Supplement#caviar-zebra-precise
-  use SupplId#pilot-claudia-minute
-  use OutputAssignmentRevealedAttach#miami-diagram-mineral
-  use NamedFieldExtensionType#tuna-archer-melon
-  use AnchorSet#shadow-dominic-pencil
-  use NamedFieldGlobalStateType#museum-ohio-arizona
-  use GenesisIface#rocket-paradox-press
-  use IfaceImpl#permit-learn-samba
-  use ContentSigs#oval-sister-triton
-  use SupplItem#jargon-orchid-forget
-  use Modifier#saturn-escort-jordan
-  use NamedFieldAssignmentType#origin-caramel-flipper
-  use TrustLevel#cobra-script-albino
-  use NamedFieldMetaType#prefix-carmen-artist
-  use NamedVariantu8#star-pilgrim-pilgrim
-  use OpWitness#valid-toronto-gibson
-  use GlobalIface#concert-combat-charm
-  use SchemaIfaces#fossil-nepal-airline
-  use OutputAssignmentRevealedValue#aspect-caramel-diana
-  use SupplMap#sailor-observe-bundle
-  use OwnedIface#delphi-athlete-fresh
-  use ContentId#scarlet-portal-office
-  use GlobalOut#capital-agatha-bruno
-  use OutputAssignmentVoidState#mars-alabama-public
 
 import StrictTypes#century-comrade-chess
   use VariantName#theory-austin-before
@@ -182,6 +138,50 @@ import BPCore#totem-holiday-helena
   use BlindSealTxid#media-judge-anita
   use TxPtr#italian-july-eddie
 
+import RGBStd#jessica-tropic-song
+  use PubWitness#paper-visa-storm
+  use ContentRef#polo-ramirez-parker
+  use SigBlob#insect-cello-avalon
+  use AnnotationName#domino-waiter-orlando
+  use TransitionIface#axiom-parker-pyramid
+  use NamedFieldTransitionType#express-brush-desire
+  use ExtensionIface#model-ramirez-mentor
+  use Iface#violin-student-system
+  use IfaceId#nova-cola-carbon
+  use ValencyIface#buzzer-holiday-fiber
+  use Annotations#spend-linda-romeo
+  use AssignIface#fractal-baker-outside
+  use VerNo#textile-next-stretch
+  use NamedFieldValencyType#invest-apollo-inca
+  use ImplId#seminar-data-table
+  use SupplSub#canoe-denmark-short
+  use SealWitness#vanilla-crimson-zero
+  use OutputAssignmentRevealedData#dinner-honey-saturn
+  use Supplement#caviar-zebra-precise
+  use SupplId#pilot-claudia-minute
+  use OutputAssignmentRevealedAttach#miami-diagram-mineral
+  use NamedFieldExtensionType#tuna-archer-melon
+  use AnchorSet#shadow-dominic-pencil
+  use NamedFieldGlobalStateType#museum-ohio-arizona
+  use GenesisIface#rocket-paradox-press
+  use IfaceImpl#permit-learn-samba
+  use ContentSigs#oval-sister-triton
+  use SupplItem#jargon-orchid-forget
+  use Modifier#saturn-escort-jordan
+  use NamedFieldAssignmentType#origin-caramel-flipper
+  use TrustLevel#cobra-script-albino
+  use NamedFieldMetaType#prefix-carmen-artist
+  use NamedVariantu8#star-pilgrim-pilgrim
+  use OpWitness#valid-toronto-gibson
+  use GlobalIface#concert-combat-charm
+  use SchemaIfaces#fossil-nepal-airline
+  use OutputAssignmentRevealedValue#aspect-caramel-diana
+  use SupplMap#sailor-observe-bundle
+  use OwnedIface#delphi-athlete-fresh
+  use ContentId#scarlet-portal-office
+  use GlobalOut#capital-agatha-bruno
+  use OutputAssignmentVoidState#mars-alabama-public
+
 import Std#ralph-blue-lucky
   use AlphaCaps#picnic-soprano-aurora
   use AsciiPrintable#ultra-sunset-format
@@ -231,10 +231,10 @@ data MemContractState  : schemaId RGBCommit.SchemaId
 @mnemonic(gilbert-torpedo-digital)
 data MemGlobalState    : known {RGBStd.GlobalOut -> ^ ..0xffffffff RGBCommit.DataState}, limit U24
 
-@mnemonic(savage-joshua-clone)
+@mnemonic(dialog-parody-ralph)
 data MemIndex          : opBundleIndex {RGBCommit.OpId -> ^ ..0xffffff RGBCommit.BundleId}
                        , bundleContractIndex {RGBCommit.BundleId -> ^ ..0xffffff RGBCommit.ContractId}
-                       , bundleWitnessIndex {RGBCommit.BundleId -> ^ ..0xffffff {RGBCommit.XChainTxid ^ ..0xff}}
+                       , bundleWitnessIndex {RGBCommit.BundleId -> ^ ..0xffffff RGBCommit.XChainTxid}
                        , contractIndex {RGBCommit.ContractId -> ^ ..0xff ContractIndex}
                        , terminalIndex {RGBCommit.XChainSecretSeal -> ^ ..0xffffff {RGBCommit.Opout ^ ..0xff}}
 

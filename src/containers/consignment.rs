@@ -50,7 +50,7 @@ use super::{
 use crate::interface::{Iface, IfaceImpl};
 use crate::persistence::{MemContract, MemContractState};
 use crate::resolvers::ConsignmentResolver;
-use crate::{BundleExt, SecretSeal, LIB_NAME_RGB_STD};
+use crate::{SecretSeal, LIB_NAME_RGB_STD};
 
 pub type Transfer = Consignment<true>;
 pub type Contract = Consignment<false>;
@@ -296,8 +296,7 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
         for mut witness_bundle in self.bundles {
             for (bundle_id, secret) in &self.terminals {
                 if let Some(seal) = f(*secret)? {
-                    if witness_bundle.bundle.bundle_id() == *bundle_id {
-                        witness_bundle.bundle.reveal_seal(seal);
+                    if witness_bundle.reveal_seal(*bundle_id, seal) {
                         break;
                     }
                 }

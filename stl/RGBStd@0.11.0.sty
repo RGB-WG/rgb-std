@@ -1,5 +1,5 @@
 {-
-  Id: stl:H1HLPfyC-5YLlAk!-KWhcUo1-0vtex!9-ODxSmIA-zj1J$qc#western-craft-bogart
+  Id: stl:xjwnXqkB-dTDlmmW-QIpkDHJ-$!ERsTT-Tdsz4MM-7JIQTT8#jessica-tropic-song
   Name: RGBStd
   Version: 0.11.0
   Description: RGB standard library
@@ -106,9 +106,6 @@ import RGBCommit#tuna-safari-design
   use RevealedData#olivia-copper-stamp
   use AssignRevealedValueBlindSealTxid#photo-jump-silicon
 
-import RGBLogic#explain-marvin-bless
-  use DbcProof#needle-change-forest
-
 import CommitVerify#miller-pancake-elastic
   use MerkleHash#horse-popcorn-bundle
   use MerkleProof#price-aloha-grid
@@ -126,7 +123,6 @@ import BPCore#totem-holiday-helena
   use BlindSealTxPtr#fortune-iron-salmon
   use OpretProof#good-village-flex
   use SecretSeal#dollar-iris-wizard
-  use AnchorMerkleProofDbcProof#flash-justice-paradox
   use BlindSealTxid#media-judge-anita
   use TxPtr#italian-july-eddie
 
@@ -163,6 +159,11 @@ import Bitcoin#signal-color-cipher
   use XOnlyPk#clever-swim-carpet
 
 
+@mnemonic(mayday-rider-diploma)
+data AnchoredBundles   : tapret#1 ClientBundleTapretProof
+                       | opret ClientBundleOpretProof
+                       | double (tapret ClientBundleTapretProof, opret ClientBundleOpretProof)
+
 @mnemonic(domino-waiter-orlando)
 data AnnotationName    : Std.AlphaCaps, [Std.AlphaNumDash ^ ..0xfe]
 
@@ -174,6 +175,16 @@ data AssignIface       : ownedState OwnedIface
                        , public Std.Bool
                        , required Std.Bool
                        , multiple Std.Bool
+
+@mnemonic(scoop-deluxe-action)
+data ClientBundleOpretProof : mpcProof CommitVerify.MerkleProof
+                       , dbcProof BPCore.OpretProof
+                       , bundle RGBCommit.TransitionBundle
+
+@mnemonic(fame-iris-habitat)
+data ClientBundleTapretProof : mpcProof CommitVerify.MerkleProof
+                       , dbcProof BPCore.TapretProof
+                       , bundle RGBCommit.TransitionBundle
 
 @mnemonic(tango-hotel-jamaica)
 data Consignmentfalse  : version ContainerVer
@@ -392,9 +403,7 @@ data ValencyIface      : required Std.Bool
 data VerNo             : v0 | v1
 
 
-@mnemonic(special-almond-anatomy)
-data WitnessBundle     : pubWitness RGBCommit.XChainPubWitness
-                       , anchor BPCore.AnchorMerkleProofDbcProof
-                       , bundle RGBCommit.TransitionBundle
+@mnemonic(storm-left-reflex)
+data WitnessBundle     : pubWitness RGBCommit.XChainPubWitness, anchoredBundles AnchoredBundles
 
 
