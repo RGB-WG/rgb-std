@@ -293,7 +293,7 @@ impl<D: dbc::Proof> ClientBundle<D> {
     ///
     /// Panics if DBC proof and bundle have different closing methods
     pub fn new(mpc_proof: mpc::MerkleProof, dbc_proof: D, bundle: TransitionBundle) -> Self {
-        assert_eq!(D::METHOD, bundle.close_method);
+        assert_eq!(dbc_proof.method(), bundle.close_method);
         Self {
             mpc_proof,
             dbc_proof,
