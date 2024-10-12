@@ -600,12 +600,12 @@ impl<P: StashProvider> Stash<P> {
             | (
                 Anchor {
                     dbc_proof: DbcProof::Opret(opret),
-                    mpc_proof: mpc_proof_tapret,
+                    mpc_proof: mpc_proof_opret,
                     ..
                 },
                 Some(Anchor {
                     dbc_proof: DbcProof::Tapret(tapret),
-                    mpc_proof: mpc_proof_opret,
+                    mpc_proof: mpc_proof_tapret,
                     ..
                 }),
             ) => AnchorSet::Double {
