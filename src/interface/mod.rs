@@ -34,11 +34,11 @@ mod inheritance;
 
 pub use builder::{BuilderError, ContractBuilder, TransitionBuilder, TxOutpoint};
 pub use contract::{
-    AllocatedState, AmountChange, AttachAllocation, ContractError, ContractIface, DataAllocation,
-    FungibleAllocation, IfaceOp, OwnedAllocation, RightsAllocation, StateChange,
+    AllocatedState, AttachAllocation, ContractError, ContractIface, ContractOp, DataAllocation,
+    FungibleAllocation, OpDirection, OwnedAllocation, RightsAllocation,
 };
 pub use contractum::IfaceDisplay;
-pub use filter::{FilterExclude, FilterIncludeAll, OutpointFilter};
+pub use filter::{AssignmentsFilter, FilterExclude, FilterIncludeAll};
 pub use iface::{
     ArgMap, AssignIface, ExtensionIface, GenesisIface, GlobalIface, Iface, IfaceClass, IfaceId,
     IfaceInconsistency, IfaceRef, IfaceWrapper, Modifier, OpName, OwnedIface, Req, TransitionIface,

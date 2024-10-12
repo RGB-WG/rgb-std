@@ -22,6 +22,7 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::hash::Hash;
 
 use amplify::confinement::SmallVec;
 use commit_verify::Conceal;
@@ -39,18 +40,50 @@ use crate::LIB_NAME_RGB_STD;
 /// Trait used by contract state. Unlike [`ExposedState`] it doesn't allow
 /// concealment of the state, i.e. may contain incomplete data without blinding
 /// factors, asset tags etc.
-pub trait KnownState: Debug + StrictDumb + StrictEncode + StrictDecode + Eq + Clone {}
+pub trait KnownState: Debug + StrictDumb + StrictEncode + StrictDecode + Eq + Clone + Hash {
+    const IS_FUNGIBLE: bool;
+}
 
-impl KnownState for () {}
-impl KnownState for VoidState {}
-impl KnownState for DataState {}
-impl KnownState for Amount {}
-impl KnownState for AttachState {}
-impl KnownState for RevealedValue {}
-impl KnownState for RevealedData {}
-impl KnownState for RevealedAttach {}
+impl KnownState for () {
+    const IS_FUNGIBLE: bool = false;
+}
+impl KnownState for VoidState {
+    const IS_FUNGIBLE: bool = false;
+}
+impl KnownState for DataState {
+    const IS_FUNGIBLE: bool = false;
+}
+impl KnownState for Amount {
+    const IS_FUNGIBLE: bool = true;
+}
+impl KnownState for AttachState {
+    const IS_FUNGIBLE: bool = false;
+}
+impl KnownState for RevealedValue {
+    const IS_FUNGIBLE: bool = true;
+}
+impl KnownState for RevealedData {
+    const IS_FUNGIBLE: bool = false;
+}
+impl KnownState for RevealedAttach {
+    const IS_FUNGIBLE: bool = false;
+}
 
-#[derive(Copy, Clone, Eq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct WitnessInfo {
+    pub id: XWitnessId,
+    pub ord: WitnessOrd,
+}
+
+#[allow(clippy::derived_hash_with_manual_eq)]
+#[derive(Copy, Clone, Eq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(
@@ -142,6 +175,7 @@ impl<State: KnownState> OutputAssignment<State> {
         }
     }
 
+    /// Transmutes output assignment from one form of state to another
     pub fn transmute<S: KnownState + From<State>>(self) -> OutputAssignment<S> {
         OutputAssignment {
             opout: self.opout,
