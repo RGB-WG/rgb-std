@@ -108,6 +108,10 @@ pub enum StockError<
     #[from]
     StashData(StashDataError),
 
+    /// valid (non-archived) witness is absent in the list of witnesses for a
+    /// state transition bundle.
+    AbsentValidWitness,
+
     /// witness {0} can't be resolved: {1}
     WitnessUnresolved(XWitnessId, WitnessResolverError),
 }
@@ -134,6 +138,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider, E: Error> From<StateE
             StateError::WriteProvider(err) => Self::StateWrite(err),
             StateError::Inconsistency(e) => Self::StateInconsistency(e),
             StateError::Resolver(id, e) => Self::WitnessUnresolved(id, e),
+            StateError::AbsentValidWitness => Self::AbsentValidWitness,
         }
     }
 }
@@ -314,6 +319,7 @@ macro_rules! stock_err_conv {
                     StockError::IndexWrite(e) => StockError::IndexWrite(e),
                     StockError::StateRead(e) => StockError::StateRead(e),
                     StockError::StateWrite(e) => StockError::StateWrite(e),
+                    StockError::AbsentValidWitness => StockError::AbsentValidWitness,
                     StockError::StashData(e) => StockError::StashData(e),
                     StockError::StashInconsistency(e) => StockError::StashInconsistency(e),
                     StockError::StateInconsistency(e) => StockError::StateInconsistency(e),
@@ -846,7 +852,8 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
         let mut bundles = BTreeMap::<XWitnessId, WitnessBundle>::new();
         for anchored_bundle in anchored_bundles.into_values() {
-            let witness_id = self.index.bundle_info(anchored_bundle.bundle_id())?.0;
+            let witness_ids = self.index.bundle_info(anchored_bundle.bundle_id())?.0;
+            let witness_id = self.state.select_valid_witness(witness_ids)?;
             let pub_witness = self.stash.witness(witness_id)?.public.clone();
             let wb = match bundles.remove(&witness_id) {
                 Some(bundle) => bundle.into_double(anchored_bundle)?,
@@ -1349,12 +1356,10 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     }
 
     fn client_bundle(&self, bundle_id: BundleId) -> Result<ClientBundle, StockError<S, H, P>> {
-        let (witness_id, contract_id) = self.index.bundle_info(bundle_id)?;
+        let (witness_ids, contract_id) = self.index.bundle_info(bundle_id)?;
 
         let bundle = self.stash.bundle(bundle_id)?.clone();
-        if !self.state.is_valid_witness(witness_id)? {
-            return Err(StateInconsistency::AbsentValidWitness.into());
-        }
+        let witness_id = self.state.select_valid_witness(witness_ids)?;
         let witness = self.stash.witness(witness_id)?;
         let (merkle_block, dbc) = match (bundle.close_method, &witness.anchors) {
             (

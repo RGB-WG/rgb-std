@@ -335,7 +335,7 @@ impl<P: IndexProvider> Index<P> {
     pub(super) fn bundle_info(
         &self,
         bundle_id: BundleId,
-    ) -> Result<(XWitnessId, ContractId), IndexError<P>> {
+    ) -> Result<(impl Iterator<Item = XWitnessId> + '_, ContractId), IndexError<P>> {
         Ok(self.provider.bundle_info(bundle_id)?)
     }
 }
@@ -392,7 +392,7 @@ pub trait IndexReadProvider {
     fn bundle_info(
         &self,
         bundle_id: BundleId,
-    ) -> Result<(XWitnessId, ContractId), IndexReadError<Self::Error>>;
+    ) -> Result<(impl Iterator<Item = XWitnessId>, ContractId), IndexReadError<Self::Error>>;
 }
 
 pub trait IndexWriteProvider: StoreTransaction<TransactionErr = Self::Error> {

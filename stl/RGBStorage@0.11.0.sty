@@ -1,5 +1,5 @@
 {-
-  Id: stl:t8loV$Vb-Z8hGMSi-pC9dCUe-Lpy$rm8-CGtTeJa-6ll2sCk#guest-infant-crash
+  Id: stl:hHEaUT1x-VjyiUK0-v$pgYr0-xQwdM5m-S3UaY23-nj7!2vM#orbit-virgo-basil
   Name: RGBStorage
   Version: 0.11.0
   Description: RGB storage library
@@ -231,10 +231,10 @@ data MemContractState  : schemaId RGBCommit.SchemaId
 @mnemonic(gilbert-torpedo-digital)
 data MemGlobalState    : known {RGBStd.GlobalOut -> ^ ..0xffffffff RGBCommit.DataState}, limit U24
 
-@mnemonic(dialog-parody-ralph)
+@mnemonic(savage-joshua-clone)
 data MemIndex          : opBundleIndex {RGBCommit.OpId -> ^ ..0xffffff RGBCommit.BundleId}
                        , bundleContractIndex {RGBCommit.BundleId -> ^ ..0xffffff RGBCommit.ContractId}
-                       , bundleWitnessIndex {RGBCommit.BundleId -> ^ ..0xffffff RGBCommit.XChainTxid}
+                       , bundleWitnessIndex {RGBCommit.BundleId -> ^ ..0xffffff {RGBCommit.XChainTxid ^ ..0xff}}
                        , contractIndex {RGBCommit.ContractId -> ^ ..0xff ContractIndex}
                        , terminalIndex {RGBCommit.XChainSecretSeal -> ^ ..0xffffff {RGBCommit.Opout ^ ..0xff}}
 
