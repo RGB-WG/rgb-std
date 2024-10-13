@@ -513,8 +513,8 @@ impl<P: StashProvider> Stash<P> {
                 .map_err(StashError::WriteProvider)?;
         }
 
-        for bw in consignment.bundles {
-            self.consume_bundled_witness(contract_id, bw)?;
+        for witness_bundles in consignment.bundles {
+            self.consume_witness_bundle(contract_id, witness_bundles)?;
         }
 
         for (id, attach) in consignment.attachments {
@@ -545,28 +545,95 @@ impl<P: StashProvider> Stash<P> {
         })
     }
 
-    fn consume_bundled_witness(
+    fn consume_witness_bundle(
         &mut self,
         contract_id: ContractId,
-        bundled_witness: WitnessBundle,
+        witness_bundle: WitnessBundle,
     ) -> Result<(), StashError<P>> {
         let WitnessBundle {
             pub_witness,
-            bundle,
-            anchor,
-        } = bundled_witness;
+            anchored_bundles,
+        } = witness_bundle;
 
-        // TODO: Save pub witness transaction and SPVs
+        // TODO: Save pub witness transaction SPVs
 
-        let bundle_id = bundle.bundle_id();
-        self.consume_bundle(bundle)?;
+        let mut anchors = Vec::with_capacity(2);
+        for (anchor, bundle) in anchored_bundles.into_iter() {
+            let bundle_id = bundle.bundle_id();
+            self.consume_bundle(bundle)?;
 
-        let proto = mpc::ProtocolId::from_byte_array(contract_id.to_byte_array());
-        let msg = mpc::Message::from_byte_array(bundle_id.to_byte_array());
-        let merkle_block = MerkleBlock::with(&anchor.mpc_proof, proto, msg)?;
-        let anchors = match anchor.dbc_proof {
-            DbcProof::Tapret(tapret) => AnchorSet::Tapret(Anchor::new(merkle_block, tapret)),
-            DbcProof::Opret(opret) => AnchorSet::Opret(Anchor::new(merkle_block, opret)),
+            let proto = mpc::ProtocolId::from_byte_array(contract_id.to_byte_array());
+            let msg = mpc::Message::from_byte_array(bundle_id.to_byte_array());
+            let merkle_block = MerkleBlock::with(&anchor.mpc_proof, proto, msg)?;
+            anchors.push(Anchor::new(merkle_block, anchor.dbc_proof));
+        }
+
+        let anchors = match (anchors.pop().unwrap(), anchors.pop()) {
+            (
+                Anchor {
+                    dbc_proof: DbcProof::Opret(opret),
+                    mpc_proof,
+                    ..
+                },
+                None,
+            ) => AnchorSet::Opret(Anchor::new(mpc_proof, opret)),
+            (
+                Anchor {
+                    dbc_proof: DbcProof::Tapret(tapret),
+                    mpc_proof,
+                    ..
+                },
+                None,
+            ) => AnchorSet::Tapret(Anchor::new(mpc_proof, tapret)),
+            (
+                Anchor {
+                    dbc_proof: DbcProof::Tapret(tapret),
+                    mpc_proof: mpc_proof_tapret,
+                    ..
+                },
+                Some(Anchor {
+                    dbc_proof: DbcProof::Opret(opret),
+                    mpc_proof: mpc_proof_opret,
+                    ..
+                }),
+            )
+            | (
+                Anchor {
+                    dbc_proof: DbcProof::Opret(opret),
+                    mpc_proof: mpc_proof_opret,
+                    ..
+                },
+                Some(Anchor {
+                    dbc_proof: DbcProof::Tapret(tapret),
+                    mpc_proof: mpc_proof_tapret,
+                    ..
+                }),
+            ) => AnchorSet::Double {
+                tapret: Anchor::new(mpc_proof_tapret, tapret),
+                opret: Anchor::new(mpc_proof_opret, opret),
+            },
+            (
+                Anchor {
+                    dbc_proof: DbcProof::Opret(_),
+                    ..
+                },
+                Some(Anchor {
+                    dbc_proof: DbcProof::Opret(_),
+                    ..
+                }),
+            )
+            | (
+                Anchor {
+                    dbc_proof: DbcProof::Tapret(_),
+                    ..
+                },
+                Some(Anchor {
+                    dbc_proof: DbcProof::Tapret(_),
+                    ..
+                }),
+            ) => unreachable!(
+                "these combinations must be prevented at the `AnchoredBundles` structure level"
+            ),
         };
         let witness = SealWitness {
             public: pub_witness.clone(),

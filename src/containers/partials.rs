@@ -31,7 +31,10 @@ use rgb::{
     ContractId, OpId, Operation, Transition, TransitionBundle, TxoSeal, XOutpoint, XOutputSeal,
     XWitnessId,
 };
-use strict_encoding::{StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize};
+use strict_encoding::{
+    DecodeError, ReadStruct, StrictDecode, StrictDeserialize, StrictDumb, StrictEncode,
+    StrictProduct, StrictSerialize, StrictStruct, StrictType, TypedRead, TypedWrite, WriteStruct,
+};
 
 use crate::containers::{AnchorSet, XPubWitness};
 use crate::LIB_NAME_RGB_STD;
@@ -247,20 +250,54 @@ impl Batch {
 pub type BundleDichotomy = Dichotomy<TransitionBundle>;
 pub type TransitionDichotomy = Dichotomy<TransitionInfo>;
 
+// TODO: Move to amplify
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-pub struct Dichotomy<T: StrictDumb + StrictEncode + StrictDecode> {
+pub struct Dichotomy<T> {
     pub first: T,
     pub second: Option<T>,
 }
 
-impl<T: StrictDumb + StrictEncode + StrictDecode> FromIterator<T> for Dichotomy<T> {
+impl<T: StrictDumb> StrictType for Dichotomy<T> {
+    const STRICT_LIB_NAME: &'static str = LIB_NAME_RGB_STD;
+}
+impl<T: StrictDumb> StrictProduct for Dichotomy<T> {}
+impl<T: StrictDumb> StrictStruct for Dichotomy<T> {
+    const ALL_FIELDS: &'static [&'static str] = &["first", "second"];
+}
+impl<T: StrictEncode + StrictDumb> StrictEncode for Dichotomy<T> {
+    fn strict_encode<W: TypedWrite>(&self, writer: W) -> std::io::Result<W> {
+        writer.write_struct::<Self>(|w| {
+            Ok(w.write_field(fname!("first"), &self.first)?
+                .write_field(fname!("second"), &self.second)?
+                .complete())
+        })
+    }
+}
+impl<T: StrictDecode + StrictDumb> StrictDecode for Dichotomy<T> {
+    fn strict_decode(reader: &mut impl TypedRead) -> Result<Self, DecodeError> {
+        reader.read_struct(|r| {
+            Ok(Self {
+                first: r.read_field(fname!("first"))?,
+                second: r.read_field(fname!("second"))?,
+            })
+        })
+    }
+}
+impl<T: StrictDumb> StrictDumb for Dichotomy<T> {
+    fn strict_dumb() -> Self {
+        Self {
+            first: T::strict_dumb(),
+            second: None,
+        }
+    }
+}
+
+impl<T> FromIterator<T> for Dichotomy<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let mut iter = iter.into_iter();
         let first = iter.next().expect("iterator must have at least one item");
@@ -270,7 +307,7 @@ impl<T: StrictDumb + StrictEncode + StrictDecode> FromIterator<T> for Dichotomy<
     }
 }
 
-impl<T: StrictDumb + StrictEncode + StrictDecode> IntoIterator for Dichotomy<T> {
+impl<T> IntoIterator for Dichotomy<T> {
     type Item = T;
     type IntoIter = vec::IntoIter<T>;
 
@@ -284,7 +321,21 @@ impl<T: StrictDumb + StrictEncode + StrictDecode> IntoIterator for Dichotomy<T> 
     }
 }
 
-impl<T: StrictDumb + StrictEncode + StrictDecode> Dichotomy<T> {
+impl<T> Dichotomy<T> {
+    pub fn single(first: T) -> Self {
+        Self {
+            first,
+            second: None,
+        }
+    }
+
+    pub fn double(first: T, second: T) -> Self {
+        Self {
+            first,
+            second: Some(second),
+        }
+    }
+
     pub fn with(first: T, second: Option<T>) -> Self { Self { first, second } }
 
     pub fn iter(&self) -> vec::IntoIter<&T> {

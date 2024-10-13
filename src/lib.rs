@@ -46,10 +46,7 @@ mod contract;
 pub mod info;
 
 pub use bp::{Outpoint, Txid};
-pub use contract::{
-    BundleExt, KnownState, MergeReveal, MergeRevealError, OutputAssignment, RevealError,
-    TypedAssignsExt,
-};
+pub use contract::{KnownState, MergeReveal, MergeRevealError, OutputAssignment, TypedAssignsExt};
 pub use invoice::{Allocation, Amount, CoinAmount, OwnedFraction, Precision, TokenIndex};
 pub use rgb::prelude::*;
 pub use rgb::rgbasm;

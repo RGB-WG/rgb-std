@@ -52,6 +52,10 @@ pub enum StateError<P: StateProvider> {
     #[display(doc_comments)]
     Resolver(XWitnessId, WitnessResolverError),
 
+    /// valid (non-archived) witness is absent in the list of witnesses for a
+    /// state transition bundle.
+    AbsentValidWitness,
+
     /// {0}
     ///
     /// It may happen due to RGB standard library bug, or indicate internal
@@ -66,9 +70,8 @@ pub enum StateError<P: StateProvider> {
 pub enum StateInconsistency {
     /// contract state {0} is not known.
     UnknownContract(ContractId),
-    /// valid (non-archived) witness is absent in the list of witnesses for a
-    /// state transition bundle.
-    AbsentValidWitness,
+    /// a witness {0} is absent from the state data.
+    AbsentWitness(XWitnessId),
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Hash)]
@@ -148,7 +151,7 @@ impl<P: StateProvider> State<P> {
                 return Ok(witness_id);
             }
         }
-        Err(StateError::Inconsistency(StateInconsistency::AbsentValidWitness))
+        Err(StateError::AbsentValidWitness)
     }
 
     pub fn update_from_bundle<R: ResolveWitness>(
@@ -190,7 +193,7 @@ impl<P: StateProvider> State<P> {
             .collect::<BTreeMap<_, _>>();
         let mut ordered_extensions = BTreeMap::new();
         for witness_bundle in consignment.bundled_witnesses() {
-            for transition in witness_bundle.bundle.known_transitions.values() {
+            for transition in witness_bundle.known_transitions() {
                 let witness_id = witness_bundle.pub_witness.to_witness_id();
                 let witness_ord = resolver
                     .resolve_pub_witness_ord(witness_id)

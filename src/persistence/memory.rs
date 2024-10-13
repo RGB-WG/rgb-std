@@ -580,7 +580,7 @@ impl StateReadProvider for MemState {
         let ord = self
             .witnesses
             .get(&witness_id)
-            .ok_or(StateInconsistency::AbsentValidWitness)?;
+            .ok_or(StateInconsistency::AbsentWitness(witness_id))?;
         Ok(ord.is_valid())
     }
 }
@@ -1340,7 +1340,7 @@ impl IndexReadProvider for MemIndex {
         &self,
         bundle_id: BundleId,
     ) -> Result<(impl Iterator<Item = XWitnessId>, ContractId), IndexReadError<Self::Error>> {
-        let witness_ids = self
+        let witness_id = self
             .bundle_witness_index
             .get(&bundle_id)
             .ok_or(IndexInconsistency::BundleWitnessUnknown(bundle_id))?;
@@ -1348,7 +1348,7 @@ impl IndexReadProvider for MemIndex {
             .bundle_contract_index
             .get(&bundle_id)
             .ok_or(IndexInconsistency::BundleContractUnknown(bundle_id))?;
-        Ok((witness_ids.iter().copied(), *contract_id))
+        Ok((witness_id.iter().cloned(), *contract_id))
     }
 }
 
@@ -1382,12 +1382,10 @@ impl IndexWriteProvider for MemIndex {
             }
             .into());
         }
-        let mut set = self
-            .bundle_witness_index
-            .remove(&bundle_id)?
-            .unwrap_or_default();
-        set.push(witness_id)?;
-        self.bundle_witness_index.insert(bundle_id, set)?;
+        self.bundle_witness_index
+            .entry(bundle_id)?
+            .or_default()
+            .push(witness_id)?;
         let present2 = self
             .bundle_contract_index
             .insert(bundle_id, contract_id)?
@@ -1516,7 +1514,10 @@ impl MemIndex {
             .remove(&seal)
             .expect("can have zero elements")
         {
-            Some(mut existing_opouts) => existing_opouts.push(opout)?,
+            Some(mut existing_opouts) => {
+                existing_opouts.push(opout)?;
+                let _ = self.terminal_index.insert(seal, existing_opouts);
+            }
             None => {
                 self.terminal_index.insert(seal, tiny_bset![opout])?;
             }

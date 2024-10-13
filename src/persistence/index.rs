@@ -171,12 +171,13 @@ impl<P: IndexProvider> Index<P> {
         }
         for WitnessBundle {
             pub_witness,
-            bundle,
-            anchor: _,
+            anchored_bundles,
         } in consignment.bundled_witnesses()
         {
             let witness_id = pub_witness.to_witness_id();
-            self.index_bundle(contract_id, bundle, witness_id)?;
+            for bundle in anchored_bundles.bundles() {
+                self.index_bundle(contract_id, bundle, witness_id)?;
+            }
         }
 
         Ok(())
