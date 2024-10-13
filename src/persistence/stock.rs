@@ -510,8 +510,8 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         &'a self,
     ) -> Result<
         impl Iterator<
-            Item = <C::Wrapper<H::ContractRead<'_>> as IfaceWrapper<H::ContractRead<'_>>>::Info,
-        > + 'a,
+                Item = <C::Wrapper<H::ContractRead<'_>> as IfaceWrapper<H::ContractRead<'_>>>::Info,
+            > + 'a,
         StockError<S, H, P>,
     > {
         Ok(self.stash.geneses_by::<C>()?.filter_map(|genesis| {

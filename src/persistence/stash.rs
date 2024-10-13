@@ -774,7 +774,7 @@ pub trait StashWriteProvider: StoreTransaction<TransactionErr = Self::Error> {
     fn replace_bundle(&mut self, bundle: TransitionBundle) -> Result<bool, Self::Error>;
     fn replace_witness(&mut self, witness: SealWitness) -> Result<bool, Self::Error>;
     fn replace_attachment(&mut self, id: AttachId, attach: MediumBlob)
-    -> Result<bool, Self::Error>;
+        -> Result<bool, Self::Error>;
 
     fn replace_lib(&mut self, lib: Lib) -> Result<bool, Self::Error>;
     fn consume_types(&mut self, types: TypeSystem) -> Result<(), Self::Error>;

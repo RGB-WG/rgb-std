@@ -391,14 +391,13 @@ impl AnchoredBundles {
                 Dichotomy::single((anchor, &tapret.bundle))
             }
             AnchoredBundles::Opret(opret) => {
-                let anchor = EAnchor::new(opret.mpc_proof.clone(), opret.dbc_proof.clone().into());
+                let anchor = EAnchor::new(opret.mpc_proof.clone(), opret.dbc_proof.into());
                 Dichotomy::single((anchor, &opret.bundle))
             }
             AnchoredBundles::Double { tapret, opret } => {
                 let tapret_anchor =
                     EAnchor::new(tapret.mpc_proof.clone(), tapret.dbc_proof.clone().into());
-                let opret_anchor =
-                    EAnchor::new(opret.mpc_proof.clone(), opret.dbc_proof.clone().into());
+                let opret_anchor = EAnchor::new(opret.mpc_proof.clone(), opret.dbc_proof.into());
                 Dichotomy::double((tapret_anchor, &tapret.bundle), (opret_anchor, &opret.bundle))
             }
         }
