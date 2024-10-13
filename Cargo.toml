@@ -17,7 +17,7 @@ homepage = "https://github.com/RGB-WG"
 repository = "https://github.com/RGB-WG/rgb-std"
 keywords = ["bitcoin", "lightning", "rgb", "smart-contracts", "lnp-bp"]
 categories = ["cryptography::cryptocurrencies"]
-rust-version = "1.76.0" # Due to use of `inspect_err`
+rust-version = "1.77.0" # Due to use of `rustfix`
 edition = "2021"
 license = "Apache-2.0"
 
