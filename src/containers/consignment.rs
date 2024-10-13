@@ -557,23 +557,23 @@ Check-SHA256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
         // Wrong type
         // TODO: Uncomment once ASCII headers get checked
         /*assert!(matches!(
-            Transfer::from_str(
-                r#"-----BEGIN RGB CONSIGNMENT-----
-Id: rgb:csg:9jMKgkmP-alPghZC-bu65ctP-GT5tKgM-cAbaTLT-rhu8xQo#urban-athena-adam
-Version: 2
-Type: contract
-Contract: rgb:T24t0N1D-eiInTgb-BXlrrXz-$7OgV6n-WJWHPUD-BWNuqZw
-Schema: rgb:sch:CyqM42yAdM1moWyNZPQedAYt73BM$k9z$dKLUXY1voA#cello-global-deluxe
-Check-SHA256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                    Transfer::from_str(
+                        r#"-----BEGIN RGB CONSIGNMENT-----
+        Id: rgb:csg:9jMKgkmP-alPghZC-bu65ctP-GT5tKgM-cAbaTLT-rhu8xQo#urban-athena-adam
+        Version: 2
+        Type: contract
+        Contract: rgb:T24t0N1D-eiInTgb-BXlrrXz-$7OgV6n-WJWHPUD-BWNuqZw
+        Schema: rgb:sch:CyqM42yAdM1moWyNZPQedAYt73BM$k9z$dKLUXY1voA#cello-global-deluxe
+        Check-SHA256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
-0s#O3000000000000000000000000000000000000000000000000000000D0CRI`I$>^aZh38Qb#nj!
-0000000000000000000000d59ZDjxe00000000dDb8~4rVQz13d2MfXa{vGU00000000000000000000
-0000000000000
+        0s#O3000000000000000000000000000000000000000000000000000000D0CRI`I$>^aZh38Qb#nj!
+        0000000000000000000000d59ZDjxe00000000dDb8~4rVQz13d2MfXa{vGU00000000000000000000
+        0000000000000
 
------END RGB CONSIGNMENT-----"#
-            ),
-            Err(ConsignmentParseError::Type)
-        ));*/
+        -----END RGB CONSIGNMENT-----"#
+                    ),
+                    Err(ConsignmentParseError::Type)
+                ));*/
         assert!(matches!(
             Transfer::from_str(include_str!("../../asset/armored_contract.default")),
             Err(ConsignmentParseError::Type)

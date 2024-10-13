@@ -246,7 +246,11 @@ pub enum OwnedIface {
 
 impl OwnedIface {
     pub fn sem_id(&self) -> Option<SemId> {
-        if let Self::Data(id) = self { Some(*id) } else { None }
+        if let Self::Data(id) = self {
+            Some(*id)
+        } else {
+            None
+        }
     }
 }
 
@@ -609,7 +613,11 @@ impl Iface {
             }
         }
 
-        if errors.is_empty() { Ok(()) } else { Err(errors) }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
     }
 
     // TODO: Implement checking interface inheritance.

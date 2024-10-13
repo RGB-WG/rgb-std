@@ -22,21 +22,21 @@
 pub use bp::bc::stl::bp_tx_stl;
 pub use bp::stl::bp_core_stl;
 #[allow(unused_imports)]
-pub use commit_verify::stl::{LIB_ID_COMMIT_VERIFY, commit_verify_stl};
+pub use commit_verify::stl::{commit_verify_stl, LIB_ID_COMMIT_VERIFY};
 use invoice::{Allocation, Amount};
-pub use rgb::stl::{LIB_ID_RGB_COMMIT, LIB_ID_RGB_LOGIC, aluvm_stl, rgb_commit_stl, rgb_logic_stl};
+pub use rgb::stl::{aluvm_stl, rgb_commit_stl, rgb_logic_stl, LIB_ID_RGB_COMMIT, LIB_ID_RGB_LOGIC};
 use strict_types::stl::{std_stl, strict_types_stl};
 use strict_types::typesys::SystemBuilder;
 use strict_types::{CompileError, LibBuilder, SemId, SymbolicSys, TypeLib, TypeSystem};
 
 use super::{
-    AssetSpec, BurnMeta, ContractSpec, ContractTerms, Error, IssueMeta, LIB_NAME_RGB_CONTRACT,
-    LIB_NAME_RGB_STORAGE, MediaType,
+    AssetSpec, BurnMeta, ContractSpec, ContractTerms, Error, IssueMeta, MediaType,
+    LIB_NAME_RGB_CONTRACT, LIB_NAME_RGB_STORAGE,
 };
-use crate::LIB_NAME_RGB_STD;
 use crate::containers::{Contract, Kit, Transfer};
 use crate::persistence::{MemIndex, MemStash, MemState};
 use crate::stl::ProofOfReserves;
+use crate::LIB_NAME_RGB_STD;
 
 /// Strict types id for the library providing standard data types which may be
 /// used in RGB smart contracts.

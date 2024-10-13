@@ -89,7 +89,13 @@ impl BitOrAssign<CloseMethodSet> for Option<CloseMethodSet> {
 
 impl<T: Into<CloseMethodSet>> BitOr<T> for CloseMethodSet {
     type Output = Self;
-    fn bitor(self, rhs: T) -> Self::Output { if self == rhs.into() { self } else { Self::Both } }
+    fn bitor(self, rhs: T) -> Self::Output {
+        if self == rhs.into() {
+            self
+        } else {
+            Self::Both
+        }
+    }
 }
 
 impl<T: Into<CloseMethodSet>> BitOrAssign<T> for CloseMethodSet {
