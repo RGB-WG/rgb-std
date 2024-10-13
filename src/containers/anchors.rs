@@ -20,18 +20,36 @@
 // limitations under the License.
 
 use std::cmp::Ordering;
+use std::vec;
 
 use amplify::ByteArray;
 use bp::dbc::opret::OpretProof;
 use bp::dbc::tapret::TapretProof;
 use bp::dbc::{anchor, Anchor};
-use bp::{Tx, Txid};
+use bp::{dbc, Tx, Txid};
 use commit_verify::mpc;
-use rgb::validation::DbcProof;
-use rgb::{BundleId, DiscloseHash, TransitionBundle, XChain, XWitnessId};
+use rgb::validation::{DbcProof, EAnchor};
+use rgb::{
+    BundleId, DiscloseHash, OpId, Operation, Transition, TransitionBundle, XChain, XGraphSeal,
+    XWitnessId,
+};
 use strict_encoding::StrictDumb;
 
-use crate::{MergeReveal, MergeRevealError, LIB_NAME_RGB_STD};
+use crate::containers::Dichotomy;
+use crate::{MergeReveal, MergeRevealError, TypedAssignsExt, LIB_NAME_RGB_STD};
+
+#[derive(Clone, Eq, PartialEq, Debug, Display, Error)]
+#[display("state transition {0} is not a part of the bundle.")]
+pub struct UnrelatedTransition(OpId, Transition);
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error)]
+#[display(doc_comments)]
+pub enum AnchoredBundleMismatch {
+    /// witness bundle for witness id {0} already has both opret and tapret information.
+    AlreadyDouble(XWitnessId),
+    /// the combined anchored bundles for witness id {0} are of the same type.
+    SameBundleType(XWitnessId),
+}
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
@@ -159,36 +177,256 @@ impl PubWitness {
 )]
 #[derive(CommitEncode)]
 #[commit_encode(strategy = strict, id = DiscloseHash)]
-pub struct WitnessBundle<P: mpc::Proof + StrictDumb = mpc::MerkleProof> {
+pub struct WitnessBundle {
     pub pub_witness: XPubWitness,
-    pub anchor: Anchor<P, DbcProof>,
-    pub bundle: TransitionBundle,
+    pub anchored_bundles: AnchoredBundles,
 }
 
-impl<P: mpc::Proof + StrictDumb> PartialEq for WitnessBundle<P> {
+impl PartialEq for WitnessBundle {
     fn eq(&self, other: &Self) -> bool { self.pub_witness == other.pub_witness }
 }
 
-impl<P: mpc::Proof + StrictDumb> Ord for WitnessBundle<P> {
+impl Ord for WitnessBundle {
     fn cmp(&self, other: &Self) -> Ordering { self.pub_witness.cmp(&other.pub_witness) }
 }
 
-impl<P: mpc::Proof + StrictDumb> PartialOrd for WitnessBundle<P> {
+impl PartialOrd for WitnessBundle {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
 }
 
-impl WitnessBundle<mpc::MerkleProof> {
+impl WitnessBundle {
+    #[inline]
+    pub fn with(pub_witness: XPubWitness, anchored_bundle: ClientBundle) -> Self {
+        Self {
+            pub_witness,
+            anchored_bundles: AnchoredBundles::from(anchored_bundle),
+        }
+    }
+
+    pub fn into_double(mut self, other: ClientBundle) -> Result<Self, AnchoredBundleMismatch> {
+        match (self.anchored_bundles, other.dbc_proof) {
+            (AnchoredBundles::Double { .. }, _) => {
+                return Err(AnchoredBundleMismatch::AlreadyDouble(
+                    self.pub_witness.to_witness_id(),
+                ));
+            }
+            (AnchoredBundles::Opret(opret), DbcProof::Tapret(tapret)) => {
+                self.anchored_bundles = AnchoredBundles::Double {
+                    tapret: ClientBundle::new(other.mpc_proof, tapret, other.bundle),
+                    opret,
+                }
+            }
+            (AnchoredBundles::Tapret(tapret), DbcProof::Opret(opret)) => {
+                self.anchored_bundles = AnchoredBundles::Double {
+                    opret: ClientBundle::new(other.mpc_proof, opret, other.bundle),
+                    tapret,
+                }
+            }
+            _ => {
+                return Err(AnchoredBundleMismatch::SameBundleType(
+                    self.pub_witness.to_witness_id(),
+                ));
+            }
+        }
+        Ok(self)
+    }
+
     pub fn witness_id(&self) -> XWitnessId { self.pub_witness.to_witness_id() }
+
+    pub fn reveal_seal(&mut self, bundle_id: BundleId, seal: XGraphSeal) -> bool {
+        let bundle = match &mut self.anchored_bundles {
+            AnchoredBundles::Tapret(tapret) | AnchoredBundles::Double { tapret, .. }
+                if tapret.bundle.bundle_id() == bundle_id =>
+            {
+                Some(&mut tapret.bundle)
+            }
+            AnchoredBundles::Opret(opret) | AnchoredBundles::Double { opret, .. }
+                if opret.bundle.bundle_id() == bundle_id =>
+            {
+                Some(&mut opret.bundle)
+            }
+            _ => None,
+        };
+        let Some(bundle) = bundle else {
+            return false;
+        };
+        bundle
+            .known_transitions
+            .values_mut()
+            .flat_map(|t| t.assignments.values_mut())
+            .for_each(|a| a.reveal_seal(seal));
+
+        true
+    }
+
+    pub fn anchored_bundles(&self) -> impl Iterator<Item = (EAnchor, &TransitionBundle)> {
+        self.anchored_bundles.iter()
+    }
+
+    #[inline]
+    pub fn known_transitions(&self) -> impl Iterator<Item = &Transition> {
+        self.anchored_bundles
+            .bundles()
+            .flat_map(|bundle| bundle.known_transitions.values())
+    }
 }
 
-impl WitnessBundle {
-    pub fn merge_reveal(mut self, other: Self) -> Result<Self, MergeRevealError> {
-        self.pub_witness = self.pub_witness.merge_reveal(other.pub_witness)?;
-        if self.anchor != other.anchor {
-            return Err(MergeRevealError::AnchorsNonEqual(self.bundle.bundle_id()));
+/// Keeps client-side data - a combination of client-side witness (anchor) and state (transition
+/// bundle). Ensures that transition bundle uses the same DBC close method as used by the
+/// client-side witness (anchor).
+#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct ClientBundle<D: dbc::Proof = DbcProof> {
+    mpc_proof: mpc::MerkleProof,
+    dbc_proof: D,
+    bundle: TransitionBundle,
+}
+
+impl<D: dbc::Proof> ClientBundle<D> {
+    /// # Panics
+    ///
+    /// Panics if DBC proof and bundle have different closing methods
+    pub fn new(mpc_proof: mpc::MerkleProof, dbc_proof: D, bundle: TransitionBundle) -> Self {
+        assert_eq!(dbc_proof.method(), bundle.close_method);
+        Self {
+            mpc_proof,
+            dbc_proof,
+            bundle,
         }
-        self.bundle = self.bundle.merge_reveal(other.bundle)?;
-        Ok(self)
+    }
+
+    #[inline]
+    pub fn bundle_id(&self) -> BundleId { self.bundle.bundle_id() }
+
+    pub fn reveal_transition(
+        &mut self,
+        transition: Transition,
+    ) -> Result<bool, UnrelatedTransition> {
+        let opid = transition.id();
+        if self.bundle.input_map.values().all(|id| *id != opid) {
+            return Err(UnrelatedTransition(opid, transition));
+        }
+        if self.bundle.known_transitions.contains_key(&opid) {
+            return Ok(false);
+        }
+        self.bundle
+            .known_transitions
+            .insert(opid, transition)
+            .expect("same size as input map");
+        Ok(true)
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_STD, tags = custom)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub enum AnchoredBundles {
+    #[strict_type(tag = 0x01)]
+    Tapret(ClientBundle<TapretProof>),
+    #[strict_type(tag = 0x02)]
+    Opret(ClientBundle<OpretProof>),
+    #[strict_type(tag = 0x03)]
+    Double {
+        tapret: ClientBundle<TapretProof>,
+        opret: ClientBundle<OpretProof>,
+    },
+}
+
+impl StrictDumb for AnchoredBundles {
+    fn strict_dumb() -> Self { Self::Opret(strict_dumb!()) }
+}
+
+impl From<ClientBundle> for AnchoredBundles {
+    fn from(ab: ClientBundle) -> Self {
+        match ab.dbc_proof {
+            DbcProof::Opret(proof) => {
+                Self::Opret(ClientBundle::<OpretProof>::new(ab.mpc_proof, proof, ab.bundle))
+            }
+            DbcProof::Tapret(proof) => {
+                Self::Tapret(ClientBundle::<TapretProof>::new(ab.mpc_proof, proof, ab.bundle))
+            }
+        }
+    }
+}
+
+impl AnchoredBundles {
+    pub fn bundles(&self) -> impl Iterator<Item = &TransitionBundle> {
+        match self {
+            AnchoredBundles::Tapret(tapret) => Dichotomy::single(&tapret.bundle),
+            AnchoredBundles::Opret(opret) => Dichotomy::single(&opret.bundle),
+            AnchoredBundles::Double { tapret, opret } => {
+                Dichotomy::double(&tapret.bundle, &opret.bundle)
+            }
+        }
+        .into_iter()
+    }
+
+    pub fn into_bundles(self) -> impl Iterator<Item = TransitionBundle> {
+        match self {
+            AnchoredBundles::Tapret(tapret) => Dichotomy::single(tapret.bundle),
+            AnchoredBundles::Opret(opret) => Dichotomy::single(opret.bundle),
+            AnchoredBundles::Double { tapret, opret } => {
+                Dichotomy::double(tapret.bundle, opret.bundle)
+            }
+        }
+        .into_iter()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (EAnchor, &TransitionBundle)> {
+        match self {
+            AnchoredBundles::Tapret(tapret) => {
+                let anchor =
+                    EAnchor::new(tapret.mpc_proof.clone(), tapret.dbc_proof.clone().into());
+                Dichotomy::single((anchor, &tapret.bundle))
+            }
+            AnchoredBundles::Opret(opret) => {
+                let anchor = EAnchor::new(opret.mpc_proof.clone(), opret.dbc_proof.clone().into());
+                Dichotomy::single((anchor, &opret.bundle))
+            }
+            AnchoredBundles::Double { tapret, opret } => {
+                let tapret_anchor =
+                    EAnchor::new(tapret.mpc_proof.clone(), tapret.dbc_proof.clone().into());
+                let opret_anchor =
+                    EAnchor::new(opret.mpc_proof.clone(), opret.dbc_proof.clone().into());
+                Dichotomy::double((tapret_anchor, &tapret.bundle), (opret_anchor, &opret.bundle))
+            }
+        }
+        .into_iter()
+    }
+}
+
+impl IntoIterator for AnchoredBundles {
+    type Item = (EAnchor, TransitionBundle);
+    type IntoIter = vec::IntoIter<(EAnchor, TransitionBundle)>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        match self {
+            AnchoredBundles::Tapret(tapret) => {
+                let anchor = EAnchor::new(tapret.mpc_proof, tapret.dbc_proof.into());
+                Dichotomy::single((anchor, tapret.bundle))
+            }
+            AnchoredBundles::Opret(opret) => {
+                let anchor = EAnchor::new(opret.mpc_proof, opret.dbc_proof.into());
+                Dichotomy::single((anchor, opret.bundle))
+            }
+            AnchoredBundles::Double { tapret, opret } => {
+                let tapret_anchor = EAnchor::new(tapret.mpc_proof, tapret.dbc_proof.into());
+                let opret_anchor = EAnchor::new(opret.mpc_proof, opret.dbc_proof.into());
+                Dichotomy::double((tapret_anchor, tapret.bundle), (opret_anchor, opret.bundle))
+            }
+        }
+        .into_iter()
     }
 }
 

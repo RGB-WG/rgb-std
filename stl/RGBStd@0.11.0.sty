@@ -1,5 +1,5 @@
 {-
-  Id: stl:H1HLPfyC-5YLlAk!-KWhcUo1-0vtex!9-ODxSmIA-zj1J$qc#western-craft-bogart
+  Id: stl:JhUC5JgH-Kwps4cO-ZNUklUj-UP6boFp-OY!18Kx-xOSJaVQ#hair-magnum-helena
   Name: RGBStd
   Version: 0.11.0
   Description: RGB standard library
@@ -11,32 +11,7 @@
 @context
 typelib RGBStd
 
-import StrictTypes#century-comrade-chess
-  use VariantName#theory-austin-before
-  use FieldName#present-flute-herman
-  use Primitive#deliver-arrow-boxer
-  use TySemId#popcorn-super-young
-  use FieldSemId#spiral-road-marco
-  use TypeName#edgar-carol-mystery
-  use UnnamedFieldsSemId#freedom-degree-gregory
-  use SemId#logic-absorb-hilton
-  use Variant#humor-regard-promise
-  use Sizing#courage-alien-salon
-  use NamedFieldsSemId#solar-salad-smoke
-  use EnumVariants#dispute-natasha-vega
-  use VariantInfoSemId#museum-edward-mirror
-  use UnionVariantsSemId#santana-address-pepper
-  use TypeSystem#adrian-boris-sponsor
-
-import AluVM#congo-archive-folio
-  use Lib#gate-biology-optimal
-  use LibSite#ultra-grace-message
-  use IsaName#taboo-olympic-cloud
-  use LibId#germany-culture-olivia
-  use IsaSeg#size-shake-olga
-  use LibSeg#lemon-philips-horse
-
-import RGBCommit#tuna-safari-design
+import RGBCommit#harvest-person-orion
   use ExtensionSchema#active-eddie-empty
   use BundleId#carmen-farmer-diesel
   use AttachState#lady-japan-fiesta
@@ -106,18 +81,24 @@ import RGBCommit#tuna-safari-design
   use RevealedData#olivia-copper-stamp
   use AssignRevealedValueBlindSealTxid#photo-jump-silicon
 
-import RGBLogic#explain-marvin-bless
-  use DbcProof#needle-change-forest
+import StrictTypes#century-comrade-chess
+  use VariantName#theory-austin-before
+  use FieldName#present-flute-herman
+  use Primitive#deliver-arrow-boxer
+  use TySemId#popcorn-super-young
+  use FieldSemId#spiral-road-marco
+  use TypeName#edgar-carol-mystery
+  use UnnamedFieldsSemId#freedom-degree-gregory
+  use SemId#logic-absorb-hilton
+  use Variant#humor-regard-promise
+  use Sizing#courage-alien-salon
+  use NamedFieldsSemId#solar-salad-smoke
+  use EnumVariants#dispute-natasha-vega
+  use VariantInfoSemId#museum-edward-mirror
+  use UnionVariantsSemId#santana-address-pepper
+  use TypeSystem#adrian-boris-sponsor
 
-import CommitVerify#miller-pancake-elastic
-  use MerkleHash#horse-popcorn-bundle
-  use MerkleProof#price-aloha-grid
-  use ReservedBytes1#origin-roger-relax
-  use ReservedBytes2#florida-libra-circus
-  use ReservedBytes4#young-goblin-academy
-  use ReservedBytes8#rudolf-tape-adrian
-
-import BPCore#totem-holiday-helena
+import BPCore#austin-story-retro
   use TapretNodePartner#roger-member-educate
   use TapretProof#marco-border-sample
   use TapretPathProof#kiwi-mirror-paris
@@ -126,9 +107,24 @@ import BPCore#totem-holiday-helena
   use BlindSealTxPtr#fortune-iron-salmon
   use OpretProof#good-village-flex
   use SecretSeal#dollar-iris-wizard
-  use AnchorMerkleProofDbcProof#flash-justice-paradox
   use BlindSealTxid#media-judge-anita
   use TxPtr#italian-july-eddie
+
+import AluVM#congo-archive-folio
+  use Lib#gate-biology-optimal
+  use LibSite#ultra-grace-message
+  use IsaName#taboo-olympic-cloud
+  use LibId#germany-culture-olivia
+  use IsaSeg#size-shake-olga
+  use LibSeg#lemon-philips-horse
+
+import CommitVerify#miller-pancake-elastic
+  use MerkleHash#horse-popcorn-bundle
+  use MerkleProof#price-aloha-grid
+  use ReservedBytes1#origin-roger-relax
+  use ReservedBytes2#florida-libra-circus
+  use ReservedBytes4#young-goblin-academy
+  use ReservedBytes8#rudolf-tape-adrian
 
 import Std#ralph-blue-lucky
   use AlphaCaps#picnic-soprano-aurora
@@ -163,6 +159,11 @@ import Bitcoin#signal-color-cipher
   use XOnlyPk#clever-swim-carpet
 
 
+@mnemonic(mayday-rider-diploma)
+data AnchoredBundles   : tapret#1 ClientBundleTapretProof
+                       | opret ClientBundleOpretProof
+                       | double (tapret ClientBundleTapretProof, opret ClientBundleOpretProof)
+
 @mnemonic(domino-waiter-orlando)
 data AnnotationName    : Std.AlphaCaps, [Std.AlphaNumDash ^ ..0xfe]
 
@@ -174,6 +175,16 @@ data AssignIface       : ownedState OwnedIface
                        , public Std.Bool
                        , required Std.Bool
                        , multiple Std.Bool
+
+@mnemonic(scoop-deluxe-action)
+data ClientBundleOpretProof : mpcProof CommitVerify.MerkleProof
+                       , dbcProof BPCore.OpretProof
+                       , bundle RGBCommit.TransitionBundle
+
+@mnemonic(fame-iris-habitat)
+data ClientBundleTapretProof : mpcProof CommitVerify.MerkleProof
+                       , dbcProof BPCore.TapretProof
+                       , bundle RGBCommit.TransitionBundle
 
 @mnemonic(tango-hotel-jamaica)
 data Consignmentfalse  : version ContainerVer
@@ -392,9 +403,7 @@ data ValencyIface      : required Std.Bool
 data VerNo             : v0 | v1
 
 
-@mnemonic(special-almond-anatomy)
-data WitnessBundle     : pubWitness RGBCommit.XChainPubWitness
-                       , anchor BPCore.AnchorMerkleProofDbcProof
-                       , bundle RGBCommit.TransitionBundle
+@mnemonic(storm-left-reflex)
+data WitnessBundle     : pubWitness RGBCommit.XChainPubWitness, anchoredBundles AnchoredBundles
 
 

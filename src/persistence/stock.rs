@@ -27,7 +27,7 @@ use std::fmt::Debug;
 
 use amplify::confinement::{Confined, U24};
 use amplify::Wrapper;
-use bp::dbc::{Anchor, Method};
+use bp::dbc::Method;
 use bp::seals::txout::CloseMethod;
 use bp::Vout;
 use chrono::Utc;
@@ -49,17 +49,18 @@ use super::{
     StateWriteProvider, StoreTransaction,
 };
 use crate::containers::{
-    AnchorSet, Batch, BuilderSeal, Consignment, ContainerVer, ContentId, ContentRef, Contract,
-    Fascia, Kit, SealWitness, SupplItem, SupplSub, Transfer, TransitionDichotomy, TransitionInfo,
-    TransitionInfoError, ValidConsignment, ValidContract, ValidKit, ValidTransfer, VelocityHint,
-    WitnessBundle, SUPPL_ANNOT_VELOCITY,
+    AnchorSet, AnchoredBundleMismatch, Batch, BuilderSeal, ClientBundle, Consignment, ContainerVer,
+    ContentId, ContentRef, Contract, Fascia, Kit, SealWitness, SupplItem, SupplSub, Transfer,
+    TransitionDichotomy, TransitionInfo, TransitionInfoError, UnrelatedTransition,
+    ValidConsignment, ValidContract, ValidKit, ValidTransfer, VelocityHint, WitnessBundle,
+    SUPPL_ANNOT_VELOCITY,
 };
 use crate::info::{ContractInfo, IfaceInfo, SchemaInfo};
 use crate::interface::{
     BuilderError, ContractBuilder, ContractIface, Iface, IfaceClass, IfaceId, IfaceRef,
     IfaceWrapper, TransitionBuilder,
 };
-use crate::{BundleExt, MergeRevealError, RevealError};
+use crate::MergeRevealError;
 
 pub type ContractAssignments = HashMap<XOutputSeal, HashMap<Opout, PersistedState>>;
 
@@ -107,6 +108,10 @@ pub enum StockError<
     #[from]
     StashData(StashDataError),
 
+    /// valid (non-archived) witness is absent in the list of witnesses for a
+    /// state transition bundle.
+    AbsentValidWitness,
+
     /// witness {0} can't be resolved: {1}
     WitnessUnresolved(XWitnessId, WitnessResolverError),
 }
@@ -133,6 +138,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider, E: Error> From<StateE
             StateError::WriteProvider(err) => Self::StateWrite(err),
             StateError::Inconsistency(e) => Self::StateInconsistency(e),
             StateError::Resolver(id, e) => Self::WitnessUnresolved(id, e),
+            StateError::AbsentValidWitness => Self::AbsentValidWitness,
         }
     }
 }
@@ -169,7 +175,11 @@ pub enum ConsignError {
 
     #[from]
     #[display(inner)]
-    Reveal(RevealError),
+    Transition(UnrelatedTransition),
+
+    #[from]
+    #[display(inner)]
+    AnchoredBundle(AnchoredBundleMismatch),
 
     /// the spent state from transition {1} inside bundle {0} is concealed.
     Concealed(BundleId, OpId),
@@ -187,10 +197,16 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> From<MergeRevealError
     fn from(err: MergeRevealError) -> Self { Self::InvalidInput(err.into()) }
 }
 
-impl<S: StashProvider, H: StateProvider, P: IndexProvider> From<RevealError>
+impl<S: StashProvider, H: StateProvider, P: IndexProvider> From<UnrelatedTransition>
     for StockError<S, H, P, ConsignError>
 {
-    fn from(err: RevealError) -> Self { Self::InvalidInput(err.into()) }
+    fn from(err: UnrelatedTransition) -> Self { Self::InvalidInput(err.into()) }
+}
+
+impl<S: StashProvider, H: StateProvider, P: IndexProvider> From<AnchoredBundleMismatch>
+    for StockError<S, H, P, ConsignError>
+{
+    fn from(err: AnchoredBundleMismatch) -> Self { Self::InvalidInput(err.into()) }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
@@ -303,6 +319,7 @@ macro_rules! stock_err_conv {
                     StockError::IndexWrite(e) => StockError::IndexWrite(e),
                     StockError::StateRead(e) => StockError::StateRead(e),
                     StockError::StateWrite(e) => StockError::StateWrite(e),
+                    StockError::AbsentValidWitness => StockError::AbsentValidWitness,
                     StockError::StashData(e) => StockError::StashData(e),
                     StockError::StashInconsistency(e) => StockError::StashInconsistency(e),
                     StockError::StateInconsistency(e) => StockError::StateInconsistency(e),
@@ -751,7 +768,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         opouts.extend(self.index.opouts_by_terminals(secret_seal.into_iter())?);
 
         // 1.3. Collect all state transitions assigning state to the provided outpoints
-        let mut witness_bundles = BTreeMap::<BundleId, WitnessBundle>::new();
+        let mut anchored_bundles = BTreeMap::<BundleId, ClientBundle>::new();
         let mut transitions = BTreeMap::<OpId, Transition>::new();
         let mut terminals = BTreeMap::<BundleId, XChain<SecretSeal>>::new();
         for opout in opouts {
@@ -774,9 +791,8 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
                 }
             }
 
-            if let Entry::Vacant(entry) = witness_bundles.entry(bundle_id) {
-                let bw = self.witness_bundle(bundle_id)?;
-                entry.insert(bw);
+            if let Entry::Vacant(entry) = anchored_bundles.entry(bundle_id) {
+                entry.insert(self.client_bundle(bundle_id)?);
             }
         }
 
@@ -793,10 +809,9 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             ids.extend(transition.inputs().iter().map(|input| input.prev_out.op));
             transitions.insert(id, transition.clone());
             let bundle_id = self.index.bundle_id_for_op(transition.id())?;
-            witness_bundles
+            anchored_bundles
                 .entry(bundle_id)
-                .or_insert(self.witness_bundle(bundle_id)?.clone())
-                .bundle
+                .or_insert(self.client_bundle(bundle_id)?.clone())
                 .reveal_transition(transition.clone())?;
         }
 
@@ -842,16 +857,16 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         let ifaces = Confined::from_checked(ifaces);
 
         let mut bundles = BTreeMap::<XWitnessId, WitnessBundle>::new();
-        for witness_bundle in witness_bundles.into_values() {
-            let witness_id = witness_bundle.witness_id();
-            match bundles.get_mut(&witness_id) {
-                Some(prev) => {
-                    *prev = prev.clone().merge_reveal(witness_bundle)?;
-                }
-                None => {
-                    bundles.insert(witness_id, witness_bundle);
-                }
-            }
+        for anchored_bundle in anchored_bundles.into_values() {
+            let witness_ids = self.index.bundle_info(anchored_bundle.bundle_id())?.0;
+            let witness_id = self.state.select_valid_witness(witness_ids)?;
+            let pub_witness = self.stash.witness(witness_id)?.public.clone();
+            let wb = match bundles.remove(&witness_id) {
+                Some(bundle) => bundle.into_double(anchored_bundle)?,
+                None => WitnessBundle::with(pub_witness, anchored_bundle),
+            };
+            let res = bundles.insert(witness_id, wb);
+            debug_assert!(res.is_none());
         }
         let bundles = Confined::try_from_iter(bundles.into_values())
             .map_err(|_| ConsignError::TooManyBundles)?;
@@ -1346,7 +1361,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             .ok_or(ConsignError::Concealed(bundle_id, opid).into())
     }
 
-    fn witness_bundle(&self, bundle_id: BundleId) -> Result<WitnessBundle, StockError<S, H, P>> {
+    fn client_bundle(&self, bundle_id: BundleId) -> Result<ClientBundle, StockError<S, H, P>> {
         let (witness_ids, contract_id) = self.index.bundle_info(bundle_id)?;
 
         let bundle = self.stash.bundle(bundle_id)?.clone();
@@ -1376,15 +1391,10 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             )
             .into());
         };
-        let anchor = Anchor::new(mpc_proof, dbc);
 
         // TODO: Conceal all transitions except the one we need
 
-        Ok(WitnessBundle {
-            pub_witness: witness.public.clone(),
-            bundle,
-            anchor,
-        })
+        Ok(ClientBundle::new(mpc_proof, dbc, bundle))
     }
 
     pub fn store_secret_seal(
