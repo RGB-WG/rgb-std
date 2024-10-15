@@ -21,11 +21,11 @@
 
 use std::str::FromStr;
 
-use rgb::ContractId;
-use strict_encoding::{FieldName, TypeName};
+use rgb::{AttachId, ContractId, State};
+use strict_encoding::{FieldName, StrictSerialize, TypeName};
 
 use crate::invoice::{Beneficiary, InvoiceState, RgbInvoice, RgbTransport, XChainNet};
-use crate::{Allocation, Amount, CoinAmount, NonFungible, Precision, TransportParseError};
+use crate::TransportParseError;
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct RgbInvoiceBuilder(RgbInvoice);
@@ -40,7 +40,7 @@ impl RgbInvoiceBuilder {
             operation: None,
             assignment: None,
             beneficiary: beneficiary.into(),
-            owned_state: InvoiceState::Void,
+            owned_state: InvoiceState::Any,
             expiry: None,
             unknown_query: none!(),
         })
@@ -78,47 +78,20 @@ impl RgbInvoiceBuilder {
         self
     }
 
-    pub fn set_amount_raw(mut self, amount: impl Into<Amount>) -> Self {
-        self.0.owned_state = InvoiceState::Amount(amount.into());
+    pub fn set_state(mut self, state: impl StrictSerialize) -> Self {
+        self.0.owned_state = InvoiceState::Specific(State::new(state));
         self
     }
 
-    pub fn set_amount(
-        mut self,
-        integer: u64,
-        decimals: u64,
-        precision: Precision,
-    ) -> Result<Self, Self> {
-        let amount = match CoinAmount::with(integer, decimals, precision) {
-            Ok(amount) => amount,
-            Err(_) => return Err(self),
-        }
-        .to_amount_unchecked();
-        self.0.owned_state = InvoiceState::Amount(amount);
+    pub fn set_attachment(mut self, attach_id: AttachId) -> Result<Self, Self> {
+        self.0.owned_state = match self.0.owned_state {
+            InvoiceState::Any | InvoiceState::Attach(_) => InvoiceState::Attach(attach_id),
+            InvoiceState::Specific(mut state) => {
+                state.attach = Some(attach_id);
+                InvoiceState::Specific(state)
+            }
+        };
         Ok(self)
-    }
-
-    pub fn set_allocation_raw(mut self, allocation: impl Into<Allocation>) -> Self {
-        self.0.owned_state = InvoiceState::Data(NonFungible::RGB21(allocation.into()));
-        self
-    }
-
-    pub fn set_allocation(self, token_index: u32, fraction: u64) -> Result<Self, Self> {
-        Ok(self.set_allocation_raw(Allocation::with(token_index, fraction)))
-    }
-
-    /// # Safety
-    ///
-    /// The function may cause the loss of the information about the precise
-    /// amount of the asset, since f64 type doesn't provide full precision
-    /// required for that.
-    pub unsafe fn set_amount_approx(self, amount: f64, precision: Precision) -> Result<Self, Self> {
-        if amount <= 0.0 {
-            return Err(self);
-        }
-        let coins = amount.floor();
-        let cents = amount - coins;
-        self.set_amount(coins as u64, cents as u64, precision)
     }
 
     pub fn set_expiry_timestamp(mut self, expiry: i64) -> Self {

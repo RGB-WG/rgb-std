@@ -21,19 +21,15 @@
 
 #![allow(clippy::result_large_err)]
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::btree_map::Entry;
 
-use amplify::confinement::{Confined, SmallOrdSet, TinyOrdMap, U16};
-use amplify::{confinement, Wrapper};
+use amplify::confinement::{self, Confined, SmallOrdSet, TinyOrdMap};
 use chrono::Utc;
-use invoice::{Allocation, Amount};
 use rgb::validation::Scripts;
 use rgb::{
-    validation, AltLayer1, AltLayer1Set, AssetTag, AssetTags, Assign, AssignmentType, Assignments,
-    AttachState, BlindingFactor, ContractId, DataState, ExposedSeal, FungibleType, Genesis,
-    GenesisSeal, GlobalState, GraphSeal, Identity, Input, Layer1, MetadataError, Opout,
-    OwnedStateSchema, RevealedAttach, RevealedData, RevealedValue, Schema, Transition,
-    TransitionType, TypedAssigns, XChain, XOutpoint,
+    validation, AltLayer1, AltLayer1Set, AssignmentType, Assignments, ContractId, ExposedSeal,
+    Genesis, GenesisSeal, GlobalState, GraphSeal, Identity, Input, Layer1, MetadataError, Opout,
+    OwnedStateSchema, Schema, State, Transition, TransitionType, TypedAssigns, XChain, XOutpoint,
 };
 use rgbcore::{GlobalStateSchema, GlobalStateType, MetaType, Metadata, ValencyType};
 use strict_encoding::{FieldName, SerializeError, StrictSerialize};
@@ -42,7 +38,6 @@ use strict_types::{decode, SemId, TypeSystem};
 use crate::containers::{BuilderSeal, ContainerVer, Contract, ValidConsignment};
 use crate::interface::resolver::DumbResolver;
 use crate::interface::{Iface, IfaceImpl, TransitionIface};
-use crate::persistence::PersistedState;
 use crate::Outpoint;
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
@@ -164,23 +159,6 @@ impl ContractBuilder {
         }
     }
 
-    pub fn deterministic(
-        issuer: Identity,
-        iface: Iface,
-        schema: Schema,
-        iimpl: IfaceImpl,
-        types: TypeSystem,
-        scripts: Scripts,
-    ) -> Self {
-        Self {
-            builder: OperationBuilder::deterministic(iface, schema, iimpl, types),
-            testnet: true,
-            alt_layers1: none!(),
-            scripts,
-            issuer,
-        }
-    }
-
     pub fn type_system(&self) -> &TypeSystem { self.builder.type_system() }
 
     pub fn set_mainnet(mut self) -> Self {
@@ -205,21 +183,6 @@ impl ContractBuilder {
         self.alt_layers1
             .push(layer1)
             .map_err(|_| BuilderError::TooManyLayers1)?;
-        Ok(self)
-    }
-
-    #[inline]
-    pub fn asset_tag(&self, name: impl Into<FieldName>) -> Result<AssetTag, BuilderError> {
-        self.builder.asset_tag(name)
-    }
-
-    #[inline]
-    pub fn add_asset_tag(
-        mut self,
-        name: impl Into<FieldName>,
-        asset_tag: AssetTag,
-    ) -> Result<Self, BuilderError> {
-        self.builder = self.builder.add_asset_tag(name, asset_tag)?;
         Ok(self)
     }
 
@@ -261,60 +224,19 @@ impl ContractBuilder {
         Ok(self)
     }
 
-    pub fn add_owned_state_det(
+    pub fn add_owned_state_raw(
         mut self,
         name: impl Into<FieldName>,
         seal: impl Into<BuilderSeal<GenesisSeal>>,
-        state: PersistedState,
+        state: State,
     ) -> Result<Self, BuilderError> {
         let seal = seal.into();
         self.check_layer1(seal.layer1())?;
-        self.builder = self.builder.add_owned_state_det(name, seal, state)?;
+        self.builder = self.builder.add_owned_state_raw(name, seal, state)?;
         Ok(self)
     }
 
-    pub fn add_rights(
-        mut self,
-        name: impl Into<FieldName>,
-        seal: impl Into<BuilderSeal<GenesisSeal>>,
-    ) -> Result<Self, BuilderError> {
-        let seal = seal.into();
-        self.check_layer1(seal.layer1())?;
-        self.builder = self.builder.add_rights(name, seal)?;
-        Ok(self)
-    }
-
-    pub fn add_fungible_state(
-        mut self,
-        name: impl Into<FieldName>,
-        seal: impl Into<BuilderSeal<GenesisSeal>>,
-        value: impl Into<Amount>,
-    ) -> Result<Self, BuilderError> {
-        let name = name.into();
-        let seal = seal.into();
-        self.check_layer1(seal.layer1())?;
-        self.builder.init_asset_tag(name.clone())?;
-        self.builder = self.builder.add_fungible_state(name, seal, value)?;
-        Ok(self)
-    }
-
-    pub fn add_fungible_state_det(
-        mut self,
-        name: impl Into<FieldName>,
-        seal: impl Into<BuilderSeal<GenesisSeal>>,
-        value: impl Into<Amount>,
-        blinding: BlindingFactor,
-    ) -> Result<Self, BuilderError> {
-        let name = name.into();
-        let seal = seal.into();
-        self.check_layer1(seal.layer1())?;
-        let tag = self.builder.init_asset_tag(name.clone())?;
-        let state = RevealedValue::with_blinding(value.into(), blinding, tag);
-        self.builder = self.builder.add_fungible_state_det(name, seal, state)?;
-        Ok(self)
-    }
-
-    pub fn add_data(
+    pub fn add_owned_state(
         mut self,
         name: impl Into<FieldName>,
         seal: impl Into<BuilderSeal<GenesisSeal>>,
@@ -322,51 +244,11 @@ impl ContractBuilder {
     ) -> Result<Self, BuilderError> {
         let seal = seal.into();
         self.check_layer1(seal.layer1())?;
-        self.builder = self.builder.add_data(name, seal, value)?;
-        Ok(self)
-    }
-
-    pub fn add_data_det(
-        mut self,
-        name: impl Into<FieldName>,
-        seal: impl Into<BuilderSeal<GenesisSeal>>,
-        data: RevealedData,
-    ) -> Result<Self, BuilderError> {
-        let seal = seal.into();
-        self.check_layer1(seal.layer1())?;
-        self.builder = self.builder.add_data_det(name, seal, data)?;
-        Ok(self)
-    }
-
-    pub fn add_attachment(
-        mut self,
-        name: impl Into<FieldName>,
-        seal: impl Into<BuilderSeal<GenesisSeal>>,
-        attachment: AttachState,
-    ) -> Result<Self, BuilderError> {
-        let seal = seal.into();
-        self.check_layer1(seal.layer1())?;
-        self.builder = self.builder.add_attachment(name, seal, attachment)?;
-        Ok(self)
-    }
-
-    pub fn add_attachment_det(
-        mut self,
-        name: impl Into<FieldName>,
-        seal: impl Into<BuilderSeal<GenesisSeal>>,
-        attachment: RevealedAttach,
-    ) -> Result<Self, BuilderError> {
-        let seal = seal.into();
-        self.check_layer1(seal.layer1())?;
-        self.builder = self.builder.add_attachment_det(name, seal, attachment)?;
+        self.builder = self.builder.add_owned_state(name, seal, value)?;
         Ok(self)
     }
 
     pub fn issue_contract(self) -> Result<ValidConsignment<false>, BuilderError> {
-        debug_assert!(
-            !self.builder.deterministic,
-            "for issuing deterministic contracts please use issue_contract_det method"
-        );
         self.issue_contract_raw(Utc::now().timestamp())
     }
 
@@ -374,16 +256,11 @@ impl ContractBuilder {
         self,
         timestamp: i64,
     ) -> Result<ValidConsignment<false>, BuilderError> {
-        debug_assert!(
-            self.builder.deterministic,
-            "for issuing deterministic contracts please use deterministic constructor"
-        );
         self.issue_contract_raw(timestamp)
     }
 
     fn issue_contract_raw(self, timestamp: i64) -> Result<ValidConsignment<false>, BuilderError> {
-        let (schema, iface, iimpl, global, assignments, types, asset_tags) =
-            self.builder.complete(None);
+        let (schema, iface, iimpl, global, assignments, types) = self.builder.complete();
 
         let genesis = Genesis {
             ffv: none!(),
@@ -392,7 +269,6 @@ impl ContractBuilder {
             timestamp,
             testnet: self.testnet,
             alt_layers1: self.alt_layers1,
-            asset_tags,
             metadata: empty!(),
             globals: global,
             assignments,
@@ -436,7 +312,7 @@ pub struct TransitionBuilder {
     builder: OperationBuilder<GraphSeal>,
     nonce: u64,
     transition_type: TransitionType,
-    inputs: TinyOrdMap<Input, PersistedState>,
+    inputs: TinyOrdMap<Input, State>,
 }
 
 impl TransitionBuilder {
@@ -448,16 +324,6 @@ impl TransitionBuilder {
         types: TypeSystem,
     ) -> Self {
         Self::with(contract_id, iface, schema, iimpl, TransitionType::BLANK, types)
-    }
-
-    pub fn blank_transition_det(
-        contract_id: ContractId,
-        iface: Iface,
-        schema: Schema,
-        iimpl: IfaceImpl,
-        types: TypeSystem,
-    ) -> Self {
-        Self::deterministic(contract_id, iface, schema, iimpl, TransitionType::BLANK, types)
     }
 
     pub fn default_transition(
@@ -475,21 +341,6 @@ impl TransitionBuilder {
         Ok(Self::with(contract_id, iface, schema, iimpl, transition_type, types))
     }
 
-    pub fn default_transition_det(
-        contract_id: ContractId,
-        iface: Iface,
-        schema: Schema,
-        iimpl: IfaceImpl,
-        types: TypeSystem,
-    ) -> Result<Self, BuilderError> {
-        let transition_type = iface
-            .default_operation
-            .as_ref()
-            .and_then(|name| iimpl.transition_type(name))
-            .ok_or(BuilderError::NoOperationSubtype)?;
-        Ok(Self::deterministic(contract_id, iface, schema, iimpl, transition_type, types))
-    }
-
     pub fn named_transition(
         contract_id: ContractId,
         iface: Iface,
@@ -503,21 +354,6 @@ impl TransitionBuilder {
             .transition_type(&transition_name)
             .ok_or(BuilderError::TransitionNotFound(transition_name))?;
         Ok(Self::with(contract_id, iface, schema, iimpl, transition_type, types))
-    }
-
-    pub fn named_transition_det(
-        contract_id: ContractId,
-        iface: Iface,
-        schema: Schema,
-        iimpl: IfaceImpl,
-        transition_name: impl Into<FieldName>,
-        types: TypeSystem,
-    ) -> Result<Self, BuilderError> {
-        let transition_name = transition_name.into();
-        let transition_type = iimpl
-            .transition_type(&transition_name)
-            .ok_or(BuilderError::TransitionNotFound(transition_name))?;
-        Ok(Self::deterministic(contract_id, iface, schema, iimpl, transition_type, types))
     }
 
     fn with(
@@ -537,23 +373,6 @@ impl TransitionBuilder {
         }
     }
 
-    fn deterministic(
-        contract_id: ContractId,
-        iface: Iface,
-        schema: Schema,
-        iimpl: IfaceImpl,
-        transition_type: TransitionType,
-        types: TypeSystem,
-    ) -> Self {
-        Self {
-            contract_id,
-            builder: OperationBuilder::deterministic(iface, schema, iimpl, types),
-            nonce: u64::MAX,
-            transition_type,
-            inputs: none!(),
-        }
-    }
-
     pub fn type_system(&self) -> &TypeSystem { self.builder.type_system() }
 
     pub fn transition_type(&self) -> TransitionType { self.transition_type }
@@ -561,31 +380,6 @@ impl TransitionBuilder {
     pub fn set_nonce(mut self, nonce: u64) -> Self {
         self.nonce = nonce;
         self
-    }
-
-    #[inline]
-    pub fn asset_tag(&self, name: impl Into<FieldName>) -> Result<AssetTag, BuilderError> {
-        self.builder.asset_tag(name)
-    }
-
-    #[inline]
-    pub fn add_asset_tag(
-        mut self,
-        name: impl Into<FieldName>,
-        asset_tag: AssetTag,
-    ) -> Result<Self, BuilderError> {
-        self.builder = self.builder.add_asset_tag(name, asset_tag)?;
-        Ok(self)
-    }
-
-    #[inline]
-    pub fn add_asset_tag_raw(
-        mut self,
-        type_id: AssignmentType,
-        asset_tag: AssetTag,
-    ) -> Result<Self, BuilderError> {
-        self.builder = self.builder.add_asset_tag_raw(type_id, asset_tag)?;
-        Ok(self)
     }
 
     #[inline]
@@ -608,7 +402,7 @@ impl TransitionBuilder {
         Ok(self)
     }
 
-    pub fn add_input(mut self, opout: Opout, state: PersistedState) -> Result<Self, BuilderError> {
+    pub fn add_input(mut self, opout: Opout, state: State) -> Result<Self, BuilderError> {
         self.inputs.insert(Input::with(opout), state)?;
         Ok(self)
     }
@@ -642,165 +436,39 @@ impl TransitionBuilder {
 
     pub fn meta_name(&self, type_id: MetaType) -> &FieldName { self.builder.meta_name(type_id) }
 
-    pub fn add_owned_state_det(
-        mut self,
-        name: impl Into<FieldName>,
-        seal: impl Into<BuilderSeal<GraphSeal>>,
-        state: PersistedState,
-    ) -> Result<Self, BuilderError> {
-        self.builder = self.builder.add_owned_state_det(name, seal, state)?;
-        Ok(self)
-    }
-
     pub fn add_owned_state_raw(
         mut self,
-        type_id: AssignmentType,
-        seal: impl Into<BuilderSeal<GraphSeal>>,
-        state: PersistedState,
-    ) -> Result<Self, BuilderError> {
-        if matches!(state, PersistedState::Amount(_, _, tag) if self.builder.asset_tag_raw(type_id)? != tag)
-        {
-            return Err(BuilderError::AssetTagInvalid(type_id));
-        }
-        self.builder = self.builder.add_owned_state_raw(type_id, seal, state)?;
-        Ok(self)
-    }
-
-    pub fn add_rights(
-        mut self,
         name: impl Into<FieldName>,
         seal: impl Into<BuilderSeal<GraphSeal>>,
+        state: State,
     ) -> Result<Self, BuilderError> {
-        self.builder = self.builder.add_rights(name, seal)?;
+        self.builder = self.builder.add_owned_state_raw(name, seal, state)?;
         Ok(self)
     }
 
-    pub fn add_fungible_default_state(
-        self,
-        seal: impl Into<BuilderSeal<GraphSeal>>,
-        value: u64,
-    ) -> Result<Self, BuilderError> {
-        let assignment_name = self.default_assignment()?.clone();
-        self.add_fungible_state(assignment_name, seal.into(), value)
-    }
-
-    pub fn add_fungible_default_state_det(
-        self,
-        seal: impl Into<BuilderSeal<GraphSeal>>,
-        value: u64,
-        blinding: BlindingFactor,
-    ) -> Result<Self, BuilderError> {
-        let assignment_name = self.default_assignment()?.clone();
-        self.add_fungible_state_det(assignment_name, seal.into(), value, blinding)
-    }
-
-    pub fn add_fungible_state(
-        mut self,
-        name: impl Into<FieldName>,
-        seal: impl Into<BuilderSeal<GraphSeal>>,
-        value: impl Into<Amount>,
-    ) -> Result<Self, BuilderError> {
-        self.builder = self.builder.add_fungible_state(name.into(), seal, value)?;
-        Ok(self)
-    }
-
-    pub fn add_fungible_state_det(
-        mut self,
-        name: impl Into<FieldName>,
-        seal: impl Into<BuilderSeal<GraphSeal>>,
-        value: impl Into<Amount>,
-        blinding: BlindingFactor,
-    ) -> Result<Self, BuilderError> {
-        let name = name.into();
-        let type_id = self
-            .builder
-            .assignments_type(&name)
-            .ok_or(BuilderError::AssignmentNotFound(name.clone()))?;
-        let tag = self.builder.asset_tag_raw(type_id)?;
-        let state = RevealedValue::with_blinding(value.into(), blinding, tag);
-
-        self.builder = self.builder.add_fungible_state_det(name, seal, state)?;
-        Ok(self)
-    }
-
-    pub fn add_fungible_state_raw(
-        mut self,
-        type_id: AssignmentType,
-        seal: impl Into<BuilderSeal<GraphSeal>>,
-        value: impl Into<Amount>,
-        blinding: BlindingFactor,
-    ) -> Result<Self, BuilderError> {
-        let tag = self.builder.asset_tag_raw(type_id)?;
-        let state = RevealedValue::with_blinding(value.into(), blinding, tag);
-        self.builder = self.builder.add_fungible_state_raw(type_id, seal, state)?;
-        Ok(self)
-    }
-
-    pub fn add_data(
+    pub fn add_owned_state(
         mut self,
         name: impl Into<FieldName>,
         seal: impl Into<BuilderSeal<GraphSeal>>,
         value: impl StrictSerialize,
     ) -> Result<Self, BuilderError> {
-        self.builder = self.builder.add_data(name, seal, value)?;
+        self.builder = self.builder.add_owned_state(name, seal, value)?;
         Ok(self)
     }
 
-    pub fn add_data_det(
-        mut self,
-        name: impl Into<FieldName>,
-        seal: impl Into<BuilderSeal<GraphSeal>>,
-        data: RevealedData,
-    ) -> Result<Self, BuilderError> {
-        self.builder = self.builder.add_data_det(name, seal, data)?;
-        Ok(self)
-    }
-
-    pub fn add_data_raw(
-        mut self,
-        type_id: AssignmentType,
-        seal: impl Into<BuilderSeal<GraphSeal>>,
-        allocation: impl Into<Allocation>,
-        blinding: u64,
-    ) -> Result<Self, BuilderError> {
-        let revealed_state = RevealedData::with_salt(allocation.into(), blinding.into());
-        self.builder = self.builder.add_data_raw(type_id, seal, revealed_state)?;
-        Ok(self)
-    }
-
-    pub fn add_data_default(
+    pub fn add_owned_state_default(
         self,
         seal: impl Into<BuilderSeal<GraphSeal>>,
         value: impl StrictSerialize,
     ) -> Result<Self, BuilderError> {
         let assignment_name = self.default_assignment()?.clone();
-        self.add_data(assignment_name, seal.into(), value)
-    }
-
-    pub fn add_attachment(
-        mut self,
-        name: impl Into<FieldName>,
-        seal: impl Into<BuilderSeal<GraphSeal>>,
-        attachment: AttachState,
-    ) -> Result<Self, BuilderError> {
-        self.builder = self.builder.add_attachment(name, seal, attachment)?;
-        Ok(self)
-    }
-
-    pub fn add_attachment_det(
-        mut self,
-        name: impl Into<FieldName>,
-        seal: impl Into<BuilderSeal<GraphSeal>>,
-        attachment: RevealedAttach,
-    ) -> Result<Self, BuilderError> {
-        self.builder = self.builder.add_attachment_det(name, seal, attachment)?;
-        Ok(self)
+        self.add_owned_state(assignment_name, seal.into(), value)
     }
 
     pub fn has_inputs(&self) -> bool { !self.inputs.is_empty() }
 
     pub fn complete_transition(self) -> Result<Transition, BuilderError> {
-        let (_, _, _, global, assignments, _, _) = self.builder.complete(Some(&self.inputs));
+        let (_, _, _, global, assignments, _) = self.builder.complete();
 
         let transition = Transition {
             ffv: none!(),
@@ -828,17 +496,10 @@ pub struct OperationBuilder<Seal: ExposedSeal> {
     schema: Schema,
     iface: Iface,
     iimpl: IfaceImpl,
-    asset_tags: AssetTags,
-    deterministic: bool,
 
     global: GlobalState,
     meta: Metadata,
-    rights: TinyOrdMap<AssignmentType, Confined<HashSet<BuilderSeal<Seal>>, 1, U16>>,
-    fungible:
-        TinyOrdMap<AssignmentType, Confined<BTreeMap<BuilderSeal<Seal>, RevealedValue>, 1, U16>>,
-    data: TinyOrdMap<AssignmentType, Confined<BTreeMap<BuilderSeal<Seal>, RevealedData>, 1, U16>>,
-    attachments:
-        TinyOrdMap<AssignmentType, Confined<BTreeMap<BuilderSeal<Seal>, RevealedAttach>, 1, U16>>,
+    assignments: Assignments<Seal>,
     // TODO: add valencies
     types: TypeSystem,
 }
@@ -849,34 +510,10 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             schema,
             iface,
             iimpl,
-            asset_tags: none!(),
-            deterministic: false,
 
             global: none!(),
+            assignments: none!(),
             meta: none!(),
-            rights: none!(),
-            fungible: none!(),
-            attachments: none!(),
-            data: none!(),
-
-            types,
-        }
-    }
-
-    fn deterministic(iface: Iface, schema: Schema, iimpl: IfaceImpl, types: TypeSystem) -> Self {
-        OperationBuilder {
-            schema,
-            iface,
-            iimpl,
-            asset_tags: none!(),
-            deterministic: true,
-
-            global: none!(),
-            meta: none!(),
-            rights: none!(),
-            fungible: none!(),
-            attachments: none!(),
-            data: none!(),
 
             types,
         }
@@ -938,68 +575,6 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             .expect("schema should match interface: must be checked by the constructor")
     }
 
-    pub fn asset_tag(&self, name: impl Into<FieldName>) -> Result<AssetTag, BuilderError> {
-        let name = name.into();
-        let type_id = self
-            .assignments_type(&name)
-            .ok_or(BuilderError::AssignmentNotFound(name.clone()))?;
-        self.asset_tag_raw(type_id)
-    }
-
-    #[inline]
-    fn asset_tag_raw(&self, type_id: AssignmentType) -> Result<AssetTag, BuilderError> {
-        self.asset_tags
-            .get(&type_id)
-            .ok_or(BuilderError::AssetTagMissed(type_id))
-            .copied()
-    }
-
-    #[inline]
-    pub fn add_asset_tag(
-        self,
-        name: impl Into<FieldName>,
-        asset_tag: AssetTag,
-    ) -> Result<Self, BuilderError> {
-        let name = name.into();
-        let type_id = self
-            .assignments_type(&name)
-            .ok_or(BuilderError::AssignmentNotFound(name))?;
-
-        self.add_asset_tag_raw(type_id, asset_tag)
-    }
-
-    #[inline]
-    pub fn add_asset_tag_raw(
-        mut self,
-        type_id: AssignmentType,
-        asset_tag: AssetTag,
-    ) -> Result<Self, BuilderError> {
-        if self.fungible.contains_key(&type_id) {
-            return Err(BuilderError::AssetTagAutomatic(type_id));
-        }
-
-        self.asset_tags.insert(type_id, asset_tag)?;
-        Ok(self)
-    }
-
-    pub fn init_asset_tag(&mut self, name: impl Into<FieldName>) -> Result<AssetTag, BuilderError> {
-        let name = name.into();
-        let type_id = self
-            .assignments_type(&name)
-            .ok_or(BuilderError::AssignmentNotFound(name))?;
-
-        if let Some(tag) = self.asset_tags.get(&type_id) {
-            Ok(*tag)
-        } else {
-            let asset_tag = AssetTag::new_random(
-                format!("{}/{}", self.schema.schema_id(), self.iface.iface_id()),
-                type_id,
-            );
-            self.asset_tags.insert(type_id, asset_tag)?;
-            Ok(asset_tag)
-        }
-    }
-
     pub fn add_metadata(
         mut self,
         name: impl Into<FieldName>,
@@ -1038,58 +613,11 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         Ok(self)
     }
 
-    fn add_owned_state_det(
-        self,
-        name: impl Into<FieldName>,
-        seal: impl Into<BuilderSeal<Seal>>,
-        state: PersistedState,
-    ) -> Result<Self, BuilderError> {
-        debug_assert!(
-            self.deterministic,
-            "to add owned state in deterministic way the builder has to be created using \
-             deterministic constructor"
-        );
-        let name = name.into();
-        let type_id = self
-            .assignments_type(&name)
-            .ok_or(BuilderError::AssignmentNotFound(name.clone()))?;
-        self.add_owned_state_raw(type_id, seal, state)
-    }
-
     fn add_owned_state_raw(
-        self,
-        type_id: AssignmentType,
-        seal: impl Into<BuilderSeal<Seal>>,
-        state: PersistedState,
-    ) -> Result<Self, BuilderError> {
-        match state {
-            PersistedState::Void => self.add_rights_raw(type_id, seal),
-            PersistedState::Amount(value, blinding, tag) => {
-                if self.asset_tag_raw(type_id)? != tag {
-                    return Err(BuilderError::AssetTagInvalid(type_id));
-                }
-
-                self.add_fungible_state_raw(
-                    type_id,
-                    seal,
-                    RevealedValue::with_blinding(value, blinding, tag),
-                )
-            }
-            PersistedState::Data(data, salt) => {
-                self.add_data_raw(type_id, seal, RevealedData::with_salt(data, salt))
-            }
-            PersistedState::Attachment(attach, salt) => self.add_attachment_raw(
-                type_id,
-                seal,
-                RevealedAttach::with_salt(attach.id, attach.media_type, salt),
-            ),
-        }
-    }
-
-    fn add_rights(
-        self,
+        mut self,
         name: impl Into<FieldName>,
         seal: impl Into<BuilderSeal<Seal>>,
+        state: State,
     ) -> Result<Self, BuilderError> {
         let name = name.into();
 
@@ -1097,352 +625,29 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             .assignments_type(&name)
             .ok_or(BuilderError::AssignmentNotFound(name))?;
 
-        self.add_rights_raw(type_id, seal)
-    }
+        let assignment = seal.into().assignment(state);
 
-    fn add_rights_raw(
-        mut self,
-        type_id: AssignmentType,
-        seal: impl Into<BuilderSeal<Seal>>,
-    ) -> Result<Self, BuilderError> {
-        let state_schema = self.state_schema(type_id);
-        if *state_schema != OwnedStateSchema::Declarative {
-            return Err(BuilderError::InvalidStateType(type_id));
-        }
-
-        let seal = seal.into();
-        match self.rights.get_mut(&type_id) {
-            Some(assignments) => {
-                assignments.push(seal)?;
+        match self.assignments.entry(type_id)? {
+            Entry::Vacant(entry) => {
+                entry.insert(TypedAssigns::with(assignment));
             }
-            None => {
-                self.rights.insert(type_id, Confined::with(seal))?;
+            Entry::Occupied(mut entry) => {
+                entry.get_mut().push(assignment)?;
             }
         }
-
         Ok(self)
     }
 
-    fn add_fungible_state(
-        self,
-        name: impl Into<FieldName>,
-        seal: impl Into<BuilderSeal<Seal>>,
-        value: impl Into<Amount>,
-    ) -> Result<Self, BuilderError> {
-        debug_assert!(
-            !self.deterministic,
-            "for adding state to deterministic contracts you have to use add_*_det methods"
-        );
-
-        let name = name.into();
-
-        let type_id = self
-            .assignments_type(&name)
-            .ok_or(BuilderError::AssignmentNotFound(name))?;
-        let tag = self.asset_tag_raw(type_id)?;
-
-        let state = RevealedValue::new_random_blinding(value.into(), tag);
-        self.add_fungible_state_raw(type_id, seal, state)
-    }
-
-    fn add_fungible_state_det(
-        self,
-        name: impl Into<FieldName>,
-        seal: impl Into<BuilderSeal<Seal>>,
-        state: RevealedValue,
-    ) -> Result<Self, BuilderError> {
-        debug_assert!(
-            self.deterministic,
-            "to add owned state in deterministic way the builder has to be created using \
-             deterministic constructor"
-        );
-
-        let name = name.into();
-
-        let type_id = self
-            .assignments_type(&name)
-            .ok_or(BuilderError::AssignmentNotFound(name))?;
-        self.add_fungible_state_raw(type_id, seal, state)
-    }
-
-    fn add_fungible_state_raw(
-        mut self,
-        type_id: AssignmentType,
-        seal: impl Into<BuilderSeal<Seal>>,
-        state: RevealedValue,
-    ) -> Result<Self, BuilderError> {
-        let state_schema = self.state_schema(type_id);
-        if *state_schema != OwnedStateSchema::Fungible(FungibleType::Unsigned64Bit) {
-            return Err(BuilderError::InvalidStateType(type_id));
-        }
-
-        let seal = seal.into();
-        match self.fungible.get_mut(&type_id) {
-            Some(assignments) => {
-                assignments.insert(seal, state)?;
-            }
-            None => {
-                self.fungible
-                    .insert(type_id, Confined::with((seal, state)))?;
-            }
-        }
-
-        Ok(self)
-    }
-
-    fn add_data(
+    fn add_owned_state(
         self,
         name: impl Into<FieldName>,
         seal: impl Into<BuilderSeal<Seal>>,
         value: impl StrictSerialize,
     ) -> Result<Self, BuilderError> {
-        debug_assert!(
-            !self.deterministic,
-            "for adding state to deterministic contracts you have to use add_*_det methods"
-        );
-
-        let name = name.into();
-        let serialized = value.to_strict_serialized::<U16>()?;
-        let state = DataState::from(serialized);
-
-        let type_id = self
-            .assignments_type(&name)
-            .ok_or(BuilderError::AssignmentNotFound(name))?;
-
-        self.add_data_raw(type_id, seal, RevealedData::new_random_salt(state))
+        self.add_owned_state_raw(name, seal, State::new(value))
     }
 
-    fn add_data_det(
-        self,
-        name: impl Into<FieldName>,
-        seal: impl Into<BuilderSeal<Seal>>,
-        state: RevealedData,
-    ) -> Result<Self, BuilderError> {
-        debug_assert!(
-            self.deterministic,
-            "to add owned state in deterministic way the builder has to be created using \
-             deterministic constructor"
-        );
-
-        let name = name.into();
-        let type_id = self
-            .assignments_type(&name)
-            .ok_or(BuilderError::AssignmentNotFound(name))?;
-
-        self.add_data_raw(type_id, seal, state)
-    }
-
-    fn add_data_raw(
-        mut self,
-        type_id: AssignmentType,
-        seal: impl Into<BuilderSeal<Seal>>,
-        state: RevealedData,
-    ) -> Result<Self, BuilderError> {
-        let state_schema = self.state_schema(type_id);
-        if let OwnedStateSchema::Structured(_) = *state_schema {
-            let seal = seal.into();
-            match self.data.get_mut(&type_id) {
-                Some(assignments) => {
-                    assignments.insert(seal, state)?;
-                }
-                None => {
-                    self.data.insert(type_id, Confined::with((seal, state)))?;
-                }
-            }
-        } else {
-            return Err(BuilderError::InvalidStateType(type_id));
-        }
-        Ok(self)
-    }
-
-    fn add_attachment(
-        self,
-        name: impl Into<FieldName>,
-        seal: impl Into<BuilderSeal<Seal>>,
-        state: AttachState,
-    ) -> Result<Self, BuilderError> {
-        debug_assert!(
-            !self.deterministic,
-            "for adding state to deterministic contracts you have to use add_*_det methods"
-        );
-
-        let name = name.into();
-
-        let type_id = self
-            .assignments_type(&name)
-            .ok_or(BuilderError::AssignmentNotFound(name))?;
-
-        self.add_attachment_raw(
-            type_id,
-            seal,
-            RevealedAttach::new_random_salt(state.id, state.media_type),
-        )
-    }
-
-    fn add_attachment_det(
-        self,
-        name: impl Into<FieldName>,
-        seal: impl Into<BuilderSeal<Seal>>,
-        state: RevealedAttach,
-    ) -> Result<Self, BuilderError> {
-        debug_assert!(
-            self.deterministic,
-            "to add owned state in deterministic way the builder has to be created using \
-             deterministic constructor"
-        );
-
-        let name = name.into();
-
-        let type_id = self
-            .assignments_type(&name)
-            .ok_or(BuilderError::AssignmentNotFound(name))?;
-
-        self.add_attachment_raw(type_id, seal, state)
-    }
-
-    fn add_attachment_raw(
-        mut self,
-        type_id: AssignmentType,
-        seal: impl Into<BuilderSeal<Seal>>,
-        state: RevealedAttach,
-    ) -> Result<Self, BuilderError> {
-        let state_schema = self.state_schema(type_id);
-        if let OwnedStateSchema::Attachment(_) = *state_schema {
-            let seal = seal.into();
-            match self.attachments.get_mut(&type_id) {
-                Some(assignments) => {
-                    assignments.insert(seal, state)?;
-                }
-                None => {
-                    self.attachments
-                        .insert(type_id, Confined::with((seal, state)))?;
-                }
-            }
-        } else {
-            return Err(BuilderError::InvalidStateType(type_id));
-        }
-        Ok(self)
-    }
-
-    fn complete(
-        self,
-        inputs: Option<&TinyOrdMap<Input, PersistedState>>,
-    ) -> (Schema, Iface, IfaceImpl, GlobalState, Assignments<Seal>, TypeSystem, AssetTags) {
-        let owned_state = self.fungible.into_iter().map(|(id, vec)| {
-            let mut blindings = Vec::with_capacity(vec.len());
-            let mut vec = vec
-                .into_iter()
-                .map(|(seal, value)| {
-                    blindings.push(value.blinding);
-                    match seal {
-                        BuilderSeal::Revealed(seal) => Assign::Revealed {
-                            seal,
-                            state: value,
-                            lock: none!(),
-                        },
-                        BuilderSeal::Concealed(seal) => Assign::ConfidentialSeal {
-                            seal,
-                            state: value,
-                            lock: none!(),
-                        },
-                    }
-                })
-                .collect::<Vec<_>>();
-            if let Some(assignment) = vec.last_mut() {
-                blindings.pop();
-                let state = assignment
-                    .as_revealed_state_mut()
-                    .expect("builder always operates revealed state");
-                let mut inputs = inputs
-                    .map(|i| {
-                        i.iter()
-                            .filter(|(out, _)| out.prev_out.ty == id)
-                            .map(|(_, ts)| match ts {
-                                PersistedState::Amount(_, blinding, _) => *blinding,
-                                _ => panic!("previous state has invalid type"),
-                            })
-                            .collect::<Vec<_>>()
-                    })
-                    .unwrap_or_default();
-                if inputs.is_empty() {
-                    inputs = vec![BlindingFactor::EMPTY];
-                }
-                state.blinding = BlindingFactor::zero_balanced(inputs, blindings).expect(
-                    "malformed set of blinding factors; probably random generator is broken",
-                );
-            }
-            let state = Confined::try_from_iter(vec).expect("at least one element");
-            let state = TypedAssigns::Fungible(state);
-            (id, state)
-        });
-        let owned_data = self.data.into_iter().map(|(id, vec)| {
-            let vec_data = vec.into_iter().map(|(seal, value)| match seal {
-                BuilderSeal::Revealed(seal) => Assign::Revealed {
-                    seal,
-                    state: value,
-                    lock: none!(),
-                },
-                BuilderSeal::Concealed(seal) => Assign::ConfidentialSeal {
-                    seal,
-                    state: value,
-                    lock: none!(),
-                },
-            });
-            let state_data = Confined::try_from_iter(vec_data).expect("at least one element");
-            let state_data = TypedAssigns::Structured(state_data);
-            (id, state_data)
-        });
-        let owned_rights = self.rights.into_iter().map(|(id, vec)| {
-            let vec_data = vec.into_iter().map(|seal| match seal {
-                BuilderSeal::Revealed(seal) => Assign::Revealed {
-                    seal,
-                    state: none!(),
-                    lock: none!(),
-                },
-                BuilderSeal::Concealed(seal) => Assign::ConfidentialSeal {
-                    seal,
-                    state: none!(),
-                    lock: none!(),
-                },
-            });
-            let state_data = Confined::try_from_iter(vec_data).expect("at least one element");
-            let state_data = TypedAssigns::Declarative(state_data);
-            (id, state_data)
-        });
-        let owned_attachments = self.attachments.into_iter().map(|(id, vec)| {
-            let vec_data = vec.into_iter().map(|(seal, value)| match seal {
-                BuilderSeal::Revealed(seal) => Assign::Revealed {
-                    seal,
-                    state: value,
-                    lock: none!(),
-                },
-                BuilderSeal::Concealed(seal) => Assign::ConfidentialSeal {
-                    seal,
-                    state: value,
-                    lock: none!(),
-                },
-            });
-            let state_data = Confined::try_from_iter(vec_data).expect("at least one element");
-            let state_data = TypedAssigns::Attachment(state_data);
-            (id, state_data)
-        });
-
-        let owned_state = Confined::try_from_iter(owned_state).expect("same size");
-        let owned_data = Confined::try_from_iter(owned_data).expect("same size");
-        let owned_rights = Confined::try_from_iter(owned_rights).expect("same size");
-        let owned_attachments = Confined::try_from_iter(owned_attachments).expect("same size");
-
-        let mut assignments = Assignments::from_inner(owned_state);
-        assignments
-            .extend(Assignments::from_inner(owned_data).into_inner())
-            .expect("too many assignments");
-        assignments
-            .extend(Assignments::from_inner(owned_rights).into_inner())
-            .expect("too many assignments");
-        assignments
-            .extend(Assignments::from_inner(owned_attachments).into_inner())
-            .expect("too many assignments");
-
-        (self.schema, self.iface, self.iimpl, self.global, assignments, self.types, self.asset_tags)
+    fn complete(self) -> (Schema, Iface, IfaceImpl, GlobalState, Assignments<Seal>, TypeSystem) {
+        (self.schema, self.iface, self.iimpl, self.global, self.assignments, self.types)
     }
 }

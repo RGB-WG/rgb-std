@@ -31,22 +31,21 @@ use bp::dbc::Method;
 use bp::seals::txout::CloseMethod;
 use bp::Vout;
 use chrono::Utc;
-use invoice::{Amount, Beneficiary, InvoiceState, NonFungible, RgbInvoice};
+use invoice::{Beneficiary, InvoiceState, RgbInvoice};
 use nonasync::persistence::{CloneNoPersistence, PersistenceError, PersistenceProvider};
 use rgb::validation::{DbcProof, ResolveWitness, WitnessResolverError};
 use rgb::{
-    validation, AssignmentType, BlindingFactor, BundleId, ContractId, DataState, GraphSeal,
-    Identity, OpId, Operation, Opout, SchemaId, SecretSeal, Transition, TxoSeal, XChain, XOutpoint,
-    XOutputSeal, XWitnessId,
+    validation, AssignmentType, BundleId, ContractId, GraphSeal, Identity, OpId, Operation, Opout,
+    SchemaId, SecretSeal, Transition, TxoSeal, XChain, XOutpoint, XOutputSeal, XWitnessId,
 };
 use strict_encoding::FieldName;
 
 use super::{
     ContractStateRead, Index, IndexError, IndexInconsistency, IndexProvider, IndexReadProvider,
-    IndexWriteProvider, MemIndex, MemStash, MemState, PersistedState, SchemaIfaces, Stash,
-    StashDataError, StashError, StashInconsistency, StashProvider, StashReadProvider,
-    StashWriteProvider, State, StateError, StateInconsistency, StateProvider, StateReadProvider,
-    StateWriteProvider, StoreTransaction,
+    IndexWriteProvider, MemIndex, MemStash, MemState, SchemaIfaces, Stash, StashDataError,
+    StashError, StashInconsistency, StashProvider, StashReadProvider, StashWriteProvider, State,
+    StateError, StateInconsistency, StateProvider, StateReadProvider, StateWriteProvider,
+    StoreTransaction,
 };
 use crate::containers::{
     AnchorSet, AnchoredBundleMismatch, Batch, BuilderSeal, ClientBundle, Consignment, ContainerVer,
@@ -62,7 +61,7 @@ use crate::interface::{
 };
 use crate::MergeRevealError;
 
-pub type ContractAssignments = HashMap<XOutputSeal, HashMap<Opout, PersistedState>>;
+pub type ContractAssignments = HashMap<XOutputSeal, HashMap<Opout, rgb::State>>;
 
 #[derive(Debug, Display, Error, From)]
 #[display(inner)]
@@ -617,48 +616,14 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         let state = self.contract_state(contract_id)?;
 
         let mut res =
-            HashMap::<XOutputSeal, HashMap<Opout, PersistedState>>::with_capacity(outputs.len());
+            HashMap::<XOutputSeal, HashMap<Opout, rgb::State>>::with_capacity(outputs.len());
 
-        for item in state.fungible_all() {
-            let outpoint = item.seal.into();
-            if outputs.contains::<XOutpoint>(&outpoint) {
-                res.entry(item.seal).or_default().insert(
-                    item.opout,
-                    PersistedState::Amount(
-                        item.state.value.into(),
-                        item.state.blinding,
-                        item.state.tag,
-                    ),
-                );
-            }
-        }
-
-        for item in state.data_all() {
-            let outpoint = item.seal.into();
-            if outputs.contains::<XOutpoint>(&outpoint) {
-                res.entry(item.seal).or_default().insert(
-                    item.opout,
-                    PersistedState::Data(item.state.value.clone(), item.state.salt),
-                );
-            }
-        }
-
-        for item in state.rights_all() {
+        for item in state.assignments() {
             let outpoint = item.seal.into();
             if outputs.contains::<XOutpoint>(&outpoint) {
                 res.entry(item.seal)
                     .or_default()
-                    .insert(item.opout, PersistedState::Void);
-            }
-        }
-
-        for item in state.attach_all() {
-            let outpoint = item.seal.into();
-            if outputs.contains::<XOutpoint>(&outpoint) {
-                res.entry(item.seal).or_default().insert(
-                    item.opout,
-                    PersistedState::Attachment(item.state.clone().into(), item.state.salt),
-                );
+                    .insert(item.opout, item.state.clone());
             }
         }
 
@@ -783,7 +748,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             // 2. Collect secret seals from terminal transitions to add to the consignment terminals
             for typed_assignments in transition.assignments.values() {
                 for index in 0..typed_assignments.len_u16() {
-                    let seal = typed_assignments.to_confidential_seals()[index as usize];
+                    let seal = typed_assignments.confidential_seals()[index as usize];
                     if secret_seal == Some(seal) {
                         let res = terminals.insert(bundle_id, seal);
                         assert_eq!(res, None);
@@ -920,7 +885,6 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             beneficiary_vout,
             u64::MAX,
             allocator,
-            |_, _| BlindingFactor::random(),
             |_, _| rand::random(),
         )
     }
@@ -937,7 +901,6 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         beneficiary_vout: Option<impl Into<Vout>>,
         priority: u64,
         allocator: impl Fn(ContractId, AssignmentType, VelocityHint) -> Option<Vout>,
-        pedersen_blinder: impl Fn(ContractId, AssignmentType) -> BlindingFactor,
         seal_blinder: impl Fn(ContractId, AssignmentType) -> u64,
     ) -> Result<Batch, StockError<S, H, P, ComposeError>> {
         let layer1 = invoice.layer1();
@@ -1153,7 +1116,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         // 3. Prepare other transitions
         // Enumerate state
         let mut spent_state =
-            HashMap::<ContractId, HashMap<XOutputSeal, HashMap<Opout, PersistedState>>>::new();
+            HashMap::<ContractId, HashMap<XOutputSeal, HashMap<Opout, rgb::State>>>::new();
         for id in self.contracts_assigning(prev_outputs.iter().copied())? {
             // Skip current contract
             if id == contract_id {

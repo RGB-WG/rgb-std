@@ -19,17 +19,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::str::FromStr;
-
 use amplify::{ByteArray, Bytes32};
 use bp::seals::txout::CloseMethod;
 use bp::{InvalidPubkey, OutputPk, PubkeyHash, ScriptHash, WPubkeyHash, WScriptHash};
 use indexmap::IndexMap;
 use invoice::{AddressNetwork, AddressPayload, Network};
-use rgb::{AttachId, ContractId, Layer1, SecretSeal};
+use rgb::{AttachId, ContractId, Layer1, SecretSeal, State};
 use strict_encoding::{FieldName, TypeName};
-
-use crate::{Amount, NonFungible};
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 #[non_exhaustive]
@@ -41,39 +37,29 @@ pub enum RgbTransport {
     UnspecifiedMeans,
 }
 
-#[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
-#[display(inner)]
-pub enum InvoiceStateError {
-    #[display(doc_comments)]
-    /// could not parse as amount, data, or attach: {0}.
-    ParseError(String),
-}
-
-#[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub enum InvoiceState {
-    #[display("")]
-    Void,
-    #[display("{0}")]
-    Amount(Amount),
-    #[display(inner)]
-    Data(NonFungible),
-    #[display(inner)]
+    Any,
+    Specific(State),
     Attach(AttachId),
 }
 
-impl FromStr for InvoiceState {
-    type Err = InvoiceStateError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.is_empty() {
-            Ok(InvoiceState::Void)
-        } else if let Ok(amount) = Amount::from_str(s) {
-            Ok(InvoiceState::Amount(amount))
-        } else if let Ok(data) = NonFungible::from_str(s) {
-            Ok(InvoiceState::Data(data))
-        } else if let Ok(attach) = AttachId::from_str(s) {
-            Ok(InvoiceState::Attach(attach))
-        } else {
-            Err(InvoiceStateError::ParseError(s.to_owned()))
+impl InvoiceState {
+    pub fn is_any(&self) -> bool { matches!(self, InvoiceState::Any) }
+
+    pub fn state(&self) -> Option<&State> {
+        match self {
+            InvoiceState::Any => None,
+            InvoiceState::Specific(s) => Some(s),
+            InvoiceState::Attach(_) => None,
+        }
+    }
+
+    pub fn attach_id(&self) -> Option<AttachId> {
+        match self {
+            InvoiceState::Any => None,
+            InvoiceState::Specific(s) => s.attach,
+            InvoiceState::Attach(id) => Some(*id),
         }
     }
 }

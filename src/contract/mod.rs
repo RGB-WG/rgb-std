@@ -22,7 +22,7 @@
 mod assignments;
 mod merge_reveal;
 
-pub use assignments::{KnownState, OutputAssignment, TypedAssignsExt, WitnessInfo};
+pub use assignments::{OutputAssignment, WitnessInfo};
 pub use merge_reveal::{MergeReveal, MergeRevealError};
 use rgb::vm::OrdOpRef;
 use rgb::{ExtensionType, OpId, TransitionType, XWitnessId};

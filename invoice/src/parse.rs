@@ -24,13 +24,16 @@ use std::io::{Cursor, Write};
 use std::num::ParseIntError;
 use std::str::FromStr;
 
+use amplify::confinement::{self, SmallBlob};
+use amplify::Wrapper;
 use baid64::{Baid64ParseError, DisplayBaid64, FromBaid64Str};
+use base58::{FromBase58, ToBase58};
 use fluent_uri::enc::EStr;
 use fluent_uri::Uri;
 use indexmap::IndexMap;
 use invoice::{AddressPayload, UnknownNetwork};
 use percent_encoding::{utf8_percent_encode, AsciiSet, CONTROLS};
-use rgb::{ContractId, SecretSeal};
+use rgb::{ContractId, SecretSeal, State, StateData};
 use strict_encoding::{InvalidRString, TypeName};
 
 use crate::invoice::{
@@ -67,13 +70,32 @@ pub enum TransportParseError {
 
 #[derive(Debug, Display, Error, From)]
 #[display(doc_comments)]
+pub enum InvoiceStateError {
+    #[from]
+    /// invalid invoice state Base58 encoding.
+    Base58(base58::FromBase58Error),
+
+    #[from]
+    /// invoice state size exceeded.
+    Len(confinement::Error),
+
+    #[from]
+    /// invalid invoice state encoding - {0}
+    Deserialize(strict_encoding::DeserializeError),
+}
+
+#[derive(Debug, Display, Error, From)]
+#[display(doc_comments)]
 pub enum InvoiceParseError {
     #[from]
     #[display(inner)]
     Uri(fluent_uri::ParseError),
 
-    /// invalid invoice.
-    Invalid,
+    /// absent invoice URI scheme name.
+    AbsentScheme,
+
+    /// invalid invoice scheme {0}.
+    InvalidScheme(String),
 
     /// RGB invoice must not contain any URI authority data, including empty
     /// one.
@@ -88,8 +110,9 @@ pub enum InvoiceParseError {
     /// assignment data is missed from the invoice.
     AssignmentMissed,
 
-    /// invalid invoice scheme {0}.
-    InvalidScheme(String),
+    #[from]
+    #[display(inner)]
+    InvalidState(InvoiceStateError),
 
     /// no invoice transport has been provided.
     NoTransport,
@@ -115,7 +138,7 @@ pub enum InvoiceParseError {
 
     #[from]
     #[display(inner)]
-    Id(baid64::Baid64ParseError),
+    Id(Baid64ParseError),
 
     /// can't recognize beneficiary "{0}": it should be either a bitcoin address
     /// or a blinded UTXO seal.
@@ -124,10 +147,6 @@ pub enum InvoiceParseError {
     #[from]
     #[display(inner)]
     Num(ParseIntError),
-
-    /// can't recognize amount "{0}": it should be valid rgb21 allocation
-    /// data.
-    Data(String),
 
     #[from]
     /// invalid interface name.
@@ -155,6 +174,30 @@ impl RgbInvoice {
         }
         query_params.extend(self.unknown_query.clone());
         query_params
+    }
+}
+
+impl Display for InvoiceState {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            InvoiceState::Any => Ok(()),
+            InvoiceState::Specific(state) => f.write_str(&state.value.to_base58()),
+            // TODO: Support attachment through invoice params
+            InvoiceState::Attach(_) => Ok(()),
+        }
+    }
+}
+
+impl FromStr for InvoiceState {
+    type Err = InvoiceStateError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.is_empty() {
+            return Ok(InvoiceState::Any);
+        }
+        let data = s.from_base58()?;
+        let data = SmallBlob::try_from(data)?;
+        let data = StateData::from_inner(data);
+        Ok(InvoiceState::Specific(State::from(data)))
     }
 }
 
@@ -293,6 +336,7 @@ impl FromStr for XChainNet<Beneficiary> {
 
 impl Display for RgbInvoice {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        // TODO: Support attachment through invoice params
         let amt = self.owned_state.to_string();
         if let Some(contract) = self.contract {
             let id = if f.alternate() {
@@ -352,9 +396,10 @@ impl FromStr for RgbInvoice {
     type Err = InvoiceParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // TODO: Support attachment through invoice params
         let uri = Uri::parse(s)?;
 
-        let scheme = uri.scheme().ok_or(InvoiceParseError::Invalid)?;
+        let scheme = uri.scheme().ok_or(InvoiceParseError::AbsentScheme)?;
         if scheme.as_str() != "rgb" {
             return Err(InvoiceParseError::InvalidScheme(scheme.to_string()));
         }
@@ -392,18 +437,14 @@ impl FromStr for RgbInvoice {
         let Some(assignment) = path.next() else {
             return Err(InvoiceParseError::AssignmentMissed);
         };
-        let (amount, beneficiary) = assignment
+        let (state, beneficiary) = assignment
             .as_str()
             .split_once('+')
             .map(|(a, b)| (Some(a), Some(b)))
             .unwrap_or((Some(assignment.as_str()), None));
-        // TODO: support other state types
-        let (beneficiary_str, value) = match (beneficiary, amount) {
-            (Some(b), Some(a)) => (
-                b,
-                InvoiceState::from_str(a).map_err(|_| InvoiceParseError::Data(a.to_string()))?,
-            ),
-            (None, Some(b)) => (b, InvoiceState::Void),
+        let (beneficiary_str, value) = match (beneficiary, state) {
+            (Some(b), Some(a)) => (b, InvoiceState::from_str(a)?),
+            (None, Some(b)) => (b, InvoiceState::Any),
             _ => unreachable!(),
         };
 
@@ -472,22 +513,34 @@ fn map_query_params(uri: &Uri<&str>) -> Result<IndexMap<String, String>, Invoice
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::Amount;
 
     #[test]
     fn parse() {
         // rgb20/rgb25 parameters
-        let invoice_str = "rgb:11Fa!$Dk-rUWXhy8-7H35qXm-pLGGLOo-txBWUgj-tbOaSbI/RGB20/BF+bc:utxob:\
+        let invoice_str = "rgb:11Fa!$Dk-rUWXhy8-7H35qXm-pLGGLOo-txBWUgj-tbOaSbI/RGB20/\
+                           T5FhUZEHbQu4B+bc:utxob:\
                            zlVS28Rb-amM5lih-ONXGACC-IUWD0Y$-0JXcnWZ-MQn8VEI-B39!F";
         let invoice = RgbInvoice::from_str(invoice_str).unwrap();
-        assert_eq!(invoice.owned_state, InvoiceState::Amount(Amount::from(100u64)));
+        assert_eq!(
+            invoice.owned_state,
+            InvoiceState::Specific(State::from(StateData::from_checked(vec![
+                8, 0, 100, 0, 0, 0, 0, 0, 0, 0
+            ])))
+        );
         assert_eq!(invoice.to_string(), invoice_str);
         assert_eq!(format!("{invoice:#}"), invoice_str.replace('-', ""));
 
         // rgb21 parameters
-        let invoice_str = "rgb:11Fa!$Dk-rUWXhy8-7H35qXm-pLGGLOo-txBWUgj-tbOaSbI/RGB21/1@1+bc:\
-                           utxob:zlVS28Rb-amM5lih-ONXGACC-IUWD0Y$-0JXcnWZ-MQn8VEI-B39!F";
+        let invoice_str = "rgb:11Fa!$Dk-rUWXhy8-7H35qXm-pLGGLOo-txBWUgj-tbOaSbI/RGB21/\
+                           5QsfkEcyanohXadePHZ+bc:utxob:\
+                           zlVS28Rb-amM5lih-ONXGACC-IUWD0Y$-0JXcnWZ-MQn8VEI-B39!F";
         let invoice = RgbInvoice::from_str(invoice_str).unwrap();
+        assert_eq!(
+            invoice.owned_state,
+            InvoiceState::Specific(State::from(StateData::from_checked(vec![
+                12, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0
+            ])))
+        );
         assert_eq!(invoice.to_string(), invoice_str);
         assert_eq!(format!("{invoice:#}"), invoice_str.replace('-', ""));
 
@@ -590,7 +643,7 @@ mod test {
         let invoice_str = "2WBcas9-yjzEvGufY-9GEgnyMj7-beMNMWA8r-sPHtV1nPU-TMsGMQX/~/bc:utxob:\
                            zlVS28Rb-amM5lih-ONXGACC-IUWD0Y$-0JXcnWZ-MQn8VEI-B39!F";
         let result = RgbInvoice::from_str(invoice_str);
-        assert!(matches!(result, Err(InvoiceParseError::Invalid)));
+        assert!(matches!(result, Err(InvoiceParseError::AbsentScheme)));
 
         // invalid scheme
         let invoice_str = "bad:2WBcas9-yjzEvGufY-9GEgnyMj7-beMNMWA8r-sPHtV1nPU-TMsGMQX/~/bc:utxob:\
