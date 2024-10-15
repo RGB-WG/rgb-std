@@ -76,7 +76,7 @@ pub struct AllocatedState {
     pub insufficient: Option<rgb::State>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct StateCalc {
     vm: aluvm::Vm,
     abi: StateAbi,
@@ -188,5 +188,9 @@ impl StateCalc {
         self.run(self.abi.calc_change)
             .map_err(|err| StateCalcError::ChangeCalc(ty, err))?;
         self.fetch_state(ty, Reg16::Reg0)
+    }
+
+    pub fn is_sufficient_for(&self, ty: AssignmentType, state: &rgb::State) -> bool {
+        self.clone().calc_output(ty, state).is_ok()
     }
 }

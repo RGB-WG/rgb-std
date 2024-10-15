@@ -22,13 +22,14 @@
 use std::borrow::Borrow;
 use std::collections::{BTreeSet, HashMap, HashSet};
 
+use rgb::validation::Scripts;
 use rgb::{AssignmentType, ContractId, OpId, Schema, State, XOutputSeal, XWitnessId};
 use strict_encoding::FieldName;
 use strict_types::{StrictVal, TypeSystem};
 
 use crate::contract::{OutputAssignment, WitnessInfo};
 use crate::info::ContractInfo;
-use crate::interface::{AssignmentsFilter, IfaceImpl};
+use crate::interface::{AssignmentsFilter, IfaceImpl, StateCalc};
 use crate::persistence::ContractStateRead;
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
@@ -115,6 +116,7 @@ pub struct ContractIface<S: ContractStateRead> {
     pub schema: Schema,
     pub iface: IfaceImpl,
     pub types: TypeSystem,
+    pub scripts: Scripts,
     pub info: ContractInfo,
 }
 
@@ -173,6 +175,24 @@ impl<S: ContractStateRead> ContractIface<S> {
         Ok(self
             .assignments_by(filter)
             .filter(move |outp| outp.opout.ty == type_id))
+    }
+
+    pub fn assignments_fulfilling<'c, K: Ord + 'c>(
+        &'c self,
+        name: impl Into<FieldName>,
+        filter: impl AssignmentsFilter + 'c,
+        state: &'c State,
+        sorting: impl FnMut(&&OutputAssignment) -> K,
+    ) -> Result<impl Iterator<Item = &'c OutputAssignment> + 'c, ContractError> {
+        let mut selected = self.assignments_by_type(name, filter)?.collect::<Vec<_>>();
+        selected.sort_by_key(sorting);
+        let mut calc = StateCalc::new(self.scripts.clone(), self.iface.state_abi);
+        Ok(selected.into_iter().take_while(move |a| {
+            if calc.reg_input(a.opout.ty, &a.state).is_err() {
+                return false;
+            }
+            calc.is_sufficient_for(a.opout.ty, state)
+        }))
     }
 
     pub fn history(

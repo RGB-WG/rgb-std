@@ -579,6 +579,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             state,
             schema: schema_ifaces.schema.clone(),
             iface: iimpl.clone(),
+            scripts: self.stash.scripts(iimpl.state_abi.lib_ids())?,
             types,
             info,
         }))
@@ -604,6 +605,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             state,
             schema: schema_ifaces.schema.clone(),
             iface: iimpl.clone(),
+            scripts: self.stash.scripts(iimpl.state_abi.lib_ids())?,
             types,
             info,
         })

@@ -292,6 +292,18 @@ impl<P: StashProvider> Stash<P> {
             .map_err(StashError::ReadProvider)
     }
 
+    pub(super) fn scripts<'a>(
+        &self,
+        lib_ids: impl IntoIterator<Item = LibId>,
+    ) -> Result<Scripts, StashError<P>> {
+        let mut scripts = BTreeMap::new();
+        for id in lib_ids {
+            let lib = self.provider.lib(id)?;
+            scripts.insert(id, lib.clone());
+        }
+        Ok(Scripts::from_checked(scripts))
+    }
+
     pub(super) fn extract<'a>(
         &self,
         schema: &Schema,
@@ -359,12 +371,7 @@ impl<P: StashProvider> Stash<P> {
             .ok_or(StashDataError::NoIfaceImpl(schema.schema_id(), iface.iface_id()))?;
 
         let (types, _) = self.extract(&schema_ifaces.schema, [iface])?;
-        let mut scripts = BTreeMap::new();
-        for id in iimpl.state_abi.lib_ids() {
-            let lib = self.provider.lib(id)?;
-            scripts.insert(id, lib.clone());
-        }
-        let scripts = Scripts::from_checked(scripts);
+        let scripts = self.scripts(iimpl.state_abi.lib_ids())?;
 
         let builder = if let Some(transition_name) = transition_name {
             TransitionBuilder::named_transition(
