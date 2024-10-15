@@ -29,8 +29,8 @@ use std::{iter, mem};
 
 use aluvm::library::{Lib, LibId};
 use amplify::confinement::{
-    self, Confined, LargeOrdMap, LargeOrdSet, MediumBlob, MediumOrdMap, MediumOrdSet, SmallBlob,
-    SmallOrdMap, TinyOrdMap, TinyOrdSet,
+    self, Confined, LargeOrdMap, LargeOrdSet, MediumBlob, MediumOrdMap, MediumOrdSet, SmallOrdMap,
+    TinyOrdMap, TinyOrdSet,
 };
 use amplify::num::u24;
 use bp::dbc::tapret::TapretCommitment;
@@ -44,8 +44,8 @@ use rgb::vm::{
 use rgb::{
     Assign, AssignmentType, Assignments, AssignmentsRef, AttachId, BundleId, ContractId,
     ExposedSeal, Extension, Genesis, GenesisSeal, GlobalStateType, GraphSeal, Identity, OpId,
-    Operation, Opout, Schema, SchemaId, SecretSeal, Transition, TransitionBundle, XChain,
-    XOutpoint, XOutputSeal, XWitnessId,
+    Operation, Opout, Schema, SchemaId, SecretSeal, StateData, Transition, TransitionBundle,
+    XChain, XOutpoint, XOutputSeal, XWitnessId,
 };
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 use strict_types::TypeSystem;
@@ -680,7 +680,7 @@ impl StateWriteProvider for MemState {
 #[strict_type(lib = LIB_NAME_RGB_STORAGE)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
 pub struct MemGlobalState {
-    known: LargeOrdMap<GlobalOut, SmallBlob>,
+    known: LargeOrdMap<GlobalOut, StateData>,
     limit: u24,
 }
 
@@ -850,12 +850,12 @@ impl<M: Borrow<MemContractState>> ContractStateAccess for MemContract<M> {
         &self,
         ty: GlobalStateType,
     ) -> Result<GlobalContractState<impl GlobalStateIter>, UnknownGlobalStateType> {
-        type Src<'a> = &'a BTreeMap<GlobalOut, SmallBlob>;
-        type FilteredIter<'a> = Box<dyn Iterator<Item = (GlobalOrd, &'a SmallBlob)> + 'a>;
+        type Src<'a> = &'a BTreeMap<GlobalOut, StateData>;
+        type FilteredIter<'a> = Box<dyn Iterator<Item = (GlobalOrd, &'a StateData)> + 'a>;
         struct Iter<'a> {
             src: Src<'a>,
             iter: FilteredIter<'a>,
-            last: Option<(GlobalOrd, &'a SmallBlob)>,
+            last: Option<(GlobalOrd, &'a StateData)>,
             depth: u24,
             constructor: Box<dyn Fn(Src<'a>) -> FilteredIter<'a> + 'a>,
         }
@@ -867,7 +867,7 @@ impl<M: Borrow<MemContractState>> ContractStateAccess for MemContract<M> {
             }
         }
         impl<'a> GlobalStateIter for Iter<'a> {
-            type Data = &'a SmallBlob;
+            type Data = &'a StateData;
             fn size(&mut self) -> u24 {
                 let iter = self.swap();
                 // TODO: Consuming iterator just to count items is highly inefficient, but I do

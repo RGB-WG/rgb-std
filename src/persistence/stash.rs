@@ -312,6 +312,7 @@ impl<P: StashProvider> Stash<P> {
             let lib = self.provider.lib(id)?;
             scripts.insert(id, lib.clone());
         }
+        // TODO: Make sure we have all the libs including their dependencies
         let scripts = Scripts::try_from(scripts)
             .map_err(|_| StashDataError::TooManyLibs(schema.schema_id()))?;
 
@@ -358,6 +359,12 @@ impl<P: StashProvider> Stash<P> {
             .ok_or(StashDataError::NoIfaceImpl(schema.schema_id(), iface.iface_id()))?;
 
         let (types, _) = self.extract(&schema_ifaces.schema, [iface])?;
+        let mut scripts = BTreeMap::new();
+        for id in iimpl.state_abi.lib_ids() {
+            let lib = self.provider.lib(id)?;
+            scripts.insert(id, lib.clone());
+        }
+        let scripts = Scripts::from_checked(scripts);
 
         let builder = if let Some(transition_name) = transition_name {
             TransitionBuilder::named_transition(
@@ -367,6 +374,7 @@ impl<P: StashProvider> Stash<P> {
                 iimpl.clone(),
                 transition_name.into(),
                 types,
+                scripts,
             )
         } else {
             TransitionBuilder::default_transition(
@@ -375,6 +383,7 @@ impl<P: StashProvider> Stash<P> {
                 schema.clone(),
                 iimpl.clone(),
                 types,
+                scripts,
             )
         }
         .expect("internal inconsistency");

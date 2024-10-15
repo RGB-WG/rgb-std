@@ -29,7 +29,7 @@ use rgb::validation::Scripts;
 use rgb::{
     validation, AltLayer1, AltLayer1Set, AssignmentType, Assignments, ContractId, ExposedSeal,
     Genesis, GenesisSeal, GlobalState, GraphSeal, Identity, Input, Layer1, MetadataError, Opout,
-    OwnedStateSchema, Schema, State, Transition, TransitionType, TypedAssigns, XChain, XOutpoint,
+    Schema, State, Transition, TransitionType, TypedAssigns, XChain, XOutpoint,
 };
 use rgbcore::{GlobalStateSchema, GlobalStateType, MetaType, Metadata, ValencyType};
 use strict_encoding::{FieldName, SerializeError, StrictSerialize};
@@ -37,7 +37,7 @@ use strict_types::{decode, SemId, TypeSystem};
 
 use crate::containers::{BuilderSeal, ContainerVer, Contract, ValidConsignment};
 use crate::interface::resolver::DumbResolver;
-use crate::interface::{Iface, IfaceImpl, TransitionIface};
+use crate::interface::{Iface, IfaceImpl, StateCalc, StateCalcError, TransitionIface};
 use crate::Outpoint;
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
@@ -68,19 +68,7 @@ pub enum BuilderError {
     /// state `{0}` provided to the builder has invalid type.
     InvalidStateType(AssignmentType),
 
-    /// asset tag for state `{0}` must be added before any fungible state of
-    /// the same type.
-    AssetTagMissed(AssignmentType),
-
-    /// asset tag for state `{0}` was already automatically created. Please call
-    /// `add_asset_tag` before adding any fungible state to the builder.
-    AssetTagAutomatic(AssignmentType),
-
-    /// state data for state type `{0}` are invalid: asset tag doesn't match the
-    /// tag defined by the contract.
-    AssetTagInvalid(AssignmentType),
-
-    /// interface doesn't specifies default operation name, thus an explicit
+    /// interface doesn't specify default operation name, thus an explicit
     /// operation type must be provided with `set_operation_type` method.
     NoOperationSubtype,
 
@@ -89,6 +77,10 @@ pub enum BuilderError {
 
     /// {0} is not supported by the contract genesis.
     InvalidLayer1(Layer1),
+
+    #[from]
+    #[display(inner)]
+    Calc(StateCalcError),
 
     #[from]
     #[display(inner)]
@@ -226,13 +218,13 @@ impl ContractBuilder {
 
     pub fn add_owned_state_raw(
         mut self,
-        name: impl Into<FieldName>,
+        type_id: AssignmentType,
         seal: impl Into<BuilderSeal<GenesisSeal>>,
         state: State,
     ) -> Result<Self, BuilderError> {
         let seal = seal.into();
         self.check_layer1(seal.layer1())?;
-        self.builder = self.builder.add_owned_state_raw(name, seal, state)?;
+        self.builder = self.builder.add_owned_state_raw(type_id, seal, state)?;
         Ok(self)
     }
 
@@ -306,13 +298,15 @@ impl ContractBuilder {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct TransitionBuilder {
     contract_id: ContractId,
     builder: OperationBuilder<GraphSeal>,
     nonce: u64,
     transition_type: TransitionType,
     inputs: TinyOrdMap<Input, State>,
+    // TODO: Remove option once we have blank builder
+    calc: Option<StateCalc>,
 }
 
 impl TransitionBuilder {
@@ -323,7 +317,7 @@ impl TransitionBuilder {
         iimpl: IfaceImpl,
         types: TypeSystem,
     ) -> Self {
-        Self::with(contract_id, iface, schema, iimpl, TransitionType::BLANK, types)
+        Self::with(contract_id, iface, schema, iimpl, TransitionType::BLANK, types, None)
     }
 
     pub fn default_transition(
@@ -332,13 +326,15 @@ impl TransitionBuilder {
         schema: Schema,
         iimpl: IfaceImpl,
         types: TypeSystem,
+        scripts: Scripts,
     ) -> Result<Self, BuilderError> {
         let transition_type = iface
             .default_operation
             .as_ref()
             .and_then(|name| iimpl.transition_type(name))
             .ok_or(BuilderError::NoOperationSubtype)?;
-        Ok(Self::with(contract_id, iface, schema, iimpl, transition_type, types))
+        let calc = StateCalc::new(scripts, iimpl.state_abi);
+        Ok(Self::with(contract_id, iface, schema, iimpl, transition_type, types, Some(calc)))
     }
 
     pub fn named_transition(
@@ -348,12 +344,14 @@ impl TransitionBuilder {
         iimpl: IfaceImpl,
         transition_name: impl Into<FieldName>,
         types: TypeSystem,
+        scripts: Scripts,
     ) -> Result<Self, BuilderError> {
         let transition_name = transition_name.into();
         let transition_type = iimpl
             .transition_type(&transition_name)
             .ok_or(BuilderError::TransitionNotFound(transition_name))?;
-        Ok(Self::with(contract_id, iface, schema, iimpl, transition_type, types))
+        let calc = StateCalc::new(scripts, iimpl.state_abi);
+        Ok(Self::with(contract_id, iface, schema, iimpl, transition_type, types, Some(calc)))
     }
 
     fn with(
@@ -363,6 +361,7 @@ impl TransitionBuilder {
         iimpl: IfaceImpl,
         transition_type: TransitionType,
         types: TypeSystem,
+        calc: Option<StateCalc>,
     ) -> Self {
         Self {
             contract_id,
@@ -370,6 +369,7 @@ impl TransitionBuilder {
             nonce: u64::MAX,
             transition_type,
             inputs: none!(),
+            calc,
         }
     }
 
@@ -403,6 +403,9 @@ impl TransitionBuilder {
     }
 
     pub fn add_input(mut self, opout: Opout, state: State) -> Result<Self, BuilderError> {
+        if let Some(calc) = &mut self.calc {
+            calc.reg_input(opout.ty, &state)?;
+        }
         self.inputs.insert(Input::with(opout), state)?;
         Ok(self)
     }
@@ -430,39 +433,54 @@ impl TransitionBuilder {
         self.builder.valency_type(name)
     }
 
+    #[inline]
     pub fn valency_name(&self, type_id: ValencyType) -> &FieldName {
         self.builder.valency_name(type_id)
     }
 
     pub fn meta_name(&self, type_id: MetaType) -> &FieldName { self.builder.meta_name(type_id) }
 
+    /// NB: Doesn't process the state with VM
     pub fn add_owned_state_raw(
         mut self,
-        name: impl Into<FieldName>,
+        type_id: AssignmentType,
         seal: impl Into<BuilderSeal<GraphSeal>>,
         state: State,
     ) -> Result<Self, BuilderError> {
-        self.builder = self.builder.add_owned_state_raw(name, seal, state)?;
+        self.builder = self.builder.add_owned_state_raw(type_id, seal, state)?;
         Ok(self)
     }
 
-    pub fn add_owned_state(
+    pub fn fulfill_owned_state(
         mut self,
-        name: impl Into<FieldName>,
+        type_id: AssignmentType,
         seal: impl Into<BuilderSeal<GraphSeal>>,
-        value: impl StrictSerialize,
-    ) -> Result<Self, BuilderError> {
-        self.builder = self.builder.add_owned_state(name, seal, value)?;
-        Ok(self)
+        state: State,
+    ) -> Result<(Self, Option<State>), BuilderError> {
+        let calc = self
+            .calc
+            .as_mut()
+            .expect("you must not call fulfill_owned_state for the blank transition builder");
+        let state = calc.calc_output(type_id, &state)?;
+        self.builder = self
+            .builder
+            .add_owned_state_raw(type_id, seal, state.sufficient)?;
+        Ok((self, state.insufficient))
     }
 
-    pub fn add_owned_state_default(
-        self,
+    pub fn add_owned_state_change(
+        mut self,
+        type_id: AssignmentType,
         seal: impl Into<BuilderSeal<GraphSeal>>,
-        value: impl StrictSerialize,
     ) -> Result<Self, BuilderError> {
-        let assignment_name = self.default_assignment()?.clone();
-        self.add_owned_state(assignment_name, seal.into(), value)
+        let calc = self
+            .calc
+            .as_mut()
+            .expect("you must not call add_owned_state_change for the blank transition builder");
+        if let Some(state) = calc.calc_change(type_id)? {
+            self.builder = self.builder.add_owned_state_raw(type_id, seal, state)?;
+        }
+        Ok(self)
     }
 
     pub fn has_inputs(&self) -> bool { !self.inputs.is_empty() }
@@ -514,7 +532,6 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             global: none!(),
             assignments: none!(),
             meta: none!(),
-
             types,
         }
     }
@@ -549,14 +566,6 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
 
     fn valency_name(&self, ty: ValencyType) -> &FieldName {
         self.iimpl.valency_name(ty).expect("internal inconsistency")
-    }
-
-    #[inline]
-    fn state_schema(&self, type_id: AssignmentType) -> &OwnedStateSchema {
-        self.schema
-            .owned_types
-            .get(&type_id)
-            .expect("schema should match interface: must be checked by the constructor")
     }
 
     #[inline]
@@ -615,16 +624,10 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
 
     fn add_owned_state_raw(
         mut self,
-        name: impl Into<FieldName>,
+        type_id: AssignmentType,
         seal: impl Into<BuilderSeal<Seal>>,
         state: State,
     ) -> Result<Self, BuilderError> {
-        let name = name.into();
-
-        let type_id = self
-            .assignments_type(&name)
-            .ok_or(BuilderError::AssignmentNotFound(name))?;
-
         let assignment = seal.into().assignment(state);
 
         match self.assignments.entry(type_id)? {
@@ -644,7 +647,13 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         seal: impl Into<BuilderSeal<Seal>>,
         value: impl StrictSerialize,
     ) -> Result<Self, BuilderError> {
-        self.add_owned_state_raw(name, seal, State::new(value))
+        let name = name.into();
+
+        let type_id = self
+            .assignments_type(&name)
+            .ok_or(BuilderError::AssignmentNotFound(name))?;
+
+        self.add_owned_state_raw(type_id, seal, State::new(value))
     }
 
     fn complete(self) -> (Schema, Iface, IfaceImpl, GlobalState, Assignments<Seal>, TypeSystem) {

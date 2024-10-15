@@ -66,17 +66,6 @@ pub struct ContractOp {
     pub witness: Option<WitnessInfo>,
 }
 
-fn reduce_to_ty(allocations: impl IntoIterator<Item = OutputAssignment>) -> AssignmentType {
-    allocations
-        .into_iter()
-        .map(|a| a.opout.ty)
-        .reduce(|ty1, ty2| {
-            assert_eq!(ty1, ty2);
-            ty1
-        })
-        .expect("empty list of allocations")
-}
-
 impl ContractOp {
     fn genesis(our_allocations: HashSet<OutputAssignment>) -> impl ExactSizeIterator<Item = Self> {
         our_allocations.into_iter().map(|a| Self {
