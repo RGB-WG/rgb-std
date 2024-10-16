@@ -22,8 +22,9 @@
 use std::borrow::Borrow;
 use std::collections::{BTreeSet, HashMap, HashSet};
 
+use amplify::confinement::SmallBlob;
 use rgb::validation::Scripts;
-use rgb::{AssignmentType, ContractId, OpId, Schema, State, XOutputSeal, XWitnessId};
+use rgb::{AssignmentType, AttachId, ContractId, OpId, Schema, State, XOutputSeal, XWitnessId};
 use strict_encoding::FieldName;
 use strict_types::{StrictVal, TypeSystem};
 
@@ -52,59 +53,50 @@ pub enum OpDirection {
     Sent,
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase", tag = "type")
+    serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct ContractOp {
     pub direction: OpDirection,
     pub ty: AssignmentType,
     pub opids: BTreeSet<OpId>,
-    pub state: State,
+    pub state: StrictVal,
+    pub attach_id: Option<AttachId>,
     pub to: BTreeSet<XOutputSeal>,
     pub witness: Option<WitnessInfo>,
 }
 
 impl ContractOp {
-    fn genesis(our_allocations: HashSet<OutputAssignment>) -> impl ExactSizeIterator<Item = Self> {
-        our_allocations.into_iter().map(|a| Self {
-            direction: OpDirection::Issued,
-            ty: a.opout.ty,
-            opids: bset![a.opout.op],
-            state: a.state,
-            to: bset![a.seal],
-            witness: None,
-        })
+    fn new(
+        direction: OpDirection,
+        assignment: OutputAssignment,
+        value: StrictVal,
+        witness: Option<WitnessInfo>,
+    ) -> Self {
+        Self {
+            direction,
+            ty: assignment.opout.ty,
+            opids: bset![assignment.opout.op],
+            state: value,
+            attach_id: assignment.state.attach,
+            to: bset![assignment.seal],
+            witness,
+        }
     }
 
-    fn sent(
-        witness: WitnessInfo,
-        ext_allocations: HashSet<OutputAssignment>,
-    ) -> impl ExactSizeIterator<Item = Self> {
-        ext_allocations.into_iter().map(move |a| Self {
-            direction: OpDirection::Sent,
-            ty: a.opout.ty,
-            opids: bset![a.opout.op],
-            state: a.state,
-            to: bset![a.seal],
-            witness: Some(witness),
-        })
+    fn issued(assignment: OutputAssignment, value: StrictVal) -> Self {
+        Self::new(OpDirection::Issued, assignment, value, None)
     }
 
-    fn received(
-        witness: WitnessInfo,
-        our_allocations: HashSet<OutputAssignment>,
-    ) -> impl ExactSizeIterator<Item = Self> {
-        our_allocations.into_iter().map(move |a| Self {
-            direction: OpDirection::Received,
-            ty: a.opout.ty,
-            opids: bset![a.opout.op],
-            state: a.state,
-            to: bset![a.seal],
-            witness: Some(witness),
-        })
+    fn received(assignment: OutputAssignment, value: StrictVal, witness: WitnessInfo) -> Self {
+        Self::new(OpDirection::Received, assignment, value, Some(witness))
+    }
+
+    fn sent(assignment: OutputAssignment, value: StrictVal, witness: WitnessInfo) -> Self {
+        Self::new(OpDirection::Sent, assignment, value, Some(witness))
     }
 }
 
@@ -121,6 +113,19 @@ pub struct ContractIface<S: ContractStateRead> {
 }
 
 impl<S: ContractStateRead> ContractIface<S> {
+    fn assignment_value(&self, ty: AssignmentType, value: &SmallBlob) -> StrictVal {
+        let sem_id = self
+            .schema
+            .owned_types
+            .get(&ty)
+            .expect("invalid contract state")
+            .sem_id;
+        self.types
+            .strict_deserialize_type(sem_id, value.as_slice())
+            .expect("invalid contract state")
+            .unbox()
+    }
+
     pub fn contract_id(&self) -> ContractId { self.state.contract_id() }
 
     /// # Panics
@@ -233,7 +238,10 @@ impl<S: ContractStateRead> ContractIface<S> {
         let mut ops = Vec::with_capacity(witness_ids.len() + 1);
         // add allocations with no witness to the beginning of the history
         if let Some(genesis_state) = allocations_our_outpoint.remove(&None) {
-            ops.extend(ContractOp::genesis(genesis_state));
+            for assignment in genesis_state {
+                let value = self.assignment_value(assignment.opout.ty, &assignment.state.value);
+                ops.push(ContractOp::issued(assignment, value))
+            }
         }
         for witness_id in witness_ids {
             let our_outpoint = allocations_our_outpoint.remove(&Some(witness_id));
@@ -255,16 +263,28 @@ impl<S: ContractStateRead> ContractIface<S> {
                     if ext_assignments.is_empty() {
                         continue;
                     }
-                    ops.extend(ContractOp::sent(witness_info, ext_assignments))
+                    for assignment in ext_assignments {
+                        let value =
+                            self.assignment_value(assignment.opout.ty, &assignment.state.value);
+                        ops.push(ContractOp::sent(assignment, value, witness_info))
+                    }
                 }
                 // the same as above, but the payment has no change
                 (None, Some(ext_assignments)) => {
-                    ops.extend(ContractOp::sent(witness_info, ext_assignments))
+                    for assignment in ext_assignments {
+                        let value =
+                            self.assignment_value(assignment.opout.ty, &assignment.state.value);
+                        ops.push(ContractOp::sent(assignment, value, witness_info))
+                    }
                 }
                 // we own allocation but the witness transaction was made by other wallet:
                 // this is an incoming payment to us.
                 (Some(our_assignments), None) => {
-                    ops.extend(ContractOp::received(witness_info, our_assignments))
+                    for assignment in our_assignments {
+                        let value =
+                            self.assignment_value(assignment.opout.ty, &assignment.state.value);
+                        ops.push(ContractOp::received(assignment, value, witness_info))
+                    }
                 }
                 // these can't get into the `witness_ids` due to the used filters
                 (None, None) => unreachable!("broken allocation filters"),

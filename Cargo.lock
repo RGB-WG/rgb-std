@@ -526,6 +526,7 @@ checksum = "707907fe3c25f5424cce2cb7e1cbcafee6bdbe735ca90ef77c29e84591e5b9da"
 dependencies = [
  "equivalent",
  "hashbrown",
+ "serde",
 ]
 
 [[package]]
@@ -910,9 +911,9 @@ dependencies = [
 
 [[package]]
 name = "strict_types"
-version = "2.7.0"
+version = "2.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f16e8855a575633815f01482ac927ebaca3d2485aec8e17226c6826de29154e"
+checksum = "3188d65ee78a90da3545df762a1363b5b4f9c3b845f182a18fc40ae991c235ce"
 dependencies = [
  "amplify",
  "ascii-armor",
