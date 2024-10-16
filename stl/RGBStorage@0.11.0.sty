@@ -1,5 +1,5 @@
 {-
-  Id: stl:iayFnuhB-sjXxWhi-Pp!FSyO-astclK4-icTXDwX-O0Fb4F4#floor-avatar-lazarus
+  Id: stl:RMDj!yyo-ca0Rmdl-pBBc50W-ciu1!P3-U8gHIqL-0Y83X50#memo-ballet-fresh
   Name: RGBStorage
   Version: 0.11.0
   Description: RGB storage library
@@ -144,7 +144,7 @@ import RGBStd#zebra-twist-tango
   use SupplItem#jargon-orchid-forget
   use Modifier#saturn-escort-jordan
   use NamedFieldAssignmentType#origin-caramel-flipper
-  use OutputAssignment#chicago-neuron-concept
+  use Allocation#mimosa-savage-future
   use TrustLevel#cobra-script-albino
   use StateAbi#thermos-demo-fragile
   use NamedFieldMetaType#prefix-carmen-artist
@@ -198,11 +198,11 @@ import Bitcoin#signal-color-cipher
 @mnemonic(carol-salute-aroma)
 data ContractIndex     : publicOpouts {RGBCommit.Opout ^ ..0xffffff}, outpointOpouts {RGBCommit.XChainExplicitSealTxid -> ^ ..0xffffff {RGBCommit.Opout ^ ..0xffffff}}
 
-@mnemonic(carbon-arena-ivan)
+@mnemonic(dolby-mammal-pogo)
 data MemContractState  : schemaId RGBCommit.SchemaId
                        , contractId RGBCommit.ContractId
                        , global {RGBCommit.GlobalStateType -> ^ ..0xff MemGlobalState}
-                       , state {RGBStd.OutputAssignment ^ ..0xffffffff}
+                       , owned {RGBStd.Allocation ^ ..0xffffffff}
 
 @mnemonic(mary-mineral-frame)
 data MemGlobalState    : known {RGBStd.GlobalOut -> ^ ..0xffffffff RGBCommit.StateData}, limit U24

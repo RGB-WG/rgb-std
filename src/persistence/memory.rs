@@ -60,7 +60,7 @@ use super::{
 use crate::containers::{
     AnchorSet, ContentId, ContentRef, ContentSigs, SealWitness, SigBlob, Supplement, TrustLevel,
 };
-use crate::contract::{GlobalOut, OpWitness, OutputAssignment};
+use crate::contract::{Allocation, GlobalOut, OpWitness};
 use crate::interface::{Iface, IfaceClass, IfaceId, IfaceImpl, IfaceRef};
 use crate::LIB_NAME_RGB_STORAGE;
 
@@ -565,7 +565,7 @@ impl StateReadProvider for MemState {
                     .values()
                     .flat_map(|state| state.known.keys())
                     .any(|out| out.witness_id() == id)
-                    || unfiltered.state.iter().any(|a| a.witness == id)
+                    || unfiltered.owned.iter().any(|a| a.witness == id)
             })
             .map(|(id, ord)| (*id, *ord))
             .collect();
@@ -717,7 +717,7 @@ pub struct MemContractState {
     contract_id: ContractId,
     #[getter(skip)]
     global: TinyOrdMap<GlobalStateType, MemGlobalState>,
-    state: LargeOrdSet<OutputAssignment>,
+    owned: LargeOrdSet<Allocation>,
 }
 
 impl MemContractState {
@@ -732,7 +732,7 @@ impl MemContractState {
             schema_id: schema.schema_id(),
             contract_id,
             global,
-            state: empty!(),
+            owned: empty!(),
         }
     }
 
@@ -814,7 +814,7 @@ impl MemContractState {
                 .filter_map(|(n, a)| a.revealed_seal().map(|seal| (n, seal, a.as_state())))
             {
                 let assigned_state = match witness_id {
-                    Some(witness_id) => OutputAssignment::with_witness(
+                    Some(witness_id) => Allocation::with_witness(
                         seal,
                         witness_id,
                         state.clone(),
@@ -822,11 +822,9 @@ impl MemContractState {
                         *ty,
                         no as u16,
                     ),
-                    None => {
-                        OutputAssignment::with_no_witness(seal, state.clone(), opid, *ty, no as u16)
-                    }
+                    None => Allocation::with_no_witness(seal, state.clone(), opid, *ty, no as u16),
                 };
-                self.state
+                self.owned
                     .push(assigned_state)
                     .expect("contract state exceeded 2^32 items, which is unrealistic");
             }
@@ -945,7 +943,7 @@ impl<M: Borrow<MemContractState>> ContractStateAccess for MemContract<M> {
     ) -> impl DoubleEndedIterator<Item = impl Borrow<rgb::State>> {
         self.unfiltered
             .borrow()
-            .state
+            .owned
             .iter()
             .filter(move |assignment| {
                 assignment.seal.to_outpoint() == outpoint && assignment.opout.ty == ty
@@ -1018,10 +1016,10 @@ impl<M: Borrow<MemContractState>> ContractStateRead for MemContract<M> {
     }
 
     #[inline]
-    fn assignments(&self) -> impl Iterator<Item = &OutputAssignment> {
+    fn assignments(&self) -> impl Iterator<Item = &Allocation> {
         self.unfiltered
             .borrow()
-            .state
+            .owned
             .iter()
             .filter(|assignment| assignment.check_witness(&self.filter))
     }

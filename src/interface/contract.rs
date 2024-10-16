@@ -22,13 +22,16 @@
 use std::borrow::Borrow;
 use std::collections::{BTreeSet, HashMap, HashSet};
 
+use amplify::confinement;
 use amplify::confinement::SmallBlob;
 use rgb::validation::Scripts;
-use rgb::{AssignmentType, AttachId, ContractId, OpId, Schema, State, XOutputSeal, XWitnessId};
-use strict_encoding::FieldName;
-use strict_types::{StrictVal, TypeSystem};
+use rgb::{
+    AssignmentType, AttachId, ContractId, OpId, Opout, Schema, State, XOutputSeal, XWitnessId,
+};
+use strict_encoding::{FieldName, SerializeError, StrictSerialize};
+use strict_types::{typify, SemId, StrictVal, TypeSystem};
 
-use crate::contract::{OutputAssignment, WitnessInfo};
+use crate::contract::{Allocation, WitnessInfo};
 use crate::info::ContractInfo;
 use crate::interface::{AssignmentsFilter, IfaceImpl, StateCalc};
 use crate::persistence::ContractStateRead;
@@ -38,6 +41,30 @@ use crate::persistence::ContractStateRead;
 pub enum ContractError {
     /// field name {0} is unknown to the contract interface
     FieldNameUnknown(FieldName),
+
+    /// the provided state object is invalid; {0}
+    #[from]
+    Typify(typify::Error),
+
+    /// the provided state exceeds maximum allowed length when serialized.
+    #[from]
+    Strict(SerializeError),
+}
+
+/// Allocation is an owned state assignment, equipped with information about the operation defining
+/// the assignment and the witness id, containing the commitment to the operation.
+#[derive(Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct Output {
+    pub opout: Opout,
+    pub seal: XOutputSeal,
+    pub state: StrictVal,
+    pub attach_id: Option<AttachId>,
+    pub witness: Option<XWitnessId>,
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display)]
@@ -72,7 +99,7 @@ pub struct ContractOp {
 impl ContractOp {
     fn new(
         direction: OpDirection,
-        assignment: OutputAssignment,
+        assignment: Allocation,
         value: StrictVal,
         witness: Option<WitnessInfo>,
     ) -> Self {
@@ -87,15 +114,15 @@ impl ContractOp {
         }
     }
 
-    fn issued(assignment: OutputAssignment, value: StrictVal) -> Self {
+    fn issued(assignment: Allocation, value: StrictVal) -> Self {
         Self::new(OpDirection::Issued, assignment, value, None)
     }
 
-    fn received(assignment: OutputAssignment, value: StrictVal, witness: WitnessInfo) -> Self {
+    fn received(assignment: Allocation, value: StrictVal, witness: WitnessInfo) -> Self {
         Self::new(OpDirection::Received, assignment, value, Some(witness))
     }
 
-    fn sent(assignment: OutputAssignment, value: StrictVal, witness: WitnessInfo) -> Self {
+    fn sent(assignment: Allocation, value: StrictVal, witness: WitnessInfo) -> Self {
         Self::new(OpDirection::Sent, assignment, value, Some(witness))
     }
 }
@@ -113,17 +140,48 @@ pub struct ContractIface<S: ContractStateRead> {
 }
 
 impl<S: ContractStateRead> ContractIface<S> {
-    fn assignment_value(&self, ty: AssignmentType, value: &SmallBlob) -> StrictVal {
-        let sem_id = self
-            .schema
+    fn assignment_type(&self, name: impl Into<FieldName>) -> Result<AssignmentType, ContractError> {
+        let name = name.into();
+        self.iface
+            .assignments_type(&name)
+            .ok_or(ContractError::FieldNameUnknown(name))
+    }
+
+    fn assignment_sem_id(&self, ty: AssignmentType) -> SemId {
+        self.schema
             .owned_types
             .get(&ty)
             .expect("invalid contract state")
-            .sem_id;
+            .sem_id
+    }
+
+    fn assignment_value(&self, ty: AssignmentType, value: &SmallBlob) -> StrictVal {
         self.types
-            .strict_deserialize_type(sem_id, value.as_slice())
+            .strict_deserialize_type(self.assignment_sem_id(ty), value.as_slice())
             .expect("invalid contract state")
             .unbox()
+    }
+
+    fn allocation_to_output(&self, a: &Allocation) -> Output {
+        Output {
+            opout: a.opout,
+            seal: a.seal,
+            state: self.assignment_value(a.opout.ty, &a.state.value),
+            attach_id: a.state.attach,
+            witness: a.witness,
+        }
+    }
+
+    fn state_convert(
+        &self,
+        ty: AssignmentType,
+        value: StrictVal,
+    ) -> Result<SmallBlob, ContractError> {
+        let t = self.types.typify(value, self.assignment_sem_id(ty))?;
+        Ok(self
+            .types
+            .strict_serialize_type::<{ confinement::U16 }>(&t)?
+            .to_strict_serialized()?)
     }
 
     pub fn contract_id(&self) -> ContractId { self.state.contract_id() }
@@ -158,46 +216,63 @@ impl<S: ContractStateRead> ContractIface<S> {
             }))
     }
 
-    pub fn assignments_by<'c>(
+    pub fn allocations<'c>(
         &'c self,
         filter: impl AssignmentsFilter + 'c,
-    ) -> impl Iterator<Item = &'c OutputAssignment> + 'c {
+    ) -> impl Iterator<Item = &'c Allocation> + 'c {
         self.state
             .assignments()
-            .filter(move |outp| filter.should_include(outp.seal, outp.witness))
+            .filter(move |a| filter.should_include(a.seal, a.witness))
     }
 
-    pub fn assignments_by_type<'c>(
+    pub fn outputs<'c>(
+        &'c self,
+        filter: impl AssignmentsFilter + 'c,
+    ) -> impl Iterator<Item = Output> + 'c {
+        self.allocations(filter)
+            .map(|a| self.allocation_to_output(a))
+    }
+
+    pub fn outputs_by_type<'c>(
         &'c self,
         name: impl Into<FieldName>,
         filter: impl AssignmentsFilter + 'c,
-    ) -> Result<impl Iterator<Item = &'c OutputAssignment> + 'c, ContractError> {
-        let name = name.into();
-        let type_id = self
-            .iface
-            .assignments_type(&name)
-            .ok_or(ContractError::FieldNameUnknown(name))?;
+    ) -> Result<impl Iterator<Item = Output> + 'c, ContractError> {
+        let type_id = self.assignment_type(name)?;
         Ok(self
-            .assignments_by(filter)
+            .outputs(filter)
             .filter(move |outp| outp.opout.ty == type_id))
     }
 
-    pub fn assignments_fulfilling<'c, K: Ord + 'c>(
+    pub fn output_selection<'c, K: Ord + 'c>(
         &'c self,
         name: impl Into<FieldName>,
         filter: impl AssignmentsFilter + 'c,
-        state: &'c State,
-        sorting: impl FnMut(&&OutputAssignment) -> K,
-    ) -> Result<impl Iterator<Item = &'c OutputAssignment> + 'c, ContractError> {
-        let mut selected = self.assignments_by_type(name, filter)?.collect::<Vec<_>>();
+        value: StrictVal,
+        attach: Option<AttachId>,
+        sorting: impl FnMut(&&Allocation) -> K,
+    ) -> Result<impl Iterator<Item = Output> + 'c, ContractError> {
+        let type_id = self.assignment_type(name)?;
+        let mut selected = self
+            .allocations(filter)
+            .filter(move |a| a.opout.ty == type_id)
+            .collect::<Vec<_>>();
         selected.sort_by_key(sorting);
         let mut calc = StateCalc::new(self.scripts.clone(), self.iface.state_abi);
-        Ok(selected.into_iter().take_while(move |a| {
-            if calc.reg_input(a.opout.ty, &a.state).is_err() {
-                return false;
-            }
-            calc.is_sufficient_for(a.opout.ty, state)
-        }))
+        let state = State {
+            reserved: none!(),
+            value: self.state_convert(type_id, value)?.into(),
+            attach,
+        };
+        Ok(selected
+            .into_iter()
+            .take_while(move |a| {
+                if calc.reg_input(a.opout.ty, &a.state).is_err() {
+                    return false;
+                }
+                calc.is_sufficient_for(a.opout.ty, &state)
+            })
+            .map(|a| self.allocation_to_output(a)))
     }
 
     pub fn history(

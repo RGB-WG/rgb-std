@@ -35,7 +35,7 @@ mod calc;
 
 pub use builder::{BuilderError, ContractBuilder, TransitionBuilder, TxOutpoint};
 pub use calc::{AllocatedState, StateAbi, StateCalc, StateCalcError};
-pub use contract::{ContractError, ContractIface, ContractOp, OpDirection};
+pub use contract::{ContractError, ContractIface, ContractOp, OpDirection, Output};
 pub use contractum::IfaceDisplay;
 pub use filter::{AssignmentsFilter, FilterExclude, FilterIncludeAll};
 pub use iface::{

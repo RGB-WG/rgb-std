@@ -46,7 +46,7 @@ mod contract;
 pub mod info;
 
 pub use bp::{Outpoint, Txid};
-pub use contract::{MergeReveal, MergeRevealError, OutputAssignment, WitnessInfo};
+pub use contract::{Allocation, MergeReveal, MergeRevealError, WitnessInfo};
 pub use rgb::prelude::*;
 pub use rgb::rgbasm;
 pub use stl::{LIB_NAME_RGB_STD, LIB_NAME_RGB_STORAGE};

@@ -34,7 +34,7 @@ use rgb::{
 };
 
 use crate::containers::{ConsignmentExt, ToWitnessId};
-use crate::contract::OutputAssignment;
+use crate::contract::Allocation;
 use crate::persistence::{StoreTransaction, UpdateRes};
 
 #[derive(Debug, Display, Error, From)]
@@ -286,7 +286,7 @@ pub trait ContractStateRead: ContractStateAccess {
     fn contract_id(&self) -> ContractId;
     fn schema_id(&self) -> SchemaId;
     fn witness_ord(&self, witness_id: XWitnessId) -> Option<WitnessOrd>;
-    fn assignments(&self) -> impl Iterator<Item = &OutputAssignment>;
+    fn assignments(&self) -> impl Iterator<Item = &Allocation>;
 }
 
 pub trait ContractStateWrite {

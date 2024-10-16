@@ -43,6 +43,8 @@ pub struct WitnessInfo {
     pub ord: WitnessOrd,
 }
 
+/// Allocation is an owned state assignment, equipped with information about the operation defining
+/// the assignment and the witness id, containing the commitment to the operation.
 #[allow(clippy::derived_hash_with_manual_eq)]
 #[derive(Clone, Eq, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
@@ -52,14 +54,14 @@ pub struct WitnessInfo {
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-pub struct OutputAssignment {
+pub struct Allocation {
     pub opout: Opout,
     pub seal: XOutputSeal,
     pub state: State,
     pub witness: Option<XWitnessId>,
 }
 
-impl PartialEq for OutputAssignment {
+impl PartialEq for Allocation {
     fn eq(&self, other: &Self) -> bool {
         // We ignore difference in witness transactions, state and seal definitions here
         // in order to support updates from the ephemeral state of the lightning
@@ -74,11 +76,11 @@ impl PartialEq for OutputAssignment {
     }
 }
 
-impl PartialOrd for OutputAssignment {
+impl PartialOrd for Allocation {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
 }
 
-impl Ord for OutputAssignment {
+impl Ord for Allocation {
     fn cmp(&self, other: &Self) -> Ordering {
         if self == other {
             return Ordering::Equal;
@@ -90,7 +92,7 @@ impl Ord for OutputAssignment {
     }
 }
 
-impl OutputAssignment {
+impl Allocation {
     /// # Panics
     ///
     /// If the processing is done on invalid stash data, the seal is
@@ -103,7 +105,7 @@ impl OutputAssignment {
         ty: AssignmentType,
         no: u16,
     ) -> Self {
-        OutputAssignment {
+        Allocation {
             opout: Opout::new(opid, ty, no),
             seal: seal.try_to_output_seal(witness_id).expect(
                 "processing contract from unverified/invalid stash: witness seal chain doesn't \
@@ -125,7 +127,7 @@ impl OutputAssignment {
         ty: AssignmentType,
         no: u16,
     ) -> Self {
-        OutputAssignment {
+        Allocation {
             opout: Opout::new(opid, ty, no),
             seal: seal.to_output_seal().expect(
                 "processing contract from unverified/invalid stash: seal must have txid \
