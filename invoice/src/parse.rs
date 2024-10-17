@@ -181,7 +181,7 @@ impl Display for InvoiceState {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             InvoiceState::Any => Ok(()),
-            InvoiceState::Specific(state) => f.write_str(&state.value.to_base58()),
+            InvoiceState::Specific(state) => f.write_str(&state.data.to_base58()),
             // TODO: Support attachment through invoice params
             InvoiceState::Attach(_) => Ok(()),
         }

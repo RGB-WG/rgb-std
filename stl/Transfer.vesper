@@ -65,7 +65,7 @@ Consignmenttrue rec
               liquid bytes len=32 wrapped aka=SecretSeal tag=1
             state rec State
               reserved bytes len=1 aka=ReservedBytes1
-              value bytes len=0..MAX16 aka=StateData
+              data bytes len=0..MAX16 aka=StateData
                 some bytes len=32 option wrapped aka=AttachId tag=1
             lock bytes len=2 aka=ReservedBytes2
           revealed rec tag=1
@@ -82,7 +82,7 @@ Consignmenttrue rec
                 blinding is U64
             state rec State
               reserved bytes len=1 aka=ReservedBytes1
-              value bytes len=0..MAX16 aka=StateData
+              data bytes len=0..MAX16 aka=StateData
                 some bytes len=32 option wrapped aka=AttachId tag=1
             lock bytes len=2 aka=ReservedBytes2
     valencies set len=0..MAX8 aka=Valencies
@@ -111,7 +111,7 @@ Consignmenttrue rec
                 liquid bytes len=32 wrapped aka=SecretSeal tag=1
               state rec State
                 reserved bytes len=1 aka=ReservedBytes1
-                value bytes len=0..MAX16 aka=StateData
+                data bytes len=0..MAX16 aka=StateData
                   some bytes len=32 option wrapped aka=AttachId tag=1
               lock bytes len=2 aka=ReservedBytes2
             revealed rec tag=1
@@ -128,7 +128,7 @@ Consignmenttrue rec
                   blinding is U64
               state rec State
                 reserved bytes len=1 aka=ReservedBytes1
-                value bytes len=0..MAX16 aka=StateData
+                data bytes len=0..MAX16 aka=StateData
                   some bytes len=32 option wrapped aka=AttachId tag=1
               lock bytes len=2 aka=ReservedBytes2
       redeemed map len=0..MAX8 aka=Redeemed
@@ -188,7 +188,7 @@ Consignmenttrue rec
                           liquid bytes len=32 wrapped aka=SecretSeal tag=1
                         state rec State
                           reserved bytes len=1 aka=ReservedBytes1
-                          value bytes len=0..MAX16 aka=StateData
+                          data bytes len=0..MAX16 aka=StateData
                             some bytes len=32 option wrapped aka=AttachId tag=1
                         lock bytes len=2 aka=ReservedBytes2
                       revealed rec tag=1
@@ -209,7 +209,7 @@ Consignmenttrue rec
                             blinding is U64
                         state rec State
                           reserved bytes len=1 aka=ReservedBytes1
-                          value bytes len=0..MAX16 aka=StateData
+                          data bytes len=0..MAX16 aka=StateData
                             some bytes len=32 option wrapped aka=AttachId tag=1
                         lock bytes len=2 aka=ReservedBytes2
                 valencies set len=0..MAX8 aka=Valencies
@@ -259,7 +259,7 @@ Consignmenttrue rec
                           liquid bytes len=32 wrapped aka=SecretSeal tag=1
                         state rec State
                           reserved bytes len=1 aka=ReservedBytes1
-                          value bytes len=0..MAX16 aka=StateData
+                          data bytes len=0..MAX16 aka=StateData
                             some bytes len=32 option wrapped aka=AttachId tag=1
                         lock bytes len=2 aka=ReservedBytes2
                       revealed rec tag=1
@@ -280,7 +280,7 @@ Consignmenttrue rec
                             blinding is U64
                         state rec State
                           reserved bytes len=1 aka=ReservedBytes1
-                          value bytes len=0..MAX16 aka=StateData
+                          data bytes len=0..MAX16 aka=StateData
                             some bytes len=32 option wrapped aka=AttachId tag=1
                         lock bytes len=2 aka=ReservedBytes2
                 valencies set len=0..MAX8 aka=Valencies
@@ -335,7 +335,7 @@ Consignmenttrue rec
                             liquid bytes len=32 wrapped aka=SecretSeal tag=1
                           state rec State
                             reserved bytes len=1 aka=ReservedBytes1
-                            value bytes len=0..MAX16 aka=StateData
+                            data bytes len=0..MAX16 aka=StateData
                               some bytes len=32 option wrapped aka=AttachId tag=1
                           lock bytes len=2 aka=ReservedBytes2
                         revealed rec tag=1
@@ -356,7 +356,7 @@ Consignmenttrue rec
                               blinding is U64
                           state rec State
                             reserved bytes len=1 aka=ReservedBytes1
-                            value bytes len=0..MAX16 aka=StateData
+                            data bytes len=0..MAX16 aka=StateData
                               some bytes len=32 option wrapped aka=AttachId tag=1
                           lock bytes len=2 aka=ReservedBytes2
                   valencies set len=0..MAX8 aka=Valencies
@@ -406,7 +406,7 @@ Consignmenttrue rec
                             liquid bytes len=32 wrapped aka=SecretSeal tag=1
                           state rec State
                             reserved bytes len=1 aka=ReservedBytes1
-                            value bytes len=0..MAX16 aka=StateData
+                            data bytes len=0..MAX16 aka=StateData
                               some bytes len=32 option wrapped aka=AttachId tag=1
                           lock bytes len=2 aka=ReservedBytes2
                         revealed rec tag=1
@@ -427,7 +427,7 @@ Consignmenttrue rec
                               blinding is U64
                           state rec State
                             reserved bytes len=1 aka=ReservedBytes1
-                            value bytes len=0..MAX16 aka=StateData
+                            data bytes len=0..MAX16 aka=StateData
                               some bytes len=32 option wrapped aka=AttachId tag=1
                           lock bytes len=2 aka=ReservedBytes2
                   valencies set len=0..MAX8 aka=Valencies

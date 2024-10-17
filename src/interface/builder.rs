@@ -653,7 +653,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             .assignments_type(&name)
             .ok_or(BuilderError::AssignmentNotFound(name))?;
 
-        self.add_owned_state_raw(type_id, seal, State::new(value))
+        self.add_owned_state_raw(type_id, seal, State::from_serialized(value))
     }
 
     fn complete(self) -> (Schema, Iface, IfaceImpl, GlobalState, Assignments<Seal>, TypeSystem) {

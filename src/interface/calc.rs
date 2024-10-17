@@ -106,7 +106,7 @@ impl StateCalc {
         self.vm.registers.set_n(RegA::A8, Reg32::Reg0, Some(0u8));
         self.vm
             .registers
-            .set_s(RegS::from(0), Some(ByteStr::with(&state.value)));
+            .set_s(RegS::from(0), Some(ByteStr::with(&state.data)));
         self.vm.registers.set_n(
             RegR::R256,
             Reg32::Reg0,
@@ -119,7 +119,7 @@ impl StateCalc {
         ty: AssignmentType,
         idx: Reg16,
     ) -> Result<Option<rgb::State>, StateCalcError> {
-        let Some(value) = self.vm.registers.get_s(RegS::from(u4::from(idx))) else {
+        let Some(data) = self.vm.registers.get_s(RegS::from(u4::from(idx))) else {
             return Ok(None);
         };
         let reserved = self
@@ -138,7 +138,7 @@ impl StateCalc {
         }
         Ok(Some(rgb::State {
             reserved: none!(),
-            value: StateData::from_checked(value.to_vec()),
+            data: StateData::from_checked(data.to_vec()),
             attach,
         }))
     }

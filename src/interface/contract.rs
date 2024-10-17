@@ -23,10 +23,10 @@ use std::borrow::Borrow;
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 use amplify::confinement;
-use amplify::confinement::SmallBlob;
 use rgb::validation::Scripts;
 use rgb::{
-    AssignmentType, AttachId, ContractId, OpId, Opout, Schema, State, XOutputSeal, XWitnessId,
+    AssignmentType, AttachId, ContractId, OpId, Opout, Schema, State, StateData, XOutputSeal,
+    XWitnessId,
 };
 use strict_encoding::{FieldName, SerializeError, StrictSerialize};
 use strict_types::{typify, SemId, StrictVal, TypeSystem};
@@ -155,33 +155,52 @@ impl<S: ContractStateRead> ContractIface<S> {
             .sem_id
     }
 
-    fn assignment_value(&self, ty: AssignmentType, value: &SmallBlob) -> StrictVal {
-        self.types
-            .strict_deserialize_type(self.assignment_sem_id(ty), value.as_slice())
-            .expect("invalid contract state")
-            .unbox()
-    }
-
     fn allocation_to_output(&self, a: &Allocation) -> Output {
         Output {
             opout: a.opout,
             seal: a.seal,
-            state: self.assignment_value(a.opout.ty, &a.state.value),
+            state: self.value_from_state_raw(a.opout.ty, &a.state),
             attach_id: a.state.attach,
             witness: a.witness,
         }
     }
 
-    fn state_convert(
+    pub fn value_from_state_raw(&self, ty: AssignmentType, state: &State) -> StrictVal {
+        self.types
+            .strict_deserialize_type(self.assignment_sem_id(ty), state.data.as_slice())
+            .expect("invalid contract state")
+            .unbox()
+    }
+
+    pub fn value_from_state(
+        &self,
+        name: impl Into<FieldName>,
+        state: &State,
+    ) -> Result<StrictVal, ContractError> {
+        let type_id = self.assignment_type(name)?;
+        Ok(self.value_from_state_raw(type_id, state))
+    }
+
+    pub fn value_to_state_raw(
         &self,
         ty: AssignmentType,
         value: StrictVal,
-    ) -> Result<SmallBlob, ContractError> {
+    ) -> Result<StateData, ContractError> {
         let t = self.types.typify(value, self.assignment_sem_id(ty))?;
-        Ok(self
+        let value = self
             .types
             .strict_serialize_type::<{ confinement::U16 }>(&t)?
-            .to_strict_serialized()?)
+            .to_strict_serialized()?;
+        Ok(value.into())
+    }
+
+    pub fn value_to_state(
+        &self,
+        name: impl Into<FieldName>,
+        value: StrictVal,
+    ) -> Result<StateData, ContractError> {
+        let type_id = self.assignment_type(name)?;
+        self.value_to_state_raw(type_id, value)
     }
 
     pub fn contract_id(&self) -> ContractId { self.state.contract_id() }
@@ -248,9 +267,8 @@ impl<S: ContractStateRead> ContractIface<S> {
         &'c self,
         name: impl Into<FieldName>,
         filter: impl AssignmentsFilter + 'c,
-        value: StrictVal,
-        attach: Option<AttachId>,
         sorting: impl FnMut(&&Allocation) -> K,
+        state: &'c State,
     ) -> Result<impl Iterator<Item = Output> + 'c, ContractError> {
         let type_id = self.assignment_type(name)?;
         let mut selected = self
@@ -259,18 +277,13 @@ impl<S: ContractStateRead> ContractIface<S> {
             .collect::<Vec<_>>();
         selected.sort_by_key(sorting);
         let mut calc = StateCalc::new(self.scripts.clone(), self.iface.state_abi);
-        let state = State {
-            reserved: none!(),
-            value: self.state_convert(type_id, value)?.into(),
-            attach,
-        };
         Ok(selected
             .into_iter()
             .take_while(move |a| {
                 if calc.reg_input(a.opout.ty, &a.state).is_err() {
                     return false;
                 }
-                calc.is_sufficient_for(a.opout.ty, &state)
+                calc.is_sufficient_for(a.opout.ty, state)
             })
             .map(|a| self.allocation_to_output(a)))
     }
@@ -314,7 +327,7 @@ impl<S: ContractStateRead> ContractIface<S> {
         // add allocations with no witness to the beginning of the history
         if let Some(genesis_state) = allocations_our_outpoint.remove(&None) {
             for assignment in genesis_state {
-                let value = self.assignment_value(assignment.opout.ty, &assignment.state.value);
+                let value = self.value_from_state_raw(assignment.opout.ty, &assignment.state);
                 ops.push(ContractOp::issued(assignment, value))
             }
         }
@@ -340,7 +353,7 @@ impl<S: ContractStateRead> ContractIface<S> {
                     }
                     for assignment in ext_assignments {
                         let value =
-                            self.assignment_value(assignment.opout.ty, &assignment.state.value);
+                            self.value_from_state_raw(assignment.opout.ty, &assignment.state);
                         ops.push(ContractOp::sent(assignment, value, witness_info))
                     }
                 }
@@ -348,7 +361,7 @@ impl<S: ContractStateRead> ContractIface<S> {
                 (None, Some(ext_assignments)) => {
                     for assignment in ext_assignments {
                         let value =
-                            self.assignment_value(assignment.opout.ty, &assignment.state.value);
+                            self.value_from_state_raw(assignment.opout.ty, &assignment.state);
                         ops.push(ContractOp::sent(assignment, value, witness_info))
                     }
                 }
@@ -357,7 +370,7 @@ impl<S: ContractStateRead> ContractIface<S> {
                 (Some(our_assignments), None) => {
                     for assignment in our_assignments {
                         let value =
-                            self.assignment_value(assignment.opout.ty, &assignment.state.value);
+                            self.value_from_state_raw(assignment.opout.ty, &assignment.state);
                         ops.push(ContractOp::received(assignment, value, witness_info))
                     }
                 }

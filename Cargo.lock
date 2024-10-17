@@ -674,7 +674,7 @@ dependencies = [
 [[package]]
 name = "rgb-core"
 version = "0.11.0-beta.9"
-source = "git+https://github.com/RGB-WG/rgb-core?branch=feat/fungible-nonconf#8267ce26b1edf905553a49e5dcc42d5f2f0df338"
+source = "git+https://github.com/RGB-WG/rgb-core?branch=feat/fungible-nonconf#75424505e4f24df90d9ee1d284c4ee25103c185b"
 dependencies = [
  "aluvm",
  "amplify",

@@ -37,11 +37,11 @@ pub const LIB_NAME_RGB_STORAGE: &str = "RGBStorage";
 /// Strict types id for the library providing standard data types which may be
 /// used in RGB smart contracts.
 pub const LIB_ID_RGB_STORAGE: &str =
-    "stl:lnl6QOG0-EYfOLKP-MHdEyA3-$cyUNuc-F3XmU!W-0glc1M0#alaska-phone-bagel";
+    "stl:dYzM3Ct9-SJ8PljY-C!6hB6y-VlWvDE7-DAtNg3y-zanf6hE#media-fresh-cadet";
 
 /// Strict types id for the library representing of RGB StdLib data types.
 pub const LIB_ID_RGB_STD: &str =
-    "stl:yMGmidPl-LcWFyh!-W6sQ3K5-JQ8evpO-BGuI!lA-0htx!kg#chemist-enjoy-sound";
+    "stl:3QsSNDHr-YPIKTR9-5O!fLuv-xhcxKT2-0LWrO9b-pG15Nvw#mango-inside-shelf";
 
 #[allow(dead_code)]
 #[derive(Debug, From)]
