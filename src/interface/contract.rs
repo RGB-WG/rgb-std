@@ -22,12 +22,14 @@
 use std::borrow::Borrow;
 use std::collections::{BTreeSet, HashMap, HashSet};
 
+use amplify::confinement::SmallBlob;
+use amplify::Wrapper;
 use rgb::validation::Scripts;
 use rgb::{
     AssignmentType, AttachId, ContractId, OpId, Opout, Schema, State, StateData, XOutputSeal,
     XWitnessId, STATE_DATA_MAX_LEN,
 };
-use strict_encoding::{FieldName, SerializeError};
+use strict_encoding::{FieldName, SerializeError, StrictDeserialize};
 use strict_types::{typify, SemId, StrictVal, TypeSystem};
 
 use crate::contract::{Allocation, WitnessInfo};
@@ -58,12 +60,25 @@ pub enum ContractError {
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-pub struct Output {
+pub struct Output<T = StrictVal> {
     pub opout: Opout,
     pub seal: XOutputSeal,
-    pub state: StrictVal,
+    pub state: T,
     pub attach_id: Option<AttachId>,
     pub witness: Option<XWitnessId>,
+}
+
+impl<T: StrictDeserialize> From<Allocation> for Output<T> {
+    fn from(a: Allocation) -> Self {
+        Output {
+            opout: a.opout,
+            seal: a.seal,
+            state: T::from_strict_serialized(a.state.data.to_inner())
+                .expect("data in stash are not valid"),
+            attach_id: a.state.attach,
+            witness: a.witness,
+        }
+    }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display)]
@@ -205,8 +220,7 @@ impl<S: ContractStateRead> ContractIface<S> {
 
     /// # Panics
     ///
-    /// If data are corrupted and contract schema doesn't match interface
-    /// implementations.
+    /// If data are corrupted and contract schema doesn't match interface implementations.
     pub fn global(
         &self,
         name: impl Into<FieldName>,
@@ -227,9 +241,31 @@ impl<S: ContractStateRead> ContractIface<S> {
             .expect("schema doesn't match interface")
             .map(|data| {
                 self.types
-                    .strict_deserialize_type(global_schema.sem_id, data.borrow().as_slice())
+                    .strict_deserialize_type(global_schema.sem_id, data.borrow())
                     .expect("unvalidated contract data in stash")
                     .unbox()
+            }))
+    }
+
+    /// # Panics
+    ///
+    /// If data are corrupted and contract schema doesn't match interface implementations.
+    pub fn global_typed<T: StrictDeserialize>(
+        &self,
+        name: impl Into<FieldName>,
+    ) -> Result<impl Iterator<Item = T> + '_, ContractError> {
+        let name = name.into();
+        let type_id = self
+            .iface
+            .global_type(&name)
+            .ok_or(ContractError::FieldNameUnknown(name))?;
+        Ok(self
+            .state
+            .global(type_id)
+            .expect("schema doesn't match interface")
+            .map(|data| {
+                let data = SmallBlob::from_slice_checked(data.borrow());
+                T::from_strict_serialized(data).expect("unvalidated contract data in stash")
             }))
     }
 
@@ -284,6 +320,19 @@ impl<S: ContractStateRead> ContractIface<S> {
                 calc.is_sufficient_for(a.opout.ty, state)
             })
             .map(|a| self.allocation_to_output(a)))
+    }
+
+    pub fn outputs_typed<'c, T: StrictDeserialize + 'c>(
+        &'c self,
+        name: impl Into<FieldName>,
+        filter: impl AssignmentsFilter + 'c,
+    ) -> Result<impl Iterator<Item = Output<T>> + 'c, ContractError> {
+        let type_id = self.assignment_type(name)?;
+        Ok(self
+            .allocations(filter)
+            .filter(move |a| a.opout.ty == type_id)
+            .cloned()
+            .map(Output::from))
     }
 
     pub fn history(
