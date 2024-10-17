@@ -252,6 +252,16 @@ impl ContractBuilder {
         Ok(self)
     }
 
+    pub fn add_rights(
+        mut self,
+        name: impl Into<FieldName>,
+        seal: impl Into<BuilderSeal<GenesisSeal>>,
+        attach: Option<AttachId>,
+    ) -> Result<Self, BuilderError> {
+        self.builder = self.builder.add_rights(name, seal, attach)?;
+        Ok(self)
+    }
+
     pub fn add_owned_state(
         mut self,
         name: impl Into<FieldName>,
@@ -513,6 +523,16 @@ impl TransitionBuilder {
         Ok(self)
     }
 
+    pub fn add_rights(
+        mut self,
+        name: impl Into<FieldName>,
+        seal: impl Into<BuilderSeal<GraphSeal>>,
+        attach: Option<AttachId>,
+    ) -> Result<Self, BuilderError> {
+        self.builder = self.builder.add_rights(name, seal, attach)?;
+        Ok(self)
+    }
+
     pub fn fulfill_owned_state(
         mut self,
         type_id: AssignmentType,
@@ -756,6 +776,18 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             }
         }
         Ok(self)
+    }
+
+    fn add_rights(
+        self,
+        name: impl Into<FieldName>,
+        seal: impl Into<BuilderSeal<Seal>>,
+        attach: Option<AttachId>,
+    ) -> Result<Self, BuilderError> {
+        let type_id = self.assignments_type(name)?;
+        let mut state = State::default();
+        state.attach = attach;
+        self.add_owned_state_raw(type_id, seal, state)
     }
 
     fn add_owned_state(
