@@ -21,11 +21,10 @@
 
 use std::str::FromStr;
 
-use rgb::{AttachId, ContractId, State, StateData};
-use strict_encoding::{FieldName, StrictSerialize, TypeName};
+use rgb::{ContractId, StateData};
+use strict_encoding::{FieldName, SerializeError, StrictSerialize, TypeName};
 
-use crate::invoice::{Beneficiary, InvoiceState, RgbInvoice, RgbTransport, XChainNet};
-use crate::TransportParseError;
+use crate::{Beneficiary, RgbInvoice, RgbTransport, TransportParseError, XChainNet};
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct RgbInvoiceBuilder(RgbInvoice);
@@ -40,7 +39,7 @@ impl RgbInvoiceBuilder {
             operation: None,
             assignment: None,
             beneficiary: beneficiary.into(),
-            owned_state: InvoiceState::Any,
+            state: None,
             expiry: None,
             unknown_query: none!(),
         })
@@ -72,106 +71,26 @@ impl RgbInvoiceBuilder {
         self
     }
 
-    /// Set the invoiced state, which includes both state data and an optional attachment
-    /// information.
-    ///
-    /// # Panics
-    ///
-    /// If any state information or attachment requirements are already present in the invoice.
-    ///
-    /// # See also
-    ///
-    /// - [`Self::add_state_data`], adding just state data information, not affecting attachment
-    ///   requirements;
-    /// - [`Self::serialize_state_data`], for adding state data by serializing them from a state
-    ///   object;
-    /// - [`Self::add_attachment`], for adding attachment requirement to an existing invoiced state
-    ///   information.
-    pub fn set_state(mut self, state: State) -> Self {
-        if !self.0.owned_state.is_any() {
-            panic!("invoice already has state information");
-        }
-        self.0.owned_state = InvoiceState::Specific(state);
-        self
-    }
-
     /// Add state data to the invoice.
     ///
-    /// NB: This keeps existing attachment requirements.
-    ///
-    /// # Panics
-    ///
-    /// If the invoice already have any state information (excluding attachment requirements).
-    ///
-    /// # See also
-    ///
-    /// - [`Self::set_state`], for redefining the whole of the invoiced state, including attachment
-    ///   requirements;
-    /// - [`Self::serialize_state_data`], for adding state data by serializing them from a state
-    ///   object;
-    /// - [`Self::add_attachment`], for adding attachment requirement to an existing invoiced state
-    ///   information.
-    pub fn add_state_data(mut self, data: StateData) -> Self {
-        self.0.owned_state = match self.0.owned_state {
-            InvoiceState::Any => InvoiceState::Specific(State::from(data)),
-            InvoiceState::Specific(_) => panic!("invoice already has state information"),
-            InvoiceState::Attach(attach_id) => InvoiceState::Specific(State::with(data, attach_id)),
-        };
+    /// See also [`Self::serialize_state_data`], which adds state data by serializing them from a
+    /// state object.
+    pub fn set_state(mut self, data: StateData) -> Self {
+        self.0.state = Some(data);
         self
     }
 
     /// Add state data to the invoice by strict-serializing the provided object.
     ///
-    /// NB: This keeps existing attachment requirements.
-    ///
     /// Use the function carefully, since the common pitfall here is to perform double serialization
     /// of an already serialized data type, like `SmallBlob`. This produces an invalid state object
-    /// which can't be properly parsed later.
-    ///
-    /// # Panics
-    ///
-    /// If the invoice already has any state information (excluding attachment requirements).
-    ///
-    /// # See also
-    ///
-    /// - [`Self::set_state`], for redefining the whole of the invoiced state, including attachment
-    ///   requirements;
-    /// - [`Self::add_state_data`], adding just state data information, not affecting attachment
-    ///   requirements;
-    /// - [`Self::add_attachment`], for adding attachment requirement to an existing invoiced state
-    ///   information.
-    pub fn serialize_state_data(mut self, data: impl StrictSerialize) -> Self {
-        self.0.owned_state = InvoiceState::Specific(State::from_serialized(data));
-        self
-    }
-
-    /// Add attachment requirements to an invoice, keeping the rest of the invoice state information
-    /// unchanged.
-    ///
-    /// # Panics
-    ///
-    /// If the invoice already has attachment requirements defined.
-    ///
-    /// # See also
-    ///
-    /// - [`Self::set_state`], for redefining the whole of the invoiced state, including attachment
-    ///   requirements;
-    /// - [`Self::add_state_data`], adding just state data information, not affecting attachment
-    ///   requirements;
-    /// - [`Self::serialize_state_data`], for adding state data by serializing them from a state
-    ///   object;
-    pub fn add_attachment(mut self, attach_id: AttachId) -> Result<Self, Self> {
-        self.0.owned_state = match self.0.owned_state {
-            InvoiceState::Any => InvoiceState::Attach(attach_id),
-            InvoiceState::Attach(_)
-            | InvoiceState::Specific(State {
-                attach: Some(_), ..
-            }) => panic!("invoice already has attachment requirements"),
-            InvoiceState::Specific(mut state) => {
-                state.attach = Some(attach_id);
-                InvoiceState::Specific(state)
-            }
-        };
+    /// which can't be properly parsed later. See also [`Self::set_state`], which sets state data
+    /// directly with no serialization.
+    pub fn serialize_state_data(
+        mut self,
+        data: &impl StrictSerialize,
+    ) -> Result<Self, SerializeError> {
+        self.0.state = Some(StateData::from_serialized(data)?);
         Ok(self)
     }
 

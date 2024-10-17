@@ -885,7 +885,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     #[allow(clippy::result_large_err)]
     pub fn compose(
         &self,
-        invoice: &RgbInvoice,
+        invoice: RgbInvoice,
         prev_outputs: impl IntoIterator<Item = impl Into<XOutputSeal>>,
         method: CloseMethod,
         beneficiary_vout: Option<impl Into<Vout>>,
@@ -908,7 +908,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     #[allow(clippy::too_many_arguments, clippy::result_large_err)]
     pub fn compose_deterministic(
         &self,
-        invoice: &RgbInvoice,
+        invoice: RgbInvoice,
         prev_outputs: impl IntoIterator<Item = impl Into<XOutputSeal>>,
         method: CloseMethod,
         beneficiary_vout: Option<impl Into<Vout>>,
@@ -917,11 +917,8 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         seal_blinder: impl Fn(ContractId, AssignmentType) -> u64,
     ) -> Result<Batch, StockError<S, H, P, ComposeError>> {
         let layer1 = invoice.layer1();
-        let invoice_state = invoice
-            .owned_state
-            .state()
-            .ok_or(ComposeError::NoInvoiceState)?
-            .clone();
+        let state_data = invoice.state.ok_or(ComposeError::NoInvoiceState)?;
+        let state = rgb::State::from(state_data); // TODO: Take account attachements when they will be supported by invoices
         let prev_outputs = prev_outputs
             .into_iter()
             .map(|o| o.into())
@@ -970,9 +967,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             .or_else(|| main_builder.default_assignment().ok())
             .ok_or(BuilderError::NoDefaultAssignment)?
             .clone();
-        let assignment_id = main_builder
-            .assignments_type(&assignment_name)
-            .ok_or(BuilderError::InvalidStateField(assignment_name.clone()))?;
+        let assignment_id = main_builder.assignments_type(assignment_name)?;
 
         // If there are inputs which are using different seal closing method from our
         // wallet (and thus main state transition) we need to put them aside and
@@ -1019,9 +1014,9 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
                 if opout.ty != assignment_id {
                     let seal = output_for_assignment(contract_id, opout.ty)?;
                     if output.method() == method {
-                        main_builder = main_builder.add_owned_state_raw(opout.ty, seal, state)?;
+                        main_builder = main_builder.add_owned_state_blank(opout.ty, seal, state)?;
                     } else {
-                        alt_builder = alt_builder.add_owned_state_raw(opout.ty, seal, state)?;
+                        alt_builder = alt_builder.add_owned_state_blank(opout.ty, seal, state)?;
                     }
                 }
             }
@@ -1029,7 +1024,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
         // Add payments to beneficiary
         let (builder, partial_state) =
-            main_builder.fulfill_owned_state(assignment_id, beneficiary, invoice_state)?;
+            main_builder.fulfill_owned_state(assignment_id, beneficiary, state)?;
         main_builder = builder;
         if let Some(partial_state) = partial_state {
             let (builder, remaining_state) =
@@ -1080,12 +1075,12 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
                         Method::TapretFirst => {
                             blank_builder_tapret = blank_builder_tapret
                                 .add_input(opout, state.clone())?
-                                .add_owned_state_raw(opout.ty, seal, state)?
+                                .add_owned_state_blank(opout.ty, seal, state)?
                         }
                         Method::OpretFirst => {
                             blank_builder_opret = blank_builder_opret
                                 .add_input(opout, state.clone())?
-                                .add_owned_state_raw(opout.ty, seal, state)?
+                                .add_owned_state_blank(opout.ty, seal, state)?
                         }
                     }
                 }

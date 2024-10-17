@@ -17,7 +17,6 @@ name = "rgbinvoice"
 
 [dependencies]
 amplify = { workspace = true }
-base58 = "0.2.0"
 baid64 = { workspace = true }
 strict_encoding = { workspace = true }
 bp-core = { workspace = true }

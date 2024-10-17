@@ -27,13 +27,14 @@ use amplify::confinement::{self, Confined, SmallOrdSet, TinyOrdMap};
 use chrono::Utc;
 use rgb::validation::Scripts;
 use rgb::{
-    validation, AltLayer1, AltLayer1Set, AssignmentType, Assignments, ContractId, ExposedSeal,
-    Genesis, GenesisSeal, GlobalState, GraphSeal, Identity, Input, Layer1, MetadataError, Opout,
-    Schema, State, Transition, TransitionType, TypedAssigns, XChain, XOutpoint,
+    validation, AltLayer1, AltLayer1Set, AssignmentType, Assignments, AttachId, ContractId,
+    ExposedSeal, Genesis, GenesisSeal, GlobalState, GraphSeal, Identity, Input, Layer1,
+    MetadataError, Opout, Schema, State, StateData, Transition, TransitionType, TypedAssigns,
+    XChain, XOutpoint,
 };
 use rgbcore::{GlobalStateSchema, GlobalStateType, MetaType, Metadata, ValencyType};
 use strict_encoding::{FieldName, SerializeError, StrictSerialize};
-use strict_types::{decode, SemId, TypeSystem};
+use strict_types::{decode, typify, SemId, StrictVal, TypeSystem};
 
 use crate::containers::{BuilderSeal, ContainerVer, Contract, ValidConsignment};
 use crate::interface::resolver::DumbResolver;
@@ -59,14 +60,11 @@ pub enum BuilderError {
     /// assignment `{0}` is not known to the schema.
     AssignmentNotFound(FieldName),
 
+    /// valency `{0}` is not known to the schema.
+    ValencyNotFound(FieldName),
+
     /// transition `{0}` is not known to the schema.
     TransitionNotFound(FieldName),
-
-    /// unknown owned state name `{0}`.
-    InvalidStateField(FieldName),
-
-    /// state `{0}` provided to the builder has invalid type.
-    InvalidStateType(AssignmentType),
 
     /// interface doesn't specify default operation name, thus an explicit
     /// operation type must be provided with `set_operation_type` method.
@@ -89,6 +87,10 @@ pub enum BuilderError {
     #[from]
     #[display(inner)]
     Reify(decode::Error),
+
+    #[from]
+    #[display(inner)]
+    Typify(typify::Error),
 
     #[from]
     #[display(inner)]
@@ -179,22 +181,27 @@ impl ContractBuilder {
     }
 
     #[inline]
-    pub fn global_type(&self, name: &FieldName) -> Option<GlobalStateType> {
+    pub fn meta_type(&self, name: impl Into<FieldName>) -> Result<MetaType, BuilderError> {
+        self.builder.meta_type(name)
+    }
+
+    #[inline]
+    pub fn global_type(&self, name: impl Into<FieldName>) -> Result<GlobalStateType, BuilderError> {
         self.builder.global_type(name)
     }
 
     #[inline]
-    pub fn valency_type(&self, name: &FieldName) -> Option<ValencyType> {
+    pub fn valency_type(&self, name: impl Into<FieldName>) -> Result<ValencyType, BuilderError> {
         self.builder.valency_type(name)
     }
+
+    #[inline]
+    pub fn meta_name(&self, type_id: MetaType) -> &FieldName { self.builder.meta_name(type_id) }
 
     #[inline]
     pub fn valency_name(&self, type_id: ValencyType) -> &FieldName {
         self.builder.valency_name(type_id)
     }
-
-    #[inline]
-    pub fn meta_name(&self, type_id: MetaType) -> &FieldName { self.builder.meta_name(type_id) }
 
     #[inline]
     pub fn add_metadata(
@@ -232,11 +239,27 @@ impl ContractBuilder {
         mut self,
         name: impl Into<FieldName>,
         seal: impl Into<BuilderSeal<GenesisSeal>>,
-        value: impl StrictSerialize,
+        state: StrictVal,
+        attach: Option<AttachId>,
     ) -> Result<Self, BuilderError> {
         let seal = seal.into();
         self.check_layer1(seal.layer1())?;
-        self.builder = self.builder.add_owned_state(name, seal, value)?;
+        self.builder = self.builder.add_owned_state(name, seal, state, attach)?;
+        Ok(self)
+    }
+
+    pub fn serialize_owned_state(
+        mut self,
+        name: impl Into<FieldName>,
+        seal: impl Into<BuilderSeal<GenesisSeal>>,
+        value: &impl StrictSerialize,
+        attach: Option<AttachId>,
+    ) -> Result<Self, BuilderError> {
+        let seal = seal.into();
+        self.check_layer1(seal.layer1())?;
+        self.builder = self
+            .builder
+            .serialize_owned_state(name, seal, value, attach)?;
         Ok(self)
     }
 
@@ -419,17 +442,20 @@ impl TransitionBuilder {
     }
 
     #[inline]
-    pub fn assignments_type(&self, name: &FieldName) -> Option<AssignmentType> {
+    pub fn assignments_type(
+        &self,
+        name: impl Into<FieldName>,
+    ) -> Result<AssignmentType, BuilderError> {
         self.builder.assignments_type(name)
     }
 
     #[inline]
-    pub fn global_type(&self, name: &FieldName) -> Option<GlobalStateType> {
+    pub fn global_type(&self, name: impl Into<FieldName>) -> Result<GlobalStateType, BuilderError> {
         self.builder.global_type(name)
     }
 
     #[inline]
-    pub fn valency_type(&self, name: &FieldName) -> Option<ValencyType> {
+    pub fn valency_type(&self, name: impl Into<FieldName>) -> Result<ValencyType, BuilderError> {
         self.builder.valency_type(name)
     }
 
@@ -440,8 +466,9 @@ impl TransitionBuilder {
 
     pub fn meta_name(&self, type_id: MetaType) -> &FieldName { self.builder.meta_name(type_id) }
 
-    /// NB: Doesn't process the state with VM
-    pub fn add_owned_state_raw(
+    // TODO: We won't need this once we will have Blank Transition builder
+    /// NB: This does not process the state with VM
+    pub fn add_owned_state_blank(
         mut self,
         type_id: AssignmentType,
         seal: impl Into<BuilderSeal<GraphSeal>>,
@@ -546,22 +573,36 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             .expect("internal inconsistency")
     }
 
-    fn assignments_type(&self, name: &FieldName) -> Option<AssignmentType> {
-        self.iimpl.assignments_type(name)
+    fn assignments_type(&self, name: impl Into<FieldName>) -> Result<AssignmentType, BuilderError> {
+        let name = name.into();
+        self.iimpl
+            .assignments_type(&name)
+            .ok_or(BuilderError::AssignmentNotFound(name))
     }
 
-    fn meta_type(&self, name: &FieldName) -> Option<MetaType> { self.iimpl.meta_type(name) }
+    fn meta_type(&self, name: impl Into<FieldName>) -> Result<MetaType, BuilderError> {
+        let name = name.into();
+        self.iimpl
+            .meta_type(&name)
+            .ok_or(BuilderError::MetadataNotFound(name))
+    }
 
     fn meta_name(&self, ty: MetaType) -> &FieldName {
         self.iimpl.meta_name(ty).expect("internal inconsistency")
     }
 
-    fn global_type(&self, name: &FieldName) -> Option<GlobalStateType> {
-        self.iimpl.global_type(name)
+    fn global_type(&self, name: impl Into<FieldName>) -> Result<GlobalStateType, BuilderError> {
+        let name = name.into();
+        self.iimpl
+            .global_type(&name)
+            .ok_or(BuilderError::GlobalNotFound(name))
     }
 
-    fn valency_type(&self, name: &FieldName) -> Option<ValencyType> {
-        self.iimpl.valency_type(name)
+    fn valency_type(&self, name: impl Into<FieldName>) -> Result<ValencyType, BuilderError> {
+        let name = name.into();
+        self.iimpl
+            .valency_type(&name)
+            .ok_or(BuilderError::ValencyNotFound(name))
     }
 
     fn valency_name(&self, ty: ValencyType) -> &FieldName {
@@ -589,13 +630,8 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         name: impl Into<FieldName>,
         value: impl StrictSerialize,
     ) -> Result<Self, BuilderError> {
-        let name = name.into();
+        let type_id = self.meta_type(name)?;
         let serialized = value.to_strict_serialized::<{ u16::MAX as usize }>()?;
-
-        let Some(type_id) = self.meta_type(&name) else {
-            return Err(BuilderError::MetadataNotFound(name));
-        };
-
         let sem_id = self.meta_schema(type_id);
         self.types.strict_deserialize_type(*sem_id, &serialized)?;
         self.meta.add_value(type_id, serialized.into())?;
@@ -607,13 +643,9 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         name: impl Into<FieldName>,
         value: impl StrictSerialize,
     ) -> Result<Self, BuilderError> {
-        let name = name.into();
+        let type_id = self.global_type(name)?;
         let serialized = value.to_strict_serialized::<{ u16::MAX as usize }>()?;
-
         // Check value matches type requirements
-        let Some(type_id) = self.global_type(&name) else {
-            return Err(BuilderError::GlobalNotFound(name));
-        };
         let sem_id = self.global_schema(type_id).sem_id;
         self.types.strict_deserialize_type(sem_id, &serialized)?;
 
@@ -645,15 +677,40 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         self,
         name: impl Into<FieldName>,
         seal: impl Into<BuilderSeal<Seal>>,
-        value: impl StrictSerialize,
+        value: StrictVal,
+        attach: Option<AttachId>,
     ) -> Result<Self, BuilderError> {
-        let name = name.into();
+        let type_id = self.assignments_type(name)?;
 
-        let type_id = self
-            .assignments_type(&name)
-            .ok_or(BuilderError::AssignmentNotFound(name))?;
+        let types = self.type_system();
+        let sem_id = self
+            .schema
+            .owned_types
+            .get(&type_id)
+            .expect("schema-interface inconsistence")
+            .sem_id;
+        let value = types.typify(value, sem_id)?;
+        let data = types
+            .strict_serialize_type::<{ confinement::U16 }>(&value)?
+            .to_strict_serialized()?;
 
-        self.add_owned_state_raw(type_id, seal, State::from_serialized(value))
+        let mut state = State::from(StateData::from(data));
+        state.attach = attach;
+        self.add_owned_state_raw(type_id, seal, state)
+    }
+
+    fn serialize_owned_state(
+        self,
+        name: impl Into<FieldName>,
+        seal: impl Into<BuilderSeal<Seal>>,
+        value: &impl StrictSerialize,
+        attach: Option<AttachId>,
+    ) -> Result<Self, BuilderError> {
+        let type_id = self.assignments_type(name)?;
+
+        let mut state = State::from_serialized(value)?;
+        state.attach = attach;
+        self.add_owned_state_raw(type_id, seal, state)
     }
 
     fn complete(self) -> (Schema, Iface, IfaceImpl, GlobalState, Assignments<Seal>, TypeSystem) {

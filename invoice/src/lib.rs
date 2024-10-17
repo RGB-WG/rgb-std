@@ -37,6 +37,5 @@ pub use builder::RgbInvoiceBuilder;
 pub use parse::{InvoiceParseError, TransportParseError};
 
 pub use crate::invoice::{
-    Beneficiary, ChainNet, InvoiceState, Pay2Vout, Pay2VoutError, RgbInvoice, RgbTransport,
-    XChainNet,
+    Beneficiary, ChainNet, Pay2Vout, Pay2VoutError, RgbInvoice, RgbTransport, XChainNet,
 };
