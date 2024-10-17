@@ -304,7 +304,15 @@ impl<P: StashProvider> Stash<P> {
         Ok(Scripts::from_checked(scripts))
     }
 
-    pub(super) fn extract<'a>(
+    pub(super) fn type_system(&self, iface: &Iface) -> Result<TypeSystem, StashError<P>> {
+        Ok(self
+            .provider
+            .type_system()
+            .map_err(StashError::ReadProvider)?
+            .extract(iface.types())?)
+    }
+
+    pub(super) fn types_scripts<'a>(
         &self,
         schema: &Schema,
         ifaces: impl IntoIterator<Item = &'a Iface>,
@@ -344,7 +352,7 @@ impl<P: StashProvider> Stash<P> {
             .get(iface_id)
             .ok_or(StashDataError::NoIfaceImpl(schema_id, iface_id))?;
 
-        let (types, scripts) = self.extract(&schema_ifaces.schema, [iface])?;
+        let (types, scripts) = self.types_scripts(&schema_ifaces.schema, [iface])?;
 
         let builder = ContractBuilder::with(
             issuer,
@@ -370,7 +378,7 @@ impl<P: StashProvider> Stash<P> {
             .get(iface.iface_id())
             .ok_or(StashDataError::NoIfaceImpl(schema.schema_id(), iface.iface_id()))?;
 
-        let (types, _) = self.extract(&schema_ifaces.schema, [iface])?;
+        let types = self.type_system(iface)?;
         let scripts = self.scripts(iimpl.state_abi.lib_ids())?;
 
         let builder = if let Some(transition_name) = transition_name {
@@ -409,7 +417,7 @@ impl<P: StashProvider> Stash<P> {
         if schema_ifaces.iimpls.is_empty() {
             return Err(StashDataError::NoIfaceImpl(schema.schema_id(), iface.iface_id()).into());
         }
-        let (types, _) = self.extract(&schema_ifaces.schema, [iface])?;
+        let types = self.type_system(iface)?;
 
         let builder = if let Some(iimpl) = schema_ifaces.get(iface.iface_id()) {
             TransitionBuilder::blank_transition(

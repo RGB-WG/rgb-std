@@ -39,6 +39,7 @@ use rgb::{
     SchemaId, SecretSeal, Transition, TxoSeal, XChain, XOutpoint, XOutputSeal, XWitnessId,
 };
 use strict_encoding::FieldName;
+use strict_types::TypeSystem;
 
 use super::{
     ContractStateRead, Index, IndexError, IndexInconsistency, IndexProvider, IndexReadProvider,
@@ -494,6 +495,9 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     pub fn iface(&self, iface: impl Into<IfaceRef>) -> Result<&Iface, StockError<S, H, P>> {
         Ok(self.stash.iface(iface)?)
     }
+    pub fn type_system(&self, iface: &Iface) -> Result<TypeSystem, StockError<S, H, P>> {
+        Ok(self.stash.type_system(iface)?)
+    }
     pub fn schemata(&self) -> Result<impl Iterator<Item = SchemaInfo> + '_, StockError<S, H, P>> {
         Ok(self.stash.schemata()?.map(SchemaInfo::with))
     }
@@ -573,7 +577,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         let iimpl = self.stash.impl_for::<C>(schema_ifaces)?;
 
         let iface = self.stash.iface(iimpl.iface_id)?;
-        let (types, _) = self.stash.extract(&schema_ifaces.schema, [iface])?;
+        let types = self.stash.type_system(iface)?;
 
         Ok(C::Wrapper::with(ContractIface {
             state,
@@ -599,7 +603,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             ContractIfaceError::NoAbstractImpl(iface_id, schema_ifaces.schema.schema_id())
         })?;
 
-        let (types, _) = self.stash.extract(&schema_ifaces.schema, [iface])?;
+        let types = self.stash.type_system(iface)?;
 
         Ok(ContractIface {
             state,
@@ -678,7 +682,9 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         kit.iimpls
             .extend(schema_ifaces.iimpls.values().cloned())
             .expect("type guarantees");
-        let (types, scripts) = self.stash.extract(&schema_ifaces.schema, &kit.ifaces)?;
+        let (types, scripts) = self
+            .stash
+            .types_scripts(&schema_ifaces.schema, &kit.ifaces)?;
         kit.scripts
             .extend(scripts.into_values())
             .expect("type guarantees");
@@ -843,7 +849,9 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         let terminals =
             Confined::try_from(terminals).map_err(|_| ConsignError::TooManyTerminals)?;
 
-        let (types, scripts) = self.stash.extract(&schema_ifaces.schema, ifaces.keys())?;
+        let (types, scripts) = self
+            .stash
+            .types_scripts(&schema_ifaces.schema, ifaces.keys())?;
         let scripts = Confined::from_iter_checked(scripts.into_values());
         let supplements =
             Confined::try_from(supplements).map_err(|_| ConsignError::TooManySupplements)?;
