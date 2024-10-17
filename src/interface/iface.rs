@@ -208,24 +208,57 @@ pub struct AssignIface {
 }
 
 impl AssignIface {
-    pub fn public(state_ty: Option<SemId>, attach: Option<bool>, req: Req) -> Self {
+    pub fn optional() -> Self {
         AssignIface {
-            state_ty,
-            attach,
-            public: true,
-            required: req.is_required(),
-            multiple: req.is_multiple(),
+            state_ty: None,
+            attach: None,
+            public: false,
+            required: false,
+            multiple: false,
         }
     }
-
-    pub fn private(state_ty: Option<SemId>, attach: Option<bool>, req: Req) -> Self {
+    pub fn required() -> Self {
         AssignIface {
-            state_ty,
-            attach,
+            state_ty: None,
+            attach: None,
             public: false,
-            required: req.is_required(),
-            multiple: req.is_multiple(),
+            required: true,
+            multiple: false,
         }
+    }
+    pub fn none_or_many() -> Self {
+        AssignIface {
+            state_ty: None,
+            attach: None,
+            public: false,
+            required: false,
+            multiple: true,
+        }
+    }
+    pub fn one_or_many() -> Self {
+        AssignIface {
+            state_ty: None,
+            attach: None,
+            public: false,
+            required: true,
+            multiple: true,
+        }
+    }
+    pub fn public(mut self) -> Self {
+        self.public = true;
+        self
+    }
+    pub fn rights(mut self) -> Self {
+        self.state_ty = Some(SemId::default());
+        self
+    }
+    pub fn typed(mut self, sem_id: SemId) -> Self {
+        self.state_ty = Some(sem_id);
+        self
+    }
+    pub fn attachments(mut self, require: bool) -> Self {
+        self.attach = Some(require);
+        self
     }
 }
 
