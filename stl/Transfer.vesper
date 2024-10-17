@@ -540,13 +540,8 @@ Consignmenttrue rec
       assignments map len=0..MAX8
         key ascii aka=FieldName first=AlphaSmallLodash rest=AlphaNumLodash len=1..100
         value rec AssignIface
-          ownedState union OwnedIface
-            any is Unit tag=0
-            rights is Unit tag=1
-            amount is Unit tag=2
-            anyData is Unit tag=3
-            anyAttach is Unit tag=4
-            data bytes len=32 wrapped aka=SemId tag=5
+          some bytes len=32 option wrapped aka=SemId tag=1
+            some enum Bool option wrapped false=0 true=1 tag=1
           public enum Bool false=0 true=1
           required enum Bool false=0 true=1
           multiple enum Bool false=0 true=1
