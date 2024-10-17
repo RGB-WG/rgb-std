@@ -28,11 +28,10 @@ use chrono::Utc;
 use rgb::validation::Scripts;
 use rgb::{
     validation, AltLayer1, AltLayer1Set, AssignmentType, Assignments, AttachId, ContractId,
-    ExposedSeal, Genesis, GenesisSeal, GlobalState, GraphSeal, Identity, Input, Layer1,
-    MetadataError, Opout, Schema, State, StateData, Transition, TransitionType, TypedAssigns,
-    XChain, XOutpoint,
+    ExposedSeal, Genesis, GenesisSeal, GlobalState, GlobalStateSchema, GlobalStateType, GraphSeal,
+    Identity, Input, Layer1, MetaType, Metadata, MetadataError, Opout, Schema, State, StateData,
+    Transition, TransitionType, TypedAssigns, ValencyType, XChain, XOutpoint, STATE_DATA_MAX_LEN,
 };
-use rgbcore::{GlobalStateSchema, GlobalStateType, MetaType, Metadata, ValencyType};
 use strict_encoding::{FieldName, SerializeError, StrictSerialize};
 use strict_types::{decode, typify, SemId, StrictVal, TypeSystem};
 
@@ -203,23 +202,41 @@ impl ContractBuilder {
         self.builder.valency_name(type_id)
     }
 
-    #[inline]
     pub fn add_metadata(
         mut self,
         name: impl Into<FieldName>,
-        value: impl StrictSerialize,
+        value: StrictVal,
     ) -> Result<Self, BuilderError> {
         self.builder = self.builder.add_metadata(name, value)?;
         Ok(self)
     }
 
     #[inline]
+    pub fn serialize_metadata(
+        mut self,
+        name: impl Into<FieldName>,
+        value: &impl StrictSerialize,
+    ) -> Result<Self, BuilderError> {
+        self.builder = self.builder.serialize_metadata(name, value)?;
+        Ok(self)
+    }
+
     pub fn add_global_state(
         mut self,
         name: impl Into<FieldName>,
-        value: impl StrictSerialize,
+        value: StrictVal,
     ) -> Result<Self, BuilderError> {
         self.builder = self.builder.add_global_state(name, value)?;
+        Ok(self)
+    }
+
+    #[inline]
+    pub fn serialize_global_state(
+        mut self,
+        name: impl Into<FieldName>,
+        value: &impl StrictSerialize,
+    ) -> Result<Self, BuilderError> {
+        self.builder = self.builder.serialize_global_state(name, value)?;
         Ok(self)
     }
 
@@ -400,45 +417,9 @@ impl TransitionBuilder {
 
     pub fn transition_type(&self) -> TransitionType { self.transition_type }
 
-    pub fn set_nonce(mut self, nonce: u64) -> Self {
-        self.nonce = nonce;
-        self
-    }
-
     #[inline]
-    pub fn add_metadata(
-        mut self,
-        name: impl Into<FieldName>,
-        value: impl StrictSerialize,
-    ) -> Result<Self, BuilderError> {
-        self.builder = self.builder.add_metadata(name, value)?;
-        Ok(self)
-    }
-
-    #[inline]
-    pub fn add_global_state(
-        mut self,
-        name: impl Into<FieldName>,
-        value: impl StrictSerialize,
-    ) -> Result<Self, BuilderError> {
-        self.builder = self.builder.add_global_state(name, value)?;
-        Ok(self)
-    }
-
-    pub fn add_input(mut self, opout: Opout, state: State) -> Result<Self, BuilderError> {
-        if let Some(calc) = &mut self.calc {
-            calc.reg_input(opout.ty, &state)?;
-        }
-        self.inputs.insert(Input::with(opout), state)?;
-        Ok(self)
-    }
-
-    pub fn default_assignment(&self) -> Result<&FieldName, BuilderError> {
-        self.builder
-            .transition_iface(self.transition_type)
-            .default_assignment
-            .as_ref()
-            .ok_or(BuilderError::NoDefaultAssignment)
+    pub fn global_type(&self, name: impl Into<FieldName>) -> Result<GlobalStateType, BuilderError> {
+        self.builder.global_type(name)
     }
 
     #[inline]
@@ -447,11 +428,6 @@ impl TransitionBuilder {
         name: impl Into<FieldName>,
     ) -> Result<AssignmentType, BuilderError> {
         self.builder.assignments_type(name)
-    }
-
-    #[inline]
-    pub fn global_type(&self, name: impl Into<FieldName>) -> Result<GlobalStateType, BuilderError> {
-        self.builder.global_type(name)
     }
 
     #[inline]
@@ -465,6 +441,65 @@ impl TransitionBuilder {
     }
 
     pub fn meta_name(&self, type_id: MetaType) -> &FieldName { self.builder.meta_name(type_id) }
+
+    pub fn default_assignment(&self) -> Result<&FieldName, BuilderError> {
+        self.builder
+            .transition_iface(self.transition_type)
+            .default_assignment
+            .as_ref()
+            .ok_or(BuilderError::NoDefaultAssignment)
+    }
+
+    pub fn set_nonce(mut self, nonce: u64) -> Self {
+        self.nonce = nonce;
+        self
+    }
+
+    pub fn add_input(mut self, opout: Opout, state: State) -> Result<Self, BuilderError> {
+        if let Some(calc) = &mut self.calc {
+            calc.reg_input(opout.ty, &state)?;
+        }
+        self.inputs.insert(Input::with(opout), state)?;
+        Ok(self)
+    }
+
+    pub fn add_metadata(
+        mut self,
+        name: impl Into<FieldName>,
+        value: StrictVal,
+    ) -> Result<Self, BuilderError> {
+        self.builder = self.builder.add_metadata(name, value)?;
+        Ok(self)
+    }
+
+    #[inline]
+    pub fn serialize_metadata(
+        mut self,
+        name: impl Into<FieldName>,
+        value: &impl StrictSerialize,
+    ) -> Result<Self, BuilderError> {
+        self.builder = self.builder.serialize_metadata(name, value)?;
+        Ok(self)
+    }
+
+    pub fn add_global_state(
+        mut self,
+        name: impl Into<FieldName>,
+        value: StrictVal,
+    ) -> Result<Self, BuilderError> {
+        self.builder = self.builder.add_global_state(name, value)?;
+        Ok(self)
+    }
+
+    #[inline]
+    pub fn serialize_global_state(
+        mut self,
+        name: impl Into<FieldName>,
+        value: &impl StrictSerialize,
+    ) -> Result<Self, BuilderError> {
+        self.builder = self.builder.serialize_global_state(name, value)?;
+        Ok(self)
+    }
 
     // TODO: We won't need this once we will have Blank Transition builder
     /// NB: This does not process the state with VM
@@ -610,8 +645,9 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
     }
 
     #[inline]
-    fn meta_schema(&self, type_id: MetaType) -> &SemId {
-        self.schema
+    fn meta_schema(&self, type_id: MetaType) -> SemId {
+        *self
+            .schema
             .meta_types
             .get(&type_id)
             .expect("schema should match interface: must be checked by the constructor")
@@ -625,29 +661,78 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             .expect("schema should match interface: must be checked by the constructor")
     }
 
-    pub fn add_metadata(
+    fn add_metadata(
         mut self,
         name: impl Into<FieldName>,
-        value: impl StrictSerialize,
+        value: StrictVal,
+    ) -> Result<Self, BuilderError> {
+        let type_id = self.meta_type(name)?;
+
+        let types = self.type_system();
+        let sem_id = *self
+            .schema
+            .meta_types
+            .get(&type_id)
+            .expect("schema-interface inconsistency");
+        let value = types.typify(value, sem_id)?;
+        let data = types.strict_serialize_value::<STATE_DATA_MAX_LEN>(&value)?;
+
+        self.meta.add_value(type_id, data.into())?;
+        Ok(self)
+    }
+
+    fn serialize_metadata(
+        mut self,
+        name: impl Into<FieldName>,
+        value: &impl StrictSerialize,
     ) -> Result<Self, BuilderError> {
         let type_id = self.meta_type(name)?;
         let serialized = value.to_strict_serialized::<{ u16::MAX as usize }>()?;
         let sem_id = self.meta_schema(type_id);
-        self.types.strict_deserialize_type(*sem_id, &serialized)?;
+
+        #[cfg(debug_assertions)]
+        self.types
+            .strict_deserialize_type(sem_id, &serialized)
+            .expect("failed deserialization");
+
         self.meta.add_value(type_id, serialized.into())?;
         Ok(self)
     }
 
-    pub fn add_global_state(
+    fn add_global_state(
         mut self,
         name: impl Into<FieldName>,
-        value: impl StrictSerialize,
+        value: StrictVal,
+    ) -> Result<Self, BuilderError> {
+        let type_id = self.global_type(name)?;
+
+        let types = self.type_system();
+        let sem_id = self
+            .schema
+            .global_types
+            .get(&type_id)
+            .expect("schema-interface inconsistency")
+            .sem_id;
+        let value = types.typify(value, sem_id)?;
+        let data = types.strict_serialize_value::<STATE_DATA_MAX_LEN>(&value)?;
+
+        self.global.add_state(type_id, data.into())?;
+        Ok(self)
+    }
+
+    fn serialize_global_state(
+        mut self,
+        name: impl Into<FieldName>,
+        value: &impl StrictSerialize,
     ) -> Result<Self, BuilderError> {
         let type_id = self.global_type(name)?;
         let serialized = value.to_strict_serialized::<{ u16::MAX as usize }>()?;
-        // Check value matches type requirements
         let sem_id = self.global_schema(type_id).sem_id;
-        self.types.strict_deserialize_type(sem_id, &serialized)?;
+
+        #[cfg(debug_assertions)]
+        self.types
+            .strict_deserialize_type(sem_id, &serialized)
+            .expect("failed deserialization");
 
         self.global.add_state(type_id, serialized.into())?;
 
@@ -687,12 +772,10 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             .schema
             .owned_types
             .get(&type_id)
-            .expect("schema-interface inconsistence")
+            .expect("schema-interface inconsistency")
             .sem_id;
         let value = types.typify(value, sem_id)?;
-        let data = types
-            .strict_serialize_type::<{ confinement::U16 }>(&value)?
-            .to_strict_serialized()?;
+        let data = types.strict_serialize_value::<STATE_DATA_MAX_LEN>(&value)?;
 
         let mut state = State::from(StateData::from(data));
         state.attach = attach;

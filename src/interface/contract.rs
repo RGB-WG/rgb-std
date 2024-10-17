@@ -22,13 +22,12 @@
 use std::borrow::Borrow;
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use amplify::confinement;
 use rgb::validation::Scripts;
 use rgb::{
     AssignmentType, AttachId, ContractId, OpId, Opout, Schema, State, StateData, XOutputSeal,
-    XWitnessId,
+    XWitnessId, STATE_DATA_MAX_LEN,
 };
-use strict_encoding::{FieldName, SerializeError, StrictSerialize};
+use strict_encoding::{FieldName, SerializeError};
 use strict_types::{typify, SemId, StrictVal, TypeSystem};
 
 use crate::contract::{Allocation, WitnessInfo};
@@ -189,8 +188,7 @@ impl<S: ContractStateRead> ContractIface<S> {
         let t = self.types.typify(value, self.assignment_sem_id(ty))?;
         let value = self
             .types
-            .strict_serialize_type::<{ confinement::U16 }>(&t)?
-            .to_strict_serialized()?;
+            .strict_serialize_value::<STATE_DATA_MAX_LEN>(&t)?;
         Ok(value.into())
     }
 
