@@ -256,7 +256,7 @@ impl IfaceImpl {
             .map(|nt| nt.id)
     }
 
-    pub fn assignments_type(&self, name: &FieldName) -> Option<AssignmentType> {
+    pub fn assignment_type(&self, name: &FieldName) -> Option<AssignmentType> {
         self.assignments
             .iter()
             .find(|nt| &nt.name == name)

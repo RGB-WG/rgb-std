@@ -157,7 +157,7 @@ impl<S: ContractStateRead> ContractIface<S> {
     fn assignment_type(&self, name: impl Into<FieldName>) -> Result<AssignmentType, ContractError> {
         let name = name.into();
         self.iface
-            .assignments_type(&name)
+            .assignment_type(&name)
             .ok_or(ContractError::FieldNameUnknown(name))
     }
 

@@ -631,7 +631,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
     fn assignments_type(&self, name: impl Into<FieldName>) -> Result<AssignmentType, BuilderError> {
         let name = name.into();
         self.iimpl
-            .assignments_type(&name)
+            .assignment_type(&name)
             .ok_or(BuilderError::AssignmentNotFound(name))
     }
 

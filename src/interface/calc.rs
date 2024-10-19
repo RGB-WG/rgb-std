@@ -21,7 +21,7 @@
 
 use aluvm::data::ByteStr;
 use aluvm::library::{LibId, LibSite};
-use aluvm::reg::{Reg16, Reg32, RegA, RegR, RegS};
+use aluvm::reg::{Reg16, Reg32, RegA, RegR};
 use amplify::num::{u256, u4};
 use amplify::{ByteArray, Wrapper};
 use rgb::validation::Scripts;
@@ -91,7 +91,7 @@ impl StateCalc {
 
     fn run(&mut self, site: LibSite) -> Result<(), String> {
         if !self.vm.exec(site, |id| self.scripts.get(&id), &()) {
-            if let Some(err) = self.vm.registers.get_s(RegS::from(15)).cloned() {
+            if let Some(err) = self.vm.registers.s16(15).cloned() {
                 return Err(err.to_string());
             }
         }
@@ -104,9 +104,7 @@ impl StateCalc {
             .set_n(RegA::A16, Reg32::Reg0, Some(ty.to_inner()));
         assert_eq!(state.reserved, none!());
         self.vm.registers.set_n(RegA::A8, Reg32::Reg0, Some(0u8));
-        self.vm
-            .registers
-            .set_s(RegS::from(0), Some(ByteStr::with(&state.data)));
+        self.vm.registers.set_s16(0, ByteStr::with(&state.data));
         self.vm.registers.set_n(
             RegR::R256,
             Reg32::Reg0,
@@ -119,7 +117,7 @@ impl StateCalc {
         ty: AssignmentType,
         idx: Reg16,
     ) -> Result<Option<rgb::State>, StateCalcError> {
-        let Some(data) = self.vm.registers.get_s(RegS::from(u4::from(idx))) else {
+        let Some(data) = self.vm.registers.s16(u4::from(idx)) else {
             return Ok(None);
         };
         let reserved = self
