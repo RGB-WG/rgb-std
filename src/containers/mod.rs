@@ -38,7 +38,10 @@ mod file;
 mod kit;
 mod suppl;
 
-pub use anchors::{AnchorSet, PubWitness, SealWitness, ToWitnessId, WitnessBundle, XPubWitness};
+pub use anchors::{
+    AnchorSet, AnchoredBundleMismatch, AnchoredBundles, ClientBundle, PubWitness, SealWitness,
+    ToWitnessId, UnrelatedTransition, WitnessBundle, XPubWitness,
+};
 pub use consignment::{
     Consignment, ConsignmentExt, ConsignmentId, ConsignmentParseError, Contract, Transfer,
     ValidConsignment, ValidContract, ValidTransfer,
