@@ -41,7 +41,6 @@ pub mod stl;
 pub mod interface;
 pub mod containers;
 pub mod persistence;
-pub mod resolvers;
 mod contract;
 pub mod info;
 

@@ -49,7 +49,6 @@ use super::{
 };
 use crate::interface::{Iface, IfaceImpl};
 use crate::persistence::{MemContract, MemContractState};
-use crate::resolvers::ConsignmentResolver;
 use crate::{SecretSeal, LIB_NAME_RGB_STD};
 
 pub type Transfer = Consignment<true>;
@@ -331,10 +330,6 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
         testnet: bool,
     ) -> Result<ValidConsignment<TRANSFER>, (validation::Status, Consignment<TRANSFER>)> {
         let index = IndexedConsignment::new(&self);
-        let resolver = ConsignmentResolver {
-            consignment: &index,
-            fallback: resolver,
-        };
         let mut status = Validator::<MemContract<MemContractState>, _, _>::validate(
             &index,
             &resolver,
