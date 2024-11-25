@@ -510,7 +510,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         &'a self,
     ) -> Result<
         impl Iterator<
-                Item = <C::Wrapper<H::ContractRead<'_>> as IfaceWrapper<H::ContractRead<'_>>>::Info,
+                Item = <C::Wrapper<H::ContractRead<'a>> as IfaceWrapper<H::ContractRead<'a>>>::Info,
             > + 'a,
         StockError<S, H, P>,
     > {
