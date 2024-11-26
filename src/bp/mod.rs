@@ -22,32 +22,5 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
-
-extern crate core;
-#[macro_use]
-extern crate amplify;
-#[macro_use]
-extern crate strict_encoding;
-#[macro_use]
-extern crate commit_verify;
-#[macro_use]
-extern crate rgbcore as rgb;
-#[cfg(feature = "serde")]
-#[macro_use]
-extern crate serde;
-
-mod pile;
-mod stockpile;
-mod mound;
-mod wallet;
-//pub mod stl;
-
-pub use bp::{Outpoint, Txid};
-pub use mound::Mound;
-#[cfg(feature = "fs")]
-pub use pile::fs::FilePile;
-pub use pile::Pile;
-pub use rgb::*;
-pub use stockpile::Stockpile;
-//pub use stl::{LIB_NAME_RGB_STD, LIB_NAME_RGB_STORAGE};
+mod anchor;
+pub mod seals;
