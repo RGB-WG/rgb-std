@@ -34,7 +34,7 @@ use super::{
 
 struct ArgMapDisplay<'a>(&'a ArgMap);
 
-impl<'a> Display for ArgMapDisplay<'a> {
+impl Display for ArgMapDisplay<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         for (i, (name, occ)) in self.0.iter().enumerate() {
             if i > 0 {
@@ -96,7 +96,7 @@ impl<'a> OpIfaceDisplay<'a> {
     }
 }
 
-impl<'a> Display for OpIfaceDisplay<'a> {
+impl Display for OpIfaceDisplay<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         if !self.errors.is_empty() {
             write!(f, "\t\terrors: ")?;
@@ -159,7 +159,7 @@ impl<'a> IfaceDisplay<'a> {
     }
 }
 
-impl<'a> Display for IfaceDisplay<'a> {
+impl Display for IfaceDisplay<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         fn sugar(f: &mut Formatter<'_>, required: bool, multiple: bool) -> fmt::Result {
             match (required, multiple) {

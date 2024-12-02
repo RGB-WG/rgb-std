@@ -1129,7 +1129,7 @@ pub struct MemContractWriter<'mem> {
     contract: &'mem mut MemContractState,
 }
 
-impl<'mem> ContractStateWrite for MemContractWriter<'mem> {
+impl ContractStateWrite for MemContractWriter<'_> {
     type Error = MemError;
 
     /// # Panics

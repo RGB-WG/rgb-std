@@ -505,12 +505,12 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         Ok(self.stash.geneses()?.map(ContractInfo::with))
     }
 
-    #[allow(clippy::multiple_bound_locations)]
+    #[allow(clippy::multiple_bound_locations, clippy::type_complexity)]
     pub fn contracts_by<'a, C: IfaceClass + 'a>(
         &'a self,
     ) -> Result<
         impl Iterator<
-                Item = <C::Wrapper<H::ContractRead<'_>> as IfaceWrapper<H::ContractRead<'_>>>::Info,
+                Item = <C::Wrapper<H::ContractRead<'a>> as IfaceWrapper<H::ContractRead<'a>>>::Info,
             > + 'a,
         StockError<S, H, P>,
     > {
