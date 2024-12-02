@@ -505,7 +505,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         Ok(self.stash.geneses()?.map(ContractInfo::with))
     }
 
-    #[allow(clippy::multiple_bound_locations)]
+    #[allow(clippy::multiple_bound_locations, clippy::type_complexity)]
     pub fn contracts_by<'a, C: IfaceClass + 'a>(
         &'a self,
     ) -> Result<
