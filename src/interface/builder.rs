@@ -25,6 +25,7 @@ use std::collections::{BTreeMap, HashSet};
 
 use amplify::confinement::{Confined, SmallOrdSet, TinyOrdMap, U16};
 use amplify::{confinement, Wrapper};
+use bp::seals::txout::CloseMethod;
 use chrono::Utc;
 use invoice::{Allocation, Amount};
 use rgb::validation::Scripts;
@@ -144,13 +145,16 @@ impl TxOutpoint for XOutpoint {
 pub struct ContractBuilder {
     builder: OperationBuilder<GenesisSeal>,
     testnet: bool,
+    close_method: CloseMethod,
     scripts: Scripts,
     issuer: Identity,
     layer_1: Layer1,
 }
 
 impl ContractBuilder {
+    #[allow(clippy::too_many_arguments)]
     pub fn with(
+        close_method: CloseMethod,
         issuer: Identity,
         iface: Iface,
         schema: Schema,
@@ -162,13 +166,16 @@ impl ContractBuilder {
         Self {
             builder: OperationBuilder::with(iface, schema, iimpl, types),
             testnet: true,
+            close_method,
             scripts,
             issuer,
             layer_1,
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn deterministic(
+        close_method: CloseMethod,
         issuer: Identity,
         iface: Iface,
         schema: Schema,
@@ -180,6 +187,7 @@ impl ContractBuilder {
         Self {
             builder: OperationBuilder::deterministic(iface, schema, iimpl, types),
             testnet: true,
+            close_method,
             scripts,
             issuer,
             layer_1,
@@ -383,6 +391,7 @@ impl ContractBuilder {
             flags: none!(),
             timestamp,
             testnet: self.testnet,
+            close_method: self.close_method,
             asset_tags,
             metadata: empty!(),
             globals: global,

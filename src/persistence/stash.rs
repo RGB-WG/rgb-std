@@ -319,6 +319,7 @@ impl<P: StashProvider> Stash<P> {
 
     pub(super) fn contract_builder(
         &self,
+        close_method: CloseMethod,
         issuer: Identity,
         schema_id: SchemaId,
         iface: impl Into<IfaceRef>,
@@ -334,6 +335,7 @@ impl<P: StashProvider> Stash<P> {
         let (types, scripts) = self.extract(&schema_ifaces.schema, [iface])?;
 
         let builder = ContractBuilder::with(
+            close_method,
             issuer,
             iface.clone(),
             schema_ifaces.schema.clone(),
