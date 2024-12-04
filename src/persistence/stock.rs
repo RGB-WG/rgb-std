@@ -36,8 +36,8 @@ use nonasync::persistence::{CloneNoPersistence, PersistenceError, PersistencePro
 use rgb::validation::{DbcProof, ResolveWitness, WitnessResolverError};
 use rgb::{
     validation, AssignmentType, BlindingFactor, BundleId, ContractId, DataState, GraphSeal,
-    Identity, OpId, Operation, Opout, SchemaId, SecretSeal, Transition, TxoSeal, XChain, XOutpoint,
-    XOutputSeal, XWitnessId,
+    Identity, Layer1, OpId, Operation, Opout, SchemaId, SecretSeal, Transition, TxoSeal, XChain,
+    XOutpoint, XOutputSeal, XWitnessId,
 };
 use strict_encoding::FieldName;
 
@@ -670,10 +670,11 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         issuer: impl Into<Identity>,
         schema_id: SchemaId,
         iface: impl Into<IfaceRef>,
+        layer_1: Layer1,
     ) -> Result<ContractBuilder, StockError<S, H, P>> {
         Ok(self
             .stash
-            .contract_builder(issuer.into(), schema_id, iface)?)
+            .contract_builder(issuer.into(), schema_id, iface, layer_1)?)
     }
 
     pub fn transition_builder(

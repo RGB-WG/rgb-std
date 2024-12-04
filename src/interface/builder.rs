@@ -29,11 +29,11 @@ use chrono::Utc;
 use invoice::{Allocation, Amount};
 use rgb::validation::Scripts;
 use rgb::{
-    validation, AltLayer1, AltLayer1Set, AssetTag, AssetTags, Assign, AssignmentType, Assignments,
-    AttachState, BlindingFactor, ContractId, DataState, ExposedSeal, FungibleType, Genesis,
-    GenesisSeal, GlobalState, GraphSeal, Identity, Input, Layer1, MetadataError, Opout,
-    OwnedStateSchema, RevealedAttach, RevealedData, RevealedValue, Schema, Transition,
-    TransitionType, TypedAssigns, XChain, XOutpoint,
+    validation, AssetTag, AssetTags, Assign, AssignmentType, Assignments, AttachState,
+    BlindingFactor, ContractId, DataState, ExposedSeal, FungibleType, Genesis, GenesisSeal,
+    GlobalState, GraphSeal, Identity, Input, Layer1, MetadataError, Opout, OwnedStateSchema,
+    RevealedAttach, RevealedData, RevealedValue, Schema, Transition, TransitionType, TypedAssigns,
+    XChain, XOutpoint,
 };
 use rgbcore::{GlobalStateSchema, GlobalStateType, MetaType, Metadata, ValencyType};
 use strict_encoding::{FieldName, SerializeError, StrictSerialize};
@@ -95,6 +95,9 @@ pub enum BuilderError {
     /// {0} is not supported by the contract genesis.
     InvalidLayer1(Layer1),
 
+    /// the seal is committing to a layer 1 ({0}) different from the the contract one ({1})
+    Layer1Mismatch(Layer1, Layer1),
+
     #[from]
     #[display(inner)]
     StrictEncode(SerializeError),
@@ -141,9 +144,9 @@ impl TxOutpoint for XOutpoint {
 pub struct ContractBuilder {
     builder: OperationBuilder<GenesisSeal>,
     testnet: bool,
-    alt_layers1: AltLayer1Set,
     scripts: Scripts,
     issuer: Identity,
+    layer_1: Layer1,
 }
 
 impl ContractBuilder {
@@ -154,13 +157,14 @@ impl ContractBuilder {
         iimpl: IfaceImpl,
         types: TypeSystem,
         scripts: Scripts,
+        layer_1: Layer1,
     ) -> Self {
         Self {
             builder: OperationBuilder::with(iface, schema, iimpl, types),
             testnet: true,
-            alt_layers1: none!(),
             scripts,
             issuer,
+            layer_1,
         }
     }
 
@@ -171,13 +175,14 @@ impl ContractBuilder {
         iimpl: IfaceImpl,
         types: TypeSystem,
         scripts: Scripts,
+        layer_1: Layer1,
     ) -> Self {
         Self {
             builder: OperationBuilder::deterministic(iface, schema, iimpl, types),
             testnet: true,
-            alt_layers1: none!(),
             scripts,
             issuer,
+            layer_1,
         }
     }
 
@@ -188,24 +193,11 @@ impl ContractBuilder {
         self
     }
 
-    pub fn has_layer1(&self, layer1: Layer1) -> bool {
-        match layer1 {
-            Layer1::Bitcoin => true,
-            Layer1::Liquid => self.alt_layers1.contains(&AltLayer1::Liquid),
-        }
-    }
     pub fn check_layer1(&self, layer1: Layer1) -> Result<(), BuilderError> {
-        if !self.has_layer1(layer1) {
-            return Err(BuilderError::InvalidLayer1(layer1));
+        if self.layer_1 != layer1 {
+            return Err(BuilderError::Layer1Mismatch(layer1, self.layer_1));
         }
         Ok(())
-    }
-
-    pub fn add_layer1(mut self, layer1: AltLayer1) -> Result<Self, BuilderError> {
-        self.alt_layers1
-            .push(layer1)
-            .map_err(|_| BuilderError::TooManyLayers1)?;
-        Ok(self)
     }
 
     #[inline]
@@ -391,7 +383,6 @@ impl ContractBuilder {
             flags: none!(),
             timestamp,
             testnet: self.testnet,
-            alt_layers1: self.alt_layers1,
             asset_tags,
             metadata: empty!(),
             globals: global,

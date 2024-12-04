@@ -46,8 +46,6 @@ Consignmenttrue rec
     timestamp is I64
     issuer ascii aka=Identity first=AsciiPrintable rest=AsciiPrintable len=1..4096
     testnet enum Bool false=0 true=1
-    altLayers1 set len=0..MAX8 aka=AltLayer1Set
-      AltLayer1 enum liquid=1
     assetTags map len=0..MAX8 aka=AssetTags
       key is U16 aka=AssignmentType
       value bytes len=32 aka=AssetTag
