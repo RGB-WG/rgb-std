@@ -170,7 +170,7 @@ dependencies = [
 [[package]]
 name = "bp-consensus"
 version = "0.12.0-beta.2"
-source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#14892a219e945a62ed6392a97a86044b7d255340"
+source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#5d8db23ffa73417937230238d807310eb6052579"
 dependencies = [
  "amplify",
  "chrono",
@@ -184,7 +184,7 @@ dependencies = [
 [[package]]
 name = "bp-core"
 version = "0.12.0-beta.2"
-source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#14892a219e945a62ed6392a97a86044b7d255340"
+source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#5d8db23ffa73417937230238d807310eb6052579"
 dependencies = [
  "amplify",
  "bp-consensus",
@@ -202,7 +202,7 @@ dependencies = [
 [[package]]
 name = "bp-dbc"
 version = "0.12.0-beta.2"
-source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#14892a219e945a62ed6392a97a86044b7d255340"
+source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#5d8db23ffa73417937230238d807310eb6052579"
 dependencies = [
  "amplify",
  "base85",
@@ -216,7 +216,7 @@ dependencies = [
 [[package]]
 name = "bp-seals"
 version = "0.12.0-beta.2"
-source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#14892a219e945a62ed6392a97a86044b7d255340"
+source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#5d8db23ffa73417937230238d807310eb6052579"
 dependencies = [
  "amplify",
  "baid64",
@@ -591,6 +591,7 @@ dependencies = [
  "hypersonic",
  "rand",
  "rgb-core",
+ "serde",
  "single_use_seals",
  "strict_encoding",
  "strict_types",
@@ -894,7 +895,7 @@ checksum = "42ff0bf0c66b8238c6f3b578df37d0b7848e55df8577b3f74f92a69acceeb825"
 [[package]]
 name = "ultrasonic"
 version = "0.12.0-beta.2"
-source = "git+https://github.com/AluVM/ultrasonic#69ccba97ed9347db5a7b8ff680e3e1179dcd13e0"
+source = "git+https://github.com/AluVM/ultrasonic#239bc019e3f868b07857d2c5bff5df6c8ca0044f"
 dependencies = [
  "amplify",
  "baid64",

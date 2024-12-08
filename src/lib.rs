@@ -26,18 +26,25 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 extern crate alloc;
+
 #[macro_use]
 extern crate amplify;
 extern crate rgbcore as rgb;
 
+#[cfg(feature = "bitcoin")]
+#[macro_use]
+extern crate strict_encoding;
+#[cfg(all(feature = "serde", feature = "bitcoin"))]
+#[macro_use]
+extern crate serde;
+
 mod pile;
 mod stockpile;
 mod mound;
-#[cfg(feature = "bp")]
-mod wallet;
-//pub mod stl;
+#[cfg(feature = "bitcoin")]
+pub mod bitcoin;
 
-#[cfg(feature = "bp")]
+#[cfg(feature = "bitcoin")]
 pub use bp::{Outpoint, Txid};
 pub use mound::Mound;
 #[cfg(feature = "fs")]
@@ -45,6 +52,3 @@ pub use pile::fs::FilePile;
 pub use pile::Pile;
 pub use rgb::*;
 pub use stockpile::Stockpile;
-#[cfg(feature = "bp")]
-pub use wallet::{Wallet, WalletDescriptor, WalletPersistence};
-//pub use stl::{LIB_NAME_RGB_STD, LIB_NAME_RGB_STORAGE};

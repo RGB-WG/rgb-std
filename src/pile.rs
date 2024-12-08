@@ -86,12 +86,12 @@ pub mod fs {
         type Hoard = FileAora<Seal::Id, Seal::CliWitness>;
         type Cache = FileAora<Seal::Id, Seal::PubWitness>;
 
-        fn hoard(&self) -> &Self::Hoard { todo!() }
+        fn hoard(&self) -> &Self::Hoard { &self.hoard }
 
-        fn cache(&self) -> &Self::Cache { todo!() }
+        fn cache(&self) -> &Self::Cache { &self.cache }
 
-        fn hoard_mut(&mut self) -> &mut Self::Hoard { todo!() }
+        fn hoard_mut(&mut self) -> &mut Self::Hoard { &mut self.hoard }
 
-        fn cache_mut(&mut self) -> &mut Self::Cache { todo!() }
+        fn cache_mut(&mut self) -> &mut Self::Cache { &mut self.cache }
     }
 }
