@@ -26,7 +26,7 @@ use alloc::collections::{BTreeMap, BTreeSet};
 
 use bp::seals::TxoSeal;
 use bp::{dbc, Outpoint, Txid, Vout};
-use hypersonic::{AuthToken, CellAddr, ContractId, Operation, Supply};
+use hypersonic::{AuthToken, CellAddr, ContractId, IssueParams, Operation, Schema, Supply};
 
 use crate::pile::Protocol;
 use crate::{Mound, Pile};
@@ -47,11 +47,12 @@ pub struct Wallet<
     D: dbc::Proof,
     S: Supply<CAPS>,
     P: Pile<Seal = TxoSeal<D>>,
+    X,
     const CAPS: u32,
 > {
     pub descriptor: W,
     pub unspent: BTreeMap<Outpoint, BTreeSet<(ContractId, TxoSeal<D>)>>,
-    pub mound: Mound<S, P, CAPS>,
+    pub mound: Mound<S, P, X, CAPS>,
 }
 
 impl<
@@ -59,9 +60,14 @@ impl<
         D: dbc::Proof,
         S: Supply<CAPS>,
         P: Pile<Seal = TxoSeal<D>>,
+        X,
         const CAPS: u32,
-    > Wallet<W, D, S, P, CAPS>
+    > Wallet<W, D, S, P, X, CAPS>
 {
+    pub fn issue(&mut self, schema: Schema, params: IssueParams, supply: S, pile: P) -> ContractId {
+        self.mound.issue(schema, params, supply, pile)
+    }
+
     pub fn assignments(
         &self,
         outpoint: Outpoint,
@@ -83,3 +89,23 @@ impl<
 }
 
 pub trait WalletPersistence<Seal: Protocol> {}
+
+pub mod file {
+    use std::path::{Path, PathBuf};
+
+    use hypersonic::{CodexId, FileSupply, IssueParams, Schema};
+
+    use super::*;
+    use crate::FilePile;
+
+    pub type FileWallet<W, D: dbc::Proof, const CAPS: u32> =
+        Wallet<W, D, FileSupply, FilePile<TxoSeal<D>>, PathBuf, CAPS>;
+
+    impl<W: WalletDescriptor, D: dbc::Proof, const CAPS: u32> FileWallet<W, D, CAPS> {
+        pub fn issue_file(&mut self, codex_id: CodexId, params: IssueParams) -> ContractId {
+            let schema = self.mound.schema(codex_id).expect("unknown codex id");
+            // TODO: check that if the issue belongs to the wallet add it to the unspents
+            self.mound.issue_file(schema.clone(), params)
+        }
+    }
+}

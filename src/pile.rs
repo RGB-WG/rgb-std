@@ -33,8 +33,8 @@ pub trait Protocol: SingleUseSeal {
 
 pub trait Pile {
     type Seal: Protocol;
-    type Hoard: Aora;
-    type Cache: Aora;
+    type Hoard: Aora<Item = <Self::Seal as SingleUseSeal>::CliWitness>;
+    type Cache: Aora<Item = <Self::Seal as SingleUseSeal>::PubWitness>;
 
     fn hoard(&self) -> &Self::Hoard;
     fn cache(&self) -> &Self::Cache;

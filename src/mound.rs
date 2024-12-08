@@ -24,42 +24,92 @@
 
 use alloc::collections::BTreeMap;
 
-use hypersonic::{CellAddr, ContractId, Supply};
+use hypersonic::{CellAddr, CodexId, ContractId, IssueParams, Schema, Supply};
 
 use crate::{Pile, Stockpile};
 
-pub struct Mound<S: Supply<CAPS>, P: Pile, const CAPS: u32>(
-    BTreeMap<ContractId, Stockpile<S, P, CAPS>>,
-);
+pub struct Mound<S: Supply<CAPS>, P: Pile, X, const CAPS: u32> {
+    schemata: BTreeMap<CodexId, Schema>,
+    contracts: BTreeMap<ContractId, Stockpile<S, P, CAPS>>,
+    persistence: X,
+}
 
-impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Mound<S, P, CAPS> {
-    pub fn new() -> Self { Self(BTreeMap::new()) }
-    pub fn excavate(mut loader: impl Excavate<S, P, CAPS>) -> Self {
-        Self(loader.excavate().collect())
+impl<S: Supply<CAPS>, P: Pile, X: Default, const CAPS: u32> Default for Mound<S, P, X, CAPS> {
+    fn default() -> Self {
+        Self {
+            schemata: BTreeMap::new(),
+            contracts: BTreeMap::new(),
+            persistence: default!(),
+        }
+    }
+}
+
+impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Mound<S, P, (), CAPS> {
+    pub fn new() -> Self {
+        Self {
+            schemata: BTreeMap::new(),
+            contracts: BTreeMap::new(),
+            persistence: (),
+        }
+    }
+}
+
+impl<S: Supply<CAPS>, P: Pile, X, const CAPS: u32> Mound<S, P, X, CAPS> {
+    pub fn with(persistence: X) -> Self {
+        Self {
+            schemata: BTreeMap::new(),
+            contracts: BTreeMap::new(),
+            persistence,
+        }
     }
 
-    pub fn contract_ids(&self) -> impl Iterator<Item = ContractId> + use<'_, S, P, CAPS> {
-        self.0.keys().copied()
+    pub fn open(mut loader: impl Excavate<S, P, CAPS, Persistence = X>) -> Self {
+        Self {
+            schemata: loader.schemata().collect(),
+            contracts: loader.contracts().collect(),
+            persistence: loader.persistence(),
+        }
+    }
+
+    pub fn issue(&mut self, schema: Schema, params: IssueParams, supply: S, pile: P) -> ContractId {
+        let stockpile = Stockpile::issue(schema, params, supply, pile);
+        let id = stockpile.contract_id();
+        self.contracts.insert(id, stockpile);
+        id
+    }
+
+    pub fn codex_ids(&self) -> impl Iterator<Item = CodexId> + use<'_, S, P, X, CAPS> {
+        self.schemata.keys().copied()
+    }
+
+    pub fn schemata(&self) -> impl Iterator<Item = (CodexId, &Schema)> {
+        self.schemata.iter().map(|(id, schema)| (*id, schema))
+    }
+
+    pub fn schema(&self, codex_id: CodexId) -> Option<&Schema> { self.schemata.get(&codex_id) }
+
+    pub fn contract_ids(&self) -> impl Iterator<Item = ContractId> + use<'_, S, P, X, CAPS> {
+        self.contracts.keys().copied()
     }
 
     pub fn contracts(&self) -> impl Iterator<Item = (ContractId, &Stockpile<S, P, CAPS>)> {
-        self.0.iter().map(|(id, stock)| (*id, stock))
+        self.contracts.iter().map(|(id, stock)| (*id, stock))
     }
 
     pub fn contracts_mut(
         &mut self,
     ) -> impl Iterator<Item = (ContractId, &mut Stockpile<S, P, CAPS>)> {
-        self.0.iter_mut().map(|(id, stock)| (*id, stock))
+        self.contracts.iter_mut().map(|(id, stock)| (*id, stock))
     }
 
     pub fn contract(&self, id: ContractId) -> &Stockpile<S, P, CAPS> {
-        self.0
+        self.contracts
             .get(&id)
             .unwrap_or_else(|| panic!("unknown contract {id}"))
     }
 
     pub fn contract_mut(&mut self, id: ContractId) -> &mut Stockpile<S, P, CAPS> {
-        self.0
+        self.contracts
             .get_mut(&id)
             .unwrap_or_else(|| panic!("unknown contract {id}"))
     }
@@ -67,13 +117,44 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Mound<S, P, CAPS> {
     pub fn select<'seal>(
         &self,
         seal: &'seal P::Seal,
-    ) -> impl Iterator<Item = (ContractId, CellAddr)> + use<'_, 'seal, S, P, CAPS> {
-        self.0
+    ) -> impl Iterator<Item = (ContractId, CellAddr)> + use<'_, 'seal, S, P, X, CAPS> {
+        self.contracts
             .iter()
             .filter_map(|(id, stockpile)| stockpile.seal(seal).map(|addr| (*id, addr)))
     }
 }
 
 pub trait Excavate<S: Supply<CAPS>, P: Pile, const CAPS: u32> {
-    fn excavate(&mut self) -> impl Iterator<Item = (ContractId, Stockpile<S, P, CAPS>)>;
+    type Persistence;
+    fn persistence(&self) -> Self::Persistence;
+    fn schemata(&mut self) -> impl Iterator<Item = (CodexId, Schema)>;
+    fn contracts(&mut self) -> impl Iterator<Item = (ContractId, Stockpile<S, P, CAPS>)>;
+}
+
+pub mod file {
+    use std::path::{Path, PathBuf};
+
+    use hypersonic::FileSupply;
+    use strict_encoding::{StrictDecode, StrictEncode};
+
+    use super::*;
+    use crate::pile::Protocol;
+    use crate::FilePile;
+
+    pub type FileMound<Seal: Protocol, const CAPS: u32> =
+        Mound<FileSupply, FilePile<Seal>, PathBuf, CAPS>;
+
+    impl<Seal: Protocol, const CAPS: u32> FileMound<Seal, CAPS>
+    where
+        Seal::CliWitness: StrictEncode + StrictDecode,
+        Seal::PubWitness: StrictEncode + StrictDecode,
+    {
+        pub fn path(&self) -> &Path { &self.persistence }
+
+        pub fn issue_file(&mut self, schema: Schema, params: IssueParams) -> ContractId {
+            let pile = FilePile::<Seal>::new(params.name.as_str(), &self.persistence);
+            let supply = FileSupply::new(params.name.as_str(), &self.persistence);
+            self.issue(schema, params, supply, pile)
+        }
+    }
 }

@@ -25,7 +25,7 @@
 // TODO: Used in strict encoding; once solved there, remove here
 use std::io;
 
-use hypersonic::{Articles, AuthToken, CellAddr, Stock, Supply};
+use hypersonic::{Articles, AuthToken, CellAddr, ContractId, IssueParams, Schema, Stock, Supply};
 use single_use_seals::SingleUseSeal;
 use strict_encoding::{StrictWriter, WriteRaw};
 
@@ -38,7 +38,8 @@ pub struct Stockpile<S: Supply<CAPS>, P: Pile, const CAPS: u32> {
 }
 
 impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Stockpile<S, P, CAPS> {
-    pub fn create(articles: Articles<CAPS>, supply: S, pile: P) -> Self {
+    pub fn issue(schema: Schema, params: IssueParams, supply: S, pile: P) -> Self {
+        let articles = schema.issue::<CAPS>(params);
         let stock = Stock::create(articles, supply);
         Self { stock, pile }
     }
@@ -47,6 +48,8 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Stockpile<S, P, CAPS> {
         let stock = Stock::open(articles, supply);
         Self { stock, pile }
     }
+
+    pub fn contract_id(&self) -> ContractId { self.stock.contract_id() }
 
     pub fn seal(&self, seal: &P::Seal) -> Option<CellAddr> {
         let auth = seal.auth_token();
@@ -74,7 +77,7 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Stockpile<S, P, CAPS> {
 mod fs {
     use std::path::Path;
 
-    use hypersonic::{ContractName, FileSupply};
+    use hypersonic::FileSupply;
     use strict_encoding::{StrictDecode, StrictEncode};
 
     use super::*;
@@ -85,15 +88,11 @@ mod fs {
         Seal::CliWitness: StrictEncode + StrictDecode,
         Seal::PubWitness: StrictEncode + StrictDecode,
     {
-        pub fn new(articles: Articles<CAPS>, path: impl AsRef<Path>) -> Self {
+        pub fn issue_file(schema: Schema, params: IssueParams, path: impl AsRef<Path>) -> Self {
             let path = path.as_ref();
-            let name = match &articles.contract.meta.name {
-                ContractName::Unnamed => articles.contract_id().to_string(),
-                ContractName::Named(name) => name.to_string(),
-            };
-            let pile = FilePile::new(&name, path);
-            let supply = FileSupply::new(&name, path);
-            Self::create(articles, supply, pile)
+            let pile = FilePile::new(params.name.as_str(), path);
+            let supply = FileSupply::new(params.name.as_str(), path);
+            Self::issue(schema, params, supply, pile)
         }
 
         pub fn load(path: impl AsRef<Path>) -> Self {
