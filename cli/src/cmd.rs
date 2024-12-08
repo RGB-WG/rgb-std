@@ -133,13 +133,6 @@ pub enum Cmd {
     },
 }
 
-pub enum Treasure {
-    Opret(Stockpile<TxoSeal<OpretProof>, FilePile<TxoSeal<OpretProof>>, FilePersistence>),
-    Tapret(Stockpile<TxoSeal<TapretProof>, FilePile<TxoSeal<TapretProof>>, FilePersistence>),
-}
-
-pub struct Barrow(BTreeMap<ContractId, Treasure>);
-
 impl Args {
     pub fn exec(&self) -> anyhow::Result<()> {
         let mound = Mound::excavate(&self.data_dir);
