@@ -24,18 +24,7 @@
 
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
-extern crate core;
-#[macro_use]
-extern crate amplify;
-#[macro_use]
-extern crate strict_encoding;
-#[macro_use]
-extern crate commit_verify;
-#[macro_use]
 extern crate rgbcore as rgb;
-#[cfg(feature = "serde")]
-#[macro_use]
-extern crate serde;
 
 mod pile;
 mod stockpile;
