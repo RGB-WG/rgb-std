@@ -23,13 +23,16 @@ strict_types = "2.8.1"
 commit_verify = "0.12.0-beta.1"
 single_use_seals = "0.12.0-beta.1"
 hypersonic = "0.12.0-beta.1"
-bp-core = "0.12.0-beta.2"
+bp-core = { version = "0.12.0-beta.2", optional = true }
 rgb-core = "0.12.0-beta.3"
 
 [features]
-default = []
-all = ["fs", "serde"]
+default = ["std", "bp"]
+all = ["std", "bp", "fs", "serde"]
+std = []
+bp = ["bp-core"]
 serde = [
+    "std",
     "amplify/serde",
     "strict_encoding/serde",
     "strict_types/serde",
@@ -37,10 +40,10 @@ serde = [
     "bp-core/serde",
     "rgb-core/serde",
 ]
+fs = ["std", "hypersonic/persist-file"]
 stl = [
     "bp-core/stl", "commit_verify/stl"
 ]
-fs = ["hypersonic/persist-file"]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2"

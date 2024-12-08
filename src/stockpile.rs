@@ -22,7 +22,7 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
-// Used in strict encoding; once solved there, remove here
+// TODO: Used in strict encoding; once solved there, remove here
 use std::io;
 
 use hypersonic::{Articles, AuthToken, CellAddr, Stock, Supply};
