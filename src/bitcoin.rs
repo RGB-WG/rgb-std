@@ -41,8 +41,8 @@ use crate::{Mound, Pile};
 
 pub trait WalletDescriptor {}
 
-pub const BTC_OPRET_CAPS: u32 = 0x0001_0001_u32;
-pub const BTC_TAPRET_CAPS: u32 = 0x0001_0002_u32;
+pub const BITCOIN_OPRET: u32 = 0x0001_0001_u32;
+pub const BITCOIN_TAPRET: u32 = 0x0001_0002_u32;
 
 pub type OpretSeal = TxoSeal<OpretProof>;
 pub type TapretSeal = TxoSeal<TapretProof>;
@@ -104,7 +104,7 @@ pub struct Barrow<
     const CAPS: u32,
 > {
     pub wallet: W,
-    pub unspent: BTreeMap<Outpoint, BTreeSet<(ContractId, TxoSeal<D>)>>,
+    //pub unspent: BTreeMap<Outpoint, BTreeSet<(ContractId, TxoSeal<D>)>>,
     pub mound: Mound<S, P, X, CAPS>,
 }
 
@@ -117,10 +117,15 @@ impl<
         const CAPS: u32,
     > Barrow<W, D, S, P, X, CAPS>
 {
+    pub fn with(wallet: W, mound: Mound<S, P, X, CAPS>) -> Self { Self { wallet, mound } }
+
+    pub fn unbind(self) -> (W, Mound<S, P, X, CAPS>) { (self.wallet, self.mound) }
+
     pub fn issue(&mut self, schema: Schema, params: IssueParams, supply: S, pile: P) -> ContractId {
         self.mound.issue(schema, params, supply, pile)
     }
 
+    /*
     pub fn assignments(
         &self,
         outpoint: Outpoint,
@@ -131,6 +136,7 @@ impl<
             .iter()
             .map(|(id, seal)| (*id, seal))
     }
+     */
 
     pub fn new_vout(&mut self, vout: Vout) -> TxoSeal<D> { todo!() }
 
@@ -170,23 +176,32 @@ pub mod file {
         }
     }
 
-    pub type BtcMound<D: dbc::Proof, const CAPS: u32> =
+    pub type DirBtcMound<D: dbc::Proof, const CAPS: u32> =
         Mound<FileSupply, FilePile<TxoSeal<D>>, PathBuf, CAPS>;
-    pub type OpretMound = BtcMound<OpretProof, BTC_OPRET_CAPS>;
-    pub type TapretMound = BtcMound<TapretProof, BTC_TAPRET_CAPS>;
+    pub type DirOpretMound = DirBtcMound<OpretProof, BITCOIN_OPRET>;
+    pub type DirTapretMound = DirBtcMound<TapretProof, BITCOIN_TAPRET>;
 
-    pub enum OmniMound {
-        Opret(OpretMound),
-        Tapret(TapretMound),
+    pub struct DirMound {
+        opret: DirOpretMound,
+        tapret: DirTapretMound,
     }
 
     pub type BpBarrow<W, D: dbc::Proof, const CAPS: u32> =
         Barrow<W, D, FileSupply, FilePile<TxoSeal<D>>, PathBuf, CAPS>;
-    pub type OpretBarrow<W> = BpBarrow<W, OpretProof, BTC_OPRET_CAPS>;
-    pub type TapretBarrow<W> = BpBarrow<W, TapretProof, BTC_TAPRET_CAPS>;
+    pub type DirOpretBarrow<W> = BpBarrow<W, OpretProof, BITCOIN_OPRET>;
+    pub type DirTapretBarrow<W> = BpBarrow<W, TapretProof, BITCOIN_TAPRET>;
 
-    pub enum OmniBarrow<W: WalletDescriptor> {
-        Opret(OpretBarrow<W>),
-        Tapret(TapretBarrow<W>),
+    pub enum DirBarrow<W: WalletDescriptor> {
+        Opret(DirOpretBarrow<W>),
+        Tapret(DirTapretBarrow<W>),
+    }
+
+    impl<W: WalletDescriptor> DirBarrow<W> {
+        pub fn issue_file(&mut self, codex_id: CodexId, params: IssueParams) -> ContractId {
+            match self {
+                DirBarrow::Opret(barrow) => barrow.issue_file(codex_id, params),
+                DirBarrow::Tapret(barrow) => barrow.issue_file(codex_id, params),
+            }
+        }
     }
 }

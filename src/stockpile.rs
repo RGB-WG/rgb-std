@@ -88,18 +88,18 @@ mod fs {
         Seal::CliWitness: StrictEncode + StrictDecode,
         Seal::PubWitness: StrictEncode + StrictDecode,
     {
-        pub fn issue_file(schema: Schema, params: IssueParams, path: impl AsRef<Path>) -> Self {
-            let path = path.as_ref();
-            let pile = FilePile::new(params.name.as_str(), path);
-            let supply = FileSupply::new(params.name.as_str(), path);
-            Self::issue(schema, params, supply, pile)
-        }
-
         pub fn load(path: impl AsRef<Path>) -> Self {
             let path = path.as_ref();
             let pile = FilePile::open(path);
             let supply = FileSupply::open(path);
             Self::open(supply.load_articles(), supply, pile)
+        }
+
+        pub fn issue_file(schema: Schema, params: IssueParams, path: impl AsRef<Path>) -> Self {
+            let path = path.as_ref();
+            let pile = FilePile::new(params.name.as_str(), path);
+            let supply = FileSupply::new(params.name.as_str(), path);
+            Self::issue(schema, params, supply, pile)
         }
     }
 }

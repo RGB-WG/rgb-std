@@ -46,7 +46,7 @@ pub mod bitcoin;
 
 #[cfg(feature = "bitcoin")]
 pub use bp::{Outpoint, Txid};
-pub use mound::Mound;
+pub use mound::{Excavate, Mound, SealType};
 #[cfg(feature = "fs")]
 pub use pile::fs::FilePile;
 pub use pile::Pile;
