@@ -29,9 +29,14 @@ serde = { version = "1.0.215", optional = true }
 
 [features]
 default = ["std", "bitcoin"]
-all = ["std", "bitcoin", "fs", "serde"]
+all = ["std", "bitcoin", "liquid", "prime", "fs", "serde"]
 std = []
+
 bitcoin = ["bp-core"]
+liquid = []
+prime = []
+
+fs = ["std", "hypersonic/persist-file"]
 serde = [
     "std",
     "dep:serde",
@@ -42,7 +47,7 @@ serde = [
     "bp-core/serde",
     "rgb-core/serde",
 ]
-fs = ["std", "hypersonic/persist-file"]
+
 stl = [
     "bp-core/stl", "commit_verify/stl"
 ]

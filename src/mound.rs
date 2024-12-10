@@ -28,49 +28,20 @@ use hypersonic::{CellAddr, CodexId, ContractId, IssueParams, Schema, Supply};
 
 use crate::{Pile, Stockpile};
 
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
-#[repr(u32)]
-pub enum SealType {
-    #[cfg(feature = "bitcoin")]
-    #[display("bitcoin.opret")]
-    BitcoinOpret = crate::bitcoin::BITCOIN_OPRET,
-
-    #[cfg(feature = "bitcoin")]
-    #[display("bitcoin.tapret")]
-    BitcoinTapret = crate::bitcoin::BITCOIN_TAPRET,
-
-    #[cfg(feature = "liquid")]
-    #[display("liquid.tapret")]
-    LiquidTapret = crate::liquid::LIQUID_TAPRET,
-
-    #[cfg(feature = "prime")]
-    #[display("prime")]
-    Prime = crate::prime::PRIME,
+pub trait Excavate<S: Supply<CAPS>, P: Pile, const CAPS: u32> {
+    fn schemata(&mut self) -> impl Iterator<Item = (CodexId, Schema)>;
+    fn contracts(&mut self) -> impl Iterator<Item = (ContractId, Stockpile<S, P, CAPS>)>;
 }
 
-impl From<u32> for SealType {
-    fn from(caps: u32) -> Self {
-        match caps {
-            #[cfg(feature = "bitcoin")]
-            crate::bitcoin::BITCOIN_OPRET => Self::BitcoinOpret,
-            #[cfg(feature = "bitcoin")]
-            crate::bitcoin::BITCOIN_TAPRET => Self::BitcoinTapret,
-            #[cfg(feature = "liquid")]
-            crate::liquid::LIQUID_TAPRET => Self::LiquidTapret,
-            #[cfg(feature = "prime")]
-            crate::prime::PRIME => Self::Prime,
-            unknown => panic!("unknown seal type {unknown:#10x}"),
-        }
-    }
-}
-
-pub struct Mound<S: Supply<CAPS>, P: Pile, X, const CAPS: u32> {
+pub struct Mound<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS>, const CAPS: u32> {
     schemata: BTreeMap<CodexId, Schema>,
     contracts: BTreeMap<ContractId, Stockpile<S, P, CAPS>>,
     persistence: X,
 }
 
-impl<S: Supply<CAPS>, P: Pile, X: Default, const CAPS: u32> Default for Mound<S, P, X, CAPS> {
+impl<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS> + Default, const CAPS: u32> Default
+    for Mound<S, P, X, CAPS>
+{
     fn default() -> Self {
         Self {
             schemata: BTreeMap::new(),
@@ -80,17 +51,19 @@ impl<S: Supply<CAPS>, P: Pile, X: Default, const CAPS: u32> Default for Mound<S,
     }
 }
 
-impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Mound<S, P, (), CAPS> {
+impl<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS> + Default, const CAPS: u32>
+    Mound<S, P, X, CAPS>
+{
     pub fn new() -> Self {
         Self {
             schemata: BTreeMap::new(),
             contracts: BTreeMap::new(),
-            persistence: (),
+            persistence: default!(),
         }
     }
 }
 
-impl<S: Supply<CAPS>, P: Pile, X, const CAPS: u32> Mound<S, P, X, CAPS> {
+impl<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS>, const CAPS: u32> Mound<S, P, X, CAPS> {
     pub fn with(persistence: X) -> Self {
         Self {
             schemata: BTreeMap::new(),
@@ -99,11 +72,11 @@ impl<S: Supply<CAPS>, P: Pile, X, const CAPS: u32> Mound<S, P, X, CAPS> {
         }
     }
 
-    pub fn open(mut loader: impl Excavate<S, P, CAPS, Persistence = X>) -> Self {
+    pub fn open(mut persistance: X) -> Self {
         Self {
-            schemata: loader.schemata().collect(),
-            contracts: loader.contracts().collect(),
-            persistence: loader.persistence(),
+            schemata: persistance.schemata().collect(),
+            contracts: persistance.contracts().collect(),
+            persistence: persistance,
         }
     }
 
@@ -160,13 +133,6 @@ impl<S: Supply<CAPS>, P: Pile, X, const CAPS: u32> Mound<S, P, X, CAPS> {
     }
 }
 
-pub trait Excavate<S: Supply<CAPS>, P: Pile, const CAPS: u32> {
-    type Persistence;
-    fn persistence(&self) -> Self::Persistence;
-    fn schemata(&mut self) -> impl Iterator<Item = (CodexId, Schema)>;
-    fn contracts(&mut self) -> impl Iterator<Item = (ContractId, Stockpile<S, P, CAPS>)>;
-}
-
 pub mod file {
     use std::fs;
     use std::fs::FileType;
@@ -178,9 +144,9 @@ pub mod file {
 
     use super::*;
     use crate::pile::Protocol;
-    use crate::FilePile;
+    use crate::{FilePile, SealType};
 
-    struct DirExcavator<Seal: Protocol, const CAPS: u32> {
+    pub struct DirExcavator<Seal: Protocol, const CAPS: u32> {
         dir: PathBuf,
         _phantom: PhantomData<Seal>,
     }
@@ -212,16 +178,16 @@ pub mod file {
         Seal::CliWitness: StrictEncode + StrictDecode,
         Seal::PubWitness: StrictEncode + StrictDecode,
     {
-        type Persistence = PathBuf;
-
-        fn persistence(&self) -> Self::Persistence { self.dir.clone() }
-
         fn schemata(&mut self) -> impl Iterator<Item = (CodexId, Schema)> {
             self.contents().filter_map(|(ty, path)| {
                 if ty.is_file() && path.ends_with(".schema") {
                     Schema::load(path)
                         .ok()
                         .map(|schema| (schema.codex.codex_id(), schema))
+                } else if ty.is_dir() && path.ends_with(".contract") {
+                    let contract = Stockpile::<FileSupply, FilePile<Seal>, CAPS>::load(path);
+                    let schema = contract.stock().articles().schema.clone();
+                    Some((schema.codex.codex_id(), schema))
                 } else {
                     None
                 }
@@ -233,7 +199,7 @@ pub mod file {
         ) -> impl Iterator<Item = (ContractId, Stockpile<FileSupply, FilePile<Seal>, CAPS>)>
         {
             self.contents().filter_map(|(ty, path)| {
-                if ty.is_file() && path.ends_with(".contract") {
+                if ty.is_dir() && path.ends_with(".contract") {
                     let contract = Stockpile::load(path);
                     Some((contract.contract_id(), contract))
                 } else {
@@ -243,8 +209,8 @@ pub mod file {
         }
     }
 
-    pub type FileMound<Seal: Protocol, const CAPS: u32> =
-        Mound<FileSupply, FilePile<Seal>, PathBuf, CAPS>;
+    pub type FileMound<Seal, const CAPS: u32> =
+        Mound<FileSupply, FilePile<Seal>, DirExcavator<Seal, CAPS>, CAPS>;
 
     impl<Seal: Protocol, const CAPS: u32> FileMound<Seal, CAPS>
     where
@@ -258,11 +224,11 @@ pub mod file {
         }
 
         pub fn issue_file(&mut self, schema: Schema, params: IssueParams) -> ContractId {
-            let pile = FilePile::<Seal>::new(params.name.as_str(), &self.persistence);
-            let supply = FileSupply::new(params.name.as_str(), &self.persistence);
+            let pile = FilePile::<Seal>::new(params.name.as_str(), &self.persistence.dir);
+            let supply = FileSupply::new(params.name.as_str(), &self.persistence.dir);
             self.issue(schema, params, supply, pile)
         }
 
-        pub fn path(&self) -> &Path { &self.persistence }
+        pub fn path(&self) -> &Path { &self.persistence.dir }
     }
 }

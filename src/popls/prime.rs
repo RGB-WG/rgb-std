@@ -22,34 +22,4 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
-#![cfg_attr(not(feature = "std"), no_std)]
-
-extern crate alloc;
-
-#[macro_use]
-extern crate amplify;
-extern crate rgbcore as rgb;
-
-#[cfg(feature = "bitcoin")]
-#[macro_use]
-extern crate strict_encoding;
-#[cfg(all(feature = "serde", feature = "bitcoin"))]
-#[macro_use]
-extern crate serde;
-extern crate core;
-
-mod pile;
-mod stockpile;
-mod mound;
-pub mod popls;
-
-#[cfg(feature = "bitcoin")]
-pub use bp::{Outpoint, Txid};
-pub use mound::{Excavate, Mound};
-#[cfg(feature = "fs")]
-pub use pile::fs::FilePile;
-pub use pile::Pile;
-pub use popls::SealType;
-pub use rgb::*;
-pub use stockpile::Stockpile;
+pub const PRIME: u32 = 0x0010_0001_u32;

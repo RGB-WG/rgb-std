@@ -32,6 +32,7 @@ use strict_encoding::{StrictWriter, WriteRaw};
 use crate::pile::Protocol;
 use crate::Pile;
 
+#[derive(Getters)]
 pub struct Stockpile<S: Supply<CAPS>, P: Pile, const CAPS: u32> {
     stock: Stock<S, CAPS>,
     pile: P,
