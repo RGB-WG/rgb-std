@@ -27,6 +27,7 @@
 
 use alloc::collections::BTreeMap;
 
+use amplify::confinement;
 use amplify::confinement::SmallOrdSet;
 use bp::dbc::opret::OpretProof;
 use bp::dbc::tapret::TapretProof;
@@ -58,16 +59,38 @@ pub const LIQUID_TAPRET: u32 = 0x0002_0002_u32;
 pub type OpretSeal = TxoSeal<OpretProof>;
 pub type TapretSeal = TxoSeal<TapretProof>;
 
+impl<D: dbc::Proof> Protocol for TxoSeal<D> {
+    type Id = Txid;
+
+    fn auth_token(&self) -> AuthToken { todo!() }
+}
+
+// TODO: Support failback seals
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(rename_all = "camelCase", untagged)
+)]
+pub enum BuilderSeal {
+    #[display("~:{0}")]
+    Oneself(Vout),
+
+    #[display("{0}")]
+    Extern(Outpoint),
+}
+
 /// Parameters used by BP-based wallet for constructing operations.
 ///
 /// Differs from [`hypersonic::CallParams`] in the fact that it uses [`TxoSeal`]s instead of
 /// AuthTokens for output definitions.
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct ConstructParams<D: dbc::Proof> {
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
+pub struct ConstructParams {
+    pub contract_id: ContractId,
     pub method: MethodName,
     pub global: Vec<NamedState<StateAtom>>,
-    pub owned: BTreeMap<TxoSeal<D>, NamedState<StrictVal>>,
+    pub owned: BTreeMap<BuilderSeal, NamedState<StrictVal>>,
     pub using: Vec<(AuthToken, StrictVal)>,
     pub reading: Vec<CellAddr>,
 }
@@ -77,30 +100,42 @@ pub struct ConstructParams<D: dbc::Proof> {
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = "RGB")]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct Prefab {
     pub contract_id: ContractId,
     pub closes: SmallOrdSet<Outpoint>,
+    pub defines: SmallOrdSet<Vout>,
     pub operation: Operation,
 }
 
-/// A pack of prefabricated operations related to the same witness transaction.
+/// A bundle of prefabricated operations related to the same witness transaction.
 ///
 /// The pack should cover all contracts assigning state to the witness transaction previous outputs.
 /// It is used to add seal closing commitment to the witness transaction PSBT.
-#[derive(Clone, Eq, PartialEq, Debug, Default)]
+#[derive(Wrapper, WrapperMut, Clone, Eq, PartialEq, Debug, Default, From)]
+#[wrapper(Deref)]
+#[wrapper_mut(DerefMut)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = "RGB")]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct PrefabPack(SmallOrdSet<Prefab>);
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
+pub struct PrefabBundle(SmallOrdSet<Prefab>);
 
-impl StrictSerialize for Prefab {}
-impl StrictDeserialize for Prefab {}
+impl StrictSerialize for PrefabBundle {}
+impl StrictDeserialize for PrefabBundle {}
 
-impl<D: dbc::Proof> Protocol for TxoSeal<D> {
-    type Id = Txid;
+impl PrefabBundle {
+    pub fn new(items: impl IntoIterator<Item = Prefab>) -> Result<Self, confinement::Error> {
+        let items = SmallOrdSet::try_from_iter(items.into_iter())?;
+        Ok(Self(items))
+    }
 
-    fn auth_token(&self) -> AuthToken { todo!() }
+    pub fn closes(&self) -> impl Iterator<Item = Outpoint> + use<'_> {
+        self.0.iter().flat_map(|item| item.closes.iter().copied())
+    }
+
+    pub fn defines(&self) -> impl Iterator<Item = Vout> + use<'_> {
+        self.0.iter().flat_map(|item| item.defines.iter().copied())
+    }
 }
 
 /// Barrow contains a bunch of RGB contract stockpiles, which are held by a single owner; such that
@@ -142,9 +177,9 @@ impl<
         self.mound.issue(codex_id, params, supply, pile)
     }
 
+    // TODO: Use bitcoin-specific state type aware of outpoints
     pub fn state(
         &self,
-        all: bool,
         contract_id: Option<ContractId>,
     ) -> impl Iterator<Item = (ContractId, &AdaptedState)> {
         self.mound
@@ -173,13 +208,13 @@ impl<
     pub fn resolve_seal(&self, opout: CellAddr) -> TxoSeal<D> { todo!() }
 
     /// Creates a single operation basing on the provided construction parameters.
-    pub fn prefab(&self, contract_id: ContractId, params: ConstructParams<D>) -> Prefab {
+    pub fn prefab(&self, params: ConstructParams) -> Prefab {
         // convert ExecParams into CallParams
         todo!()
     }
 
     /// Completes creation of a prefabricated operation pack, adding blank operations if necessary.
-    pub fn complete(&self, ops: impl IntoIterator<Item = Prefab>) -> PrefabPack {
+    pub fn bundle(&self, ops: impl IntoIterator<Item = Prefab>) -> PrefabBundle {
         // add blank operations
         todo!()
     }
@@ -388,19 +423,37 @@ pub mod file {
 
         pub fn state(
             &self,
-            all: bool,
             contract_id: Option<ContractId>,
         ) -> Box<dyn Iterator<Item = (ContractId, &AdaptedState)> + '_> {
             match self {
                 #[cfg(feature = "bitcoin")]
-                Self::BcOpret(barrow) => Box::new(barrow.state(all, contract_id)),
+                Self::BcOpret(barrow) => Box::new(barrow.state(contract_id)),
                 #[cfg(feature = "bitcoin")]
-                Self::BcTapret(barrow) => Box::new(barrow.state(all, contract_id)),
+                Self::BcTapret(barrow) => Box::new(barrow.state(contract_id)),
                 #[cfg(feature = "liquid")]
-                Self::LqOpret(barrow) => Box::new(barrow.state(all, contract_id)),
+                Self::LqOpret(barrow) => Box::new(barrow.state(contract_id)),
                 #[cfg(feature = "liquid")]
-                Self::LqTapret(barrow) => Box::new(barrow.state(all, contract_id)),
+                Self::LqTapret(barrow) => Box::new(barrow.state(contract_id)),
             }
+        }
+
+        pub fn prefab(&self, params: ConstructParams) -> Prefab {
+            match self {
+                #[cfg(feature = "bitcoin")]
+                Self::BcOpret(barrow) => barrow.prefab(params),
+                #[cfg(feature = "bitcoin")]
+                Self::BcTapret(barrow) => barrow.prefab(params),
+                #[cfg(feature = "liquid")]
+                Self::LqOpret(barrow) => barrow.prefab(params),
+                #[cfg(feature = "liquid")]
+                Self::LqTapret(barrow) => barrow.prefab(params),
+            }
+        }
+
+        pub fn bundle(&self, items: impl IntoIterator<Item = ConstructParams>) -> PrefabBundle {
+            let iter = items.into_iter().map(|params| self.prefab(params));
+            let items = SmallOrdSet::try_from_iter(iter).expect("too large script");
+            PrefabBundle(items)
         }
     }
 }
