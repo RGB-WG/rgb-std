@@ -80,8 +80,15 @@ impl<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS>, const CAPS: u32> Mound<S
         }
     }
 
-    pub fn issue(&mut self, schema: Schema, params: IssueParams, supply: S, pile: P) -> ContractId {
-        let stockpile = Stockpile::issue(schema, params, supply, pile);
+    pub fn issue(
+        &mut self,
+        codex_id: CodexId,
+        params: IssueParams,
+        supply: S,
+        pile: P,
+    ) -> ContractId {
+        let schema = self.schema(codex_id).expect("unknown schema");
+        let stockpile = Stockpile::issue(schema.clone(), params, supply, pile);
         let id = stockpile.contract_id();
         self.contracts.insert(id, stockpile);
         id
@@ -223,10 +230,10 @@ pub mod file {
             Self::open(excavator)
         }
 
-        pub fn issue_file(&mut self, schema: Schema, params: IssueParams) -> ContractId {
+        pub fn issue_file(&mut self, codex_id: CodexId, params: IssueParams) -> ContractId {
             let pile = FilePile::<Seal>::new(params.name.as_str(), &self.persistence.dir);
             let supply = FileSupply::new(params.name.as_str(), &self.persistence.dir);
-            self.issue(schema, params, supply, pile)
+            self.issue(codex_id, params, supply, pile)
         }
 
         pub fn path(&self) -> &Path { &self.persistence.dir }

@@ -33,8 +33,8 @@ use bp::dbc::tapret::TapretProof;
 use bp::seals::TxoSeal;
 use bp::{dbc, Outpoint, Txid, Vout};
 use hypersonic::{
-    AuthToken, CellAddr, ContractId, IssueParams, MethodName, NamedState, Operation, Schema,
-    StateAtom, Supply,
+    AdaptedState, AuthToken, CellAddr, CodexId, ContractId, IssueParams, MethodName, NamedState,
+    Operation, Schema, StateAtom, Supply,
 };
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 use strict_types::StrictVal;
@@ -132,8 +132,25 @@ impl<
 
     pub fn unbind(self) -> (W, Mound<S, P, X, CAPS>) { (self.wallet, self.mound) }
 
-    pub fn issue(&mut self, schema: Schema, params: IssueParams, supply: S, pile: P) -> ContractId {
-        self.mound.issue(schema, params, supply, pile)
+    pub fn issue(
+        &mut self,
+        codex_id: CodexId,
+        params: IssueParams,
+        supply: S,
+        pile: P,
+    ) -> ContractId {
+        self.mound.issue(codex_id, params, supply, pile)
+    }
+
+    pub fn state(
+        &self,
+        all: bool,
+        contract_id: Option<ContractId>,
+    ) -> impl Iterator<Item = (ContractId, &AdaptedState)> {
+        self.mound
+            .contracts()
+            .filter(move |(id, _)| contract_id.is_none() || Some(*id) == contract_id)
+            .map(|(id, stockpile)| (id, &stockpile.stock().state().main))
     }
 
     /*
@@ -183,9 +200,8 @@ pub mod file {
 
     impl<W: WalletProvider, D: dbc::Proof, const CAPS: u32> FileWallet<W, D, CAPS> {
         pub fn issue_file(&mut self, codex_id: CodexId, params: IssueParams) -> ContractId {
-            let schema = self.mound.schema(codex_id).expect("unknown codex id");
             // TODO: check that if the issue belongs to the wallet add it to the unspents
-            self.mound.issue_file(schema.clone(), params)
+            self.mound.issue_file(codex_id, params)
         }
     }
 
@@ -203,13 +219,13 @@ pub mod file {
 
     pub struct DirMound {
         #[cfg(feature = "bitcoin")]
-        bc_opret: DirBcOpretMound,
+        pub bc_opret: DirBcOpretMound,
         #[cfg(feature = "bitcoin")]
-        bc_tapret: DirBcTapretMound,
+        pub bc_tapret: DirBcTapretMound,
         #[cfg(feature = "liquid")]
-        lq_opret: DirLqOpretMound,
+        pub lq_opret: DirLqOpretMound,
         #[cfg(feature = "liquid")]
-        lq_tapret: DirLqTapretMound,
+        pub lq_tapret: DirLqTapretMound,
     }
 
     impl DirMound {
@@ -356,9 +372,7 @@ pub mod file {
                 _ => panic!("unsupported seal type"),
             }
         }
-    }
 
-    impl<O: OpretProvider, T: TapretProvider> DirBarrow<O, T> {
         pub fn issue_file(&mut self, codex_id: CodexId, params: IssueParams) -> ContractId {
             match self {
                 #[cfg(feature = "bitcoin")]
@@ -369,6 +383,23 @@ pub mod file {
                 Self::LqOpret(barrow) => barrow.issue_file(codex_id, params),
                 #[cfg(feature = "liquid")]
                 Self::LqTapret(barrow) => barrow.issue_file(codex_id, params),
+            }
+        }
+
+        pub fn state(
+            &self,
+            all: bool,
+            contract_id: Option<ContractId>,
+        ) -> Box<dyn Iterator<Item = (ContractId, &AdaptedState)> + '_> {
+            match self {
+                #[cfg(feature = "bitcoin")]
+                Self::BcOpret(barrow) => Box::new(barrow.state(all, contract_id)),
+                #[cfg(feature = "bitcoin")]
+                Self::BcTapret(barrow) => Box::new(barrow.state(all, contract_id)),
+                #[cfg(feature = "liquid")]
+                Self::LqOpret(barrow) => Box::new(barrow.state(all, contract_id)),
+                #[cfg(feature = "liquid")]
+                Self::LqTapret(barrow) => Box::new(barrow.state(all, contract_id)),
             }
         }
     }
