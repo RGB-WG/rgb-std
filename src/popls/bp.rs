@@ -33,6 +33,7 @@ use bp::dbc::opret::OpretProof;
 use bp::dbc::tapret::TapretProof;
 use bp::seals::TxoSeal;
 use bp::{dbc, Outpoint, Txid, Vout};
+use commit_verify::CommitId;
 use hypersonic::{
     AdaptedState, AuthToken, CellAddr, CodexId, ContractId, IssueParams, MethodName, NamedState,
     Operation, Schema, StateAtom, Supply,
@@ -62,7 +63,15 @@ pub type TapretSeal = TxoSeal<TapretProof>;
 impl<D: dbc::Proof> Protocol for TxoSeal<D> {
     type Id = Txid;
 
-    fn auth_token(&self) -> AuthToken { todo!() }
+    // SECURITY: Here we cut SHA256 tagged hash of a single-use seal definition to 30 bytes in order
+    // to fit it into a field element with no overflows. This must be a secure operation since we
+    // still have a sufficient 120-bit collision resistance.
+    fn auth_token(&self) -> AuthToken {
+        let id = self.commit_id().to_byte_array();
+        let mut shortened_id = [0u8; 30];
+        shortened_id.copy_from_slice(&id[0..30]);
+        AuthToken::from_byte_array(shortened_id)
+    }
 }
 
 // TODO: Support failback seals
@@ -200,12 +209,6 @@ impl<
             .map(|(id, seal)| (*id, seal))
     }
      */
-
-    pub fn new_vout(&mut self, vout: Vout) -> TxoSeal<D> { todo!() }
-
-    pub fn new_seal(&mut self) -> TxoSeal<D> { todo!() }
-
-    pub fn resolve_seal(&self, opout: CellAddr) -> TxoSeal<D> { todo!() }
 
     /// Creates a single operation basing on the provided construction parameters.
     pub fn prefab(&self, params: ConstructParams) -> Prefab {
