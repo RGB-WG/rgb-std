@@ -147,6 +147,7 @@ pub mod file {
     use std::path::{Path, PathBuf};
 
     use hypersonic::FileSupply;
+    use single_use_seals::{PublishedWitness, SingleUseSeal};
     use strict_encoding::{StrictDecode, StrictEncode};
 
     use super::*;
@@ -184,6 +185,7 @@ pub mod file {
     where
         Seal::CliWitness: StrictEncode + StrictDecode,
         Seal::PubWitness: StrictEncode + StrictDecode,
+        <<Seal as SingleUseSeal>::PubWitness as PublishedWitness<Seal>>::PubId: From<[u8; 32]>,
     {
         fn schemata(&mut self) -> impl Iterator<Item = (CodexId, Schema)> {
             self.contents().filter_map(|(ty, path)| {
@@ -223,6 +225,7 @@ pub mod file {
     where
         Seal::CliWitness: StrictEncode + StrictDecode,
         Seal::PubWitness: StrictEncode + StrictDecode,
+        <<Seal as SingleUseSeal>::PubWitness as PublishedWitness<Seal>>::PubId: From<[u8; 32]>,
     {
         pub fn load(path: impl AsRef<Path>) -> Self {
             let path = path.as_ref();

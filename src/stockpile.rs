@@ -25,11 +25,12 @@
 // TODO: Used in strict encoding; once solved there, remove here
 use std::io;
 
+use hypersonic::aora::Aora;
 use hypersonic::{Articles, AuthToken, CellAddr, ContractId, IssueParams, Schema, Stock, Supply};
-use single_use_seals::SingleUseSeal;
-use strict_encoding::{StrictWriter, WriteRaw};
+use single_use_seals::{PublishedWitness, SingleUseSeal};
+use strict_encoding::{StrictEncode, StrictWriter, WriteRaw};
 
-use crate::pile::Protocol;
+use crate::pile::{Index, Protocol};
 use crate::Pile;
 
 #[derive(Getters)]
@@ -59,18 +60,27 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Stockpile<S, P, CAPS> {
 
     pub fn append_witness(
         &mut self,
-        published: <P::Seal as SingleUseSeal>::PubWitness,
-        client: <P::Seal as SingleUseSeal>::CliWitness,
-    ) {
-        todo!()
+        published: &<P::Seal as SingleUseSeal>::PubWitness,
+        client: &<P::Seal as SingleUseSeal>::CliWitness,
+    ) where
+        <<P::Seal as SingleUseSeal>::PubWitness as PublishedWitness<P::Seal>>::PubId:
+            Into<[u8; 32]>,
+    {
+        let id = published.pub_id();
+        self.pile.hoard_mut().append(id.into().into(), client);
+        self.pile.cache_mut().append(id.into().into(), published);
     }
 
     pub fn consign<'a>(
         &mut self,
         terminals: impl IntoIterator<Item = &'a AuthToken>,
-        mut writer: StrictWriter<impl WriteRaw>,
-    ) -> io::Result<()> {
-        todo!()
+        writer: StrictWriter<impl WriteRaw>,
+    ) -> io::Result<()>
+    where
+        <<P::Seal as SingleUseSeal>::PubWitness as PublishedWitness<P::Seal>>::PubId: StrictEncode,
+    {
+        self.stock
+            .export_aux(terminals, writer, |opid| self.pile.index().get(opid))
     }
 }
 
@@ -88,6 +98,7 @@ mod fs {
     where
         Seal::CliWitness: StrictEncode + StrictDecode,
         Seal::PubWitness: StrictEncode + StrictDecode,
+        <<Seal as SingleUseSeal>::PubWitness as PublishedWitness<Seal>>::PubId: From<[u8; 32]>,
     {
         pub fn load(path: impl AsRef<Path>) -> Self {
             let path = path.as_ref();
