@@ -26,9 +26,10 @@
 //! proof of publication layer 1.
 
 use alloc::collections::BTreeMap;
+use std::collections::BTreeSet;
 
-use amplify::confinement;
 use amplify::confinement::SmallOrdSet;
+use amplify::{confinement, Bytes32};
 use bp::dbc::opret::OpretProof;
 use bp::dbc::tapret::TapretProof;
 use bp::seals::TxoSeal;
@@ -44,7 +45,9 @@ use strict_types::StrictVal;
 use crate::pile::Protocol;
 use crate::{Excavate, Mound, Pile};
 
-pub trait WalletProvider {}
+pub trait WalletProvider {
+    fn noise_seed(&self) -> Bytes32;
+}
 pub trait OpretProvider: WalletProvider {}
 pub trait TapretProvider: WalletProvider {}
 
@@ -56,6 +59,8 @@ pub const BITCOIN_TAPRET: u32 = 0x0001_0002_u32;
 pub const LIQUID_OPRET: u32 = 0x0002_0001_u32;
 #[cfg(feature = "liquid")]
 pub const LIQUID_TAPRET: u32 = 0x0002_0002_u32;
+
+pub const BP_BLANK_METHOD: &str = "_";
 
 pub type OpretSeal = TxoSeal<OpretProof>;
 pub type TapretSeal = TxoSeal<TapretProof>;
@@ -159,7 +164,6 @@ pub struct Barrow<
     const CAPS: u32,
 > {
     pub wallet: W,
-    //pub unspent: BTreeMap<Outpoint, BTreeSet<(ContractId, TxoSeal<D>)>>,
     pub mound: Mound<S, P, X, CAPS>,
 }
 
@@ -197,36 +201,22 @@ impl<
             .map(|(id, stockpile)| (id, &stockpile.stock().state().main))
     }
 
-    /*
-    pub fn assignments(
-        &self,
-        outpoint: Outpoint,
-    ) -> impl Iterator<Item = (ContractId, &TxoSeal<D>)> {
-        self.unspent
-            .get(&outpoint)
-            .expect("unknown outpoint")
-            .iter()
-            .map(|(id, seal)| (*id, seal))
-    }
-     */
-
     /// Creates a single operation basing on the provided construction parameters.
-    pub fn prefab(&mut self, params: ConstructParams, noise_seed: impl AsRef<[u8]>) -> Prefab {
+    pub fn prefab(&mut self, params: ConstructParams) -> Prefab {
         // convert ExecParams into CallParams
 
-        let closes =
-            SmallOrdSet::from_iter_checked(params.using.iter().map(|(_, outpoint, _)| *outpoint));
-        let using = params
+        let (closes, using) = params
             .using
             .into_iter()
-            .map(|(auth, _, val)| (auth, val))
-            .collect();
+            .map(|(auth, outpoint, val)| (outpoint, (auth, val)))
+            .unzip();
+        let closes = SmallOrdSet::try_from(closes).expect("too many inputs");
         let mut defines = SmallOrdSet::new();
 
-        debug_assert_eq!(noise_seed.as_ref().len(), 32);
-        let mut noise_endigne = Sha256::new();
-        noise_endigne.input_raw(params.contract_id.as_slice());
-        noise_endigne.input_raw(noise_seed.as_ref());
+        let noise_seed = self.wallet.noise_seed();
+        let mut noise_engine = Sha256::new();
+        noise_engine.input_raw(params.contract_id.as_slice());
+        noise_engine.input_raw(noise_seed.as_ref());
         let owned = params
             .owned
             .into_iter()
@@ -236,10 +226,10 @@ impl<
                         defines.push(vout).expect("too many seals");
                         // NB: We use opret type here, but this doesn't matter since we create seal
                         // only to produce the auth token, and seals do not commit to their type.
-                        TxoSeal::<OpretProof>::vout_no_fallback(vout, noise_endigne.clone())
+                        TxoSeal::<OpretProof>::vout_no_fallback(vout, noise_engine.clone())
                     }
                     BuilderSeal::Extern(outpoint) => {
-                        TxoSeal::no_fallback(outpoint, noise_endigne.clone())
+                        TxoSeal::no_fallback(outpoint, noise_engine.clone())
                     }
                 };
                 let state = DataCell {
@@ -277,9 +267,59 @@ impl<
     }
 
     /// Completes creation of a prefabricated operation pack, adding blank operations if necessary.
-    pub fn bundle(&self, ops: impl IntoIterator<Item = Prefab>) -> PrefabBundle {
-        // add blank operations
-        todo!()
+    pub fn bundle(&mut self, ops: impl IntoIterator<Item = Prefab>) -> PrefabBundle {
+        let mut outpoints = BTreeSet::<Outpoint>::new();
+        let mut contracts = BTreeSet::new();
+        let mut prefabs = BTreeSet::new();
+        for prefab in ops {
+            contracts.insert(prefab.contract_id);
+            outpoints.extend(&prefab.closes);
+            prefabs.insert(prefab);
+        }
+
+        for (contract_id, stockpile) in self.mound.contracts_mut() {
+            let noise_seed = self.wallet.noise_seed();
+            let mut noise_engine = Sha256::new();
+            noise_engine.input_raw(contract_id.as_slice());
+            noise_engine.input_raw(noise_seed.as_ref());
+
+            let using = stockpile
+                .stock()
+                .state()
+                .main
+                .owned
+                .values()
+                .flat_map(BTreeMap::keys)
+                .filter_map(|addr| {
+                    let auth = stockpile.stock_mut().operation(addr.opid).destructible
+                        [addr.pos as usize]
+                        .auth;
+                    outpoints
+                        .iter()
+                        .copied()
+                        .find(|outpoint| {
+                            TxoSeal::no_fallback(*outpoint, noise_engine.clone()).auth_token()
+                                == auth
+                        })
+                        .map(|outpoint| (auth, outpoint, StrictVal::Unit))
+                })
+                .collect();
+
+            // TODO: Construct new state
+            let params = ConstructParams {
+                contract_id,
+                method: MethodName::from(BP_BLANK_METHOD),
+                global: none!(),
+                owned,
+                using,
+                reading: none!(),
+            };
+            let blank = self.prefab(params);
+            let res = prefabs.insert(blank);
+            debug_assert!(res);
+        }
+
+        PrefabBundle(SmallOrdSet::try_from(prefabs).expect("too many operations"))
     }
 }
 
@@ -500,29 +540,22 @@ pub mod file {
             }
         }
 
-        pub fn prefab(&mut self, params: ConstructParams, noise_seed: impl AsRef<[u8]>) -> Prefab {
+        pub fn prefab(&mut self, params: ConstructParams) -> Prefab {
             // TODO: Mix into a noise seed contract id and other data
             match self {
                 #[cfg(feature = "bitcoin")]
-                Self::BcOpret(barrow) => barrow.prefab(params, noise_seed),
+                Self::BcOpret(barrow) => barrow.prefab(params),
                 #[cfg(feature = "bitcoin")]
-                Self::BcTapret(barrow) => barrow.prefab(params, noise_seed),
+                Self::BcTapret(barrow) => barrow.prefab(params),
                 #[cfg(feature = "liquid")]
-                Self::LqOpret(barrow) => barrow.prefab(params, noise_seed),
+                Self::LqOpret(barrow) => barrow.prefab(params),
                 #[cfg(feature = "liquid")]
-                Self::LqTapret(barrow) => barrow.prefab(params, noise_seed),
+                Self::LqTapret(barrow) => barrow.prefab(params),
             }
         }
 
-        pub fn bundle(
-            &mut self,
-            items: impl IntoIterator<Item = ConstructParams>,
-            noise_seed: impl AsRef<[u8]>,
-        ) -> PrefabBundle {
-            let noise_seed = noise_seed.as_ref();
-            let iter = items
-                .into_iter()
-                .map(|params| self.prefab(params, noise_seed));
+        pub fn bundle(&mut self, items: impl IntoIterator<Item = ConstructParams>) -> PrefabBundle {
+            let iter = items.into_iter().map(|params| self.prefab(params));
             let items = SmallOrdSet::try_from_iter(iter).expect("too large script");
             PrefabBundle(items)
         }
