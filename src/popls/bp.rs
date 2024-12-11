@@ -33,10 +33,10 @@ use bp::dbc::opret::OpretProof;
 use bp::dbc::tapret::TapretProof;
 use bp::seals::TxoSeal;
 use bp::{dbc, Outpoint, Txid, Vout};
-use commit_verify::CommitId;
+use commit_verify::{CommitId, Digest, DigestExt, Sha256};
 use hypersonic::{
-    AdaptedState, AuthToken, CellAddr, CodexId, ContractId, IssueParams, MethodName, NamedState,
-    Operation, Schema, StateAtom, Supply,
+    AdaptedState, AuthToken, CallParams, CellAddr, CodexId, ContractId, CoreParams, DataCell,
+    IssueParams, MethodName, NamedState, Operation, Schema, StateAtom, Supply,
 };
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 use strict_types::StrictVal;
@@ -100,7 +100,7 @@ pub struct ConstructParams {
     pub method: MethodName,
     pub global: Vec<NamedState<StateAtom>>,
     pub owned: BTreeMap<BuilderSeal, NamedState<StrictVal>>,
-    pub using: Vec<(AuthToken, StrictVal)>,
+    pub using: Vec<(AuthToken, Outpoint, StrictVal)>,
     pub reading: Vec<CellAddr>,
 }
 
@@ -211,9 +211,69 @@ impl<
      */
 
     /// Creates a single operation basing on the provided construction parameters.
-    pub fn prefab(&self, params: ConstructParams) -> Prefab {
+    pub fn prefab(&mut self, params: ConstructParams, noise_seed: impl AsRef<[u8]>) -> Prefab {
         // convert ExecParams into CallParams
-        todo!()
+
+        let closes =
+            SmallOrdSet::from_iter_checked(params.using.iter().map(|(_, outpoint, _)| *outpoint));
+        let using = params
+            .using
+            .into_iter()
+            .map(|(auth, _, val)| (auth, val))
+            .collect();
+        let mut defines = SmallOrdSet::new();
+
+        debug_assert_eq!(noise_seed.as_ref().len(), 32);
+        let mut noise_endigne = Sha256::new();
+        noise_endigne.input_raw(params.contract_id.as_slice());
+        noise_endigne.input_raw(noise_seed.as_ref());
+        let owned = params
+            .owned
+            .into_iter()
+            .map(|(seal, val)| {
+                let seal = match seal {
+                    BuilderSeal::Oneself(vout) => {
+                        defines.push(vout).expect("too many seals");
+                        // NB: We use opret type here, but this doesn't matter since we create seal
+                        // only to produce the auth token, and seals do not commit to their type.
+                        TxoSeal::<OpretProof>::vout_no_fallback(vout, noise_endigne.clone())
+                    }
+                    BuilderSeal::Extern(outpoint) => {
+                        TxoSeal::no_fallback(outpoint, noise_endigne.clone())
+                    }
+                };
+                let state = DataCell {
+                    data: val.state,
+                    auth: seal.auth_token(),
+                    lock: None,
+                };
+                NamedState {
+                    name: val.name,
+                    state,
+                }
+            })
+            .collect();
+
+        let call = CallParams {
+            core: CoreParams {
+                method: params.method,
+                global: params.global,
+                owned,
+            },
+            using,
+            reading: params.reading,
+        };
+
+        let stockpile = self.mound.contract_mut(params.contract_id);
+        let opid = stockpile.stock_mut().call(call);
+        let operation = stockpile.stock_mut().operation(opid);
+
+        Prefab {
+            contract_id: params.contract_id,
+            closes,
+            defines,
+            operation,
+        }
     }
 
     /// Completes creation of a prefabricated operation pack, adding blank operations if necessary.
@@ -440,21 +500,29 @@ pub mod file {
             }
         }
 
-        pub fn prefab(&self, params: ConstructParams) -> Prefab {
+        pub fn prefab(&mut self, params: ConstructParams, noise_seed: impl AsRef<[u8]>) -> Prefab {
+            // TODO: Mix into a noise seed contract id and other data
             match self {
                 #[cfg(feature = "bitcoin")]
-                Self::BcOpret(barrow) => barrow.prefab(params),
+                Self::BcOpret(barrow) => barrow.prefab(params, noise_seed),
                 #[cfg(feature = "bitcoin")]
-                Self::BcTapret(barrow) => barrow.prefab(params),
+                Self::BcTapret(barrow) => barrow.prefab(params, noise_seed),
                 #[cfg(feature = "liquid")]
-                Self::LqOpret(barrow) => barrow.prefab(params),
+                Self::LqOpret(barrow) => barrow.prefab(params, noise_seed),
                 #[cfg(feature = "liquid")]
-                Self::LqTapret(barrow) => barrow.prefab(params),
+                Self::LqTapret(barrow) => barrow.prefab(params, noise_seed),
             }
         }
 
-        pub fn bundle(&self, items: impl IntoIterator<Item = ConstructParams>) -> PrefabBundle {
-            let iter = items.into_iter().map(|params| self.prefab(params));
+        pub fn bundle(
+            &mut self,
+            items: impl IntoIterator<Item = ConstructParams>,
+            noise_seed: impl AsRef<[u8]>,
+        ) -> PrefabBundle {
+            let noise_seed = noise_seed.as_ref();
+            let iter = items
+                .into_iter()
+                .map(|params| self.prefab(params, noise_seed));
             let items = SmallOrdSet::try_from_iter(iter).expect("too large script");
             PrefabBundle(items)
         }

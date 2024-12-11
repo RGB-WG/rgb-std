@@ -35,7 +35,9 @@ use crate::Pile;
 
 #[derive(Getters)]
 pub struct Stockpile<S: Supply<CAPS>, P: Pile, const CAPS: u32> {
+    #[getter(as_mut)]
     stock: Stock<S, CAPS>,
+    #[getter(as_mut)]
     pile: P,
 }
 

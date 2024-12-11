@@ -170,7 +170,7 @@ dependencies = [
 [[package]]
 name = "bp-consensus"
 version = "0.12.0-beta.2"
-source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#5d8db23ffa73417937230238d807310eb6052579"
+source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#b2b347ff9d1f1f214844b48db1ce6cb3075bc669"
 dependencies = [
  "amplify",
  "chrono",
@@ -184,7 +184,7 @@ dependencies = [
 [[package]]
 name = "bp-core"
 version = "0.12.0-beta.2"
-source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#5d8db23ffa73417937230238d807310eb6052579"
+source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#b2b347ff9d1f1f214844b48db1ce6cb3075bc669"
 dependencies = [
  "amplify",
  "bp-consensus",
@@ -202,7 +202,7 @@ dependencies = [
 [[package]]
 name = "bp-dbc"
 version = "0.12.0-beta.2"
-source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#5d8db23ffa73417937230238d807310eb6052579"
+source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#b2b347ff9d1f1f214844b48db1ce6cb3075bc669"
 dependencies = [
  "amplify",
  "base85",
@@ -216,7 +216,7 @@ dependencies = [
 [[package]]
 name = "bp-seals"
 version = "0.12.0-beta.2"
-source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#5d8db23ffa73417937230238d807310eb6052579"
+source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#b2b347ff9d1f1f214844b48db1ce6cb3075bc669"
 dependencies = [
  "amplify",
  "baid64",
@@ -389,7 +389,7 @@ dependencies = [
 [[package]]
 name = "hypersonic"
 version = "0.12.0-beta.1"
-source = "git+https://github.com/AluVM/sonic#1867a24ea654d91de1a83347d0854ae1c81625cc"
+source = "git+https://github.com/AluVM/sonic#f0895034c3795ad6bb637f630a79fa4f5ddd4221"
 dependencies = [
  "aluvm",
  "amplify",
@@ -652,18 +652,18 @@ dependencies = [
 
 [[package]]
 name = "serde"
-version = "1.0.215"
+version = "1.0.216"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6513c1ad0b11a9376da888e3e0baa0077f1aed55c17f50e7b2397136129fb88f"
+checksum = "0b9781016e935a97e8beecf0c933758c97a5520d32930e460142b4cd80c6338e"
 dependencies = [
  "serde_derive",
 ]
 
 [[package]]
 name = "serde_derive"
-version = "1.0.215"
+version = "1.0.216"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ad1e866f866923f252f05c889987993144fb74e722403468a4ebd70c3cd756c0"
+checksum = "46f859dbbf73865c6627ed570e78961cd3ac92407a2d117204c49232485da55e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -740,7 +740,7 @@ checksum = "fa1f0140117847f5470c5ab2e68f7645bfe6fe27933b9160de63832ecaf0f3d2"
 [[package]]
 name = "sonic-api"
 version = "0.12.0-beta.1"
-source = "git+https://github.com/AluVM/sonic#1867a24ea654d91de1a83347d0854ae1c81625cc"
+source = "git+https://github.com/AluVM/sonic#f0895034c3795ad6bb637f630a79fa4f5ddd4221"
 dependencies = [
  "aluvm",
  "amplify",
