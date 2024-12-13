@@ -1,5 +1,5 @@
 {-
-  Id: stl:tpydimrl-jicGiCX-r4eX!2H-WRi3xzn-8HMM89!-XYboik4#mercy-tiger-nothing
+  Id: stl:ws!Tl2OD-HJ8vcNz-f$qeC!f-iQSNkS6-K$$UW9R-JBIakGI#promise-jester-mustang
   Name: RGBStorage
   Version: 0.11.0
   Description: RGB storage library
@@ -149,12 +149,10 @@ import RGBStd#norway-infant-volcano
   use IfaceId#nova-cola-carbon
   use ValencyIface#buzzer-holiday-fiber
   use Annotations#spend-linda-romeo
-  use OutputAssignmentRevealedData#sweet-film-similar
   use AssignIface#fractal-baker-outside
   use VerNo#textile-next-stretch
   use NamedFieldValencyType#invest-apollo-inca
   use ImplId#seminar-data-table
-  use OutputAssignmentRevealedAttach#olympic-fuel-figure
   use SupplSub#canoe-denmark-short
   use Supplement#caviar-zebra-precise
   use SupplId#pilot-claudia-minute
@@ -165,21 +163,23 @@ import RGBStd#norway-infant-volcano
   use IfaceImpl#permit-learn-samba
   use ContentSigs#oval-sister-triton
   use SupplItem#jargon-orchid-forget
+  use OutputAssignmentRevealedAttach#career-egypt-campus
+  use OutputAssignmentRevealedValue#absent-volcano-chrome
   use Modifier#saturn-escort-jordan
   use NamedFieldAssignmentType#origin-caramel-flipper
   use TrustLevel#cobra-script-albino
+  use OutputAssignmentRevealedData#bison-mango-mentor
   use NamedFieldMetaType#prefix-carmen-artist
   use NamedVariantu8#star-pilgrim-pilgrim
-  use OutputAssignmentRevealedValue#banana-zodiac-dilemma
   use OpWitness#valid-toronto-gibson
   use SealWitness#cotton-lopez-isabel
   use GlobalIface#concert-combat-charm
   use SchemaIfaces#fossil-nepal-airline
+  use OutputAssignmentVoidState#rhino-metal-morning
   use SupplMap#sailor-observe-bundle
   use OwnedIface#delphi-athlete-fresh
   use ContentId#scarlet-portal-office
   use GlobalOut#capital-agatha-bruno
-  use OutputAssignmentVoidState#heroic-nectar-cabinet
 
 import Std#ralph-blue-lucky
   use AlphaCaps#picnic-soprano-aurora
@@ -218,7 +218,7 @@ import Bitcoin#signal-color-cipher
 @mnemonic(bravo-grid-bucket)
 data ContractIndex     : publicOpouts {RGBCommit.Opout ^ ..0xffffff}, outpointOpouts {RGBCommit.XChainExplicitSealTxid -> ^ ..0xffffff {RGBCommit.Opout ^ ..0xffffff}}
 
-@mnemonic(plaza-ground-antonio)
+@mnemonic(puma-swing-passage)
 data MemContractState  : schemaId RGBCommit.SchemaId
                        , contractId RGBCommit.ContractId
                        , global {RGBCommit.GlobalStateType -> ^ ..0xff MemGlobalState}
@@ -230,8 +230,9 @@ data MemContractState  : schemaId RGBCommit.SchemaId
 @mnemonic(gilbert-torpedo-digital)
 data MemGlobalState    : known {RGBStd.GlobalOut -> ^ ..0xffffffff RGBCommit.DataState}, limit U24
 
-@mnemonic(savage-joshua-clone)
-data MemIndex          : opBundleIndex {RGBCommit.OpId -> ^ ..0xffffff RGBCommit.BundleId}
+@mnemonic(reward-liquid-mexico)
+data MemIndex          : opBundleChildrenIndex {RGBCommit.OpId -> ^ ..0xffffff {RGBCommit.BundleId ^ ..0xff}}
+                       , opBundleIndex {RGBCommit.OpId -> ^ ..0xffffff RGBCommit.BundleId}
                        , bundleContractIndex {RGBCommit.BundleId -> ^ ..0xffffff RGBCommit.ContractId}
                        , bundleWitnessIndex {RGBCommit.BundleId -> ^ ..0xffffff {RGBCommit.XChainTxid ^ ..0xff}}
                        , contractIndex {RGBCommit.ContractId -> ^ ..0xff ContractIndex}
@@ -252,7 +253,9 @@ data MemStash          : schemata {RGBCommit.SchemaId -> ^ ..0xff RGBStd.SchemaI
                        , libs {AluVM.LibId -> AluVM.Lib}
                        , sigs {RGBStd.ContentId -> RGBStd.ContentSigs}
 
-@mnemonic(paradox-polka-juliet)
-data MemState          : witnesses {RGBCommit.XChainTxid -> ^ ..0xffffffff RGBLogic.WitnessOrd}, contracts {RGBCommit.ContractId -> ^ ..0xff MemContractState}
+@mnemonic(family-montana-fossil)
+data MemState          : witnesses {RGBCommit.XChainTxid -> ^ ..0xffffffff RGBLogic.WitnessOrd}
+                       , invalidBundles {RGBCommit.BundleId ^ ..0xffffffff}
+                       , contracts {RGBCommit.ContractId -> ^ ..0xff MemContractState}
 
 

@@ -24,8 +24,9 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::convert::Infallible;
 use std::error::Error;
 use std::fmt::Debug;
+use std::num::NonZeroU32;
 
-use amplify::confinement::{Confined, U24};
+use amplify::confinement::{Confined, LargeOrdSet, U24};
 use amplify::Wrapper;
 use bp::seals::txout::CloseMethod;
 use bp::Vout;
@@ -33,6 +34,7 @@ use chrono::Utc;
 use invoice::{Amount, Beneficiary, InvoiceState, NonFungible, RgbInvoice};
 use nonasync::persistence::{CloneNoPersistence, PersistenceError, PersistenceProvider};
 use rgb::validation::{DbcProof, ResolveWitness, WitnessResolverError};
+use rgb::vm::WitnessOrd;
 use rgb::{
     validation, AssignmentType, BlindingFactor, BundleId, ContractId, DataState, GraphSeal,
     Identity, Layer1, OpId, Operation, Opout, SchemaId, SecretSeal, Transition, XChain, XOutpoint,
@@ -1308,12 +1310,203 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         Ok(self.stash.store_secret_seal(seal)?)
     }
 
+    fn set_bundles_as_invalid(&mut self, bundle_id: &BundleId) -> Result<(), StockError<S, H, P>> {
+        // add bundle to set of invalid bundles
+        self.state.update_bundle(*bundle_id, false)?;
+        let bundle = self.stash.bundle(*bundle_id)?.clone();
+        // recursively set all bundle descendants as invalid
+        for opid in bundle.known_transitions.keys() {
+            let children_bundle_ids = match self.index.bundle_ids_children_of_op(*opid) {
+                Ok(bundle_ids) => bundle_ids,
+                Err(IndexError::Inconsistency(IndexInconsistency::BundleAbsent(_))) => {
+                    // this transition has no children yet
+                    return Ok(());
+                }
+                Err(e) => return Err(e.into()),
+            };
+
+            for child_bundle_id in children_bundle_ids {
+                self.set_bundles_as_invalid(&child_bundle_id)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn maybe_update_bundles_as_valid(
+        &mut self,
+        bundle_id: &BundleId,
+        invalid_bundles: &mut LargeOrdSet<BundleId>,
+        maybe_became_valid_bundle_ids: &mut BTreeSet<BundleId>,
+    ) -> Result<bool, StockError<S, H, P>> {
+        let bundle = self.stash.bundle(*bundle_id)?.clone();
+        let mut valid = true;
+        // recursively visit bundle ancestors
+        for transition in bundle.known_transitions.values() {
+            for input in &transition.inputs {
+                let input_opid = input.prev_out.op;
+                let input_bundle_id = match self.index.bundle_id_for_op(input_opid) {
+                    Ok(id) => Some(id),
+                    Err(IndexError::Inconsistency(IndexInconsistency::BundleAbsent(_))) => {
+                        // reached genesis
+                        None
+                    }
+                    Err(e) => return Err(e.into()),
+                };
+
+                if let Some(input_bundle_id) = input_bundle_id {
+                    // process parent first if its status is also uncertain
+                    if maybe_became_valid_bundle_ids.contains(&input_bundle_id) {
+                        valid = self.maybe_update_bundles_as_valid(
+                            &input_bundle_id,
+                            invalid_bundles,
+                            maybe_became_valid_bundle_ids,
+                        )?;
+                    // a single invalid parent is enough to consider the bundle as invalid
+                    } else if invalid_bundles.contains(&input_bundle_id) {
+                        valid = false;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // remove bundle since at this point we are sure about its status
+        maybe_became_valid_bundle_ids.remove(bundle_id);
+
+        if valid {
+            // remove bundle from set of invalid bundles
+            self.state.update_bundle(*bundle_id, true)?;
+            invalid_bundles.remove(bundle_id).unwrap();
+            // recursively visit bundle descendants to check if they became valid as well
+            for (opid, _transition) in bundle.known_transitions {
+                let children_bundle_ids = match self.index.bundle_ids_children_of_op(opid) {
+                    Ok(bundle_ids) => bundle_ids,
+                    Err(IndexError::Inconsistency(IndexInconsistency::BundleAbsent(_))) => {
+                        // this transition has no children yet
+                        tiny_bset![]
+                    }
+                    Err(e) => return Err(e.into()),
+                };
+                for child_bundle_id in children_bundle_ids {
+                    self.maybe_update_bundles_as_valid(
+                        &child_bundle_id,
+                        invalid_bundles,
+                        maybe_became_valid_bundle_ids,
+                    )?;
+                }
+            }
+        }
+
+        Ok(valid)
+    }
+
+    fn update_witness_ord(
+        &mut self,
+        resolver: impl ResolveWitness,
+        id: &XWitnessId,
+        ord: &mut WitnessOrd,
+        became_invalid_witnesses: &mut BTreeMap<XWitnessId, BTreeSet<BundleId>>,
+        became_valid_witnesses: &mut BTreeMap<XWitnessId, BTreeSet<BundleId>>,
+    ) -> Result<(), StockError<S, H, P>> {
+        let new = resolver
+            .resolve_pub_witness_ord(*id)
+            .map_err(|e| StockError::WitnessUnresolved(*id, e))?;
+        let changed = *ord != new;
+        if changed {
+            let bundle_valid = match (*ord, new) {
+                (WitnessOrd::Archived, _) => Some(true),
+                (_, WitnessOrd::Archived) => Some(false),
+                _ => None,
+            };
+            // save witnesses that became valid or invalid
+            if let Some(valid) = bundle_valid {
+                let seal_witness = self.stash.witness(*id)?;
+                let anchor_set = seal_witness.anchors.clone();
+                let bundle_ids: BTreeSet<_> = anchor_set.known_bundle_ids().collect();
+                if valid {
+                    became_valid_witnesses.insert(*id, bundle_ids);
+                } else {
+                    became_invalid_witnesses.insert(*id, bundle_ids);
+                }
+            }
+            // save the changed witness ord
+            self.state.upsert_witness(*id, new)?;
+            *ord = new
+        }
+        Ok(())
+    }
+
     pub fn update_witnesses(
         &mut self,
         resolver: impl ResolveWitness,
         after_height: u32,
     ) -> Result<UpdateRes, StockError<S, H, P>> {
-        Ok(self.state.update_witnesses(resolver, after_height)?)
+        let after_height = NonZeroU32::new(after_height).unwrap_or(NonZeroU32::MIN);
+        let mut succeeded = 0;
+        let mut failed = map![];
+        self.state.begin_transaction()?;
+        let witnesses = self.as_state_provider().witnesses();
+        let mut witnesses = witnesses.release();
+        let mut became_invalid_witnesses = bmap!();
+        let mut became_valid_witnesses = bmap!();
+        // 1. update witness ord of all witnesses
+        for (id, ord) in &mut witnesses {
+            if matches!(ord, WitnessOrd::Mined(pos) if pos.height() < after_height) {
+                continue;
+            }
+            match self.update_witness_ord(
+                &resolver,
+                id,
+                ord,
+                &mut became_invalid_witnesses,
+                &mut became_valid_witnesses,
+            ) {
+                Ok(()) => {
+                    succeeded += 1;
+                }
+                Err(err) => {
+                    failed.insert(*id, err.to_string());
+                }
+            }
+        }
+
+        // 2. set invalidity of bundles
+        for bundle_ids in became_invalid_witnesses.values() {
+            for bundle_id in bundle_ids {
+                let bundle_witness_ids: BTreeSet<XWitnessId> =
+                    self.index.bundle_info(*bundle_id)?.0.collect();
+                // set bundle as invalid only if there are no valid witnesses associated to it
+                if bundle_witness_ids
+                    .iter()
+                    .all(|id| !witnesses.get(id).unwrap().is_valid())
+                {
+                    // set this bundle and all its descendants as invalid
+                    self.set_bundles_as_invalid(bundle_id)?;
+                }
+            }
+        }
+
+        // 3. set validity of bundles
+        let mut maybe_became_valid_bundle_ids = bset!();
+        // get all bundles that became invalid and ones that were already invalid
+        let mut invalid_bundles_pre = self.as_state_provider().invalid_bundles();
+        for bundle_ids in became_valid_witnesses.values() {
+            // store bundles that may become valid (to be sure its ancestors are checked)
+            maybe_became_valid_bundle_ids.extend(bundle_ids);
+        }
+        for bundle_ids in became_valid_witnesses.values() {
+            for bundle_id in bundle_ids {
+                // check if this bundle and its descendants are now valid
+                self.maybe_update_bundles_as_valid(
+                    bundle_id,
+                    &mut invalid_bundles_pre,
+                    &mut maybe_became_valid_bundle_ids,
+                )?;
+            }
+        }
+
+        self.state.commit_transaction()?;
+        Ok(UpdateRes { succeeded, failed })
     }
 }
 
