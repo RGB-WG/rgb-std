@@ -37,7 +37,8 @@ use bp::{dbc, Outpoint, Txid, Vout};
 use commit_verify::{CommitId, Digest, DigestExt, Sha256};
 use hypersonic::{
     AdaptedState, AuthToken, CallParams, CellAddr, CodexId, ContractId, CoreParams, DataCell,
-    IssueParams, MethodName, NamedState, Operation, Schema, StateAtom, Supply,
+    IssueParams, MethodName, NamedState, Operation, Schema, StateAtom, StateCalc, StateName,
+    Supply,
 };
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 use strict_types::StrictVal;
@@ -104,9 +105,9 @@ pub struct ConstructParams {
     pub contract_id: ContractId,
     pub method: MethodName,
     pub global: Vec<NamedState<StateAtom>>,
-    pub owned: BTreeMap<BuilderSeal, NamedState<StrictVal>>,
-    pub using: Vec<(AuthToken, Outpoint, StrictVal)>,
     pub reading: Vec<CellAddr>,
+    pub using: Vec<(CellAddr, Outpoint, StrictVal)>,
+    pub owned: Vec<(BuilderSeal, NamedState<StrictVal>)>,
 }
 
 /// Prefabricated operation, which includes information on the contract id and closed seals
@@ -267,7 +268,11 @@ impl<
     }
 
     /// Completes creation of a prefabricated operation pack, adding blank operations if necessary.
-    pub fn bundle(&mut self, ops: impl IntoIterator<Item = Prefab>) -> PrefabBundle {
+    pub fn bundle(
+        &mut self,
+        ops: impl IntoIterator<Item = Prefab>,
+        seal: BuilderSeal,
+    ) -> PrefabBundle {
         let mut outpoints = BTreeSet::<Outpoint>::new();
         let mut contracts = BTreeSet::new();
         let mut prefabs = BTreeSet::new();
@@ -277,20 +282,20 @@ impl<
             prefabs.insert(prefab);
         }
 
+        let mut prefab_params = Vec::new();
         for (contract_id, stockpile) in self.mound.contracts_mut() {
             let noise_seed = self.wallet.noise_seed();
             let mut noise_engine = Sha256::new();
             noise_engine.input_raw(contract_id.as_slice());
             noise_engine.input_raw(noise_seed.as_ref());
 
-            let using = stockpile
-                .stock()
-                .state()
-                .main
-                .owned
-                .values()
-                .flat_map(BTreeMap::keys)
-                .filter_map(|addr| {
+            // TODO: Simplify the expression
+            // We need to clone here not to conflict with mutable call below
+            let owned = stockpile.stock().state().main.owned.clone();
+            let (using, prev): (_, Vec<_>) = owned
+                .iter()
+                .flat_map(|(name, map)| map.iter().map(move |(addr, val)| (name, *addr, val)))
+                .filter_map(|(name, addr, val)| {
                     let auth = stockpile.stock_mut().operation(addr.opid).destructible
                         [addr.pos as usize]
                         .auth;
@@ -298,26 +303,50 @@ impl<
                         .iter()
                         .copied()
                         .find(|outpoint| {
-                            TxoSeal::no_fallback(*outpoint, noise_engine.clone()).auth_token()
+                            TxoSeal::<OpretProof>::no_fallback(*outpoint, noise_engine.clone())
+                                .auth_token()
                                 == auth
                         })
-                        .map(|outpoint| (auth, outpoint, StrictVal::Unit))
+                        .map(|outpoint| ((addr, outpoint, StrictVal::Unit), (name.clone(), val)))
                 })
-                .collect();
+                .unzip();
 
-            // TODO: Construct new state
+            let api = &stockpile.stock().articles().schema.default_api;
+            let mut calcs = BTreeMap::<StateName, Box<dyn StateCalc>>::new();
+            for (name, val) in prev {
+                let calc = calcs
+                    .entry(name.clone())
+                    .or_insert_with(|| api.calculate(name));
+                calc.accumulate(val.clone()).expect("non-computable state");
+            }
+
+            let noise_seed = self.wallet.noise_seed();
+            let mut noise_engine = Sha256::new();
+            noise_engine.input_raw(contract_id.as_slice());
+            noise_engine.input_raw(noise_seed.as_ref());
+            let mut owned = Vec::new();
+            for (name, calc) in calcs {
+                for state in calc.diff().expect("non-computable state") {
+                    let state = NamedState {
+                        name: name.clone(),
+                        state,
+                    };
+                    owned.push((seal, state));
+                }
+            }
+
             let params = ConstructParams {
                 contract_id,
                 method: MethodName::from(BP_BLANK_METHOD),
                 global: none!(),
-                owned,
-                using,
                 reading: none!(),
+                using,
+                owned,
             };
-            let blank = self.prefab(params);
-            let res = prefabs.insert(blank);
-            debug_assert!(res);
+            prefab_params.push(params);
         }
+
+        prefabs.extend(prefab_params.into_iter().map(|params| self.prefab(params)));
 
         PrefabBundle(SmallOrdSet::try_from(prefabs).expect("too many operations"))
     }
