@@ -31,7 +31,9 @@ use hypersonic::{
     AcceptError, Articles, AuthToken, CellAddr, ContractId, IssueParams, Schema, Stock, Supply,
 };
 use single_use_seals::{PublishedWitness, SingleUseSeal};
-use strict_encoding::{ReadRaw, StrictDecode, StrictEncode, StrictReader, StrictWriter, WriteRaw};
+use strict_encoding::{
+    ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter, WriteRaw,
+};
 
 use crate::pile::Protocol;
 use crate::Pile;
@@ -82,8 +84,8 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Stockpile<S, P, CAPS> {
         writer: StrictWriter<impl WriteRaw>,
     ) -> io::Result<()>
     where
-        <P::Seal as SingleUseSeal>::CliWitness: StrictEncode,
-        <P::Seal as SingleUseSeal>::PubWitness: StrictEncode,
+        <P::Seal as SingleUseSeal>::CliWitness: StrictDumb + StrictEncode,
+        <P::Seal as SingleUseSeal>::PubWitness: StrictDumb + StrictEncode,
         <<P::Seal as SingleUseSeal>::PubWitness as PublishedWitness<P::Seal>>::PubId: StrictEncode,
     {
         self.stock
@@ -123,7 +125,7 @@ mod fs {
     use std::path::Path;
 
     use hypersonic::FileSupply;
-    use strict_encoding::{StreamReader, StreamWriter, StrictDecode, StrictEncode};
+    use strict_encoding::{StreamReader, StreamWriter, StrictDecode, StrictDumb, StrictEncode};
 
     use super::*;
     use crate::FilePile;
@@ -154,7 +156,8 @@ mod fs {
             path: impl AsRef<Path>,
         ) -> io::Result<()>
         where
-            (Seal::CliWitness, Seal::PubWitness): StrictEncode,
+            Seal::CliWitness: StrictDumb,
+            Seal::PubWitness: StrictDumb,
             <Seal::PubWitness as PublishedWitness<Seal>>::PubId: StrictEncode,
         {
             let file = File::create_new(path)?;
@@ -164,7 +167,8 @@ mod fs {
 
         pub fn accept_from_file(&mut self, path: impl AsRef<Path>) -> Result<(), AcceptError>
         where
-            (Seal::CliWitness, Seal::PubWitness): StrictDecode,
+            Seal::CliWitness: StrictDumb,
+            Seal::PubWitness: StrictDumb,
             <Seal::PubWitness as PublishedWitness<Seal>>::PubId: StrictDecode,
         {
             let file = File::open(path)?;

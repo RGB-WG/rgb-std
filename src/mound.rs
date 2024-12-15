@@ -23,8 +23,16 @@
 // the License.
 
 use alloc::collections::BTreeMap;
+use core::borrow::Borrow;
+use std::io;
 
-use hypersonic::{CellAddr, CodexId, ContractId, IssueParams, Schema, Supply};
+use hypersonic::{
+    AcceptError, AuthToken, CellAddr, CodexId, ContractId, IssueParams, Schema, Supply,
+};
+use single_use_seals::{PublishedWitness, SingleUseSeal};
+use strict_encoding::{
+    ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter, WriteRaw,
+};
 
 use crate::{Pile, Stockpile};
 
@@ -118,6 +126,8 @@ impl<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS>, const CAPS: u32> Mound<S
         self.contracts.iter_mut().map(|(id, stock)| (*id, stock))
     }
 
+    pub fn has_contract(&self, id: ContractId) -> bool { self.contracts.contains_key(&id) }
+
     pub fn contract(&self, id: ContractId) -> &Stockpile<S, P, CAPS> {
         self.contracts
             .get(&id)
@@ -138,17 +148,47 @@ impl<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS>, const CAPS: u32> Mound<S
             .iter()
             .filter_map(|(id, stockpile)| stockpile.seal(seal).map(|addr| (*id, addr)))
     }
+
+    pub fn consign(
+        &mut self,
+        contract_id: ContractId,
+        terminals: impl IntoIterator<Item = impl Borrow<AuthToken>>,
+        mut writer: StrictWriter<impl WriteRaw>,
+    ) -> io::Result<()>
+    where
+        <P::Seal as SingleUseSeal>::CliWitness: StrictDumb + StrictEncode,
+        <P::Seal as SingleUseSeal>::PubWitness: StrictDumb + StrictEncode,
+        <<P::Seal as SingleUseSeal>::PubWitness as PublishedWitness<P::Seal>>::PubId: StrictEncode,
+    {
+        writer = contract_id.strict_encode(writer)?;
+        self.contract_mut(contract_id).consign(terminals, writer)
+    }
+
+    pub fn accept(&mut self, reader: &mut StrictReader<impl ReadRaw>) -> Result<(), AcceptError>
+    where
+        <P::Seal as SingleUseSeal>::CliWitness: StrictDecode,
+        <P::Seal as SingleUseSeal>::PubWitness: StrictDecode,
+        <<P::Seal as SingleUseSeal>::PubWitness as PublishedWitness<P::Seal>>::PubId: StrictDecode,
+    {
+        let contract_id = ContractId::strict_decode(reader)?;
+        if self.has_contract(contract_id) {
+            self.contract_mut(contract_id).accept(reader)
+        } else {
+            // TODO: Create new contract
+            todo!()
+        }
+    }
 }
 
 pub mod file {
     use std::fs;
-    use std::fs::FileType;
+    use std::fs::{File, FileType};
     use std::marker::PhantomData;
     use std::path::{Path, PathBuf};
 
     use hypersonic::FileSupply;
     use single_use_seals::PublishedWitness;
-    use strict_encoding::{StrictDecode, StrictEncode};
+    use strict_encoding::{StreamReader, StreamWriter, StrictDecode, StrictEncode};
 
     use super::*;
     use crate::pile::Protocol;
@@ -240,5 +280,32 @@ pub mod file {
         }
 
         pub fn path(&self) -> &Path { &self.persistence.dir }
+
+        pub fn consign_to_file(
+            &mut self,
+            contract_id: ContractId,
+            terminals: impl IntoIterator<Item = impl Borrow<AuthToken>>,
+            path: impl AsRef<Path>,
+        ) -> io::Result<()>
+        where
+            Seal::CliWitness: StrictDumb,
+            Seal::PubWitness: StrictDumb,
+            <Seal::PubWitness as PublishedWitness<Seal>>::PubId: StrictEncode,
+        {
+            let file = File::create_new(path)?;
+            let writer = StrictWriter::with(StreamWriter::new::<{ usize::MAX }>(file));
+            self.consign(contract_id, terminals, writer)
+        }
+
+        pub fn accept_from_file(&mut self, path: impl AsRef<Path>) -> Result<(), AcceptError>
+        where
+            Seal::CliWitness: StrictDumb,
+            Seal::PubWitness: StrictDumb,
+            <Seal::PubWitness as PublishedWitness<Seal>>::PubId: StrictDecode,
+        {
+            let file = File::open(path)?;
+            let mut reader = StrictReader::with(StreamReader::new::<{ usize::MAX }>(file));
+            self.accept(&mut reader)
+        }
     }
 }
