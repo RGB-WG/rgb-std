@@ -29,9 +29,11 @@ use std::io;
 use hypersonic::{
     AcceptError, AuthToken, CellAddr, CodexId, ContractId, IssueParams, Schema, Supply,
 };
+use rgb::VerificationError;
 use single_use_seals::{PublishedWitness, SingleUseSeal};
 use strict_encoding::{
-    ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter, WriteRaw,
+    DecodeError, ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter,
+    WriteRaw,
 };
 
 use crate::{Pile, Stockpile};
@@ -164,19 +166,24 @@ impl<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS>, const CAPS: u32> Mound<S
         self.contract_mut(contract_id).consign(terminals, writer)
     }
 
-    pub fn accept(&mut self, reader: &mut StrictReader<impl ReadRaw>) -> Result<(), AcceptError>
+    pub fn consume(
+        &mut self,
+        reader: &mut StrictReader<impl ReadRaw>,
+    ) -> Result<(), VerificationError<P::Seal, DecodeError, AcceptError>>
     where
         <P::Seal as SingleUseSeal>::CliWitness: StrictDecode,
         <P::Seal as SingleUseSeal>::PubWitness: StrictDecode,
         <<P::Seal as SingleUseSeal>::PubWitness as PublishedWitness<P::Seal>>::PubId: StrictDecode,
     {
-        let contract_id = ContractId::strict_decode(reader)?;
-        if self.has_contract(contract_id) {
-            self.contract_mut(contract_id).accept(reader)
+        let contract_id =
+            ContractId::strict_decode(reader).map_err(|e| VerificationError::Retrieve(e.into()))?;
+        let contract = if self.has_contract(contract_id) {
+            self.contract_mut(contract_id)
         } else {
             // TODO: Create new contract
             todo!()
-        }
+        };
+        contract.consume(reader)
     }
 }
 
@@ -297,15 +304,18 @@ pub mod file {
             self.consign(contract_id, terminals, writer)
         }
 
-        pub fn accept_from_file(&mut self, path: impl AsRef<Path>) -> Result<(), AcceptError>
+        pub fn consume_from_file(
+            &mut self,
+            path: impl AsRef<Path>,
+        ) -> Result<(), VerificationError<Seal, DecodeError, AcceptError>>
         where
             Seal::CliWitness: StrictDumb,
             Seal::PubWitness: StrictDumb,
             <Seal::PubWitness as PublishedWitness<Seal>>::PubId: StrictDecode,
         {
-            let file = File::open(path)?;
+            let file = File::open(path).map_err(|e| VerificationError::Retrieve(e.into()))?;
             let mut reader = StrictReader::with(StreamReader::new::<{ usize::MAX }>(file));
-            self.accept(&mut reader)
+            self.consume(&mut reader)
         }
     }
 }

@@ -25,14 +25,18 @@
 use core::borrow::Borrow;
 // TODO: Used in strict encoding; once solved there, remove here
 use std::io;
+use std::io::ErrorKind;
 
 use hypersonic::aora::Aora;
 use hypersonic::{
-    AcceptError, Articles, AuthToken, CellAddr, ContractId, IssueParams, Schema, Stock, Supply,
+    AcceptError, Articles, AuthToken, CellAddr, ContractId, IssueParams, Memory, Opid, Schema,
+    Stock, Supply,
 };
+use rgb::{ContractApi, ContractVerify, Transaction, VerificationError};
 use single_use_seals::{PublishedWitness, SingleUseSeal};
 use strict_encoding::{
-    ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter, WriteRaw,
+    DecodeError, ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter,
+    WriteRaw,
 };
 
 use crate::pile::Protocol;
@@ -101,21 +105,54 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Stockpile<S, P, CAPS> {
             })
     }
 
-    pub fn accept(&mut self, reader: &mut StrictReader<impl ReadRaw>) -> Result<(), AcceptError>
+    pub fn consume(
+        &mut self,
+        reader: &mut StrictReader<impl ReadRaw>,
+    ) -> Result<(), VerificationError<P::Seal, DecodeError, AcceptError>>
     where
         <P::Seal as SingleUseSeal>::CliWitness: StrictDecode,
         <P::Seal as SingleUseSeal>::PubWitness: StrictDecode,
         <<P::Seal as SingleUseSeal>::PubWitness as PublishedWitness<P::Seal>>::PubId: StrictDecode,
     {
-        self.stock.accept_aux(reader, |opid, reader| {
-            let len = u64::strict_decode(reader)?;
-            for _ in 0..len {
-                let client = <P::Seal as SingleUseSeal>::CliWitness::strict_decode(reader)?;
-                let published = <P::Seal as SingleUseSeal>::PubWitness::strict_decode(reader)?;
-                self.pile.append(opid, client, published);
-            }
-            Ok(())
-        })
+        let articles =
+            Articles::<CAPS>::strict_decode(reader).map_err(VerificationError::Retrieve)?;
+        self.stock
+            .merge_articles(articles)
+            .map_err(|e| VerificationError::Apply(Opid::strict_dumb(), AcceptError::Articles(e)))?;
+
+        let schema = self.stock.articles().schema.clone();
+        self.evaluate(
+            self.contract_id(),
+            &schema.codex,
+            &schema,
+            move || -> Option<Result<_, DecodeError>> {
+                match Transaction::strict_decode(reader) {
+                    Ok(transaction) => Some(Ok(transaction)),
+                    Err(DecodeError::Io(e)) if e.kind() == ErrorKind::UnexpectedEof => None,
+                    Err(e) => Some(Err(e.into())),
+                }
+            },
+        )?;
+
+        self.stock.complete_update();
+        Ok(())
+    }
+}
+
+impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> ContractApi<P::Seal> for Stockpile<S, P, CAPS> {
+    type Error = AcceptError;
+
+    fn memory(&self) -> &impl Memory { &self.stock.state().raw }
+
+    fn apply(&mut self, transaction: Transaction<P::Seal>) -> Result<(), Self::Error> {
+        let opid = transaction.operation.opid();
+
+        for witness in &transaction.witness {
+            self.pile.append(opid, witness);
+        }
+
+        self.stock.apply(transaction.operation)?;
+        Ok(())
     }
 }
 
@@ -165,15 +202,18 @@ mod fs {
             self.consign(terminals, writer)
         }
 
-        pub fn accept_from_file(&mut self, path: impl AsRef<Path>) -> Result<(), AcceptError>
+        pub fn consume_from_file(
+            &mut self,
+            path: impl AsRef<Path>,
+        ) -> Result<(), VerificationError<Seal, DecodeError, AcceptError>>
         where
             Seal::CliWitness: StrictDumb,
             Seal::PubWitness: StrictDumb,
             <Seal::PubWitness as PublishedWitness<Seal>>::PubId: StrictDecode,
         {
-            let file = File::open(path)?;
+            let file = File::open(path).map_err(|e| VerificationError::Retrieve(e.into()))?;
             let mut reader = StrictReader::with(StreamReader::new::<{ usize::MAX }>(file));
-            self.accept(&mut reader)
+            self.consume(&mut reader)
         }
     }
 }

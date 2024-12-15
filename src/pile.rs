@@ -22,11 +22,12 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
+use amplify::Bytes32;
 use hypersonic::aora::Aora;
 use hypersonic::{AuthToken, Opid};
-use single_use_seals::{PublishedWitness, SingleUseSeal};
+use single_use_seals::{PublishedWitness, SealWitness, SingleUseSeal};
 
-pub trait Protocol: SingleUseSeal {
+pub trait Protocol: SingleUseSeal<Message = Bytes32> {
     fn auth_token(&self) -> AuthToken;
 }
 
@@ -68,16 +69,11 @@ pub trait Pile {
         ),
     >;
 
-    fn append(
-        &mut self,
-        opid: Opid,
-        client: <Self::Seal as SingleUseSeal>::CliWitness,
-        published: <Self::Seal as SingleUseSeal>::PubWitness,
-    ) {
-        let pubid = published.pub_id();
+    fn append(&mut self, opid: Opid, witness: &SealWitness<Self::Seal>) {
+        let pubid = witness.published.pub_id();
         self.index_mut().add(opid, pubid);
-        self.hoard_mut().append(pubid, &client);
-        self.cache_mut().append(pubid, &published);
+        self.hoard_mut().append(pubid, &witness.client);
+        self.cache_mut().append(pubid, &witness.published);
     }
 }
 
