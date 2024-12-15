@@ -22,15 +22,18 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
+use core::borrow::Borrow;
 // TODO: Used in strict encoding; once solved there, remove here
 use std::io;
 
 use hypersonic::aora::Aora;
-use hypersonic::{Articles, AuthToken, CellAddr, ContractId, IssueParams, Schema, Stock, Supply};
+use hypersonic::{
+    AcceptError, Articles, AuthToken, CellAddr, ContractId, IssueParams, Schema, Stock, Supply,
+};
 use single_use_seals::{PublishedWitness, SingleUseSeal};
-use strict_encoding::{StrictEncode, StrictWriter, WriteRaw};
+use strict_encoding::{ReadRaw, StrictDecode, StrictEncode, StrictReader, StrictWriter, WriteRaw};
 
-use crate::pile::{Index, Protocol};
+use crate::pile::Protocol;
 use crate::Pile;
 
 #[derive(Getters)]
@@ -69,29 +72,58 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Stockpile<S, P, CAPS> {
             Into<[u8; 32]>,
     {
         let id = published.pub_id();
-        self.pile.hoard_mut().append(id.into().into(), client);
-        self.pile.cache_mut().append(id.into().into(), published);
+        self.pile.hoard_mut().append(id, client);
+        self.pile.cache_mut().append(id, published);
     }
 
-    pub fn consign<'a>(
+    pub fn consign(
         &mut self,
-        terminals: impl IntoIterator<Item = &'a AuthToken>,
+        terminals: impl IntoIterator<Item = impl Borrow<AuthToken>>,
         writer: StrictWriter<impl WriteRaw>,
     ) -> io::Result<()>
     where
+        <P::Seal as SingleUseSeal>::CliWitness: StrictEncode,
+        <P::Seal as SingleUseSeal>::PubWitness: StrictEncode,
         <<P::Seal as SingleUseSeal>::PubWitness as PublishedWitness<P::Seal>>::PubId: StrictEncode,
     {
         self.stock
-            .export_aux(terminals, writer, |opid| self.pile.index().get(opid))
+            .export_aux(terminals, writer, |opid, mut writer| {
+                let iter = self.pile.retrieve(opid);
+                let len = iter.len();
+                writer = (len as u64).strict_encode(writer)?;
+                for (client, published) in iter {
+                    writer = client.strict_encode(writer)?;
+                    writer = published.strict_encode(writer)?;
+                }
+                Ok(writer)
+            })
+    }
+
+    pub fn accept(&mut self, reader: &mut StrictReader<impl ReadRaw>) -> Result<(), AcceptError>
+    where
+        <P::Seal as SingleUseSeal>::CliWitness: StrictDecode,
+        <P::Seal as SingleUseSeal>::PubWitness: StrictDecode,
+        <<P::Seal as SingleUseSeal>::PubWitness as PublishedWitness<P::Seal>>::PubId: StrictDecode,
+    {
+        self.stock.accept_aux(reader, |opid, reader| {
+            let len = u64::strict_decode(reader)?;
+            for _ in 0..len {
+                let client = <P::Seal as SingleUseSeal>::CliWitness::strict_decode(reader)?;
+                let published = <P::Seal as SingleUseSeal>::PubWitness::strict_decode(reader)?;
+                self.pile.append(opid, client, published);
+            }
+            Ok(())
+        })
     }
 }
 
 #[cfg(feature = "fs")]
 mod fs {
+    use std::fs::File;
     use std::path::Path;
 
     use hypersonic::FileSupply;
-    use strict_encoding::{StrictDecode, StrictEncode};
+    use strict_encoding::{StreamReader, StreamWriter, StrictDecode, StrictEncode};
 
     use super::*;
     use crate::FilePile;
@@ -100,7 +132,7 @@ mod fs {
     where
         Seal::CliWitness: StrictEncode + StrictDecode,
         Seal::PubWitness: StrictEncode + StrictDecode,
-        <<Seal as SingleUseSeal>::PubWitness as PublishedWitness<Seal>>::PubId: From<[u8; 32]>,
+        <Seal::PubWitness as PublishedWitness<Seal>>::PubId: Ord + From<[u8; 32]> + Into<[u8; 32]>,
     {
         pub fn load(path: impl AsRef<Path>) -> Self {
             let path = path.as_ref();
@@ -114,6 +146,30 @@ mod fs {
             let pile = FilePile::new(params.name.as_str(), path);
             let supply = FileSupply::new(params.name.as_str(), path);
             Self::issue(schema, params, supply, pile)
+        }
+
+        pub fn consign_to_file(
+            &mut self,
+            terminals: impl IntoIterator<Item = impl Borrow<AuthToken>>,
+            path: impl AsRef<Path>,
+        ) -> io::Result<()>
+        where
+            (Seal::CliWitness, Seal::PubWitness): StrictEncode,
+            <Seal::PubWitness as PublishedWitness<Seal>>::PubId: StrictEncode,
+        {
+            let file = File::create_new(path)?;
+            let writer = StrictWriter::with(StreamWriter::new::<{ usize::MAX }>(file));
+            self.consign(terminals, writer)
+        }
+
+        pub fn accept_from_file(&mut self, path: impl AsRef<Path>) -> Result<(), AcceptError>
+        where
+            (Seal::CliWitness, Seal::PubWitness): StrictDecode,
+            <Seal::PubWitness as PublishedWitness<Seal>>::PubId: StrictDecode,
+        {
+            let file = File::open(path)?;
+            let mut reader = StrictReader::with(StreamReader::new::<{ usize::MAX }>(file));
+            self.accept(&mut reader)
         }
     }
 }

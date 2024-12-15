@@ -27,7 +27,6 @@ use hypersonic::{AuthToken, Opid};
 use single_use_seals::{PublishedWitness, SingleUseSeal};
 
 pub trait Protocol: SingleUseSeal {
-    type Id: Ord + From<[u8; 32]> + Into<[u8; 32]>;
     fn auth_token(&self) -> AuthToken;
 }
 
@@ -38,8 +37,14 @@ pub trait Index<K, V> {
 
 pub trait Pile {
     type Seal: Protocol;
-    type Hoard: Aora<Item = <Self::Seal as SingleUseSeal>::CliWitness>;
-    type Cache: Aora<Item = <Self::Seal as SingleUseSeal>::PubWitness>;
+    type Hoard: Aora<
+        Id = <<Self::Seal as SingleUseSeal>::PubWitness as PublishedWitness<Self::Seal>>::PubId,
+        Item = <Self::Seal as SingleUseSeal>::CliWitness,
+    >;
+    type Cache: Aora<
+        Id = <<Self::Seal as SingleUseSeal>::PubWitness as PublishedWitness<Self::Seal>>::PubId,
+        Item = <Self::Seal as SingleUseSeal>::PubWitness,
+    >;
     type Index: Index<
         Opid,
         <<Self::Seal as SingleUseSeal>::PubWitness as PublishedWitness<Self::Seal>>::PubId,
@@ -52,6 +57,28 @@ pub trait Pile {
     fn hoard_mut(&mut self) -> &mut Self::Hoard;
     fn cache_mut(&mut self) -> &mut Self::Cache;
     fn index_mut(&mut self) -> &mut Self::Index;
+
+    fn retrieve(
+        &mut self,
+        opid: Opid,
+    ) -> impl ExactSizeIterator<
+        Item = (
+            <Self::Seal as SingleUseSeal>::CliWitness,
+            <Self::Seal as SingleUseSeal>::PubWitness,
+        ),
+    >;
+
+    fn append(
+        &mut self,
+        opid: Opid,
+        client: <Self::Seal as SingleUseSeal>::CliWitness,
+        published: <Self::Seal as SingleUseSeal>::PubWitness,
+    ) {
+        let pubid = published.pub_id();
+        self.index_mut().add(opid, pubid);
+        self.hoard_mut().append(pubid, &client);
+        self.cache_mut().append(pubid, &published);
+    }
 }
 
 #[cfg(feature = "fs")]
@@ -84,14 +111,18 @@ pub mod fs {
         fn add(&mut self, key: Opid, val: V) { self.0.entry(key).or_default().push(val) }
     }
 
-    pub struct FilePile<Seal: Protocol> {
+    pub struct FilePile<Seal: Protocol>
+    where <Seal::PubWitness as PublishedWitness<Seal>>::PubId: Ord + From<[u8; 32]> + Into<[u8; 32]>
+    {
         path: PathBuf,
-        hoard: FileAora<Seal::Id, Seal::CliWitness>,
-        cache: FileAora<Seal::Id, Seal::PubWitness>,
+        hoard: FileAora<<Seal::PubWitness as PublishedWitness<Seal>>::PubId, Seal::CliWitness>,
+        cache: FileAora<<Seal::PubWitness as PublishedWitness<Seal>>::PubId, Seal::PubWitness>,
         index: MemIndex<<<Seal as SingleUseSeal>::PubWitness as PublishedWitness<Seal>>::PubId>,
     }
 
-    impl<Seal: Protocol> FilePile<Seal> {
+    impl<Seal: Protocol> FilePile<Seal>
+    where <Seal::PubWitness as PublishedWitness<Seal>>::PubId: Ord + From<[u8; 32]> + Into<[u8; 32]>
+    {
         pub fn new(name: &str, path: impl AsRef<Path>) -> Self {
             let mut path = path.as_ref().to_path_buf();
             path.push(name);
@@ -109,7 +140,7 @@ pub mod fs {
     }
 
     impl<Seal: Protocol> FilePile<Seal>
-    where <<Seal as SingleUseSeal>::PubWitness as PublishedWitness<Seal>>::PubId: From<[u8; 32]>
+    where <Seal::PubWitness as PublishedWitness<Seal>>::PubId: Ord + From<[u8; 32]> + Into<[u8; 32]>
     {
         pub fn open(path: impl AsRef<Path>) -> Self {
             let path = path.as_ref().to_path_buf();
@@ -151,10 +182,13 @@ pub mod fs {
     where
         Seal::CliWitness: StrictEncode + StrictDecode,
         Seal::PubWitness: StrictEncode + StrictDecode,
+        <Seal::PubWitness as PublishedWitness<Seal>>::PubId: Ord + From<[u8; 32]> + Into<[u8; 32]>,
     {
         type Seal = Seal;
-        type Hoard = FileAora<Seal::Id, Seal::CliWitness>;
-        type Cache = FileAora<Seal::Id, Seal::PubWitness>;
+        type Hoard =
+            FileAora<<Seal::PubWitness as PublishedWitness<Seal>>::PubId, Seal::CliWitness>;
+        type Cache =
+            FileAora<<Seal::PubWitness as PublishedWitness<Seal>>::PubId, Seal::PubWitness>;
         type Index =
             MemIndex<<<Seal as SingleUseSeal>::PubWitness as PublishedWitness<Seal>>::PubId>;
 
@@ -169,5 +203,16 @@ pub mod fs {
         fn cache_mut(&mut self) -> &mut Self::Cache { &mut self.cache }
 
         fn index_mut(&mut self) -> &mut Self::Index { &mut self.index }
+
+        fn retrieve(
+            &mut self,
+            opid: Opid,
+        ) -> impl ExactSizeIterator<Item = (Seal::CliWitness, Seal::PubWitness)> {
+            self.index.get(opid).map(|pubid| {
+                let client = self.hoard.read(pubid);
+                let published = self.cache.read(pubid);
+                (client, published)
+            })
+        }
     }
 }

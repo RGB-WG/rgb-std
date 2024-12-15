@@ -37,7 +37,6 @@ extern crate strict_encoding;
 #[cfg(all(feature = "serde", feature = "bitcoin"))]
 #[macro_use]
 extern crate serde;
-extern crate core;
 
 mod pile;
 mod stockpile;

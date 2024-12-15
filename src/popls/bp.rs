@@ -33,7 +33,7 @@ use amplify::{confinement, Bytes32};
 use bp::dbc::opret::OpretProof;
 use bp::dbc::tapret::TapretProof;
 use bp::seals::TxoSeal;
-use bp::{dbc, Outpoint, Txid, Vout};
+use bp::{dbc, Outpoint, Vout};
 use commit_verify::{CommitId, Digest, DigestExt, Sha256};
 use hypersonic::{
     AdaptedState, AuthToken, CallParams, CellAddr, CodexId, ContractId, CoreParams, DataCell,
@@ -67,8 +67,6 @@ pub type OpretSeal = TxoSeal<OpretProof>;
 pub type TapretSeal = TxoSeal<TapretProof>;
 
 impl<D: dbc::Proof> Protocol for TxoSeal<D> {
-    type Id = Txid;
-
     // SECURITY: Here we cut SHA256 tagged hash of a single-use seal definition to 30 bytes in order
     // to fit it into a field element with no overflows. This must be a secure operation since we
     // still have a sufficient 120-bit collision resistance.
