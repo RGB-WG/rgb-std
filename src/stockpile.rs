@@ -49,6 +49,20 @@ use strict_types::StrictVal;
 
 use crate::Pile;
 
+#[derive(Clone)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(
+        rename_all = "camelCase",
+        bound = "Seal: serde::Serialize + for<'d> serde::Deserialize<'d>"
+    )
+)]
+pub struct Assignment<Seal: Clone> {
+    pub seal: Seal,
+    pub data: StrictVal,
+}
+
 /// Parameters used by RGB for contract creation operations.
 ///
 /// Differs from [`IssueParams`] in the fact that it uses full seal data instead of
@@ -69,7 +83,7 @@ pub struct CreateParams<Seal: Clone> {
     pub name: TypeName,
     pub timestamp: Option<DateTime<Utc>>,
     pub global: Vec<NamedState<StateAtom>>,
-    pub owned: Vec<(Seal, NamedState<StrictVal>)>,
+    pub owned: Vec<NamedState<Assignment<Seal>>>,
 }
 
 #[derive(Getters)]
@@ -85,8 +99,13 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Stockpile<S, P, CAPS> {
         assert_eq!(params.codex_id, schema.codex.codex_id());
         assert_eq!(params.seal_type as u32, CAPS, "invalid seal type for the issue");
 
-        let seals = SmallVec::try_from_iter(params.owned.iter().map(|(seal, _)| seal.clone()))
-            .expect("too many outputs");
+        let seals = SmallVec::try_from_iter(
+            params
+                .owned
+                .iter()
+                .map(|assignment| assignment.state.seal.clone()),
+        )
+        .expect("too many outputs");
         let params = IssueParams {
             name: params.name,
             timestamp: params.timestamp,
@@ -96,11 +115,11 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Stockpile<S, P, CAPS> {
                 owned: params
                     .owned
                     .into_iter()
-                    .map(|(seal, state)| NamedState {
-                        name: state.name,
+                    .map(|assignment| NamedState {
+                        name: assignment.name,
                         state: DataCell {
-                            auth: seal.auth_token(),
-                            data: state.state,
+                            auth: assignment.state.seal.auth_token(),
+                            data: assignment.state.data,
                             lock: None,
                         },
                     })

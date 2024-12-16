@@ -50,4 +50,4 @@ pub use mound::{Excavate, Mound};
 pub use pile::fs::FilePile;
 pub use pile::Pile;
 pub use rgb::*;
-pub use stockpile::{ConsumeError, CreateParams, Stockpile};
+pub use stockpile::{Assignment, ConsumeError, CreateParams, Stockpile};

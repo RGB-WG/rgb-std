@@ -77,6 +77,7 @@ pub mod fs {
     use std::path::{Path, PathBuf};
 
     use hypersonic::aora::file::FileAora;
+    use hypersonic::expect::Expect;
     use strict_encoding::{StrictDecode, StrictEncode};
 
     use super::*;
@@ -115,10 +116,13 @@ pub mod fs {
         pub fn new(name: &str, path: impl AsRef<Path>) -> Self {
             let mut path = path.as_ref().to_path_buf();
             path.push(name);
+            path.set_extension("contract");
 
             let hoard = FileAora::new(&path, "hoard");
             let cache = FileAora::new(&path, "cache");
             let keep = FileAora::new(&path, "keep");
+            File::create_new(path.join("index.dat"))
+                .expect_or_else(|| format!("unable to create index file `{}`", path.display()));
 
             Self {
                 path,
@@ -140,8 +144,9 @@ pub mod fs {
             let keep = FileAora::open(&path, "keep");
 
             let mut index = BTreeMap::new();
-            let mut index_file =
-                File::open(path.join("index.dat")).expect("cannot open index file");
+            let index_name = path.join("index.dat");
+            let mut index_file = File::open(&index_name)
+                .expect_or_else(|| format!("unable to open index file `{}`", index_name.display()));
             let mut buf = [0u8; 32];
             while index_file.read_exact(&mut buf).is_ok() {
                 let opid = Opid::from(buf);

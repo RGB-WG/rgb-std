@@ -43,7 +43,7 @@ use rgb::SonicSeal;
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 use strict_types::StrictVal;
 
-use crate::{CreateParams, Excavate, Mound, Pile};
+use crate::{Assignment, CreateParams, Excavate, Mound, Pile};
 
 pub trait WalletProvider {
     fn noise_seed(&self) -> Bytes32;
@@ -86,8 +86,16 @@ impl CreateParams<Outpoint> {
                 .owned
                 .into_iter()
                 .enumerate()
-                .map(|(nonce, (outpoint, state))| {
-                    (TxoSeal::no_fallback(outpoint, noise_engine.clone(), nonce as u64), state)
+                .map(|(nonce, assignment)| NamedState {
+                    name: assignment.name,
+                    state: Assignment {
+                        seal: TxoSeal::no_fallback(
+                            assignment.state.seal,
+                            noise_engine.clone(),
+                            nonce as u64,
+                        ),
+                        data: assignment.state.data,
+                    },
                 })
                 .collect(),
         }
@@ -408,15 +416,17 @@ pub mod file {
 
     impl DirMound {
         pub fn load(root: impl AsRef<Path>) -> Self {
-            let schemata = fs::read_dir(root.as_ref())
+            let root = root.as_ref();
+            let schemata = fs::read_dir(root)
                 .expect("unable to read directory")
                 .filter_map(|entry| {
                     let entry = entry.expect("unable to read directory");
                     let ty = entry.file_type().expect("unable to read file type");
                     if ty.is_file()
-                        && entry.path().extension().and_then(OsStr::to_str) == Some("schema")
+                        && entry.path().extension().and_then(OsStr::to_str) == Some("issuer")
                     {
                         Schema::load(entry.path())
+                            .inspect_err(|err| eprintln!("Unable to load schema: {}", err))
                             .ok()
                             .map(|schema| (schema.codex.codex_id(), schema))
                     } else {
@@ -426,16 +436,18 @@ pub mod file {
                 .collect();
 
             #[cfg(feature = "bitcoin")]
-            let bc_opret = { DirBcOpretMound::load(root.as_ref()) };
+            let bc_opret = { DirBcOpretMound::load(root.join(SealType::BitcoinOpret.to_string())) };
 
             #[cfg(feature = "bitcoin")]
-            let bc_tapret = { DirBcTapretMound::load(root.as_ref()) };
+            let bc_tapret =
+                { DirBcTapretMound::load(root.join(SealType::BitcoinTapret.to_string())) };
 
             #[cfg(feature = "liquid")]
-            let lq_opret = { DirLqOpretMound::load(root.as_ref()) };
+            let lq_opret = { DirLqOpretMound::load(root.join(SealType::LiquidOpret.to_string())) };
 
             #[cfg(feature = "liquid")]
-            let lq_tapret = { DirLqTapretMound::load(root.as_ref()) };
+            let lq_tapret =
+                { DirLqTapretMound::load(root.join(SealType::LiquidTapret.to_string())) };
 
             Self {
                 schemata,
@@ -528,7 +540,7 @@ pub mod file {
 
     impl<O: OpretProvider, T: TapretProvider> DirBarrow<O, T> {
         pub fn load_opret(ty: SealType, root: impl AsRef<Path>, wallet: O) -> Self {
-            let mound = DirMound::load(root);
+            let mound = DirMound::load(root.as_ref());
             Self::with_opret(ty, mound, wallet)
         }
 

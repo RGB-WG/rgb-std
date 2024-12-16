@@ -26,6 +26,7 @@ use alloc::collections::BTreeMap;
 use core::borrow::Borrow;
 use std::io;
 
+use hypersonic::expect::Expect;
 use hypersonic::{AuthToken, CellAddr, CodexId, ContractId, Schema, Supply};
 use single_use_seals::{PublishedWitness, SingleUseSeal};
 use strict_encoding::{
@@ -87,7 +88,9 @@ impl<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS>, const CAPS: u32> Mound<S
     }
 
     pub fn issue(&mut self, params: CreateParams<P::Seal>, supply: S, pile: P) -> ContractId {
-        let schema = self.schema(params.codex_id).expect("unknown schema");
+        let schema = self
+            .schema(params.codex_id)
+            .expect_or_else(|| format!("Unknown codex `{}`", params.codex_id));
         let stockpile = Stockpile::issue(schema.clone(), params, supply, pile);
         let id = stockpile.contract_id();
         self.contracts.insert(id, stockpile);
@@ -183,6 +186,7 @@ pub mod file {
     use std::marker::PhantomData;
     use std::path::{Path, PathBuf};
 
+    use hypersonic::expect::Expect;
     use hypersonic::FileSupply;
     use rgb::SonicSeal;
     use single_use_seals::PublishedWitness;
@@ -205,10 +209,8 @@ pub mod file {
         }
 
         fn contents(&mut self) -> impl Iterator<Item = (FileType, PathBuf)> {
-            let seal = SealType::try_from(CAPS).expect("unknown seal type");
-            let root = self.dir.join(seal.to_string());
-            fs::read_dir(root)
-                .expect("unable to read directory")
+            fs::read_dir(&self.dir)
+                .expect_or_else(|| format!("unable to read directory `{}`", self.dir.display()))
                 .map(|entry| {
                     let entry = entry.expect("unable to read directory");
                     let ty = entry.file_type().expect("unable to read file type");
@@ -226,11 +228,13 @@ pub mod file {
     {
         fn schemata(&mut self) -> impl Iterator<Item = (CodexId, Schema)> {
             self.contents().filter_map(|(ty, path)| {
-                if ty.is_file() && path.extension().and_then(OsStr::to_str) == Some("schema") {
+                if ty.is_file() && path.extension().and_then(OsStr::to_str) == Some("issuer") {
                     Schema::load(path)
                         .ok()
                         .map(|schema| (schema.codex.codex_id(), schema))
-                } else if ty.is_dir() && path.ends_with(".contract") {
+                } else if ty.is_dir()
+                    && path.extension().and_then(OsStr::to_str) == Some("contract")
+                {
                     let contract = Stockpile::<FileSupply, FilePile<Seal>, CAPS>::load(path);
                     let schema = contract.stock().articles().schema.clone();
                     Some((schema.codex.codex_id(), schema))
@@ -245,7 +249,7 @@ pub mod file {
         ) -> impl Iterator<Item = (ContractId, Stockpile<FileSupply, FilePile<Seal>, CAPS>)>
         {
             self.contents().filter_map(|(ty, path)| {
-                if ty.is_dir() && path.ends_with(".contract") {
+                if ty.is_dir() && path.extension().and_then(OsStr::to_str) == Some("contract") {
                     let contract = Stockpile::load(path);
                     Some((contract.contract_id(), contract))
                 } else {
@@ -271,8 +275,8 @@ pub mod file {
         }
 
         pub fn issue_to_file(&mut self, params: CreateParams<Seal>) -> ContractId {
-            let pile = FilePile::<Seal>::new(params.name.as_str(), &self.persistence.dir);
             let supply = FileSupply::new(params.name.as_str(), &self.persistence.dir);
+            let pile = FilePile::<Seal>::new(params.name.as_str(), &self.persistence.dir);
             self.issue(params, supply, pile)
         }
 
