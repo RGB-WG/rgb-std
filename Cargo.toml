@@ -46,6 +46,7 @@ serde = [
     "strict_types/serde",
     "commit_verify/serde",
     "bp-core/serde",
+    "rgb-core/serde",
     "chrono/serde"
 ]
 

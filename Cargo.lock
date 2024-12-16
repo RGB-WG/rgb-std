@@ -570,12 +570,13 @@ dependencies = [
 [[package]]
 name = "rgb-core"
 version = "0.12.0-beta.3"
-source = "git+https://github.com/RGB-WG/rgb-core?branch=v0.12#e51a59b0bdf2d2bc39e867d996bf8233f2fd5357"
+source = "git+https://github.com/RGB-WG/rgb-core?branch=v0.12#f95a75c43ea335082f0c9671ae26c8f765da582e"
 dependencies = [
  "amplify",
  "bp-core",
  "commit_verify",
  "getrandom",
+ "serde",
  "single_use_seals",
  "strict_encoding",
  "ultrasonic",
@@ -739,6 +740,7 @@ name = "single_use_seals"
 version = "0.12.0-beta.1"
 source = "git+https://github.com/LNP-BP/client_side_validation?branch=v0.12#b5ea9abeec487436ceb8d2e572a8e34305fd5d70"
 dependencies = [
+ "serde",
  "strict_encoding",
 ]
 

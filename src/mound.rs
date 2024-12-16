@@ -205,7 +205,7 @@ pub mod file {
         }
 
         fn contents(&mut self) -> impl Iterator<Item = (FileType, PathBuf)> {
-            let seal = SealType::from(CAPS);
+            let seal = SealType::try_from(CAPS).expect("unknown seal type");
             let root = self.dir.join(seal.to_string());
             fs::read_dir(root)
                 .expect("unable to read directory")

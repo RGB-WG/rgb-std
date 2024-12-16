@@ -37,8 +37,8 @@ use hypersonic::{
     Supply,
 };
 use rgb::{
-    ContractApi, ContractVerify, OperationSeals, ReadOperation, ReadWitness, SonicSeal, Step,
-    VerificationError,
+    ContractApi, ContractVerify, OperationSeals, ReadOperation, ReadWitness, SealType, SonicSeal,
+    Step, VerificationError,
 };
 use single_use_seals::{PublishedWitness, SealWitness, SingleUseSeal};
 use strict_encoding::{
@@ -64,6 +64,7 @@ use crate::Pile;
 )]
 pub struct CreateParams<Seal: Clone> {
     pub codex_id: CodexId,
+    pub seal_type: SealType,
     pub method: MethodName,
     pub name: TypeName,
     pub timestamp: Option<DateTime<Utc>>,
@@ -82,6 +83,7 @@ pub struct Stockpile<S: Supply<CAPS>, P: Pile, const CAPS: u32> {
 impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Stockpile<S, P, CAPS> {
     pub fn issue(schema: Schema, params: CreateParams<P::Seal>, supply: S, mut pile: P) -> Self {
         assert_eq!(params.codex_id, schema.codex.codex_id());
+        assert_eq!(params.seal_type as u32, CAPS, "invalid seal type for the issue");
 
         let seals = SmallVec::try_from_iter(params.owned.iter().map(|(seal, _)| seal.clone()))
             .expect("too many outputs");

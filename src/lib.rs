@@ -49,6 +49,5 @@ pub use mound::{Excavate, Mound};
 #[cfg(feature = "fs")]
 pub use pile::fs::FilePile;
 pub use pile::Pile;
-pub use popls::SealType;
 pub use rgb::*;
 pub use stockpile::{ConsumeError, CreateParams, Stockpile};

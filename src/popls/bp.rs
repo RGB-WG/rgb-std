@@ -71,11 +71,13 @@ pub enum BuilderSeal {
 impl CreateParams<Outpoint> {
     pub fn transform<D: dbc::Proof>(self, mut noise_engine: Sha256) -> CreateParams<TxoSeal<D>> {
         noise_engine.input_raw(self.codex_id.as_slice());
+        noise_engine.input_raw(&(self.seal_type as u32).to_le_bytes());
         noise_engine.input_raw(self.method.as_bytes());
         noise_engine.input_raw(self.name.as_bytes());
-        noise_engine.input_raw(&self.timestamp.unwrap_or_default().timestamp().to_be_bytes());
+        noise_engine.input_raw(&self.timestamp.unwrap_or_default().timestamp().to_le_bytes());
         CreateParams {
             codex_id: self.codex_id,
+            seal_type: self.seal_type,
             method: self.method,
             name: self.name,
             timestamp: self.timestamp,
