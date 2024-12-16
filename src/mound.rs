@@ -26,13 +26,13 @@ use alloc::collections::BTreeMap;
 use core::borrow::Borrow;
 use std::io;
 
-use hypersonic::{AuthToken, CellAddr, CodexId, ContractId, IssueParams, Schema, Supply};
+use hypersonic::{AuthToken, CellAddr, CodexId, ContractId, Schema, Supply};
 use single_use_seals::{PublishedWitness, SingleUseSeal};
 use strict_encoding::{
     ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter, WriteRaw,
 };
 
-use crate::{ConsumeError, Pile, Stockpile};
+use crate::{ConsumeError, CreateParams, Pile, Stockpile};
 
 pub trait Excavate<S: Supply<CAPS>, P: Pile, const CAPS: u32> {
     fn schemata(&mut self) -> impl Iterator<Item = (CodexId, Schema)>;
@@ -86,14 +86,8 @@ impl<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS>, const CAPS: u32> Mound<S
         }
     }
 
-    pub fn issue(
-        &mut self,
-        codex_id: CodexId,
-        params: IssueParams,
-        supply: S,
-        pile: P,
-    ) -> ContractId {
-        let schema = self.schema(codex_id).expect("unknown schema");
+    pub fn issue(&mut self, params: CreateParams<P::Seal>, supply: S, pile: P) -> ContractId {
+        let schema = self.schema(params.codex_id).expect("unknown schema");
         let stockpile = Stockpile::issue(schema.clone(), params, supply, pile);
         let id = stockpile.contract_id();
         self.contracts.insert(id, stockpile);
@@ -276,10 +270,10 @@ pub mod file {
             Self::open(excavator)
         }
 
-        pub fn issue_file(&mut self, codex_id: CodexId, params: IssueParams) -> ContractId {
+        pub fn issue_to_file(&mut self, params: CreateParams<Seal>) -> ContractId {
             let pile = FilePile::<Seal>::new(params.name.as_str(), &self.persistence.dir);
             let supply = FileSupply::new(params.name.as_str(), &self.persistence.dir);
-            self.issue(codex_id, params, supply, pile)
+            self.issue(params, supply, pile)
         }
 
         pub fn path(&self) -> &Path { &self.persistence.dir }

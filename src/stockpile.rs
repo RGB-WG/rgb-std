@@ -29,10 +29,12 @@ use std::io;
 
 use amplify::confinement::SmallVec;
 use amplify::IoError;
+use chrono::{DateTime, Utc};
 use hypersonic::aora::Aora;
 use hypersonic::{
-    Articles, AuthToken, CellAddr, Codex, ContractId, IssueParams, LibRepo, Memory, MergeError,
-    Operation, Opid, Schema, Stock, Supply,
+    Articles, AuthToken, CellAddr, Codex, CodexId, ContractId, CoreParams, DataCell, IssueParams,
+    LibRepo, Memory, MergeError, MethodName, NamedState, Operation, Opid, Schema, StateAtom, Stock,
+    Supply,
 };
 use rgb::{
     ContractApi, ContractVerify, OperationSeals, ReadOperation, ReadWitness, SonicSeal, Step,
@@ -41,10 +43,33 @@ use rgb::{
 use single_use_seals::{PublishedWitness, SealWitness, SingleUseSeal};
 use strict_encoding::{
     DecodeError, ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter,
-    WriteRaw,
+    TypeName, WriteRaw,
 };
+use strict_types::StrictVal;
 
 use crate::Pile;
+
+/// Parameters used by RGB for contract creation operations.
+///
+/// Differs from [`IssueParams`] in the fact that it uses full seal data instead of
+/// [`hypersonic::AuthTokens`] for output definitions.
+#[derive(Clone)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(
+        rename_all = "camelCase",
+        bound = "Seal: serde::Serialize + for<'d> serde::Deserialize<'d>"
+    )
+)]
+pub struct CreateParams<Seal: Clone> {
+    pub codex_id: CodexId,
+    pub method: MethodName,
+    pub name: TypeName,
+    pub timestamp: Option<DateTime<Utc>>,
+    pub global: Vec<NamedState<StateAtom>>,
+    pub owned: Vec<(Seal, NamedState<StrictVal>)>,
+}
 
 #[derive(Getters)]
 pub struct Stockpile<S: Supply<CAPS>, P: Pile, const CAPS: u32> {
@@ -55,9 +80,39 @@ pub struct Stockpile<S: Supply<CAPS>, P: Pile, const CAPS: u32> {
 }
 
 impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Stockpile<S, P, CAPS> {
-    pub fn issue(schema: Schema, params: IssueParams, supply: S, pile: P) -> Self {
+    pub fn issue(schema: Schema, params: CreateParams<P::Seal>, supply: S, mut pile: P) -> Self {
+        assert_eq!(params.codex_id, schema.codex.codex_id());
+
+        let seals = SmallVec::try_from_iter(params.owned.iter().map(|(seal, _)| seal.clone()))
+            .expect("too many outputs");
+        let params = IssueParams {
+            name: params.name,
+            timestamp: params.timestamp,
+            core: CoreParams {
+                method: params.method,
+                global: params.global,
+                owned: params
+                    .owned
+                    .into_iter()
+                    .map(|(seal, state)| NamedState {
+                        name: state.name,
+                        state: DataCell {
+                            auth: seal.auth_token(),
+                            data: state.state,
+                            lock: None,
+                        },
+                    })
+                    .collect(),
+            },
+        };
+
         let articles = schema.issue::<CAPS>(params);
         let stock = Stock::create(articles, supply);
+
+        // Init seals
+        pile.keep_mut()
+            .append(stock.articles().contract.genesis_opid(), &seals);
+
         Self { stock, pile }
     }
 
@@ -246,7 +301,11 @@ mod fs {
             Self::open(supply.load_articles(), supply, pile)
         }
 
-        pub fn issue_file(schema: Schema, params: IssueParams, path: impl AsRef<Path>) -> Self {
+        pub fn issue_to_file(
+            schema: Schema,
+            params: CreateParams<Seal>,
+            path: impl AsRef<Path>,
+        ) -> Self {
             let path = path.as_ref();
             let pile = FilePile::new(params.name.as_str(), path);
             let supply = FileSupply::new(params.name.as_str(), path);

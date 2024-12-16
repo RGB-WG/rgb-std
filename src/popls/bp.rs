@@ -36,14 +36,14 @@ use bp::seals::TxoSeal;
 use bp::{dbc, Outpoint, Vout};
 use commit_verify::{Digest, DigestExt, Sha256};
 use hypersonic::{
-    AdaptedState, CallParams, CellAddr, CodexId, ContractId, CoreParams, DataCell, IssueParams,
-    MethodName, NamedState, Operation, Schema, StateAtom, StateCalc, StateName, Supply,
+    AdaptedState, CallParams, CellAddr, ContractId, CoreParams, DataCell, MethodName, NamedState,
+    Operation, Schema, StateAtom, StateCalc, StateName, Supply,
 };
 use rgb::SonicSeal;
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 use strict_types::StrictVal;
 
-use crate::{Excavate, Mound, Pile};
+use crate::{CreateParams, Excavate, Mound, Pile};
 
 pub trait WalletProvider {
     fn noise_seed(&self) -> Bytes32;
@@ -68,18 +68,42 @@ pub enum BuilderSeal {
     Extern(Outpoint),
 }
 
+impl CreateParams<Outpoint> {
+    pub fn transform<D: dbc::Proof>(self, mut noise_engine: Sha256) -> CreateParams<TxoSeal<D>> {
+        noise_engine.input_raw(self.codex_id.as_slice());
+        noise_engine.input_raw(self.method.as_bytes());
+        noise_engine.input_raw(self.name.as_bytes());
+        noise_engine.input_raw(&self.timestamp.unwrap_or_default().timestamp().to_be_bytes());
+        CreateParams {
+            codex_id: self.codex_id,
+            method: self.method,
+            name: self.name,
+            timestamp: self.timestamp,
+            global: self.global,
+            owned: self
+                .owned
+                .into_iter()
+                .enumerate()
+                .map(|(nonce, (outpoint, state))| {
+                    (TxoSeal::no_fallback(outpoint, noise_engine.clone(), nonce as u64), state)
+                })
+                .collect(),
+        }
+    }
+}
+
 /// Parameters used by BP-based wallet for constructing operations.
 ///
-/// Differs from [`hypersonic::CallParams`] in the fact that it uses [`TxoSeal`]s instead of
-/// AuthTokens for output definitions.
+/// Differs from [`CallParams`] in the fact that it uses [`BuilderSeal`]s instead of
+/// [`hypersonic::AuthTokens`] for output definitions.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct ConstructParams {
     pub contract_id: ContractId,
     pub method: MethodName,
-    pub global: Vec<NamedState<StateAtom>>,
     pub reading: Vec<CellAddr>,
     pub using: Vec<(CellAddr, Outpoint, StrictVal)>,
+    pub global: Vec<NamedState<StateAtom>>,
     pub owned: Vec<(BuilderSeal, NamedState<StrictVal>)>,
 }
 
@@ -154,14 +178,9 @@ impl<
 
     pub fn unbind(self) -> (W, Mound<S, P, X, CAPS>) { (self.wallet, self.mound) }
 
-    pub fn issue(
-        &mut self,
-        codex_id: CodexId,
-        params: IssueParams,
-        supply: S,
-        pile: P,
-    ) -> ContractId {
-        self.mound.issue(codex_id, params, supply, pile)
+    pub fn issue(&mut self, params: CreateParams<Outpoint>, supply: S, pile: P) -> ContractId {
+        self.mound
+            .issue(params.transform(self.noise_engine()), supply, pile)
     }
 
     // TODO: Use bitcoin-specific state type aware of outpoints
@@ -175,10 +194,16 @@ impl<
             .map(|(id, stockpile)| (id, &stockpile.stock().state().main))
     }
 
+    fn noise_engine(&self) -> Sha256 {
+        let noise_seed = self.wallet.noise_seed();
+        let mut noise_engine = Sha256::new();
+        noise_engine.input_raw(noise_seed.as_ref());
+        noise_engine
+    }
+
     /// Creates a single operation basing on the provided construction parameters.
     pub fn prefab(&mut self, params: ConstructParams) -> Prefab {
-        // convert ExecParams into CallParams
-
+        // convert ConstructParams into CallParams
         let (closes, using) = params
             .using
             .into_iter()
@@ -187,23 +212,26 @@ impl<
         let closes = SmallOrdSet::try_from(closes).expect("too many inputs");
         let mut defines = SmallOrdSet::new();
 
-        let noise_seed = self.wallet.noise_seed();
-        let mut noise_engine = Sha256::new();
+        let mut noise_engine = self.noise_engine();
         noise_engine.input_raw(params.contract_id.as_slice());
-        noise_engine.input_raw(noise_seed.as_ref());
         let owned = params
             .owned
             .into_iter()
-            .map(|(seal, val)| {
+            .enumerate()
+            .map(|(nonce, (seal, val))| {
                 let seal = match seal {
                     BuilderSeal::Oneself(vout) => {
                         defines.push(vout).expect("too many seals");
                         // NB: We use opret type here, but this doesn't matter since we create seal
                         // only to produce the auth token, and seals do not commit to their type.
-                        TxoSeal::<OpretProof>::vout_no_fallback(vout, noise_engine.clone())
+                        TxoSeal::<OpretProof>::vout_no_fallback(
+                            vout,
+                            noise_engine.clone(),
+                            nonce as u64,
+                        )
                     }
                     BuilderSeal::Extern(outpoint) => {
-                        TxoSeal::no_fallback(outpoint, noise_engine.clone())
+                        TxoSeal::no_fallback(outpoint, noise_engine.clone(), nonce as u64)
                     }
                 };
                 let state = DataCell {
@@ -256,11 +284,10 @@ impl<
         }
 
         let mut prefab_params = Vec::new();
+        let root_noise_engine = self.noise_engine();
         for (contract_id, stockpile) in self.mound.contracts_mut() {
-            let noise_seed = self.wallet.noise_seed();
-            let mut noise_engine = Sha256::new();
+            let mut noise_engine = root_noise_engine.clone();
             noise_engine.input_raw(contract_id.as_slice());
-            noise_engine.input_raw(noise_seed.as_ref());
 
             // TODO: Simplify the expression
             // We need to clone here not to conflict with mutable call below
@@ -275,12 +302,19 @@ impl<
                     outpoints
                         .iter()
                         .copied()
-                        .find(|outpoint| {
-                            TxoSeal::<OpretProof>::no_fallback(*outpoint, noise_engine.clone())
-                                .auth_token()
+                        .enumerate()
+                        .find(|(nonce, outpoint)| {
+                            TxoSeal::<OpretProof>::no_fallback(
+                                *outpoint,
+                                noise_engine.clone(),
+                                *nonce as u64,
+                            )
+                            .auth_token()
                                 == auth
                         })
-                        .map(|outpoint| ((addr, outpoint, StrictVal::Unit), (name.clone(), val)))
+                        .map(|(_, outpoint)| {
+                            ((addr, outpoint, StrictVal::Unit), (name.clone(), val))
+                        })
                 })
                 .unzip();
 
@@ -293,10 +327,6 @@ impl<
                 calc.accumulate(val.clone()).expect("non-computable state");
             }
 
-            let noise_seed = self.wallet.noise_seed();
-            let mut noise_engine = Sha256::new();
-            noise_engine.input_raw(contract_id.as_slice());
-            noise_engine.input_raw(noise_seed.as_ref());
             let mut owned = Vec::new();
             for (name, calc) in calcs {
                 for state in calc.diff().expect("non-computable state") {
@@ -330,7 +360,7 @@ pub mod file {
     use std::path::Path;
     use std::{fs, iter};
 
-    use hypersonic::{CodexId, FileSupply, IssueParams};
+    use hypersonic::{CodexId, FileSupply};
     #[cfg(feature = "bitcoin")]
     use rgb::{BITCOIN_OPRET, BITCOIN_TAPRET};
     #[cfg(feature = "liquid")]
@@ -344,9 +374,9 @@ pub mod file {
         Barrow<W, D, FileSupply, FilePile<TxoSeal<D>>, DirExcavator<TxoSeal<D>, CAPS>, CAPS>;
 
     impl<W: WalletProvider, D: dbc::Proof, const CAPS: u32> FileWallet<W, D, CAPS> {
-        pub fn issue_file(&mut self, codex_id: CodexId, params: IssueParams) -> ContractId {
+        pub fn issue_to_file(&mut self, params: CreateParams<TxoSeal<D>>) -> ContractId {
             // TODO: check that if the issue belongs to the wallet add it to the unspents
-            self.mound.issue_file(codex_id, params)
+            self.mound.issue_to_file(params)
         }
     }
 
@@ -525,16 +555,24 @@ pub mod file {
             }
         }
 
-        pub fn issue_file(&mut self, codex_id: CodexId, params: IssueParams) -> ContractId {
+        pub fn issue_to_file(&mut self, params: CreateParams<Outpoint>) -> ContractId {
             match self {
                 #[cfg(feature = "bitcoin")]
-                Self::BcOpret(barrow) => barrow.issue_file(codex_id, params),
+                Self::BcOpret(barrow) => {
+                    barrow.issue_to_file(params.transform(barrow.noise_engine()))
+                }
                 #[cfg(feature = "bitcoin")]
-                Self::BcTapret(barrow) => barrow.issue_file(codex_id, params),
+                Self::BcTapret(barrow) => {
+                    barrow.issue_to_file(params.transform(barrow.noise_engine()))
+                }
                 #[cfg(feature = "liquid")]
-                Self::LqOpret(barrow) => barrow.issue_file(codex_id, params),
+                Self::LqOpret(barrow) => {
+                    barrow.issue_to_file(params.transform(barrow.noise_engine()))
+                }
                 #[cfg(feature = "liquid")]
-                Self::LqTapret(barrow) => barrow.issue_file(codex_id, params),
+                Self::LqTapret(barrow) => {
+                    barrow.issue_to_file(params.transform(barrow.noise_engine()))
+                }
             }
         }
 

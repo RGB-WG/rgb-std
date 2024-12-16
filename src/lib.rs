@@ -51,4 +51,4 @@ pub use pile::fs::FilePile;
 pub use pile::Pile;
 pub use popls::SealType;
 pub use rgb::*;
-pub use stockpile::{ConsumeError, Stockpile};
+pub use stockpile::{ConsumeError, CreateParams, Stockpile};
