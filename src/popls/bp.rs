@@ -326,6 +326,7 @@ impl<
 }
 
 pub mod file {
+    use std::ffi::OsStr;
     use std::path::Path;
     use std::{fs, iter};
 
@@ -380,7 +381,9 @@ pub mod file {
                 .filter_map(|entry| {
                     let entry = entry.expect("unable to read directory");
                     let ty = entry.file_type().expect("unable to read file type");
-                    if ty.is_file() && entry.path().ends_with(".schema") {
+                    if ty.is_file()
+                        && entry.path().extension().and_then(OsStr::to_str) == Some("schema")
+                    {
                         Schema::load(entry.path())
                             .ok()
                             .map(|schema| (schema.codex.codex_id(), schema))

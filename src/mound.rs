@@ -183,6 +183,7 @@ impl<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS>, const CAPS: u32> Mound<S
 }
 
 pub mod file {
+    use std::ffi::OsStr;
     use std::fs;
     use std::fs::{File, FileType};
     use std::marker::PhantomData;
@@ -231,7 +232,7 @@ pub mod file {
     {
         fn schemata(&mut self) -> impl Iterator<Item = (CodexId, Schema)> {
             self.contents().filter_map(|(ty, path)| {
-                if ty.is_file() && path.ends_with(".schema") {
+                if ty.is_file() && path.extension().and_then(OsStr::to_str) == Some("schema") {
                     Schema::load(path)
                         .ok()
                         .map(|schema| (schema.codex.codex_id(), schema))
