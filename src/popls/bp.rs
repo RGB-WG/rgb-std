@@ -326,8 +326,8 @@ impl<
 }
 
 pub mod file {
-    use std::iter;
     use std::path::Path;
+    use std::{fs, iter};
 
     use hypersonic::{CodexId, FileSupply, IssueParams};
     #[cfg(feature = "bitcoin")]
@@ -362,6 +362,7 @@ pub mod file {
     pub type DirLqTapretMound = DirBtcMound<TapretProof, LIQUID_TAPRET>;
 
     pub struct DirMound {
+        pub schemata: BTreeMap<CodexId, Schema>,
         #[cfg(feature = "bitcoin")]
         pub bc_opret: DirBcOpretMound,
         #[cfg(feature = "bitcoin")]
@@ -374,31 +375,35 @@ pub mod file {
 
     impl DirMound {
         pub fn load(root: impl AsRef<Path>) -> Self {
-            #[cfg(feature = "bitcoin")]
-            let bc_opret = {
-                let path = root.as_ref().join(SealType::BitcoinOpret.to_string());
-                DirBcOpretMound::load(path)
-            };
+            let schemata = fs::read_dir(root.as_ref())
+                .expect("unable to read directory")
+                .filter_map(|entry| {
+                    let entry = entry.expect("unable to read directory");
+                    let ty = entry.file_type().expect("unable to read file type");
+                    if ty.is_file() && entry.path().ends_with(".schema") {
+                        Schema::load(entry.path())
+                            .ok()
+                            .map(|schema| (schema.codex.codex_id(), schema))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
 
             #[cfg(feature = "bitcoin")]
-            let bc_tapret = {
-                let path = root.as_ref().join(SealType::BitcoinTapret.to_string());
-                DirBcTapretMound::load(path)
-            };
+            let bc_opret = { DirBcOpretMound::load(root.as_ref()) };
+
+            #[cfg(feature = "bitcoin")]
+            let bc_tapret = { DirBcTapretMound::load(root.as_ref()) };
 
             #[cfg(feature = "liquid")]
-            let lq_opret = {
-                let path = root.as_ref().join(SealType::LiquidOpret.to_string());
-                DirLqOpretMound::load(path)
-            };
+            let lq_opret = { DirLqOpretMound::load(root.as_ref()) };
 
             #[cfg(feature = "liquid")]
-            let lq_tapret = {
-                let path = root.as_ref().join(SealType::LiquidTapret.to_string());
-                DirLqTapretMound::load(path)
-            };
+            let lq_tapret = { DirLqTapretMound::load(root.as_ref()) };
 
             Self {
+                schemata,
                 #[cfg(feature = "bitcoin")]
                 bc_opret,
                 #[cfg(feature = "bitcoin")]
@@ -411,7 +416,7 @@ pub mod file {
         }
 
         pub fn codex_ids(&self) -> impl Iterator<Item = CodexId> + use<'_> {
-            let iter = iter::empty();
+            let iter = self.schemata.keys().copied();
             #[cfg(feature = "bitcoin")]
             let iter = iter.chain(self.bc_opret.codex_ids());
             #[cfg(feature = "bitcoin")]
@@ -424,7 +429,7 @@ pub mod file {
         }
 
         pub fn schemata(&self) -> impl Iterator<Item = (CodexId, &Schema)> {
-            let iter = iter::empty();
+            let iter = self.schemata.iter().map(|(k, v)| (*k, v));
             #[cfg(feature = "bitcoin")]
             let iter = iter.chain(self.bc_opret.schemata());
             #[cfg(feature = "bitcoin")]
@@ -437,7 +442,7 @@ pub mod file {
         }
 
         pub fn schema(&self, codex_id: CodexId) -> Option<&Schema> {
-            let res = None;
+            let res = self.schemata.get(&codex_id);
             #[cfg(feature = "bitcoin")]
             let res = res.or_else(|| self.bc_opret.schema(codex_id));
             #[cfg(feature = "bitcoin")]
