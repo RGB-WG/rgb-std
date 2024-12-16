@@ -32,9 +32,9 @@ default = ["std", "bitcoin"]
 all = ["std", "bitcoin", "liquid", "prime", "fs", "serde"]
 std = []
 
-bitcoin = ["bp-core"]
-liquid = []
-prime = []
+bitcoin = ["bp-core", "rgb-core/bitcoin"]
+liquid = ["rgb-core/liquid"]
+prime = ["rgb-core/prime"]
 
 fs = ["std", "hypersonic/persist-file"]
 serde = [

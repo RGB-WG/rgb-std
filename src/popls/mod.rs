@@ -36,23 +36,23 @@ pub mod prime;
 pub enum SealType {
     #[cfg(feature = "bitcoin")]
     #[display("bcor")]
-    BitcoinOpret = self::bp::BITCOIN_OPRET,
+    BitcoinOpret = rgb::BITCOIN_OPRET,
 
     #[cfg(feature = "bitcoin")]
     #[display("bctr")]
-    BitcoinTapret = self::bp::BITCOIN_TAPRET,
+    BitcoinTapret = rgb::BITCOIN_TAPRET,
 
     #[cfg(feature = "liquid")]
     #[display("lqor")]
-    LiquidOpret = self::bp::LIQUID_OPRET,
+    LiquidOpret = rgb::LIQUID_OPRET,
 
     #[cfg(feature = "liquid")]
     #[display("lqtr")]
-    LiquidTapret = self::bp::LIQUID_TAPRET,
+    LiquidTapret = rgb::LIQUID_TAPRET,
 
     #[cfg(feature = "prime")]
     #[display("prime")]
-    Prime = self::prime::PRIME,
+    Prime = rgb::PRIME_SEALS,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error)]
@@ -81,13 +81,13 @@ impl From<u32> for SealType {
     fn from(caps: u32) -> Self {
         match caps {
             #[cfg(feature = "bitcoin")]
-            self::bp::BITCOIN_OPRET => Self::BitcoinOpret,
+            rgb::BITCOIN_OPRET => Self::BitcoinOpret,
             #[cfg(feature = "bitcoin")]
-            self::bp::BITCOIN_TAPRET => Self::BitcoinTapret,
+            rgb::BITCOIN_TAPRET => Self::BitcoinTapret,
             #[cfg(feature = "liquid")]
-            self::bp::LIQUID_TAPRET => Self::LiquidTapret,
+            rgb::LIQUID_TAPRET => Self::LiquidTapret,
             #[cfg(feature = "prime")]
-            self::prime::PRIME => Self::Prime,
+            rgb::PRIME_SEALS => Self::Prime,
             unknown => panic!("unknown seal type {unknown:#10x}"),
         }
     }

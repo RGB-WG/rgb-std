@@ -34,16 +34,15 @@ use bp::dbc::opret::OpretProof;
 use bp::dbc::tapret::TapretProof;
 use bp::seals::TxoSeal;
 use bp::{dbc, Outpoint, Vout};
-use commit_verify::{CommitId, Digest, DigestExt, Sha256};
+use commit_verify::{Digest, DigestExt, Sha256};
 use hypersonic::{
-    AdaptedState, AuthToken, CallParams, CellAddr, CodexId, ContractId, CoreParams, DataCell,
-    IssueParams, MethodName, NamedState, Operation, Schema, StateAtom, StateCalc, StateName,
-    Supply,
+    AdaptedState, CallParams, CellAddr, CodexId, ContractId, CoreParams, DataCell, IssueParams,
+    MethodName, NamedState, Operation, Schema, StateAtom, StateCalc, StateName, Supply,
 };
+use rgb::SonicSeal;
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 use strict_types::StrictVal;
 
-use crate::pile::Protocol;
 use crate::{Excavate, Mound, Pile};
 
 pub trait WalletProvider {
@@ -52,31 +51,7 @@ pub trait WalletProvider {
 pub trait OpretProvider: WalletProvider {}
 pub trait TapretProvider: WalletProvider {}
 
-#[cfg(feature = "bitcoin")]
-pub const BITCOIN_OPRET: u32 = 0x0001_0001_u32;
-#[cfg(feature = "bitcoin")]
-pub const BITCOIN_TAPRET: u32 = 0x0001_0002_u32;
-#[cfg(feature = "liquid")]
-pub const LIQUID_OPRET: u32 = 0x0002_0001_u32;
-#[cfg(feature = "liquid")]
-pub const LIQUID_TAPRET: u32 = 0x0002_0002_u32;
-
 pub const BP_BLANK_METHOD: &str = "_";
-
-pub type OpretSeal = TxoSeal<OpretProof>;
-pub type TapretSeal = TxoSeal<TapretProof>;
-
-impl<D: dbc::Proof> Protocol for TxoSeal<D> {
-    // SECURITY: Here we cut SHA256 tagged hash of a single-use seal definition to 30 bytes in order
-    // to fit it into a field element with no overflows. This must be a secure operation since we
-    // still have a sufficient 120-bit collision resistance.
-    fn auth_token(&self) -> AuthToken {
-        let id = self.commit_id().to_byte_array();
-        let mut shortened_id = [0u8; 30];
-        shortened_id.copy_from_slice(&id[0..30]);
-        AuthToken::from_byte_array(shortened_id)
-    }
-}
 
 // TODO: Support failback seals
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
@@ -355,6 +330,10 @@ pub mod file {
     use std::path::Path;
 
     use hypersonic::{CodexId, FileSupply, IssueParams};
+    #[cfg(feature = "bitcoin")]
+    use rgb::{BITCOIN_OPRET, BITCOIN_TAPRET};
+    #[cfg(feature = "liquid")]
+    use rgb::{LIQUID_OPRET, LIQUID_TAPRET};
 
     use super::*;
     use crate::mound::file::DirExcavator;

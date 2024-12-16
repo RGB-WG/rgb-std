@@ -26,17 +26,13 @@ use alloc::collections::BTreeMap;
 use core::borrow::Borrow;
 use std::io;
 
-use hypersonic::{
-    AcceptError, AuthToken, CellAddr, CodexId, ContractId, IssueParams, Schema, Supply,
-};
-use rgb::VerificationError;
+use hypersonic::{AuthToken, CellAddr, CodexId, ContractId, IssueParams, Schema, Supply};
 use single_use_seals::{PublishedWitness, SingleUseSeal};
 use strict_encoding::{
-    DecodeError, ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter,
-    WriteRaw,
+    ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter, WriteRaw,
 };
 
-use crate::{Pile, Stockpile};
+use crate::{ConsumeError, Pile, Stockpile};
 
 pub trait Excavate<S: Supply<CAPS>, P: Pile, const CAPS: u32> {
     fn schemata(&mut self) -> impl Iterator<Item = (CodexId, Schema)>;
@@ -169,14 +165,13 @@ impl<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS>, const CAPS: u32> Mound<S
     pub fn consume(
         &mut self,
         reader: &mut StrictReader<impl ReadRaw>,
-    ) -> Result<(), VerificationError<P::Seal, DecodeError, AcceptError>>
+    ) -> Result<(), ConsumeError<P::Seal>>
     where
         <P::Seal as SingleUseSeal>::CliWitness: StrictDecode,
         <P::Seal as SingleUseSeal>::PubWitness: StrictDecode,
         <<P::Seal as SingleUseSeal>::PubWitness as PublishedWitness<P::Seal>>::PubId: StrictDecode,
     {
-        let contract_id =
-            ContractId::strict_decode(reader).map_err(|e| VerificationError::Retrieve(e.into()))?;
+        let contract_id = ContractId::strict_decode(reader)?;
         let contract = if self.has_contract(contract_id) {
             self.contract_mut(contract_id)
         } else {
@@ -194,19 +189,19 @@ pub mod file {
     use std::path::{Path, PathBuf};
 
     use hypersonic::FileSupply;
+    use rgb::SonicSeal;
     use single_use_seals::PublishedWitness;
     use strict_encoding::{StreamReader, StreamWriter, StrictDecode, StrictEncode};
 
     use super::*;
-    use crate::pile::Protocol;
     use crate::{FilePile, SealType};
 
-    pub struct DirExcavator<Seal: Protocol, const CAPS: u32> {
+    pub struct DirExcavator<Seal: SonicSeal, const CAPS: u32> {
         dir: PathBuf,
         _phantom: PhantomData<Seal>,
     }
 
-    impl<Seal: Protocol, const CAPS: u32> DirExcavator<Seal, CAPS> {
+    impl<Seal: SonicSeal, const CAPS: u32> DirExcavator<Seal, CAPS> {
         pub fn new(dir: PathBuf) -> Self {
             Self {
                 dir,
@@ -227,7 +222,7 @@ pub mod file {
         }
     }
 
-    impl<Seal: Protocol, const CAPS: u32> Excavate<FileSupply, FilePile<Seal>, CAPS>
+    impl<Seal: SonicSeal, const CAPS: u32> Excavate<FileSupply, FilePile<Seal>, CAPS>
         for DirExcavator<Seal, CAPS>
     where
         Seal::CliWitness: StrictEncode + StrictDecode,
@@ -268,7 +263,7 @@ pub mod file {
     pub type FileMound<Seal, const CAPS: u32> =
         Mound<FileSupply, FilePile<Seal>, DirExcavator<Seal, CAPS>, CAPS>;
 
-    impl<Seal: Protocol, const CAPS: u32> FileMound<Seal, CAPS>
+    impl<Seal: SonicSeal, const CAPS: u32> FileMound<Seal, CAPS>
     where
         Seal::CliWitness: StrictEncode + StrictDecode,
         Seal::PubWitness: StrictEncode + StrictDecode,
@@ -307,13 +302,13 @@ pub mod file {
         pub fn consume_from_file(
             &mut self,
             path: impl AsRef<Path>,
-        ) -> Result<(), VerificationError<Seal, DecodeError, AcceptError>>
+        ) -> Result<(), ConsumeError<Seal>>
         where
             Seal::CliWitness: StrictDumb,
             Seal::PubWitness: StrictDumb,
             <Seal::PubWitness as PublishedWitness<Seal>>::PubId: StrictDecode,
         {
-            let file = File::open(path).map_err(|e| VerificationError::Retrieve(e.into()))?;
+            let file = File::open(path)?;
             let mut reader = StrictReader::with(StreamReader::new::<{ usize::MAX }>(file));
             self.consume(&mut reader)
         }

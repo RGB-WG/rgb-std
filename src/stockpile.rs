@@ -23,23 +23,27 @@
 // the License.
 
 use core::borrow::Borrow;
+use core::marker::PhantomData;
 // TODO: Used in strict encoding; once solved there, remove here
 use std::io;
-use std::io::ErrorKind;
 
+use amplify::confinement::SmallVec;
+use amplify::IoError;
 use hypersonic::aora::Aora;
 use hypersonic::{
-    AcceptError, Articles, AuthToken, CellAddr, ContractId, IssueParams, Memory, Opid, Schema,
-    Stock, Supply,
+    Articles, AuthToken, CellAddr, Codex, ContractId, IssueParams, LibRepo, Memory, MergeError,
+    Operation, Opid, Schema, Stock, Supply,
 };
-use rgb::{ContractApi, ContractVerify, Transaction, VerificationError};
-use single_use_seals::{PublishedWitness, SingleUseSeal};
+use rgb::{
+    ContractApi, ContractVerify, OperationSeals, ReadOperation, ReadWitness, SonicSeal, Step,
+    VerificationError,
+};
+use single_use_seals::{PublishedWitness, SealWitness, SingleUseSeal};
 use strict_encoding::{
     DecodeError, ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter,
     WriteRaw,
 };
 
-use crate::pile::Protocol;
 use crate::Pile;
 
 #[derive(Getters)]
@@ -94,66 +98,128 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Stockpile<S, P, CAPS> {
     {
         self.stock
             .export_aux(terminals, writer, |opid, mut writer| {
+                // Write seal definitions
+                let seals = self.pile.keep_mut().read(opid);
+                writer = seals.strict_encode(writer)?;
+
+                // Write witnesses
                 let iter = self.pile.retrieve(opid);
                 let len = iter.len();
                 writer = (len as u64).strict_encode(writer)?;
-                for (client, published) in iter {
-                    writer = client.strict_encode(writer)?;
-                    writer = published.strict_encode(writer)?;
+                for witness in iter {
+                    writer = witness.strict_encode(writer)?;
                 }
+
                 Ok(writer)
             })
     }
 
     pub fn consume(
         &mut self,
-        reader: &mut StrictReader<impl ReadRaw>,
-    ) -> Result<(), VerificationError<P::Seal, DecodeError, AcceptError>>
+        stream: &mut StrictReader<impl ReadRaw>,
+    ) -> Result<(), ConsumeError<P::Seal>>
     where
         <P::Seal as SingleUseSeal>::CliWitness: StrictDecode,
         <P::Seal as SingleUseSeal>::PubWitness: StrictDecode,
         <<P::Seal as SingleUseSeal>::PubWitness as PublishedWitness<P::Seal>>::PubId: StrictDecode,
     {
-        let articles =
-            Articles::<CAPS>::strict_decode(reader).map_err(VerificationError::Retrieve)?;
-        self.stock
-            .merge_articles(articles)
-            .map_err(|e| VerificationError::Apply(Opid::strict_dumb(), AcceptError::Articles(e)))?;
+        let articles = Articles::<CAPS>::strict_decode(stream)?;
+        self.stock.merge_articles(articles)?;
 
-        let schema = self.stock.articles().schema.clone();
-        self.evaluate(
-            self.contract_id(),
-            &schema.codex,
-            &schema,
-            move || -> Option<Result<_, DecodeError>> {
-                match Transaction::strict_decode(reader) {
-                    Ok(transaction) => Some(Ok(transaction)),
-                    Err(DecodeError::Io(e)) if e.kind() == ErrorKind::UnexpectedEof => None,
-                    Err(e) => Some(Err(e.into())),
-                }
-            },
-        )?;
+        // We need to clone due to a borrow checker.
+        let reader = OpReader {
+            stream,
+            _phantom: PhantomData,
+        };
+        self.evaluate(reader)?;
 
         self.stock.complete_update();
         Ok(())
     }
 }
 
+pub struct OpReader<'r, Seal: SonicSeal, R: ReadRaw> {
+    stream: &'r mut StrictReader<R>,
+    _phantom: PhantomData<Seal>,
+}
+
+impl<'r, Seal: SonicSeal, R: ReadRaw> ReadOperation for OpReader<'r, Seal, R> {
+    type Seal = Seal;
+    type WitnessReader = WitnessReader<'r, Seal, R>;
+
+    fn read_operation(self) -> Option<(OperationSeals<Self::Seal>, Self::WitnessReader)> {
+        match Operation::strict_decode(self.stream) {
+            Ok(operation) => {
+                let defined_seals = SmallVec::strict_decode(self.stream)
+                    .expect("Failed to read consignment stream");
+                let op_seals = OperationSeals {
+                    operation,
+                    defined_seals,
+                };
+                Some((op_seals, WitnessReader { parent: self }))
+            }
+            Err(DecodeError::Io(e)) if e.kind() == io::ErrorKind::UnexpectedEof => None,
+            Err(e) => {
+                // TODO: Report error via a side-channel
+                panic!("Failed to read consignment stream: {}", e);
+            }
+        }
+    }
+}
+
+pub struct WitnessReader<'r, Seal: SonicSeal, R: ReadRaw> {
+    parent: OpReader<'r, Seal, R>,
+}
+
+impl<'r, Seal: SonicSeal, R: ReadRaw> ReadWitness for WitnessReader<'r, Seal, R> {
+    type Seal = Seal;
+    type OpReader = OpReader<'r, Seal, R>;
+
+    fn read_witness(self) -> Step<(SealWitness<Self::Seal>, Self), Self::OpReader> {
+        match SealWitness::strict_decode(self.parent.stream) {
+            Ok(witness) => Step::Next((witness, self)),
+            Err(DecodeError::Io(e)) if e.kind() == io::ErrorKind::UnexpectedEof => {
+                Step::Complete(self.parent)
+            }
+            Err(e) => {
+                // TODO: Report error via a side-channel
+                panic!("Failed to read consignment stream: {}", e);
+            }
+        }
+    }
+}
+
 impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> ContractApi<P::Seal> for Stockpile<S, P, CAPS> {
-    type Error = AcceptError;
+    fn contract_id(&self) -> ContractId { self.stock.contract_id() }
+
+    fn codex(&self) -> &Codex { &self.stock.articles().schema.codex }
+
+    fn repo(&self) -> &impl LibRepo { &self.stock.articles().schema }
 
     fn memory(&self) -> &impl Memory { &self.stock.state().raw }
 
-    fn apply(&mut self, transaction: Transaction<P::Seal>) -> Result<(), Self::Error> {
-        let opid = transaction.operation.opid();
+    fn apply_operation(&mut self, op: OperationSeals<P::Seal>) { self.stock.apply(op.operation); }
 
-        for witness in &transaction.witness {
-            self.pile.append(opid, witness);
-        }
-
-        self.stock.apply(transaction.operation)?;
-        Ok(())
+    fn apply_witness(&mut self, opid: Opid, witness: SealWitness<P::Seal>) {
+        self.pile.append(opid, &witness);
     }
+}
+
+#[derive(Display, From)]
+#[display(doc_comments)]
+pub enum ConsumeError<Seal: SonicSeal> {
+    #[from]
+    #[from(io::Error)]
+    Io(IoError),
+
+    #[from]
+    Decode(DecodeError),
+
+    #[from]
+    Merge(MergeError),
+
+    #[from]
+    Verify(VerificationError<Seal>),
 }
 
 #[cfg(feature = "fs")]
@@ -167,7 +233,7 @@ mod fs {
     use super::*;
     use crate::FilePile;
 
-    impl<Seal: Protocol, const CAPS: u32> Stockpile<FileSupply, FilePile<Seal>, CAPS>
+    impl<Seal: SonicSeal, const CAPS: u32> Stockpile<FileSupply, FilePile<Seal>, CAPS>
     where
         Seal::CliWitness: StrictEncode + StrictDecode,
         Seal::PubWitness: StrictEncode + StrictDecode,
@@ -205,13 +271,13 @@ mod fs {
         pub fn consume_from_file(
             &mut self,
             path: impl AsRef<Path>,
-        ) -> Result<(), VerificationError<Seal, DecodeError, AcceptError>>
+        ) -> Result<(), ConsumeError<Seal>>
         where
             Seal::CliWitness: StrictDumb,
             Seal::PubWitness: StrictDumb,
             <Seal::PubWitness as PublishedWitness<Seal>>::PubId: StrictDecode,
         {
-            let file = File::open(path).map_err(|e| VerificationError::Retrieve(e.into()))?;
+            let file = File::open(path)?;
             let mut reader = StrictReader::with(StreamReader::new::<{ usize::MAX }>(file));
             self.consume(&mut reader)
         }
