@@ -74,7 +74,7 @@ pub mod fs {
     use std::collections::BTreeMap;
     use std::fs::File;
     use std::io::Read;
-    use std::path::{Path, PathBuf};
+    use std::path::Path;
 
     use hypersonic::aora::file::FileAora;
     use hypersonic::expect::Expect;
@@ -103,7 +103,6 @@ pub mod fs {
     pub struct FilePile<Seal: SonicSeal>
     where <Seal::PubWitness as PublishedWitness<Seal>>::PubId: Ord + From<[u8; 32]> + Into<[u8; 32]>
     {
-        path: PathBuf,
         hoard: FileAora<<Seal::PubWitness as PublishedWitness<Seal>>::PubId, Seal::CliWitness>,
         cache: FileAora<<Seal::PubWitness as PublishedWitness<Seal>>::PubId, Seal::PubWitness>,
         keep: FileAora<Opid, SmallVec<Seal>>,
@@ -125,7 +124,6 @@ pub mod fs {
                 .expect_or_else(|| format!("unable to create index file `{}`", path.display()));
 
             Self {
-                path,
                 hoard,
                 cache,
                 keep,
@@ -167,7 +165,6 @@ pub mod fs {
             }
 
             Self {
-                path,
                 hoard,
                 cache,
                 keep,

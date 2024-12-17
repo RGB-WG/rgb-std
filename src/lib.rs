@@ -41,10 +41,12 @@ extern crate serde;
 mod pile;
 mod stockpile;
 mod mound;
+mod info;
 pub mod popls;
 
 #[cfg(feature = "bitcoin")]
 pub use bp::{Outpoint, Txid};
+pub use info::ContractInfo;
 pub use mound::{Excavate, Mound};
 #[cfg(feature = "fs")]
 pub use pile::fs::FilePile;

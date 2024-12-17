@@ -378,7 +378,7 @@ pub mod file {
 
     use super::*;
     use crate::mound::file::DirExcavator;
-    use crate::{FilePile, SealType};
+    use crate::{ContractInfo, FilePile, SealType};
 
     pub type FileWallet<W, D, const CAPS: u32> =
         Barrow<W, D, FileSupply, FilePile<TxoSeal<D>>, DirExcavator<TxoSeal<D>, CAPS>, CAPS>;
@@ -511,6 +511,19 @@ pub mod file {
             let iter = iter.chain(self.lq_opret.contract_ids());
             #[cfg(feature = "liquid")]
             let iter = iter.chain(self.lq_tapret.contract_ids());
+            iter
+        }
+
+        pub fn contracts_info(&self) -> impl Iterator<Item = ContractInfo> + use<'_> {
+            let iter = iter::empty();
+            #[cfg(feature = "bitcoin")]
+            let iter = iter.chain(self.bc_opret.contracts_info());
+            #[cfg(feature = "bitcoin")]
+            let iter = iter.chain(self.bc_tapret.contracts_info());
+            #[cfg(feature = "liquid")]
+            let iter = iter.chain(self.lq_opret.contracts_info());
+            #[cfg(feature = "liquid")]
+            let iter = iter.chain(self.lq_tapret.contracts_info());
             iter
         }
     }

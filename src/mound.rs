@@ -33,7 +33,7 @@ use strict_encoding::{
     ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter, WriteRaw,
 };
 
-use crate::{ConsumeError, CreateParams, Pile, Stockpile};
+use crate::{ConsumeError, ContractInfo, CreateParams, Pile, Stockpile};
 
 pub trait Excavate<S: Supply<CAPS>, P: Pile, const CAPS: u32> {
     fn schemata(&mut self) -> impl Iterator<Item = (CodexId, Schema)>;
@@ -115,6 +115,12 @@ impl<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS>, const CAPS: u32> Mound<S
         self.contracts.iter().map(|(id, stock)| (*id, stock))
     }
 
+    pub fn contracts_info(&self) -> impl Iterator<Item = ContractInfo> + use<'_, S, P, X, CAPS> {
+        self.contracts
+            .iter()
+            .map(|(id, stockpile)| ContractInfo::new(*id, stockpile.stock().articles()))
+    }
+
     pub fn contracts_mut(
         &mut self,
     ) -> impl Iterator<Item = (ContractId, &mut Stockpile<S, P, CAPS>)> {
@@ -193,7 +199,7 @@ pub mod file {
     use strict_encoding::{StreamReader, StreamWriter, StrictDecode, StrictEncode};
 
     use super::*;
-    use crate::{FilePile, SealType};
+    use crate::FilePile;
 
     pub struct DirExcavator<Seal: SonicSeal, const CAPS: u32> {
         dir: PathBuf,
