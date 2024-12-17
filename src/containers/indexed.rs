@@ -44,7 +44,7 @@ pub struct IndexedConsignment<'c, const TRANSFER: bool> {
     witness_idx: BTreeMap<XWitnessId, &'c XPubWitness>,
 }
 
-impl<'c, const TRANSFER: bool> Deref for IndexedConsignment<'c, TRANSFER> {
+impl<const TRANSFER: bool> Deref for IndexedConsignment<'_, TRANSFER> {
     type Target = Consignment<TRANSFER>;
 
     fn deref(&self) -> &Self::Target { self.consignment }
