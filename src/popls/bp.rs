@@ -36,8 +36,8 @@ use bp::seals::TxoSeal;
 use bp::{dbc, Outpoint, Vout};
 use commit_verify::{Digest, DigestExt, Sha256};
 use hypersonic::{
-    AdaptedState, CallParams, CellAddr, ContractId, CoreParams, DataCell, MethodName, NamedState,
-    Operation, Schema, StateAtom, StateCalc, StateName, Supply,
+    AdaptedState, AuthToken, CallParams, CellAddr, ContractId, CoreParams, DataCell, MethodName,
+    NamedState, Operation, Schema, StateAtom, StateCalc, StateName, Supply,
 };
 use rgb::SonicSeal;
 use strict_encoding::{StrictDeserialize, StrictSerialize};
@@ -47,6 +47,7 @@ use crate::{Assignment, CreateParams, Excavate, Mound, Pile};
 
 pub trait WalletProvider {
     fn noise_seed(&self) -> Bytes32;
+    fn utxos(&self) -> impl Iterator<Item = Outpoint>;
 }
 pub trait OpretProvider: WalletProvider {}
 pub trait TapretProvider: WalletProvider {}
@@ -191,6 +192,12 @@ impl<
     pub fn issue(&mut self, params: CreateParams<Outpoint>, supply: S, pile: P) -> ContractId {
         self.mound
             .issue(params.transform(self.noise_engine()), supply, pile)
+    }
+
+    pub fn auth_token(&mut self, nonce: u64) -> Option<AuthToken> {
+        let outpoint = self.wallet.utxos().next()?;
+        let seal = TxoSeal::<OpretProof>::no_fallback(outpoint, self.noise_engine(), nonce);
+        Some(seal.auth_token())
     }
 
     // TODO: Use bitcoin-specific state type aware of outpoints
@@ -603,6 +610,19 @@ pub mod file {
             }
         }
 
+        pub fn auth_token(&mut self, nonce: u64) -> Option<AuthToken> {
+            match self {
+                #[cfg(feature = "bitcoin")]
+                Self::BcOpret(barrow) => barrow.auth_token(nonce),
+                #[cfg(feature = "bitcoin")]
+                Self::BcTapret(barrow) => barrow.auth_token(nonce),
+                #[cfg(feature = "liquid")]
+                Self::LqOpret(barrow) => barrow.auth_token(nonce),
+                #[cfg(feature = "liquid")]
+                Self::LqTapret(barrow) => barrow.auth_token(nonce),
+            }
+        }
+
         pub fn state(
             &self,
             contract_id: Option<ContractId>,
@@ -620,7 +640,6 @@ pub mod file {
         }
 
         pub fn prefab(&mut self, params: ConstructParams) -> Prefab {
-            // TODO: Mix into a noise seed contract id and other data
             match self {
                 #[cfg(feature = "bitcoin")]
                 Self::BcOpret(barrow) => barrow.prefab(params),
@@ -637,6 +656,26 @@ pub mod file {
             let iter = items.into_iter().map(|params| self.prefab(params));
             let items = SmallOrdSet::try_from_iter(iter).expect("too large script");
             PrefabBundle(items)
+        }
+
+        pub fn wallet_tapret(&mut self) -> &mut T {
+            match self {
+                #[cfg(feature = "bitcoin")]
+                Self::BcTapret(barrow) => &mut barrow.wallet,
+                #[cfg(feature = "liquid")]
+                Self::LqTapret(barrow) => &mut barrow.wallet,
+                _ => panic!("Invalid wallet type"),
+            }
+        }
+
+        pub fn wallet_opret(&mut self) -> &mut O {
+            match self {
+                #[cfg(feature = "bitcoin")]
+                Self::BcOpret(barrow) => &mut barrow.wallet,
+                #[cfg(feature = "liquid")]
+                Self::LqOpret(barrow) => &mut barrow.wallet,
+                _ => panic!("Invalid wallet type"),
+            }
         }
     }
 }
