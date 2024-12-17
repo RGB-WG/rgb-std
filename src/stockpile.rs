@@ -49,7 +49,37 @@ use strict_types::StrictVal;
 
 use crate::Pile;
 
-#[derive(Clone)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, From)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(untagged, bound = "Seal: serde::Serialize + for<'d> serde::Deserialize<'d>")
+)]
+pub enum EitherSeal<Seal> {
+    Known(Seal),
+    #[from]
+    External(AuthToken),
+}
+
+impl<Seal> EitherSeal<Seal> {
+    pub fn auth_token(&self) -> AuthToken
+    where Seal: SonicSeal {
+        match self {
+            EitherSeal::Known(seal) => seal.auth_token(),
+            EitherSeal::External(auth) => *auth,
+        }
+    }
+
+    pub fn to_explicit(&self) -> Option<Seal>
+    where Seal: Clone {
+        match self {
+            EitherSeal::Known(seal) => Some(seal.clone()),
+            EitherSeal::External(_) => None,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
@@ -58,8 +88,8 @@ use crate::Pile;
         bound = "Seal: serde::Serialize + for<'d> serde::Deserialize<'d>"
     )
 )]
-pub struct Assignment<Seal: Clone> {
-    pub seal: Seal,
+pub struct Assignment<Seal> {
+    pub seal: EitherSeal<Seal>,
     pub data: StrictVal,
 }
 
@@ -67,7 +97,7 @@ pub struct Assignment<Seal: Clone> {
 ///
 /// Differs from [`IssueParams`] in the fact that it uses full seal data instead of
 /// [`hypersonic::AuthTokens`] for output definitions.
-#[derive(Clone)]
+#[derive(Clone, Debug, From)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
@@ -103,7 +133,7 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Stockpile<S, P, CAPS> {
             params
                 .owned
                 .iter()
-                .map(|assignment| assignment.state.seal.clone()),
+                .filter_map(|assignment| assignment.state.seal.to_explicit()),
         )
         .expect("too many outputs");
         let params = IssueParams {

@@ -43,6 +43,7 @@ use rgb::SonicSeal;
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 use strict_types::StrictVal;
 
+use crate::stockpile::EitherSeal;
 use crate::{Assignment, CreateParams, Excavate, Mound, Pile};
 
 pub trait WalletProvider {
@@ -69,6 +70,21 @@ pub enum BuilderSeal {
     Extern(Outpoint),
 }
 
+impl EitherSeal<Outpoint> {
+    pub fn transform<D: dbc::Proof>(
+        self,
+        noise_engine: Sha256,
+        nonce: u64,
+    ) -> EitherSeal<TxoSeal<D>> {
+        match self {
+            EitherSeal::Known(seal) => {
+                EitherSeal::Known(TxoSeal::no_fallback(seal, noise_engine, nonce))
+            }
+            EitherSeal::External(auth) => EitherSeal::External(auth),
+        }
+    }
+}
+
 impl CreateParams<Outpoint> {
     pub fn transform<D: dbc::Proof>(self, mut noise_engine: Sha256) -> CreateParams<TxoSeal<D>> {
         noise_engine.input_raw(self.codex_id.as_slice());
@@ -90,11 +106,10 @@ impl CreateParams<Outpoint> {
                 .map(|(nonce, assignment)| NamedState {
                     name: assignment.name,
                     state: Assignment {
-                        seal: TxoSeal::no_fallback(
-                            assignment.state.seal,
-                            noise_engine.clone(),
-                            nonce as u64,
-                        ),
+                        seal: assignment
+                            .state
+                            .seal
+                            .transform(noise_engine.clone(), nonce as u64),
                         data: assignment.state.data,
                     },
                 })
