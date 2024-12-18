@@ -46,6 +46,7 @@ use strict_types::StrictVal;
 use crate::stockpile::EitherSeal;
 use crate::{Assignment, CreateParams, Excavate, Mound, Pile};
 
+/// Trait abstracting specific implementation of a bitcoin wallet.
 pub trait WalletProvider {
     fn noise_seed(&self) -> Bytes32;
     fn utxos(&self) -> impl Iterator<Item = Outpoint>;
@@ -56,7 +57,7 @@ pub trait TapretProvider: WalletProvider {}
 pub const BP_BLANK_METHOD: &str = "_";
 
 // TODO: Support failback seals
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
@@ -67,7 +68,7 @@ pub enum BuilderSeal {
     Oneself(Vout),
 
     #[display("{0}")]
-    Extern(Outpoint),
+    Extern(AuthToken),
 }
 
 impl EitherSeal<Outpoint> {
@@ -118,19 +119,27 @@ impl CreateParams<Outpoint> {
     }
 }
 
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
+pub struct UsedState {
+    pub addr: CellAddr,
+    pub outpoint: Outpoint,
+    pub val: StrictVal,
+}
+
 /// Parameters used by BP-based wallet for constructing operations.
 ///
 /// Differs from [`CallParams`] in the fact that it uses [`BuilderSeal`]s instead of
 /// [`hypersonic::AuthTokens`] for output definitions.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
-pub struct ConstructParams {
+pub struct PrefabParams {
     pub contract_id: ContractId,
     pub method: MethodName,
     pub reading: Vec<CellAddr>,
-    pub using: Vec<(CellAddr, Outpoint, StrictVal)>,
+    pub using: Vec<UsedState>,
     pub global: Vec<NamedState<StateAtom>>,
-    pub owned: Vec<(BuilderSeal, NamedState<StrictVal>)>,
+    pub owned: Vec<NamedState<Assignment<BuilderSeal>>>,
 }
 
 /// Prefabricated operation, which includes information on the contract id and closed seals
@@ -234,12 +243,12 @@ impl<
     }
 
     /// Creates a single operation basing on the provided construction parameters.
-    pub fn prefab(&mut self, params: ConstructParams) -> Prefab {
+    pub fn prefab(&mut self, params: PrefabParams) -> Prefab {
         // convert ConstructParams into CallParams
         let (closes, using) = params
             .using
             .into_iter()
-            .map(|(auth, outpoint, val)| (outpoint, (auth, val)))
+            .map(|used| (used.outpoint, (used.addr, used.val)))
             .unzip();
         let closes = SmallOrdSet::try_from(closes).expect("too many inputs");
         let mut defines = SmallOrdSet::new();
@@ -250,8 +259,8 @@ impl<
             .owned
             .into_iter()
             .enumerate()
-            .map(|(nonce, (seal, val))| {
-                let seal = match seal {
+            .map(|(nonce, assignment)| {
+                let auth = match assignment.state.seal {
                     BuilderSeal::Oneself(vout) => {
                         defines.push(vout).expect("too many seals");
                         // NB: We use opret type here, but this doesn't matter since we create seal
@@ -261,18 +270,17 @@ impl<
                             noise_engine.clone(),
                             nonce as u64,
                         )
+                        .auth_token()
                     }
-                    BuilderSeal::Extern(outpoint) => {
-                        TxoSeal::no_fallback(outpoint, noise_engine.clone(), nonce as u64)
-                    }
+                    BuilderSeal::Extern(auth) => auth,
                 };
                 let state = DataCell {
-                    data: val.state,
-                    auth: seal.auth_token(),
+                    data: assignment.state.data,
+                    auth,
                     lock: None,
                 };
                 NamedState {
-                    name: val.name,
+                    name: assignment.name,
                     state,
                 }
             })
@@ -345,7 +353,12 @@ impl<
                                 == auth
                         })
                         .map(|(_, outpoint)| {
-                            ((addr, outpoint, StrictVal::Unit), (name.clone(), val))
+                            let prevout = UsedState {
+                                addr,
+                                outpoint,
+                                val: StrictVal::Unit,
+                            };
+                            (prevout, (name.clone(), val))
                         })
                 })
                 .unzip();
@@ -361,16 +374,16 @@ impl<
 
             let mut owned = Vec::new();
             for (name, calc) in calcs {
-                for state in calc.diff().expect("non-computable state") {
+                for data in calc.diff().expect("non-computable state") {
                     let state = NamedState {
                         name: name.clone(),
-                        state,
+                        state: Assignment { seal, data },
                     };
-                    owned.push((seal, state));
+                    owned.push(state);
                 }
             }
 
-            let params = ConstructParams {
+            let params = PrefabParams {
                 contract_id,
                 method: MethodName::from(BP_BLANK_METHOD),
                 global: none!(),
@@ -654,7 +667,7 @@ pub mod file {
             }
         }
 
-        pub fn prefab(&mut self, params: ConstructParams) -> Prefab {
+        pub fn prefab(&mut self, params: PrefabParams) -> Prefab {
             match self {
                 #[cfg(feature = "bitcoin")]
                 Self::BcOpret(barrow) => barrow.prefab(params),
@@ -667,7 +680,7 @@ pub mod file {
             }
         }
 
-        pub fn bundle(&mut self, items: impl IntoIterator<Item = ConstructParams>) -> PrefabBundle {
+        pub fn bundle(&mut self, items: impl IntoIterator<Item = PrefabParams>) -> PrefabBundle {
             let iter = items.into_iter().map(|params| self.prefab(params));
             let items = SmallOrdSet::try_from_iter(iter).expect("too large script");
             PrefabBundle(items)

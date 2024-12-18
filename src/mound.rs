@@ -40,9 +40,11 @@ pub trait Excavate<S: Supply<CAPS>, P: Pile, const CAPS: u32> {
     fn contracts(&mut self) -> impl Iterator<Item = (ContractId, Stockpile<S, P, CAPS>)>;
 }
 
+/// Mound is a collection of smart contracts which have homogenous capabilities.
 pub struct Mound<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS>, const CAPS: u32> {
     schemata: BTreeMap<CodexId, Schema>,
     contracts: BTreeMap<ContractId, Stockpile<S, P, CAPS>>,
+    /// Persistence does loading of a stockpiles and their storage when a new contract is added.
     persistence: X,
 }
 

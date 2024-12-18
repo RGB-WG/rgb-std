@@ -89,7 +89,7 @@ impl<Seal> EitherSeal<Seal> {
     )
 )]
 pub struct Assignment<Seal> {
-    pub seal: EitherSeal<Seal>,
+    pub seal: Seal,
     pub data: StrictVal,
 }
 
@@ -113,7 +113,7 @@ pub struct CreateParams<Seal: Clone> {
     pub name: TypeName,
     pub timestamp: Option<DateTime<Utc>>,
     pub global: Vec<NamedState<StateAtom>>,
-    pub owned: Vec<NamedState<Assignment<Seal>>>,
+    pub owned: Vec<NamedState<Assignment<EitherSeal<Seal>>>>,
 }
 
 #[derive(Getters)]
