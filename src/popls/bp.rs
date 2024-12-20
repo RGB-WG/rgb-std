@@ -274,24 +274,13 @@ impl<
                     }
                     BuilderSeal::Extern(auth) => auth,
                 };
-                let state = DataCell {
-                    data: assignment.state.data,
-                    auth,
-                    lock: None,
-                };
-                NamedState {
-                    name: assignment.name,
-                    state,
-                }
+                let state = DataCell { data: assignment.state.data, auth, lock: None };
+                NamedState { name: assignment.name, state }
             })
             .collect();
 
         let call = CallParams {
-            core: CoreParams {
-                method: params.method,
-                global: params.global,
-                owned,
-            },
+            core: CoreParams { method: params.method, global: params.global, owned },
             using,
             reading: params.reading,
         };
@@ -300,12 +289,7 @@ impl<
         let opid = stockpile.stock_mut().call(call);
         let operation = stockpile.stock_mut().operation(opid);
 
-        Prefab {
-            contract_id: params.contract_id,
-            closes,
-            defines,
-            operation,
-        }
+        Prefab { contract_id: params.contract_id, closes, defines, operation }
     }
 
     /// Completes creation of a prefabricated operation pack, adding blank operations if necessary.
@@ -353,11 +337,7 @@ impl<
                                 == auth
                         })
                         .map(|(_, outpoint)| {
-                            let prevout = UsedState {
-                                addr,
-                                outpoint,
-                                val: StrictVal::Unit,
-                            };
+                            let prevout = UsedState { addr, outpoint, val: StrictVal::Unit };
                             (prevout, (name.clone(), val))
                         })
                 })
@@ -375,10 +355,7 @@ impl<
             let mut owned = Vec::new();
             for (name, calc) in calcs {
                 for data in calc.diff().expect("non-computable state") {
-                    let state = NamedState {
-                        name: name.clone(),
-                        state: Assignment { seal, data },
-                    };
+                    let state = NamedState { name: name.clone(), state: Assignment { seal, data } };
                     owned.push(state);
                 }
             }

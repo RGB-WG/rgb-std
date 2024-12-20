@@ -123,12 +123,7 @@ pub mod fs {
             File::create_new(path.join("index.dat"))
                 .expect_or_else(|| format!("unable to create index file `{}`", path.display()));
 
-            Self {
-                hoard,
-                cache,
-                keep,
-                index: empty!(),
-            }
+            Self { hoard, cache, keep, index: empty!() }
         }
     }
 
@@ -164,12 +159,7 @@ pub mod fs {
                 index.insert(opid, ids);
             }
 
-            Self {
-                hoard,
-                cache,
-                keep,
-                index: index.into(),
-            }
+            Self { hoard, cache, keep, index: index.into() }
         }
     }
 

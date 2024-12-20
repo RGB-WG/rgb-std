@@ -209,12 +209,7 @@ pub mod file {
     }
 
     impl<Seal: SonicSeal, const CAPS: u32> DirExcavator<Seal, CAPS> {
-        pub fn new(dir: PathBuf) -> Self {
-            Self {
-                dir,
-                _phantom: PhantomData,
-            }
-        }
+        pub fn new(dir: PathBuf) -> Self { Self { dir, _phantom: PhantomData } }
 
         fn contents(&mut self) -> impl Iterator<Item = (FileType, PathBuf)> {
             fs::read_dir(&self.dir)

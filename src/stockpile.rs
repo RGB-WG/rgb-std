@@ -233,10 +233,7 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Stockpile<S, P, CAPS> {
         self.stock.merge_articles(articles)?;
 
         // We need to clone due to a borrow checker.
-        let reader = OpReader {
-            stream,
-            _phantom: PhantomData,
-        };
+        let reader = OpReader { stream, _phantom: PhantomData };
         self.evaluate(reader)?;
 
         self.stock.complete_update();
@@ -258,10 +255,7 @@ impl<'r, Seal: SonicSeal, R: ReadRaw> ReadOperation for OpReader<'r, Seal, R> {
             Ok(operation) => {
                 let defined_seals = SmallVec::strict_decode(self.stream)
                     .expect("Failed to read consignment stream");
-                let op_seals = OperationSeals {
-                    operation,
-                    defined_seals,
-                };
+                let op_seals = OperationSeals { operation, defined_seals };
                 Some((op_seals, WitnessReader { parent: self }))
             }
             Err(DecodeError::Io(e)) if e.kind() == io::ErrorKind::UnexpectedEof => None,
