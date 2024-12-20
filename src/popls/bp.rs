@@ -36,14 +36,14 @@ use bp::seals::TxoSeal;
 use bp::{dbc, Outpoint, Vout};
 use commit_verify::{Digest, DigestExt, Sha256};
 use hypersonic::{
-    AdaptedState, AuthToken, CallParams, CellAddr, ContractId, CoreParams, DataCell, MethodName,
-    NamedState, Operation, Schema, StateAtom, StateCalc, StateName, Supply,
+    AuthToken, CallParams, CellAddr, ContractId, CoreParams, DataCell, MethodName, NamedState,
+    Operation, Schema, StateAtom, StateCalc, StateName, Supply,
 };
 use rgb::SonicSeal;
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 use strict_types::StrictVal;
 
-use crate::stockpile::EitherSeal;
+use crate::stockpile::{ContractState, EitherSeal};
 use crate::{Assignment, CreateParams, Excavate, Mound, Pile};
 
 /// Trait abstracting specific implementation of a bitcoin wallet.
@@ -226,13 +226,14 @@ impl<
 
     // TODO: Use bitcoin-specific state type aware of outpoints
     pub fn state(
-        &self,
+        &mut self,
         contract_id: Option<ContractId>,
-    ) -> impl Iterator<Item = (ContractId, &AdaptedState)> {
+    ) -> impl Iterator<Item = (ContractId, ContractState<Outpoint>)> + use<'_, W, D, S, P, X, CAPS>
+    {
         self.mound
-            .contracts()
+            .contracts_mut()
             .filter(move |(id, _)| contract_id.is_none() || Some(*id) == contract_id)
-            .map(|(id, stockpile)| (id, &stockpile.stock().state().main))
+            .map(|(id, stockpile)| (id, stockpile.state().transform(|seal| seal.primary)))
     }
 
     fn noise_engine(&self) -> Sha256 {
@@ -629,9 +630,9 @@ pub mod file {
         }
 
         pub fn state(
-            &self,
+            &mut self,
             contract_id: Option<ContractId>,
-        ) -> Box<dyn Iterator<Item = (ContractId, &AdaptedState)> + '_> {
+        ) -> Box<dyn Iterator<Item = (ContractId, ContractState<Outpoint>)> + '_> {
             match self {
                 #[cfg(feature = "bitcoin")]
                 Self::BcOpret(barrow) => Box::new(barrow.state(contract_id)),

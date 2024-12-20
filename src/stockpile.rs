@@ -22,6 +22,7 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
+use alloc::collections::BTreeMap;
 use core::borrow::Borrow;
 use core::marker::PhantomData;
 // TODO: Used in strict encoding; once solved there, remove here
@@ -33,8 +34,8 @@ use chrono::{DateTime, Utc};
 use hypersonic::aora::Aora;
 use hypersonic::{
     Articles, AuthToken, CellAddr, Codex, CodexId, ContractId, CoreParams, DataCell, IssueParams,
-    LibRepo, Memory, MergeError, MethodName, NamedState, Operation, Opid, Schema, StateAtom, Stock,
-    Supply,
+    LibRepo, Memory, MergeError, MethodName, NamedState, Operation, Opid, Schema, StateAtom,
+    StateName, Stock, Supply,
 };
 use rgb::{
     ContractApi, ContractVerify, OperationSeals, ReadOperation, ReadWitness, SealType, SonicSeal,
@@ -79,7 +80,7 @@ impl<Seal> EitherSeal<Seal> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
@@ -91,6 +92,43 @@ impl<Seal> EitherSeal<Seal> {
 pub struct Assignment<Seal> {
     pub seal: Seal,
     pub data: StrictVal,
+}
+
+#[derive(Clone, Eq, PartialEq, Debug, Default)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(
+        rename_all = "camelCase",
+        bound = "Seal: serde::Serialize + for<'d> serde::Deserialize<'d>"
+    )
+)]
+pub struct ContractState<Seal> {
+    pub immutable: BTreeMap<StateName, BTreeMap<CellAddr, StateAtom>>,
+    pub owned: BTreeMap<StateName, BTreeMap<CellAddr, Assignment<Seal>>>,
+    pub computed: BTreeMap<StateName, StrictVal>,
+}
+
+impl<Seal> ContractState<Seal> {
+    pub fn transform<To>(self, f: impl Fn(Seal) -> To) -> ContractState<To> {
+        ContractState {
+            immutable: self.immutable,
+            owned: self
+                .owned
+                .into_iter()
+                .map(|(name, map)| {
+                    let map = map
+                        .into_iter()
+                        .map(|(addr, data)| {
+                            (addr, Assignment { seal: f(data.seal), data: data.data })
+                        })
+                        .collect();
+                    (name, map)
+                })
+                .collect(),
+            computed: self.computed,
+        }
+    }
 }
 
 /// Parameters used by RGB for contract creation operations.
@@ -177,6 +215,30 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Stockpile<S, P, CAPS> {
     pub fn seal(&self, seal: &P::Seal) -> Option<CellAddr> {
         let auth = seal.auth_token();
         self.stock.state().raw.auth.get(&auth).copied()
+    }
+
+    pub fn state(&mut self) -> ContractState<P::Seal> {
+        let state = self.stock().state().main.clone();
+        ContractState {
+            immutable: state.immutable,
+            owned: state
+                .owned
+                .into_iter()
+                .map(|(name, map)| {
+                    let map = map
+                        .into_iter()
+                        .map(|(addr, data)| {
+                            let seal = self.pile_mut().keep_mut().read(addr.opid)
+                                [addr.pos as usize]
+                                .clone();
+                            (addr, Assignment { seal, data })
+                        })
+                        .collect();
+                    (name, map)
+                })
+                .collect(),
+            computed: state.computed,
+        }
     }
 
     pub fn append_witness(
