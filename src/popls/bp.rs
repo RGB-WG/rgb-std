@@ -25,16 +25,16 @@
 //! Implementation of RGB standard library types for Bitcoin protocol, covering Bitcoin and Liquid
 //! proof of publication layer 1.
 
-use alloc::collections::BTreeMap;
-use std::collections::BTreeSet;
+use alloc::collections::{btree_set, BTreeMap, BTreeSet};
 
-use amplify::confinement::{SmallOrdSet, SmallVec};
-use amplify::{confinement, Bytes32};
+use amplify::confinement::{SmallOrdMap, SmallOrdSet, SmallVec};
+use amplify::{confinement, Bytes32, Wrapper};
 use bp::dbc::opret::OpretProof;
 use bp::dbc::tapret::TapretProof;
-use bp::seals::TxoSeal;
-use bp::{dbc, Outpoint, Vout};
-use commit_verify::{Digest, DigestExt, Sha256};
+use bp::seals::{mmb, Anchor, TxoSeal};
+use bp::{dbc, Outpoint, Tx, Vout};
+use commit_verify::mpc::ProtocolId;
+use commit_verify::{mpc, Digest, DigestExt, Sha256};
 use hypersonic::aora::Aora;
 use hypersonic::{
     AuthToken, CallParams, CellAddr, ContractId, CoreParams, DataCell, MethodName, NamedState,
@@ -151,7 +151,6 @@ pub struct PrefabParams {
 #[strict_type(lib = "RGB")]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct Prefab {
-    pub contract_id: ContractId,
     pub closes: SmallOrdSet<Outpoint>,
     pub defines: SmallOrdSet<Vout>,
     pub operation: Operation,
@@ -171,6 +170,13 @@ pub struct PrefabBundle(SmallOrdSet<Prefab>);
 
 impl StrictSerialize for PrefabBundle {}
 impl StrictDeserialize for PrefabBundle {}
+
+impl<'a> IntoIterator for &'a PrefabBundle {
+    type Item = &'a Prefab;
+    type IntoIter = btree_set::Iter<'a, Prefab>;
+
+    fn into_iter(self) -> Self::IntoIter { self.0.iter() }
+}
 
 impl PrefabBundle {
     pub fn new(items: impl IntoIterator<Item = Prefab>) -> Result<Self, confinement::Error> {
@@ -311,8 +317,9 @@ impl<
         let opid = stockpile.stock_mut().call(call);
         let operation = stockpile.stock_mut().operation(opid);
         stockpile.pile_mut().keep_mut().append(opid, &seals);
+        debug_assert_eq!(operation.contract_id, params.contract_id);
 
-        Prefab { contract_id: params.contract_id, closes, defines, operation }
+        Prefab { closes, defines, operation }
     }
 
     /// Completes creation of a prefabricated operation pack, adding blank operations if necessary.
@@ -325,7 +332,7 @@ impl<
         let mut contracts = BTreeSet::new();
         let mut prefabs = BTreeSet::new();
         for prefab in ops {
-            contracts.insert(prefab.contract_id);
+            contracts.insert(prefab.operation.contract_id);
             outpoints.extend(&prefab.closes);
             prefabs.insert(prefab);
         }
@@ -397,6 +404,37 @@ impl<
         prefabs.extend(prefab_params.into_iter().map(|params| self.prefab(params)));
 
         PrefabBundle(SmallOrdSet::try_from(prefabs).expect("too many operations"))
+    }
+
+    pub fn attest(
+        &mut self,
+        bundle: &PrefabBundle,
+        witness: &Tx,
+        mpc: mpc::MerkleBlock,
+        dbc: D,
+        prevouts: &[Outpoint],
+    ) {
+        let iter = bundle.iter().map(|prefab| {
+            let protocol_id = ProtocolId::from(prefab.operation.contract_id.to_byte_array());
+            let opid = prefab.operation.opid();
+            let anchor = Anchor {
+                mmb_proof: mmb::BundleProof {
+                    map: SmallOrdMap::from_iter_checked(prefab.closes.iter().map(|prevout| {
+                        let pos = prevouts
+                            .iter()
+                            .position(|p| p == prevout)
+                            .expect("PSBT misses one of operation inputs");
+                        (pos as u32, opid.into_inner())
+                    })),
+                },
+                mpc_protocol: protocol_id,
+                mpc_proof: mpc.to_merkle_proof(protocol_id).expect("Invalid MPC proof"),
+                dbc_proof: dbc.clone(),
+                fallback_proof: default!(),
+            };
+            (prefab.operation.contract_id, opid, anchor)
+        });
+        self.mound.attest(witness, iter);
     }
 }
 

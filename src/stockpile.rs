@@ -261,17 +261,13 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Stockpile<S, P, CAPS> {
         }
     }
 
-    pub fn append_witness(
+    pub fn attest(
         &mut self,
+        opid: Opid,
+        anchor: &<P::Seal as SingleUseSeal>::CliWitness,
         published: &<P::Seal as SingleUseSeal>::PubWitness,
-        client: &<P::Seal as SingleUseSeal>::CliWitness,
-    ) where
-        <<P::Seal as SingleUseSeal>::PubWitness as PublishedWitness<P::Seal>>::PubId:
-            Into<[u8; 32]>,
-    {
-        let id = published.pub_id();
-        self.pile.hoard_mut().append(id, client);
-        self.pile.cache_mut().append(id, published);
+    ) {
+        self.pile.append(opid, anchor, published);
     }
 
     pub fn consign(
@@ -387,7 +383,7 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> ContractApi<P::Seal> for Stockpi
     fn apply_operation(&mut self, op: OperationSeals<P::Seal>) { self.stock.apply(op.operation); }
 
     fn apply_witness(&mut self, opid: Opid, witness: SealWitness<P::Seal>) {
-        self.pile.append(opid, &witness);
+        self.pile.append(opid, &witness.client, &witness.published);
     }
 }
 

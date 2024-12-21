@@ -62,11 +62,16 @@ pub trait Pile {
 
     fn retrieve(&mut self, opid: Opid) -> impl ExactSizeIterator<Item = SealWitness<Self::Seal>>;
 
-    fn append(&mut self, opid: Opid, witness: &SealWitness<Self::Seal>) {
-        let pubid = witness.published.pub_id();
+    fn append(
+        &mut self,
+        opid: Opid,
+        anchor: &<Self::Seal as SingleUseSeal>::CliWitness,
+        published: &<Self::Seal as SingleUseSeal>::PubWitness,
+    ) {
+        let pubid = published.pub_id();
         self.index_mut().add(opid, pubid);
-        self.hoard_mut().append(pubid, &witness.client);
-        self.cache_mut().append(pubid, &witness.published);
+        self.hoard_mut().append(pubid, &anchor);
+        self.cache_mut().append(pubid, &published);
     }
 }
 

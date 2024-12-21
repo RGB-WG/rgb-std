@@ -27,7 +27,7 @@ use core::borrow::Borrow;
 use std::io;
 
 use hypersonic::expect::Expect;
-use hypersonic::{AuthToken, CellAddr, CodexId, ContractId, Schema, Supply};
+use hypersonic::{AuthToken, CellAddr, CodexId, ContractId, Opid, Schema, Supply};
 use single_use_seals::{PublishedWitness, SingleUseSeal};
 use strict_encoding::{
     ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter, WriteRaw,
@@ -150,6 +150,17 @@ impl<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS>, const CAPS: u32> Mound<S
         self.contracts
             .iter()
             .filter_map(|(id, stockpile)| stockpile.seal(seal).map(|addr| (*id, addr)))
+    }
+
+    pub fn attest(
+        &mut self,
+        pub_witness: &<P::Seal as SingleUseSeal>::PubWitness,
+        anchors: impl IntoIterator<Item = (ContractId, Opid, <P::Seal as SingleUseSeal>::CliWitness)>,
+    ) {
+        for (contract_id, opid, anchor) in anchors {
+            self.contract_mut(contract_id)
+                .attest(opid, &anchor, pub_witness);
+        }
     }
 
     pub fn consign(
