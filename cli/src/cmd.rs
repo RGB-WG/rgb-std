@@ -25,6 +25,7 @@
 use std::path::PathBuf;
 
 use clap::ValueHint;
+use rgb::SealType;
 
 #[derive(Parser)]
 pub struct Args {
@@ -40,5 +41,27 @@ pub enum Cmd {
         /// File to inspect
         #[clap(value_hint = ValueHint::FilePath)]
         file: PathBuf,
+    },
+
+    /// Dump complex data into multiple debug files
+    ///
+    /// Works for contract consignments and stockpiles
+    Dump {
+        /// Remove the destination directory if it already exists
+        #[clap(short, long, global = true)]
+        force: bool,
+
+        /// The seal type used by the contract
+        seal: SealType,
+
+        /// Source data to process
+        #[clap(value_hint = ValueHint::FilePath)]
+        src: PathBuf,
+
+        /// Destination directory to put dump files
+        ///
+        /// If skipped, adds `dump` subdirectory to the `src` path.
+        #[clap(value_hint = ValueHint::FilePath)]
+        dst: Option<PathBuf>,
     },
 }

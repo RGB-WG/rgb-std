@@ -22,12 +22,14 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
+use std::fs;
 use std::io::stdout;
 
 use rgb::popls::bp::PrefabBundle;
 use strict_encoding::StrictDeserialize;
 
 use crate::cmd::{Args, Cmd};
+use crate::dump::dumb_consignment;
 
 impl Args {
     pub fn exec(&self) -> anyhow::Result<()> {
@@ -50,6 +52,33 @@ impl Args {
                     ))
                 }
             },
+            Cmd::Dump { force, seal, src, dst } => {
+                let dst = dst
+                    .as_ref()
+                    .map(|p| p.to_owned())
+                    .or_else(|| src.parent().map(|path| path.join("dump")))
+                    .ok_or(anyhow!("Can't detect destination path for '{}'", src.display()))?;
+                match src.extension() {
+                    Some(ext) if ext == "rgb" => {
+                        if *force {
+                            fs::remove_dir_all(&dst)?;
+                        }
+                        dumb_consignment(*seal, src, dst)?;
+                    }
+                    Some(_) => {
+                        return Err(anyhow!(
+                            "Can't detect type for '{}': the extension is not recognized",
+                            src.display()
+                        ))
+                    }
+                    None => {
+                        return Err(anyhow!(
+                            "The path '{}' can't be recognized as a known data",
+                            src.display()
+                        ))
+                    }
+                }
+            }
         }
         Ok(())
     }

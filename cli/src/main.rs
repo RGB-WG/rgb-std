@@ -29,6 +29,7 @@ extern crate anyhow;
 
 pub mod cmd;
 mod exec;
+mod dump;
 
 use clap::Parser;
 

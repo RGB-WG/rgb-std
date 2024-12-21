@@ -318,7 +318,9 @@ impl<'r, Seal: SonicSeal, R: ReadRaw> ReadOperation for OpReader<'r, Seal, R> {
                 let defined_seals = SmallVec::strict_decode(self.stream)
                     .expect("Failed to read consignment stream");
                 let op_seals = OperationSeals { operation, defined_seals };
-                Some((op_seals, WitnessReader { parent: self }))
+                let count =
+                    u64::strict_decode(self.stream).expect("Failed to read consignment stream");
+                Some((op_seals, WitnessReader { parent: self, left: count }))
             }
             Err(DecodeError::Io(e)) if e.kind() == io::ErrorKind::UnexpectedEof => None,
             Err(e) => {
@@ -330,6 +332,7 @@ impl<'r, Seal: SonicSeal, R: ReadRaw> ReadOperation for OpReader<'r, Seal, R> {
 }
 
 pub struct WitnessReader<'r, Seal: SonicSeal, R: ReadRaw> {
+    left: u64,
     parent: OpReader<'r, Seal, R>,
 }
 
@@ -337,12 +340,13 @@ impl<'r, Seal: SonicSeal, R: ReadRaw> ReadWitness for WitnessReader<'r, Seal, R>
     type Seal = Seal;
     type OpReader = OpReader<'r, Seal, R>;
 
-    fn read_witness(self) -> Step<(SealWitness<Self::Seal>, Self), Self::OpReader> {
+    fn read_witness(mut self) -> Step<(SealWitness<Self::Seal>, Self), Self::OpReader> {
+        self.left -= 1;
+        if self.left == 0 {
+            return Step::Complete(self.parent);
+        }
         match SealWitness::strict_decode(self.parent.stream) {
             Ok(witness) => Step::Next((witness, self)),
-            Err(DecodeError::Io(e)) if e.kind() == io::ErrorKind::UnexpectedEof => {
-                Step::Complete(self.parent)
-            }
             Err(e) => {
                 // TODO: Report error via a side-channel
                 panic!("Failed to read consignment stream: {}", e);

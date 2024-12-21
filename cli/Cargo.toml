@@ -15,8 +15,18 @@ readme = "../README.md"
 [dependencies]
 amplify.workspace = true
 strict_encoding.workspace = true
+hypersonic.workspace = true
 rgb-std = { workspace = true, features = ["fs", "serde"] }
 serde.workspace = true
 serde_yaml = "0.9.34"
+toml = "0.8.19"
 anyhow = "1.0.93"
 clap = { version = "4.5.21", features = ["derive", "env"] }
+
+[features]
+defaul = ["bitcoin"]
+all = ["bitcoin", "liquid", "prime"]
+
+bitcoin = ["rgb-std/bitcoin"]
+liquid = ["rgb-std/liquid"]
+prime = ["rgb-std/prime"]
