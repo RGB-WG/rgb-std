@@ -22,20 +22,110 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
+use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
 use std::{fs, io};
 
 use amplify::confinement::SmallVec;
-use hypersonic::{Articles, ContractId, Operation};
-use rgb::bitcoin::{OpretSeal, TapretSeal};
-use rgb::{
-    SealType, SealWitness, BITCOIN_OPRET, BITCOIN_TAPRET, LIQUID_OPRET, LIQUID_TAPRET, PRIME_SEALS,
-};
-use strict_encoding::{DecodeError, StreamReader, StrictDecode, StrictReader};
+use hypersonic::aora::Aora;
+use hypersonic::{Articles, ContractId, FileSupply, Operation};
+use rgb::{FilePile, Index, Pile, PublishedWitness, SealWitness, SonicSeal, Stockpile};
+use serde::{Deserialize, Serialize};
+use strict_encoding::{DecodeError, StreamReader, StrictDecode, StrictEncode, StrictReader};
 
-pub fn dumb_consignment(seal: SealType, src: &Path, dst: impl AsRef<Path>) -> anyhow::Result<()> {
+// TODO: Auto-compute seal type out of the articles data
+pub fn dump_stockpile<Seal: SonicSeal, const CAPS: u32>(
+    src: &Path,
+    dst: impl AsRef<Path>,
+) -> anyhow::Result<()>
+where
+    Seal: Serialize,
+    Seal::CliWitness: Serialize + StrictEncode + StrictDecode,
+    Seal::PubWitness: Serialize + StrictEncode + StrictDecode,
+    <Seal::PubWitness as PublishedWitness<Seal>>::PubId:
+        Ord + From<[u8; 32]> + Into<[u8; 32]> + Serialize,
+{
+    let dst = dst.as_ref();
+    fs::create_dir_all(dst)?;
+
+    print!("Reading contract stockpile from '{}' ... ", src.display());
+    let mut stockpile = Stockpile::<FileSupply, FilePile<Seal>, CAPS>::load(src);
+    println!("success reading {}", stockpile.contract_id());
+
+    print!("Processing contract articles ... ");
+    let out = File::create_new(dst.join("articles.yaml"))?;
+    serde_yaml::to_writer(&out, stockpile.stock().articles())?;
+    println!("success");
+
+    print!("Processing operations ... none found");
+    for (no, (opid, op)) in stockpile.stock_mut().operations().enumerate() {
+        let out = File::create_new(dst.join(format!("{:04}-{opid}.op.yaml", no + 1)))?;
+        serde_yaml::to_writer(&out, &op)?;
+        print!("\rProcessing operations ... {} processed", no + 1);
+    }
+    println!();
+
+    print!("Processing trace ... none state transitions found");
+    for (no, (opid, st)) in stockpile.stock_mut().trace().enumerate() {
+        let out = File::create_new(dst.join(format!("{:04}-{opid}.st.yaml", no + 1)))?;
+        serde_yaml::to_writer(&out, &st)?;
+        print!("\rProcessing trace ... {} state transition processed", no + 1);
+    }
+    println!();
+
+    print!("Processing anchors ... none found");
+    for (no, (txid, anchor)) in stockpile.pile_mut().hoard_mut().iter().enumerate() {
+        let out = File::create_new(dst.join(format!("{txid}.anchor.yaml")))?;
+        serde_yaml::to_writer(&out, &anchor)?;
+        print!("\rProcessing anchors ... {} processed", no + 1);
+    }
+    println!();
+
+    print!("Processing witness transactions ... none found");
+    for (no, (txid, tx)) in stockpile.pile_mut().cache_mut().iter().enumerate() {
+        let out = File::create_new(dst.join(format!("{txid}.yaml")))?;
+        serde_yaml::to_writer(&out, &tx)?;
+        print!("\rProcessing witness transactions ... {} processed", no + 1);
+    }
+    println!();
+
+    print!("Processing seal definitions ... none found");
+    let mut seal_count = 0;
+    for (no, (opid, seals)) in stockpile.pile_mut().keep_mut().iter().enumerate() {
+        let out = File::create_new(dst.join(format!("{no:04}-{opid}.seals.yaml")))?;
+        serde_yaml::to_writer(&out, &seals)?;
+        seal_count += seals.len();
+        print!("\rProcessing seal definitions ... {seal_count} processed");
+    }
+    println!();
+
+    print!("Processing index ... ");
+    let index = stockpile.pile().index();
+    let index = index
+        .keys()
+        .map(|opid| (opid, index.get(opid).collect::<Vec<_>>()))
+        .collect::<BTreeMap<_, _>>();
+    let mut out = File::create_new(dst.join("index.toml"))?;
+    out.write_all(toml::to_string(&index)?.as_bytes())?;
+    println!("success");
+
+    Ok(())
+}
+
+// TODO: Auto-compute seal type out of the articles data
+pub fn dump_consignment<Seal: SonicSeal, const CAPS: u32>(
+    src: &Path,
+    dst: impl AsRef<Path>,
+) -> anyhow::Result<()>
+where
+    Seal: Serialize,
+    Seal::CliWitness: Serialize + for<'de> Deserialize<'de> + StrictEncode + StrictDecode,
+    Seal::PubWitness: Serialize + for<'de> Deserialize<'de> + StrictEncode + StrictDecode,
+    <Seal::PubWitness as PublishedWitness<Seal>>::PubId:
+        Ord + From<[u8; 32]> + Into<[u8; 32]> + Serialize,
+{
     let dst = dst.as_ref();
     fs::create_dir_all(dst)?;
 
@@ -47,38 +137,14 @@ pub fn dumb_consignment(seal: SealType, src: &Path, dst: impl AsRef<Path>) -> an
 
     print!("Processing contract articles ... ");
     let out = File::create_new(dst.join("0-articles.yaml"))?;
-    match seal {
-        #[cfg(feature = "bitcoin")]
-        SealType::BitcoinOpret => {
-            let articles = Articles::<BITCOIN_OPRET>::strict_decode(&mut stream)?;
-            serde_yaml::to_writer(&out, &articles)?;
-        }
-        #[cfg(feature = "bitcoin")]
-        SealType::BitcoinTapret => {
-            let articles = Articles::<BITCOIN_TAPRET>::strict_decode(&mut stream)?;
-            serde_yaml::to_writer(&out, &articles)?;
-        }
-        #[cfg(feature = "liquid")]
-        SealType::LiquidOpret => {
-            let articles = Articles::<LIQUID_OPRET>::strict_decode(&mut stream)?;
-            serde_yaml::to_writer(&out, &articles)?;
-        }
-        #[cfg(feature = "liquid")]
-        SealType::LiquidTapret => {
-            let articles = Articles::<LIQUID_TAPRET>::strict_decode(&mut stream)?;
-            serde_yaml::to_writer(&out, &articles)?;
-        }
-        #[cfg(feature = "prime")]
-        SealType::Prime => {
-            let articles = Articles::<PRIME_SEALS>::strict_decode(&mut stream)?;
-            serde_yaml::to_writer(&out, &articles)?;
-        }
-    }
+    let articles = Articles::<CAPS>::strict_decode(&mut stream)?;
+    serde_yaml::to_writer(&out, &articles)?;
     println!("success");
 
     let mut op_count = 1;
     let mut seal_count = 0;
     let mut witness_count = 0;
+    println!();
     loop {
         match Operation::strict_decode(&mut stream) {
             Ok(operation) => {
@@ -88,9 +154,7 @@ pub fn dumb_consignment(seal: SealType, src: &Path, dst: impl AsRef<Path>) -> an
                 serde_yaml::to_writer(&out, &operation)?;
 
                 let mut out = File::create_new(dst.join(format!("{op_count:04}-seals.toml")))?;
-                // Seal definition is not distinct between tapret and opret, so we save on match
-                // here
-                let defined_seals = SmallVec::<OpretSeal>::strict_decode(&mut stream)
+                let defined_seals = SmallVec::<Seal>::strict_decode(&mut stream)
                     .expect("Failed to read consignment stream");
                 out.write_all(toml::to_string(&defined_seals)?.as_bytes())?;
                 seal_count += defined_seals.len();
@@ -100,32 +164,8 @@ pub fn dumb_consignment(seal: SealType, src: &Path, dst: impl AsRef<Path>) -> an
                     let out = File::create_new(
                         dst.join(format!("{op_count:04}-witness-{:02}.toml", no + 1)),
                     )?;
-                    match seal {
-                        #[cfg(feature = "bitcoin")]
-                        SealType::BitcoinOpret => {
-                            let witness = SealWitness::<OpretSeal>::strict_decode(&mut stream)?;
-                            serde_yaml::to_writer(&out, &witness)?;
-                        }
-                        #[cfg(feature = "bitcoin")]
-                        SealType::BitcoinTapret => {
-                            let witness = SealWitness::<TapretSeal>::strict_decode(&mut stream)?;
-                            serde_yaml::to_writer(&out, &witness)?;
-                        }
-                        #[cfg(feature = "liquid")]
-                        SealType::LiquidOpret => {
-                            let witness = SealWitness::<OpretSeal>::strict_decode(&mut stream)?;
-                            serde_yaml::to_writer(&out, &witness)?;
-                        }
-                        #[cfg(feature = "liquid")]
-                        SealType::LiquidTapret => {
-                            let witness = SealWitness::<TapretSeal>::strict_decode(&mut stream)?;
-                            serde_yaml::to_writer(&out, &witness)?;
-                        }
-                        #[cfg(feature = "prime")]
-                        SealType::Prime => {
-                            todo!()
-                        }
-                    }
+                    let witness = SealWitness::<Seal>::strict_decode(&mut stream)?;
+                    serde_yaml::to_writer(&out, &witness)?;
                 }
 
                 witness_count += len as usize;
@@ -135,10 +175,10 @@ pub fn dumb_consignment(seal: SealType, src: &Path, dst: impl AsRef<Path>) -> an
             Err(e) => return Err(anyhow!("Failed to read consignment stream: {}", e)),
         }
         print!(
-            "Processing: {op_count} operations, {seal_count} seals, {witness_count} witnesses ... \
-             \r"
+            "\rParsing stream ... {op_count} operations, {seal_count} seals, {witness_count} \
+             witnesses processed",
         );
     }
-    println!("complete");
+    println!();
     Ok(())
 }

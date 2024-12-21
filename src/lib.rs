@@ -50,6 +50,6 @@ pub use info::ContractInfo;
 pub use mound::{Excavate, Mound};
 #[cfg(feature = "fs")]
 pub use pile::fs::FilePile;
-pub use pile::Pile;
+pub use pile::{Index, Pile};
 pub use rgb::*;
 pub use stockpile::{Assignment, ConsumeError, CreateParams, Stockpile};

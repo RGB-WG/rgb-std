@@ -25,11 +25,13 @@
 use std::fs;
 use std::io::stdout;
 
+use rgb::bitcoin::{OpretSeal, TapretSeal};
 use rgb::popls::bp::PrefabBundle;
+use rgb::{SealType, BITCOIN_OPRET, BITCOIN_TAPRET, LIQUID_OPRET, LIQUID_TAPRET};
 use strict_encoding::StrictDeserialize;
 
 use crate::cmd::{Args, Cmd};
-use crate::dump::dumb_consignment;
+use crate::dump::{dump_consignment, dump_stockpile};
 
 impl Args {
     pub fn exec(&self) -> anyhow::Result<()> {
@@ -52,33 +54,95 @@ impl Args {
                     ))
                 }
             },
-            Cmd::Dump { force, seal, src, dst } => {
-                let dst = dst
-                    .as_ref()
-                    .map(|p| p.to_owned())
-                    .or_else(|| src.parent().map(|path| path.join("dump")))
-                    .ok_or(anyhow!("Can't detect destination path for '{}'", src.display()))?;
-                match src.extension() {
-                    Some(ext) if ext == "rgb" => {
-                        if *force {
-                            fs::remove_dir_all(&dst)?;
+            Cmd::Dump { force, seal, src, dst } => match src.extension() {
+                Some(ext) if ext == "rgb" => {
+                    let dst = dst
+                        .as_ref()
+                        .map(|p| p.to_owned())
+                        .or_else(|| src.parent().map(|path| path.join("dump")))
+                        .ok_or(anyhow!("Can't detect destination path for '{}'", src.display()))?;
+                    if *force {
+                        fs::remove_dir_all(&dst).or_else(|e| {
+                            if e.kind() == std::io::ErrorKind::NotFound {
+                                Ok(())
+                            } else {
+                                Err(e)
+                            }
+                        })?;
+                    }
+                    match seal {
+                        #[cfg(feature = "bitcoin")]
+                        SealType::BitcoinOpret => {
+                            dump_consignment::<OpretSeal, BITCOIN_OPRET>(src, dst)
                         }
-                        dumb_consignment(*seal, src, dst)?;
-                    }
-                    Some(_) => {
-                        return Err(anyhow!(
-                            "Can't detect type for '{}': the extension is not recognized",
-                            src.display()
-                        ))
-                    }
-                    None => {
-                        return Err(anyhow!(
-                            "The path '{}' can't be recognized as a known data",
-                            src.display()
-                        ))
-                    }
+                        #[cfg(feature = "bitcoin")]
+                        SealType::BitcoinTapret => {
+                            dump_consignment::<TapretSeal, BITCOIN_TAPRET>(src, dst)
+                        }
+                        #[cfg(feature = "liquid")]
+                        SealType::LiquidOpret => {
+                            dump_consignment::<OpretSeal, LIQUID_OPRET>(src, dst)
+                        }
+                        #[cfg(feature = "liquid")]
+                        SealType::LiquidTapret => {
+                            dump_consignment::<TapretSeal, LIQUID_TAPRET>(src, dst)
+                        }
+                        #[cfg(feature = "prime")]
+                        SealType::Prime => {
+                            todo!()
+                        }
+                    }?;
                 }
-            }
+                Some(ext) if ext == "contract" => {
+                    let dst = dst
+                        .as_ref()
+                        .map(|p| p.to_owned())
+                        .unwrap_or_else(|| src.join("dump"));
+                    if *force {
+                        fs::remove_dir_all(&dst).or_else(|e| {
+                            if e.kind() == std::io::ErrorKind::NotFound {
+                                Ok(())
+                            } else {
+                                Err(e)
+                            }
+                        })?;
+                    }
+                    match seal {
+                        #[cfg(feature = "bitcoin")]
+                        SealType::BitcoinOpret => {
+                            dump_stockpile::<OpretSeal, BITCOIN_OPRET>(src, dst)
+                        }
+                        #[cfg(feature = "bitcoin")]
+                        SealType::BitcoinTapret => {
+                            dump_stockpile::<TapretSeal, BITCOIN_TAPRET>(src, dst)
+                        }
+                        #[cfg(feature = "liquid")]
+                        SealType::LiquidOpret => {
+                            dump_stockpile::<OpretSeal, LIQUID_OPRET>(src, dst)
+                        }
+                        #[cfg(feature = "liquid")]
+                        SealType::LiquidTapret => {
+                            dump_stockpile::<TapretSeal, LIQUID_TAPRET>(src, dst)
+                        }
+                        #[cfg(feature = "prime")]
+                        SealType::Prime => {
+                            todo!()
+                        }
+                    }?;
+                }
+                Some(_) => {
+                    return Err(anyhow!(
+                        "Can't detect type for '{}': the extension is not recognized",
+                        src.display()
+                    ))
+                }
+                None => {
+                    return Err(anyhow!(
+                        "The path '{}' can't be recognized as a known data",
+                        src.display()
+                    ))
+                }
+            },
         }
         Ok(())
     }

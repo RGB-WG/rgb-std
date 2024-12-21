@@ -29,6 +29,7 @@ use rgb::SonicSeal;
 use single_use_seals::{PublishedWitness, SealWitness, SingleUseSeal};
 
 pub trait Index<K, V> {
+    fn keys(&self) -> impl Iterator<Item = K>;
     fn get(&self, key: K) -> impl ExactSizeIterator<Item = V>;
     fn add(&mut self, key: K, val: V);
 }
@@ -89,6 +90,8 @@ pub mod fs {
     }
 
     impl<V: Copy> Index<Opid, V> for MemIndex<V> {
+        fn keys(&self) -> impl Iterator<Item = Opid> { self.0.keys().copied() }
+
         fn get(&self, key: Opid) -> impl ExactSizeIterator<Item = V> {
             self.0
                 .get(&key)
