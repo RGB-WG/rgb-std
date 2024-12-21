@@ -110,7 +110,7 @@ pub struct ContractState<Seal> {
 }
 
 impl<Seal> ContractState<Seal> {
-    pub fn transform<To>(self, f: impl Fn(Seal) -> To) -> ContractState<To> {
+    pub fn map<To>(self, f: impl Fn(Seal) -> To) -> ContractState<To> {
         ContractState {
             immutable: self.immutable,
             owned: self
@@ -121,6 +121,26 @@ impl<Seal> ContractState<Seal> {
                         .into_iter()
                         .map(|(addr, data)| {
                             (addr, Assignment { seal: f(data.seal), data: data.data })
+                        })
+                        .collect();
+                    (name, map)
+                })
+                .collect(),
+            computed: self.computed,
+        }
+    }
+
+    pub fn filter_map<To>(self, f: impl Fn(Seal) -> Option<To>) -> ContractState<To> {
+        ContractState {
+            immutable: self.immutable,
+            owned: self
+                .owned
+                .into_iter()
+                .map(|(name, map)| {
+                    let map = map
+                        .into_iter()
+                        .filter_map(|(addr, data)| {
+                            Some((addr, Assignment { seal: f(data.seal)?, data: data.data }))
                         })
                         .collect();
                     (name, map)

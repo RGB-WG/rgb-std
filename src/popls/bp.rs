@@ -50,6 +50,7 @@ use crate::{Assignment, CreateParams, Excavate, Mound, Pile};
 /// Trait abstracting specific implementation of a bitcoin wallet.
 pub trait WalletProvider {
     fn noise_seed(&self) -> Bytes32;
+    fn has_utxo(&self, outpoint: Outpoint) -> bool;
     fn utxos(&self) -> impl Iterator<Item = Outpoint>;
 }
 pub trait OpretProvider: WalletProvider {}
@@ -225,7 +226,6 @@ impl<
         Some(seal.auth_token())
     }
 
-    // TODO: Use bitcoin-specific state type aware of outpoints
     pub fn state(
         &mut self,
         contract_id: Option<ContractId>,
@@ -234,7 +234,27 @@ impl<
         self.mound
             .contracts_mut()
             .filter(move |(id, _)| contract_id.is_none() || Some(*id) == contract_id)
-            .map(|(id, stockpile)| (id, stockpile.state().transform(|seal| seal.primary)))
+            .map(|(id, stockpile)| {
+                let state = stockpile.state().filter_map(|seal| {
+                    if self.wallet.has_utxo(seal.primary) {
+                        Some(seal.primary)
+                    } else {
+                        None
+                    }
+                });
+                (id, state)
+            })
+    }
+
+    pub fn state_all(
+        &mut self,
+        contract_id: Option<ContractId>,
+    ) -> impl Iterator<Item = (ContractId, ContractState<Outpoint>)> + use<'_, W, D, S, P, X, CAPS>
+    {
+        self.mound
+            .contracts_mut()
+            .filter(move |(id, _)| contract_id.is_none() || Some(*id) == contract_id)
+            .map(|(id, stockpile)| (id, stockpile.state().map(|seal| seal.primary)))
     }
 
     fn noise_engine(&self) -> Sha256 {
@@ -644,6 +664,22 @@ pub mod file {
                 Self::LqOpret(barrow) => Box::new(barrow.state(contract_id)),
                 #[cfg(feature = "liquid")]
                 Self::LqTapret(barrow) => Box::new(barrow.state(contract_id)),
+            }
+        }
+
+        pub fn state_all(
+            &mut self,
+            contract_id: Option<ContractId>,
+        ) -> Box<dyn Iterator<Item = (ContractId, ContractState<Outpoint>)> + '_> {
+            match self {
+                #[cfg(feature = "bitcoin")]
+                Self::BcOpret(barrow) => Box::new(barrow.state_all(contract_id)),
+                #[cfg(feature = "bitcoin")]
+                Self::BcTapret(barrow) => Box::new(barrow.state_all(contract_id)),
+                #[cfg(feature = "liquid")]
+                Self::LqOpret(barrow) => Box::new(barrow.state_all(contract_id)),
+                #[cfg(feature = "liquid")]
+                Self::LqTapret(barrow) => Box::new(barrow.state_all(contract_id)),
             }
         }
 
