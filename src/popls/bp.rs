@@ -28,13 +28,14 @@
 use alloc::collections::BTreeMap;
 use std::collections::BTreeSet;
 
-use amplify::confinement::SmallOrdSet;
+use amplify::confinement::{SmallOrdSet, SmallVec};
 use amplify::{confinement, Bytes32};
 use bp::dbc::opret::OpretProof;
 use bp::dbc::tapret::TapretProof;
 use bp::seals::TxoSeal;
 use bp::{dbc, Outpoint, Vout};
 use commit_verify::{Digest, DigestExt, Sha256};
+use hypersonic::aora::Aora;
 use hypersonic::{
     AuthToken, CallParams, CellAddr, ContractId, CoreParams, DataCell, MethodName, NamedState,
     Operation, Schema, StateAtom, StateCalc, StateName, Supply,
@@ -254,6 +255,7 @@ impl<
         let closes = SmallOrdSet::try_from(closes).expect("too many inputs");
         let mut defines = SmallOrdSet::new();
 
+        let mut seals = SmallVec::new();
         let mut noise_engine = self.noise_engine();
         noise_engine.input_raw(params.contract_id.as_slice());
         let owned = params
@@ -264,14 +266,13 @@ impl<
                 let auth = match assignment.state.seal {
                     BuilderSeal::Oneself(vout) => {
                         defines.push(vout).expect("too many seals");
-                        // NB: We use opret type here, but this doesn't matter since we create seal
-                        // only to produce the auth token, and seals do not commit to their type.
-                        TxoSeal::<OpretProof>::vout_no_fallback(
+                        let seal = TxoSeal::<D>::vout_no_fallback(
                             vout,
                             noise_engine.clone(),
                             nonce as u64,
-                        )
-                        .auth_token()
+                        );
+                        seals.push(seal).expect("too many seals");
+                        seal.auth_token()
                     }
                     BuilderSeal::Extern(auth) => auth,
                 };
@@ -289,6 +290,7 @@ impl<
         let stockpile = self.mound.contract_mut(params.contract_id);
         let opid = stockpile.stock_mut().call(call);
         let operation = stockpile.stock_mut().operation(opid);
+        stockpile.pile_mut().keep_mut().append(opid, &seals);
 
         Prefab { contract_id: params.contract_id, closes, defines, operation }
     }
