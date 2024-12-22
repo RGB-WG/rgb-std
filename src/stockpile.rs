@@ -388,7 +388,7 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> ContractApi<P::Seal> for Stockpi
 }
 
 #[derive(Display, From)]
-#[display(doc_comments)]
+#[display(inner)]
 pub enum ConsumeError<Seal: SonicSeal> {
     #[from]
     #[from(io::Error)]
