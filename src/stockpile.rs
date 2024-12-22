@@ -308,11 +308,21 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Stockpile<S, P, CAPS> {
         <<P::Seal as SingleUseSeal>::PubWitness as PublishedWitness<P::Seal>>::PubId: StrictDecode,
     {
         let articles = Articles::<CAPS>::strict_decode(stream)?;
+        let genesis_opid = articles.contract.genesis_opid();
         self.stock.merge_articles(articles)?;
+        let defined_seals = SmallVec::strict_decode(stream)?;
+        self.pile.keep_mut().append(genesis_opid, &defined_seals);
+        let count = u64::strict_decode(stream)?;
+        // Genesis must have no witness
+        if count != 0 {
+            return Err(ConsumeError::Decode(DecodeError::DataIntegrityError(s!(
+                "contract genesis must have no witnesses"
+            ))));
+        }
 
         // We need to clone due to a borrow checker.
-        let reader = OpReader { stream, _phantom: PhantomData };
-        self.evaluate(reader)?;
+        let op_reader = OpReader { stream, _phantom: PhantomData };
+        self.evaluate(op_reader)?;
 
         self.stock.complete_update();
         Ok(())
