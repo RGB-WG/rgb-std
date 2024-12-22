@@ -46,6 +46,7 @@ pub mod popls;
 
 #[cfg(feature = "bitcoin")]
 pub use bp::{Outpoint, Txid};
+pub use hypersonic::*;
 pub use info::ContractInfo;
 pub use mound::{Excavate, Mound};
 #[cfg(feature = "fs")]
