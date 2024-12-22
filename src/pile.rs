@@ -87,8 +87,9 @@ pub trait Pile {
 pub mod fs {
     use std::collections::BTreeMap;
     use std::fs::File;
-    use std::io::Read;
-    use std::path::Path;
+    use std::io;
+    use std::io::{Read, Write};
+    use std::path::{Path, PathBuf};
 
     use hypersonic::aora::file::FileAora;
     use hypersonic::expect::Expect;
@@ -97,65 +98,24 @@ pub mod fs {
     use super::*;
 
     #[derive(Clone, Debug, From)]
-    pub struct MemIndex<Id>(BTreeMap<Opid, Vec<Id>>);
-    impl<Id> Default for MemIndex<Id> {
-        fn default() -> Self { Self(none!()) }
+    pub struct FileIndex<Id>
+    where Id: Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>
+    {
+        path: PathBuf,
+        cache: BTreeMap<Opid, Vec<Id>>,
     }
 
-    impl<V: Copy> Index<Opid, V> for MemIndex<V> {
-        fn keys(&self) -> impl Iterator<Item = Opid> { self.0.keys().copied() }
-
-        fn get(&self, key: Opid) -> impl ExactSizeIterator<Item = V> {
-            self.0
-                .get(&key)
-                .expect("unknown operation ID requested from the index")
-                .iter()
-                .copied()
+    impl<Id> FileIndex<Id>
+    where Id: Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>
+    {
+        pub fn create(path: PathBuf) -> io::Result<Self> {
+            File::create_new(&path)?;
+            Ok(Self { cache: none!(), path })
         }
 
-        fn add(&mut self, key: Opid, val: V) { self.0.entry(key).or_default().push(val) }
-    }
-
-    pub struct FilePile<Seal: SonicSeal>
-    where <Seal::PubWitness as PublishedWitness<Seal>>::PubId: Ord + From<[u8; 32]> + Into<[u8; 32]>
-    {
-        hoard: FileAora<<Seal::PubWitness as PublishedWitness<Seal>>::PubId, Seal::CliWitness>,
-        cache: FileAora<<Seal::PubWitness as PublishedWitness<Seal>>::PubId, Seal::PubWitness>,
-        keep: FileAora<Opid, SmallVec<Seal>>,
-        index: MemIndex<<<Seal as SingleUseSeal>::PubWitness as PublishedWitness<Seal>>::PubId>,
-    }
-
-    impl<Seal: SonicSeal> FilePile<Seal>
-    where <Seal::PubWitness as PublishedWitness<Seal>>::PubId: Ord + From<[u8; 32]> + Into<[u8; 32]>
-    {
-        pub fn new(name: &str, path: impl AsRef<Path>) -> Self {
-            let mut path = path.as_ref().to_path_buf();
-            path.push(name);
-            path.set_extension("contract");
-
-            let hoard = FileAora::new(&path, "hoard");
-            let cache = FileAora::new(&path, "cache");
-            let keep = FileAora::new(&path, "keep");
-            File::create_new(path.join("index.dat"))
-                .expect_or_else(|| format!("unable to create index file `{}`", path.display()));
-
-            Self { hoard, cache, keep, index: empty!() }
-        }
-    }
-
-    impl<Seal: SonicSeal> FilePile<Seal>
-    where <Seal::PubWitness as PublishedWitness<Seal>>::PubId: Ord + From<[u8; 32]> + Into<[u8; 32]>
-    {
-        pub fn open(path: impl AsRef<Path>) -> Self {
-            let path = path.as_ref().to_path_buf();
-            let hoard = FileAora::open(&path, "hoard");
-            let cache = FileAora::open(&path, "cache");
-            let keep = FileAora::open(&path, "keep");
-
-            let mut index = BTreeMap::new();
-            let index_name = path.join("index.dat");
-            let mut index_file = File::open(&index_name)
-                .expect_or_else(|| format!("unable to open index file `{}`", index_name.display()));
+        pub fn new(path: PathBuf) -> io::Result<Self> {
+            let mut cache = BTreeMap::new();
+            let mut index_file = File::open(&path)?;
             let mut buf = [0u8; 32];
             while index_file.read_exact(&mut buf).is_ok() {
                 let opid = Opid::from(buf);
@@ -172,10 +132,88 @@ pub mod fs {
                     ids.push(buf.into());
                     len -= 1;
                 }
-                index.insert(opid, ids);
+                cache.insert(opid, ids);
             }
+            Ok(Self { path, cache })
+        }
 
-            Self { hoard, cache, keep, index: index.into() }
+        pub fn save(&self) -> io::Result<()> {
+            let mut index_file = File::create(&self.path)?;
+            for (opid, ids) in &self.cache {
+                index_file.write_all(opid.as_slice())?;
+                let len = ids.len() as u32;
+                index_file.write_all(&len.to_le_bytes())?;
+                for id in ids {
+                    index_file.write_all(&(*id).into())?;
+                }
+            }
+            Ok(())
+        }
+    }
+
+    impl<Id: Copy> Index<Opid, Id> for FileIndex<Id>
+    where Id: Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>
+    {
+        fn keys(&self) -> impl Iterator<Item = Opid> { self.cache.keys().copied() }
+
+        fn get(&self, key: Opid) -> impl ExactSizeIterator<Item = Id> {
+            self.cache
+                .get(&key)
+                .expect("unknown operation ID requested from the index")
+                .iter()
+                .copied()
+        }
+
+        fn add(&mut self, key: Opid, val: Id) {
+            self.cache.entry(key).or_default().push(val);
+            self.save().expect("Cannot save index file");
+        }
+    }
+
+    pub struct FilePile<Seal: SonicSeal>
+    where <Seal::PubWitness as PublishedWitness<Seal>>::PubId:
+            Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>
+    {
+        hoard: FileAora<<Seal::PubWitness as PublishedWitness<Seal>>::PubId, Seal::CliWitness>,
+        cache: FileAora<<Seal::PubWitness as PublishedWitness<Seal>>::PubId, Seal::PubWitness>,
+        keep: FileAora<Opid, SmallVec<Seal>>,
+        index: FileIndex<<<Seal as SingleUseSeal>::PubWitness as PublishedWitness<Seal>>::PubId>,
+    }
+
+    impl<Seal: SonicSeal> FilePile<Seal>
+    where <Seal::PubWitness as PublishedWitness<Seal>>::PubId:
+            Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>
+    {
+        pub fn new(name: &str, path: impl AsRef<Path>) -> Self {
+            let mut path = path.as_ref().to_path_buf();
+            path.push(name);
+            path.set_extension("contract");
+
+            let hoard = FileAora::new(&path, "hoard");
+            let cache = FileAora::new(&path, "cache");
+            let keep = FileAora::new(&path, "keep");
+            let index = FileIndex::create(path.join("index.dat"))
+                .expect_or(format!("unable to create index file `{}`", path.display()));
+
+            Self { hoard, cache, keep, index }
+        }
+    }
+
+    impl<Seal: SonicSeal> FilePile<Seal>
+    where <Seal::PubWitness as PublishedWitness<Seal>>::PubId:
+            Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>
+    {
+        pub fn open(path: impl AsRef<Path>) -> Self {
+            let path = path.as_ref().to_path_buf();
+            let hoard = FileAora::open(&path, "hoard");
+            let cache = FileAora::open(&path, "cache");
+            let keep = FileAora::open(&path, "keep");
+
+            let index_name = path.join("index.dat");
+            let index = FileIndex::new(index_name.clone())
+                .expect_or(format!("unable to open index file `{}`", index_name.display()));
+
+            Self { hoard, cache, keep, index }
         }
     }
 
@@ -183,7 +221,8 @@ pub mod fs {
     where
         Seal::CliWitness: StrictEncode + StrictDecode,
         Seal::PubWitness: StrictEncode + StrictDecode,
-        <Seal::PubWitness as PublishedWitness<Seal>>::PubId: Ord + From<[u8; 32]> + Into<[u8; 32]>,
+        <Seal::PubWitness as PublishedWitness<Seal>>::PubId:
+            Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>,
     {
         type Seal = Seal;
         type Hoard =
@@ -192,7 +231,7 @@ pub mod fs {
             FileAora<<Seal::PubWitness as PublishedWitness<Seal>>::PubId, Seal::PubWitness>;
         type Keep = FileAora<Opid, SmallVec<Seal>>;
         type Index =
-            MemIndex<<<Seal as SingleUseSeal>::PubWitness as PublishedWitness<Seal>>::PubId>;
+            FileIndex<<<Seal as SingleUseSeal>::PubWitness as PublishedWitness<Seal>>::PubId>;
 
         fn hoard(&self) -> &Self::Hoard { &self.hoard }
 
