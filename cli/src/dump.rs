@@ -135,15 +135,37 @@ where
     let cointract_id = ContractId::strict_decode(&mut stream)?;
     println!("Dumping consignment for {} into '{}'", cointract_id, dst.display());
 
-    print!("Processing contract articles ... ");
-    let out = File::create_new(dst.join("0-articles.yaml"))?;
-    let articles = Articles::<CAPS>::strict_decode(&mut stream)?;
-    serde_yaml::to_writer(&out, &articles)?;
-    println!("success");
-
     let mut op_count = 1;
     let mut seal_count = 0;
     let mut witness_count = 0;
+
+    print!("Processing contract articles ... ");
+    let articles = Articles::<CAPS>::strict_decode(&mut stream)?;
+    let out = File::create_new(
+        dst.join(format!("0000-genesis.{}.yaml", articles.contract.genesis_opid())),
+    )?;
+    serde_yaml::to_writer(&out, &articles.contract.genesis)?;
+    let out =
+        File::create_new(dst.join(format!("codex.{}.yaml", articles.schema.codex.codex_id())))?;
+    serde_yaml::to_writer(&out, &articles.schema.codex)?;
+    let out = File::create_new(dst.join("schema.yaml"))?;
+    serde_yaml::to_writer(&out, &articles.schema)?;
+
+    let out = File::create_new(dst.join("0000-seals.yml"))?;
+    let defined_seals =
+        SmallVec::<Seal>::strict_decode(&mut stream).expect("Failed to read consignment stream");
+    serde_yaml::to_writer(&out, &defined_seals)?;
+    seal_count += defined_seals.len();
+
+    let count = u64::strict_decode(&mut stream)?;
+    if count != 0 {
+        println!("error");
+        return Err(anyhow!(
+            "consignment stream has {count} witnesses, but 0 witnesses are expected",
+        ));
+    }
+    println!("success");
+
     println!();
     loop {
         match Operation::strict_decode(&mut stream) {
