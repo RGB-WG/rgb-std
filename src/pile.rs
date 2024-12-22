@@ -157,11 +157,10 @@ pub mod fs {
         fn keys(&self) -> impl Iterator<Item = Opid> { self.cache.keys().copied() }
 
         fn get(&self, key: Opid) -> impl ExactSizeIterator<Item = Id> {
-            self.cache
-                .get(&key)
-                .expect("unknown operation ID requested from the index")
-                .iter()
-                .copied()
+            match self.cache.get(&key) {
+                Some(ids) => ids.clone().into_iter(),
+                None => vec![].into_iter(),
+            }
         }
 
         fn add(&mut self, key: Opid, val: Id) {
