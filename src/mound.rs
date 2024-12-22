@@ -159,7 +159,7 @@ impl<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS>, const CAPS: u32> Mound<S
     ) {
         for (contract_id, opid, anchor) in anchors {
             self.contract_mut(contract_id)
-                .attest(opid, &anchor, pub_witness);
+                .attest(opid, anchor, pub_witness);
         }
     }
 

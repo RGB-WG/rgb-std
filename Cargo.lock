@@ -132,9 +132,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.94"
+version = "1.0.95"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1fd03a028ef38ba2276dce7e33fcd6369c158a1bca17946c4b1b701891c1ff7"
+checksum = "34ac096ce696dc2fcabef30516bb13c0a68a11d30131d3df6f04711467681b04"
 
 [[package]]
 name = "arrayvec"
@@ -225,7 +225,7 @@ dependencies = [
 [[package]]
 name = "bp-consensus"
 version = "0.12.0-beta.2"
-source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#8e6d2d3d3a144359897f3324039ee459efee89db"
+source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#749ad5a83a60c60055b8925871655e81cb3d24d0"
 dependencies = [
  "amplify",
  "chrono",
@@ -239,7 +239,7 @@ dependencies = [
 [[package]]
 name = "bp-core"
 version = "0.12.0-beta.2"
-source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#8e6d2d3d3a144359897f3324039ee459efee89db"
+source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#749ad5a83a60c60055b8925871655e81cb3d24d0"
 dependencies = [
  "amplify",
  "bp-consensus",
@@ -257,7 +257,7 @@ dependencies = [
 [[package]]
 name = "bp-dbc"
 version = "0.12.0-beta.2"
-source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#8e6d2d3d3a144359897f3324039ee459efee89db"
+source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#749ad5a83a60c60055b8925871655e81cb3d24d0"
 dependencies = [
  "amplify",
  "base85",
@@ -271,7 +271,7 @@ dependencies = [
 [[package]]
 name = "bp-seals"
 version = "0.12.0-beta.2"
-source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#8e6d2d3d3a144359897f3324039ee459efee89db"
+source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#749ad5a83a60c60055b8925871655e81cb3d24d0"
 dependencies = [
  "amplify",
  "baid64",
@@ -357,7 +357,7 @@ dependencies = [
  "heck",
  "proc-macro2",
  "quote",
- "syn 2.0.90",
+ "syn 2.0.91",
 ]
 
 [[package]]
@@ -375,8 +375,7 @@ checksum = "5b63caa9aa9397e2d9480a9b13673856c78d8ac123288526c37d7839f2a86990"
 [[package]]
 name = "commit_encoding_derive"
 version = "0.12.0-beta.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "137f212bdbb4abf7bb648ba73feed1d981a4f4681821b15d79a37bfdbc206070"
+source = "git+https://github.com/LNP-BP/client_side_validation?branch=v0.12#293358fda9b848a5ec2a7cfd0b49bf8c5f49a017"
 dependencies = [
  "amplify",
  "amplify_syn",
@@ -388,8 +387,7 @@ dependencies = [
 [[package]]
 name = "commit_verify"
 version = "0.12.0-beta.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bef304002218b4136632abe4145a168d8b8f95e4d5443d377240ab2b1868a52a"
+source = "git+https://github.com/LNP-BP/client_side_validation?branch=v0.12#293358fda9b848a5ec2a7cfd0b49bf8c5f49a017"
 dependencies = [
  "amplify",
  "commit_encoding_derive",
@@ -677,7 +675,7 @@ dependencies = [
 [[package]]
 name = "rgb-core"
 version = "0.12.0-beta.3"
-source = "git+https://github.com/RGB-WG/rgb-core?branch=v0.12#e422aa37d51099f0015575c507b4da133a26df6b"
+source = "git+https://github.com/RGB-WG/rgb-core?branch=v0.12#8e59e169503598adea8ecf8109c632da366a4831"
 dependencies = [
  "amplify",
  "bp-core",
@@ -793,7 +791,7 @@ checksum = "46f859dbbf73865c6627ed570e78961cd3ac92407a2d117204c49232485da55e"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.90",
+ "syn 2.0.91",
 ]
 
 [[package]]
@@ -860,7 +858,7 @@ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 [[package]]
 name = "single_use_seals"
 version = "0.12.0-beta.1"
-source = "git+https://github.com/LNP-BP/client_side_validation?branch=v0.12#b5ea9abeec487436ceb8d2e572a8e34305fd5d70"
+source = "git+https://github.com/LNP-BP/client_side_validation?branch=v0.12#293358fda9b848a5ec2a7cfd0b49bf8c5f49a017"
 dependencies = [
  "serde",
  "strict_encoding",
@@ -958,9 +956,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.90"
+version = "2.0.91"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "919d3b74a5dd0ccd15aeb8f93e7006bd9e14c295087c9896a110f490752bcf31"
+checksum = "d53cbcb5a243bd33b7858b1d7f4aca2153490815872d86d955d6ea29f743c035"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -984,7 +982,7 @@ checksum = "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.90",
+ "syn 2.0.91",
 ]
 
 [[package]]
@@ -1113,7 +1111,7 @@ dependencies = [
  "log",
  "proc-macro2",
  "quote",
- "syn 2.0.90",
+ "syn 2.0.91",
  "wasm-bindgen-shared",
 ]
 
@@ -1148,7 +1146,7 @@ checksum = "30d7a95b763d3c45903ed6c81f156801839e5ee968bb07e534c44df0fcd330c2"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.90",
+ "syn 2.0.91",
  "wasm-bindgen-backend",
  "wasm-bindgen-shared",
 ]
@@ -1181,7 +1179,7 @@ checksum = "54171416ce73aa0b9c377b51cc3cb542becee1cd678204812e8392e5b0e4a031"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.90",
+ "syn 2.0.91",
 ]
 
 [[package]]
@@ -1312,7 +1310,7 @@ checksum = "fa4f8080344d4671fb4e831a13ad1e68092748387dfc4f55e356242fae12ce3e"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.90",
+ "syn 2.0.91",
 ]
 
 [[package]]

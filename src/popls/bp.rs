@@ -28,7 +28,7 @@
 use alloc::collections::{btree_set, BTreeMap, BTreeSet};
 
 use amplify::confinement::{SmallOrdMap, SmallOrdSet, SmallVec};
-use amplify::{confinement, Bytes32, Wrapper};
+use amplify::{confinement, ByteArray, Bytes32, Wrapper};
 use bp::dbc::opret::OpretProof;
 use bp::dbc::tapret::TapretProof;
 use bp::seals::{mmb, Anchor, TxoSeal};
@@ -170,6 +170,13 @@ pub struct PrefabBundle(SmallOrdSet<Prefab>);
 
 impl StrictSerialize for PrefabBundle {}
 impl StrictDeserialize for PrefabBundle {}
+
+impl IntoIterator for PrefabBundle {
+    type Item = Prefab;
+    type IntoIter = btree_set::IntoIter<Prefab>;
+
+    fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
+}
 
 impl<'a> IntoIterator for &'a PrefabBundle {
     type Item = &'a Prefab;
@@ -424,7 +431,7 @@ impl<
                             .iter()
                             .position(|p| p == prevout)
                             .expect("PSBT misses one of operation inputs");
-                        (pos as u32, opid.into_inner())
+                        (pos as u32, mmb::Message::from_byte_array(opid.to_byte_array()))
                     })),
                 },
                 mpc_protocol: protocol_id,

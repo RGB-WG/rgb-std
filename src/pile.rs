@@ -25,7 +25,7 @@
 use amplify::confinement::SmallVec;
 use hypersonic::aora::Aora;
 use hypersonic::Opid;
-use rgb::SonicSeal;
+use rgb::{ClientSideWitness, SonicSeal};
 use single_use_seals::{PublishedWitness, SealWitness, SingleUseSeal};
 
 pub trait Index<K, V> {
@@ -65,12 +65,20 @@ pub trait Pile {
     fn append(
         &mut self,
         opid: Opid,
-        anchor: &<Self::Seal as SingleUseSeal>::CliWitness,
+        anchor: <Self::Seal as SingleUseSeal>::CliWitness,
         published: &<Self::Seal as SingleUseSeal>::PubWitness,
     ) {
         let pubid = published.pub_id();
         self.index_mut().add(opid, pubid);
-        self.hoard_mut().append(pubid, &anchor);
+        if self.hoard_mut().has(pubid) {
+            let mut prev_anchor = self.hoard_mut().read(pubid);
+            if prev_anchor != anchor {
+                prev_anchor.merge(anchor).expect("Invalid anchor");
+                self.hoard_mut().append(pubid, &prev_anchor);
+            }
+        } else {
+            self.hoard_mut().append(pubid, &anchor);
+        }
         self.cache_mut().append(pubid, &published);
     }
 }
