@@ -404,7 +404,12 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> ContractApi<P::Seal> for Stockpi
 
     fn memory(&self) -> &impl Memory { &self.stock.state().raw }
 
-    fn apply_operation(&mut self, op: OperationSeals<P::Seal>) { self.stock.apply(op.operation); }
+    fn apply_operation(&mut self, op: OperationSeals<P::Seal>) {
+        self.pile
+            .keep_mut()
+            .append(op.operation.opid(), &op.defined_seals);
+        self.stock.apply(op.operation);
+    }
 
     fn apply_witness(&mut self, opid: Opid, witness: SealWitness<P::Seal>) {
         self.pile.append(opid, witness.client, &witness.published);
