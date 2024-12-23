@@ -25,7 +25,7 @@
 use amplify::confinement::SmallVec;
 use hypersonic::aora::Aora;
 use hypersonic::Opid;
-use rgb::{ClientSideWitness, SonicSeal};
+use rgb::{ClientSideWitness, RgbSeal};
 use single_use_seals::{PublishedWitness, SealWitness, SingleUseSeal};
 
 pub trait Index<K, V> {
@@ -35,7 +35,7 @@ pub trait Index<K, V> {
 }
 
 pub trait Pile {
-    type Seal: SonicSeal;
+    type Seal: RgbSeal;
     type Hoard: Aora<
         Id = <<Self::Seal as SingleUseSeal>::PubWitness as PublishedWitness<Self::Seal>>::PubId,
         Item = <Self::Seal as SingleUseSeal>::CliWitness,
@@ -169,7 +169,7 @@ pub mod fs {
         }
     }
 
-    pub struct FilePile<Seal: SonicSeal>
+    pub struct FilePile<Seal: RgbSeal>
     where <Seal::PubWitness as PublishedWitness<Seal>>::PubId:
             Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>
     {
@@ -179,7 +179,7 @@ pub mod fs {
         index: FileIndex<<<Seal as SingleUseSeal>::PubWitness as PublishedWitness<Seal>>::PubId>,
     }
 
-    impl<Seal: SonicSeal> FilePile<Seal>
+    impl<Seal: RgbSeal> FilePile<Seal>
     where <Seal::PubWitness as PublishedWitness<Seal>>::PubId:
             Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>
     {
@@ -198,7 +198,7 @@ pub mod fs {
         }
     }
 
-    impl<Seal: SonicSeal> FilePile<Seal>
+    impl<Seal: RgbSeal> FilePile<Seal>
     where <Seal::PubWitness as PublishedWitness<Seal>>::PubId:
             Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>
     {
@@ -216,7 +216,7 @@ pub mod fs {
         }
     }
 
-    impl<Seal: SonicSeal> Pile for FilePile<Seal>
+    impl<Seal: RgbSeal> Pile for FilePile<Seal>
     where
         Seal::CliWitness: StrictEncode + StrictDecode,
         Seal::PubWitness: StrictEncode + StrictDecode,

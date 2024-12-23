@@ -40,8 +40,8 @@ use hypersonic::{
     StateAtom, StateName, Stock, Supply,
 };
 use rgb::{
-    ContractApi, ContractVerify, OperationSeals, ReadOperation, ReadWitness, SealAuthToken,
-    SealType, SonicSeal, Step, VerificationError,
+    ContractApi, ContractVerify, OperationSeals, ReadOperation, ReadWitness, RgbSeal,
+    SealAuthToken, SealType, Step, VerificationError,
 };
 use single_use_seals::{PublishedWitness, SealWitness, SingleUseSeal};
 use strict_encoding::{
@@ -66,7 +66,7 @@ pub enum EitherSeal<Seal> {
 
 impl<Seal> EitherSeal<Seal> {
     pub fn auth_token(&self) -> AuthToken
-    where Seal: SonicSeal {
+    where Seal: RgbSeal {
         match self {
             EitherSeal::Known(seal) => seal.auth_token(),
             EitherSeal::External(auth) => *auth,
@@ -335,13 +335,13 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Stockpile<S, P, CAPS> {
     }
 }
 
-pub struct OpReader<'r, Seal: SonicSeal, R: ReadRaw, F: FnMut(&[StateCell]) -> Vec<Seal>> {
+pub struct OpReader<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&[StateCell]) -> Vec<Seal>> {
     stream: &'r mut StrictReader<R>,
     seal_resolver: F,
     _phantom: PhantomData<Seal>,
 }
 
-impl<'r, Seal: SonicSeal, R: ReadRaw, F: FnMut(&[StateCell]) -> Vec<Seal>> ReadOperation
+impl<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&[StateCell]) -> Vec<Seal>> ReadOperation
     for OpReader<'r, Seal, R, F>
 {
     type Seal = Seal;
@@ -369,12 +369,12 @@ impl<'r, Seal: SonicSeal, R: ReadRaw, F: FnMut(&[StateCell]) -> Vec<Seal>> ReadO
     }
 }
 
-pub struct WitnessReader<'r, Seal: SonicSeal, R: ReadRaw, F: FnMut(&[StateCell]) -> Vec<Seal>> {
+pub struct WitnessReader<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&[StateCell]) -> Vec<Seal>> {
     left: u64,
     parent: OpReader<'r, Seal, R, F>,
 }
 
-impl<'r, Seal: SonicSeal, R: ReadRaw, F: FnMut(&[StateCell]) -> Vec<Seal>> ReadWitness
+impl<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&[StateCell]) -> Vec<Seal>> ReadWitness
     for WitnessReader<'r, Seal, R, F>
 {
     type Seal = Seal;
@@ -413,7 +413,7 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> ContractApi<P::Seal> for Stockpi
 
 #[derive(Display, From)]
 #[display(inner)]
-pub enum ConsumeError<Seal: SonicSeal> {
+pub enum ConsumeError<Seal: RgbSeal> {
     #[from]
     #[from(io::Error)]
     Io(IoError),
@@ -439,7 +439,7 @@ mod fs {
     use super::*;
     use crate::FilePile;
 
-    impl<Seal: SonicSeal, const CAPS: u32> Stockpile<FileSupply, FilePile<Seal>, CAPS>
+    impl<Seal: RgbSeal, const CAPS: u32> Stockpile<FileSupply, FilePile<Seal>, CAPS>
     where
         Seal::CliWitness: StrictEncode + StrictDecode,
         Seal::PubWitness: StrictEncode + StrictDecode,

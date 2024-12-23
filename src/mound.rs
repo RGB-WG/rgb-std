@@ -208,19 +208,19 @@ pub mod file {
 
     use hypersonic::expect::Expect;
     use hypersonic::FileSupply;
-    use rgb::SonicSeal;
+    use rgb::RgbSeal;
     use single_use_seals::PublishedWitness;
     use strict_encoding::{StreamWriter, StrictDecode, StrictEncode};
 
     use super::*;
     use crate::FilePile;
 
-    pub struct DirExcavator<Seal: SonicSeal, const CAPS: u32> {
+    pub struct DirExcavator<Seal: RgbSeal, const CAPS: u32> {
         dir: PathBuf,
         _phantom: PhantomData<Seal>,
     }
 
-    impl<Seal: SonicSeal, const CAPS: u32> DirExcavator<Seal, CAPS> {
+    impl<Seal: RgbSeal, const CAPS: u32> DirExcavator<Seal, CAPS> {
         pub fn new(dir: PathBuf) -> Self { Self { dir, _phantom: PhantomData } }
 
         fn contents(&mut self) -> impl Iterator<Item = (FileType, PathBuf)> {
@@ -234,7 +234,7 @@ pub mod file {
         }
     }
 
-    impl<Seal: SonicSeal, const CAPS: u32> Excavate<FileSupply, FilePile<Seal>, CAPS>
+    impl<Seal: RgbSeal, const CAPS: u32> Excavate<FileSupply, FilePile<Seal>, CAPS>
         for DirExcavator<Seal, CAPS>
     where
         Seal::CliWitness: StrictEncode + StrictDecode,
@@ -277,7 +277,7 @@ pub mod file {
     pub type FileMound<Seal, const CAPS: u32> =
         Mound<FileSupply, FilePile<Seal>, DirExcavator<Seal, CAPS>, CAPS>;
 
-    impl<Seal: SonicSeal, const CAPS: u32> FileMound<Seal, CAPS>
+    impl<Seal: RgbSeal, const CAPS: u32> FileMound<Seal, CAPS>
     where
         Seal::CliWitness: StrictEncode + StrictDecode,
         Seal::PubWitness: StrictEncode + StrictDecode,

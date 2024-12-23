@@ -31,12 +31,12 @@ use std::{fs, io};
 use amplify::confinement::SmallVec;
 use hypersonic::aora::Aora;
 use hypersonic::{Articles, ContractId, FileSupply, Operation};
-use rgb::{FilePile, Index, Pile, PublishedWitness, SealWitness, SonicSeal, Stockpile};
+use rgb::{FilePile, Index, Pile, PublishedWitness, RgbSeal, SealWitness, Stockpile};
 use serde::{Deserialize, Serialize};
 use strict_encoding::{DecodeError, StreamReader, StrictDecode, StrictEncode, StrictReader};
 
 // TODO: Auto-compute seal type out of the articles data
-pub fn dump_stockpile<Seal: SonicSeal, const CAPS: u32>(
+pub fn dump_stockpile<Seal: RgbSeal, const CAPS: u32>(
     src: &Path,
     dst: impl AsRef<Path>,
 ) -> anyhow::Result<()>
@@ -115,7 +115,7 @@ where
 }
 
 // TODO: Auto-compute seal type out of the articles data
-pub fn dump_consignment<Seal: SonicSeal, const CAPS: u32>(
+pub fn dump_consignment<Seal: RgbSeal, const CAPS: u32>(
     src: &Path,
     dst: impl AsRef<Path>,
 ) -> anyhow::Result<()>
