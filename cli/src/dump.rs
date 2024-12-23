@@ -29,9 +29,15 @@ use std::path::Path;
 use std::{fs, io};
 
 use amplify::confinement::SmallVec;
+use amplify::hex::ToHex;
+use amplify::Bytes16;
+use commit_verify::ReservedBytes;
 use hypersonic::aora::Aora;
 use hypersonic::{Articles, ContractId, FileSupply, Operation};
-use rgb::{FilePile, Index, Pile, PublishedWitness, RgbSeal, SealWitness, Stockpile};
+use rgb::{
+    ConsumeError, FilePile, Index, Pile, PublishedWitness, RgbSeal, SealWitness, Stockpile,
+    MAGIC_BYTES_CONSIGNMENT,
+};
 use serde::{Deserialize, Serialize};
 use strict_encoding::{DecodeError, StreamReader, StrictDecode, StrictEncode, StrictReader};
 
@@ -132,8 +138,17 @@ where
     let file = File::open(src)?;
     let mut stream = StrictReader::with(StreamReader::new::<{ usize::MAX }>(file));
 
-    let cointract_id = ContractId::strict_decode(&mut stream)?;
-    println!("Dumping consignment for {} into '{}'", cointract_id, dst.display());
+    let magic_bytes = Bytes16::strict_decode(&mut stream)?;
+    if magic_bytes.to_byte_array() != MAGIC_BYTES_CONSIGNMENT {
+        return Err(anyhow!(
+            ConsumeError::<Seal>::UnrecognizedMagic(magic_bytes.to_hex()).to_string()
+        ));
+    }
+    // Version
+    ReservedBytes::<2>::strict_decode(&mut stream)?;
+
+    let contract_id = ContractId::strict_decode(&mut stream)?;
+    println!("Dumping consignment for {} into '{}'", contract_id, dst.display());
 
     let mut op_count = 1;
     let mut seal_count = 0;

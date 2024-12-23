@@ -715,6 +715,7 @@ dependencies = [
  "amplify",
  "anyhow",
  "clap",
+ "commit_verify",
  "hypersonic",
  "rgb-std",
  "serde",

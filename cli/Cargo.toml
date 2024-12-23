@@ -15,6 +15,7 @@ readme = "../README.md"
 [dependencies]
 amplify.workspace = true
 strict_encoding.workspace = true
+commit_verify.workspace = true
 hypersonic.workspace = true
 rgb-std = { workspace = true, features = ["fs", "serde"] }
 serde.workspace = true

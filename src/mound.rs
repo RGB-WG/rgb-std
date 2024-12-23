@@ -26,6 +26,9 @@ use alloc::collections::BTreeMap;
 use core::borrow::Borrow;
 use std::io;
 
+use amplify::hex::ToHex;
+use amplify::Bytes16;
+use commit_verify::ReservedBytes;
 use hypersonic::expect::Expect;
 use hypersonic::{AuthToken, CellAddr, CodexId, ContractId, Opid, Schema, Supply};
 use single_use_seals::{PublishedWitness, SingleUseSeal};
@@ -34,6 +37,8 @@ use strict_encoding::{
 };
 
 use crate::{ConsumeError, ContractInfo, CreateParams, Pile, StateCell, Stockpile};
+
+pub const MAGIC_BYTES_CONSIGNMENT: [u8; 16] = *b"RGB CONSIGNMENT\0";
 
 pub trait Excavate<S: Supply<CAPS>, P: Pile, const CAPS: u32> {
     fn schemata(&mut self) -> impl Iterator<Item = (CodexId, Schema)>;
@@ -174,6 +179,9 @@ impl<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS>, const CAPS: u32> Mound<S
         <P::Seal as SingleUseSeal>::PubWitness: StrictDumb + StrictEncode,
         <<P::Seal as SingleUseSeal>::PubWitness as PublishedWitness<P::Seal>>::PubId: StrictEncode,
     {
+        writer = MAGIC_BYTES_CONSIGNMENT.strict_encode(writer)?;
+        // Version
+        writer = 0x00u16.strict_encode(writer)?;
         writer = contract_id.strict_encode(writer)?;
         self.contract_mut(contract_id).consign(terminals, writer)
     }
@@ -188,6 +196,12 @@ impl<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS>, const CAPS: u32> Mound<S
         <P::Seal as SingleUseSeal>::PubWitness: StrictDecode,
         <<P::Seal as SingleUseSeal>::PubWitness as PublishedWitness<P::Seal>>::PubId: StrictDecode,
     {
+        let magic_bytes = Bytes16::strict_decode(reader)?;
+        if magic_bytes.to_byte_array() != MAGIC_BYTES_CONSIGNMENT {
+            return Err(ConsumeError::UnrecognizedMagic(magic_bytes.to_hex()));
+        }
+        // Version
+        ReservedBytes::<2>::strict_decode(reader)?;
         let contract_id = ContractId::strict_decode(reader)?;
         let contract = if self.has_contract(contract_id) {
             self.contract_mut(contract_id)

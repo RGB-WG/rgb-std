@@ -419,6 +419,9 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> ContractApi<P::Seal> for Stockpi
 #[derive(Display, From)]
 #[display(inner)]
 pub enum ConsumeError<Seal: RgbSeal> {
+    #[display("unrecognized magic bytes in consignment stream ({0})")]
+    UnrecognizedMagic(String),
+
     #[from]
     #[from(io::Error)]
     Io(IoError),
