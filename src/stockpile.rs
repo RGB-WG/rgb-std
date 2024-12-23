@@ -31,11 +31,13 @@ use std::io;
 use amplify::confinement::SmallVec;
 use amplify::IoError;
 use chrono::{DateTime, Utc};
+use commit_verify::ReservedBytes;
 use hypersonic::aora::Aora;
+use hypersonic::sigs::ContentSigs;
 use hypersonic::{
-    Articles, AuthToken, CellAddr, Codex, CodexId, ContractId, CoreParams, DataCell, IssueParams,
-    LibRepo, Memory, MergeError, MethodName, NamedState, Operation, Opid, Schema, StateAtom,
-    StateName, Stock, Supply,
+    Articles, AuthToken, CellAddr, Codex, CodexId, Contract, ContractId, CoreParams, DataCell,
+    IssueParams, LibRepo, Memory, MergeError, MethodName, NamedState, Operation, Opid, Schema,
+    StateAtom, StateName, Stock, Supply,
 };
 use rgb::{
     ContractApi, ContractVerify, OperationSeals, ReadOperation, ReadWitness, SealType, SonicSeal,
@@ -48,7 +50,7 @@ use strict_encoding::{
 };
 use strict_types::StrictVal;
 
-use crate::Pile;
+use crate::{ContractMeta, Pile};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, From)]
 #[cfg_attr(
@@ -307,23 +309,26 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Stockpile<S, P, CAPS> {
         <P::Seal as SingleUseSeal>::PubWitness: StrictDecode,
         <<P::Seal as SingleUseSeal>::PubWitness as PublishedWitness<P::Seal>>::PubId: StrictDecode,
     {
-        let articles = Articles::<CAPS>::strict_decode(stream)?;
-        let genesis_opid = articles.contract.genesis_opid();
-        self.stock.merge_articles(articles)?;
-        let defined_seals = SmallVec::strict_decode(stream)?;
-        self.pile.keep_mut().append(genesis_opid, &defined_seals);
-        let count = u64::strict_decode(stream)?;
-        // Genesis must have no witness
-        if count != 0 {
-            return Err(ConsumeError::Decode(DecodeError::DataIntegrityError(s!(
-                "contract genesis must have no witnesses"
-            ))));
-        }
+        // TODO: Add version
+
+        // We need to read articles field by field since we have to evaluate genesis separately
+        let schema = Schema::strict_decode(stream)?;
+        let contract_sigs = ContentSigs::strict_decode(stream)?;
+        let codex_version = ReservedBytes::<2>::strict_decode(stream)?;
+        let meta = ContractMeta::<CAPS>::strict_decode(stream)?;
+        let codex = Codex::strict_decode(stream)?;
 
         // We need to clone due to a borrow checker.
         let op_reader = OpReader { stream, _phantom: PhantomData };
         self.evaluate(op_reader)?;
 
+        let genesis = self.stock.articles().contract.genesis.clone();
+        let articles = Articles::<CAPS> {
+            contract: Contract { version: codex_version, meta, codex, genesis },
+            contract_sigs,
+            schema,
+        };
+        self.stock.merge_articles(articles)?;
         self.stock.complete_update();
         Ok(())
     }
@@ -367,10 +372,10 @@ impl<'r, Seal: SonicSeal, R: ReadRaw> ReadWitness for WitnessReader<'r, Seal, R>
     type OpReader = OpReader<'r, Seal, R>;
 
     fn read_witness(mut self) -> Step<(SealWitness<Self::Seal>, Self), Self::OpReader> {
-        self.left -= 1;
         if self.left == 0 {
             return Step::Complete(self.parent);
         }
+        self.left -= 1;
         match SealWitness::strict_decode(self.parent.stream) {
             Ok(witness) => Step::Next((witness, self)),
             Err(e) => {

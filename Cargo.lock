@@ -488,7 +488,7 @@ dependencies = [
 [[package]]
 name = "hypersonic"
 version = "0.12.0-beta.1"
-source = "git+https://github.com/AluVM/sonic#ad79a795fa4e5e4b651d2655d2dd88ae7781b8ee"
+source = "git+https://github.com/AluVM/sonic#2d6bb980ff2cbd242b888c01199b0d9850092253"
 dependencies = [
  "aluvm",
  "amplify",
@@ -867,7 +867,7 @@ dependencies = [
 [[package]]
 name = "sonic-api"
 version = "0.12.0-beta.1"
-source = "git+https://github.com/AluVM/sonic#ad79a795fa4e5e4b651d2655d2dd88ae7781b8ee"
+source = "git+https://github.com/AluVM/sonic#2d6bb980ff2cbd242b888c01199b0d9850092253"
 dependencies = [
  "aluvm",
  "amplify",
@@ -1028,7 +1028,7 @@ checksum = "42ff0bf0c66b8238c6f3b578df37d0b7848e55df8577b3f74f92a69acceeb825"
 [[package]]
 name = "ultrasonic"
 version = "0.12.0-beta.2"
-source = "git+https://github.com/AluVM/ultrasonic#178a7b83a4ba6e5657210e7261b1075de79576b7"
+source = "git+https://github.com/AluVM/ultrasonic#1b20385acdfa8558143223c202fc42f0884c2739"
 dependencies = [
  "amplify",
  "baid64",
