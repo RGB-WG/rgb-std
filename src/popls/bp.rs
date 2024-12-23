@@ -450,6 +450,7 @@ impl<
         self.mound.attest(witness, iter);
     }
 
+    #[allow(clippy::result_large_err)]
     pub fn consume(
         &mut self,
         reader: &mut StrictReader<impl ReadRaw>,

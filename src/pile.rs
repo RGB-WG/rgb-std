@@ -79,7 +79,7 @@ pub trait Pile {
         } else {
             self.hoard_mut().append(pubid, &anchor);
         }
-        self.cache_mut().append(pubid, &published);
+        self.cache_mut().append(pubid, published);
     }
 }
 

@@ -42,12 +42,12 @@ use serde::{Deserialize, Serialize};
 use strict_encoding::{DecodeError, StreamReader, StrictDecode, StrictEncode, StrictReader};
 
 // TODO: Auto-compute seal type out of the articles data
-pub fn dump_stockpile<Seal: RgbSeal, const CAPS: u32>(
+pub fn dump_stockpile<Seal, const CAPS: u32>(
     src: &Path,
     dst: impl AsRef<Path>,
 ) -> anyhow::Result<()>
 where
-    Seal: Serialize,
+    Seal: RgbSeal + Serialize,
     Seal::CliWitness: Serialize + StrictEncode + StrictDecode,
     Seal::PubWitness: Serialize + StrictEncode + StrictDecode,
     <Seal::PubWitness as PublishedWitness<Seal>>::PubId:
@@ -121,12 +121,12 @@ where
 }
 
 // TODO: Auto-compute seal type out of the articles data
-pub fn dump_consignment<Seal: RgbSeal, const CAPS: u32>(
+pub fn dump_consignment<Seal, const CAPS: u32>(
     src: &Path,
     dst: impl AsRef<Path>,
 ) -> anyhow::Result<()>
 where
-    Seal: Serialize,
+    Seal: RgbSeal + Serialize,
     Seal::CliWitness: Serialize + for<'de> Deserialize<'de> + StrictEncode + StrictDecode,
     Seal::PubWitness: Serialize + for<'de> Deserialize<'de> + StrictEncode + StrictDecode,
     <Seal::PubWitness as PublishedWitness<Seal>>::PubId:
