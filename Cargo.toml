@@ -3,7 +3,7 @@ members = [".", "cli"]
 default-members = ["."]
 
 [workspace.package]
-version = "0.12.0-alpha.1"
+version = "0.12.0-beta.4"
 keywords = ["bitcoin", "lightning", "rgb", "smart-contracts", "lnp-bp"]
 categories = ["cryptography::cryptocurrencies"]
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
@@ -17,12 +17,12 @@ license = "Apache-2.0"
 amplify = "4.8.0"
 strict_encoding = "2.8.1"
 strict_types = "2.8.1"
-commit_verify = "0.12.0-beta.1"
-single_use_seals = "0.12.0-beta.1"
-hypersonic = "0.12.0-beta.1"
-bp-core = "0.12.0-beta.2"
-rgb-core = "0.12.0-beta.3"
-rgb-std = { version = "0.12.0-alpha.1", path = "." }
+commit_verify = "=0.12.0-beta.4"
+single_use_seals = "=0.12.0-beta.4"
+hypersonic = "=0.12.0-beta.4"
+bp-core = "=0.12.0-beta.4"
+rgb-core = "=0.12.0-beta.4"
+rgb-std = { version = "=0.12.0-beta.4", path = "." }
 chrono = "0.4.39"
 serde = "1.0.215"
 
@@ -92,11 +92,3 @@ wasm-bindgen-test = "0.3"
 
 [package.metadata.docs.rs]
 features = ["all"]
-
-[patch.crates-io]
-ultrasonic = { git = "https://github.com/AluVM/ultrasonic" }
-hypersonic = { git = "https://github.com/AluVM/sonic" }
-commit_verify = { git = "https://github.com/LNP-BP/client_side_validation", branch = "v0.12" }
-single_use_seals = { git = "https://github.com/LNP-BP/client_side_validation", branch = "v0.12" }
-bp-core = { git = "https://github.com/BP-WG/bp-core", branch = "v0.12" }
-rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "v0.12" }
