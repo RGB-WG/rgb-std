@@ -213,6 +213,7 @@ impl<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS>, const CAPS: u32> Mound<S
     }
 }
 
+#[cfg(feature = "fs")]
 pub mod file {
     use std::ffi::OsStr;
     use std::fs;

@@ -30,7 +30,6 @@ use alloc::collections::{btree_set, BTreeMap, BTreeSet};
 use amplify::confinement::{SmallOrdMap, SmallOrdSet, SmallVec};
 use amplify::{confinement, ByteArray, Bytes32, Wrapper};
 use bp::dbc::opret::OpretProof;
-use bp::dbc::tapret::TapretProof;
 use bp::seals::{mmb, Anchor, TxoSeal, TxoSealDef};
 use bp::{dbc, Outpoint, Tx, Vout};
 use commit_verify::mpc::ProtocolId;
@@ -38,7 +37,7 @@ use commit_verify::{mpc, Digest, DigestExt, Sha256};
 use hypersonic::aora::Aora;
 use hypersonic::{
     AuthToken, CallParams, CellAddr, ContractId, CoreParams, DataCell, MethodName, NamedState,
-    Operation, Schema, StateAtom, StateCalc, StateName, Supply,
+    Operation, StateAtom, StateCalc, StateName, Supply,
 };
 use rgb::SealAuthToken;
 use strict_encoding::{ReadRaw, StrictDecode, StrictDeserialize, StrictReader, StrictSerialize};
@@ -464,13 +463,15 @@ impl<
     }
 }
 
+#[cfg(feature = "fs")]
 pub mod file {
     use std::ffi::OsStr;
     use std::fs::File;
     use std::path::Path;
     use std::{fs, io, iter};
 
-    use hypersonic::{CodexId, FileSupply};
+    use bp::dbc::tapret::TapretProof;
+    use hypersonic::{CodexId, FileSupply, Schema};
     #[cfg(feature = "bitcoin")]
     use rgb::{BITCOIN_OPRET, BITCOIN_TAPRET};
     #[cfg(feature = "liquid")]
