@@ -33,7 +33,7 @@ use strict_encoding::{
     ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter, WriteRaw,
 };
 
-use crate::{ConsumeError, ContractInfo, CreateParams, Pile, Stockpile};
+use crate::{ConsumeError, ContractInfo, CreateParams, Pile, StateCell, Stockpile};
 
 pub trait Excavate<S: Supply<CAPS>, P: Pile, const CAPS: u32> {
     fn schemata(&mut self) -> impl Iterator<Item = (CodexId, Schema)>;
@@ -181,6 +181,7 @@ impl<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS>, const CAPS: u32> Mound<S
     pub fn consume(
         &mut self,
         reader: &mut StrictReader<impl ReadRaw>,
+        seal_resolver: impl FnMut(&[StateCell]) -> Vec<P::Seal>,
     ) -> Result<(), ConsumeError<P::Seal>>
     where
         <P::Seal as SingleUseSeal>::CliWitness: StrictDecode,
@@ -194,7 +195,7 @@ impl<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS>, const CAPS: u32> Mound<S
             // TODO: Create new contract
             todo!()
         };
-        contract.consume(reader)
+        contract.consume(reader, seal_resolver)
     }
 }
 
@@ -209,7 +210,7 @@ pub mod file {
     use hypersonic::FileSupply;
     use rgb::SonicSeal;
     use single_use_seals::PublishedWitness;
-    use strict_encoding::{StreamReader, StreamWriter, StrictDecode, StrictEncode};
+    use strict_encoding::{StreamWriter, StrictDecode, StrictEncode};
 
     use super::*;
     use crate::FilePile;
@@ -310,20 +311,6 @@ pub mod file {
             let file = File::create_new(path)?;
             let writer = StrictWriter::with(StreamWriter::new::<{ usize::MAX }>(file));
             self.consign(contract_id, terminals, writer)
-        }
-
-        pub fn consume_from_file(
-            &mut self,
-            path: impl AsRef<Path>,
-        ) -> Result<(), ConsumeError<Seal>>
-        where
-            Seal::CliWitness: StrictDumb,
-            Seal::PubWitness: StrictDumb,
-            <Seal::PubWitness as PublishedWitness<Seal>>::PubId: StrictDecode,
-        {
-            let file = File::open(path)?;
-            let mut reader = StrictReader::with(StreamReader::new::<{ usize::MAX }>(file));
-            self.consume(&mut reader)
         }
     }
 }

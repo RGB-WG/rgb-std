@@ -40,8 +40,8 @@ use hypersonic::{
     StateAtom, StateName, Stock, Supply,
 };
 use rgb::{
-    ContractApi, ContractVerify, OperationSeals, ReadOperation, ReadWitness, SealType, SonicSeal,
-    Step, VerificationError,
+    ContractApi, ContractVerify, OperationSeals, ReadOperation, ReadWitness, SealAuthToken,
+    SealType, SonicSeal, Step, VerificationError,
 };
 use single_use_seals::{PublishedWitness, SealWitness, SingleUseSeal};
 use strict_encoding::{
@@ -50,7 +50,7 @@ use strict_encoding::{
 };
 use strict_types::StrictVal;
 
-use crate::{ContractMeta, Pile};
+use crate::{ContractMeta, Pile, StateCell};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, From)]
 #[cfg_attr(
@@ -303,6 +303,7 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Stockpile<S, P, CAPS> {
     pub fn consume(
         &mut self,
         stream: &mut StrictReader<impl ReadRaw>,
+        seal_resolver: impl FnMut(&[StateCell]) -> Vec<P::Seal>,
     ) -> Result<(), ConsumeError<P::Seal>>
     where
         <P::Seal as SingleUseSeal>::CliWitness: StrictDecode,
@@ -319,7 +320,7 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Stockpile<S, P, CAPS> {
         let codex = Codex::strict_decode(stream)?;
 
         // We need to clone due to a borrow checker.
-        let op_reader = OpReader { stream, _phantom: PhantomData };
+        let op_reader = OpReader { stream, seal_resolver, _phantom: PhantomData };
         self.evaluate(op_reader)?;
 
         let genesis = self.stock.articles().contract.genesis.clone();
@@ -334,20 +335,26 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Stockpile<S, P, CAPS> {
     }
 }
 
-pub struct OpReader<'r, Seal: SonicSeal, R: ReadRaw> {
+pub struct OpReader<'r, Seal: SonicSeal, R: ReadRaw, F: FnMut(&[StateCell]) -> Vec<Seal>> {
     stream: &'r mut StrictReader<R>,
+    seal_resolver: F,
     _phantom: PhantomData<Seal>,
 }
 
-impl<'r, Seal: SonicSeal, R: ReadRaw> ReadOperation for OpReader<'r, Seal, R> {
+impl<'r, Seal: SonicSeal, R: ReadRaw, F: FnMut(&[StateCell]) -> Vec<Seal>> ReadOperation
+    for OpReader<'r, Seal, R, F>
+{
     type Seal = Seal;
-    type WitnessReader = WitnessReader<'r, Seal, R>;
+    type WitnessReader = WitnessReader<'r, Seal, R, F>;
 
-    fn read_operation(self) -> Option<(OperationSeals<Self::Seal>, Self::WitnessReader)> {
+    fn read_operation(mut self) -> Option<(OperationSeals<Self::Seal>, Self::WitnessReader)> {
         match Operation::strict_decode(self.stream) {
             Ok(operation) => {
-                let defined_seals = SmallVec::strict_decode(self.stream)
+                let mut defined_seals = SmallVec::strict_decode(self.stream)
                     .expect("Failed to read consignment stream");
+                defined_seals
+                    .extend((self.seal_resolver)(operation.destructible.as_ref()))
+                    .expect("Too many seals defined in the operation");
                 let op_seals = OperationSeals { operation, defined_seals };
                 let count =
                     u64::strict_decode(self.stream).expect("Failed to read consignment stream");
@@ -362,14 +369,16 @@ impl<'r, Seal: SonicSeal, R: ReadRaw> ReadOperation for OpReader<'r, Seal, R> {
     }
 }
 
-pub struct WitnessReader<'r, Seal: SonicSeal, R: ReadRaw> {
+pub struct WitnessReader<'r, Seal: SonicSeal, R: ReadRaw, F: FnMut(&[StateCell]) -> Vec<Seal>> {
     left: u64,
-    parent: OpReader<'r, Seal, R>,
+    parent: OpReader<'r, Seal, R, F>,
 }
 
-impl<'r, Seal: SonicSeal, R: ReadRaw> ReadWitness for WitnessReader<'r, Seal, R> {
+impl<'r, Seal: SonicSeal, R: ReadRaw, F: FnMut(&[StateCell]) -> Vec<Seal>> ReadWitness
+    for WitnessReader<'r, Seal, R, F>
+{
     type Seal = Seal;
-    type OpReader = OpReader<'r, Seal, R>;
+    type OpReader = OpReader<'r, Seal, R, F>;
 
     fn read_witness(mut self) -> Step<(SealWitness<Self::Seal>, Self), Self::OpReader> {
         if self.left == 0 {
@@ -425,7 +434,7 @@ mod fs {
     use std::path::Path;
 
     use hypersonic::FileSupply;
-    use strict_encoding::{StreamReader, StreamWriter, StrictDecode, StrictDumb, StrictEncode};
+    use strict_encoding::{StreamWriter, StrictDecode, StrictDumb, StrictEncode};
 
     use super::*;
     use crate::FilePile;
@@ -467,20 +476,6 @@ mod fs {
             let file = File::create_new(path)?;
             let writer = StrictWriter::with(StreamWriter::new::<{ usize::MAX }>(file));
             self.consign(terminals, writer)
-        }
-
-        pub fn consume_from_file(
-            &mut self,
-            path: impl AsRef<Path>,
-        ) -> Result<(), ConsumeError<Seal>>
-        where
-            Seal::CliWitness: StrictDumb,
-            Seal::PubWitness: StrictDumb,
-            <Seal::PubWitness as PublishedWitness<Seal>>::PubId: StrictDecode,
-        {
-            let file = File::open(path)?;
-            let mut reader = StrictReader::with(StreamReader::new::<{ usize::MAX }>(file));
-            self.consume(&mut reader)
         }
     }
 }

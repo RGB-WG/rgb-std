@@ -40,12 +40,12 @@ use hypersonic::{
     AuthToken, CallParams, CellAddr, ContractId, CoreParams, DataCell, MethodName, NamedState,
     Operation, Schema, StateAtom, StateCalc, StateName, Supply,
 };
-use rgb::SonicSeal;
-use strict_encoding::{StrictDeserialize, StrictSerialize};
+use rgb::SealAuthToken;
+use strict_encoding::{ReadRaw, StrictDecode, StrictDeserialize, StrictReader, StrictSerialize};
 use strict_types::StrictVal;
 
 use crate::stockpile::{ContractState, EitherSeal};
-use crate::{Assignment, CreateParams, Excavate, Mound, Pile};
+use crate::{Assignment, ConsumeError, CreateParams, Excavate, Mound, Pile};
 
 /// Trait abstracting specific implementation of a bitcoin wallet.
 pub trait WalletProvider {
@@ -53,6 +53,10 @@ pub trait WalletProvider {
     fn has_utxo(&self, outpoint: Outpoint) -> bool;
     fn utxos(&self) -> impl Iterator<Item = Outpoint>;
     fn register_seal(&mut self, seal: TxoSealDef);
+    fn resolve_seals(
+        &self,
+        seals: impl Iterator<Item = AuthToken>,
+    ) -> impl Iterator<Item = TxoSealDef>;
 }
 pub trait OpretProvider: WalletProvider {}
 pub trait TapretProvider: WalletProvider {}
@@ -446,18 +450,32 @@ impl<
         });
         self.mound.attest(witness, iter);
     }
+
+    pub fn consume(
+        &mut self,
+        reader: &mut StrictReader<impl ReadRaw>,
+    ) -> Result<(), ConsumeError<TxoSeal<D>>> {
+        self.mound.consume(reader, |cells| {
+            self.wallet
+                .resolve_seals(cells.iter().map(|cell| cell.auth))
+                .map(TxoSeal::<D>::from_definition)
+                .collect()
+        })
+    }
 }
 
 pub mod file {
     use std::ffi::OsStr;
+    use std::fs::File;
     use std::path::Path;
-    use std::{fs, iter};
+    use std::{fs, io, iter};
 
     use hypersonic::{CodexId, FileSupply};
     #[cfg(feature = "bitcoin")]
     use rgb::{BITCOIN_OPRET, BITCOIN_TAPRET};
     #[cfg(feature = "liquid")]
     use rgb::{LIQUID_OPRET, LIQUID_TAPRET};
+    use strict_encoding::{StreamReader, StrictReader};
 
     use super::*;
     use crate::mound::file::DirExcavator;
@@ -748,6 +766,30 @@ pub mod file {
             let iter = items.into_iter().map(|params| self.prefab(params));
             let items = SmallOrdSet::try_from_iter(iter).expect("too large script");
             PrefabBundle(items)
+        }
+
+        pub fn consume_from_file(&mut self, path: impl AsRef<Path>) -> io::Result<()> {
+            let file = File::open(path)?;
+            let mut reader = StrictReader::with(StreamReader::new::<{ usize::MAX }>(file));
+            match self {
+                #[cfg(feature = "bitcoin")]
+                Self::BcOpret(barrow) => barrow
+                    .consume(&mut reader)
+                    .unwrap_or_else(|err| panic!("Unable to accept a consignment: {err}")),
+                #[cfg(feature = "bitcoin")]
+                Self::BcTapret(barrow) => barrow
+                    .consume(&mut reader)
+                    .unwrap_or_else(|err| panic!("Unable to accept a consignment: {err}")),
+                #[cfg(feature = "liquid")]
+                Self::LqOpret(barrow) => barrow
+                    .consume(&mut reader)
+                    .unwrap_or_else(|err| panic!("Unable to accept a consignment: {err}")),
+                #[cfg(feature = "liquid")]
+                Self::LqTapret(barrow) => barrow
+                    .consume(&mut reader)
+                    .unwrap_or_else(|err| panic!("Unable to accept a consignment: {err}")),
+            }
+            Ok(())
         }
 
         pub fn wallet_tapret(&mut self) -> &mut T {
