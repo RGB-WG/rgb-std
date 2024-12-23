@@ -31,7 +31,7 @@ use amplify::confinement::{SmallOrdMap, SmallOrdSet, SmallVec};
 use amplify::{confinement, ByteArray, Bytes32, Wrapper};
 use bp::dbc::opret::OpretProof;
 use bp::dbc::tapret::TapretProof;
-use bp::seals::{mmb, Anchor, TxoSeal};
+use bp::seals::{mmb, Anchor, TxoSeal, TxoSealDef};
 use bp::{dbc, Outpoint, Tx, Vout};
 use commit_verify::mpc::ProtocolId;
 use commit_verify::{mpc, Digest, DigestExt, Sha256};
@@ -52,6 +52,7 @@ pub trait WalletProvider {
     fn noise_seed(&self) -> Bytes32;
     fn has_utxo(&self, outpoint: Outpoint) -> bool;
     fn utxos(&self) -> impl Iterator<Item = Outpoint>;
+    fn register_seal(&mut self, seal: TxoSealDef);
 }
 pub trait OpretProvider: WalletProvider {}
 pub trait TapretProvider: WalletProvider {}
@@ -236,7 +237,9 @@ impl<
     pub fn auth_token(&mut self, nonce: u64) -> Option<AuthToken> {
         let outpoint = self.wallet.utxos().next()?;
         let seal = TxoSeal::<OpretProof>::no_fallback(outpoint, self.noise_engine(), nonce);
-        Some(seal.auth_token())
+        let auth = seal.auth_token();
+        self.wallet.register_seal(seal.to_definition());
+        Some(auth)
     }
 
     pub fn state(
