@@ -1214,25 +1214,27 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
                 .map_err(|_| ComposeError::TooManyBlanks)?;
         }
 
-        let (first_builder, second_builder) =
+        let (first_builder, first_inputs, second_builder, second_inputs) =
             match (main_builder.has_inputs(), alt_builder.has_inputs()) {
-                (true, true) => (main_builder, Some(alt_builder)),
-                (true, false) => (main_builder, None),
-                (false, true) => (alt_builder, None),
+                (true, true) => (main_builder, main_inputs, Some(alt_builder), alt_inputs),
+                (true, false) => (main_builder, main_inputs, None, alt_inputs),
+                (false, true) => (alt_builder, alt_inputs, None, main_inputs),
                 (false, false) => return Err(ComposeError::InsufficientState.into()),
             };
-        let first = TransitionInfo::new(first_builder.complete_transition()?, main_inputs)
+        let first = TransitionInfo::new(first_builder.complete_transition()?, first_inputs)
             .map_err(|e| {
                 debug_assert!(!matches!(e, TransitionInfoError::CloseMethodDivergence(_)));
                 ComposeError::TooManyInputs
             })?;
         let second = if let Some(second_builder) = second_builder {
-            Some(TransitionInfo::new(second_builder.complete_transition()?, alt_inputs).map_err(
-                |e| {
-                    debug_assert!(!matches!(e, TransitionInfoError::CloseMethodDivergence(_)));
-                    ComposeError::TooManyInputs
-                },
-            )?)
+            Some(
+                TransitionInfo::new(second_builder.complete_transition()?, second_inputs).map_err(
+                    |e| {
+                        debug_assert!(!matches!(e, TransitionInfoError::CloseMethodDivergence(_)));
+                        ComposeError::TooManyInputs
+                    },
+                )?,
+            )
         } else {
             None
         };
