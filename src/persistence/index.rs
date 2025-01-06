@@ -27,7 +27,7 @@ use amplify::confinement;
 use nonasync::persistence::{CloneNoPersistence, Persisting};
 use rgb::{
     Assign, AssignmentType, BundleId, ContractId, ExposedState, Extension, Genesis, GenesisSeal,
-    GraphSeal, OpId, Operation, Opout, TransitionBundle, TypedAssigns, XChain, XOutputSeal,
+    GraphSeal, OpId, Operation, Opout, TransitionBundle, TypedAssigns, XChain, XOutpoint,
     XWitnessId,
 };
 
@@ -99,7 +99,7 @@ pub enum IndexInconsistency {
     BundleAbsent(OpId),
 
     /// outpoint {0} is not part of the contract {1}.
-    OutpointUnknown(XOutputSeal, ContractId),
+    OutpointUnknown(XOutpoint, ContractId),
 
     /// index already contains information about bundle {bundle_id} which
     /// specifies contract {present} instead of contract {expected}.
@@ -297,7 +297,7 @@ impl<P: IndexProvider> Index<P> {
 
     pub(super) fn contracts_assigning(
         &self,
-        outputs: BTreeSet<XOutputSeal>,
+        outputs: BTreeSet<XOutpoint>,
     ) -> Result<impl Iterator<Item = ContractId> + '_, IndexError<P>> {
         self.provider
             .contracts_assigning(outputs)
@@ -314,7 +314,7 @@ impl<P: IndexProvider> Index<P> {
     pub(super) fn opouts_by_outputs(
         &self,
         contract_id: ContractId,
-        outputs: impl IntoIterator<Item = impl Into<XOutputSeal>>,
+        outputs: impl IntoIterator<Item = impl Into<XOutpoint>>,
     ) -> Result<BTreeSet<Opout>, IndexError<P>> {
         Ok(self.provider.opouts_by_outputs(contract_id, outputs)?)
     }
@@ -368,7 +368,7 @@ pub trait IndexReadProvider {
 
     fn contracts_assigning(
         &self,
-        outputs: BTreeSet<XOutputSeal>,
+        outputs: BTreeSet<XOutpoint>,
     ) -> Result<impl Iterator<Item = ContractId> + '_, Self::Error>;
 
     fn public_opouts(
@@ -379,7 +379,7 @@ pub trait IndexReadProvider {
     fn opouts_by_outputs(
         &self,
         contract_id: ContractId,
-        outputs: impl IntoIterator<Item = impl Into<XOutputSeal>>,
+        outputs: impl IntoIterator<Item = impl Into<XOutpoint>>,
     ) -> Result<BTreeSet<Opout>, IndexReadError<Self::Error>>;
 
     fn opouts_by_terminals(

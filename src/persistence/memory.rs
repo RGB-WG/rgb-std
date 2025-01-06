@@ -1273,14 +1273,18 @@ impl IndexReadProvider for MemIndex {
 
     fn contracts_assigning(
         &self,
-        outputs: BTreeSet<XOutputSeal>,
+        outpoints: BTreeSet<XOutpoint>,
     ) -> Result<impl Iterator<Item = ContractId> + '_, Self::Error> {
         Ok(self
             .contract_index
             .iter()
             .flat_map(move |(contract_id, index)| {
-                outputs.clone().into_iter().filter_map(|outpoint| {
-                    if index.outpoint_opouts.contains_key(&outpoint) {
+                outpoints.clone().into_iter().filter_map(|outpoint| {
+                    if index
+                        .outpoint_opouts
+                        .keys()
+                        .any(|seal| seal.to_outpoint() == outpoint)
+                    {
                         Some(*contract_id)
                     } else {
                         None
@@ -1303,17 +1307,19 @@ impl IndexReadProvider for MemIndex {
     fn opouts_by_outputs(
         &self,
         contract_id: ContractId,
-        outputs: impl IntoIterator<Item = impl Into<XOutputSeal>>,
+        outpoints: impl IntoIterator<Item = impl Into<XOutpoint>>,
     ) -> Result<BTreeSet<Opout>, IndexReadError<Self::Error>> {
         let index = self
             .contract_index
             .get(&contract_id)
             .ok_or(IndexInconsistency::ContractAbsent(contract_id))?;
         let mut opouts = BTreeSet::new();
-        for output in outputs.into_iter().map(|o| o.into()) {
+        for output in outpoints.into_iter().map(|o| o.into()) {
             let set = index
                 .outpoint_opouts
-                .get(&output)
+                .iter()
+                .find(|(seal, _)| seal.to_outpoint() == output)
+                .map(|(_, set)| set.to_unconfined())
                 .ok_or(IndexInconsistency::OutpointUnknown(output, contract_id))?;
             opouts.extend(set)
         }

@@ -526,7 +526,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     /// output seals.
     pub fn contracts_assigning(
         &self,
-        outputs: impl IntoIterator<Item = impl Into<XOutputSeal>>,
+        outputs: impl IntoIterator<Item = impl Into<XOutpoint>>,
     ) -> Result<impl Iterator<Item = ContractId> + '_, StockError<S, H, P>> {
         let outputs = outputs
             .into_iter()
