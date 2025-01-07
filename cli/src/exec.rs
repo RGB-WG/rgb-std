@@ -27,7 +27,7 @@ use std::io::stdout;
 
 use rgb::bitcoin::{OpretSeal, TapretSeal};
 use rgb::popls::bp::PrefabBundle;
-use rgb::{SealType, BITCOIN_OPRET, BITCOIN_TAPRET, LIQUID_OPRET, LIQUID_TAPRET};
+use rgb::{Schema, SealType, BITCOIN_OPRET, BITCOIN_TAPRET, LIQUID_OPRET, LIQUID_TAPRET};
 use strict_encoding::StrictDeserialize;
 
 use crate::cmd::{Args, Cmd};
@@ -36,10 +36,35 @@ use crate::dump::{dump_consignment, dump_stockpile};
 impl Args {
     pub fn exec(&self) -> anyhow::Result<()> {
         match &self.command {
+            Cmd::Info { file } => match file.extension() {
+                Some(ext) if ext == "issuer" => {
+                    let issuer = Schema::load(file)?;
+                    eprintln!("File type: Issuer (contract schema)");
+                    eprintln!("Codex Id: {}", issuer.codex.codex_id());
+                    eprintln!("Default API Id: {}", issuer.default_api.api_id());
+                }
+                Some(_) => {
+                    return Err(anyhow!(
+                        "Unknown file type for '{}': the extension is not recognized",
+                        file.display()
+                    ))
+                }
+                None => {
+                    return Err(anyhow!(
+                        "The file '{}' has no extension; unable to detect the file type",
+                        file.display()
+                    ))
+                }
+            },
+
             Cmd::Inspect { file } => match file.extension() {
                 Some(ext) if ext == "pfab" => {
                     let pfab = PrefabBundle::strict_deserialize_from_file::<{ usize::MAX }>(file)?;
                     serde_yaml::to_writer(stdout(), &pfab)?;
+                }
+                Some(ext) if ext == "issuer" => {
+                    let issuer = Schema::load(file)?;
+                    serde_yaml::to_writer(stdout(), &issuer)?;
                 }
                 Some(_) => {
                     return Err(anyhow!(

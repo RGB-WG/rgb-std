@@ -36,7 +36,14 @@ pub struct Args {
 
 #[derive(Parser)]
 pub enum Cmd {
-    /// Inspect the provided binary file
+    /// Provide information about a given file (type, used ids etc)
+    Info {
+        /// File to inspect
+        #[clap(value_hint = ValueHint::FilePath)]
+        file: PathBuf,
+    },
+
+    /// Inspect the provided binary file by converting it into YAML representation
     Inspect {
         /// File to inspect
         #[clap(value_hint = ValueHint::FilePath)]
