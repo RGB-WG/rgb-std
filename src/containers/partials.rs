@@ -156,12 +156,16 @@ impl Hash for TransitionInfo {
 }
 
 impl TransitionInfo {
+    /// # Panics
+    ///
+    /// If the number of provided seals is zero.
     pub fn new(
         transition: Transition,
         seals: impl AsRef<[XOutputSeal]>,
     ) -> Result<Self, TransitionInfoError> {
         let id = transition.id();
         let seals = seals.as_ref();
+        assert!(!seals.is_empty(), "empty seals provided to transition info constructor");
         let inputs = Confined::<BTreeSet<_>, 1, U24>::try_from_iter(
             seals.iter().copied().map(XOutpoint::from),
         )
