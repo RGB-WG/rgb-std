@@ -1,0 +1,31 @@
+[package]
+name = "rgb-invoice"
+description = "Invoice Library for RGB smart contracts"
+version.workspace = true
+keywords.workspace = true
+categories.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+amplify.workspace = true
+commit_verify.workspace = true
+strict_encoding.workspace = true
+baid64.workspace = true
+hypersonic.workspace = true
+sonic-callreq.workspace = true
+rgb-core.workspace = true
+bp-core = { workspace = true, optional = true }
+
+[features]
+default = ["std", "bp"]
+all = ["std", "uri", "bp", "prime"]
+
+bp = ["bp-core", "rgb-core/bitcoin", "rgb-core/liquid"]
+prime = ["rgb-core/prime"]
+std = ["amplify/std", "sonic-callreq/std"]
+uri = ["sonic-callreq/uri"]
