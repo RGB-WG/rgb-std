@@ -25,6 +25,7 @@ sonic-callreq = "=0.12.0-beta.4"
 bp-core = "=0.12.0-beta.4"
 rgb-core = "=0.12.0-beta.4"
 rgb-std = { version = "=0.12.0-beta.4", path = "." }
+rgb-invoice = { version = "=0.12.0-beta.4", path = "./invoice" }
 chrono = "0.4.39"
 serde = "1.0.215"
 
@@ -55,18 +56,20 @@ single_use_seals.workspace = true
 hypersonic.workspace = true
 bp-core = { workspace = true, optional = true }
 rgb-core.workspace = true
+rgb-invoice.workspace = true
 chrono.workspace = true
 serde = { workspace = true, optional = true }
 
 [features]
 default = ["std", "bitcoin"]
 all = ["std", "bitcoin", "liquid", "prime", "fs", "serde"]
-std = []
+std = ["rgb-invoice/std"]
 
-bitcoin = ["bp-core", "rgb-core/bitcoin"]
-liquid = ["rgb-core/liquid"]
-prime = ["rgb-core/prime"]
+bitcoin = ["bp-core", "rgb-core/bitcoin", "rgb-invoice/bp"]
+liquid = ["rgb-core/liquid", "rgb-invoice/bp"]
+prime = ["rgb-core/prime", "rgb-invoice/prime"]
 
+uri = ["rgb-invoice/uri"]
 fs = ["std", "hypersonic/persist-file"]
 serde = [
     "std",

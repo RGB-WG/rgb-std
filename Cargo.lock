@@ -764,6 +764,7 @@ dependencies = [
  "hypersonic",
  "rand",
  "rgb-core",
+ "rgb-invoice",
  "serde",
  "single_use_seals",
  "strict_encoding",
