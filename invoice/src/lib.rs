@@ -31,11 +31,15 @@ extern crate strict_encoding;
 #[cfg(feature = "bp")]
 pub mod bp;
 
+use core::fmt::{self, Display, Formatter};
 use core::str::FromStr;
 
+use baid64::Baid64ParseError;
 use hypersonic::{AuthToken, ContractId};
-use rgbcore::SealType;
+use rgbcore::{SealType, UnknownType};
 use sonic_callreq::CallRequest;
+
+pub type RgbInvoice = CallRequest<RgbScope, RgbBeneficiary>;
 
 #[derive(Clone, Eq, PartialEq, Debug, Display)]
 pub enum RgbScope {
@@ -47,9 +51,22 @@ pub enum RgbScope {
 }
 
 impl FromStr for RgbScope {
-    type Err = ();
+    type Err = ParseInvoiceError;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> { todo!() }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if !s.starts_with("contract:") {
+            return Err(ParseInvoiceError::NoScheme);
+        }
+        match ContractId::from_str(s) {
+            Err(err1) => {
+                let s = s.trim_start_matches("contract:");
+                let query = ContractQuery::from_str(s)
+                    .map_err(|_| ParseInvoiceError::Unrecognizable(err1))?;
+                Ok(Self::ContractQuery { seal: query.seal, testnet: query.testnet })
+            }
+            Ok(id) => Ok(Self::ContractId(id)),
+        }
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Display)]
@@ -62,9 +79,59 @@ pub enum RgbBeneficiary {
 }
 
 impl FromStr for RgbBeneficiary {
-    type Err = ();
+    type Err = ParseInvoiceError;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> { todo!() }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match AuthToken::from_str(s) {
+            Ok(auth) => Ok(Self::Token(auth)),
+
+            #[cfg(feature = "bp")]
+            Err(_) => {
+                let wout = bp::WitnessOut::from_str(s)?;
+                Ok(Self::WitnessOut(wout))
+            }
+            #[cfg(not(feature = "bp"))]
+            Err(err) => Err(err),
+        }
+    }
 }
 
-pub type RgbInvoice = CallRequest<RgbScope, RgbBeneficiary>;
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub struct ContractQuery {
+    pub seal: SealType,
+    pub testnet: bool,
+}
+
+impl Display for ContractQuery {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        if self.testnet {
+            f.write_str("testnet@")?;
+        }
+        Display::fmt(&self.seal, f)
+    }
+}
+
+impl FromStr for ContractQuery {
+    type Err = UnknownType;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let testnet = s.starts_with("testnet@");
+        let s = s.trim_start_matches("testnet@");
+        SealType::from_str(s).map(|seal| Self { seal, testnet })
+    }
+}
+
+#[derive(Debug, Display, Error, From)]
+#[display(doc_comments)]
+pub enum ParseInvoiceError {
+    /// RGB invoice misses URI scheme prefix `contract:`.
+    NoScheme,
+
+    /// RGB invoice contains unrecognizable URI authority, which is neither contract id nor a
+    /// contract query.
+    Unrecognizable(Baid64ParseError),
+
+    #[cfg(feature = "bp")]
+    #[from]
+    Bp(bp::ParseWitnessOutError),
+}
