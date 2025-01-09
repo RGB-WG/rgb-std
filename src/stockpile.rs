@@ -169,6 +169,7 @@ impl<Seal> ContractState<Seal> {
 pub struct CreateParams<Seal: Clone> {
     pub codex_id: CodexId,
     pub seal_type: SealType,
+    pub testnet: bool,
     pub method: MethodName,
     pub name: TypeName,
     pub timestamp: Option<DateTime<Utc>>,
@@ -198,6 +199,7 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Stockpile<S, P, CAPS> {
         .expect("too many outputs");
         let params = IssueParams {
             name: params.name,
+            testnet: params.testnet,
             timestamp: params.timestamp,
             core: CoreParams {
                 method: params.method,

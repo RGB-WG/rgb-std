@@ -96,4 +96,7 @@ wasm-bindgen-test = "0.3"
 features = ["all"]
 
 [patch.crates-io]
+ultrasonic = { git = "https://github.com/AluVM/ultrasonic" }
+hypersonic = { git = "https://github.com/AluVM/sonic" }
+sonic-api = { git = "https://github.com/AluVM/sonic" }
 sonic-callreq = { git = "https://github.com/AluVM/sonic" }

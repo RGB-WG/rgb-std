@@ -102,6 +102,7 @@ impl CreateParams<Outpoint> {
         CreateParams {
             codex_id: self.codex_id,
             seal_type: self.seal_type,
+            testnet: self.testnet,
             method: self.method,
             name: self.name,
             timestamp: self.timestamp,
