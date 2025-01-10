@@ -337,11 +337,19 @@ impl<
     }
 
     /// Completes creation of a prefabricated operation pack, adding blank operations if necessary.
+    ///
+    /// # Arguments
+    ///
+    /// - `items`: a set of instructions to create non-blank operations (potentially under multiple
+    ///   contracts);
+    /// - `seal`: a single-use seal definition where all blank outputs will be assigned to.
     pub fn bundle(
         &mut self,
-        ops: impl IntoIterator<Item = Prefab>,
+        items: impl IntoIterator<Item = PrefabParams>,
         seal: BuilderSeal,
     ) -> PrefabBundle {
+        let ops = items.into_iter().map(|params| self.prefab(params));
+
         let mut outpoints = BTreeSet::<Outpoint>::new();
         let mut contracts = BTreeSet::new();
         let mut prefabs = BTreeSet::new();
@@ -765,10 +773,21 @@ pub mod file {
             }
         }
 
-        pub fn bundle(&mut self, items: impl IntoIterator<Item = PrefabParams>) -> PrefabBundle {
-            let iter = items.into_iter().map(|params| self.prefab(params));
-            let items = SmallOrdSet::try_from_iter(iter).expect("too large script");
-            PrefabBundle(items)
+        pub fn bundle(
+            &mut self,
+            items: impl IntoIterator<Item = PrefabParams>,
+            seal: BuilderSeal,
+        ) -> PrefabBundle {
+            match self {
+                #[cfg(feature = "bitcoin")]
+                Self::BcOpret(barrow) => barrow.bundle(items, seal),
+                #[cfg(feature = "bitcoin")]
+                Self::BcTapret(barrow) => barrow.bundle(items, seal),
+                #[cfg(feature = "liquid")]
+                Self::LqOpret(barrow) => barrow.bundle(items, seal),
+                #[cfg(feature = "liquid")]
+                Self::LqTapret(barrow) => barrow.bundle(items, seal),
+            }
         }
 
         pub fn consume_from_file(&mut self, path: impl AsRef<Path>) -> io::Result<()> {
