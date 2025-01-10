@@ -38,9 +38,10 @@ use strict_encoding::{DeserializeError, StrictDeserialize, StrictSerialize};
 
 pub const WITNESS_OUT_HRI: &str = "wout:";
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = "RGB")]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct WitnessOut {
     reserved: ReservedBytes<1>,
     salt: u64,

@@ -724,8 +724,7 @@ dependencies = [
 [[package]]
 name = "rgb-core"
 version = "0.12.0-beta.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "205437a4ae2f6b581042d18451502bddb6269b75f86457200309e782fd65d96d"
+source = "git+https://github.com/RGB-WG/rgb-core?branch=v0.12#e7748f424e7ab82606461a17ee89a0c91fcf56a2"
 dependencies = [
  "amplify",
  "bp-core",
@@ -748,6 +747,7 @@ dependencies = [
  "commit_verify",
  "hypersonic",
  "rgb-core",
+ "serde",
  "sonic-callreq",
  "strict_encoding",
 ]

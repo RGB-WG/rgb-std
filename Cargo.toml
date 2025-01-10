@@ -80,6 +80,7 @@ serde = [
     "commit_verify/serde",
     "bp-core/serde",
     "rgb-core/serde",
+    "rgb-invoice/serde",
     "chrono/serde"
 ]
 
@@ -103,3 +104,4 @@ ultrasonic = { git = "https://github.com/AluVM/ultrasonic" }
 hypersonic = { git = "https://github.com/AluVM/sonic" }
 sonic-api = { git = "https://github.com/AluVM/sonic" }
 sonic-callreq = { git = "https://github.com/AluVM/sonic" }
+rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "v0.12" }

@@ -18,14 +18,16 @@ strict_encoding.workspace = true
 baid64.workspace = true
 hypersonic.workspace = true
 sonic-callreq.workspace = true
-rgb-core.workspace = true
 bp-core = { workspace = true, optional = true }
+rgb-core.workspace = true
+serde = { workspace = true, optional = true }
 
 [features]
 default = ["std", "bp"]
-all = ["std", "uri", "bp", "prime"]
+all = ["std", "uri", "bp", "prime", "serde"]
 
 bp = ["bp-core", "rgb-core/bitcoin", "rgb-core/liquid"]
 prime = ["rgb-core/prime"]
 std = ["amplify/std", "sonic-callreq/std"]
 uri = ["sonic-callreq/uri"]
+serde = ["dep:serde", "sonic-callreq/serde", "bp-core/serde", "rgb-core/serde"]

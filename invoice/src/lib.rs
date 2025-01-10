@@ -27,6 +27,9 @@ extern crate amplify;
 #[cfg(feature = "bp")]
 #[macro_use]
 extern crate strict_encoding;
+#[cfg(feature = "serde")]
+#[macro_use]
+extern crate serde;
 
 #[cfg(feature = "bp")]
 pub mod bp;
@@ -71,6 +74,11 @@ impl FromStr for RgbScope {
 
 #[derive(Clone, Eq, PartialEq, Debug, Display)]
 #[display(inner)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(rename_all = "camelCase", untagged)
+)]
 pub enum RgbBeneficiary {
     Token(AuthToken),
 
@@ -92,6 +100,16 @@ impl FromStr for RgbBeneficiary {
             }
             #[cfg(not(feature = "bp"))]
             Err(err) => Err(err),
+        }
+    }
+}
+
+#[cfg(feature = "bp")]
+impl RgbBeneficiary {
+    pub fn witness_out(&self) -> Option<&bp::WitnessOut> {
+        match self {
+            Self::WitnessOut(wout) => Some(wout),
+            _ => None,
         }
     }
 }
