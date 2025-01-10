@@ -38,6 +38,7 @@ extern crate strict_encoding;
 #[macro_use]
 extern crate serde;
 
+extern crate core;
 pub extern crate rgb_invoice as invoice;
 
 mod pile;

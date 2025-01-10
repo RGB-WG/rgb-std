@@ -26,12 +26,13 @@
 //! proof of publication layer 1.
 
 use alloc::collections::{btree_set, BTreeMap, BTreeSet};
+use core::fmt::Display;
 
 use amplify::confinement::{SmallOrdMap, SmallOrdSet, SmallVec};
 use amplify::{confinement, ByteArray, Bytes32, Wrapper};
 use bp::dbc::opret::OpretProof;
 use bp::seals::{mmb, Anchor, TxoSeal, TxoSealDef};
-use bp::{dbc, Outpoint, Tx, Vout};
+use bp::{dbc, Outpoint, Sats, Tx, Vout};
 use commit_verify::mpc::ProtocolId;
 use commit_verify::{mpc, Digest, DigestExt, Sha256};
 use hypersonic::aora::Aora;
@@ -39,6 +40,7 @@ use hypersonic::{
     AuthToken, CallParams, CellAddr, ContractId, CoreParams, DataCell, MethodName, NamedState,
     Operation, StateAtom, StateCalc, StateName, Supply,
 };
+use invoice::bp::WitnessOut;
 use rgb::SealAuthToken;
 use strict_encoding::{ReadRaw, StrictDecode, StrictDeserialize, StrictReader, StrictSerialize};
 use strict_types::StrictVal;
@@ -62,18 +64,24 @@ pub trait TapretProvider: WalletProvider {}
 
 pub const BP_BLANK_METHOD: &str = "_";
 
+#[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
+#[display("{wout}/{amount}")]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
+pub struct SelfSeal {
+    pub wout: WitnessOut,
+    pub amount: Sats,
+}
+
 // TODO: Support failback seals
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display)]
+#[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
+#[display(inner)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
     serde(rename_all = "camelCase", untagged)
 )]
-pub enum BuilderSeal {
-    #[display("~:{0}")]
-    Oneself(Vout),
-
-    #[display("{0}")]
+pub enum BuilderSeal<T: Display> {
+    Oneself(T),
     Extern(AuthToken),
 }
 
@@ -139,14 +147,21 @@ pub struct UsedState {
 /// Differs from [`CallParams`] in the fact that it uses [`BuilderSeal`]s instead of
 /// [`hypersonic::AuthTokens`] for output definitions.
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
-pub struct PrefabParams {
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(
+        rename_all = "camelCase",
+        bound = "T: serde::Serialize + for<'d> serde::Deserialize<'d>"
+    )
+)]
+pub struct PrefabParams<T: Display> {
     pub contract_id: ContractId,
     pub method: MethodName,
     pub reading: Vec<CellAddr>,
     pub using: Vec<UsedState>,
     pub global: Vec<NamedState<StateAtom>>,
-    pub owned: Vec<NamedState<Assignment<BuilderSeal>>>,
+    pub owned: Vec<NamedState<Assignment<BuilderSeal<T>>>>,
 }
 
 /// Prefabricated operation, which includes information on the contract id and closed seals
@@ -285,7 +300,7 @@ impl<
     }
 
     /// Creates a single operation basing on the provided construction parameters.
-    pub fn prefab(&mut self, params: PrefabParams) -> Prefab {
+    pub fn prefab(&mut self, params: PrefabParams<Vout>) -> Prefab {
         // convert ConstructParams into CallParams
         let (closes, using) = params
             .using
@@ -345,8 +360,8 @@ impl<
     /// - `seal`: a single-use seal definition where all blank outputs will be assigned to.
     pub fn bundle(
         &mut self,
-        items: impl IntoIterator<Item = PrefabParams>,
-        seal: BuilderSeal,
+        items: impl IntoIterator<Item = PrefabParams<Vout>>,
+        change: Vout,
     ) -> PrefabBundle {
         let ops = items.into_iter().map(|params| self.prefab(params));
 
@@ -407,7 +422,10 @@ impl<
             let mut owned = Vec::new();
             for (name, calc) in calcs {
                 for data in calc.diff().expect("non-computable state") {
-                    let state = NamedState { name: name.clone(), state: Assignment { seal, data } };
+                    let state = NamedState {
+                        name: name.clone(),
+                        state: Assignment { seal: BuilderSeal::Oneself(change), data },
+                    };
                     owned.push(state);
                 }
             }
@@ -760,7 +778,7 @@ pub mod file {
             }
         }
 
-        pub fn prefab(&mut self, params: PrefabParams) -> Prefab {
+        pub fn prefab(&mut self, params: PrefabParams<Vout>) -> Prefab {
             match self {
                 #[cfg(feature = "bitcoin")]
                 Self::BcOpret(barrow) => barrow.prefab(params),
@@ -775,18 +793,18 @@ pub mod file {
 
         pub fn bundle(
             &mut self,
-            items: impl IntoIterator<Item = PrefabParams>,
-            seal: BuilderSeal,
+            items: impl IntoIterator<Item = PrefabParams<Vout>>,
+            change: Vout,
         ) -> PrefabBundle {
             match self {
                 #[cfg(feature = "bitcoin")]
-                Self::BcOpret(barrow) => barrow.bundle(items, seal),
+                Self::BcOpret(barrow) => barrow.bundle(items, change),
                 #[cfg(feature = "bitcoin")]
-                Self::BcTapret(barrow) => barrow.bundle(items, seal),
+                Self::BcTapret(barrow) => barrow.bundle(items, change),
                 #[cfg(feature = "liquid")]
-                Self::LqOpret(barrow) => barrow.bundle(items, seal),
+                Self::LqOpret(barrow) => barrow.bundle(items, change),
                 #[cfg(feature = "liquid")]
-                Self::LqTapret(barrow) => barrow.bundle(items, seal),
+                Self::LqTapret(barrow) => barrow.bundle(items, change),
             }
         }
 
