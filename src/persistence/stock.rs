@@ -725,7 +725,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         &self,
         contract_id: ContractId,
     ) -> Result<Contract, StockError<S, H, P, ConsignError>> {
-        let consignment = self.consign::<false>(contract_id, [], None)?;
+        let consignment = self.consign::<false>(contract_id, [], None, None)?;
         Ok(consignment)
     }
 
@@ -734,8 +734,9 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         contract_id: ContractId,
         outputs: impl AsRef<[XOutputSeal]>,
         secret_seal: Option<XChain<SecretSeal>>,
+        witness_id: Option<XWitnessId>,
     ) -> Result<Transfer, StockError<S, H, P, ConsignError>> {
-        let consignment = self.consign(contract_id, outputs, secret_seal)?;
+        let consignment = self.consign(contract_id, outputs, secret_seal, witness_id)?;
         Ok(consignment)
     }
 
@@ -744,6 +745,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         contract_id: ContractId,
         outputs: impl AsRef<[XOutputSeal]>,
         secret_seal: Option<XChain<SecretSeal>>,
+        witness_id: Option<XWitnessId>,
     ) -> Result<Consignment<TRANSFER>, StockError<S, H, P, ConsignError>> {
         let outputs = outputs.as_ref();
 
@@ -782,9 +784,18 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             }
 
             let transition = self.transition(opout.op)?;
-            transitions.insert(opout.op, transition.clone());
 
             let bundle_id = self.index.bundle_id_for_op(transition.id())?;
+
+            // skip bundles not associated to the terminals witness
+            if let Some(witness_id) = witness_id {
+                let (mut witness_ids, _) = self.index.bundle_info(bundle_id)?;
+                if !witness_ids.any(|w| w == witness_id) {
+                    continue;
+                }
+            }
+
+            transitions.insert(opout.op, transition.clone());
             // 2. Collect secret seals from terminal transitions to add to the consignment terminals
             for typed_assignments in transition.assignments.values() {
                 for index in 0..typed_assignments.len_u16() {
@@ -1538,7 +1549,7 @@ mod test {
         let contract_id =
             ContractId::from_baid64_str("rgb:qFuT6DN8-9AuO95M-7R8R8Mc-AZvs7zG-obum1Va-BRnweKk")
                 .unwrap();
-        if let Ok(transfer) = stock.consign::<true>(contract_id, [], Some(secret_seal)) {
+        if let Ok(transfer) = stock.consign::<true>(contract_id, [], Some(secret_seal), None) {
             println!("{:?}", transfer.supplements)
         }
     }
