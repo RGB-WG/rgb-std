@@ -28,7 +28,7 @@
 use alloc::collections::{btree_set, BTreeMap, BTreeSet};
 use core::fmt::Display;
 
-use amplify::confinement::{SmallOrdMap, SmallOrdSet, SmallVec};
+use amplify::confinement::{SmallOrdMap, SmallOrdSet, SmallVec, TinyVec};
 use amplify::{confinement, ByteArray, Bytes32, Wrapper};
 use bp::dbc::opret::OpretProof;
 use bp::seals::{mmb, Anchor, TxoSeal, TxoSealDef};
@@ -141,6 +141,17 @@ pub struct UsedState {
     pub outpoint: Outpoint,
     pub val: StrictVal,
 }
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(
+        rename_all = "camelCase",
+        bound = "T: serde::Serialize + for<'d> serde::Deserialize<'d>"
+    )
+)]
+pub struct PrefabParamsSet<T: Display>(TinyVec<PrefabParams<T>>);
 
 /// Parameters used by BP-based wallet for constructing operations.
 ///
