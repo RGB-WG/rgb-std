@@ -26,6 +26,7 @@
 //! proof of publication layer 1.
 
 use alloc::collections::{btree_set, BTreeMap, BTreeSet};
+use std::vec;
 
 use amplify::confinement::{SmallOrdMap, SmallOrdSet, SmallVec, TinyVec};
 use amplify::{confinement, ByteArray, Bytes32, Wrapper};
@@ -153,6 +154,13 @@ pub struct UsedState {
     )
 )]
 pub struct PrefabParamsSet<T>(TinyVec<PrefabParams<T>>);
+
+impl<T> IntoIterator for PrefabParamsSet<T> {
+    type Item = PrefabParams<T>;
+    type IntoIter = vec::IntoIter<PrefabParams<T>>;
+
+    fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
+}
 
 impl<T: Into<ScriptPubkey>> PrefabParamsSet<T> {
     pub fn resolve_seals(
