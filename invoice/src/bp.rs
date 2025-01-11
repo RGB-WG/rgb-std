@@ -50,6 +50,10 @@ pub struct WitnessOut {
 impl StrictSerialize for WitnessOut {}
 impl StrictDeserialize for WitnessOut {}
 
+impl Into<ScriptPubkey> for WitnessOut {
+    fn into(self) -> ScriptPubkey { ScriptPubkey::from_unsafe(self.script_pubkey.into_vec()) }
+}
+
 impl WitnessOut {
     pub fn noise(&self) -> Noise {
         let mut noise_engine = Sha256::new();

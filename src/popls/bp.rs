@@ -71,6 +71,10 @@ pub struct SelfSeal {
     pub amount: Sats,
 }
 
+impl Into<ScriptPubkey> for SelfSeal {
+    fn into(self) -> ScriptPubkey { self.wout.into() }
+}
+
 impl<T> EitherSeal<T> {
     pub fn map<U>(self, f: impl FnOnce(T) -> U) -> EitherSeal<U> {
         match self {
@@ -150,7 +154,7 @@ pub struct UsedState {
 )]
 pub struct PrefabParamsSet<T>(TinyVec<PrefabParams<T>>);
 
-impl PrefabParamsSet<WitnessOut> {
+impl<T: Into<ScriptPubkey>> PrefabParamsSet<T> {
     pub fn resolve_seals(
         self,
         resolver: impl Fn(&ScriptPubkey) -> Option<Vout>,
@@ -160,9 +164,9 @@ impl PrefabParamsSet<WitnessOut> {
             let mut owned = Vec::with_capacity(params.owned.len());
             for assignment in params.owned {
                 let seal = match assignment.state.seal {
-                    EitherSeal::Alt(wout) => {
-                        let vout =
-                            resolver(&wout.to_script_pubkey()).ok_or(UnresolvedSeal(wout))?;
+                    EitherSeal::Alt(seal) => {
+                        let spk = seal.into();
+                        let vout = resolver(&spk).ok_or(UnresolvedSeal(spk))?;
                         EitherSeal::Alt(vout)
                     }
                     EitherSeal::Token(auth) => EitherSeal::Token(auth),
@@ -186,8 +190,8 @@ impl PrefabParamsSet<WitnessOut> {
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error)]
-#[display("unable to resolve seal witness output seal definition for {0}")]
-pub struct UnresolvedSeal(WitnessOut);
+#[display("unable to resolve seal witness output seal definition for script pubkey {0:x}")]
+pub struct UnresolvedSeal(ScriptPubkey);
 
 /// Parameters used by BP-based wallet for constructing operations.
 ///
