@@ -134,7 +134,7 @@ impl CreateParams<Outpoint> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct UsedState {
     pub addr: CellAddr,
@@ -146,7 +146,7 @@ pub struct UsedState {
 ///
 /// Differs from [`CallParams`] in the fact that it uses [`BuilderSeal`]s instead of
 /// [`hypersonic::AuthTokens`] for output definitions.
-#[derive(Clone, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
