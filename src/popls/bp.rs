@@ -26,13 +26,12 @@
 //! proof of publication layer 1.
 
 use alloc::collections::{btree_set, BTreeMap, BTreeSet};
-use core::fmt::Display;
 
 use amplify::confinement::{SmallOrdMap, SmallOrdSet, SmallVec, TinyVec};
 use amplify::{confinement, ByteArray, Bytes32, Wrapper};
 use bp::dbc::opret::OpretProof;
 use bp::seals::{mmb, Anchor, TxoSeal, TxoSealDef};
-use bp::{dbc, Outpoint, Sats, Tx, Vout};
+use bp::{dbc, Outpoint, Sats, ScriptPubkey, Tx, Vout};
 use commit_verify::mpc::ProtocolId;
 use commit_verify::{mpc, Digest, DigestExt, Sha256};
 use hypersonic::aora::Aora;
@@ -73,16 +72,25 @@ pub struct SelfSeal {
 }
 
 // TODO: Support failback seals
-#[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
-#[display(inner)]
+// TODO: Use EitherSeal
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
     serde(rename_all = "camelCase", untagged)
 )]
-pub enum BuilderSeal<T: Display> {
+pub enum BuilderSeal<T> {
     Oneself(T),
     Extern(AuthToken),
+}
+
+impl<T> BuilderSeal<T> {
+    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> BuilderSeal<U> {
+        match self {
+            Self::Oneself(seal) => BuilderSeal::Oneself(f(seal)),
+            Self::Extern(auth) => BuilderSeal::Extern(auth),
+        }
+    }
 }
 
 impl EitherSeal<Outpoint> {
@@ -95,7 +103,7 @@ impl EitherSeal<Outpoint> {
             EitherSeal::Known(seal) => {
                 EitherSeal::Known(TxoSeal::no_fallback(seal, noise_engine, nonce))
             }
-            EitherSeal::External(auth) => EitherSeal::External(auth),
+            EitherSeal::Extern(auth) => EitherSeal::Extern(auth),
         }
     }
 }
@@ -142,7 +150,9 @@ pub struct UsedState {
     pub val: StrictVal,
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Wrapper, WrapperMut, Clone, PartialEq, Eq, Debug, From)]
+#[wrapper(Deref)]
+#[wrapper_mut(DerefMut)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
@@ -151,7 +161,46 @@ pub struct UsedState {
         bound = "T: serde::Serialize + for<'d> serde::Deserialize<'d>"
     )
 )]
-pub struct PrefabParamsSet<T: Display>(TinyVec<PrefabParams<T>>);
+pub struct PrefabParamsSet<T>(TinyVec<PrefabParams<T>>);
+
+impl PrefabParamsSet<WitnessOut> {
+    pub fn resolve_seals(
+        self,
+        resolver: impl Fn(&ScriptPubkey) -> Option<Vout>,
+    ) -> Result<PrefabParamsSet<Vout>, UnresolvedSeal> {
+        let mut items = Vec::with_capacity(self.0.len());
+        for params in self.0 {
+            let mut owned = Vec::with_capacity(params.owned.len());
+            for assignment in params.owned {
+                let seal = match assignment.state.seal {
+                    BuilderSeal::Oneself(wout) => {
+                        let vout =
+                            resolver(&wout.to_script_pubkey()).ok_or(UnresolvedSeal(wout))?;
+                        BuilderSeal::Oneself(vout)
+                    }
+                    BuilderSeal::Extern(auth) => BuilderSeal::Extern(auth),
+                };
+                owned.push(NamedState {
+                    name: assignment.name,
+                    state: Assignment { seal, data: assignment.state.data },
+                });
+            }
+            items.push(PrefabParams::<Vout> {
+                contract_id: params.contract_id,
+                method: params.method,
+                reading: params.reading,
+                using: params.using,
+                global: params.global,
+                owned,
+            });
+        }
+        Ok(PrefabParamsSet(TinyVec::from_iter_checked(items)))
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Debug, Display, Error)]
+#[display("unable to resolve seal witness output seal definition for {0}")]
+pub struct UnresolvedSeal(WitnessOut);
 
 /// Parameters used by BP-based wallet for constructing operations.
 ///
@@ -166,7 +215,7 @@ pub struct PrefabParamsSet<T: Display>(TinyVec<PrefabParams<T>>);
         bound = "T: serde::Serialize + for<'d> serde::Deserialize<'d>"
     )
 )]
-pub struct PrefabParams<T: Display> {
+pub struct PrefabParams<T> {
     pub contract_id: ContractId,
     pub method: MethodName,
     pub reading: Vec<CellAddr>,

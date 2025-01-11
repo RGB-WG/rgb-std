@@ -61,7 +61,7 @@ use crate::{ContractMeta, Pile, StateCell};
 pub enum EitherSeal<Seal> {
     Known(Seal),
     #[from]
-    External(AuthToken),
+    Extern(AuthToken),
 }
 
 impl<Seal> EitherSeal<Seal> {
@@ -69,7 +69,7 @@ impl<Seal> EitherSeal<Seal> {
     where Seal: RgbSeal {
         match self {
             EitherSeal::Known(seal) => seal.auth_token(),
-            EitherSeal::External(auth) => *auth,
+            EitherSeal::Extern(auth) => *auth,
         }
     }
 
@@ -77,7 +77,7 @@ impl<Seal> EitherSeal<Seal> {
     where Seal: Clone {
         match self {
             EitherSeal::Known(seal) => Some(seal.clone()),
-            EitherSeal::External(_) => None,
+            EitherSeal::Extern(_) => None,
         }
     }
 }
