@@ -24,14 +24,14 @@
 
 #[macro_use]
 extern crate amplify;
-#[cfg(feature = "bp")]
+#[cfg(any(feature = "bitcoin", feature = "liquid"))]
 #[macro_use]
 extern crate strict_encoding;
 #[cfg(feature = "serde")]
 #[macro_use]
 extern crate serde;
 
-#[cfg(feature = "bp")]
+#[cfg(any(feature = "bitcoin", feature = "liquid"))]
 pub mod bp;
 
 use core::fmt::{self, Display, Formatter};
@@ -82,7 +82,7 @@ impl FromStr for RgbScope {
 pub enum RgbBeneficiary {
     Token(AuthToken),
 
-    #[cfg(feature = "bp")]
+    #[cfg(any(feature = "bitcoin", feature = "liquid"))]
     WitnessOut(bp::WitnessOut),
 }
 
@@ -93,18 +93,18 @@ impl FromStr for RgbBeneficiary {
         match AuthToken::from_str(s) {
             Ok(auth) => Ok(Self::Token(auth)),
 
-            #[cfg(feature = "bp")]
+            #[cfg(any(feature = "bitcoin", feature = "liquid"))]
             Err(_) => {
                 let wout = bp::WitnessOut::from_str(s)?;
                 Ok(Self::WitnessOut(wout))
             }
-            #[cfg(not(feature = "bp"))]
+            #[cfg(not(any(feature = "bitcoin", feature = "liquid")))]
             Err(err) => Err(err),
         }
     }
 }
 
-#[cfg(feature = "bp")]
+#[cfg(any(feature = "bitcoin", feature = "liquid"))]
 impl RgbBeneficiary {
     pub fn witness_out(&self) -> Option<&bp::WitnessOut> {
         match self {
@@ -149,7 +149,7 @@ pub enum ParseInvoiceError {
     /// contract query.
     Unrecognizable(Baid64ParseError),
 
-    #[cfg(feature = "bp")]
+    #[cfg(any(feature = "bitcoin", feature = "liquid"))]
     #[from]
     Bp(bp::ParseWitnessOutError),
 }

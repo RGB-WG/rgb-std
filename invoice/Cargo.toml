@@ -23,10 +23,11 @@ rgb-core.workspace = true
 serde = { workspace = true, optional = true }
 
 [features]
-default = ["std", "bp"]
-all = ["std", "uri", "bp", "prime", "serde"]
+default = ["std", "bitcoin"]
+all = ["std", "uri", "bitcoin", "liquid", "prime", "serde"]
 
-bp = ["bp-core", "rgb-core/bitcoin", "rgb-core/liquid"]
+bitcoin = ["bp-core", "rgb-core/bitcoin"]
+liquid = ["bp-core", "rgb-core/liquid"]
 prime = ["rgb-core/prime"]
 std = ["amplify/std", "sonic-callreq/std"]
 uri = ["sonic-callreq/uri"]

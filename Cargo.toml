@@ -65,8 +65,8 @@ default = ["std", "bitcoin"]
 all = ["std", "bitcoin", "liquid", "prime", "fs", "serde"]
 std = ["rgb-invoice/std"]
 
-bitcoin = ["bp-core", "rgb-core/bitcoin", "rgb-invoice/bp"]
-liquid = ["rgb-core/liquid", "rgb-invoice/bp"]
+bitcoin = ["bp-core", "rgb-core/bitcoin", "rgb-invoice/bitcoin"]
+liquid = ["rgb-core/liquid", "rgb-invoice/liquid"]
 prime = ["rgb-core/prime", "rgb-invoice/prime"]
 
 uri = ["rgb-invoice/uri"]
