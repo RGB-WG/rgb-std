@@ -71,24 +71,11 @@ pub struct SelfSeal {
     pub amount: Sats,
 }
 
-// TODO: Support failback seals
-// TODO: Use EitherSeal
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(rename_all = "camelCase", untagged)
-)]
-pub enum BuilderSeal<T> {
-    Oneself(T),
-    Extern(AuthToken),
-}
-
-impl<T> BuilderSeal<T> {
-    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> BuilderSeal<U> {
+impl<T> EitherSeal<T> {
+    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> EitherSeal<U> {
         match self {
-            Self::Oneself(seal) => BuilderSeal::Oneself(f(seal)),
-            Self::Extern(auth) => BuilderSeal::Extern(auth),
+            Self::Alt(seal) => EitherSeal::Alt(f(seal)),
+            Self::Token(auth) => EitherSeal::Token(auth),
         }
     }
 }
@@ -100,10 +87,10 @@ impl EitherSeal<Outpoint> {
         nonce: u64,
     ) -> EitherSeal<TxoSeal<D>> {
         match self {
-            EitherSeal::Known(seal) => {
-                EitherSeal::Known(TxoSeal::no_fallback(seal, noise_engine, nonce))
+            EitherSeal::Alt(seal) => {
+                EitherSeal::Alt(TxoSeal::no_fallback(seal, noise_engine, nonce))
             }
-            EitherSeal::Extern(auth) => EitherSeal::Extern(auth),
+            EitherSeal::Token(auth) => EitherSeal::Token(auth),
         }
     }
 }
@@ -173,12 +160,12 @@ impl PrefabParamsSet<WitnessOut> {
             let mut owned = Vec::with_capacity(params.owned.len());
             for assignment in params.owned {
                 let seal = match assignment.state.seal {
-                    BuilderSeal::Oneself(wout) => {
+                    EitherSeal::Alt(wout) => {
                         let vout =
                             resolver(&wout.to_script_pubkey()).ok_or(UnresolvedSeal(wout))?;
-                        BuilderSeal::Oneself(vout)
+                        EitherSeal::Alt(vout)
                     }
-                    BuilderSeal::Extern(auth) => BuilderSeal::Extern(auth),
+                    EitherSeal::Token(auth) => EitherSeal::Token(auth),
                 };
                 owned.push(NamedState {
                     name: assignment.name,
@@ -221,7 +208,7 @@ pub struct PrefabParams<T> {
     pub reading: Vec<CellAddr>,
     pub using: Vec<UsedState>,
     pub global: Vec<NamedState<StateAtom>>,
-    pub owned: Vec<NamedState<Assignment<BuilderSeal<T>>>>,
+    pub owned: Vec<NamedState<Assignment<EitherSeal<T>>>>,
 }
 
 /// Prefabricated operation, which includes information on the contract id and closed seals
@@ -379,7 +366,7 @@ impl<
             .enumerate()
             .map(|(nonce, assignment)| {
                 let auth = match assignment.state.seal {
-                    BuilderSeal::Oneself(vout) => {
+                    EitherSeal::Alt(vout) => {
                         defines.push(vout).expect("too many seals");
                         let seal = TxoSeal::<D>::vout_no_fallback(
                             vout,
@@ -389,7 +376,7 @@ impl<
                         seals.push(seal).expect("too many seals");
                         seal.auth_token()
                     }
-                    BuilderSeal::Extern(auth) => auth,
+                    EitherSeal::Token(auth) => auth,
                 };
                 let state = DataCell { data: assignment.state.data, auth, lock: None };
                 NamedState { name: assignment.name, state }
@@ -484,7 +471,7 @@ impl<
                 for data in calc.diff().expect("non-computable state") {
                     let state = NamedState {
                         name: name.clone(),
-                        state: Assignment { seal: BuilderSeal::Oneself(change), data },
+                        state: Assignment { seal: EitherSeal::Alt(change), data },
                     };
                     owned.push(state);
                 }

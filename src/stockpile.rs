@@ -59,25 +59,25 @@ use crate::{ContractMeta, Pile, StateCell};
     serde(untagged, bound = "Seal: serde::Serialize + for<'d> serde::Deserialize<'d>")
 )]
 pub enum EitherSeal<Seal> {
-    Known(Seal),
+    Alt(Seal),
     #[from]
-    Extern(AuthToken),
+    Token(AuthToken),
 }
 
 impl<Seal> EitherSeal<Seal> {
     pub fn auth_token(&self) -> AuthToken
     where Seal: RgbSeal {
         match self {
-            EitherSeal::Known(seal) => seal.auth_token(),
-            EitherSeal::Extern(auth) => *auth,
+            EitherSeal::Alt(seal) => seal.auth_token(),
+            EitherSeal::Token(auth) => *auth,
         }
     }
 
     pub fn to_explicit(&self) -> Option<Seal>
     where Seal: Clone {
         match self {
-            EitherSeal::Known(seal) => Some(seal.clone()),
-            EitherSeal::Extern(_) => None,
+            EitherSeal::Alt(seal) => Some(seal.clone()),
+            EitherSeal::Token(_) => None,
         }
     }
 }

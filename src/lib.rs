@@ -56,4 +56,4 @@ pub use mound::{Excavate, Mound, MAGIC_BYTES_CONSIGNMENT};
 pub use pile::fs::FilePile;
 pub use pile::{Index, Pile};
 pub use rgb::*;
-pub use stockpile::{Assignment, ConsumeError, CreateParams, Stockpile};
+pub use stockpile::{Assignment, ConsumeError, CreateParams, EitherSeal, Stockpile};
