@@ -67,12 +67,12 @@ pub const BP_BLANK_METHOD: &str = "_";
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
 #[display("{wout}/{amount}")]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
-pub struct SelfSeal {
+pub struct WoutAssignment {
     pub wout: WitnessOut,
     pub amount: Sats,
 }
 
-impl Into<ScriptPubkey> for SelfSeal {
+impl Into<ScriptPubkey> for WoutAssignment {
     fn into(self) -> ScriptPubkey { self.wout.into() }
 }
 
