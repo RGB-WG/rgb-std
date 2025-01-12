@@ -34,7 +34,7 @@ use baid64::BAID64_ALPHABET;
 use bp::seals::Noise;
 use bp::ScriptPubkey;
 use commit_verify::{Digest, DigestExt, ReservedBytes, Sha256};
-use invoice::AddressPayload;
+pub use invoice::*;
 use strict_encoding::{DeserializeError, StrictDeserialize, StrictSerialize};
 
 pub const WITNESS_OUT_HRI: &str = "wout:";
@@ -56,6 +56,10 @@ impl Into<ScriptPubkey> for WitnessOut {
 }
 
 impl WitnessOut {
+    pub fn new(address: impl Into<AddressPayload>, salt: u64) -> Self {
+        WitnessOut { reserved: default!(), salt, address: address.into() }
+    }
+
     pub fn noise(&self) -> Noise {
         let mut noise_engine = Sha256::new();
         noise_engine.input_raw(&self.salt.to_le_bytes());

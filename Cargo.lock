@@ -774,6 +774,7 @@ version = "0.12.0-beta.4"
 dependencies = [
  "amplify",
  "bp-core",
+ "bp-invoice",
  "chrono",
  "commit_verify",
  "getrandom",

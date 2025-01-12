@@ -56,6 +56,7 @@ commit_verify.workspace = true
 single_use_seals.workspace = true
 hypersonic.workspace = true
 bp-core = { workspace = true, optional = true }
+bp-invoice = { workspace = true, optional = true }
 rgb-core.workspace = true
 rgb-invoice.workspace = true
 chrono.workspace = true
@@ -66,7 +67,7 @@ default = ["std", "bitcoin"]
 all = ["std", "bitcoin", "liquid", "prime", "fs", "serde"]
 std = ["rgb-invoice/std"]
 
-bitcoin = ["bp-core", "rgb-core/bitcoin", "rgb-invoice/bitcoin"]
+bitcoin = ["bp-core", "bp-invoice", "rgb-core/bitcoin", "rgb-invoice/bitcoin"]
 liquid = ["rgb-core/liquid", "rgb-invoice/liquid"]
 prime = ["rgb-core/prime", "rgb-invoice/prime"]
 

@@ -40,7 +40,7 @@ use hypersonic::{
     AuthToken, CallParams, CellAddr, ContractId, CoreParams, DataCell, MethodName, NamedState,
     Operation, StateAtom, StateCalc, StateName, Supply,
 };
-use invoice::bp::WitnessOut;
+use invoice::bp::{Address, WitnessOut};
 use rgb::SealAuthToken;
 use strict_encoding::{ReadRaw, StrictDecode, StrictDeserialize, StrictReader, StrictSerialize};
 use strict_types::StrictVal;
@@ -58,7 +58,7 @@ pub trait WalletProvider {
         &self,
         seals: impl Iterator<Item = AuthToken>,
     ) -> impl Iterator<Item = TxoSealDef>;
-    fn next_wout_seal(&mut self) -> WitnessOut;
+    fn next_address(&mut self) -> Address;
 }
 pub trait OpretProvider: WalletProvider {}
 pub trait TapretProvider: WalletProvider {}
@@ -315,10 +315,15 @@ impl<
 
     pub fn auth_token(&mut self, nonce: u64) -> Option<AuthToken> {
         let outpoint = self.wallet.utxos().next()?;
-        let seal = TxoSeal::<OpretProof>::no_fallback(outpoint, self.noise_engine(), nonce);
+        let seal = TxoSealDef::no_fallback(outpoint, self.noise_engine(), nonce);
         let auth = seal.auth_token();
-        self.wallet.register_seal(seal.to_definition());
+        self.wallet.register_seal(seal);
         Some(auth)
+    }
+
+    pub fn wout(&mut self, nonce: u64) -> WitnessOut {
+        let address = self.wallet.next_address();
+        WitnessOut::new(address.payload, nonce)
     }
 
     pub fn state(
@@ -455,12 +460,8 @@ impl<
                         .copied()
                         .enumerate()
                         .find(|(nonce, outpoint)| {
-                            TxoSeal::<OpretProof>::no_fallback(
-                                *outpoint,
-                                noise_engine.clone(),
-                                *nonce as u64,
-                            )
-                            .auth_token()
+                            TxoSealDef::no_fallback(*outpoint, noise_engine.clone(), *nonce as u64)
+                                .auth_token()
                                 == auth
                         })
                         .map(|(_, outpoint)| {
@@ -806,6 +807,19 @@ pub mod file {
             }
         }
 
+        pub fn wout(&mut self, nonce: u64) -> WitnessOut {
+            match self {
+                #[cfg(feature = "bitcoin")]
+                Self::BcOpret(barrow) => barrow.wout(nonce),
+                #[cfg(feature = "bitcoin")]
+                Self::BcTapret(barrow) => barrow.wout(nonce),
+                #[cfg(feature = "liquid")]
+                Self::LqOpret(barrow) => barrow.wout(nonce),
+                #[cfg(feature = "liquid")]
+                Self::LqTapret(barrow) => barrow.wout(nonce),
+            }
+        }
+
         pub fn state(
             &mut self,
             contract_id: Option<ContractId>,
@@ -909,19 +923,6 @@ pub mod file {
                 #[cfg(feature = "liquid")]
                 Self::LqOpret(barrow) => &mut barrow.wallet,
                 _ => panic!("Invalid wallet type"),
-            }
-        }
-
-        pub fn next_wout_seal(&mut self) -> WitnessOut {
-            match self {
-                #[cfg(feature = "bitcoin")]
-                Self::BcOpret(barrow) => barrow.wallet.next_wout_seal(),
-                #[cfg(feature = "bitcoin")]
-                Self::BcTapret(barrow) => barrow.wallet.next_wout_seal(),
-                #[cfg(feature = "liquid")]
-                Self::LqOpret(barrow) => barrow.wallet.next_wout_seal(),
-                #[cfg(feature = "liquid")]
-                Self::LqTapret(barrow) => barrow.wallet.next_wout_seal(),
             }
         }
     }
