@@ -58,6 +58,7 @@ pub trait WalletProvider {
         &self,
         seals: impl Iterator<Item = AuthToken>,
     ) -> impl Iterator<Item = TxoSealDef>;
+    fn next_wout_seal(&mut self) -> WitnessOut;
 }
 pub trait OpretProvider: WalletProvider {}
 pub trait TapretProvider: WalletProvider {}
@@ -908,6 +909,19 @@ pub mod file {
                 #[cfg(feature = "liquid")]
                 Self::LqOpret(barrow) => &mut barrow.wallet,
                 _ => panic!("Invalid wallet type"),
+            }
+        }
+
+        pub fn next_wout_seal(&mut self) -> WitnessOut {
+            match self {
+                #[cfg(feature = "bitcoin")]
+                Self::BcOpret(barrow) => barrow.wallet.next_wout_seal(),
+                #[cfg(feature = "bitcoin")]
+                Self::BcTapret(barrow) => barrow.wallet.next_wout_seal(),
+                #[cfg(feature = "liquid")]
+                Self::LqOpret(barrow) => barrow.wallet.next_wout_seal(),
+                #[cfg(feature = "liquid")]
+                Self::LqTapret(barrow) => barrow.wallet.next_wout_seal(),
             }
         }
     }
