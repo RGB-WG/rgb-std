@@ -19,6 +19,7 @@ baid64.workspace = true
 hypersonic.workspace = true
 sonic-callreq.workspace = true
 bp-core = { workspace = true, optional = true }
+bp-invoice = { workspace = true, optional = true, features = ["strict_encoding"] }
 rgb-core.workspace = true
 serde = { workspace = true, optional = true }
 
@@ -26,9 +27,9 @@ serde = { workspace = true, optional = true }
 default = ["std", "bitcoin"]
 all = ["std", "uri", "bitcoin", "liquid", "prime", "serde"]
 
-bitcoin = ["bp-core", "rgb-core/bitcoin"]
-liquid = ["bp-core", "rgb-core/liquid"]
+bitcoin = ["bp-core", "rgb-core/bitcoin", "bp-invoice"]
+liquid = ["bp-core", "rgb-core/liquid", "bp-invoice"]
 prime = ["rgb-core/prime"]
 std = ["amplify/std", "sonic-callreq/std"]
 uri = ["sonic-callreq/uri"]
-serde = ["dep:serde", "sonic-callreq/serde", "bp-core/serde", "rgb-core/serde"]
+serde = ["dep:serde", "sonic-callreq/serde", "bp-core/serde", "rgb-core/serde", "bp-invoice/serde"]

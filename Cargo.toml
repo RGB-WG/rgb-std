@@ -23,6 +23,7 @@ baid64 = "0.4.1"
 hypersonic = "=0.12.0-beta.4"
 sonic-callreq = "=0.12.0-beta.4"
 bp-core = "=0.12.0-beta.4"
+bp-invoice = "=0.12.0-beta.4"
 rgb-core = "=0.12.0-beta.4"
 rgb-std = { version = "=0.12.0-beta.4", path = "." }
 rgb-invoice = { version = "=0.12.0-beta.4", path = "./invoice" }
@@ -104,4 +105,9 @@ ultrasonic = { git = "https://github.com/AluVM/ultrasonic" }
 hypersonic = { git = "https://github.com/AluVM/sonic" }
 sonic-api = { git = "https://github.com/AluVM/sonic" }
 sonic-callreq = { git = "https://github.com/AluVM/sonic" }
+bp-consensus = { git = "https://github.com/BP-WG/bp-core", branch = "v0.12" }
+bp-dbc = { git = "https://github.com/BP-WG/bp-core", branch = "v0.12" }
+bp-seals = { git = "https://github.com/BP-WG/bp-core", branch = "v0.12" }
+bp-core = { git = "https://github.com/BP-WG/bp-core", branch = "v0.12" }
+bp-invoice = { git = "https://github.com/BP-WG/bp-std", branch = "v0.12" }
 rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "v0.12" }

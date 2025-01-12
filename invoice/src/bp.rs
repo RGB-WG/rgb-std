@@ -34,46 +34,45 @@ use baid64::BAID64_ALPHABET;
 use bp::seals::Noise;
 use bp::ScriptPubkey;
 use commit_verify::{Digest, DigestExt, ReservedBytes, Sha256};
+use invoice::AddressPayload;
 use strict_encoding::{DeserializeError, StrictDeserialize, StrictSerialize};
 
 pub const WITNESS_OUT_HRI: &str = "wout:";
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = "RGB")]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct WitnessOut {
     reserved: ReservedBytes<1>,
     salt: u64,
-    script_pubkey: TinyBlob,
+    address: AddressPayload,
 }
 impl StrictSerialize for WitnessOut {}
 impl StrictDeserialize for WitnessOut {}
 
 impl Into<ScriptPubkey> for WitnessOut {
-    fn into(self) -> ScriptPubkey { ScriptPubkey::from_unsafe(self.script_pubkey.into_vec()) }
+    fn into(self) -> ScriptPubkey { self.address.script_pubkey() }
 }
 
 impl WitnessOut {
     pub fn noise(&self) -> Noise {
         let mut noise_engine = Sha256::new();
         noise_engine.input_raw(&self.salt.to_le_bytes());
-        noise_engine.input_raw(self.script_pubkey.as_ref());
+        noise_engine.input_raw(self.script_pubkey().as_ref());
         let mut noise = [0xFFu8; 40];
         noise[..32].copy_from_slice(&noise_engine.finish());
         Bytes::from(noise).into()
     }
 
-    pub fn to_script_pubkey(&self) -> ScriptPubkey {
-        ScriptPubkey::from_unsafe(self.script_pubkey.to_vec())
-    }
+    pub fn script_pubkey(&self) -> ScriptPubkey { self.address.script_pubkey() }
 
     pub fn checksum(&self) -> [u8; 4] {
         let key = Sha256::digest(WITNESS_OUT_HRI.as_bytes());
         let mut sha = Sha256::new_with_prefix(key);
         sha.update(&[0]);
         sha.update(self.salt.to_le_bytes());
-        sha.update(self.script_pubkey.as_ref());
+        sha.update(self.script_pubkey().as_slice());
         let sha = sha.finalize();
         [sha[0], sha[1], sha[1], sha[2]]
     }
