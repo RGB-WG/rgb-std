@@ -441,7 +441,11 @@ impl<
 
         let mut prefab_params = Vec::new();
         let root_noise_engine = self.noise_engine();
-        for (contract_id, stockpile) in self.mound.contracts_mut() {
+        for (contract_id, stockpile) in self
+            .mound
+            .contracts_mut()
+            .filter(|(id, _)| !contracts.contains(id))
+        {
             let mut noise_engine = root_noise_engine.clone();
             noise_engine.input_raw(contract_id.as_slice());
 
