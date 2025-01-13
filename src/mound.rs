@@ -29,25 +29,46 @@ use std::io;
 use amplify::hex::ToHex;
 use amplify::Bytes16;
 use commit_verify::ReservedBytes;
-use hypersonic::expect::Expect;
 use hypersonic::{AuthToken, CellAddr, CodexId, ContractId, Opid, Schema, Supply};
+use rgb::RgbSeal;
 use single_use_seals::{PublishedWitness, SingleUseSeal};
 use strict_encoding::{
     ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter, WriteRaw,
 };
 
-use crate::{ConsumeError, ContractInfo, CreateParams, Pile, StateCell, Stockpile};
+use crate::{ConsumeError, ContractInfo, CreateParams, Pile, StateCell, Stockpile, StockpileApi};
 
 pub const MAGIC_BYTES_CONSIGNMENT: [u8; 16] = *b"RGB CONSIGNMENT\0";
 
 pub trait Excavate<S: Supply<CAPS>, P: Pile, const CAPS: u32> {
-    fn schemata(&mut self) -> impl Iterator<Item = (CodexId, Schema)>;
     fn contracts(&mut self) -> impl Iterator<Item = (ContractId, Stockpile<S, P, CAPS>)>;
+}
+
+/// Mound API trait.
+///
+/// Mound API may be implemented for mounds which are homogenuous on contract capabilities -- or
+/// heterogenous (i.e. "multi-mounds").
+pub trait MoundApi {
+    /// Issue a new contract using a sub-mound with a provided seal types and capabilities.
+    ///
+    /// # Panics
+    ///
+    /// If seal type doesn't match capabilities, or a mound doesn't support the provided
+    /// capabilities.
+    fn issue<Seal: RgbSeal, const CAPS: u32>(
+        &mut self,
+        params: CreateParams<Seal>,
+        supply: impl Supply<CAPS>,
+        pile: impl Pile<Seal = Seal>,
+    ) -> ContractId;
+
+    fn contracts_mut(&self) -> impl Iterator<Item = (ContractId, &mut impl StockpileApi)>;
+
+    fn contract_mut(&self, contract_id: ContractId) -> &mut impl StockpileApi;
 }
 
 /// Mound is a collection of smart contracts which have homogenous capabilities.
 pub struct Mound<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS>, const CAPS: u32> {
-    schemata: BTreeMap<CodexId, Schema>,
     contracts: BTreeMap<ContractId, Stockpile<S, P, CAPS>>,
     /// Persistence does loading of a stockpiles and their storage when a new contract is added.
     persistence: X,
@@ -56,39 +77,20 @@ pub struct Mound<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS>, const CAPS: 
 impl<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS> + Default, const CAPS: u32> Default
     for Mound<S, P, X, CAPS>
 {
-    fn default() -> Self {
-        Self {
-            schemata: BTreeMap::new(),
-            contracts: BTreeMap::new(),
-            persistence: default!(),
-        }
-    }
+    fn default() -> Self { Self { contracts: BTreeMap::new(), persistence: default!() } }
 }
 
 impl<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS> + Default, const CAPS: u32>
     Mound<S, P, X, CAPS>
 {
-    pub fn new() -> Self {
-        Self {
-            schemata: BTreeMap::new(),
-            contracts: BTreeMap::new(),
-            persistence: default!(),
-        }
-    }
+    pub fn new() -> Self { Self { contracts: BTreeMap::new(), persistence: default!() } }
 }
 
 impl<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS>, const CAPS: u32> Mound<S, P, X, CAPS> {
-    pub fn with(persistence: X) -> Self {
-        Self {
-            schemata: BTreeMap::new(),
-            contracts: BTreeMap::new(),
-            persistence,
-        }
-    }
+    pub fn with(persistence: X) -> Self { Self { contracts: BTreeMap::new(), persistence } }
 
     pub fn open(mut persistance: X) -> Self {
         Self {
-            schemata: persistance.schemata().collect(),
             contracts: persistance.contracts().collect(),
             persistence: persistance,
         }
@@ -103,16 +105,6 @@ impl<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS>, const CAPS: u32> Mound<S
         self.contracts.insert(id, stockpile);
         id
     }
-
-    pub fn codex_ids(&self) -> impl Iterator<Item = CodexId> + use<'_, S, P, X, CAPS> {
-        self.schemata.keys().copied()
-    }
-
-    pub fn schemata(&self) -> impl Iterator<Item = (CodexId, &Schema)> {
-        self.schemata.iter().map(|(id, schema)| (*id, schema))
-    }
-
-    pub fn schema(&self, codex_id: CodexId) -> Option<&Schema> { self.schemata.get(&codex_id) }
 
     pub fn contract_ids(&self) -> impl Iterator<Item = ContractId> + use<'_, S, P, X, CAPS> {
         self.contracts.keys().copied()
@@ -146,15 +138,6 @@ impl<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS>, const CAPS: u32> Mound<S
         self.contracts
             .get_mut(&id)
             .unwrap_or_else(|| panic!("unknown contract {id}"))
-    }
-
-    pub fn select<'seal>(
-        &self,
-        seal: &'seal P::Seal,
-    ) -> impl Iterator<Item = (ContractId, CellAddr)> + use<'_, 'seal, S, P, X, CAPS> {
-        self.contracts
-            .iter()
-            .filter_map(|(id, stockpile)| stockpile.seal(seal).map(|addr| (*id, addr)))
     }
 
     pub fn attest(
@@ -266,7 +249,7 @@ pub mod file {
                     && path.extension().and_then(OsStr::to_str) == Some("contract")
                 {
                     let contract = Stockpile::<FileSupply, FilePile<Seal>, CAPS>::load(path);
-                    let schema = contract.stock().articles().schema.clone();
+                    let schema = contract.schema().clone();
                     Some((schema.codex.codex_id(), schema))
                 } else {
                     None

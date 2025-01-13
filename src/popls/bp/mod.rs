@@ -22,40 +22,19 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
-#![cfg_attr(not(feature = "std"), no_std)]
+//! Implementation of RGB standard library types for Bitcoin protocol, covering Bitcoin and Liquid
+//! proof of publication layer 1.
 
-extern crate alloc;
+mod prefabs;
+mod barrow;
+mod opret;
+mod tapret;
+//#[cfg(feature = "fs")]
+//pub mod fs;
 
-#[macro_use]
-extern crate amplify;
-extern crate rgbcore as rgb;
-
-#[cfg(feature = "bitcoin")]
-#[macro_use]
-extern crate strict_encoding;
-#[cfg(all(feature = "serde", feature = "bitcoin"))]
-#[macro_use]
-extern crate serde;
-
-extern crate core;
-pub extern crate rgb_invoice as invoice;
-
-mod pile;
-mod stockpile;
-mod mound;
-mod info;
-pub mod popls;
-
-#[cfg(feature = "bitcoin")]
-pub use bp::{Outpoint, Txid};
-pub use hypersonic::*;
-pub use info::ContractInfo;
-pub use mound::{Excavate, Mound, MoundApi, MAGIC_BYTES_CONSIGNMENT};
-#[cfg(feature = "fs")]
-pub use pile::fs::FilePile;
-pub use pile::{Index, Pile};
-pub use rgb::*;
-pub use stockpile::{
-    Assignment, ConsumeError, ContractState, CreateParams, EitherSeal, Stockpile, StockpileApi,
+pub use barrow::Barrow;
+pub use prefabs::{
+    Prefab, PrefabBundle, PrefabParams, PrefabParamsSet, UnresolvedSeal, UsedState, WoutAssignment,
 };
+
+pub const BP_BLANK_METHOD: &str = "_";

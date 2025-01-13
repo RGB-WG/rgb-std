@@ -35,9 +35,9 @@ use commit_verify::ReservedBytes;
 use hypersonic::aora::Aora;
 use hypersonic::sigs::ContentSigs;
 use hypersonic::{
-    Articles, AuthToken, CellAddr, Codex, CodexId, Contract, ContractId, CoreParams, DataCell,
-    IssueParams, LibRepo, Memory, MergeError, MethodName, NamedState, Operation, Opid, Schema,
-    StateAtom, StateName, Stock, Supply,
+    Articles, AuthToken, CallParams, CellAddr, Codex, CodexId, Contract, ContractId, CoreParams,
+    DataCell, IssueParams, LibRepo, Memory, MergeError, MethodName, NamedState, Operation, Opid,
+    Schema, StateAtom, StateName, Stock, Supply,
 };
 use rgb::{
     ContractApi, ContractVerify, OperationSeals, ReadOperation, ReadWitness, RgbSeal,
@@ -177,11 +177,55 @@ pub struct CreateParams<Seal: Clone> {
     pub owned: Vec<NamedState<Assignment<EitherSeal<Seal>>>>,
 }
 
+pub trait StockpileApi {
+    type Seal: RgbSeal;
+    type Pile: Pile<Seal = Self::Seal>;
+
+    fn contract_id(&self) -> ContractId;
+
+    fn pile(&self) -> &Self::Pile;
+    fn pile_mut(&mut self) -> &mut Self::Pile;
+
+    fn schema(&self) -> &Schema;
+    fn state(&mut self) -> ContractState<Self::Seal>;
+    fn call(&mut self, params: CallParams) -> Opid;
+    fn operation(&mut self, opid: Opid) -> Operation;
+    fn seal(&self, seal: &Self::Seal) -> Option<CellAddr>;
+
+    fn attest(
+        &mut self,
+        opid: Opid,
+        anchor: <Self::Seal as SingleUseSeal>::CliWitness,
+        published: &<Self::Seal as SingleUseSeal>::PubWitness,
+    );
+
+    fn consign(
+        &mut self,
+        terminals: impl IntoIterator<Item = impl Borrow<AuthToken>>,
+        writer: StrictWriter<impl WriteRaw>,
+    ) -> io::Result<()>
+    where
+        <Self::Seal as SingleUseSeal>::CliWitness: StrictDumb + StrictEncode,
+        <Self::Seal as SingleUseSeal>::PubWitness: StrictDumb + StrictEncode,
+        <<Self::Seal as SingleUseSeal>::PubWitness as PublishedWitness<Self::Seal>>::PubId:
+            StrictEncode;
+
+    fn consume(
+        &mut self,
+        stream: &mut StrictReader<impl ReadRaw>,
+        seal_resolver: impl FnMut(&[StateCell]) -> Vec<Self::Seal>,
+    ) -> Result<(), ConsumeError<Self::Seal>>
+    where
+        <Self::Seal as SingleUseSeal>::CliWitness: StrictDecode,
+        <Self::Seal as SingleUseSeal>::PubWitness: StrictDecode,
+        <<Self::Seal as SingleUseSeal>::PubWitness as PublishedWitness<Self::Seal>>::PubId:
+            StrictDecode;
+}
+
 #[derive(Getters)]
 pub struct Stockpile<S: Supply<CAPS>, P: Pile, const CAPS: u32> {
-    #[getter(as_mut)]
     stock: Stock<S, CAPS>,
-    #[getter(as_mut)]
+    #[getter(skip)]
     pile: P,
 }
 
@@ -233,15 +277,30 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Stockpile<S, P, CAPS> {
         let stock = Stock::open(articles, supply);
         Self { stock, pile }
     }
+}
 
-    pub fn contract_id(&self) -> ContractId { self.stock.contract_id() }
+impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> StockpileApi for Stockpile<S, P, CAPS> {
+    type Seal = P::Seal;
+    type Pile = P;
 
-    pub fn seal(&self, seal: &P::Seal) -> Option<CellAddr> {
+    fn contract_id(&self) -> ContractId { self.stock.contract_id() }
+
+    fn pile(&self) -> &Self::Pile { &self.pile }
+
+    fn pile_mut(&mut self) -> &mut Self::Pile { &mut self.pile }
+
+    fn schema(&self) -> &Schema { &self.stock.articles().schema }
+
+    fn call(&mut self, params: CallParams) -> Opid { self.stock.call(params) }
+
+    fn operation(&mut self, opid: Opid) -> Operation { self.stock.operation(opid) }
+
+    fn seal(&self, seal: &P::Seal) -> Option<CellAddr> {
         let auth = seal.auth_token();
         self.stock.state().raw.auth.get(&auth).copied()
     }
 
-    pub fn state(&mut self) -> ContractState<P::Seal> {
+    fn state(&mut self) -> ContractState<P::Seal> {
         let state = self.stock().state().main.clone();
         ContractState {
             immutable: state.immutable,
@@ -265,7 +324,7 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Stockpile<S, P, CAPS> {
         }
     }
 
-    pub fn attest(
+    fn attest(
         &mut self,
         opid: Opid,
         anchor: <P::Seal as SingleUseSeal>::CliWitness,
@@ -274,7 +333,7 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Stockpile<S, P, CAPS> {
         self.pile.append(opid, anchor, published);
     }
 
-    pub fn consign(
+    fn consign(
         &mut self,
         terminals: impl IntoIterator<Item = impl Borrow<AuthToken>>,
         writer: StrictWriter<impl WriteRaw>,
@@ -302,7 +361,7 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Stockpile<S, P, CAPS> {
             })
     }
 
-    pub fn consume(
+    fn consume(
         &mut self,
         stream: &mut StrictReader<impl ReadRaw>,
         seal_resolver: impl FnMut(&[StateCell]) -> Vec<P::Seal>,
