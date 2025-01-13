@@ -28,7 +28,7 @@ use core::str::FromStr;
 use amplify::confinement::{self, TinyBlob};
 use amplify::Bytes;
 use baid64::base64::alphabet::Alphabet;
-use baid64::base64::engine::{GeneralPurpose, GeneralPurposeConfig};
+use baid64::base64::engine::{DecodePaddingMode, GeneralPurpose, GeneralPurposeConfig};
 use baid64::base64::{DecodeError, Engine};
 use baid64::BAID64_ALPHABET;
 use bp::seals::Noise;
@@ -93,12 +93,16 @@ impl Display for WitnessOut {
         data.extend(self.checksum());
 
         let alphabet = Alphabet::new(BAID64_ALPHABET).expect("invalid Baid64 alphabet");
-        let engine = GeneralPurpose::new(&alphabet, GeneralPurposeConfig::new());
+        let engine =
+            GeneralPurpose::new(&alphabet, GeneralPurposeConfig::new().with_encode_padding(false));
         let encoded = engine.encode(data).chars().collect::<Vec<_>>();
 
-        for chunk in encoded.chunks(8) {
+        let mut iter = encoded.chunks(8).peekable();
+        while let Some(chunk) = iter.next() {
             f.write_str(&chunk.iter().collect::<String>())?;
-            f.write_str("-")?;
+            if iter.by_ref().peek().is_some() {
+                f.write_str("-")?;
+            }
         }
 
         Ok(())
@@ -114,7 +118,10 @@ impl FromStr for WitnessOut {
             .ok_or(ParseWitnessOutError::NoPrefix)?;
 
         let alphabet = Alphabet::new(BAID64_ALPHABET).expect("invalid Baid64 alphabet");
-        let engine = GeneralPurpose::new(&alphabet, GeneralPurposeConfig::new());
+        let engine = GeneralPurpose::new(
+            &alphabet,
+            GeneralPurposeConfig::new().with_decode_padding_mode(DecodePaddingMode::RequireNone),
+        );
         let decoded = engine.decode(s.as_bytes())?;
 
         let (data, checksum) = decoded
