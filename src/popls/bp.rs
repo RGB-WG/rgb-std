@@ -548,9 +548,10 @@ pub mod file {
     pub type DirBarrow<W> = Barrow<W, FileSupply, FilePile<TxoSeal>, DirExcavator<TxoSeal>>;
 
     impl<W: WalletProvider> DirBarrow<W> {
-        pub fn issue_to_file(&mut self, params: CreateParams<TxoSeal>) -> ContractId {
+        pub fn issue_to_file(&mut self, params: CreateParams<Outpoint>) -> ContractId {
             // TODO: check that if the issue belongs to the wallet add it to the unspents
-            self.mound.issue_to_file(params)
+            self.mound
+                .issue_to_file(params.transform(self.noise_engine()))
         }
 
         pub fn consume_from_file(&mut self, path: impl AsRef<Path>) -> io::Result<()> {
