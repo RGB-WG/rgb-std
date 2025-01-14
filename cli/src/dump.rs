@@ -35,7 +35,7 @@ use commit_verify::ReservedBytes;
 use hypersonic::aora::Aora;
 use hypersonic::{Articles, ContractId, FileSupply, Operation};
 use rgb::{
-    ConsumeError, FilePile, Index, Pile, PublishedWitness, RgbSeal, SealWitness, Stockpile,
+    FilePile, Index, MoundConsumeError, Pile, PublishedWitness, RgbSeal, SealWitness, Stockpile,
     MAGIC_BYTES_CONSIGNMENT,
 };
 use serde::{Deserialize, Serialize};
@@ -135,7 +135,7 @@ where
     let magic_bytes = Bytes16::strict_decode(&mut stream)?;
     if magic_bytes.to_byte_array() != MAGIC_BYTES_CONSIGNMENT {
         return Err(anyhow!(
-            ConsumeError::<Seal>::UnrecognizedMagic(magic_bytes.to_hex()).to_string()
+            MoundConsumeError::<Seal>::UnrecognizedMagic(magic_bytes.to_hex()).to_string()
         ));
     }
     // Version

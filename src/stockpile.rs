@@ -312,8 +312,6 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
         <P::Seal as SingleUseSeal>::PubWitness: StrictDecode,
         <<P::Seal as SingleUseSeal>::PubWitness as PublishedWitness<P::Seal>>::PubId: StrictDecode,
     {
-        // TODO: Add version
-
         // We need to read articles field by field since we have to evaluate genesis separately
         let schema = Schema::strict_decode(stream)?;
         let contract_sigs = ContentSigs::strict_decode(stream)?;
@@ -421,9 +419,6 @@ impl<S: Supply, P: Pile> ContractApi<P::Seal> for Stockpile<S, P> {
 #[derive(Display, From)]
 #[display(inner)]
 pub enum ConsumeError<Seal: RgbSeal> {
-    #[display("unrecognized magic bytes in consignment stream ({0})")]
-    UnrecognizedMagic(String),
-
     #[from]
     #[from(io::Error)]
     Io(IoError),

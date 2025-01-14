@@ -46,7 +46,7 @@ use strict_encoding::{ReadRaw, StrictDecode, StrictDeserialize, StrictReader, St
 use strict_types::StrictVal;
 
 use crate::stockpile::{ContractState, EitherSeal};
-use crate::{Assignment, ConsumeError, CreateParams, Excavate, Mound, Pile};
+use crate::{Assignment, CreateParams, Excavate, IssueError, Mound, MoundConsumeError, Pile};
 
 /// Trait abstracting specific implementation of a bitcoin wallet.
 pub trait WalletProvider {
@@ -287,7 +287,12 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
 
     pub fn unbind(self) -> (W, Mound<S, P, X>) { (self.wallet, self.mound) }
 
-    pub fn issue(&mut self, params: CreateParams<Outpoint>, supply: S, pile: P) -> ContractId {
+    pub fn issue(
+        &mut self,
+        params: CreateParams<Outpoint>,
+        supply: S,
+        pile: P,
+    ) -> Result<ContractId, IssueError> {
         self.mound
             .issue(params.transform(self.noise_engine()), supply, pile)
     }
@@ -523,7 +528,7 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
     pub fn consume(
         &mut self,
         reader: &mut StrictReader<impl ReadRaw>,
-    ) -> Result<(), ConsumeError<TxoSeal>> {
+    ) -> Result<(), MoundConsumeError<TxoSeal>> {
         self.mound.consume(reader, |cells| {
             self.wallet
                 .resolve_seals(cells.iter().map(|cell| cell.auth))
@@ -548,7 +553,10 @@ pub mod file {
     pub type DirBarrow<W> = Barrow<W, FileSupply, FilePile<TxoSeal>, DirExcavator<TxoSeal>>;
 
     impl<W: WalletProvider> DirBarrow<W> {
-        pub fn issue_to_file(&mut self, params: CreateParams<Outpoint>) -> ContractId {
+        pub fn issue_to_file(
+            &mut self,
+            params: CreateParams<Outpoint>,
+        ) -> Result<ContractId, IssueError> {
             // TODO: check that if the issue belongs to the wallet add it to the unspents
             self.mound
                 .issue_to_file(params.transform(self.noise_engine()))

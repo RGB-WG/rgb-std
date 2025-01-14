@@ -29,14 +29,15 @@ use std::io;
 use amplify::hex::ToHex;
 use amplify::Bytes16;
 use commit_verify::ReservedBytes;
-use hypersonic::expect::Expect;
 use hypersonic::{AuthToken, CellAddr, CodexId, ContractId, Opid, Schema, Supply};
+use rgb::RgbSeal;
 use single_use_seals::{PublishedWitness, SingleUseSeal};
 use strict_encoding::{
-    ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter, WriteRaw,
+    DecodeError, ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter,
+    WriteRaw,
 };
 
-use crate::{ConsumeError, ContractInfo, CreateParams, Pile, StateCell, Stockpile};
+use crate::{Consensus, ConsumeError, ContractInfo, CreateParams, Pile, StateCell, Stockpile};
 
 pub const MAGIC_BYTES_CONSIGNMENT: [u8; 16] = *b"RGB CONSIGNMENT\0";
 
@@ -47,25 +48,19 @@ pub trait Excavate<S: Supply, P: Pile> {
 
 /// Mound is a collection of smart contracts which have homogenous capabilities.
 pub struct Mound<S: Supply, P: Pile, X: Excavate<S, P>> {
+    consensus: Consensus,
+    testnet: bool,
     schemata: BTreeMap<CodexId, Schema>,
     contracts: BTreeMap<ContractId, Stockpile<S, P>>,
     /// Persistence does loading of a stockpiles and their storage when a new contract is added.
     persistence: X,
 }
 
-impl<S: Supply, P: Pile, X: Excavate<S, P> + Default> Default for Mound<S, P, X> {
-    fn default() -> Self {
-        Self {
-            schemata: BTreeMap::new(),
-            contracts: BTreeMap::new(),
-            persistence: default!(),
-        }
-    }
-}
-
 impl<S: Supply, P: Pile, X: Excavate<S, P> + Default> Mound<S, P, X> {
-    pub fn new() -> Self {
+    pub fn bitcoin_testnet() -> Self {
         Self {
+            testnet: true,
+            consensus: Consensus::Bitcoin,
             schemata: BTreeMap::new(),
             contracts: BTreeMap::new(),
             persistence: default!(),
@@ -74,30 +69,49 @@ impl<S: Supply, P: Pile, X: Excavate<S, P> + Default> Mound<S, P, X> {
 }
 
 impl<S: Supply, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
-    pub fn with(persistence: X) -> Self {
+    pub fn with_testnet(consensus: Consensus, persistence: X) -> Self {
         Self {
+            testnet: true,
+            consensus,
             schemata: BTreeMap::new(),
             contracts: BTreeMap::new(),
             persistence,
         }
     }
 
-    pub fn open(mut persistance: X) -> Self {
+    pub fn open_testnet(consensus: Consensus, mut persistance: X) -> Self {
         Self {
+            testnet: true,
+            consensus,
             schemata: persistance.schemata().collect(),
             contracts: persistance.contracts().collect(),
             persistence: persistance,
         }
     }
 
-    pub fn issue(&mut self, params: CreateParams<P::Seal>, supply: S, pile: P) -> ContractId {
+    pub fn issue(
+        &mut self,
+        params: CreateParams<P::Seal>,
+        supply: S,
+        pile: P,
+    ) -> Result<ContractId, IssueError> {
+        if params.consensus != self.consensus {
+            return Err(IssueError::ConsensusMismatch);
+        }
+        if params.testnet != self.testnet {
+            return Err(if params.testnet {
+                IssueError::TestnetMismatch
+            } else {
+                IssueError::MainnetMismatch
+            });
+        }
         let schema = self
             .schema(params.codex_id)
-            .expect_or_else(|| format!("Unknown codex `{}`", params.codex_id));
+            .ok_or(IssueError::UnknownCodex(params.codex_id))?;
         let stockpile = Stockpile::issue(schema.clone(), params, supply, pile);
         let id = stockpile.contract_id();
         self.contracts.insert(id, stockpile);
-        id
+        Ok(id)
     }
 
     pub fn codex_ids(&self) -> impl Iterator<Item = CodexId> + use<'_, S, P, X> {
@@ -184,7 +198,7 @@ impl<S: Supply, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
         &mut self,
         reader: &mut StrictReader<impl ReadRaw>,
         seal_resolver: impl FnMut(&[StateCell]) -> Vec<P::Seal>,
-    ) -> Result<(), ConsumeError<P::Seal>>
+    ) -> Result<(), MoundConsumeError<P::Seal>>
     where
         <P::Seal as SingleUseSeal>::CliWitness: StrictDecode,
         <P::Seal as SingleUseSeal>::PubWitness: StrictDecode,
@@ -192,7 +206,7 @@ impl<S: Supply, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
     {
         let magic_bytes = Bytes16::strict_decode(reader)?;
         if magic_bytes.to_byte_array() != MAGIC_BYTES_CONSIGNMENT {
-            return Err(ConsumeError::UnrecognizedMagic(magic_bytes.to_hex()));
+            return Err(MoundConsumeError::UnrecognizedMagic(magic_bytes.to_hex()));
         }
         // Version
         ReservedBytes::<2>::strict_decode(reader)?;
@@ -200,11 +214,39 @@ impl<S: Supply, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
         let contract = if self.has_contract(contract_id) {
             self.contract_mut(contract_id)
         } else {
-            // TODO: Create new contract
-            todo!()
+            return Err(MoundConsumeError::UnknownContract(contract_id));
         };
-        contract.consume(reader, seal_resolver)
+        contract
+            .consume(reader, seal_resolver)
+            .map_err(MoundConsumeError::Inner)
     }
+}
+
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, Error)]
+#[display(doc_comments)]
+pub enum IssueError {
+    /// proof of publication layer mismatch.
+    ConsensusMismatch,
+    /// unable to consume a testnet contract for mainnet.
+    TestnetMismatch,
+    /// unable to consume a mainnet contract for testnet.
+    MainnetMismatch,
+    /// unknown codex for contract issue {0}.
+    UnknownCodex(CodexId),
+}
+
+#[derive(Display, From)]
+#[display(doc_comments)]
+pub enum MoundConsumeError<Seal: RgbSeal> {
+    /// unrecognized magic bytes in consignment stream ({0})
+    UnrecognizedMagic(String),
+
+    /// unknown {0} can't be consumed; please import contract articles first.
+    UnknownContract(ContractId),
+
+    #[display(inner)]
+    #[from(DecodeError)]
+    Inner(ConsumeError<Seal>),
 }
 
 #[cfg(feature = "fs")]
@@ -226,15 +268,32 @@ pub mod file {
 
     pub struct DirExcavator<Seal: RgbSeal> {
         dir: PathBuf,
+        consensus: Consensus,
+        testnet: bool,
+        no_prefix: bool,
         _phantom: PhantomData<Seal>,
     }
 
     impl<Seal: RgbSeal> DirExcavator<Seal> {
-        pub fn new(dir: PathBuf) -> Self { Self { dir, _phantom: PhantomData } }
+        pub fn new(consensus: Consensus, testnet: bool, dir: PathBuf, no_prefix: bool) -> Self {
+            Self { dir, consensus, testnet, no_prefix, _phantom: PhantomData }
+        }
 
-        fn contents(&mut self) -> impl Iterator<Item = (FileType, PathBuf)> {
-            fs::read_dir(&self.dir)
-                .expect_or_else(|| format!("unable to read directory `{}`", self.dir.display()))
+        fn consensus_dir(&self) -> PathBuf {
+            if self.no_prefix {
+                return self.dir.to_owned();
+            }
+            let mut dir = self.dir.join(self.consensus.to_string());
+            if self.testnet {
+                dir.set_extension("testnet");
+            }
+            dir
+        }
+
+        fn contents(&mut self, top: bool) -> impl Iterator<Item = (FileType, PathBuf)> {
+            let dir =
+                if top { fs::read_dir(&self.dir) } else { fs::read_dir(self.consensus_dir()) };
+            dir.expect_or_else(|| format!("unable to read directory `{}`", self.dir.display()))
                 .map(|entry| {
                     let entry = entry.expect("unable to read directory");
                     let ty = entry.file_type().expect("unable to read file type");
@@ -250,17 +309,11 @@ pub mod file {
         <Seal::PubWitness as PublishedWitness<Seal>>::PubId: Ord + From<[u8; 32]> + Into<[u8; 32]>,
     {
         fn schemata(&mut self) -> impl Iterator<Item = (CodexId, Schema)> {
-            self.contents().filter_map(|(ty, path)| {
+            self.contents(true).filter_map(|(ty, path)| {
                 if ty.is_file() && path.extension().and_then(OsStr::to_str) == Some("issuer") {
                     Schema::load(path)
                         .ok()
                         .map(|schema| (schema.codex.codex_id(), schema))
-                } else if ty.is_dir()
-                    && path.extension().and_then(OsStr::to_str) == Some("contract")
-                {
-                    let contract = Stockpile::<FileSupply, FilePile<Seal>>::load(path);
-                    let schema = contract.stock().articles().schema.clone();
-                    Some((schema.codex.codex_id(), schema))
                 } else {
                     None
                 }
@@ -270,13 +323,15 @@ pub mod file {
         fn contracts(
             &mut self,
         ) -> impl Iterator<Item = (ContractId, Stockpile<FileSupply, FilePile<Seal>>)> {
-            self.contents().filter_map(|(ty, path)| {
+            self.contents(false).filter_map(|(ty, path)| {
                 if ty.is_dir() && path.extension().and_then(OsStr::to_str) == Some("contract") {
                     let contract = Stockpile::load(path);
-                    Some((contract.contract_id(), contract))
-                } else {
-                    None
+                    let meta = &contract.stock().articles().contract.meta;
+                    if meta.consensus == self.consensus && meta.testnet == self.testnet {
+                        return Some((contract.contract_id(), contract));
+                    }
                 }
+                None
             })
         }
     }
@@ -289,19 +344,23 @@ pub mod file {
         Seal::PubWitness: StrictEncode + StrictDecode,
         <Seal::PubWitness as PublishedWitness<Seal>>::PubId: Ord + From<[u8; 32]> + Into<[u8; 32]>,
     {
-        pub fn load(path: impl AsRef<Path>) -> Self {
+        pub fn load_testnet(consensus: Consensus, path: impl AsRef<Path>, no_prefix: bool) -> Self {
             let path = path.as_ref();
-            let excavator = DirExcavator::new(path.to_owned());
-            Self::open(excavator)
+            let excavator = DirExcavator::new(consensus, true, path.to_owned(), no_prefix);
+            Self::open_testnet(consensus, excavator)
         }
 
-        pub fn issue_to_file(&mut self, params: CreateParams<Seal>) -> ContractId {
-            let supply = FileSupply::new(params.name.as_str(), &self.persistence.dir);
-            let pile = FilePile::<Seal>::new(params.name.as_str(), &self.persistence.dir);
+        pub fn issue_to_file(
+            &mut self,
+            params: CreateParams<Seal>,
+        ) -> Result<ContractId, IssueError> {
+            let dir = self.persistence.consensus_dir();
+            let supply = FileSupply::new(params.name.as_str(), &dir);
+            let pile = FilePile::<Seal>::new(params.name.as_str(), &dir);
             self.issue(params, supply, pile)
         }
 
-        pub fn path(&self) -> &Path { &self.persistence.dir }
+        pub fn path(&self) -> PathBuf { self.persistence.consensus_dir() }
 
         pub fn consign_to_file(
             &mut self,
