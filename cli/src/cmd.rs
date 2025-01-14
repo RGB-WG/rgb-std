@@ -25,7 +25,6 @@
 use std::path::PathBuf;
 
 use clap::ValueHint;
-use rgb::SealType;
 
 #[derive(Parser)]
 pub struct Args {
@@ -57,9 +56,6 @@ pub enum Cmd {
         /// Remove the destination directory if it already exists
         #[clap(short, long, global = true)]
         force: bool,
-
-        /// The seal type used by the contract
-        seal: SealType,
 
         /// Source data to process
         #[clap(value_hint = ValueHint::FilePath)]

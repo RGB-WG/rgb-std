@@ -40,22 +40,20 @@ use crate::{ConsumeError, ContractInfo, CreateParams, Pile, StateCell, Stockpile
 
 pub const MAGIC_BYTES_CONSIGNMENT: [u8; 16] = *b"RGB CONSIGNMENT\0";
 
-pub trait Excavate<S: Supply<CAPS>, P: Pile, const CAPS: u32> {
+pub trait Excavate<S: Supply, P: Pile> {
     fn schemata(&mut self) -> impl Iterator<Item = (CodexId, Schema)>;
-    fn contracts(&mut self) -> impl Iterator<Item = (ContractId, Stockpile<S, P, CAPS>)>;
+    fn contracts(&mut self) -> impl Iterator<Item = (ContractId, Stockpile<S, P>)>;
 }
 
 /// Mound is a collection of smart contracts which have homogenous capabilities.
-pub struct Mound<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS>, const CAPS: u32> {
+pub struct Mound<S: Supply, P: Pile, X: Excavate<S, P>> {
     schemata: BTreeMap<CodexId, Schema>,
-    contracts: BTreeMap<ContractId, Stockpile<S, P, CAPS>>,
+    contracts: BTreeMap<ContractId, Stockpile<S, P>>,
     /// Persistence does loading of a stockpiles and their storage when a new contract is added.
     persistence: X,
 }
 
-impl<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS> + Default, const CAPS: u32> Default
-    for Mound<S, P, X, CAPS>
-{
+impl<S: Supply, P: Pile, X: Excavate<S, P> + Default> Default for Mound<S, P, X> {
     fn default() -> Self {
         Self {
             schemata: BTreeMap::new(),
@@ -65,9 +63,7 @@ impl<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS> + Default, const CAPS: u3
     }
 }
 
-impl<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS> + Default, const CAPS: u32>
-    Mound<S, P, X, CAPS>
-{
+impl<S: Supply, P: Pile, X: Excavate<S, P> + Default> Mound<S, P, X> {
     pub fn new() -> Self {
         Self {
             schemata: BTreeMap::new(),
@@ -77,7 +73,7 @@ impl<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS> + Default, const CAPS: u3
     }
 }
 
-impl<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS>, const CAPS: u32> Mound<S, P, X, CAPS> {
+impl<S: Supply, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
     pub fn with(persistence: X) -> Self {
         Self {
             schemata: BTreeMap::new(),
@@ -104,7 +100,7 @@ impl<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS>, const CAPS: u32> Mound<S
         id
     }
 
-    pub fn codex_ids(&self) -> impl Iterator<Item = CodexId> + use<'_, S, P, X, CAPS> {
+    pub fn codex_ids(&self) -> impl Iterator<Item = CodexId> + use<'_, S, P, X> {
         self.schemata.keys().copied()
     }
 
@@ -114,35 +110,33 @@ impl<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS>, const CAPS: u32> Mound<S
 
     pub fn schema(&self, codex_id: CodexId) -> Option<&Schema> { self.schemata.get(&codex_id) }
 
-    pub fn contract_ids(&self) -> impl Iterator<Item = ContractId> + use<'_, S, P, X, CAPS> {
+    pub fn contract_ids(&self) -> impl Iterator<Item = ContractId> + use<'_, S, P, X> {
         self.contracts.keys().copied()
     }
 
-    pub fn contracts(&self) -> impl Iterator<Item = (ContractId, &Stockpile<S, P, CAPS>)> {
+    pub fn contracts(&self) -> impl Iterator<Item = (ContractId, &Stockpile<S, P>)> {
         self.contracts.iter().map(|(id, stock)| (*id, stock))
     }
 
-    pub fn contracts_info(&self) -> impl Iterator<Item = ContractInfo> + use<'_, S, P, X, CAPS> {
+    pub fn contracts_info(&self) -> impl Iterator<Item = ContractInfo> + use<'_, S, P, X> {
         self.contracts
             .iter()
             .map(|(id, stockpile)| ContractInfo::new(*id, stockpile.stock().articles()))
     }
 
-    pub fn contracts_mut(
-        &mut self,
-    ) -> impl Iterator<Item = (ContractId, &mut Stockpile<S, P, CAPS>)> {
+    pub fn contracts_mut(&mut self) -> impl Iterator<Item = (ContractId, &mut Stockpile<S, P>)> {
         self.contracts.iter_mut().map(|(id, stock)| (*id, stock))
     }
 
     pub fn has_contract(&self, id: ContractId) -> bool { self.contracts.contains_key(&id) }
 
-    pub fn contract(&self, id: ContractId) -> &Stockpile<S, P, CAPS> {
+    pub fn contract(&self, id: ContractId) -> &Stockpile<S, P> {
         self.contracts
             .get(&id)
             .unwrap_or_else(|| panic!("unknown contract {id}"))
     }
 
-    pub fn contract_mut(&mut self, id: ContractId) -> &mut Stockpile<S, P, CAPS> {
+    pub fn contract_mut(&mut self, id: ContractId) -> &mut Stockpile<S, P> {
         self.contracts
             .get_mut(&id)
             .unwrap_or_else(|| panic!("unknown contract {id}"))
@@ -151,7 +145,7 @@ impl<S: Supply<CAPS>, P: Pile, X: Excavate<S, P, CAPS>, const CAPS: u32> Mound<S
     pub fn select<'seal>(
         &self,
         seal: &'seal P::Seal,
-    ) -> impl Iterator<Item = (ContractId, CellAddr)> + use<'_, 'seal, S, P, X, CAPS> {
+    ) -> impl Iterator<Item = (ContractId, CellAddr)> + use<'_, 'seal, S, P, X> {
         self.contracts
             .iter()
             .filter_map(|(id, stockpile)| stockpile.seal(seal).map(|addr| (*id, addr)))
@@ -230,12 +224,12 @@ pub mod file {
     use super::*;
     use crate::FilePile;
 
-    pub struct DirExcavator<Seal: RgbSeal, const CAPS: u32> {
+    pub struct DirExcavator<Seal: RgbSeal> {
         dir: PathBuf,
         _phantom: PhantomData<Seal>,
     }
 
-    impl<Seal: RgbSeal, const CAPS: u32> DirExcavator<Seal, CAPS> {
+    impl<Seal: RgbSeal> DirExcavator<Seal> {
         pub fn new(dir: PathBuf) -> Self { Self { dir, _phantom: PhantomData } }
 
         fn contents(&mut self) -> impl Iterator<Item = (FileType, PathBuf)> {
@@ -249,8 +243,7 @@ pub mod file {
         }
     }
 
-    impl<Seal: RgbSeal, const CAPS: u32> Excavate<FileSupply, FilePile<Seal>, CAPS>
-        for DirExcavator<Seal, CAPS>
+    impl<Seal: RgbSeal> Excavate<FileSupply, FilePile<Seal>> for DirExcavator<Seal>
     where
         Seal::CliWitness: StrictEncode + StrictDecode,
         Seal::PubWitness: StrictEncode + StrictDecode,
@@ -265,7 +258,7 @@ pub mod file {
                 } else if ty.is_dir()
                     && path.extension().and_then(OsStr::to_str) == Some("contract")
                 {
-                    let contract = Stockpile::<FileSupply, FilePile<Seal>, CAPS>::load(path);
+                    let contract = Stockpile::<FileSupply, FilePile<Seal>>::load(path);
                     let schema = contract.stock().articles().schema.clone();
                     Some((schema.codex.codex_id(), schema))
                 } else {
@@ -276,8 +269,7 @@ pub mod file {
 
         fn contracts(
             &mut self,
-        ) -> impl Iterator<Item = (ContractId, Stockpile<FileSupply, FilePile<Seal>, CAPS>)>
-        {
+        ) -> impl Iterator<Item = (ContractId, Stockpile<FileSupply, FilePile<Seal>>)> {
             self.contents().filter_map(|(ty, path)| {
                 if ty.is_dir() && path.extension().and_then(OsStr::to_str) == Some("contract") {
                     let contract = Stockpile::load(path);
@@ -289,10 +281,9 @@ pub mod file {
         }
     }
 
-    pub type FileMound<Seal, const CAPS: u32> =
-        Mound<FileSupply, FilePile<Seal>, DirExcavator<Seal, CAPS>, CAPS>;
+    pub type DirMound<Seal> = Mound<FileSupply, FilePile<Seal>, DirExcavator<Seal>>;
 
-    impl<Seal: RgbSeal, const CAPS: u32> FileMound<Seal, CAPS>
+    impl<Seal: RgbSeal> DirMound<Seal>
     where
         Seal::CliWitness: StrictEncode + StrictDecode,
         Seal::PubWitness: StrictEncode + StrictDecode,

@@ -24,10 +24,9 @@
 
 use amplify::confinement::TinyString;
 use chrono::{DateTime, Utc};
-use hypersonic::{Articles, Codex, CodexId, ContractId, ContractName, Identity};
-use rgb::SealType;
+use hypersonic::{Articles, Codex, CodexId, Consensus, ContractId, ContractName, Identity};
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct ContractInfo {
     pub id: ContractId,
@@ -35,11 +34,12 @@ pub struct ContractInfo {
     pub issuer: Identity,
     pub timestamp: DateTime<Utc>,
     pub codex: CodexInfo,
-    pub ty: SealType,
+    pub consensus: Consensus,
+    pub testnet: bool,
 }
 
 impl ContractInfo {
-    pub fn new<const CAPS: u32>(id: ContractId, articles: &Articles<CAPS>) -> Self {
+    pub fn new(id: ContractId, articles: &Articles) -> Self {
         Self {
             id,
             name: articles.contract.meta.name.clone(),
@@ -47,7 +47,8 @@ impl ContractInfo {
             timestamp: DateTime::from_timestamp(articles.contract.meta.timestamp, 0)
                 .expect("Invalid timestamp"),
             codex: CodexInfo::new(&articles.schema.codex),
-            ty: SealType::try_from(CAPS).unwrap(),
+            consensus: articles.contract.meta.consensus,
+            testnet: articles.contract.meta.testnet,
         }
     }
 }

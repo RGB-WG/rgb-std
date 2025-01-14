@@ -42,10 +42,7 @@ use serde::{Deserialize, Serialize};
 use strict_encoding::{DecodeError, StreamReader, StrictDecode, StrictEncode, StrictReader};
 
 // TODO: Auto-compute seal type out of the articles data
-pub fn dump_stockpile<Seal, const CAPS: u32>(
-    src: &Path,
-    dst: impl AsRef<Path>,
-) -> anyhow::Result<()>
+pub fn dump_stockpile<Seal>(src: &Path, dst: impl AsRef<Path>) -> anyhow::Result<()>
 where
     Seal: RgbSeal + Serialize,
     Seal::CliWitness: Serialize + StrictEncode + StrictDecode,
@@ -57,7 +54,7 @@ where
     fs::create_dir_all(dst)?;
 
     print!("Reading contract stockpile from '{}' ... ", src.display());
-    let mut stockpile = Stockpile::<FileSupply, FilePile<Seal>, CAPS>::load(src);
+    let mut stockpile = Stockpile::<FileSupply, FilePile<Seal>>::load(src);
     println!("success reading {}", stockpile.contract_id());
 
     print!("Processing contract articles ... ");
@@ -121,10 +118,7 @@ where
 }
 
 // TODO: Auto-compute seal type out of the articles data
-pub fn dump_consignment<Seal, const CAPS: u32>(
-    src: &Path,
-    dst: impl AsRef<Path>,
-) -> anyhow::Result<()>
+pub fn dump_consignment<Seal>(src: &Path, dst: impl AsRef<Path>) -> anyhow::Result<()>
 where
     Seal: RgbSeal + Serialize,
     Seal::CliWitness: Serialize + for<'de> Deserialize<'de> + StrictEncode + StrictDecode,
@@ -155,7 +149,7 @@ where
     let mut witness_count = 0;
 
     print!("Processing contract articles ... ");
-    let articles = Articles::<CAPS>::strict_decode(&mut stream)?;
+    let articles = Articles::strict_decode(&mut stream)?;
     let out = File::create_new(
         dst.join(format!("0000-genesis.{}.yaml", articles.contract.genesis_opid())),
     )?;

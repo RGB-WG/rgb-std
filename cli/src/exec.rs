@@ -25,9 +25,9 @@
 use std::fs;
 use std::io::stdout;
 
-use rgb::bitcoin::{OpretSeal, TapretSeal};
+use bp::seals::TxoSeal;
 use rgb::popls::bp::PrefabBundle;
-use rgb::{Schema, SealType, BITCOIN_OPRET, BITCOIN_TAPRET, LIQUID_OPRET, LIQUID_TAPRET};
+use rgb::Schema;
 use strict_encoding::StrictDeserialize;
 
 use crate::cmd::{Args, Cmd};
@@ -79,7 +79,7 @@ impl Args {
                     ))
                 }
             },
-            Cmd::Dump { force, seal, src, dst } => match src.extension() {
+            Cmd::Dump { force, src, dst } => match src.extension() {
                 Some(ext) if ext == "rgb" => {
                     let dst = dst
                         .as_ref()
@@ -95,28 +95,7 @@ impl Args {
                             }
                         })?;
                     }
-                    match seal {
-                        #[cfg(feature = "bitcoin")]
-                        SealType::BitcoinOpret => {
-                            dump_consignment::<OpretSeal, BITCOIN_OPRET>(src, dst)
-                        }
-                        #[cfg(feature = "bitcoin")]
-                        SealType::BitcoinTapret => {
-                            dump_consignment::<TapretSeal, BITCOIN_TAPRET>(src, dst)
-                        }
-                        #[cfg(feature = "liquid")]
-                        SealType::LiquidOpret => {
-                            dump_consignment::<OpretSeal, LIQUID_OPRET>(src, dst)
-                        }
-                        #[cfg(feature = "liquid")]
-                        SealType::LiquidTapret => {
-                            dump_consignment::<TapretSeal, LIQUID_TAPRET>(src, dst)
-                        }
-                        #[cfg(feature = "prime")]
-                        SealType::Prime => {
-                            todo!()
-                        }
-                    }?;
+                    dump_consignment::<TxoSeal>(src, dst)?;
                 }
                 Some(ext) if ext == "contract" => {
                     let dst = dst
@@ -132,28 +111,7 @@ impl Args {
                             }
                         })?;
                     }
-                    match seal {
-                        #[cfg(feature = "bitcoin")]
-                        SealType::BitcoinOpret => {
-                            dump_stockpile::<OpretSeal, BITCOIN_OPRET>(src, dst)
-                        }
-                        #[cfg(feature = "bitcoin")]
-                        SealType::BitcoinTapret => {
-                            dump_stockpile::<TapretSeal, BITCOIN_TAPRET>(src, dst)
-                        }
-                        #[cfg(feature = "liquid")]
-                        SealType::LiquidOpret => {
-                            dump_stockpile::<OpretSeal, LIQUID_OPRET>(src, dst)
-                        }
-                        #[cfg(feature = "liquid")]
-                        SealType::LiquidTapret => {
-                            dump_stockpile::<TapretSeal, LIQUID_TAPRET>(src, dst)
-                        }
-                        #[cfg(feature = "prime")]
-                        SealType::Prime => {
-                            todo!()
-                        }
-                    }?;
+                    dump_stockpile::<TxoSeal>(src, dst)?;
                 }
                 Some(_) => {
                     return Err(anyhow!(

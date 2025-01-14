@@ -35,13 +35,13 @@ use commit_verify::ReservedBytes;
 use hypersonic::aora::Aora;
 use hypersonic::sigs::ContentSigs;
 use hypersonic::{
-    Articles, AuthToken, CellAddr, Codex, CodexId, Contract, ContractId, CoreParams, DataCell,
-    IssueParams, LibRepo, Memory, MergeError, MethodName, NamedState, Operation, Opid, Schema,
-    StateAtom, StateName, Stock, Supply,
+    Articles, AuthToken, CellAddr, Codex, CodexId, Consensus, Contract, ContractId, CoreParams,
+    DataCell, IssueParams, LibRepo, Memory, MergeError, MethodName, NamedState, Operation, Opid,
+    Schema, StateAtom, StateName, Stock, Supply,
 };
 use rgb::{
     ContractApi, ContractVerify, OperationSeals, ReadOperation, ReadWitness, RgbSeal,
-    SealAuthToken, SealType, Step, VerificationError,
+    SealAuthToken, Step, VerificationError,
 };
 use single_use_seals::{PublishedWitness, SealWitness, SingleUseSeal};
 use strict_encoding::{
@@ -168,7 +168,7 @@ impl<Seal> ContractState<Seal> {
 )]
 pub struct CreateParams<Seal: Clone> {
     pub codex_id: CodexId,
-    pub seal_type: SealType,
+    pub consensus: Consensus,
     pub testnet: bool,
     pub method: MethodName,
     pub name: TypeName,
@@ -178,17 +178,16 @@ pub struct CreateParams<Seal: Clone> {
 }
 
 #[derive(Getters)]
-pub struct Stockpile<S: Supply<CAPS>, P: Pile, const CAPS: u32> {
+pub struct Stockpile<S: Supply, P: Pile> {
     #[getter(as_mut)]
-    stock: Stock<S, CAPS>,
+    stock: Stock<S>,
     #[getter(as_mut)]
     pile: P,
 }
 
-impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Stockpile<S, P, CAPS> {
+impl<S: Supply, P: Pile> Stockpile<S, P> {
     pub fn issue(schema: Schema, params: CreateParams<P::Seal>, supply: S, mut pile: P) -> Self {
         assert_eq!(params.codex_id, schema.codex.codex_id());
-        assert_eq!(params.seal_type as u32, CAPS, "invalid seal type for the issue");
 
         let seals = SmallVec::try_from_iter(
             params
@@ -199,6 +198,7 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Stockpile<S, P, CAPS> {
         .expect("too many outputs");
         let params = IssueParams {
             name: params.name,
+            consensus: params.consensus,
             testnet: params.testnet,
             timestamp: params.timestamp,
             core: CoreParams {
@@ -219,7 +219,7 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Stockpile<S, P, CAPS> {
             },
         };
 
-        let articles = schema.issue::<CAPS>(params);
+        let articles = schema.issue(params);
         let stock = Stock::create(articles, supply);
 
         // Init seals
@@ -229,7 +229,7 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Stockpile<S, P, CAPS> {
         Self { stock, pile }
     }
 
-    pub fn open(articles: Articles<CAPS>, supply: S, pile: P) -> Self {
+    pub fn open(articles: Articles, supply: S, pile: P) -> Self {
         let stock = Stock::open(articles, supply);
         Self { stock, pile }
     }
@@ -318,7 +318,7 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Stockpile<S, P, CAPS> {
         let schema = Schema::strict_decode(stream)?;
         let contract_sigs = ContentSigs::strict_decode(stream)?;
         let codex_version = ReservedBytes::<2>::strict_decode(stream)?;
-        let meta = ContractMeta::<CAPS>::strict_decode(stream)?;
+        let meta = ContractMeta::strict_decode(stream)?;
         let codex = Codex::strict_decode(stream)?;
 
         // We need to clone due to a borrow checker.
@@ -326,7 +326,7 @@ impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> Stockpile<S, P, CAPS> {
         self.evaluate(op_reader)?;
 
         let genesis = self.stock.articles().contract.genesis.clone();
-        let articles = Articles::<CAPS> {
+        let articles = Articles {
             contract: Contract { version: codex_version, meta, codex, genesis },
             contract_sigs,
             schema,
@@ -397,7 +397,7 @@ impl<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&[StateCell]) -> Vec<Seal>> ReadWit
     }
 }
 
-impl<S: Supply<CAPS>, P: Pile, const CAPS: u32> ContractApi<P::Seal> for Stockpile<S, P, CAPS> {
+impl<S: Supply, P: Pile> ContractApi<P::Seal> for Stockpile<S, P> {
     fn contract_id(&self) -> ContractId { self.stock.contract_id() }
 
     fn codex(&self) -> &Codex { &self.stock.articles().schema.codex }
@@ -449,7 +449,7 @@ mod fs {
     use super::*;
     use crate::FilePile;
 
-    impl<Seal: RgbSeal, const CAPS: u32> Stockpile<FileSupply, FilePile<Seal>, CAPS>
+    impl<Seal: RgbSeal> Stockpile<FileSupply, FilePile<Seal>>
     where
         Seal::CliWitness: StrictEncode + StrictDecode,
         Seal::PubWitness: StrictEncode + StrictDecode,

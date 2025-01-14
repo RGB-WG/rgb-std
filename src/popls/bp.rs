@@ -30,9 +30,9 @@ use std::vec;
 
 use amplify::confinement::{SmallOrdMap, SmallOrdSet, SmallVec, TinyVec};
 use amplify::{confinement, ByteArray, Bytes32, Wrapper};
-use bp::dbc::opret::OpretProof;
-use bp::seals::{mmb, Anchor, TxoSeal, TxoSealDef};
-use bp::{dbc, Outpoint, Sats, ScriptPubkey, Tx, Vout};
+use bp::dbc::tapret::TapretProof;
+use bp::seals::{mmb, Anchor, TxoSeal};
+use bp::{Outpoint, Sats, ScriptPubkey, Tx, Vout};
 use commit_verify::mpc::ProtocolId;
 use commit_verify::{mpc, Digest, DigestExt, Sha256};
 use hypersonic::aora::Aora;
@@ -53,15 +53,13 @@ pub trait WalletProvider {
     fn noise_seed(&self) -> Bytes32;
     fn has_utxo(&self, outpoint: Outpoint) -> bool;
     fn utxos(&self) -> impl Iterator<Item = Outpoint>;
-    fn register_seal(&mut self, seal: TxoSealDef);
+    fn register_seal(&mut self, seal: TxoSeal);
     fn resolve_seals(
         &self,
         seals: impl Iterator<Item = AuthToken>,
-    ) -> impl Iterator<Item = TxoSealDef>;
+    ) -> impl Iterator<Item = TxoSeal>;
     fn next_address(&mut self) -> Address;
 }
-pub trait OpretProvider: WalletProvider {}
-pub trait TapretProvider: WalletProvider {}
 
 pub const BP_BLANK_METHOD: &str = "_";
 
@@ -87,11 +85,7 @@ impl<T> EitherSeal<T> {
 }
 
 impl EitherSeal<Outpoint> {
-    pub fn transform<D: dbc::Proof>(
-        self,
-        noise_engine: Sha256,
-        nonce: u64,
-    ) -> EitherSeal<TxoSeal<D>> {
+    pub fn transform(self, noise_engine: Sha256, nonce: u64) -> EitherSeal<TxoSeal> {
         match self {
             EitherSeal::Alt(seal) => {
                 EitherSeal::Alt(TxoSeal::no_fallback(seal, noise_engine, nonce))
@@ -102,15 +96,15 @@ impl EitherSeal<Outpoint> {
 }
 
 impl CreateParams<Outpoint> {
-    pub fn transform<D: dbc::Proof>(self, mut noise_engine: Sha256) -> CreateParams<TxoSeal<D>> {
+    pub fn transform(self, mut noise_engine: Sha256) -> CreateParams<TxoSeal> {
         noise_engine.input_raw(self.codex_id.as_slice());
-        noise_engine.input_raw(&(self.seal_type as u32).to_le_bytes());
+        noise_engine.input_raw(&[self.consensus as u8]);
         noise_engine.input_raw(self.method.as_bytes());
         noise_engine.input_raw(self.name.as_bytes());
         noise_engine.input_raw(&self.timestamp.unwrap_or_default().timestamp().to_le_bytes());
         CreateParams {
             codex_id: self.codex_id,
-            seal_type: self.seal_type,
+            consensus: self.consensus,
             testnet: self.testnet,
             method: self.method,
             name: self.name,
@@ -283,30 +277,15 @@ impl PrefabBundle {
 /// Barrow contains a bunch of RGB contract stockpiles, which are held by a single owner; such that
 /// when a new operation under any of the contracts happen it may affect other contracts sharing the
 /// same UTXOs.
-pub struct Barrow<
-    W: WalletProvider,
-    D: dbc::Proof,
-    S: Supply<CAPS>,
-    P: Pile<Seal = TxoSeal<D>>,
-    X: Excavate<S, P, CAPS>,
-    const CAPS: u32,
-> {
+pub struct Barrow<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> {
     pub wallet: W,
-    pub mound: Mound<S, P, X, CAPS>,
+    pub mound: Mound<S, P, X>,
 }
 
-impl<
-        W: WalletProvider,
-        D: dbc::Proof,
-        S: Supply<CAPS>,
-        P: Pile<Seal = TxoSeal<D>>,
-        X: Excavate<S, P, CAPS>,
-        const CAPS: u32,
-    > Barrow<W, D, S, P, X, CAPS>
-{
-    pub fn with(wallet: W, mound: Mound<S, P, X, CAPS>) -> Self { Self { wallet, mound } }
+impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> Barrow<W, S, P, X> {
+    pub fn with(wallet: W, mound: Mound<S, P, X>) -> Self { Self { wallet, mound } }
 
-    pub fn unbind(self) -> (W, Mound<S, P, X, CAPS>) { (self.wallet, self.mound) }
+    pub fn unbind(self) -> (W, Mound<S, P, X>) { (self.wallet, self.mound) }
 
     pub fn issue(&mut self, params: CreateParams<Outpoint>, supply: S, pile: P) -> ContractId {
         self.mound
@@ -315,7 +294,7 @@ impl<
 
     pub fn auth_token(&mut self, nonce: u64) -> Option<AuthToken> {
         let outpoint = self.wallet.utxos().next()?;
-        let seal = TxoSealDef::no_fallback(outpoint, self.noise_engine(), nonce);
+        let seal = TxoSeal::no_fallback(outpoint, self.noise_engine(), nonce);
         let auth = seal.auth_token();
         self.wallet.register_seal(seal);
         Some(auth)
@@ -329,8 +308,7 @@ impl<
     pub fn state(
         &mut self,
         contract_id: Option<ContractId>,
-    ) -> impl Iterator<Item = (ContractId, ContractState<Outpoint>)> + use<'_, W, D, S, P, X, CAPS>
-    {
+    ) -> impl Iterator<Item = (ContractId, ContractState<Outpoint>)> + use<'_, W, S, P, X> {
         self.mound
             .contracts_mut()
             .filter(move |(id, _)| contract_id.is_none() || Some(*id) == contract_id)
@@ -349,8 +327,7 @@ impl<
     pub fn state_all(
         &mut self,
         contract_id: Option<ContractId>,
-    ) -> impl Iterator<Item = (ContractId, ContractState<Outpoint>)> + use<'_, W, D, S, P, X, CAPS>
-    {
+    ) -> impl Iterator<Item = (ContractId, ContractState<Outpoint>)> + use<'_, W, S, P, X> {
         self.mound
             .contracts_mut()
             .filter(move |(id, _)| contract_id.is_none() || Some(*id) == contract_id)
@@ -386,11 +363,8 @@ impl<
                 let auth = match assignment.state.seal {
                     EitherSeal::Alt(vout) => {
                         defines.push(vout).expect("too many seals");
-                        let seal = TxoSeal::<D>::vout_no_fallback(
-                            vout,
-                            noise_engine.clone(),
-                            nonce as u64,
-                        );
+                        let seal =
+                            TxoSeal::vout_no_fallback(vout, noise_engine.clone(), nonce as u64);
                         seals.push(seal).expect("too many seals");
                         seal.auth_token()
                     }
@@ -464,9 +438,12 @@ impl<
                         .copied()
                         .enumerate()
                         .find(|(nonce, outpoint)| {
-                            TxoSealDef::no_fallback(*outpoint, noise_engine.clone(), *nonce as u64)
-                                .auth_token()
-                                == auth
+                            let seal = TxoSeal::no_fallback(
+                                *outpoint,
+                                noise_engine.clone(),
+                                *nonce as u64,
+                            );
+                            seal.auth_token() == auth
                         })
                         .map(|(_, outpoint)| {
                             let prevout = UsedState { addr, outpoint, val: StrictVal::Unit };
@@ -516,7 +493,7 @@ impl<
         bundle: &PrefabBundle,
         witness: &Tx,
         mpc: mpc::MerkleBlock,
-        dbc: D,
+        dbc: Option<TapretProof>,
         prevouts: &[Outpoint],
     ) {
         let iter = bundle.iter().map(|prefab| {
@@ -546,11 +523,10 @@ impl<
     pub fn consume(
         &mut self,
         reader: &mut StrictReader<impl ReadRaw>,
-    ) -> Result<(), ConsumeError<TxoSeal<D>>> {
+    ) -> Result<(), ConsumeError<TxoSeal>> {
         self.mound.consume(reader, |cells| {
             self.wallet
                 .resolve_seals(cells.iter().map(|cell| cell.auth))
-                .map(TxoSeal::<D>::from_definition)
                 .collect()
         })
     }
@@ -558,376 +534,20 @@ impl<
 
 #[cfg(feature = "fs")]
 pub mod file {
-    use std::ffi::OsStr;
-    use std::fs::File;
-    use std::path::Path;
-    use std::{fs, io, iter};
-
-    use bp::dbc::tapret::TapretProof;
-    use hypersonic::{CodexId, FileSupply, Schema};
-    #[cfg(feature = "bitcoin")]
-    use rgb::{BITCOIN_OPRET, BITCOIN_TAPRET};
-    #[cfg(feature = "liquid")]
-    use rgb::{LIQUID_OPRET, LIQUID_TAPRET};
-    use strict_encoding::{StreamReader, StrictReader};
+    use hypersonic::FileSupply;
 
     use super::*;
     use crate::mound::file::DirExcavator;
-    use crate::{ContractInfo, FilePile, SealType};
+    use crate::FilePile;
 
-    pub type FileWallet<W, D, const CAPS: u32> =
-        Barrow<W, D, FileSupply, FilePile<TxoSeal<D>>, DirExcavator<TxoSeal<D>, CAPS>, CAPS>;
+    pub type DirBarrow<W> = Barrow<W, FileSupply, FilePile<TxoSeal>, DirExcavator<TxoSeal>>;
 
-    impl<W: WalletProvider, D: dbc::Proof, const CAPS: u32> FileWallet<W, D, CAPS> {
-        pub fn issue_to_file(&mut self, params: CreateParams<TxoSeal<D>>) -> ContractId {
+    impl<W: WalletProvider> DirBarrow<W> {
+        pub fn issue_to_file(&mut self, params: CreateParams<TxoSeal>) -> ContractId {
             // TODO: check that if the issue belongs to the wallet add it to the unspents
             self.mound.issue_to_file(params)
         }
     }
 
-    pub type DirBtcMound<D, const CAPS: u32> =
-        Mound<FileSupply, FilePile<TxoSeal<D>>, DirExcavator<TxoSeal<D>, CAPS>, CAPS>;
-
-    #[cfg(feature = "bitcoin")]
-    pub type DirBcOpretMound = DirBtcMound<OpretProof, BITCOIN_OPRET>;
-    #[cfg(feature = "bitcoin")]
-    pub type DirBcTapretMound = DirBtcMound<TapretProof, BITCOIN_TAPRET>;
-    #[cfg(feature = "liquid")]
-    pub type DirLqOpretMound = DirBtcMound<OpretProof, LIQUID_OPRET>;
-    #[cfg(feature = "liquid")]
-    pub type DirLqTapretMound = DirBtcMound<TapretProof, LIQUID_TAPRET>;
-
-    pub struct DirMound {
-        pub schemata: BTreeMap<CodexId, Schema>,
-        #[cfg(feature = "bitcoin")]
-        pub bc_opret: DirBcOpretMound,
-        #[cfg(feature = "bitcoin")]
-        pub bc_tapret: DirBcTapretMound,
-        #[cfg(feature = "liquid")]
-        pub lq_opret: DirLqOpretMound,
-        #[cfg(feature = "liquid")]
-        pub lq_tapret: DirLqTapretMound,
-    }
-
-    impl DirMound {
-        pub fn load(root: impl AsRef<Path>) -> Self {
-            let root = root.as_ref();
-            let schemata = fs::read_dir(root)
-                .expect("unable to read directory")
-                .filter_map(|entry| {
-                    let entry = entry.expect("unable to read directory");
-                    let ty = entry.file_type().expect("unable to read file type");
-                    if ty.is_file()
-                        && entry.path().extension().and_then(OsStr::to_str) == Some("issuer")
-                    {
-                        Schema::load(entry.path())
-                            .inspect_err(|err| eprintln!("Unable to load schema: {}", err))
-                            .ok()
-                            .map(|schema| (schema.codex.codex_id(), schema))
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-
-            #[cfg(feature = "bitcoin")]
-            let bc_opret = { DirBcOpretMound::load(root.join(SealType::BitcoinOpret.to_string())) };
-
-            #[cfg(feature = "bitcoin")]
-            let bc_tapret =
-                { DirBcTapretMound::load(root.join(SealType::BitcoinTapret.to_string())) };
-
-            #[cfg(feature = "liquid")]
-            let lq_opret = { DirLqOpretMound::load(root.join(SealType::LiquidOpret.to_string())) };
-
-            #[cfg(feature = "liquid")]
-            let lq_tapret =
-                { DirLqTapretMound::load(root.join(SealType::LiquidTapret.to_string())) };
-
-            Self {
-                schemata,
-                #[cfg(feature = "bitcoin")]
-                bc_opret,
-                #[cfg(feature = "bitcoin")]
-                bc_tapret,
-                #[cfg(feature = "liquid")]
-                lq_opret,
-                #[cfg(feature = "liquid")]
-                lq_tapret,
-            }
-        }
-
-        pub fn codex_ids(&self) -> impl Iterator<Item = CodexId> + use<'_> {
-            let iter = self.schemata.keys().copied();
-            #[cfg(feature = "bitcoin")]
-            let iter = iter.chain(self.bc_opret.codex_ids());
-            #[cfg(feature = "bitcoin")]
-            let iter = iter.chain(self.bc_tapret.codex_ids());
-            #[cfg(feature = "liquid")]
-            let iter = iter.chain(self.lq_opret.codex_ids());
-            #[cfg(feature = "liquid")]
-            let iter = iter.chain(self.lq_tapret.codex_ids());
-            iter
-        }
-
-        pub fn schemata(&self) -> impl Iterator<Item = (CodexId, &Schema)> {
-            let iter = self.schemata.iter().map(|(k, v)| (*k, v));
-            #[cfg(feature = "bitcoin")]
-            let iter = iter.chain(self.bc_opret.schemata());
-            #[cfg(feature = "bitcoin")]
-            let iter = iter.chain(self.bc_tapret.schemata());
-            #[cfg(feature = "liquid")]
-            let iter = iter.chain(self.lq_opret.schemata());
-            #[cfg(feature = "liquid")]
-            let iter = iter.chain(self.lq_tapret.schemata());
-            iter
-        }
-
-        pub fn schema(&self, codex_id: CodexId) -> Option<&Schema> {
-            let res = self.schemata.get(&codex_id);
-            #[cfg(feature = "bitcoin")]
-            let res = res.or_else(|| self.bc_opret.schema(codex_id));
-            #[cfg(feature = "bitcoin")]
-            let res = res.or_else(|| self.bc_tapret.schema(codex_id));
-            #[cfg(feature = "liquid")]
-            let res = res.or_else(|| self.lq_opret.schema(codex_id));
-            #[cfg(feature = "liquid")]
-            let res = res.or_else(|| self.lq_tapret.schema(codex_id));
-            res
-        }
-
-        pub fn contract_ids(&self) -> impl Iterator<Item = ContractId> + use<'_> {
-            let iter = iter::empty();
-            #[cfg(feature = "bitcoin")]
-            let iter = iter.chain(self.bc_opret.contract_ids());
-            #[cfg(feature = "bitcoin")]
-            let iter = iter.chain(self.bc_tapret.contract_ids());
-            #[cfg(feature = "liquid")]
-            let iter = iter.chain(self.lq_opret.contract_ids());
-            #[cfg(feature = "liquid")]
-            let iter = iter.chain(self.lq_tapret.contract_ids());
-            iter
-        }
-
-        pub fn contracts_info(&self) -> impl Iterator<Item = ContractInfo> + use<'_> {
-            let iter = iter::empty();
-            #[cfg(feature = "bitcoin")]
-            let iter = iter.chain(self.bc_opret.contracts_info());
-            #[cfg(feature = "bitcoin")]
-            let iter = iter.chain(self.bc_tapret.contracts_info());
-            #[cfg(feature = "liquid")]
-            let iter = iter.chain(self.lq_opret.contracts_info());
-            #[cfg(feature = "liquid")]
-            let iter = iter.chain(self.lq_tapret.contracts_info());
-            iter
-        }
-    }
-
-    pub type BpBarrow<W, D, const CAPS: u32> =
-        Barrow<W, D, FileSupply, FilePile<TxoSeal<D>>, DirExcavator<TxoSeal<D>, CAPS>, CAPS>;
-
-    #[cfg(feature = "bitcoin")]
-    pub type DirBcOpretBarrow<W> = BpBarrow<W, OpretProof, BITCOIN_OPRET>;
-    #[cfg(feature = "bitcoin")]
-    pub type DirBcTapretBarrow<W> = BpBarrow<W, TapretProof, BITCOIN_TAPRET>;
-    #[cfg(feature = "liquid")]
-    pub type DirLqOpretBarrow<W> = BpBarrow<W, OpretProof, LIQUID_OPRET>;
-    #[cfg(feature = "liquid")]
-    pub type DirLqTapretBarrow<W> = BpBarrow<W, TapretProof, LIQUID_TAPRET>;
-
-    pub enum DirBarrow<O: OpretProvider, T: TapretProvider> {
-        #[cfg(feature = "bitcoin")]
-        BcOpret(DirBcOpretBarrow<O>),
-        #[cfg(feature = "bitcoin")]
-        BcTapret(DirBcTapretBarrow<T>),
-        #[cfg(feature = "liquid")]
-        LqOpret(DirLqOpretBarrow<O>),
-        #[cfg(feature = "liquid")]
-        LqTapret(DirLqTapretBarrow<T>),
-    }
-
-    impl<O: OpretProvider, T: TapretProvider> DirBarrow<O, T> {
-        pub fn load_opret(ty: SealType, root: impl AsRef<Path>, wallet: O) -> Self {
-            let mound = DirMound::load(root.as_ref());
-            Self::with_opret(ty, mound, wallet)
-        }
-
-        pub fn load_tapret(ty: SealType, root: impl AsRef<Path>, wallet: T) -> Self {
-            let mound = DirMound::load(root);
-            Self::with_tapret(ty, mound, wallet)
-        }
-
-        pub fn with_opret(ty: SealType, mound: DirMound, wallet: O) -> Self {
-            match ty {
-                #[cfg(feature = "bitcoin")]
-                SealType::BitcoinOpret => Self::BcOpret(BpBarrow::with(wallet, mound.bc_opret)),
-                #[cfg(feature = "liquid")]
-                SealType::LiquidOpret => Self::LqOpret(BpBarrow::with(wallet, mound.lq_opret)),
-                _ => panic!("unsupported seal type"),
-            }
-        }
-
-        pub fn with_tapret(ty: SealType, mound: DirMound, wallet: T) -> Self {
-            match ty {
-                #[cfg(feature = "bitcoin")]
-                SealType::BitcoinTapret => Self::BcTapret(BpBarrow::with(wallet, mound.bc_tapret)),
-                #[cfg(feature = "liquid")]
-                SealType::LiquidTapret => Self::LqTapret(BpBarrow::with(wallet, mound.lq_tapret)),
-                _ => panic!("unsupported seal type"),
-            }
-        }
-
-        pub fn issue_to_file(&mut self, params: CreateParams<Outpoint>) -> ContractId {
-            match self {
-                #[cfg(feature = "bitcoin")]
-                Self::BcOpret(barrow) => {
-                    barrow.issue_to_file(params.transform(barrow.noise_engine()))
-                }
-                #[cfg(feature = "bitcoin")]
-                Self::BcTapret(barrow) => {
-                    barrow.issue_to_file(params.transform(barrow.noise_engine()))
-                }
-                #[cfg(feature = "liquid")]
-                Self::LqOpret(barrow) => {
-                    barrow.issue_to_file(params.transform(barrow.noise_engine()))
-                }
-                #[cfg(feature = "liquid")]
-                Self::LqTapret(barrow) => {
-                    barrow.issue_to_file(params.transform(barrow.noise_engine()))
-                }
-            }
-        }
-
-        pub fn auth_token(&mut self, nonce: u64) -> Option<AuthToken> {
-            match self {
-                #[cfg(feature = "bitcoin")]
-                Self::BcOpret(barrow) => barrow.auth_token(nonce),
-                #[cfg(feature = "bitcoin")]
-                Self::BcTapret(barrow) => barrow.auth_token(nonce),
-                #[cfg(feature = "liquid")]
-                Self::LqOpret(barrow) => barrow.auth_token(nonce),
-                #[cfg(feature = "liquid")]
-                Self::LqTapret(barrow) => barrow.auth_token(nonce),
-            }
-        }
-
-        pub fn wout(&mut self, nonce: u64) -> WitnessOut {
-            match self {
-                #[cfg(feature = "bitcoin")]
-                Self::BcOpret(barrow) => barrow.wout(nonce),
-                #[cfg(feature = "bitcoin")]
-                Self::BcTapret(barrow) => barrow.wout(nonce),
-                #[cfg(feature = "liquid")]
-                Self::LqOpret(barrow) => barrow.wout(nonce),
-                #[cfg(feature = "liquid")]
-                Self::LqTapret(barrow) => barrow.wout(nonce),
-            }
-        }
-
-        pub fn state(
-            &mut self,
-            contract_id: Option<ContractId>,
-        ) -> Box<dyn Iterator<Item = (ContractId, ContractState<Outpoint>)> + '_> {
-            match self {
-                #[cfg(feature = "bitcoin")]
-                Self::BcOpret(barrow) => Box::new(barrow.state(contract_id)),
-                #[cfg(feature = "bitcoin")]
-                Self::BcTapret(barrow) => Box::new(barrow.state(contract_id)),
-                #[cfg(feature = "liquid")]
-                Self::LqOpret(barrow) => Box::new(barrow.state(contract_id)),
-                #[cfg(feature = "liquid")]
-                Self::LqTapret(barrow) => Box::new(barrow.state(contract_id)),
-            }
-        }
-
-        pub fn state_all(
-            &mut self,
-            contract_id: Option<ContractId>,
-        ) -> Box<dyn Iterator<Item = (ContractId, ContractState<Outpoint>)> + '_> {
-            match self {
-                #[cfg(feature = "bitcoin")]
-                Self::BcOpret(barrow) => Box::new(barrow.state_all(contract_id)),
-                #[cfg(feature = "bitcoin")]
-                Self::BcTapret(barrow) => Box::new(barrow.state_all(contract_id)),
-                #[cfg(feature = "liquid")]
-                Self::LqOpret(barrow) => Box::new(barrow.state_all(contract_id)),
-                #[cfg(feature = "liquid")]
-                Self::LqTapret(barrow) => Box::new(barrow.state_all(contract_id)),
-            }
-        }
-
-        pub fn prefab(&mut self, params: PrefabParams<Vout>) -> Prefab {
-            match self {
-                #[cfg(feature = "bitcoin")]
-                Self::BcOpret(barrow) => barrow.prefab(params),
-                #[cfg(feature = "bitcoin")]
-                Self::BcTapret(barrow) => barrow.prefab(params),
-                #[cfg(feature = "liquid")]
-                Self::LqOpret(barrow) => barrow.prefab(params),
-                #[cfg(feature = "liquid")]
-                Self::LqTapret(barrow) => barrow.prefab(params),
-            }
-        }
-
-        pub fn bundle(
-            &mut self,
-            items: impl IntoIterator<Item = PrefabParams<Vout>>,
-            change: Vout,
-        ) -> PrefabBundle {
-            match self {
-                #[cfg(feature = "bitcoin")]
-                Self::BcOpret(barrow) => barrow.bundle(items, change),
-                #[cfg(feature = "bitcoin")]
-                Self::BcTapret(barrow) => barrow.bundle(items, change),
-                #[cfg(feature = "liquid")]
-                Self::LqOpret(barrow) => barrow.bundle(items, change),
-                #[cfg(feature = "liquid")]
-                Self::LqTapret(barrow) => barrow.bundle(items, change),
-            }
-        }
-
-        pub fn consume_from_file(&mut self, path: impl AsRef<Path>) -> io::Result<()> {
-            let file = File::open(path)?;
-            let mut reader = StrictReader::with(StreamReader::new::<{ usize::MAX }>(file));
-            match self {
-                #[cfg(feature = "bitcoin")]
-                Self::BcOpret(barrow) => barrow
-                    .consume(&mut reader)
-                    .unwrap_or_else(|err| panic!("Unable to accept a consignment: {err}")),
-                #[cfg(feature = "bitcoin")]
-                Self::BcTapret(barrow) => barrow
-                    .consume(&mut reader)
-                    .unwrap_or_else(|err| panic!("Unable to accept a consignment: {err}")),
-                #[cfg(feature = "liquid")]
-                Self::LqOpret(barrow) => barrow
-                    .consume(&mut reader)
-                    .unwrap_or_else(|err| panic!("Unable to accept a consignment: {err}")),
-                #[cfg(feature = "liquid")]
-                Self::LqTapret(barrow) => barrow
-                    .consume(&mut reader)
-                    .unwrap_or_else(|err| panic!("Unable to accept a consignment: {err}")),
-            }
-            Ok(())
-        }
-
-        pub fn wallet_tapret(&mut self) -> &mut T {
-            match self {
-                #[cfg(feature = "bitcoin")]
-                Self::BcTapret(barrow) => &mut barrow.wallet,
-                #[cfg(feature = "liquid")]
-                Self::LqTapret(barrow) => &mut barrow.wallet,
-                _ => panic!("Invalid wallet type"),
-            }
-        }
-
-        pub fn wallet_opret(&mut self) -> &mut O {
-            match self {
-                #[cfg(feature = "bitcoin")]
-                Self::BcOpret(barrow) => &mut barrow.wallet,
-                #[cfg(feature = "liquid")]
-                Self::LqOpret(barrow) => &mut barrow.wallet,
-                _ => panic!("Invalid wallet type"),
-            }
-        }
-    }
+    pub type DirMound = Mound<FileSupply, FilePile<TxoSeal>, DirExcavator<TxoSeal>>;
 }
