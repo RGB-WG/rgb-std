@@ -534,7 +534,12 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
 
 #[cfg(feature = "fs")]
 pub mod file {
+    use std::fs::File;
+    use std::io;
+    use std::path::Path;
+
     use hypersonic::FileSupply;
+    use strict_encoding::StreamReader;
 
     use super::*;
     use crate::mound::file::DirExcavator;
@@ -546,6 +551,14 @@ pub mod file {
         pub fn issue_to_file(&mut self, params: CreateParams<TxoSeal>) -> ContractId {
             // TODO: check that if the issue belongs to the wallet add it to the unspents
             self.mound.issue_to_file(params)
+        }
+
+        pub fn consume_from_file(&mut self, path: impl AsRef<Path>) -> io::Result<()> {
+            let file = File::open(path)?;
+            let mut reader = StrictReader::with(StreamReader::new::<{ usize::MAX }>(file));
+            self.consume(&mut reader)
+                .unwrap_or_else(|err| panic!("Unable to accept a consignment: {err}"));
+            Ok(())
         }
     }
 
