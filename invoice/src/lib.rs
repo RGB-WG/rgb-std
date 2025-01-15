@@ -38,39 +38,11 @@ use core::fmt::{self, Display, Formatter};
 use core::str::FromStr;
 
 use baid64::Baid64ParseError;
-use hypersonic::{AuthToken, ContractId};
+use hypersonic::AuthToken;
 use rgbcore::{SealType, UnknownType};
-use sonic_callreq::CallRequest;
+use sonic_callreq::{CallRequest, CallScope};
 
-pub type RgbInvoice = CallRequest<RgbScope, RgbBeneficiary>;
-
-#[derive(Clone, Eq, PartialEq, Debug, Display)]
-pub enum RgbScope {
-    #[display(inner)]
-    ContractId(ContractId),
-
-    #[display("contract:{seal}")]
-    ContractQuery { seal: SealType, testnet: bool },
-}
-
-impl FromStr for RgbScope {
-    type Err = ParseInvoiceError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if !s.starts_with("contract:") {
-            return Err(ParseInvoiceError::NoScheme);
-        }
-        match ContractId::from_str(s) {
-            Err(err1) => {
-                let s = s.trim_start_matches("contract:");
-                let query = ContractQuery::from_str(s)
-                    .map_err(|_| ParseInvoiceError::Unrecognizable(err1))?;
-                Ok(Self::ContractQuery { seal: query.seal, testnet: query.testnet })
-            }
-            Ok(id) => Ok(Self::ContractId(id)),
-        }
-    }
-}
+pub type RgbInvoice = CallRequest<CallScope, RgbBeneficiary>;
 
 #[derive(Clone, Eq, PartialEq, Debug, Display)]
 #[display(inner)]
