@@ -51,6 +51,8 @@ pub mod popls;
 pub use bp::{Outpoint, Txid};
 pub use hypersonic::*;
 pub use info::ContractInfo;
+#[cfg(feature = "fs")]
+pub use mound::file::{DirExcavator, DirMound};
 pub use mound::{Excavate, IssueError, Mound, MoundConsumeError, MAGIC_BYTES_CONSIGNMENT};
 #[cfg(feature = "fs")]
 pub use pile::fs::FilePile;

@@ -571,5 +571,5 @@ pub mod file {
         }
     }
 
-    pub type DirMound = Mound<FileSupply, FilePile<TxoSeal>, DirExcavator<TxoSeal>>;
+    pub type BpDirMound = Mound<FileSupply, FilePile<TxoSeal>, DirExcavator<TxoSeal>>;
 }
