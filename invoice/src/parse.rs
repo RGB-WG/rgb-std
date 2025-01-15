@@ -20,11 +20,11 @@
 // limitations under the License.
 
 use std::fmt::{self, Debug, Display, Formatter};
-use std::io::{Cursor, Write};
 use std::num::ParseIntError;
 use std::str::FromStr;
 
-use baid64::{Baid64ParseError, DisplayBaid64, FromBaid64Str};
+use baid64::DisplayBaid64;
+use bp::seals::txout::CloseMethod;
 use fluent_uri::enc::EStr;
 use fluent_uri::Uri;
 use indexmap::IndexMap;
@@ -33,11 +33,11 @@ use percent_encoding::{utf8_percent_encode, AsciiSet, CONTROLS};
 use rgb::{ContractId, SecretSeal};
 use strict_encoding::{InvalidRString, TypeName};
 
-use crate::invoice::{
-    Beneficiary, ChainNet, InvoiceState, Pay2Vout, RgbInvoice, RgbTransport, XChainNet,
-};
+use crate::invoice::{Beneficiary, ChainNet, InvoiceState, RgbInvoice, RgbTransport, XChainNet};
 
 const OMITTED: &str = "~";
+const CLOSE_METHOD: &str = "method";
+const CLOSE_METHOD_SEP: char = ',';
 const EXPIRY: &str = "expiry";
 const ENDPOINTS: &str = "endpoints";
 const TRANSPORT_SEP: char = ',';
@@ -96,6 +96,9 @@ pub enum InvoiceParseError {
 
     /// invalid invoice: contract ID present but no contract interface provided.
     ContractIdNoIface,
+
+    /// invalid close method.
+    InvalidCloseMethod(String),
 
     /// invalid contract ID.
     InvalidContractId(String),
@@ -235,45 +238,6 @@ impl FromStr for ChainNet {
     }
 }
 
-impl DisplayBaid64<34> for Pay2Vout {
-    const HRI: &'static str = "wvout";
-    const CHUNKING: bool = true;
-    const PREFIX: bool = true;
-    const EMBED_CHECKSUM: bool = true;
-    const MNEMONIC: bool = false;
-
-    fn to_baid64_payload(&self) -> [u8; 34] {
-        let mut payload = [0u8; 34];
-        // tmp stack array to store the tr payload to resolve lifetime issue
-        let schnorr_pk: [u8; 32];
-        payload[0] = self.method as u8;
-        let (addr_type, spk) = match &self.address {
-            AddressPayload::Pkh(pkh) => (Self::P2PKH, pkh.as_ref()),
-            AddressPayload::Sh(sh) => (Self::P2SH, sh.as_ref()),
-            AddressPayload::Wpkh(wpkh) => (Self::P2WPKH, wpkh.as_ref()),
-            AddressPayload::Wsh(wsh) => (Self::P2WSH, wsh.as_ref()),
-            AddressPayload::Tr(tr) => {
-                schnorr_pk = tr.to_byte_array();
-                (Self::P2TR, &schnorr_pk[..])
-            }
-        };
-        payload[1] = addr_type;
-        Cursor::new(&mut payload[2..])
-            .write_all(spk)
-            .expect("address payload always less than 32 bytes");
-        payload
-    }
-}
-
-impl Display for Pay2Vout {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { self.fmt_baid64(f) }
-}
-impl FromBaid64Str<34> for Pay2Vout {}
-impl FromStr for Pay2Vout {
-    type Err = Baid64ParseError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_baid64_str(s) }
-}
-
 impl FromStr for XChainNet<Beneficiary> {
     type Err = InvoiceParseError;
 
@@ -286,7 +250,7 @@ impl FromStr for XChainNet<Beneficiary> {
             return Ok(XChainNet::with(cn, Beneficiary::BlindedSeal(seal)));
         }
 
-        let payload = Pay2Vout::from_str(beneficiary)?;
+        let payload = AddressPayload::from_str(beneficiary)?;
         Ok(XChainNet::with(cn, Beneficiary::WitnessVout(payload)))
     }
 }
@@ -432,6 +396,17 @@ impl FromStr for RgbInvoice {
             expiry = Some(timestamp);
         }
 
+        let mut close_methods = vec![];
+        if let Some(close_methods_str) = query_params.shift_remove(CLOSE_METHOD) {
+            let tokens = close_methods_str.split(CLOSE_METHOD_SEP);
+            for token in tokens {
+                close_methods.push(
+                    CloseMethod::from_str(token)
+                        .map_err(|_| InvoiceParseError::InvalidCloseMethod(token.to_string()))?,
+                )
+            }
+        }
+
         Ok(RgbInvoice {
             transports,
             contract,
@@ -439,6 +414,7 @@ impl FromStr for RgbInvoice {
             operation: None,
             assignment: None,
             beneficiary,
+            close_methods,
             owned_state: value,
             expiry,
             unknown_query: query_params,
@@ -739,45 +715,5 @@ mod test {
         // rgb-rpc variant with invalid separator parse error
         let result = RgbTransport::from_str("rpc/host.example.com");
         assert!(matches!(result, Err(TransportParseError::InvalidTransport(_))));
-    }
-
-    #[test]
-    fn pay2vout_parse() {
-        let p = Pay2Vout {
-            method: bp::dbc::Method::OpretFirst,
-            address: AddressPayload::Pkh([0xff; 20].into()),
-        };
-        assert_eq!(Pay2Vout::from_str(&p.to_string()).unwrap(), p);
-
-        let p = Pay2Vout {
-            method: bp::dbc::Method::OpretFirst,
-            address: AddressPayload::Sh([0xff; 20].into()),
-        };
-        assert_eq!(Pay2Vout::from_str(&p.to_string()).unwrap(), p);
-
-        let p = Pay2Vout {
-            method: bp::dbc::Method::OpretFirst,
-            address: AddressPayload::Wpkh([0xff; 20].into()),
-        };
-        assert_eq!(Pay2Vout::from_str(&p.to_string()).unwrap(), p);
-
-        let p = Pay2Vout {
-            method: bp::dbc::Method::OpretFirst,
-            address: AddressPayload::Wsh([0xff; 32].into()),
-        };
-        assert_eq!(Pay2Vout::from_str(&p.to_string()).unwrap(), p);
-
-        let p = Pay2Vout {
-            method: bp::dbc::Method::OpretFirst,
-            address: AddressPayload::Tr(
-                bp::OutputPk::from_byte_array([
-                    0x85, 0xa6, 0x42, 0x59, 0x8b, 0xfe, 0x2e, 0x42, 0xa3, 0x78, 0xcb, 0xb5, 0x3b,
-                    0xf1, 0x4a, 0xbe, 0x77, 0xf8, 0x1a, 0xef, 0xed, 0xf7, 0x3b, 0x66, 0x7b, 0x42,
-                    0x85, 0xaf, 0x7c, 0xf1, 0xc8, 0xa3,
-                ])
-                .unwrap(),
-            ),
-        };
-        assert_eq!(Pay2Vout::from_str(&p.to_string()).unwrap(), p);
     }
 }

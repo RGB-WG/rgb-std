@@ -25,19 +25,20 @@ use std::error::Error;
 use std::fmt::Debug;
 use std::iter;
 
+use amplify::confinement::{LargeOrdMap, LargeOrdSet};
 use invoice::Amount;
 use nonasync::persistence::{CloneNoPersistence, Persisting};
 use rgb::validation::{ResolveWitness, WitnessResolverError};
 use rgb::vm::{ContractStateAccess, WitnessOrd};
 use rgb::{
-    AssetTag, AttachState, BlindingFactor, ContractId, DataState, Extension, Genesis, Operation,
-    RevealedAttach, RevealedData, RevealedValue, Schema, SchemaId, Transition, TransitionBundle,
-    VoidState, XWitnessId,
+    AssetTag, AttachState, BlindingFactor, BundleId, ContractId, DataState, Extension, Genesis,
+    Operation, RevealedAttach, RevealedData, RevealedValue, Schema, SchemaId, Transition,
+    TransitionBundle, VoidState, XWitnessId,
 };
 
 use crate::containers::{ConsignmentExt, ToWitnessId};
 use crate::contract::OutputAssignment;
-use crate::persistence::{StoreTransaction, UpdateRes};
+use crate::persistence::StoreTransaction;
 
 #[derive(Debug, Display, Error, From)]
 #[display(inner)]
@@ -166,12 +167,13 @@ impl<P: StateProvider> State<P> {
             .update_contract(contract_id)
             .map_err(StateError::WriteProvider)?
             .ok_or(StateInconsistency::UnknownContract(contract_id))?;
+        let bundle_id = bundle.bundle_id();
         for transition in bundle.known_transitions.values() {
             let ord = resolver
                 .resolve_pub_witness_ord(witness_id)
                 .map_err(|e| StateError::Resolver(witness_id, e))?;
             updater
-                .add_transition(transition, witness_id, ord)
+                .add_transition(transition, witness_id, ord, bundle_id)
                 .map_err(StateError::WriteProvider)?;
         }
         Ok(())
@@ -193,28 +195,31 @@ impl<P: StateProvider> State<P> {
             .collect::<BTreeMap<_, _>>();
         let mut ordered_extensions = BTreeMap::new();
         for witness_bundle in consignment.bundled_witnesses() {
-            for transition in witness_bundle.known_transitions() {
-                let witness_id = witness_bundle.pub_witness.to_witness_id();
-                let witness_ord = resolver
-                    .resolve_pub_witness_ord(witness_id)
-                    .map_err(|e| StateError::Resolver(witness_id, e))?;
+            for bundle in witness_bundle.bundles() {
+                let bundle_id = bundle.bundle_id();
+                for (_, transition) in &bundle.known_transitions {
+                    let witness_id = witness_bundle.pub_witness.to_witness_id();
+                    let witness_ord = resolver
+                        .resolve_pub_witness_ord(witness_id)
+                        .map_err(|e| StateError::Resolver(witness_id, e))?;
 
-                state
-                    .add_transition(transition, witness_id, witness_ord)
-                    .map_err(StateError::WriteProvider)?;
-                for (id, used) in &mut extension_idx {
-                    if *used {
-                        continue;
-                    }
-                    for input in &transition.inputs {
-                        if input.prev_out.op == *id {
-                            *used = true;
-                            if let Some((_, witness_ord2)) = ordered_extensions.get_mut(id) {
-                                if *witness_ord2 < witness_ord {
-                                    *witness_ord2 = witness_ord;
+                    state
+                        .add_transition(transition, witness_id, witness_ord, bundle_id)
+                        .map_err(StateError::WriteProvider)?;
+                    for (id, used) in &mut extension_idx {
+                        if *used {
+                            continue;
+                        }
+                        for input in &transition.inputs {
+                            if input.prev_out.op == *id {
+                                *used = true;
+                                if let Some((_, witness_ord2)) = ordered_extensions.get_mut(id) {
+                                    if *witness_ord2 < witness_ord {
+                                        *witness_ord2 = witness_ord;
+                                    }
+                                } else {
+                                    ordered_extensions.insert(*id, (witness_id, witness_ord));
                                 }
-                            } else {
-                                ordered_extensions.insert(*id, (witness_id, witness_ord));
                             }
                         }
                     }
@@ -235,13 +240,19 @@ impl<P: StateProvider> State<P> {
         Ok(())
     }
 
-    pub fn update_witnesses(
+    pub fn upsert_witness(
         &mut self,
-        resolver: impl ResolveWitness,
-        after_height: u32,
-    ) -> Result<UpdateRes, StateError<P>> {
+        witness_id: XWitnessId,
+        witness_ord: WitnessOrd,
+    ) -> Result<(), StateError<P>> {
         self.provider
-            .update_witnesses(resolver, after_height)
+            .upsert_witness(witness_id, witness_ord)
+            .map_err(StateError::WriteProvider)
+    }
+
+    pub fn update_bundle(&mut self, bundle_id: BundleId, valid: bool) -> Result<(), StateError<P>> {
+        self.provider
+            .update_bundle(bundle_id, valid)
             .map_err(StateError::WriteProvider)
     }
 }
@@ -280,6 +291,10 @@ pub trait StateReadProvider {
     ) -> Result<Self::ContractRead<'_>, Self::Error>;
 
     fn is_valid_witness(&self, witness_id: XWitnessId) -> Result<bool, Self::Error>;
+
+    fn witnesses(&self) -> LargeOrdMap<XWitnessId, WitnessOrd>;
+
+    fn invalid_bundles(&self) -> LargeOrdSet<BundleId>;
 }
 
 pub trait StateWriteProvider: StoreTransaction<TransactionErr = Self::Error> {
@@ -298,11 +313,13 @@ pub trait StateWriteProvider: StoreTransaction<TransactionErr = Self::Error> {
         contract_id: ContractId,
     ) -> Result<Option<Self::ContractWrite<'_>>, Self::Error>;
 
-    fn update_witnesses(
+    fn upsert_witness(
         &mut self,
-        resolver: impl ResolveWitness,
-        after_height: u32,
-    ) -> Result<UpdateRes, Self::Error>;
+        witness_id: XWitnessId,
+        witness_ord: WitnessOrd,
+    ) -> Result<(), Self::Error>;
+
+    fn update_bundle(&mut self, bundle_id: BundleId, valid: bool) -> Result<(), Self::Error>;
 }
 
 pub trait ContractStateRead: ContractStateAccess {
@@ -325,6 +342,7 @@ pub trait ContractStateWrite {
         transition: &Transition,
         witness_id: XWitnessId,
         witness_ord: WitnessOrd,
+        bundle_id: BundleId,
     ) -> Result<(), Self::Error>;
 
     fn add_extension(
