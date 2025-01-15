@@ -38,8 +38,7 @@ use core::fmt::{self, Display, Formatter};
 use core::str::FromStr;
 
 use baid64::Baid64ParseError;
-use hypersonic::AuthToken;
-use rgbcore::{SealType, UnknownType};
+use hypersonic::{AuthToken, Consensus};
 use sonic_callreq::{CallRequest, CallScope};
 
 pub type RgbInvoice = CallRequest<CallScope, RgbBeneficiary>;
@@ -88,7 +87,7 @@ impl RgbBeneficiary {
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct ContractQuery {
-    pub seal: SealType,
+    pub consensus: Consensus,
     pub testnet: bool,
 }
 
@@ -97,17 +96,17 @@ impl Display for ContractQuery {
         if self.testnet {
             f.write_str("testnet@")?;
         }
-        Display::fmt(&self.seal, f)
+        Display::fmt(&self.consensus, f)
     }
 }
 
 impl FromStr for ContractQuery {
-    type Err = UnknownType;
+    type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let testnet = s.starts_with("testnet@");
         let s = s.trim_start_matches("testnet@");
-        SealType::from_str(s).map(|seal| Self { seal, testnet })
+        Consensus::from_str(s).map(|consensus| Self { consensus, testnet })
     }
 }
 

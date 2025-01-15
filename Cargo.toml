@@ -102,10 +102,10 @@ wasm-bindgen-test = "0.3"
 features = ["all"]
 
 [patch.crates-io]
-ultrasonic = { git = "https://github.com/AluVM/ultrasonic" }
-hypersonic = { git = "https://github.com/AluVM/sonic" }
-sonic-api = { git = "https://github.com/AluVM/sonic" }
-sonic-callreq = { git = "https://github.com/AluVM/sonic" }
+ultrasonic = { git = "https://github.com/AluVM/ultrasonic", branch = "master" }
+hypersonic = { git = "https://github.com/AluVM/sonic", branch = "master" }
+sonic-api = { git = "https://github.com/AluVM/sonic", branch = "master" }
+sonic-callreq = { git = "https://github.com/AluVM/sonic", branch = "master" }
 bp-consensus = { git = "https://github.com/BP-WG/bp-core", branch = "v0.12" }
 bp-dbc = { git = "https://github.com/BP-WG/bp-core", branch = "v0.12" }
 bp-seals = { git = "https://github.com/BP-WG/bp-core", branch = "v0.12" }
