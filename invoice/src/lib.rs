@@ -41,7 +41,7 @@ use baid64::Baid64ParseError;
 use hypersonic::{AuthToken, Consensus};
 use sonic_callreq::{CallRequest, CallScope};
 
-pub type RgbInvoice = CallRequest<CallScope, RgbBeneficiary>;
+pub type RgbInvoice<T = CallScope<ContractQuery>> = CallRequest<T, RgbBeneficiary>;
 
 #[derive(Clone, Eq, PartialEq, Debug, Display)]
 #[display(inner)]
