@@ -45,6 +45,7 @@ Consignmenttrue rec
     flags bytes len=1 aka=ReservedBytes1
     timestamp is I64
     issuer ascii aka=Identity first=AsciiPrintable rest=AsciiPrintable len=1..4096
+    layer1 enum Layer1 bitcoin=0 liquid=1
     testnet enum Bool false=0 true=1
     assetTags map len=0..MAX8 aka=AssetTags
       key is U16 aka=AssignmentType

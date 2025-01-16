@@ -674,11 +674,11 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         issuer: impl Into<Identity>,
         schema_id: SchemaId,
         iface: impl Into<IfaceRef>,
-        layer_1: Layer1,
+        layer1: Layer1,
     ) -> Result<ContractBuilder, StockError<S, H, P>> {
         Ok(self
             .stash
-            .contract_builder(close_method, issuer.into(), schema_id, iface, layer_1)?)
+            .contract_builder(close_method, issuer.into(), schema_id, iface, layer1)?)
     }
 
     pub fn transition_builder(

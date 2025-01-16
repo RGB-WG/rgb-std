@@ -323,7 +323,7 @@ impl<P: StashProvider> Stash<P> {
         issuer: Identity,
         schema_id: SchemaId,
         iface: impl Into<IfaceRef>,
-        layer_1: Layer1,
+        layer1: Layer1,
     ) -> Result<ContractBuilder, StashError<P>> {
         let schema_ifaces = self.schema(schema_id)?;
         let iface = self.iface(iface)?;
@@ -342,7 +342,7 @@ impl<P: StashProvider> Stash<P> {
             iimpl.clone(),
             types,
             scripts,
-            layer_1,
+            layer1,
         );
         Ok(builder)
     }

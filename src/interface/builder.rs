@@ -148,7 +148,7 @@ pub struct ContractBuilder {
     close_method: CloseMethod,
     scripts: Scripts,
     issuer: Identity,
-    layer_1: Layer1,
+    layer1: Layer1,
 }
 
 impl ContractBuilder {
@@ -161,7 +161,7 @@ impl ContractBuilder {
         iimpl: IfaceImpl,
         types: TypeSystem,
         scripts: Scripts,
-        layer_1: Layer1,
+        layer1: Layer1,
     ) -> Self {
         Self {
             builder: OperationBuilder::with(iface, schema, iimpl, types),
@@ -169,7 +169,7 @@ impl ContractBuilder {
             close_method,
             scripts,
             issuer,
-            layer_1,
+            layer1,
         }
     }
 
@@ -182,7 +182,7 @@ impl ContractBuilder {
         iimpl: IfaceImpl,
         types: TypeSystem,
         scripts: Scripts,
-        layer_1: Layer1,
+        layer1: Layer1,
     ) -> Self {
         Self {
             builder: OperationBuilder::deterministic(iface, schema, iimpl, types),
@@ -190,7 +190,7 @@ impl ContractBuilder {
             close_method,
             scripts,
             issuer,
-            layer_1,
+            layer1,
         }
     }
 
@@ -202,8 +202,8 @@ impl ContractBuilder {
     }
 
     pub fn check_layer1(&self, layer1: Layer1) -> Result<(), BuilderError> {
-        if self.layer_1 != layer1 {
-            return Err(BuilderError::Layer1Mismatch(layer1, self.layer_1));
+        if self.layer1 != layer1 {
+            return Err(BuilderError::Layer1Mismatch(layer1, self.layer1));
         }
         Ok(())
     }
@@ -390,6 +390,7 @@ impl ContractBuilder {
             schema_id: schema.schema_id(),
             flags: none!(),
             timestamp,
+            layer1: self.layer1,
             testnet: self.testnet,
             close_method: self.close_method,
             asset_tags,
