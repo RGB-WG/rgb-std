@@ -47,9 +47,6 @@ Consignmenttrue rec
     issuer ascii aka=Identity first=AsciiPrintable rest=AsciiPrintable len=1..4096
     layer1 enum Layer1 bitcoin=0 liquid=1
     testnet enum Bool false=0 true=1
-    assetTags map len=0..MAX8 aka=AssetTags
-      key is U16 aka=AssignmentType
-      value bytes len=32 aka=AssetTag
     metadata map len=0..MAX8 aka=Metadata
       key is U16 aka=MetaType
       value bytes len=0..MAX16 aka=MetaValue
@@ -105,8 +102,9 @@ Consignmenttrue rec
                 bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                 liquid bytes len=32 wrapped aka=SecretSeal tag=1
               state rec ConcealedFungible
-                commitment bytes len=33 aka=PedersenCommitment
-                rangeProof bytes len=33 aka=PedersenCommitment
+                value union FungibleState
+                  bits64 is U64 wrapped tag=0
+                concealedDummy is Unit
               lock bytes len=2 aka=ReservedBytes2
             confidentialState rec tag=1
               seal union XChainBlindSealTxid
@@ -119,8 +117,9 @@ Consignmenttrue rec
                   vout is U32 aka=Vout
                   blinding is U64
               state rec ConcealedFungible
-                commitment bytes len=33 aka=PedersenCommitment
-                rangeProof bytes len=33 aka=PedersenCommitment
+                value union FungibleState
+                  bits64 is U64 wrapped tag=0
+                concealedDummy is Unit
               lock bytes len=2 aka=ReservedBytes2
             confidentialSeal rec tag=2
               seal union XChainSecretSeal
@@ -129,8 +128,6 @@ Consignmenttrue rec
               state rec RevealedFungible
                 value union FungibleState
                   bits64 is U64 wrapped tag=0
-                blinding bytes len=32 aka=BlindingFactor
-                tag bytes len=32 aka=AssetTag
               lock bytes len=2 aka=ReservedBytes2
             revealed rec tag=3
               seal union XChainBlindSealTxid
@@ -145,8 +142,6 @@ Consignmenttrue rec
               state rec RevealedFungible
                 value union FungibleState
                   bits64 is U64 wrapped tag=0
-                blinding bytes len=32 aka=BlindingFactor
-                tag bytes len=32 aka=AssetTag
               lock bytes len=2 aka=ReservedBytes2
         structured list len=0..MAX16 wrapped tag=2
           AssignRevealedDataBlindSealTxid union
@@ -300,8 +295,9 @@ Consignmenttrue rec
                   bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                   liquid bytes len=32 wrapped aka=SecretSeal tag=1
                 state rec ConcealedFungible
-                  commitment bytes len=33 aka=PedersenCommitment
-                  rangeProof bytes len=33 aka=PedersenCommitment
+                  value union FungibleState
+                    bits64 is U64 wrapped tag=0
+                  concealedDummy is Unit
                 lock bytes len=2 aka=ReservedBytes2
               confidentialState rec tag=1
                 seal union XChainBlindSealTxid
@@ -314,8 +310,9 @@ Consignmenttrue rec
                     vout is U32 aka=Vout
                     blinding is U64
                 state rec ConcealedFungible
-                  commitment bytes len=33 aka=PedersenCommitment
-                  rangeProof bytes len=33 aka=PedersenCommitment
+                  value union FungibleState
+                    bits64 is U64 wrapped tag=0
+                  concealedDummy is Unit
                 lock bytes len=2 aka=ReservedBytes2
               confidentialSeal rec tag=2
                 seal union XChainSecretSeal
@@ -324,8 +321,6 @@ Consignmenttrue rec
                 state rec RevealedFungible
                   value union FungibleState
                     bits64 is U64 wrapped tag=0
-                  blinding bytes len=32 aka=BlindingFactor
-                  tag bytes len=32 aka=AssetTag
                 lock bytes len=2 aka=ReservedBytes2
               revealed rec tag=3
                 seal union XChainBlindSealTxid
@@ -340,8 +335,6 @@ Consignmenttrue rec
                 state rec RevealedFungible
                   value union FungibleState
                     bits64 is U64 wrapped tag=0
-                  blinding bytes len=32 aka=BlindingFactor
-                  tag bytes len=32 aka=AssetTag
                 lock bytes len=2 aka=ReservedBytes2
           structured list len=0..MAX16 wrapped tag=2
             AssignRevealedDataBlindSealTxid union
@@ -533,8 +526,9 @@ Consignmenttrue rec
                             bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                             liquid bytes len=32 wrapped aka=SecretSeal tag=1
                           state rec ConcealedFungible
-                            commitment bytes len=33 aka=PedersenCommitment
-                            rangeProof bytes len=33 aka=PedersenCommitment
+                            value union FungibleState
+                              bits64 is U64 wrapped tag=0
+                            concealedDummy is Unit
                           lock bytes len=2 aka=ReservedBytes2
                         confidentialState rec tag=1
                           seal union XChainBlindSealTxPtr
@@ -551,8 +545,9 @@ Consignmenttrue rec
                               vout is U32 aka=Vout
                               blinding is U64
                           state rec ConcealedFungible
-                            commitment bytes len=33 aka=PedersenCommitment
-                            rangeProof bytes len=33 aka=PedersenCommitment
+                            value union FungibleState
+                              bits64 is U64 wrapped tag=0
+                            concealedDummy is Unit
                           lock bytes len=2 aka=ReservedBytes2
                         confidentialSeal rec tag=2
                           seal union XChainSecretSeal
@@ -561,8 +556,6 @@ Consignmenttrue rec
                           state rec RevealedFungible
                             value union FungibleState
                               bits64 is U64 wrapped tag=0
-                            blinding bytes len=32 aka=BlindingFactor
-                            tag bytes len=32 aka=AssetTag
                           lock bytes len=2 aka=ReservedBytes2
                         revealed rec tag=3
                           seal union XChainBlindSealTxPtr
@@ -581,8 +574,6 @@ Consignmenttrue rec
                           state rec RevealedFungible
                             value union FungibleState
                               bits64 is U64 wrapped tag=0
-                            blinding bytes len=32 aka=BlindingFactor
-                            tag bytes len=32 aka=AssetTag
                           lock bytes len=2 aka=ReservedBytes2
                     structured list len=0..MAX16 wrapped tag=2
                       AssignRevealedDataBlindSealTxPtr union
@@ -780,8 +771,9 @@ Consignmenttrue rec
                             bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                             liquid bytes len=32 wrapped aka=SecretSeal tag=1
                           state rec ConcealedFungible
-                            commitment bytes len=33 aka=PedersenCommitment
-                            rangeProof bytes len=33 aka=PedersenCommitment
+                            value union FungibleState
+                              bits64 is U64 wrapped tag=0
+                            concealedDummy is Unit
                           lock bytes len=2 aka=ReservedBytes2
                         confidentialState rec tag=1
                           seal union XChainBlindSealTxPtr
@@ -798,8 +790,9 @@ Consignmenttrue rec
                               vout is U32 aka=Vout
                               blinding is U64
                           state rec ConcealedFungible
-                            commitment bytes len=33 aka=PedersenCommitment
-                            rangeProof bytes len=33 aka=PedersenCommitment
+                            value union FungibleState
+                              bits64 is U64 wrapped tag=0
+                            concealedDummy is Unit
                           lock bytes len=2 aka=ReservedBytes2
                         confidentialSeal rec tag=2
                           seal union XChainSecretSeal
@@ -808,8 +801,6 @@ Consignmenttrue rec
                           state rec RevealedFungible
                             value union FungibleState
                               bits64 is U64 wrapped tag=0
-                            blinding bytes len=32 aka=BlindingFactor
-                            tag bytes len=32 aka=AssetTag
                           lock bytes len=2 aka=ReservedBytes2
                         revealed rec tag=3
                           seal union XChainBlindSealTxPtr
@@ -828,8 +819,6 @@ Consignmenttrue rec
                           state rec RevealedFungible
                             value union FungibleState
                               bits64 is U64 wrapped tag=0
-                            blinding bytes len=32 aka=BlindingFactor
-                            tag bytes len=32 aka=AssetTag
                           lock bytes len=2 aka=ReservedBytes2
                     structured list len=0..MAX16 wrapped tag=2
                       AssignRevealedDataBlindSealTxPtr union
@@ -1032,8 +1021,9 @@ Consignmenttrue rec
                               bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                               liquid bytes len=32 wrapped aka=SecretSeal tag=1
                             state rec ConcealedFungible
-                              commitment bytes len=33 aka=PedersenCommitment
-                              rangeProof bytes len=33 aka=PedersenCommitment
+                              value union FungibleState
+                                bits64 is U64 wrapped tag=0
+                              concealedDummy is Unit
                             lock bytes len=2 aka=ReservedBytes2
                           confidentialState rec tag=1
                             seal union XChainBlindSealTxPtr
@@ -1050,8 +1040,9 @@ Consignmenttrue rec
                                 vout is U32 aka=Vout
                                 blinding is U64
                             state rec ConcealedFungible
-                              commitment bytes len=33 aka=PedersenCommitment
-                              rangeProof bytes len=33 aka=PedersenCommitment
+                              value union FungibleState
+                                bits64 is U64 wrapped tag=0
+                              concealedDummy is Unit
                             lock bytes len=2 aka=ReservedBytes2
                           confidentialSeal rec tag=2
                             seal union XChainSecretSeal
@@ -1060,8 +1051,6 @@ Consignmenttrue rec
                             state rec RevealedFungible
                               value union FungibleState
                                 bits64 is U64 wrapped tag=0
-                              blinding bytes len=32 aka=BlindingFactor
-                              tag bytes len=32 aka=AssetTag
                             lock bytes len=2 aka=ReservedBytes2
                           revealed rec tag=3
                             seal union XChainBlindSealTxPtr
@@ -1080,8 +1069,6 @@ Consignmenttrue rec
                             state rec RevealedFungible
                               value union FungibleState
                                 bits64 is U64 wrapped tag=0
-                              blinding bytes len=32 aka=BlindingFactor
-                              tag bytes len=32 aka=AssetTag
                             lock bytes len=2 aka=ReservedBytes2
                       structured list len=0..MAX16 wrapped tag=2
                         AssignRevealedDataBlindSealTxPtr union
@@ -1279,8 +1266,9 @@ Consignmenttrue rec
                               bitcoin bytes len=32 wrapped aka=SecretSeal tag=0
                               liquid bytes len=32 wrapped aka=SecretSeal tag=1
                             state rec ConcealedFungible
-                              commitment bytes len=33 aka=PedersenCommitment
-                              rangeProof bytes len=33 aka=PedersenCommitment
+                              value union FungibleState
+                                bits64 is U64 wrapped tag=0
+                              concealedDummy is Unit
                             lock bytes len=2 aka=ReservedBytes2
                           confidentialState rec tag=1
                             seal union XChainBlindSealTxPtr
@@ -1297,8 +1285,9 @@ Consignmenttrue rec
                                 vout is U32 aka=Vout
                                 blinding is U64
                             state rec ConcealedFungible
-                              commitment bytes len=33 aka=PedersenCommitment
-                              rangeProof bytes len=33 aka=PedersenCommitment
+                              value union FungibleState
+                                bits64 is U64 wrapped tag=0
+                              concealedDummy is Unit
                             lock bytes len=2 aka=ReservedBytes2
                           confidentialSeal rec tag=2
                             seal union XChainSecretSeal
@@ -1307,8 +1296,6 @@ Consignmenttrue rec
                             state rec RevealedFungible
                               value union FungibleState
                                 bits64 is U64 wrapped tag=0
-                              blinding bytes len=32 aka=BlindingFactor
-                              tag bytes len=32 aka=AssetTag
                             lock bytes len=2 aka=ReservedBytes2
                           revealed rec tag=3
                             seal union XChainBlindSealTxPtr
@@ -1327,8 +1314,6 @@ Consignmenttrue rec
                             state rec RevealedFungible
                               value union FungibleState
                                 bits64 is U64 wrapped tag=0
-                              blinding bytes len=32 aka=BlindingFactor
-                              tag bytes len=32 aka=AssetTag
                             lock bytes len=2 aka=ReservedBytes2
                       structured list len=0..MAX16 wrapped tag=2
                         AssignRevealedDataBlindSealTxPtr union

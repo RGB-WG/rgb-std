@@ -31,9 +31,9 @@ use nonasync::persistence::{CloneNoPersistence, Persisting};
 use rgb::validation::{ResolveWitness, WitnessResolverError};
 use rgb::vm::{ContractStateAccess, WitnessOrd};
 use rgb::{
-    AssetTag, AttachState, BlindingFactor, BundleId, ContractId, DataState, Extension, Genesis,
-    Operation, RevealedAttach, RevealedData, RevealedValue, Schema, SchemaId, Transition,
-    TransitionBundle, VoidState, XWitnessId,
+    AttachState, BundleId, ContractId, DataState, Extension, Genesis, Operation, RevealedAttach,
+    RevealedData, RevealedValue, Schema, SchemaId, Transition, TransitionBundle, VoidState,
+    XWitnessId,
 };
 
 use crate::containers::{ConsignmentExt, ToWitnessId};
@@ -78,22 +78,11 @@ pub enum StateInconsistency {
 #[derive(Clone, Eq, PartialEq, Debug, Hash)]
 pub enum PersistedState {
     Void,
-    Amount(Amount, BlindingFactor, AssetTag),
+    Amount(Amount),
     // TODO: Use RevealedData
     Data(DataState, u128),
     // TODO: Use RevealedAttach
     Attachment(AttachState, u64),
-}
-
-impl PersistedState {
-    pub(crate) fn update_blinding(&mut self, blinding: BlindingFactor) {
-        match self {
-            PersistedState::Void => {}
-            PersistedState::Amount(_, b, _) => *b = blinding,
-            PersistedState::Data(_, _) => {}
-            PersistedState::Attachment(_, _) => {}
-        }
-    }
 }
 
 #[derive(Debug)]

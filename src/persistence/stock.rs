@@ -36,9 +36,8 @@ use nonasync::persistence::{CloneNoPersistence, PersistenceError, PersistencePro
 use rgb::validation::{DbcProof, ResolveWitness, WitnessResolverError};
 use rgb::vm::WitnessOrd;
 use rgb::{
-    validation, AssignmentType, BlindingFactor, BundleId, ContractId, DataState, GraphSeal,
-    Identity, Layer1, OpId, Operation, Opout, SchemaId, SecretSeal, Transition, XChain, XOutpoint,
-    XOutputSeal, XWitnessId,
+    validation, AssignmentType, BundleId, ContractId, DataState, GraphSeal, Identity, Layer1, OpId,
+    Operation, Opout, SchemaId, SecretSeal, Transition, XChain, XOutpoint, XOutputSeal, XWitnessId,
 };
 use strict_encoding::FieldName;
 
@@ -625,14 +624,9 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         for item in state.fungible_all() {
             let outpoint = item.seal.into();
             if outputs.contains::<XOutpoint>(&outpoint) {
-                res.entry(item.seal).or_default().insert(
-                    item.opout,
-                    PersistedState::Amount(
-                        item.state.value.into(),
-                        item.state.blinding,
-                        item.state.tag,
-                    ),
-                );
+                res.entry(item.seal)
+                    .or_default()
+                    .insert(item.opout, PersistedState::Amount(item.state.value.into()));
             }
         }
 
@@ -934,7 +928,6 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             beneficiary_vout,
             u64::MAX,
             allocator,
-            |_, _| BlindingFactor::random(),
             |_, _| rand::random(),
         )
     }
@@ -950,7 +943,6 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         beneficiary_vout: Option<impl Into<Vout>>,
         priority: u64,
         allocator: impl Fn(ContractId, AssignmentType, VelocityHint) -> Option<Vout>,
-        pedersen_blinder: impl Fn(ContractId, AssignmentType) -> BlindingFactor,
         seal_blinder: impl Fn(ContractId, AssignmentType) -> u64,
     ) -> Result<Batch, StockError<S, H, P, ComposeError>> {
         let layer1 = invoice.layer1();
@@ -1039,13 +1031,12 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             self.contract_assignments_for(contract_id, prev_outputs.iter().copied())?
         {
             main_inputs.push(output);
-            for (opout, mut state) in list {
+            for (opout, state) in list {
                 main_builder = main_builder.add_input(opout, state.clone())?;
                 if opout.ty != assignment_id {
                     let seal = output_for_assignment(contract_id, opout.ty)?;
-                    state.update_blinding(pedersen_blinder(contract_id, assignment_id));
                     main_builder = main_builder.add_owned_state_raw(opout.ty, seal, state)?;
-                } else if let PersistedState::Amount(value, _, _) = state {
+                } else if let PersistedState::Amount(value) = state {
                     sum_inputs += value;
                 } else if let PersistedState::Data(value, _) = state {
                     data_inputs.push(value);
@@ -1060,18 +1051,11 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
                     return Err(ComposeError::InsufficientState.into());
                 }
 
-                let blinding_beneficiary = pedersen_blinder(contract_id, assignment_id);
-
                 if amt > Amount::ZERO {
-                    main_builder = main_builder.add_fungible_state_raw(
-                        assignment_id,
-                        beneficiary,
-                        amt,
-                        blinding_beneficiary,
-                    )?;
+                    main_builder =
+                        main_builder.add_fungible_state_raw(assignment_id, beneficiary, amt)?;
                 }
 
-                let blinding_change = pedersen_blinder(contract_id, assignment_id);
                 let change_seal = output_for_assignment(contract_id, assignment_id)?;
 
                 // Pay change
@@ -1080,7 +1064,6 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
                         assignment_id,
                         change_seal,
                         sum_inputs - amt,
-                        blinding_change,
                     )?;
                 }
             }
