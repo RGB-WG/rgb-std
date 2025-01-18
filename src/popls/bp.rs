@@ -395,7 +395,7 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
         Prefab { closes, defines, operation }
     }
 
-    /// Completes creation of a prefabricated operation pack, adding blank operations if necessary.
+    /// Complete creation of a prefabricated operation pack, adding blank operations if necessary.
     ///
     /// # Arguments
     ///
@@ -493,7 +493,8 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
         PrefabBundle(SmallOrdSet::try_from(prefabs).expect("too many operations"))
     }
 
-    pub fn attest(
+    /// Include prefab bundle into the mound, creating necessary anchors.
+    pub fn include(
         &mut self,
         bundle: &PrefabBundle,
         witness: &Tx,
@@ -521,9 +522,10 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
             };
             (prefab.operation.contract_id, opid, anchor)
         });
-        self.mound.attest(witness, iter);
+        self.mound.include(witness, iter);
     }
 
+    /// Consume consignment.
     #[allow(clippy::result_large_err)]
     pub fn consume(
         &mut self,

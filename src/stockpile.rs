@@ -265,7 +265,7 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
         }
     }
 
-    pub fn attest(
+    pub fn include(
         &mut self,
         opid: Opid,
         anchor: <P::Seal as SingleUseSeal>::CliWitness,
