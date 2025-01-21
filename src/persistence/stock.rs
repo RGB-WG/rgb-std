@@ -1434,6 +1434,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         &mut self,
         resolver: impl ResolveWitness,
         after_height: u32,
+        force_witnesses: Vec<XWitnessId>,
     ) -> Result<UpdateRes, StockError<S, H, P>> {
         let after_height = NonZeroU32::new(after_height).unwrap_or(NonZeroU32::MIN);
         let mut succeeded = 0;
@@ -1445,6 +1446,9 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         let mut became_valid_witnesses = bmap!();
         // 1. update witness ord of all witnesses
         for (id, ord) in &mut witnesses {
+            if matches!(ord, WitnessOrd::Ignored) && !force_witnesses.contains(id) {
+                continue;
+            }
             if matches!(ord, WitnessOrd::Mined(pos) if pos.height() < after_height) {
                 continue;
             }
