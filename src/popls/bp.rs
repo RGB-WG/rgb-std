@@ -26,7 +26,7 @@
 //! proof of publication layer 1.
 
 use alloc::collections::{btree_set, BTreeMap, BTreeSet};
-use std::vec;
+use alloc::vec;
 
 use amplify::confinement::{SmallOrdMap, SmallOrdSet, SmallVec, TinyVec};
 use amplify::{confinement, ByteArray, Bytes32, Wrapper};
@@ -38,9 +38,10 @@ use commit_verify::{mpc, Digest, DigestExt, Sha256};
 use hypersonic::aora::Aora;
 use hypersonic::{
     AuthToken, CallParams, CellAddr, ContractId, CoreParams, DataCell, MethodName, NamedState,
-    Operation, StateAtom, StateCalc, StateName, Supply,
+    Operation, StateAtom, StateCalc, StateName, Supply, UncountableState,
 };
 use invoice::bp::{Address, WitnessOut};
+use invoice::{RgbBeneficiary, RgbInvoice};
 use rgb::SealAuthToken;
 use strict_encoding::{ReadRaw, StrictDecode, StrictDeserialize, StrictReader, StrictSerialize};
 use strict_types::StrictVal;
@@ -61,14 +62,32 @@ pub trait WalletProvider {
     fn next_address(&mut self) -> Address;
 }
 
+pub trait Coinselect {
+    fn coinselect(
+        &mut self,
+        invoiced_state: &StrictVal,
+        calc: &mut (impl StateCalc + ?Sized),
+        owned_state: &BTreeMap<CellAddr, Assignment<Outpoint>>,
+    ) -> Option<Vec<CellAddr>>;
+}
+
 pub const BP_BLANK_METHOD: &str = "_";
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(untagged))]
+pub enum WoutAmount {
+    #[display(inner)]
+    Fixed(Sats),
+    #[display("~")]
+    Change,
+}
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
 #[display("{wout}/{amount}")]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct WoutAssignment {
     pub wout: WitnessOut,
-    pub amount: Sats,
+    pub amount: WoutAmount,
 }
 
 impl Into<ScriptPubkey> for WoutAssignment {
@@ -310,7 +329,7 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
         WitnessOut::new(address.payload, nonce)
     }
 
-    pub fn state(
+    pub fn state_own(
         &mut self,
         contract_id: Option<ContractId>,
     ) -> impl Iterator<Item = (ContractId, ContractState<Outpoint>)> + use<'_, W, S, P, X> {
@@ -344,6 +363,79 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
         let mut noise_engine = Sha256::new();
         noise_engine.input_raw(noise_seed.as_ref());
         noise_engine
+    }
+
+    pub fn fulfill(
+        &mut self,
+        invoice: RgbInvoice<ContractId>,
+        mut coinselect: impl Coinselect,
+        // TODO: Consider adding requested amount of sats to the `RgbInvoice`
+        giveaway: Option<Sats>,
+    ) -> Result<PrefabParams<WoutAssignment>, FulfillError> {
+        let contract_id = invoice.scope;
+
+        // Determine method
+        let stockpile = self.mound.contract(contract_id);
+        let api = &stockpile.stock().articles().schema.default_api;
+        let call = invoice
+            .call
+            .or_else(|| api.default_call().cloned())
+            .ok_or(FulfillError::CallStateUnknown)?;
+        let state_name = call.destructible.ok_or(FulfillError::StateNameUnknown)?;
+        let mut calc = api.calculate(state_name.clone());
+
+        // Do coinselection
+        let (_, state) = self
+            .state_own(Some(contract_id))
+            .next()
+            .ok_or(FulfillError::ContractUnavailable(contract_id))?;
+        let state = state
+            .owned
+            .get(&state_name)
+            .ok_or(FulfillError::StateUnavailable)?;
+        let reading = coinselect
+            .coinselect(&invoice.data, calc.as_mut(), state)
+            .ok_or(FulfillError::StateInsufficient)?;
+
+        // Add beneficiaries
+        let seal = match invoice.auth {
+            RgbBeneficiary::Token(auth) => EitherSeal::Token(auth),
+            RgbBeneficiary::WitnessOut(wout) => {
+                let wout = WoutAssignment {
+                    wout,
+                    amount: WoutAmount::Fixed(giveaway.ok_or(FulfillError::WoutRequiresGiveaway)?),
+                };
+                EitherSeal::Alt(wout)
+            }
+        };
+        calc.lessen(invoice.data.clone())?;
+        let assignment = Assignment { seal, data: invoice.data };
+        let state = NamedState { name: state_name.clone(), state: assignment };
+        let mut owned = vec![state];
+
+        // Add change
+        let diff = calc.diff()?;
+        let change_address = self.wallet.next_address();
+        let wout_assign = WoutAssignment {
+            wout: WitnessOut::new(change_address.payload, 0),
+            amount: WoutAmount::Change,
+        };
+        let seal = EitherSeal::Alt(wout_assign);
+        for data in diff {
+            let assignment = Assignment { seal: seal.clone(), data };
+            let state = NamedState { name: state_name.clone(), state: assignment };
+            owned.push(state);
+        }
+
+        // Construct PrefabParams
+        Ok(PrefabParams {
+            contract_id,
+            method: call.method,
+            using: none!(),
+            global: none!(),
+            reading,
+            owned,
+        })
     }
 
     /// Creates a single operation basing on the provided construction parameters.
@@ -538,6 +630,33 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
                 .collect()
         })
     }
+}
+
+#[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
+#[display(doc_comments)]
+pub enum FulfillError {
+    /// the wallet doesn't own any state for {0} to fulfill the invoice.
+    ContractUnavailable(ContractId),
+
+    /// neither invoice nor contract API contains information about the transfer method.
+    CallStateUnknown,
+
+    /// neither invoice nor contract API contains information about the state name.
+    StateNameUnknown,
+
+    /// the wallet doesn't own any state in order to fulfill the invoice.
+    StateUnavailable,
+
+    /// the state owned by the wallet is insufficient to fulfill the invoice.
+    StateInsufficient,
+
+    #[from]
+    #[display(inner)]
+    StateUncountable(UncountableState),
+
+    /// the invoice asks to create an UTXO for the receiver, but method call doesn't provide
+    /// information on how much sats can be put there (`giveaway` parameter).
+    WoutRequiresGiveaway,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
