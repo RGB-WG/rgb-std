@@ -501,28 +501,29 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
         mpc: mpc::MerkleBlock,
         dbc: Option<TapretProof>,
         prevouts: &[Outpoint],
-    ) {
-        let iter = bundle.iter().map(|prefab| {
+    ) -> Result<(), IncludeError> {
+        for prefab in bundle {
             let protocol_id = ProtocolId::from(prefab.operation.contract_id.to_byte_array());
             let opid = prefab.operation.opid();
+            let mut map = bmap! {};
+            for prevout in &prefab.closes {
+                let pos = prevouts
+                    .iter()
+                    .position(|p| p == prevout)
+                    .ok_or(IncludeError::MissingPrevout(*prevout))?;
+                map.insert(pos as u32, mmb::Message::from_byte_array(opid.to_byte_array()));
+            }
             let anchor = Anchor {
-                mmb_proof: mmb::BundleProof {
-                    map: SmallOrdMap::from_iter_checked(prefab.closes.iter().map(|prevout| {
-                        let pos = prevouts
-                            .iter()
-                            .position(|p| p == prevout)
-                            .expect("PSBT misses one of operation inputs");
-                        (pos as u32, mmb::Message::from_byte_array(opid.to_byte_array()))
-                    })),
-                },
+                mmb_proof: mmb::BundleProof { map: SmallOrdMap::from_checked(map) },
                 mpc_protocol: protocol_id,
-                mpc_proof: mpc.to_merkle_proof(protocol_id).expect("Invalid MPC proof"),
+                mpc_proof: mpc.to_merkle_proof(protocol_id)?,
                 dbc_proof: dbc.clone(),
                 fallback_proof: default!(),
             };
-            (prefab.operation.contract_id, opid, anchor)
-        });
-        self.mound.include(witness, iter);
+            self.mound
+                .include(prefab.operation.contract_id, opid, witness, anchor);
+        }
+        Ok(())
     }
 
     /// Consume consignment.
@@ -537,6 +538,17 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
                 .collect()
         })
     }
+}
+
+#[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
+#[display(doc_comments)]
+pub enum IncludeError {
+    /// prefab bundle references unknown previous output {0}.
+    MissingPrevout(Outpoint),
+
+    /// multi-protocol commitment proof is invalid; {0}
+    #[from]
+    Mpc(mpc::LeafNotKnown),
 }
 
 #[cfg(feature = "fs")]
