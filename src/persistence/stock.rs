@@ -29,7 +29,7 @@ use std::num::NonZeroU32;
 use amplify::confinement::{Confined, LargeOrdSet, U24};
 use amplify::Wrapper;
 use bp::seals::txout::CloseMethod;
-use bp::Vout;
+use bp::{Outpoint, Txid, Vout};
 use chrono::Utc;
 use invoice::{Amount, Beneficiary, InvoiceState, NonFungible, RgbInvoice};
 use nonasync::persistence::{CloneNoPersistence, PersistenceError, PersistenceProvider};
@@ -37,7 +37,7 @@ use rgb::validation::{DbcProof, ResolveWitness, WitnessResolverError};
 use rgb::vm::WitnessOrd;
 use rgb::{
     validation, AssignmentType, BundleId, ContractId, DataState, GraphSeal, Identity, Layer1, OpId,
-    Operation, Opout, SchemaId, SecretSeal, Transition, XChain, XOutpoint, XOutputSeal, XWitnessId,
+    Operation, Opout, OutputSeal, SchemaId, SecretSeal, Transition,
 };
 use strict_encoding::FieldName;
 
@@ -61,7 +61,7 @@ use crate::interface::{
 };
 use crate::MergeRevealError;
 
-pub type ContractAssignments = HashMap<XOutputSeal, HashMap<Opout, PersistedState>>;
+pub type ContractAssignments = HashMap<OutputSeal, HashMap<Opout, PersistedState>>;
 
 #[derive(Debug, Display, Error, From)]
 #[display(inner)]
@@ -112,7 +112,7 @@ pub enum StockError<
     AbsentValidWitness,
 
     /// witness {0} can't be resolved: {1}
-    WitnessUnresolved(XWitnessId, WitnessResolverError),
+    WitnessUnresolved(Txid, WitnessResolverError),
 }
 
 impl<S: StashProvider, H: StateProvider, P: IndexProvider, E: Error> From<StashError<S>>
@@ -226,6 +226,9 @@ pub enum ComposeError {
 
     /// {0} is not supported by the receiver's invoice.
     InvoiceUnsupportsCloseMethod(CloseMethod),
+
+    /// Invoice requesting layer 1 {0} but contract is on different layer 1 ({1})
+    InvoiceBeneficiaryWrongLayer1(Layer1, Layer1),
 
     /// the invoice contains no contract information.
     NoContract,
@@ -528,7 +531,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     /// output seals.
     pub fn contracts_assigning(
         &self,
-        outputs: impl IntoIterator<Item = impl Into<XOutpoint>>,
+        outputs: impl IntoIterator<Item = impl Into<Outpoint>>,
     ) -> Result<impl Iterator<Item = ContractId> + '_, StockError<S, H, P>> {
         let outputs = outputs
             .into_iter()
@@ -612,18 +615,18 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     pub fn contract_assignments_for(
         &self,
         contract_id: ContractId,
-        outpoints: impl IntoIterator<Item = impl Into<XOutpoint>>,
+        outpoints: impl IntoIterator<Item = impl Into<Outpoint>>,
     ) -> Result<ContractAssignments, StockError<S, H, P>> {
-        let outputs: BTreeSet<XOutpoint> = outpoints.into_iter().map(|o| o.into()).collect();
+        let outputs: BTreeSet<Outpoint> = outpoints.into_iter().map(|o| o.into()).collect();
 
         let state = self.contract_state(contract_id)?;
 
         let mut res =
-            HashMap::<XOutputSeal, HashMap<Opout, PersistedState>>::with_capacity(outputs.len());
+            HashMap::<OutputSeal, HashMap<Opout, PersistedState>>::with_capacity(outputs.len());
 
         for item in state.fungible_all() {
             let outpoint = item.seal.into();
-            if outputs.contains::<XOutpoint>(&outpoint) {
+            if outputs.contains::<Outpoint>(&outpoint) {
                 res.entry(item.seal)
                     .or_default()
                     .insert(item.opout, PersistedState::Amount(item.state.value.into()));
@@ -632,7 +635,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
         for item in state.data_all() {
             let outpoint = item.seal.into();
-            if outputs.contains::<XOutpoint>(&outpoint) {
+            if outputs.contains::<Outpoint>(&outpoint) {
                 res.entry(item.seal).or_default().insert(
                     item.opout,
                     PersistedState::Data(item.state.value.clone(), item.state.salt),
@@ -642,7 +645,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
         for item in state.rights_all() {
             let outpoint = item.seal.into();
-            if outputs.contains::<XOutpoint>(&outpoint) {
+            if outputs.contains::<Outpoint>(&outpoint) {
                 res.entry(item.seal)
                     .or_default()
                     .insert(item.opout, PersistedState::Void);
@@ -651,7 +654,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
         for item in state.attach_all() {
             let outpoint = item.seal.into();
-            if outputs.contains::<XOutpoint>(&outpoint) {
+            if outputs.contains::<Outpoint>(&outpoint) {
                 res.entry(item.seal).or_default().insert(
                     item.opout,
                     PersistedState::Attachment(item.state.clone().into(), item.state.salt),
@@ -726,9 +729,9 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     pub fn transfer(
         &self,
         contract_id: ContractId,
-        outputs: impl AsRef<[XOutputSeal]>,
-        secret_seal: Option<XChain<SecretSeal>>,
-        witness_id: Option<XWitnessId>,
+        outputs: impl AsRef<[OutputSeal]>,
+        secret_seal: Option<SecretSeal>,
+        witness_id: Option<Txid>,
     ) -> Result<Transfer, StockError<S, H, P, ConsignError>> {
         let consignment = self.consign(contract_id, outputs, secret_seal, witness_id)?;
         Ok(consignment)
@@ -737,9 +740,9 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     fn consign<const TRANSFER: bool>(
         &self,
         contract_id: ContractId,
-        outputs: impl AsRef<[XOutputSeal]>,
-        secret_seal: Option<XChain<SecretSeal>>,
-        witness_id: Option<XWitnessId>,
+        outputs: impl AsRef<[OutputSeal]>,
+        secret_seal: Option<SecretSeal>,
+        witness_id: Option<Txid>,
     ) -> Result<Consignment<TRANSFER>, StockError<S, H, P, ConsignError>> {
         let outputs = outputs.as_ref();
 
@@ -771,7 +774,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         // 1.3. Collect all state transitions assigning state to the provided outpoints
         let mut anchored_bundles = BTreeMap::<BundleId, ClientBundle>::new();
         let mut transitions = BTreeMap::<OpId, Transition>::new();
-        let mut terminals = BTreeMap::<BundleId, XChain<SecretSeal>>::new();
+        let mut terminals = BTreeMap::<BundleId, SecretSeal>::new();
         for opout in opouts {
             if opout.op == contract_id {
                 continue; // we skip genesis since it will be present anywhere
@@ -866,7 +869,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         }
         let ifaces = Confined::from_checked(ifaces);
 
-        let mut bundles = BTreeMap::<XWitnessId, WitnessBundle>::new();
+        let mut bundles = BTreeMap::<Txid, WitnessBundle>::new();
         for anchored_bundle in anchored_bundles.into_values() {
             let witness_ids = self.index.bundle_info(anchored_bundle.bundle_id())?.0;
             let witness_id = self.state.select_valid_witness(witness_ids)?;
@@ -918,7 +921,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     pub fn compose(
         &self,
         invoice: &RgbInvoice,
-        prev_outputs: impl IntoIterator<Item = impl Into<XOutputSeal>>,
+        prev_outputs: impl IntoIterator<Item = impl Into<OutputSeal>>,
         beneficiary_vout: Option<impl Into<Vout>>,
         allocator: impl Fn(ContractId, AssignmentType, VelocityHint) -> Option<Vout>,
     ) -> Result<Batch, StockError<S, H, P, ComposeError>> {
@@ -939,17 +942,16 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     pub fn compose_deterministic(
         &self,
         invoice: &RgbInvoice,
-        prev_outputs: impl IntoIterator<Item = impl Into<XOutputSeal>>,
+        prev_outputs: impl IntoIterator<Item = impl Into<OutputSeal>>,
         beneficiary_vout: Option<impl Into<Vout>>,
         priority: u64,
         allocator: impl Fn(ContractId, AssignmentType, VelocityHint) -> Option<Vout>,
         seal_blinder: impl Fn(ContractId, AssignmentType) -> u64,
     ) -> Result<Batch, StockError<S, H, P, ComposeError>> {
-        let layer1 = invoice.layer1();
         let prev_outputs = prev_outputs
             .into_iter()
             .map(|o| o.into())
-            .collect::<HashSet<XOutputSeal>>();
+            .collect::<HashSet<OutputSeal>>();
 
         #[allow(clippy::type_complexity)]
         let output_for_assignment =
@@ -974,7 +976,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
                 let vout = allocator(id, assignment_type, velocity)
                     .ok_or(ComposeError::NoBlankOrChange(velocity, assignment_type))?;
                 let seal = GraphSeal::with_blinded_vout(vout, seal_blinder(id, assignment_type));
-                Ok(BuilderSeal::Revealed(XChain::with(layer1, seal)))
+                Ok(BuilderSeal::Revealed(seal))
             };
 
         // 1. Prepare the data
@@ -997,25 +999,32 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             .assignments_type(&assignment_name)
             .ok_or(BuilderError::InvalidStateField(assignment_name.clone()))?;
 
-        let contract_close_method = self.stash.genesis(contract_id)?.close_method;
+        let contract_genesis = self.stash.genesis(contract_id)?;
+        let contract_layer1 = contract_genesis.layer1;
+        let invoice_layer1 = invoice.layer1();
+        if contract_layer1 != invoice_layer1 {
+            return Err(ComposeError::InvoiceBeneficiaryWrongLayer1(
+                invoice_layer1,
+                contract_layer1,
+            )
+            .into());
+        }
+        let contract_close_method = contract_genesis.close_method;
         if !invoice.close_methods.is_empty()
             && !invoice.close_methods.contains(&contract_close_method)
         {
             return Err(ComposeError::InvoiceUnsupportsCloseMethod(contract_close_method).into());
         }
 
-        let layer1 = invoice.beneficiary.chain_network().layer1();
         let beneficiary = match (invoice.beneficiary.into_inner(), beneficiary_vout) {
-            (Beneficiary::BlindedSeal(seal), None) => {
-                BuilderSeal::Concealed(XChain::with(layer1, seal))
-            }
+            (Beneficiary::BlindedSeal(seal), None) => BuilderSeal::Concealed(seal),
             (Beneficiary::BlindedSeal(_), Some(_)) => {
                 return Err(ComposeError::BeneficiaryVout.into());
             }
             (Beneficiary::WitnessVout(_), Some(vout)) => {
                 let blinding = seal_blinder(contract_id, assignment_id);
                 let seal = GraphSeal::with_blinded_vout(vout, blinding);
-                BuilderSeal::Revealed(XChain::with(layer1, seal))
+                BuilderSeal::Revealed(seal)
             }
             (Beneficiary::WitnessVout(_), None) => {
                 return Err(ComposeError::NoBeneficiaryOutput.into());
@@ -1023,7 +1032,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         };
 
         // 2. Prepare transition
-        let mut main_inputs = Vec::<XOutputSeal>::new();
+        let mut main_inputs = Vec::<OutputSeal>::new();
         let mut sum_inputs = Amount::ZERO;
         let mut data_inputs = vec![];
 
@@ -1090,7 +1099,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         // 3. Prepare other transitions
         // Enumerate state
         let mut blank_state =
-            HashMap::<ContractId, HashMap<XOutputSeal, HashMap<Opout, PersistedState>>>::new();
+            HashMap::<ContractId, HashMap<OutputSeal, HashMap<Opout, PersistedState>>>::new();
         for id in self.contracts_assigning(prev_outputs.iter().copied())? {
             // Skip current contract
             if id == contract_id {
@@ -1297,10 +1306,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         Ok(ClientBundle::new(mpc_proof, dbc, bundle))
     }
 
-    pub fn store_secret_seal(
-        &mut self,
-        seal: XChain<GraphSeal>,
-    ) -> Result<bool, StockError<S, H, P>> {
+    pub fn store_secret_seal(&mut self, seal: GraphSeal) -> Result<bool, StockError<S, H, P>> {
         Ok(self.stash.store_secret_seal(seal)?)
     }
 
@@ -1397,10 +1403,10 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     fn update_witness_ord(
         &mut self,
         resolver: impl ResolveWitness,
-        id: &XWitnessId,
+        id: &Txid,
         ord: &mut WitnessOrd,
-        became_invalid_witnesses: &mut BTreeMap<XWitnessId, BTreeSet<BundleId>>,
-        became_valid_witnesses: &mut BTreeMap<XWitnessId, BTreeSet<BundleId>>,
+        became_invalid_witnesses: &mut BTreeMap<Txid, BTreeSet<BundleId>>,
+        became_valid_witnesses: &mut BTreeMap<Txid, BTreeSet<BundleId>>,
     ) -> Result<(), StockError<S, H, P>> {
         let new = resolver
             .resolve_pub_witness_ord(*id)
@@ -1434,7 +1440,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         &mut self,
         resolver: impl ResolveWitness,
         after_height: u32,
-        force_witnesses: Vec<XWitnessId>,
+        force_witnesses: Vec<Txid>,
     ) -> Result<UpdateRes, StockError<S, H, P>> {
         let after_height = NonZeroU32::new(after_height).unwrap_or(NonZeroU32::MIN);
         let mut succeeded = 0;
@@ -1471,7 +1477,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         // 2. set invalidity of bundles
         for bundle_ids in became_invalid_witnesses.values() {
             for bundle_id in bundle_ids {
-                let bundle_witness_ids: BTreeSet<XWitnessId> =
+                let bundle_witness_ids: BTreeSet<Txid> =
                     self.index.bundle_info(*bundle_id)?.0.collect();
                 // set bundle as invalid only if there are no valid witnesses associated to it
                 if bundle_witness_ids
@@ -1511,7 +1517,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct UpdateRes {
     pub succeeded: usize,
-    pub failed: HashMap<XWitnessId, String>,
+    pub failed: HashMap<Txid, String>,
 }
 
 #[cfg(test)]
@@ -1528,8 +1534,7 @@ mod test {
     #[test]
     fn test_consign() {
         let mut stock = Stock::in_memory();
-        let seal =
-            XChain::with(rgbcore::Layer1::Bitcoin, GraphSeal::new_random_vout(Vout::from_u32(0)));
+        let seal = GraphSeal::new_random_vout(Vout::from_u32(0));
         let secret_seal = seal.conceal();
 
         stock.store_secret_seal(seal).unwrap();

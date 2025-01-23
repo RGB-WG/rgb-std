@@ -36,7 +36,7 @@ use commit_verify::{CommitEncode, CommitEngine, CommitId, CommitmentId, DigestEx
 use rgb::validation::{ResolveWitness, Validator, Validity, Warning, CONSIGNMENT_MAX_LIBS};
 use rgb::{
     impl_serde_baid64, validation, AttachId, BundleId, ContractId, Extension, Genesis, GraphSeal,
-    Operation, Schema, SchemaId, XChain,
+    Operation, Schema, SchemaId,
 };
 use rgbcore::validation::ConsignmentApi;
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
@@ -185,7 +185,7 @@ pub struct Consignment<const TRANSFER: bool> {
     pub transfer: bool,
 
     /// Set of secret seals which are history terminals.
-    pub terminals: SmallOrdMap<BundleId, XChain<SecretSeal>>,
+    pub terminals: SmallOrdMap<BundleId, SecretSeal>,
 
     /// Genesis data.
     pub genesis: Genesis,
@@ -288,7 +288,7 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
 
     pub fn reveal_terminal_seals<E>(
         mut self,
-        f: impl Fn(XChain<SecretSeal>) -> Result<Option<XChain<GraphSeal>>, E>,
+        f: impl Fn(SecretSeal) -> Result<Option<GraphSeal>, E>,
     ) -> Result<Self, E> {
         // We need to clone since ordered set does not allow us to mutate members.
         let mut bundles = LargeOrdSet::with_capacity(self.bundles.len());

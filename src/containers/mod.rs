@@ -40,7 +40,7 @@ mod suppl;
 
 pub use anchors::{
     AnchorSet, AnchoredBundleMismatch, AnchoredBundles, ClientBundle, PubWitness, SealWitness,
-    ToWitnessId, UnrelatedTransition, WitnessBundle, XPubWitness,
+    ToWitnessId, UnrelatedTransition, WitnessBundle,
 };
 pub use consignment::{
     Consignment, ConsignmentExt, ConsignmentId, ConsignmentParseError, Contract, Transfer,

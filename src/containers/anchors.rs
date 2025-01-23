@@ -29,10 +29,7 @@ use bp::dbc::{anchor, Anchor};
 use bp::{dbc, Tx, Txid};
 use commit_verify::mpc;
 use rgb::validation::{DbcProof, EAnchor};
-use rgb::{
-    BundleId, DiscloseHash, OpId, Operation, Transition, TransitionBundle, XChain, XGraphSeal,
-    XWitnessId,
-};
+use rgb::{BundleId, DiscloseHash, GraphSeal, OpId, Operation, Transition, TransitionBundle};
 use strict_encoding::StrictDumb;
 
 use crate::containers::Dichotomy;
@@ -46,9 +43,9 @@ pub struct UnrelatedTransition(OpId, Transition);
 #[display(doc_comments)]
 pub enum AnchoredBundleMismatch {
     /// witness bundle for witness id {0} already has both opret and tapret information.
-    AlreadyDouble(XWitnessId),
+    AlreadyDouble(Txid),
     /// the combined anchored bundles for witness id {0} are of the same type.
-    SameBundleType(XWitnessId),
+    SameBundleType(Txid),
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -60,47 +57,32 @@ pub enum AnchoredBundleMismatch {
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct SealWitness {
-    pub public: XPubWitness,
+    pub public: PubWitness,
     pub anchors: AnchorSet,
 }
 
 impl SealWitness {
-    pub fn new(witness: XPubWitness, anchors: AnchorSet) -> Self {
+    pub fn new(witness: PubWitness, anchors: AnchorSet) -> Self {
         SealWitness {
             public: witness,
             anchors,
         }
     }
 
-    pub fn witness_id(&self) -> XWitnessId { self.public.to_witness_id() }
+    pub fn witness_id(&self) -> Txid { self.public.to_witness_id() }
 }
-
-pub type XPubWitness = XChain<PubWitness>;
 
 pub trait ToWitnessId {
-    fn to_witness_id(&self) -> XWitnessId;
+    fn to_witness_id(&self) -> Txid;
 }
 
-impl ToWitnessId for XPubWitness {
-    fn to_witness_id(&self) -> XWitnessId { self.map_ref(|w| w.txid()) }
+impl ToWitnessId for PubWitness {
+    fn to_witness_id(&self) -> Txid { self.txid() }
 }
 
-impl MergeReveal for XPubWitness {
+impl MergeReveal for PubWitness {
     fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {
-        match (self, other) {
-            (XChain::Bitcoin(one), XChain::Bitcoin(two)) => {
-                one.merge_reveal(two).map(XChain::Bitcoin)
-            }
-            (XChain::Liquid(one), XChain::Liquid(two)) => one.merge_reveal(two).map(XChain::Liquid),
-            (XChain::Bitcoin(bitcoin), XChain::Liquid(liquid))
-            | (XChain::Liquid(liquid), XChain::Bitcoin(bitcoin)) => {
-                Err(MergeRevealError::ChainMismatch {
-                    bitcoin: bitcoin.txid(),
-                    liquid: liquid.txid(),
-                })
-            }
-            _ => unreachable!(),
-        }
+        self.merge_reveal(other)
     }
 }
 
@@ -178,7 +160,7 @@ impl PubWitness {
 #[derive(CommitEncode)]
 #[commit_encode(strategy = strict, id = DiscloseHash)]
 pub struct WitnessBundle {
-    pub pub_witness: XPubWitness,
+    pub pub_witness: PubWitness,
     pub anchored_bundles: AnchoredBundles,
 }
 
@@ -196,7 +178,7 @@ impl PartialOrd for WitnessBundle {
 
 impl WitnessBundle {
     #[inline]
-    pub fn with(pub_witness: XPubWitness, anchored_bundle: ClientBundle) -> Self {
+    pub fn with(pub_witness: PubWitness, anchored_bundle: ClientBundle) -> Self {
         Self {
             pub_witness,
             anchored_bundles: AnchoredBundles::from(anchored_bundle),
@@ -231,9 +213,9 @@ impl WitnessBundle {
         Ok(self)
     }
 
-    pub fn witness_id(&self) -> XWitnessId { self.pub_witness.to_witness_id() }
+    pub fn witness_id(&self) -> Txid { self.pub_witness.to_witness_id() }
 
-    pub fn reveal_seal(&mut self, bundle_id: BundleId, seal: XGraphSeal) -> bool {
+    pub fn reveal_seal(&mut self, bundle_id: BundleId, seal: GraphSeal) -> bool {
         let bundle = match &mut self.anchored_bundles {
             AnchoredBundles::Tapret(tapret) | AnchoredBundles::Double { tapret, .. }
                 if tapret.bundle.bundle_id() == bundle_id =>

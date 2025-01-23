@@ -36,7 +36,7 @@ use nonasync::persistence::{CloneNoPersistence, Persisting};
 use rgb::validation::{DbcProof, Scripts};
 use rgb::{
     AttachId, BundleId, ContractId, Extension, Genesis, GraphSeal, Identity, Layer1, OpId,
-    Operation, Schema, SchemaId, TransitionBundle, XChain, XWitnessId,
+    Operation, Schema, SchemaId, TransitionBundle, Txid,
 };
 use strict_encoding::{FieldName, TypeName};
 use strict_types::typesys::UnknownType;
@@ -119,10 +119,10 @@ pub enum StashInconsistency {
     OperationAbsent(OpId),
 
     /// information about witness {0} is absent.
-    WitnessAbsent(XWitnessId),
+    WitnessAbsent(Txid),
 
     /// witness {0} for the bundle {1} misses contract {2} information in {3} anchor.
-    WitnessMissesContract(XWitnessId, BundleId, ContractId, CloseMethod),
+    WitnessMissesContract(Txid, BundleId, ContractId, CloseMethod),
 
     /// bundle {0} is absent.
     BundleAbsent(BundleId),
@@ -261,7 +261,7 @@ impl<P: StashProvider> Stash<P> {
     pub(super) fn bundle(&self, bundle_id: BundleId) -> Result<&TransitionBundle, StashError<P>> {
         Ok(self.provider.bundle(bundle_id)?)
     }
-    pub(super) fn witness(&self, witness_id: XWitnessId) -> Result<&SealWitness, StashError<P>> {
+    pub(super) fn witness(&self, witness_id: Txid) -> Result<&SealWitness, StashError<P>> {
         Ok(self.provider.witness(witness_id)?)
     }
 
@@ -663,10 +663,7 @@ impl<P: StashProvider> Stash<P> {
             .map_err(StashError::WriteProvider)
     }
 
-    pub(crate) fn store_secret_seal(
-        &mut self,
-        seal: XChain<GraphSeal>,
-    ) -> Result<bool, StashError<P>> {
+    pub(crate) fn store_secret_seal(&mut self, seal: GraphSeal) -> Result<bool, StashError<P>> {
         self.begin_transaction()?;
         let seal = self
             .provider
@@ -739,19 +736,16 @@ pub trait StashReadProvider {
     ) -> Result<impl Iterator<Item = Supplement>, Self::Error>;
 
     fn sigs_for(&self, content_id: &ContentId) -> Result<Option<&ContentSigs>, Self::Error>;
-    fn witness_ids(&self) -> Result<impl Iterator<Item = XWitnessId>, Self::Error>;
+    fn witness_ids(&self) -> Result<impl Iterator<Item = Txid>, Self::Error>;
     fn bundle_ids(&self) -> Result<impl Iterator<Item = BundleId>, Self::Error>;
     fn bundle(&self, bundle_id: BundleId) -> Result<&TransitionBundle, ProviderError<Self::Error>>;
     fn extension_ids(&self) -> Result<impl Iterator<Item = OpId>, Self::Error>;
     fn extension(&self, op_id: OpId) -> Result<&Extension, ProviderError<Self::Error>>;
-    fn witness(&self, witness_id: XWitnessId) -> Result<&SealWitness, ProviderError<Self::Error>>;
+    fn witness(&self, witness_id: Txid) -> Result<&SealWitness, ProviderError<Self::Error>>;
 
-    fn taprets(&self) -> Result<impl Iterator<Item = (XWitnessId, TapretCommitment)>, Self::Error>;
-    fn seal_secret(
-        &self,
-        secret: XChain<SecretSeal>,
-    ) -> Result<Option<XChain<GraphSeal>>, Self::Error>;
-    fn secret_seals(&self) -> Result<impl Iterator<Item = XChain<GraphSeal>>, Self::Error>;
+    fn taprets(&self) -> Result<impl Iterator<Item = (Txid, TapretCommitment)>, Self::Error>;
+    fn seal_secret(&self, secret: SecretSeal) -> Result<Option<GraphSeal>, Self::Error>;
+    fn secret_seals(&self) -> Result<impl Iterator<Item = GraphSeal>, Self::Error>;
 }
 
 pub trait StashWriteProvider: StoreTransaction<TransactionErr = Self::Error> {
@@ -778,5 +772,5 @@ pub trait StashWriteProvider: StoreTransaction<TransactionErr = Self::Error> {
     fn import_sigs<I>(&mut self, content_id: ContentId, sigs: I) -> Result<(), Self::Error>
     where I: IntoIterator<Item = (Identity, SigBlob)>;
 
-    fn add_secret_seal(&mut self, seal: XChain<GraphSeal>) -> Result<bool, Self::Error>;
+    fn add_secret_seal(&mut self, seal: GraphSeal) -> Result<bool, Self::Error>;
 }

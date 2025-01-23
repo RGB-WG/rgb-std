@@ -27,15 +27,14 @@ use std::vec;
 
 use amplify::confinement::{Confined, NonEmptyOrdMap, U24};
 use bp::seals::txout::CloseMethod;
-use rgb::{
-    ContractId, OpId, Operation, Transition, TransitionBundle, XOutpoint, XOutputSeal, XWitnessId,
-};
+use bp::Outpoint;
+use rgb::{ContractId, OpId, Operation, OutputSeal, Transition, TransitionBundle, Txid};
 use strict_encoding::{
     DecodeError, ReadStruct, StrictDecode, StrictDeserialize, StrictDumb, StrictEncode,
     StrictProduct, StrictSerialize, StrictStruct, StrictType, TypedRead, TypedWrite, WriteStruct,
 };
 
-use crate::containers::{AnchorSet, XPubWitness};
+use crate::containers::{AnchorSet, PubWitness};
 use crate::LIB_NAME_RGB_STD;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
@@ -125,7 +124,7 @@ impl CloseMethodSet {
 )]
 pub struct TransitionInfo {
     pub id: OpId,
-    pub inputs: Confined<BTreeSet<XOutpoint>, 1, U24>,
+    pub inputs: Confined<BTreeSet<Outpoint>, 1, U24>,
     pub transition: Transition,
     pub method: CloseMethod,
 }
@@ -158,14 +157,14 @@ impl TransitionInfo {
     /// If the number of provided seals is zero.
     pub fn new(
         transition: Transition,
-        seals: impl AsRef<[XOutputSeal]>,
+        seals: impl AsRef<[OutputSeal]>,
         method: CloseMethod,
     ) -> Result<Self, TransitionInfoError> {
         let id = transition.id();
         let seals = seals.as_ref();
         assert!(!seals.is_empty(), "empty seals provided to transition info constructor");
         let inputs = Confined::<BTreeSet<_>, 1, U24>::try_from_iter(
-            seals.iter().copied().map(XOutpoint::from),
+            seals.iter().copied().map(Outpoint::from),
         )
         .map_err(|_| TransitionInfoError::TooMany(id))?;
         Ok(TransitionInfo {
@@ -340,7 +339,7 @@ impl<T> Dichotomy<T> {
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct Fascia {
-    pub witness: XPubWitness,
+    pub witness: PubWitness,
     pub anchor: AnchorSet,
     pub bundles: NonEmptyOrdMap<ContractId, TransitionBundle, U24>,
 }
@@ -358,7 +357,7 @@ impl StrictSerialize for Fascia {}
 impl StrictDeserialize for Fascia {}
 
 impl Fascia {
-    pub fn witness_id(&self) -> XWitnessId { self.witness.map_ref(|w| w.txid()) }
+    pub fn witness_id(&self) -> Txid { self.witness.txid() }
 
     pub fn into_bundles(self) -> impl IntoIterator<Item = (ContractId, TransitionBundle)> {
         self.bundles.into_iter()

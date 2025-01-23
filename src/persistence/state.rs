@@ -32,8 +32,7 @@ use rgb::validation::{ResolveWitness, WitnessResolverError};
 use rgb::vm::{ContractStateAccess, WitnessOrd};
 use rgb::{
     AttachState, BundleId, ContractId, DataState, Extension, Genesis, Operation, RevealedAttach,
-    RevealedData, RevealedValue, Schema, SchemaId, Transition, TransitionBundle, VoidState,
-    XWitnessId,
+    RevealedData, RevealedValue, Schema, SchemaId, Transition, TransitionBundle, Txid, VoidState,
 };
 
 use crate::containers::{ConsignmentExt, ToWitnessId};
@@ -51,7 +50,7 @@ pub enum StateError<P: StateProvider> {
 
     /// witness {0} can't be resolved: {1}
     #[display(doc_comments)]
-    Resolver(XWitnessId, WitnessResolverError),
+    Resolver(Txid, WitnessResolverError),
 
     /// valid (non-archived) witness is absent in the list of witnesses for a
     /// state transition bundle.
@@ -72,7 +71,7 @@ pub enum StateInconsistency {
     /// contract state {0} is not known.
     UnknownContract(ContractId),
     /// a witness {0} is absent from the state data.
-    AbsentWitness(XWitnessId),
+    AbsentWitness(Txid),
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Hash)]
@@ -129,8 +128,8 @@ impl<P: StateProvider> State<P> {
 
     pub fn select_valid_witness(
         &self,
-        witness_ids: impl IntoIterator<Item = impl Borrow<XWitnessId>>,
-    ) -> Result<XWitnessId, StateError<P>> {
+        witness_ids: impl IntoIterator<Item = impl Borrow<Txid>>,
+    ) -> Result<Txid, StateError<P>> {
         for witness_id in witness_ids {
             let witness_id = *witness_id.borrow();
             if self
@@ -148,7 +147,7 @@ impl<P: StateProvider> State<P> {
         &mut self,
         contract_id: ContractId,
         bundle: &TransitionBundle,
-        witness_id: XWitnessId,
+        witness_id: Txid,
         resolver: R,
     ) -> Result<(), StateError<P>> {
         let mut updater = self
@@ -231,7 +230,7 @@ impl<P: StateProvider> State<P> {
 
     pub fn upsert_witness(
         &mut self,
-        witness_id: XWitnessId,
+        witness_id: Txid,
         witness_ord: WitnessOrd,
     ) -> Result<(), StateError<P>> {
         self.provider
@@ -279,9 +278,9 @@ pub trait StateReadProvider {
         contract_id: ContractId,
     ) -> Result<Self::ContractRead<'_>, Self::Error>;
 
-    fn is_valid_witness(&self, witness_id: XWitnessId) -> Result<bool, Self::Error>;
+    fn is_valid_witness(&self, witness_id: Txid) -> Result<bool, Self::Error>;
 
-    fn witnesses(&self) -> LargeOrdMap<XWitnessId, WitnessOrd>;
+    fn witnesses(&self) -> LargeOrdMap<Txid, WitnessOrd>;
 
     fn invalid_bundles(&self) -> LargeOrdSet<BundleId>;
 }
@@ -304,7 +303,7 @@ pub trait StateWriteProvider: StoreTransaction<TransactionErr = Self::Error> {
 
     fn upsert_witness(
         &mut self,
-        witness_id: XWitnessId,
+        witness_id: Txid,
         witness_ord: WitnessOrd,
     ) -> Result<(), Self::Error>;
 
@@ -314,7 +313,7 @@ pub trait StateWriteProvider: StoreTransaction<TransactionErr = Self::Error> {
 pub trait ContractStateRead: ContractStateAccess {
     fn contract_id(&self) -> ContractId;
     fn schema_id(&self) -> SchemaId;
-    fn witness_ord(&self, witness_id: XWitnessId) -> Option<WitnessOrd>;
+    fn witness_ord(&self, witness_id: Txid) -> Option<WitnessOrd>;
     fn rights_all(&self) -> impl Iterator<Item = &OutputAssignment<VoidState>>;
     fn fungible_all(&self) -> impl Iterator<Item = &OutputAssignment<RevealedValue>>;
     fn data_all(&self) -> impl Iterator<Item = &OutputAssignment<RevealedData>>;
@@ -329,7 +328,7 @@ pub trait ContractStateWrite {
     fn add_transition(
         &mut self,
         transition: &Transition,
-        witness_id: XWitnessId,
+        witness_id: Txid,
         witness_ord: WitnessOrd,
         bundle_id: BundleId,
     ) -> Result<(), Self::Error>;
@@ -337,7 +336,7 @@ pub trait ContractStateWrite {
     fn add_extension(
         &mut self,
         extension: &Extension,
-        witness_id: XWitnessId,
+        witness_id: Txid,
         witness_ord: WitnessOrd,
     ) -> Result<(), Self::Error>;
 }

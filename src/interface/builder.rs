@@ -33,7 +33,7 @@ use rgb::{
     validation, Assign, AssignmentType, Assignments, AttachState, ContractId, DataState,
     ExposedSeal, FungibleType, Genesis, GenesisSeal, GlobalState, GraphSeal, Identity, Input,
     Layer1, MetadataError, Opout, OwnedStateSchema, RevealedAttach, RevealedData, RevealedValue,
-    Schema, Transition, TransitionType, TypedAssigns, XChain, XOutpoint,
+    Schema, Transition, TransitionType, TypedAssigns,
 };
 use rgbcore::{GlobalStateSchema, GlobalStateType, MetaType, Metadata, ValencyType};
 use strict_encoding::{FieldName, SerializeError, StrictSerialize};
@@ -43,14 +43,10 @@ use crate::containers::{BuilderSeal, ContainerVer, Contract, ValidConsignment};
 use crate::interface::resolver::DumbResolver;
 use crate::interface::{Iface, IfaceImpl, TransitionIface};
 use crate::persistence::PersistedState;
-use crate::Outpoint;
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum BuilderError {
-    /// contract already has too many layers1.
-    TooManyLayers1,
-
     /// metadata `{0}` are not known to the schema
     MetadataNotFound(FieldName),
 
@@ -83,9 +79,6 @@ pub enum BuilderError {
     /// {0} is not supported by the contract genesis.
     InvalidLayer1(Layer1),
 
-    /// the seal is committing to a layer 1 ({0}) different from the the contract one ({1})
-    Layer1Mismatch(Layer1, Layer1),
-
     #[from]
     #[display(inner)]
     StrictEncode(SerializeError),
@@ -101,31 +94,6 @@ pub enum BuilderError {
     #[from]
     #[display(inner)]
     ContractInconsistency(validation::Status),
-}
-
-mod private {
-    pub trait Sealed {}
-}
-
-pub trait TxOutpoint: Copy + Eq + private::Sealed {
-    fn is_liquid(&self) -> bool;
-    fn is_bitcoin(&self) -> bool;
-    fn map_to_xchain<U>(self, f: impl FnOnce(Outpoint) -> U) -> XChain<U>;
-}
-
-impl private::Sealed for Outpoint {}
-impl private::Sealed for XOutpoint {}
-impl TxOutpoint for Outpoint {
-    fn is_liquid(&self) -> bool { false }
-    fn is_bitcoin(&self) -> bool { true }
-    fn map_to_xchain<U>(self, f: impl FnOnce(Outpoint) -> U) -> XChain<U> {
-        XChain::Bitcoin(f(self))
-    }
-}
-impl TxOutpoint for XOutpoint {
-    fn is_liquid(&self) -> bool { XChain::is_liquid(self) }
-    fn is_bitcoin(&self) -> bool { XChain::is_bitcoin(self) }
-    fn map_to_xchain<U>(self, f: impl FnOnce(Outpoint) -> U) -> XChain<U> { self.map(f) }
 }
 
 #[derive(Clone, Debug)]
@@ -188,13 +156,6 @@ impl ContractBuilder {
         self
     }
 
-    pub fn check_layer1(&self, layer1: Layer1) -> Result<(), BuilderError> {
-        if self.layer1 != layer1 {
-            return Err(BuilderError::Layer1Mismatch(layer1, self.layer1));
-        }
-        Ok(())
-    }
-
     #[inline]
     pub fn global_type(&self, name: &FieldName) -> Option<GlobalStateType> {
         self.builder.global_type(name)
@@ -240,7 +201,6 @@ impl ContractBuilder {
         state: PersistedState,
     ) -> Result<Self, BuilderError> {
         let seal = seal.into();
-        self.check_layer1(seal.layer1())?;
         self.builder = self.builder.add_owned_state_det(name, seal, state)?;
         Ok(self)
     }
@@ -251,7 +211,6 @@ impl ContractBuilder {
         seal: impl Into<BuilderSeal<GenesisSeal>>,
     ) -> Result<Self, BuilderError> {
         let seal = seal.into();
-        self.check_layer1(seal.layer1())?;
         self.builder = self.builder.add_rights(name, seal)?;
         Ok(self)
     }
@@ -264,7 +223,6 @@ impl ContractBuilder {
     ) -> Result<Self, BuilderError> {
         let name = name.into();
         let seal = seal.into();
-        self.check_layer1(seal.layer1())?;
         self.builder = self.builder.add_fungible_state(name, seal, value)?;
         Ok(self)
     }
@@ -276,7 +234,6 @@ impl ContractBuilder {
         value: impl StrictSerialize,
     ) -> Result<Self, BuilderError> {
         let seal = seal.into();
-        self.check_layer1(seal.layer1())?;
         self.builder = self.builder.add_data(name, seal, value)?;
         Ok(self)
     }
@@ -288,7 +245,6 @@ impl ContractBuilder {
         data: RevealedData,
     ) -> Result<Self, BuilderError> {
         let seal = seal.into();
-        self.check_layer1(seal.layer1())?;
         self.builder = self.builder.add_data_det(name, seal, data)?;
         Ok(self)
     }
@@ -300,7 +256,6 @@ impl ContractBuilder {
         attachment: AttachState,
     ) -> Result<Self, BuilderError> {
         let seal = seal.into();
-        self.check_layer1(seal.layer1())?;
         self.builder = self.builder.add_attachment(name, seal, attachment)?;
         Ok(self)
     }
@@ -312,7 +267,6 @@ impl ContractBuilder {
         attachment: RevealedAttach,
     ) -> Result<Self, BuilderError> {
         let seal = seal.into();
-        self.check_layer1(seal.layer1())?;
         self.builder = self.builder.add_attachment_det(name, seal, attachment)?;
         Ok(self)
     }
