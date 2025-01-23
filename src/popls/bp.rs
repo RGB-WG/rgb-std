@@ -156,6 +156,7 @@ pub struct UsedState {
     pub val: StrictVal,
 }
 
+/// A set of multiple operation requests (see [`OpRequests`]) under a single or multiple contracts.
 #[derive(Wrapper, WrapperMut, Clone, PartialEq, Eq, Debug, From)]
 #[wrapper(Deref)]
 #[wrapper_mut(DerefMut)]
@@ -167,20 +168,20 @@ pub struct UsedState {
         bound = "T: serde::Serialize + for<'d> serde::Deserialize<'d>"
     )
 )]
-pub struct PrefabParamsSet<T>(TinyVec<PrefabParams<T>>);
+pub struct OpRequestSet<T>(TinyVec<OpRequest<T>>);
 
-impl<T> IntoIterator for PrefabParamsSet<T> {
-    type Item = PrefabParams<T>;
-    type IntoIter = vec::IntoIter<PrefabParams<T>>;
+impl<T> IntoIterator for OpRequestSet<T> {
+    type Item = OpRequest<T>;
+    type IntoIter = vec::IntoIter<OpRequest<T>>;
 
     fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
 }
 
-impl<T: Into<ScriptPubkey>> PrefabParamsSet<T> {
+impl<T: Into<ScriptPubkey>> OpRequestSet<T> {
     pub fn resolve_seals(
         self,
         resolver: impl Fn(&ScriptPubkey) -> Option<Vout>,
-    ) -> Result<PrefabParamsSet<Vout>, UnresolvedSeal> {
+    ) -> Result<OpRequestSet<Vout>, UnresolvedSeal> {
         let mut items = Vec::with_capacity(self.0.len());
         for params in self.0 {
             let mut owned = Vec::with_capacity(params.owned.len());
@@ -198,7 +199,7 @@ impl<T: Into<ScriptPubkey>> PrefabParamsSet<T> {
                     state: Assignment { seal, data: assignment.state.data },
                 });
             }
-            items.push(PrefabParams::<Vout> {
+            items.push(OpRequest::<Vout> {
                 contract_id: params.contract_id,
                 method: params.method,
                 reading: params.reading,
@@ -207,7 +208,7 @@ impl<T: Into<ScriptPubkey>> PrefabParamsSet<T> {
                 owned,
             });
         }
-        Ok(PrefabParamsSet(TinyVec::from_iter_checked(items)))
+        Ok(OpRequestSet(TinyVec::from_iter_checked(items)))
     }
 }
 
@@ -217,7 +218,10 @@ pub struct UnresolvedSeal(ScriptPubkey);
 
 /// Parameters used by BP-based wallet for constructing operations.
 ///
-/// Differs from [`CallParams`] in the fact that it uses [`BuilderSeal`]s instead of
+/// NB: [`OpRequest`] must contain pre-computed information about the change; otherwise the
+/// excessive state will be lost.
+///
+/// Differs from [`CallParams`] in the fact that it uses [`EitherSeal`]s instead of
 /// [`hypersonic::AuthTokens`] for output definitions.
 #[derive(Clone, PartialEq, Eq, Debug)]
 #[cfg_attr(
@@ -228,7 +232,7 @@ pub struct UnresolvedSeal(ScriptPubkey);
         bound = "T: serde::Serialize + for<'d> serde::Deserialize<'d>"
     )
 )]
-pub struct PrefabParams<T> {
+pub struct OpRequest<T> {
     pub contract_id: ContractId,
     pub method: MethodName,
     pub reading: Vec<CellAddr>,
@@ -371,7 +375,7 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
         mut coinselect: impl Coinselect,
         // TODO: Consider adding requested amount of sats to the `RgbInvoice`
         giveaway: Option<Sats>,
-    ) -> Result<PrefabParams<WoutAssignment>, FulfillError> {
+    ) -> Result<OpRequest<WoutAssignment>, FulfillError> {
         let contract_id = invoice.scope;
 
         // Determine method
@@ -428,7 +432,7 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
         }
 
         // Construct PrefabParams
-        Ok(PrefabParams {
+        Ok(OpRequest {
             contract_id,
             method: call.method,
             using: none!(),
@@ -439,7 +443,7 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
     }
 
     /// Creates a single operation basing on the provided construction parameters.
-    pub fn prefab(&mut self, params: PrefabParams<Vout>) -> Prefab {
+    pub fn prefab(&mut self, params: OpRequest<Vout>) -> Prefab {
         // convert ConstructParams into CallParams
         let (closes, using) = params
             .using
@@ -487,19 +491,23 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
         Prefab { closes, defines, operation }
     }
 
-    /// Complete creation of a prefabricated operation pack, adding blank operations if necessary.
+    /// Complete creation of a prefabricated operation bundle from operation requests, adding blank
+    /// operations if necessary. Operation requests can be multiple.
+    ///
+    /// A set of operations is either a collection of them, or a [`OpRequestSet`] - any structure
+    /// which implements `IntoIterator` trait.
     ///
     /// # Arguments
     ///
-    /// - `items`: a set of instructions to create non-blank operations (potentially under multiple
-    ///   contracts);
+    /// - `requests`: a set of instructions to create non-blank operations (potentially under
+    ///   multiple contracts);
     /// - `seal`: a single-use seal definition where all blank outputs will be assigned to.
     pub fn bundle(
         &mut self,
-        items: impl IntoIterator<Item = PrefabParams<Vout>>,
+        requests: impl IntoIterator<Item = OpRequest<Vout>>,
         change: Vout,
     ) -> PrefabBundle {
-        let ops = items.into_iter().map(|params| self.prefab(params));
+        let ops = requests.into_iter().map(|params| self.prefab(params));
 
         let mut outpoints = BTreeSet::<Outpoint>::new();
         let mut contracts = BTreeSet::new();
@@ -569,7 +577,7 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
                 }
             }
 
-            let params = PrefabParams {
+            let params = OpRequest {
                 contract_id,
                 method: MethodName::from(BP_BLANK_METHOD),
                 global: none!(),
@@ -585,7 +593,7 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
         PrefabBundle(SmallOrdSet::try_from(prefabs).expect("too many operations"))
     }
 
-    /// Include prefab bundle into the mound, creating necessary anchors.
+    /// Include prefab bundle into the mound, creating necessary anchors on the fly.
     pub fn include(
         &mut self,
         bundle: &PrefabBundle,
