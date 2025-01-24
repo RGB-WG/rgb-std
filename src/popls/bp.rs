@@ -69,7 +69,7 @@ pub trait Coinselect {
         &mut self,
         invoiced_state: &StrictVal,
         calc: &mut (impl StateCalc + ?Sized),
-        owned_state: &BTreeMap<CellAddr, Assignment<Outpoint>>,
+        owned_state: BTreeMap<i8, (CellAddr, &StrictVal)>,
     ) -> Option<Vec<CellAddr>>;
 }
 
@@ -407,7 +407,13 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
         let state = state
             .owned
             .get(&state_name)
-            .ok_or(FulfillError::StateUnavailable)?;
+            .ok_or(FulfillError::StateUnavailable)?
+            .iter()
+            .filter_map(|(addr, assignment)| {
+                calc.measure(&assignment.data, &invoice.data)
+                    .map(|coef| (coef, (*addr, &assignment.data)))
+            })
+            .collect::<BTreeMap<_, _>>();
         let reading = coinselect
             .coinselect(&invoice.data, calc.as_mut(), state)
             .ok_or(FulfillError::StateInsufficient)?;
