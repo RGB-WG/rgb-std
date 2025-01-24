@@ -28,7 +28,9 @@
 use alloc::collections::{btree_set, BTreeMap, BTreeSet};
 use alloc::vec;
 
-use amplify::confinement::{Collection, SmallOrdMap, SmallOrdSet, SmallVec, TinyVec};
+use amplify::confinement::{
+    Collection, NonEmptyVec, SmallOrdMap, SmallOrdSet, SmallVec, U8 as U8MAX,
+};
 use amplify::{confinement, ByteArray, Bytes32, Wrapper};
 use bp::dbc::tapret::TapretProof;
 use bp::seals::{mmb, Anchor, TxoSeal};
@@ -159,13 +161,17 @@ pub struct UsedState {
         bound = "T: serde::Serialize + for<'d> serde::Deserialize<'d>"
     )
 )]
-pub struct OpRequestSet<T>(TinyVec<OpRequest<T>>);
+pub struct OpRequestSet<T>(NonEmptyVec<OpRequest<T>, U8MAX>);
 
 impl<T> IntoIterator for OpRequestSet<T> {
     type Item = OpRequest<T>;
     type IntoIter = vec::IntoIter<OpRequest<T>>;
 
     fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
+}
+
+impl<T> OpRequestSet<T> {
+    pub fn with(request: OpRequest<T>) -> Self { Self(NonEmptyVec::with(request)) }
 }
 
 impl<T: Into<ScriptPubkey>> OpRequestSet<Option<T>> {
@@ -201,7 +207,7 @@ impl<T: Into<ScriptPubkey>> OpRequestSet<Option<T>> {
                 owned,
             });
         }
-        Ok(OpRequestSet(TinyVec::from_iter_checked(items)))
+        Ok(OpRequestSet(NonEmptyVec::from_iter_checked(items)))
     }
 }
 
