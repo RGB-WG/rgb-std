@@ -74,20 +74,11 @@ pub trait Coinselect {
 pub const BP_BLANK_METHOD: &str = "_";
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(untagged))]
-pub enum WoutAmount {
-    #[display(inner)]
-    Fixed(Sats),
-    #[display("~")]
-    Change,
-}
-
-#[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
 #[display("{wout}/{amount}")]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct WoutAssignment {
     pub wout: WitnessOut,
-    pub amount: WoutAmount,
+    pub amount: Sats,
 }
 
 impl Into<ScriptPubkey> for WoutAssignment {
@@ -177,21 +168,23 @@ impl<T> IntoIterator for OpRequestSet<T> {
     fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
 }
 
-impl<T: Into<ScriptPubkey>> OpRequestSet<T> {
+impl<T: Into<ScriptPubkey>> OpRequestSet<Option<T>> {
     pub fn resolve_seals(
         self,
         resolver: impl Fn(&ScriptPubkey) -> Option<Vout>,
+        change: Option<Vout>,
     ) -> Result<OpRequestSet<Vout>, UnresolvedSeal> {
         let mut items = Vec::with_capacity(self.0.len());
         for params in self.0 {
             let mut owned = Vec::with_capacity(params.owned.len());
             for assignment in params.owned {
                 let seal = match assignment.state.seal {
-                    EitherSeal::Alt(seal) => {
+                    EitherSeal::Alt(Some(seal)) => {
                         let spk = seal.into();
-                        let vout = resolver(&spk).ok_or(UnresolvedSeal(spk))?;
+                        let vout = resolver(&spk).ok_or(UnresolvedSeal::Spk(spk))?;
                         EitherSeal::Alt(vout)
                     }
+                    EitherSeal::Alt(None) => EitherSeal::Alt(change.ok_or(UnresolvedSeal::Change)?),
                     EitherSeal::Token(auth) => EitherSeal::Token(auth),
                 };
                 owned.push(NamedState {
@@ -213,8 +206,14 @@ impl<T: Into<ScriptPubkey>> OpRequestSet<T> {
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error)]
-#[display("unable to resolve seal witness output seal definition for script pubkey {0:x}")]
-pub struct UnresolvedSeal(ScriptPubkey);
+#[display(doc_comments)]
+pub enum UnresolvedSeal {
+    /// unable to resolve seal witness output seal definition for script pubkey {0:x}.
+    Spk(ScriptPubkey),
+
+    /// seal requires assignment to a change output, but the transaction lacks change.
+    Change,
+}
 
 /// Parameters used by BP-based wallet for constructing operations.
 ///
@@ -375,7 +374,7 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
         mut coinselect: impl Coinselect,
         // TODO: Consider adding requested amount of sats to the `RgbInvoice`
         giveaway: Option<Sats>,
-    ) -> Result<OpRequest<WoutAssignment>, FulfillError> {
+    ) -> Result<OpRequest<Option<WoutAssignment>>, FulfillError> {
         let contract_id = invoice.scope;
 
         // Determine method
@@ -407,9 +406,9 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
             RgbBeneficiary::WitnessOut(wout) => {
                 let wout = WoutAssignment {
                     wout,
-                    amount: WoutAmount::Fixed(giveaway.ok_or(FulfillError::WoutRequiresGiveaway)?),
+                    amount: giveaway.ok_or(FulfillError::WoutRequiresGiveaway)?,
                 };
-                EitherSeal::Alt(wout)
+                EitherSeal::Alt(Some(wout))
             }
         };
         calc.lessen(invoice.data.clone())?;
@@ -419,12 +418,7 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
 
         // Add change
         let diff = calc.diff()?;
-        let change_address = self.wallet.next_address();
-        let wout_assign = WoutAssignment {
-            wout: WitnessOut::new(change_address.payload, 0),
-            amount: WoutAmount::Change,
-        };
-        let seal = EitherSeal::Alt(wout_assign);
+        let seal = EitherSeal::Alt(None);
         for data in diff {
             let assignment = Assignment { seal: seal.clone(), data };
             let state = NamedState { name: state_name.clone(), state: assignment };
