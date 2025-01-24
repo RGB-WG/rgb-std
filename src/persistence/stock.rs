@@ -224,9 +224,6 @@ pub enum ComposeError {
     /// expired invoice.
     InvoiceExpired,
 
-    /// {0} is not supported by the receiver's invoice.
-    InvoiceUnsupportsCloseMethod(CloseMethod),
-
     /// Invoice requesting layer 1 {0} but contract is on different layer 1 ({1})
     InvoiceBeneficiaryWrongLayer1(Layer1, Layer1),
 
@@ -667,7 +664,6 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
     pub fn contract_builder(
         &self,
-        close_method: CloseMethod,
         issuer: impl Into<Identity>,
         schema_id: SchemaId,
         iface: impl Into<IfaceRef>,
@@ -675,7 +671,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     ) -> Result<ContractBuilder, StockError<S, H, P>> {
         Ok(self
             .stash
-            .contract_builder(close_method, issuer.into(), schema_id, iface, layer1)?)
+            .contract_builder(issuer.into(), schema_id, iface, layer1)?)
     }
 
     pub fn transition_builder(
@@ -874,10 +870,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             let witness_ids = self.index.bundle_info(anchored_bundle.bundle_id())?.0;
             let witness_id = self.state.select_valid_witness(witness_ids)?;
             let pub_witness = self.stash.witness(witness_id)?.public.clone();
-            let wb = match bundles.remove(&witness_id) {
-                Some(bundle) => bundle.into_double(anchored_bundle)?,
-                None => WitnessBundle::with(pub_witness, anchored_bundle),
-            };
+            let wb = WitnessBundle::with(pub_witness, anchored_bundle);
             let res = bundles.insert(witness_id, wb);
             debug_assert!(res.is_none());
         }
@@ -1009,12 +1002,6 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             )
             .into());
         }
-        let contract_close_method = contract_genesis.close_method;
-        if !invoice.close_methods.is_empty()
-            && !invoice.close_methods.contains(&contract_close_method)
-        {
-            return Err(ComposeError::InvoiceUnsupportsCloseMethod(contract_close_method).into());
-        }
 
         let beneficiary = match (invoice.beneficiary.into_inner(), beneficiary_vout) {
             (Beneficiary::BlindedSeal(seal), None) => BuilderSeal::Concealed(seal),
@@ -1130,8 +1117,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
                 continue;
             }
             let transition = blank_builder.complete_transition()?;
-            let contract_close_method = self.stash.genesis(id)?.close_method;
-            let info = TransitionInfo::new(transition, outputs, contract_close_method)
+            let info = TransitionInfo::new(transition, outputs)
                 .map_err(|_| ComposeError::TooManyInputs)?;
             blanks.push(info).map_err(|_| ComposeError::TooManyBlanks)?;
         }
@@ -1140,12 +1126,8 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             return Err(ComposeError::InsufficientState.into());
         }
 
-        let main = TransitionInfo::new(
-            main_builder.complete_transition()?,
-            main_inputs,
-            contract_close_method,
-        )
-        .map_err(|_| ComposeError::TooManyInputs)?;
+        let main = TransitionInfo::new(main_builder.complete_transition()?, main_inputs)
+            .map_err(|_| ComposeError::TooManyInputs)?;
         let mut batch = Batch { main, blanks };
         batch.set_priority(priority);
         Ok(batch)
@@ -1272,23 +1254,16 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         let (witness_ids, contract_id) = self.index.bundle_info(bundle_id)?;
 
         let bundle = self.stash.bundle(bundle_id)?.clone();
-        let contract_close_method = self.stash.genesis(contract_id)?.close_method;
-        debug_assert_eq!(bundle.close_method, contract_close_method);
         let witness_id = self.state.select_valid_witness(witness_ids)?;
         let witness = self.stash.witness(witness_id)?;
-        let (merkle_block, dbc) = match (bundle.close_method, &witness.anchors) {
-            (
+        let (merkle_block, dbc, close_method) = match &witness.anchor {
+            AnchorSet::Tapret(tapret) => (
+                &tapret.mpc_proof,
+                DbcProof::Tapret(tapret.dbc_proof.clone()),
                 CloseMethod::TapretFirst,
-                AnchorSet::Tapret(tapret) | AnchorSet::Double { tapret, .. },
-            ) => (&tapret.mpc_proof, DbcProof::Tapret(tapret.dbc_proof.clone())),
-            (
-                CloseMethod::OpretFirst,
-                AnchorSet::Opret(opret) | AnchorSet::Double { opret, .. },
-            ) => (&opret.mpc_proof, DbcProof::Opret(opret.dbc_proof)),
-            _ => {
-                return Err(
-                    StashInconsistency::BundleMissedInAnchors(bundle_id, contract_id).into()
-                );
+            ),
+            AnchorSet::Opret(opret) => {
+                (&opret.mpc_proof, DbcProof::Opret(opret.dbc_proof), CloseMethod::OpretFirst)
             }
         };
         let Ok(mpc_proof) = merkle_block.to_merkle_proof(contract_id.into()) else {
@@ -1296,7 +1271,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
                 witness_id,
                 bundle_id,
                 contract_id,
-                contract_close_method,
+                close_method,
             )
             .into());
         };
@@ -1421,7 +1396,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             // save witnesses that became valid or invalid
             if let Some(valid) = bundle_valid {
                 let seal_witness = self.stash.witness(*id)?;
-                let anchor_set = seal_witness.anchors.clone();
+                let anchor_set = seal_witness.anchor.clone();
                 let bundle_ids: BTreeSet<_> = anchor_set.known_bundle_ids().collect();
                 if valid {
                     became_valid_witnesses.insert(*id, bundle_ids);

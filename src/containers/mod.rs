@@ -39,7 +39,7 @@ mod kit;
 mod suppl;
 
 pub use anchors::{
-    AnchorSet, AnchoredBundleMismatch, AnchoredBundles, ClientBundle, PubWitness, SealWitness,
+    AnchorSet, AnchoredBundle, AnchoredBundleMismatch, ClientBundle, PubWitness, SealWitness,
     ToWitnessId, UnrelatedTransition, WitnessBundle,
 };
 pub use consignment::{
@@ -50,7 +50,7 @@ pub use disclosure::Disclosure;
 pub use file::{FileContent, LoadError, UniversalFile};
 pub use indexed::IndexedConsignment;
 pub use kit::{Kit, KitId, ValidKit};
-pub use partials::{Batch, CloseMethodSet, Dichotomy, Fascia, TransitionInfo, TransitionInfoError};
+pub use partials::{Batch, Fascia, TransitionInfo, TransitionInfoError};
 pub use seal::{BuilderSeal, VoutSeal};
 pub use suppl::{
     AnnotationName, Annotations, ContentRef, SupplId, SupplItem, SupplMap, SupplSub, Supplement,

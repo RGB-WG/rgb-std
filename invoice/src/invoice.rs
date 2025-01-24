@@ -23,7 +23,6 @@ use std::ops::Deref;
 use std::str::FromStr;
 
 use amplify::{ByteArray, Bytes32};
-use bp::seals::txout::CloseMethod;
 use bp::{InvalidPubkey, OutputPk, PubkeyHash, ScriptHash, WPubkeyHash, WScriptHash};
 use indexmap::IndexMap;
 use invoice::{AddressNetwork, AddressPayload, Network};
@@ -255,7 +254,6 @@ pub struct RgbInvoice {
     pub operation: Option<FieldName>,
     pub assignment: Option<FieldName>,
     pub beneficiary: XChainNet<Beneficiary>,
-    pub close_methods: Vec<CloseMethod>,
     pub owned_state: InvoiceState,
     /// UTC unix timestamp
     pub expiry: Option<i64>,

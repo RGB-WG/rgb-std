@@ -25,7 +25,6 @@ use std::collections::{BTreeMap, HashSet};
 
 use amplify::confinement::{Confined, SmallOrdSet, TinyOrdMap, U16};
 use amplify::{confinement, Wrapper};
-use bp::seals::txout::CloseMethod;
 use chrono::Utc;
 use invoice::{Allocation, Amount};
 use rgb::validation::Scripts;
@@ -100,16 +99,13 @@ pub enum BuilderError {
 pub struct ContractBuilder {
     builder: OperationBuilder<GenesisSeal>,
     testnet: bool,
-    close_method: CloseMethod,
     scripts: Scripts,
     issuer: Identity,
     layer1: Layer1,
 }
 
 impl ContractBuilder {
-    #[allow(clippy::too_many_arguments)]
     pub fn with(
-        close_method: CloseMethod,
         issuer: Identity,
         iface: Iface,
         schema: Schema,
@@ -121,7 +117,6 @@ impl ContractBuilder {
         Self {
             builder: OperationBuilder::with(iface, schema, iimpl, types),
             testnet: true,
-            close_method,
             scripts,
             issuer,
             layer1,
@@ -130,7 +125,6 @@ impl ContractBuilder {
 
     #[allow(clippy::too_many_arguments)]
     pub fn deterministic(
-        close_method: CloseMethod,
         issuer: Identity,
         iface: Iface,
         schema: Schema,
@@ -142,7 +136,6 @@ impl ContractBuilder {
         Self {
             builder: OperationBuilder::deterministic(iface, schema, iimpl, types),
             testnet: true,
-            close_method,
             scripts,
             issuer,
             layer1,
@@ -300,7 +293,6 @@ impl ContractBuilder {
             timestamp,
             layer1: self.layer1,
             testnet: self.testnet,
-            close_method: self.close_method,
             metadata: empty!(),
             globals: global,
             assignments,

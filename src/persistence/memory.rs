@@ -322,12 +322,8 @@ impl StashReadProvider for MemStash {
         Ok(self
             .witnesses
             .iter()
-            .filter_map(|(witness_id, witness)| match &witness.anchors {
-                AnchorSet::Tapret(anchor)
-                | AnchorSet::Double {
-                    tapret: anchor,
-                    opret: _,
-                } => Some((*witness_id, TapretCommitment {
+            .filter_map(|(witness_id, witness)| match &witness.anchor {
+                AnchorSet::Tapret(anchor) => Some((*witness_id, TapretCommitment {
                     mpc: anchor.mpc_proof.commit_id(),
                     nonce: anchor.dbc_proof.path_proof.nonce(),
                 })),

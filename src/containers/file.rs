@@ -199,8 +199,6 @@ mod test {
     use std::fs::OpenOptions;
     use std::str::FromStr;
 
-    use bp::seals::txout::CloseMethod;
-
     use super::*;
     static DEFAULT_KIT_PATH: &str = "asset/kit.default";
     #[cfg(feature = "fs")]
@@ -275,7 +273,6 @@ mod test {
                 issuer: Default::default(),
                 layer1: Default::default(),
                 testnet: Default::default(),
-                close_method: CloseMethod::TapretFirst,
                 metadata: Default::default(),
                 globals: Default::default(),
                 assignments: Default::default(),
@@ -373,7 +370,6 @@ mod test {
                 issuer: Default::default(),
                 layer1: Default::default(),
                 testnet: Default::default(),
-                close_method: CloseMethod::TapretFirst,
                 metadata: Default::default(),
                 globals: Default::default(),
                 assignments: Default::default(),

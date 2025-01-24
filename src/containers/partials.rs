@@ -22,97 +22,16 @@
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::hash::{Hash, Hasher};
-use std::ops::{BitOr, BitOrAssign};
-use std::vec;
 
 use amplify::confinement::{Confined, NonEmptyOrdMap, U24};
-use bp::seals::txout::CloseMethod;
 use bp::Outpoint;
 use rgb::{ContractId, OpId, Operation, OutputSeal, Transition, TransitionBundle, Txid};
 use strict_encoding::{
-    DecodeError, ReadStruct, StrictDecode, StrictDeserialize, StrictDumb, StrictEncode,
-    StrictProduct, StrictSerialize, StrictStruct, StrictType, TypedRead, TypedWrite, WriteStruct,
+    StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, StrictType,
 };
 
 use crate::containers::{AnchorSet, PubWitness};
 use crate::LIB_NAME_RGB_STD;
-
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD, tags = repr, into_u8, try_from_u8)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-#[repr(u8)]
-pub enum CloseMethodSet {
-    #[strict_type(dumb)]
-    TapretFirst = 0x01,
-    OpretFirst = 0x02,
-    Both = 0x03,
-}
-
-impl BitOr<Option<CloseMethodSet>> for CloseMethodSet {
-    type Output = Self;
-    fn bitor(mut self, rhs: Option<CloseMethodSet>) -> Self::Output {
-        if let Some(m) = rhs {
-            self |= m
-        };
-        self
-    }
-}
-
-impl BitOrAssign<Option<CloseMethodSet>> for CloseMethodSet {
-    fn bitor_assign(&mut self, rhs: Option<CloseMethodSet>) {
-        if let Some(m) = rhs {
-            *self |= m
-        };
-    }
-}
-
-impl BitOr<CloseMethodSet> for Option<CloseMethodSet> {
-    type Output = CloseMethodSet;
-    fn bitor(self, mut rhs: CloseMethodSet) -> Self::Output {
-        if let Some(m) = self {
-            rhs |= m
-        };
-        rhs
-    }
-}
-
-impl BitOrAssign<CloseMethodSet> for Option<CloseMethodSet> {
-    fn bitor_assign(&mut self, rhs: CloseMethodSet) { *self = Some(rhs | *self) }
-}
-
-impl<T: Into<CloseMethodSet>> BitOr<T> for CloseMethodSet {
-    type Output = Self;
-    fn bitor(self, rhs: T) -> Self::Output {
-        if self == rhs.into() {
-            self
-        } else {
-            Self::Both
-        }
-    }
-}
-
-impl<T: Into<CloseMethodSet>> BitOrAssign<T> for CloseMethodSet {
-    fn bitor_assign(&mut self, rhs: T) { *self = self.bitor(rhs.into()); }
-}
-
-impl From<CloseMethod> for CloseMethodSet {
-    fn from(method: CloseMethod) -> Self {
-        match method {
-            CloseMethod::OpretFirst => CloseMethodSet::OpretFirst,
-            CloseMethod::TapretFirst => CloseMethodSet::TapretFirst,
-        }
-    }
-}
-
-impl CloseMethodSet {
-    pub fn has_tapret_first(self) -> bool { matches!(self, Self::TapretFirst | Self::Both) }
-    pub fn has_opret_first(self) -> bool { matches!(self, Self::OpretFirst | Self::Both) }
-}
 
 #[derive(Clone, Eq, Debug)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
@@ -126,13 +45,10 @@ pub struct TransitionInfo {
     pub id: OpId,
     pub inputs: Confined<BTreeSet<Outpoint>, 1, U24>,
     pub transition: Transition,
-    pub method: CloseMethod,
 }
 
 impl StrictDumb for TransitionInfo {
-    fn strict_dumb() -> Self {
-        Self::new(strict_dumb!(), [strict_dumb!()], strict_dumb!()).unwrap()
-    }
+    fn strict_dumb() -> Self { Self::new(strict_dumb!(), [strict_dumb!()]).unwrap() }
 }
 
 impl PartialEq for TransitionInfo {
@@ -158,7 +74,6 @@ impl TransitionInfo {
     pub fn new(
         transition: Transition,
         seals: impl AsRef<[OutputSeal]>,
-        method: CloseMethod,
     ) -> Result<Self, TransitionInfoError> {
         let id = transition.id();
         let seals = seals.as_ref();
@@ -171,7 +86,6 @@ impl TransitionInfo {
             id,
             inputs,
             transition,
-            method,
         })
     }
 }
@@ -215,115 +129,11 @@ impl IntoIterator for Batch {
 }
 
 impl Batch {
-    pub fn close_method_set(&self) -> CloseMethodSet {
-        let mut methods = CloseMethodSet::from(self.main.method);
-        self.blanks.iter().for_each(|i| methods |= i.method);
-        methods
-    }
-
     pub fn set_priority(&mut self, priority: u64) {
         self.main.transition.nonce = priority;
         for info in &mut self.blanks {
             info.transition.nonce = priority;
         }
-    }
-}
-
-// TODO: Move to amplify
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-pub struct Dichotomy<T> {
-    pub first: T,
-    pub second: Option<T>,
-}
-
-impl<T: StrictDumb> StrictType for Dichotomy<T> {
-    const STRICT_LIB_NAME: &'static str = LIB_NAME_RGB_STD;
-}
-impl<T: StrictDumb> StrictProduct for Dichotomy<T> {}
-impl<T: StrictDumb> StrictStruct for Dichotomy<T> {
-    const ALL_FIELDS: &'static [&'static str] = &["first", "second"];
-}
-impl<T: StrictEncode + StrictDumb> StrictEncode for Dichotomy<T> {
-    fn strict_encode<W: TypedWrite>(&self, writer: W) -> std::io::Result<W> {
-        writer.write_struct::<Self>(|w| {
-            Ok(w.write_field(fname!("first"), &self.first)?
-                .write_field(fname!("second"), &self.second)?
-                .complete())
-        })
-    }
-}
-impl<T: StrictDecode + StrictDumb> StrictDecode for Dichotomy<T> {
-    fn strict_decode(reader: &mut impl TypedRead) -> Result<Self, DecodeError> {
-        reader.read_struct(|r| {
-            Ok(Self {
-                first: r.read_field(fname!("first"))?,
-                second: r.read_field(fname!("second"))?,
-            })
-        })
-    }
-}
-impl<T: StrictDumb> StrictDumb for Dichotomy<T> {
-    fn strict_dumb() -> Self {
-        Self {
-            first: T::strict_dumb(),
-            second: None,
-        }
-    }
-}
-
-impl<T> FromIterator<T> for Dichotomy<T> {
-    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        let mut iter = iter.into_iter();
-        let first = iter.next().expect("iterator must have at least one item");
-        let second = iter.next();
-        assert!(iter.next().is_none(), "iterator must have at most two items");
-        Self { first, second }
-    }
-}
-
-impl<T> IntoIterator for Dichotomy<T> {
-    type Item = T;
-    type IntoIter = vec::IntoIter<T>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        let mut vec = Vec::with_capacity(2);
-        vec.push(self.first);
-        if let Some(s) = self.second {
-            vec.push(s)
-        }
-        vec.into_iter()
-    }
-}
-
-impl<T> Dichotomy<T> {
-    pub fn single(first: T) -> Self {
-        Self {
-            first,
-            second: None,
-        }
-    }
-
-    pub fn double(first: T, second: T) -> Self {
-        Self {
-            first,
-            second: Some(second),
-        }
-    }
-
-    pub fn with(first: T, second: Option<T>) -> Self { Self { first, second } }
-
-    pub fn iter(&self) -> vec::IntoIter<&T> {
-        let mut vec = Vec::with_capacity(2);
-        vec.push(&self.first);
-        if let Some(ref s) = self.second {
-            vec.push(s)
-        }
-        vec.into_iter()
     }
 }
 

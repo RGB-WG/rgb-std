@@ -25,7 +25,6 @@ use std::num::ParseIntError;
 use std::str::FromStr;
 
 use baid64::{Baid64ParseError, DisplayBaid64, FromBaid64Str};
-use bp::seals::txout::CloseMethod;
 use fluent_uri::enc::EStr;
 use fluent_uri::Uri;
 use indexmap::IndexMap;
@@ -39,8 +38,6 @@ use crate::invoice::{
 };
 
 const OMITTED: &str = "~";
-const CLOSE_METHOD: &str = "method";
-const CLOSE_METHOD_SEP: char = ',';
 const EXPIRY: &str = "expiry";
 const ENDPOINTS: &str = "endpoints";
 const TRANSPORT_SEP: char = ',';
@@ -99,9 +96,6 @@ pub enum InvoiceParseError {
 
     /// invalid invoice: contract ID present but no contract interface provided.
     ContractIdNoIface,
-
-    /// invalid close method.
-    InvalidCloseMethod(String),
 
     /// invalid contract ID.
     InvalidContractId(String),
@@ -437,17 +431,6 @@ impl FromStr for RgbInvoice {
             expiry = Some(timestamp);
         }
 
-        let mut close_methods = vec![];
-        if let Some(close_methods_str) = query_params.shift_remove(CLOSE_METHOD) {
-            let tokens = close_methods_str.split(CLOSE_METHOD_SEP);
-            for token in tokens {
-                close_methods.push(
-                    CloseMethod::from_str(token)
-                        .map_err(|_| InvoiceParseError::InvalidCloseMethod(token.to_string()))?,
-                )
-            }
-        }
-
         Ok(RgbInvoice {
             transports,
             contract,
@@ -455,7 +438,6 @@ impl FromStr for RgbInvoice {
             operation: None,
             assignment: None,
             beneficiary,
-            close_methods,
             owned_state: value,
             expiry,
             unknown_query: query_params,
