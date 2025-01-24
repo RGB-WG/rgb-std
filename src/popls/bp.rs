@@ -69,7 +69,8 @@ pub trait Coinselect {
         &mut self,
         invoiced_state: &StrictVal,
         calc: &mut (impl StateCalc + ?Sized),
-        owned_state: BTreeMap<i8, (CellAddr, &StrictVal)>,
+        // Sorted vector by values
+        owned_state: Vec<(CellAddr, &StrictVal)>,
     ) -> Option<Vec<CellAddr>>;
 }
 
@@ -409,11 +410,8 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
             .get(&state_name)
             .ok_or(FulfillError::StateUnavailable)?
             .iter()
-            .filter_map(|(addr, assignment)| {
-                calc.measure(&assignment.data, &invoice.data)
-                    .map(|coef| (coef, (*addr, &assignment.data)))
-            })
-            .collect::<BTreeMap<_, _>>();
+            .map(|(addr, assignment)| (*addr, &assignment.data))
+            .collect::<Vec<_>>();
         let reading = coinselect
             .coinselect(&invoice.data, calc.as_mut(), state)
             .ok_or(FulfillError::StateInsufficient)?;
@@ -429,7 +427,7 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
                 EitherSeal::Alt(Some(wout))
             }
         };
-        calc.lessen(invoice.data.clone())?;
+        calc.lessen(&invoice.data)?;
         let assignment = Assignment { seal, data: invoice.data.clone() };
         let state = NamedState { name: state_name.clone(), state: assignment };
         let mut owned = vec![state];
@@ -576,7 +574,7 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
                 let calc = calcs
                     .entry(name.clone())
                     .or_insert_with(|| api.calculate(name));
-                calc.accumulate(val.clone())?;
+                calc.accumulate(val)?;
             }
 
             let mut owned = Vec::new();
