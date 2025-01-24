@@ -377,7 +377,7 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
 
     pub fn fulfill(
         &mut self,
-        invoice: RgbInvoice<ContractId>,
+        invoice: &RgbInvoice<ContractId>,
         mut coinselect: impl Coinselect,
         // TODO: Consider adding requested amount of sats to the `RgbInvoice`
         giveaway: Option<Sats>,
@@ -389,9 +389,14 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
         let api = &stockpile.stock().articles().schema.default_api;
         let call = invoice
             .call
-            .or_else(|| api.default_call().cloned())
+            .as_ref()
+            .or_else(|| api.default_call())
             .ok_or(FulfillError::CallStateUnknown)?;
-        let state_name = call.destructible.ok_or(FulfillError::StateNameUnknown)?;
+        let method = call.method.clone();
+        let state_name = call
+            .destructible
+            .clone()
+            .ok_or(FulfillError::StateNameUnknown)?;
         let mut calc = api.calculate(state_name.clone());
 
         // Do coinselection
@@ -419,7 +424,7 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
             }
         };
         calc.lessen(invoice.data.clone())?;
-        let assignment = Assignment { seal, data: invoice.data };
+        let assignment = Assignment { seal, data: invoice.data.clone() };
         let state = NamedState { name: state_name.clone(), state: assignment };
         let mut owned = vec![state];
 
@@ -435,7 +440,7 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
         // Construct PrefabParams
         Ok(OpRequest {
             contract_id,
-            method: call.method,
+            method,
             using: none!(),
             global: none!(),
             reading,
