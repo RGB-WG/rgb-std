@@ -28,7 +28,7 @@
 use alloc::collections::{btree_set, BTreeMap, BTreeSet};
 use alloc::vec;
 
-use amplify::confinement::{SmallOrdMap, SmallOrdSet, SmallVec, TinyVec};
+use amplify::confinement::{Collection, SmallOrdMap, SmallOrdSet, SmallVec, TinyVec};
 use amplify::{confinement, ByteArray, Bytes32, Wrapper};
 use bp::dbc::tapret::TapretProof;
 use bp::seals::{mmb, Anchor, TxoSeal};
@@ -218,7 +218,8 @@ pub enum UnresolvedSeal {
 /// Parameters used by BP-based wallet for constructing operations.
 ///
 /// NB: [`OpRequest`] must contain pre-computed information about the change; otherwise the
-/// excessive state will be lost.
+/// excessive state will be lost. Change information allows wallet to construct complex transactions
+/// with multiple changes etc.
 ///
 /// Differs from [`CallParams`] in the fact that it uses [`EitherSeal`]s instead of
 /// [`hypersonic::AuthTokens`] for output definitions.
@@ -437,38 +438,37 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
     }
 
     /// Creates a single operation basing on the provided construction parameters.
-    pub fn prefab(&mut self, params: OpRequest<Vout>) -> Prefab {
+    pub fn prefab(&mut self, params: OpRequest<Vout>) -> Result<Prefab, PrefabError> {
         // convert ConstructParams into CallParams
         let (closes, using) = params
             .using
             .into_iter()
             .map(|used| (used.outpoint, (used.addr, used.val)))
             .unzip();
-        let closes = SmallOrdSet::try_from(closes).expect("too many inputs");
+        let closes = SmallOrdSet::try_from(closes).map_err(|_| PrefabError::TooManyInputs)?;
         let mut defines = SmallOrdSet::new();
 
         let mut seals = SmallVec::new();
         let mut noise_engine = self.noise_engine();
         noise_engine.input_raw(params.contract_id.as_slice());
-        let owned = params
-            .owned
-            .into_iter()
-            .enumerate()
-            .map(|(nonce, assignment)| {
-                let auth = match assignment.state.seal {
-                    EitherSeal::Alt(vout) => {
-                        defines.push(vout).expect("too many seals");
-                        let seal =
-                            TxoSeal::vout_no_fallback(vout, noise_engine.clone(), nonce as u64);
-                        seals.push(seal).expect("too many seals");
-                        seal.auth_token()
-                    }
-                    EitherSeal::Token(auth) => auth,
-                };
-                let state = DataCell { data: assignment.state.data, auth, lock: None };
-                NamedState { name: assignment.name, state }
-            })
-            .collect();
+
+        let mut owned = Vec::with_capacity(params.owned.len());
+        for (nonce, assignment) in params.owned.into_iter().enumerate() {
+            let auth = match assignment.state.seal {
+                EitherSeal::Alt(vout) => {
+                    defines
+                        .push(vout)
+                        .map_err(|_| PrefabError::TooManyOutputs)?;
+                    let seal = TxoSeal::vout_no_fallback(vout, noise_engine.clone(), nonce as u64);
+                    seals.push(seal).expect("checked above");
+                    seal.auth_token()
+                }
+                EitherSeal::Token(auth) => auth,
+            };
+            let state = DataCell { data: assignment.state.data, auth, lock: None };
+            let named_state = NamedState { name: assignment.name, state };
+            owned.push(named_state);
+        }
 
         let call = CallParams {
             core: CoreParams { method: params.method, global: params.global, owned },
@@ -482,7 +482,7 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
         stockpile.pile_mut().keep_mut().append(opid, &seals);
         debug_assert_eq!(operation.contract_id, params.contract_id);
 
-        Prefab { closes, defines, operation }
+        Ok(Prefab { closes, defines, operation })
     }
 
     /// Complete creation of a prefabricated operation bundle from operation requests, adding blank
@@ -499,20 +499,22 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
     pub fn bundle(
         &mut self,
         requests: impl IntoIterator<Item = OpRequest<Vout>>,
-        change: Vout,
-    ) -> PrefabBundle {
+        change: Option<Vout>,
+    ) -> Result<PrefabBundle, BundleError> {
         let ops = requests.into_iter().map(|params| self.prefab(params));
 
         let mut outpoints = BTreeSet::<Outpoint>::new();
         let mut contracts = BTreeSet::new();
         let mut prefabs = BTreeSet::new();
         for prefab in ops {
+            let prefab = prefab?;
             contracts.insert(prefab.operation.contract_id);
             outpoints.extend(&prefab.closes);
             prefabs.insert(prefab);
         }
 
-        let mut prefab_params = Vec::new();
+        // Constructing blank operation requests
+        let mut blank_requests = Vec::new();
         let root_noise_engine = self.noise_engine();
         for (contract_id, stockpile) in self
             .mound
@@ -557,12 +559,13 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
                 let calc = calcs
                     .entry(name.clone())
                     .or_insert_with(|| api.calculate(name));
-                calc.accumulate(val.clone()).expect("non-computable state");
+                calc.accumulate(val.clone())?;
             }
 
             let mut owned = Vec::new();
             for (name, calc) in calcs {
-                for data in calc.diff().expect("non-computable state") {
+                for data in calc.diff()? {
+                    let change = change.ok_or(BundleError::ChangeRequired)?;
                     let state = NamedState {
                         name: name.clone(),
                         state: Assignment { seal: EitherSeal::Alt(change), data },
@@ -579,12 +582,14 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
                 using,
                 owned,
             };
-            prefab_params.push(params);
+            blank_requests.push(params);
         }
 
-        prefabs.extend(prefab_params.into_iter().map(|params| self.prefab(params)));
+        for request in blank_requests {
+            prefabs.push(self.prefab(request).map_err(BundleError::Blank)?);
+        }
 
-        PrefabBundle(SmallOrdSet::try_from(prefabs).expect("too many operations"))
+        Ok(PrefabBundle(SmallOrdSet::try_from(prefabs).map_err(|_| BundleError::TooManyBlanks)?))
     }
 
     /// Include prefab bundle into the mound, creating necessary anchors on the fly.
@@ -632,6 +637,38 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
                 .collect()
         })
     }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error)]
+#[display(doc_comments)]
+pub enum PrefabError {
+    /// operation request contains too many inputs (maximum number of inputs is 64k).
+    TooManyInputs,
+    /// operation request contains too many outputs (maximum number of outputs is 64k).
+    TooManyOutputs,
+}
+
+#[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
+#[display(doc_comments)]
+pub enum BundleError {
+    #[from]
+    #[display(inner)]
+    Prefab(PrefabError),
+
+    /// blank {0}
+    Blank(PrefabError),
+
+    /// the requested set of operations requires creation of blank operations for other contracts,
+    /// which in turn require transaction to contain a change output.
+    ChangeRequired,
+
+    #[from]
+    #[display(inner)]
+    UncountableState(UncountableState),
+
+    /// one or multiple outputs used in operation requests contain too many contracts; it is
+    /// impossible to create a bundle with more than 64k of operations.
+    TooManyBlanks,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
