@@ -165,15 +165,15 @@ impl<S: Supply, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
             .filter_map(|(id, stockpile)| stockpile.seal(seal).map(|addr| (*id, addr)))
     }
 
-    pub fn attest(
+    pub fn include(
         &mut self,
+        contract_id: ContractId,
+        opid: Opid,
         pub_witness: &<P::Seal as SingleUseSeal>::PubWitness,
-        anchors: impl IntoIterator<Item = (ContractId, Opid, <P::Seal as SingleUseSeal>::CliWitness)>,
+        anchor: <P::Seal as SingleUseSeal>::CliWitness,
     ) {
-        for (contract_id, opid, anchor) in anchors {
-            self.contract_mut(contract_id)
-                .attest(opid, anchor, pub_witness);
-        }
+        self.contract_mut(contract_id)
+            .include(opid, anchor, pub_witness)
     }
 
     pub fn consign(

@@ -73,7 +73,10 @@ pub trait Pile {
         if self.hoard_mut().has(pubid) {
             let mut prev_anchor = self.hoard_mut().read(pubid);
             if prev_anchor != anchor {
-                prev_anchor.merge(anchor).expect("Invalid anchor");
+                prev_anchor.merge(anchor).expect(
+                    "existing anchor is not compatible with new one; this indicates either bug in \
+                     RGB standard library or a compromised storage",
+                );
                 self.hoard_mut().append(pubid, &prev_anchor);
             }
         } else {

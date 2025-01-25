@@ -265,13 +265,13 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
         }
     }
 
-    pub fn attest(
+    pub fn include(
         &mut self,
         opid: Opid,
         anchor: <P::Seal as SingleUseSeal>::CliWitness,
         published: &<P::Seal as SingleUseSeal>::PubWitness,
     ) {
-        self.pile.append(opid, anchor, published);
+        self.pile.append(opid, anchor, published)
     }
 
     pub fn consign(
@@ -412,7 +412,7 @@ impl<S: Supply, P: Pile> ContractApi<P::Seal> for Stockpile<S, P> {
     }
 
     fn apply_witness(&mut self, opid: Opid, witness: SealWitness<P::Seal>) {
-        self.pile.append(opid, witness.client, &witness.published);
+        self.pile.append(opid, witness.client, &witness.published)
     }
 }
 

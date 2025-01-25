@@ -26,9 +26,11 @@
 //! proof of publication layer 1.
 
 use alloc::collections::{btree_set, BTreeMap, BTreeSet};
-use std::vec;
+use alloc::vec;
 
-use amplify::confinement::{SmallOrdMap, SmallOrdSet, SmallVec, TinyVec};
+use amplify::confinement::{
+    Collection, NonEmptyVec, SmallOrdMap, SmallOrdSet, SmallVec, U8 as U8MAX,
+};
 use amplify::{confinement, ByteArray, Bytes32, Wrapper};
 use bp::dbc::tapret::TapretProof;
 use bp::seals::{mmb, Anchor, TxoSeal};
@@ -38,9 +40,10 @@ use commit_verify::{mpc, Digest, DigestExt, Sha256};
 use hypersonic::aora::Aora;
 use hypersonic::{
     AuthToken, CallParams, CellAddr, ContractId, CoreParams, DataCell, MethodName, NamedState,
-    Operation, StateAtom, StateCalc, StateName, Supply,
+    Operation, StateAtom, StateCalc, StateName, Supply, UncountableState,
 };
 use invoice::bp::{Address, WitnessOut};
+use invoice::{RgbBeneficiary, RgbInvoice};
 use rgb::SealAuthToken;
 use strict_encoding::{ReadRaw, StrictDecode, StrictDeserialize, StrictReader, StrictSerialize};
 use strict_types::StrictVal;
@@ -61,6 +64,16 @@ pub trait WalletProvider {
     fn next_address(&mut self) -> Address;
 }
 
+pub trait Coinselect {
+    fn coinselect(
+        &mut self,
+        invoiced_state: &StrictVal,
+        calc: &mut (impl StateCalc + ?Sized),
+        // Sorted vector by values
+        owned_state: Vec<(CellAddr, &StrictVal)>,
+    ) -> Option<Vec<CellAddr>>;
+}
+
 pub const BP_BLANK_METHOD: &str = "_";
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
@@ -71,8 +84,8 @@ pub struct WoutAssignment {
     pub amount: Sats,
 }
 
-impl Into<ScriptPubkey> for WoutAssignment {
-    fn into(self) -> ScriptPubkey { self.wout.into() }
+impl From<WoutAssignment> for ScriptPubkey {
+    fn from(val: WoutAssignment) -> Self { val.wout.into() }
 }
 
 impl<T> EitherSeal<T> {
@@ -137,6 +150,9 @@ pub struct UsedState {
     pub val: StrictVal,
 }
 
+pub type PaymentScript = OpRequestSet<Option<WoutAssignment>>;
+
+/// A set of multiple operation requests (see [`OpRequests`]) under a single or multiple contracts.
 #[derive(Wrapper, WrapperMut, Clone, PartialEq, Eq, Debug, From)]
 #[wrapper(Deref)]
 #[wrapper_mut(DerefMut)]
@@ -148,30 +164,36 @@ pub struct UsedState {
         bound = "T: serde::Serialize + for<'d> serde::Deserialize<'d>"
     )
 )]
-pub struct PrefabParamsSet<T>(TinyVec<PrefabParams<T>>);
+pub struct OpRequestSet<T>(NonEmptyVec<OpRequest<T>, U8MAX>);
 
-impl<T> IntoIterator for PrefabParamsSet<T> {
-    type Item = PrefabParams<T>;
-    type IntoIter = vec::IntoIter<PrefabParams<T>>;
+impl<T> IntoIterator for OpRequestSet<T> {
+    type Item = OpRequest<T>;
+    type IntoIter = vec::IntoIter<OpRequest<T>>;
 
     fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
 }
 
-impl<T: Into<ScriptPubkey>> PrefabParamsSet<T> {
+impl<T> OpRequestSet<T> {
+    pub fn with(request: OpRequest<T>) -> Self { Self(NonEmptyVec::with(request)) }
+}
+
+impl<T: Into<ScriptPubkey>> OpRequestSet<Option<T>> {
     pub fn resolve_seals(
         self,
         resolver: impl Fn(&ScriptPubkey) -> Option<Vout>,
-    ) -> Result<PrefabParamsSet<Vout>, UnresolvedSeal> {
+        change: Option<Vout>,
+    ) -> Result<OpRequestSet<Vout>, UnresolvedSeal> {
         let mut items = Vec::with_capacity(self.0.len());
         for params in self.0 {
             let mut owned = Vec::with_capacity(params.owned.len());
             for assignment in params.owned {
                 let seal = match assignment.state.seal {
-                    EitherSeal::Alt(seal) => {
+                    EitherSeal::Alt(Some(seal)) => {
                         let spk = seal.into();
-                        let vout = resolver(&spk).ok_or(UnresolvedSeal(spk))?;
+                        let vout = resolver(&spk).ok_or(UnresolvedSeal::Spk(spk))?;
                         EitherSeal::Alt(vout)
                     }
+                    EitherSeal::Alt(None) => EitherSeal::Alt(change.ok_or(UnresolvedSeal::Change)?),
                     EitherSeal::Token(auth) => EitherSeal::Token(auth),
                 };
                 owned.push(NamedState {
@@ -179,7 +201,7 @@ impl<T: Into<ScriptPubkey>> PrefabParamsSet<T> {
                     state: Assignment { seal, data: assignment.state.data },
                 });
             }
-            items.push(PrefabParams::<Vout> {
+            items.push(OpRequest::<Vout> {
                 contract_id: params.contract_id,
                 method: params.method,
                 reading: params.reading,
@@ -188,17 +210,27 @@ impl<T: Into<ScriptPubkey>> PrefabParamsSet<T> {
                 owned,
             });
         }
-        Ok(PrefabParamsSet(TinyVec::from_iter_checked(items)))
+        Ok(OpRequestSet(NonEmptyVec::from_iter_checked(items)))
     }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error)]
-#[display("unable to resolve seal witness output seal definition for script pubkey {0:x}")]
-pub struct UnresolvedSeal(ScriptPubkey);
+#[display(doc_comments)]
+pub enum UnresolvedSeal {
+    /// unable to resolve seal witness output seal definition for script pubkey {0:x}.
+    Spk(ScriptPubkey),
+
+    /// seal requires assignment to a change output, but the transaction lacks change.
+    Change,
+}
 
 /// Parameters used by BP-based wallet for constructing operations.
 ///
-/// Differs from [`CallParams`] in the fact that it uses [`BuilderSeal`]s instead of
+/// NB: [`OpRequest`] must contain pre-computed information about the change; otherwise the
+/// excessive state will be lost. Change information allows wallet to construct complex transactions
+/// with multiple changes etc.
+///
+/// Differs from [`CallParams`] in the fact that it uses [`EitherSeal`]s instead of
 /// [`hypersonic::AuthTokens`] for output definitions.
 #[derive(Clone, PartialEq, Eq, Debug)]
 #[cfg_attr(
@@ -209,7 +241,7 @@ pub struct UnresolvedSeal(ScriptPubkey);
         bound = "T: serde::Serialize + for<'d> serde::Deserialize<'d>"
     )
 )]
-pub struct PrefabParams<T> {
+pub struct OpRequest<T> {
     pub contract_id: ContractId,
     pub method: MethodName,
     pub reading: Vec<CellAddr>,
@@ -310,7 +342,7 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
         WitnessOut::new(address.payload, nonce)
     }
 
-    pub fn state(
+    pub fn state_own(
         &mut self,
         contract_id: Option<ContractId>,
     ) -> impl Iterator<Item = (ContractId, ContractState<Outpoint>)> + use<'_, W, S, P, X> {
@@ -346,39 +378,114 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
         noise_engine
     }
 
+    pub fn fulfill(
+        &mut self,
+        invoice: &RgbInvoice<ContractId>,
+        mut coinselect: impl Coinselect,
+        // TODO: Consider adding requested amount of sats to the `RgbInvoice`
+        giveaway: Option<Sats>,
+    ) -> Result<OpRequest<Option<WoutAssignment>>, FulfillError> {
+        let contract_id = invoice.scope;
+
+        // Determine method
+        let stockpile = self.mound.contract(contract_id);
+        let api = &stockpile.stock().articles().schema.default_api;
+        let call = invoice
+            .call
+            .as_ref()
+            .or_else(|| api.default_call())
+            .ok_or(FulfillError::CallStateUnknown)?;
+        let method = call.method.clone();
+        let state_name = call
+            .destructible
+            .clone()
+            .ok_or(FulfillError::StateNameUnknown)?;
+        let mut calc = api.calculate(state_name.clone());
+
+        // Do coinselection
+        let (_, state) = self
+            .state_own(Some(contract_id))
+            .next()
+            .ok_or(FulfillError::ContractUnavailable(contract_id))?;
+        let state = state
+            .owned
+            .get(&state_name)
+            .ok_or(FulfillError::StateUnavailable)?
+            .iter()
+            .map(|(addr, assignment)| (*addr, &assignment.data))
+            .collect::<Vec<_>>();
+        let reading = coinselect
+            .coinselect(&invoice.data, calc.as_mut(), state)
+            .ok_or(FulfillError::StateInsufficient)?;
+
+        // Add beneficiaries
+        let seal = match invoice.auth {
+            RgbBeneficiary::Token(auth) => EitherSeal::Token(auth),
+            RgbBeneficiary::WitnessOut(wout) => {
+                let wout = WoutAssignment {
+                    wout,
+                    amount: giveaway.ok_or(FulfillError::WoutRequiresGiveaway)?,
+                };
+                EitherSeal::Alt(Some(wout))
+            }
+        };
+        calc.lessen(&invoice.data)?;
+        let assignment = Assignment { seal, data: invoice.data.clone() };
+        let state = NamedState { name: state_name.clone(), state: assignment };
+        let mut owned = vec![state];
+
+        // Add change
+        let diff = calc.diff()?;
+        let seal = EitherSeal::Alt(None);
+        for data in diff {
+            let assignment = Assignment { seal: seal.clone(), data };
+            let state = NamedState { name: state_name.clone(), state: assignment };
+            owned.push(state);
+        }
+
+        // Construct operation request
+        Ok(OpRequest {
+            contract_id,
+            method,
+            using: none!(),
+            global: none!(),
+            reading,
+            owned,
+        })
+    }
+
     /// Creates a single operation basing on the provided construction parameters.
-    pub fn prefab(&mut self, params: PrefabParams<Vout>) -> Prefab {
+    pub fn prefab(&mut self, params: OpRequest<Vout>) -> Result<Prefab, PrefabError> {
         // convert ConstructParams into CallParams
         let (closes, using) = params
             .using
             .into_iter()
             .map(|used| (used.outpoint, (used.addr, used.val)))
             .unzip();
-        let closes = SmallOrdSet::try_from(closes).expect("too many inputs");
+        let closes = SmallOrdSet::try_from(closes).map_err(|_| PrefabError::TooManyInputs)?;
         let mut defines = SmallOrdSet::new();
 
         let mut seals = SmallVec::new();
         let mut noise_engine = self.noise_engine();
         noise_engine.input_raw(params.contract_id.as_slice());
-        let owned = params
-            .owned
-            .into_iter()
-            .enumerate()
-            .map(|(nonce, assignment)| {
-                let auth = match assignment.state.seal {
-                    EitherSeal::Alt(vout) => {
-                        defines.push(vout).expect("too many seals");
-                        let seal =
-                            TxoSeal::vout_no_fallback(vout, noise_engine.clone(), nonce as u64);
-                        seals.push(seal).expect("too many seals");
-                        seal.auth_token()
-                    }
-                    EitherSeal::Token(auth) => auth,
-                };
-                let state = DataCell { data: assignment.state.data, auth, lock: None };
-                NamedState { name: assignment.name, state }
-            })
-            .collect();
+
+        let mut owned = Vec::with_capacity(params.owned.len());
+        for (nonce, assignment) in params.owned.into_iter().enumerate() {
+            let auth = match assignment.state.seal {
+                EitherSeal::Alt(vout) => {
+                    defines
+                        .push(vout)
+                        .map_err(|_| PrefabError::TooManyOutputs)?;
+                    let seal = TxoSeal::vout_no_fallback(vout, noise_engine.clone(), nonce as u64);
+                    seals.push(seal).expect("checked above");
+                    seal.auth_token()
+                }
+                EitherSeal::Token(auth) => auth,
+            };
+            let state = DataCell { data: assignment.state.data, auth, lock: None };
+            let named_state = NamedState { name: assignment.name, state };
+            owned.push(named_state);
+        }
 
         let call = CallParams {
             core: CoreParams { method: params.method, global: params.global, owned },
@@ -392,33 +499,39 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
         stockpile.pile_mut().keep_mut().append(opid, &seals);
         debug_assert_eq!(operation.contract_id, params.contract_id);
 
-        Prefab { closes, defines, operation }
+        Ok(Prefab { closes, defines, operation })
     }
 
-    /// Completes creation of a prefabricated operation pack, adding blank operations if necessary.
+    /// Complete creation of a prefabricated operation bundle from operation requests, adding blank
+    /// operations if necessary. Operation requests can be multiple.
+    ///
+    /// A set of operations is either a collection of them, or a [`OpRequestSet`] - any structure
+    /// which implements `IntoIterator` trait.
     ///
     /// # Arguments
     ///
-    /// - `items`: a set of instructions to create non-blank operations (potentially under multiple
-    ///   contracts);
+    /// - `requests`: a set of instructions to create non-blank operations (potentially under
+    ///   multiple contracts);
     /// - `seal`: a single-use seal definition where all blank outputs will be assigned to.
     pub fn bundle(
         &mut self,
-        items: impl IntoIterator<Item = PrefabParams<Vout>>,
-        change: Vout,
-    ) -> PrefabBundle {
-        let ops = items.into_iter().map(|params| self.prefab(params));
+        requests: impl IntoIterator<Item = OpRequest<Vout>>,
+        change: Option<Vout>,
+    ) -> Result<PrefabBundle, BundleError> {
+        let ops = requests.into_iter().map(|params| self.prefab(params));
 
         let mut outpoints = BTreeSet::<Outpoint>::new();
         let mut contracts = BTreeSet::new();
         let mut prefabs = BTreeSet::new();
         for prefab in ops {
+            let prefab = prefab?;
             contracts.insert(prefab.operation.contract_id);
             outpoints.extend(&prefab.closes);
             prefabs.insert(prefab);
         }
 
-        let mut prefab_params = Vec::new();
+        // Constructing blank operation requests
+        let mut blank_requests = Vec::new();
         let root_noise_engine = self.noise_engine();
         for (contract_id, stockpile) in self
             .mound
@@ -463,12 +576,13 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
                 let calc = calcs
                     .entry(name.clone())
                     .or_insert_with(|| api.calculate(name));
-                calc.accumulate(val.clone()).expect("non-computable state");
+                calc.accumulate(val)?;
             }
 
             let mut owned = Vec::new();
             for (name, calc) in calcs {
-                for data in calc.diff().expect("non-computable state") {
+                for data in calc.diff()? {
+                    let change = change.ok_or(BundleError::ChangeRequired)?;
                     let state = NamedState {
                         name: name.clone(),
                         state: Assignment { seal: EitherSeal::Alt(change), data },
@@ -477,7 +591,7 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
                 }
             }
 
-            let params = PrefabParams {
+            let params = OpRequest {
                 contract_id,
                 method: MethodName::from(BP_BLANK_METHOD),
                 global: none!(),
@@ -485,45 +599,50 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
                 using,
                 owned,
             };
-            prefab_params.push(params);
+            blank_requests.push(params);
         }
 
-        prefabs.extend(prefab_params.into_iter().map(|params| self.prefab(params)));
+        for request in blank_requests {
+            prefabs.push(self.prefab(request).map_err(BundleError::Blank)?);
+        }
 
-        PrefabBundle(SmallOrdSet::try_from(prefabs).expect("too many operations"))
+        Ok(PrefabBundle(SmallOrdSet::try_from(prefabs).map_err(|_| BundleError::TooManyBlanks)?))
     }
 
-    pub fn attest(
+    /// Include prefab bundle into the mound, creating necessary anchors on the fly.
+    pub fn include(
         &mut self,
         bundle: &PrefabBundle,
         witness: &Tx,
         mpc: mpc::MerkleBlock,
         dbc: Option<TapretProof>,
         prevouts: &[Outpoint],
-    ) {
-        let iter = bundle.iter().map(|prefab| {
+    ) -> Result<(), IncludeError> {
+        for prefab in bundle {
             let protocol_id = ProtocolId::from(prefab.operation.contract_id.to_byte_array());
             let opid = prefab.operation.opid();
+            let mut map = bmap! {};
+            for prevout in &prefab.closes {
+                let pos = prevouts
+                    .iter()
+                    .position(|p| p == prevout)
+                    .ok_or(IncludeError::MissingPrevout(*prevout))?;
+                map.insert(pos as u32, mmb::Message::from_byte_array(opid.to_byte_array()));
+            }
             let anchor = Anchor {
-                mmb_proof: mmb::BundleProof {
-                    map: SmallOrdMap::from_iter_checked(prefab.closes.iter().map(|prevout| {
-                        let pos = prevouts
-                            .iter()
-                            .position(|p| p == prevout)
-                            .expect("PSBT misses one of operation inputs");
-                        (pos as u32, mmb::Message::from_byte_array(opid.to_byte_array()))
-                    })),
-                },
+                mmb_proof: mmb::BundleProof { map: SmallOrdMap::from_checked(map) },
                 mpc_protocol: protocol_id,
-                mpc_proof: mpc.to_merkle_proof(protocol_id).expect("Invalid MPC proof"),
+                mpc_proof: mpc.to_merkle_proof(protocol_id)?,
                 dbc_proof: dbc.clone(),
                 fallback_proof: default!(),
             };
-            (prefab.operation.contract_id, opid, anchor)
-        });
-        self.mound.attest(witness, iter);
+            self.mound
+                .include(prefab.operation.contract_id, opid, witness, anchor);
+        }
+        Ok(())
     }
 
+    /// Consume consignment.
     #[allow(clippy::result_large_err)]
     pub fn consume(
         &mut self,
@@ -535,6 +654,76 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
                 .collect()
         })
     }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error)]
+#[display(doc_comments)]
+pub enum PrefabError {
+    /// operation request contains too many inputs (maximum number of inputs is 64k).
+    TooManyInputs,
+    /// operation request contains too many outputs (maximum number of outputs is 64k).
+    TooManyOutputs,
+}
+
+#[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
+#[display(doc_comments)]
+pub enum BundleError {
+    #[from]
+    #[display(inner)]
+    Prefab(PrefabError),
+
+    /// blank {0}
+    Blank(PrefabError),
+
+    /// the requested set of operations requires creation of blank operations for other contracts,
+    /// which in turn require transaction to contain a change output.
+    ChangeRequired,
+
+    #[from]
+    #[display(inner)]
+    UncountableState(UncountableState),
+
+    /// one or multiple outputs used in operation requests contain too many contracts; it is
+    /// impossible to create a bundle with more than 64k of operations.
+    TooManyBlanks,
+}
+
+#[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
+#[display(doc_comments)]
+pub enum FulfillError {
+    /// the wallet doesn't own any state for {0} to fulfill the invoice.
+    ContractUnavailable(ContractId),
+
+    /// neither invoice nor contract API contains information about the transfer method.
+    CallStateUnknown,
+
+    /// neither invoice nor contract API contains information about the state name.
+    StateNameUnknown,
+
+    /// the wallet doesn't own any state in order to fulfill the invoice.
+    StateUnavailable,
+
+    /// the state owned by the wallet is insufficient to fulfill the invoice.
+    StateInsufficient,
+
+    #[from]
+    #[display(inner)]
+    StateUncountable(UncountableState),
+
+    /// the invoice asks to create an UTXO for the receiver, but method call doesn't provide
+    /// information on how much sats can be put there (`giveaway` parameter).
+    WoutRequiresGiveaway,
+}
+
+#[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
+#[display(doc_comments)]
+pub enum IncludeError {
+    /// prefab bundle references unknown previous output {0}.
+    MissingPrevout(Outpoint),
+
+    /// multi-protocol commitment proof is invalid; {0}
+    #[from]
+    Mpc(mpc::LeafNotKnown),
 }
 
 #[cfg(feature = "fs")]
