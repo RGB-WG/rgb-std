@@ -150,6 +150,8 @@ pub struct UsedState {
     pub val: StrictVal,
 }
 
+pub type PaymentScript = OpRequestSet<Option<WoutAssignment>>;
+
 /// A set of multiple operation requests (see [`OpRequests`]) under a single or multiple contracts.
 #[derive(Wrapper, WrapperMut, Clone, PartialEq, Eq, Debug, From)]
 #[wrapper(Deref)]
@@ -441,7 +443,7 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
             owned.push(state);
         }
 
-        // Construct PrefabParams
+        // Construct operation request
         Ok(OpRequest {
             contract_id,
             method,
