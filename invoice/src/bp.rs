@@ -115,7 +115,8 @@ impl FromStr for WitnessOut {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s
             .strip_prefix(WITNESS_OUT_HRI)
-            .ok_or(ParseWitnessOutError::NoPrefix)?;
+            .ok_or(ParseWitnessOutError::NoPrefix)?
+            .replace('-', "");
 
         let alphabet = Alphabet::new(BAID64_ALPHABET).expect("invalid Baid64 alphabet");
         let engine = GeneralPurpose::new(
@@ -151,7 +152,7 @@ pub enum ParseWitnessOutError {
     /// checksum of the provided witness output seal definition is invalid.
     InvalidChecksum,
 
-    /// invalid Base64 encoding in itness output seal definition - {0}.
+    /// invalid Base64 encoding in witness output seal definition - {0}.
     #[from]
     Base64(DecodeError),
 
@@ -162,4 +163,21 @@ pub enum ParseWitnessOutError {
     /// invalid witness output seal definition binary data - {0}.
     #[from]
     Encoding(DeserializeError),
+}
+
+#[cfg(test)]
+mod tests {
+    use bp::OutputPk;
+    use strict_encoding::StrictDumb;
+
+    use super::*;
+
+    #[test]
+    fn display_from_str() {
+        let wout = WitnessOut::new(AddressPayload::Tr(OutputPk::strict_dumb()), 0xdeadbeaf1badcafe);
+        let s = wout.to_string();
+        assert_eq!(s, "wout:AP7KrRuv-vq3eIAEB-AQEBAQEB-AQEBAQEB-AQEBAQEB-AQEBAQEB-AQEBAQEB-zbu7~w");
+        let wout2 = WitnessOut::from_str(&s).unwrap();
+        assert_eq!(wout, wout2);
+    }
 }
