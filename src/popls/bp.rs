@@ -84,8 +84,8 @@ pub struct WoutAssignment {
     pub amount: Sats,
 }
 
-impl Into<ScriptPubkey> for WoutAssignment {
-    fn into(self) -> ScriptPubkey { self.wout.into() }
+impl From<WoutAssignment> for ScriptPubkey {
+    fn from(val: WoutAssignment) -> Self { val.wout.into() }
 }
 
 impl<T> EitherSeal<T> {

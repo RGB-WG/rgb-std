@@ -51,8 +51,8 @@ pub struct WitnessOut {
 impl StrictSerialize for WitnessOut {}
 impl StrictDeserialize for WitnessOut {}
 
-impl Into<ScriptPubkey> for WitnessOut {
-    fn into(self) -> ScriptPubkey { self.address.script_pubkey() }
+impl From<WitnessOut> for ScriptPubkey {
+    fn from(val: WitnessOut) -> Self { val.address.script_pubkey() }
 }
 
 impl WitnessOut {
@@ -74,7 +74,7 @@ impl WitnessOut {
     pub fn checksum(&self) -> [u8; 4] {
         let key = Sha256::digest(WITNESS_OUT_HRI.as_bytes());
         let mut sha = Sha256::new_with_prefix(key);
-        sha.update(&[0]);
+        sha.update([0]);
         sha.update(self.salt.to_le_bytes());
         sha.update(self.script_pubkey().as_slice());
         let sha = sha.finalize();
