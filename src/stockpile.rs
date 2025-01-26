@@ -251,11 +251,10 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
                 .map(|(name, map)| {
                     let map = map
                         .into_iter()
-                        .map(|(addr, data)| {
-                            let seal = self.pile_mut().keep_mut().read(addr.opid)
-                                [addr.pos as usize]
-                                .clone();
-                            (addr, Assignment { seal, data })
+                        .filter_map(|(addr, data)| {
+                            let seals = self.pile_mut().keep_mut().read(addr.opid);
+                            let seal = seals.get(addr.pos as usize)?.clone();
+                            Some((addr, Assignment { seal, data }))
                         })
                         .collect();
                     (name, map)
