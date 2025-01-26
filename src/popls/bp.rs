@@ -33,7 +33,7 @@ use amplify::confinement::{
 };
 use amplify::{confinement, ByteArray, Bytes32, Wrapper};
 use bp::dbc::tapret::TapretProof;
-use bp::seals::{mmb, Anchor, TxoSeal};
+use bp::seals::{mmb, Anchor, TxoSeal, TxoSealExt};
 use bp::{Outpoint, Sats, ScriptPubkey, Tx, Vout};
 use commit_verify::mpc::ProtocolId;
 use commit_verify::{mpc, Digest, DigestExt, Sha256};
@@ -49,7 +49,7 @@ use strict_encoding::{ReadRaw, StrictDecode, StrictDeserialize, StrictReader, St
 use strict_types::StrictVal;
 
 use crate::stockpile::{ContractState, EitherSeal};
-use crate::{Assignment, CreateParams, Excavate, IssueError, Mound, MoundConsumeError, Pile};
+use crate::{Assignment, CreateParams, Excavate, IssueError, Mound, MoundConsumeError, Pile, Txid};
 
 /// Trait abstracting specific implementation of a bitcoin wallet.
 pub trait WalletProvider {
@@ -85,7 +85,11 @@ pub struct WoutAssignment {
 }
 
 impl From<WoutAssignment> for ScriptPubkey {
-    fn from(val: WoutAssignment) -> Self { val.wout.into() }
+    fn from(val: WoutAssignment) -> Self { val.script_pubkey() }
+}
+
+impl WoutAssignment {
+    pub fn script_pubkey(&self) -> ScriptPubkey { self.wout.script_pubkey() }
 }
 
 impl<T> EitherSeal<T> {
@@ -184,9 +188,9 @@ impl<T: Into<ScriptPubkey>> OpRequestSet<Option<T>> {
         change: Option<Vout>,
     ) -> Result<OpRequestSet<Vout>, UnresolvedSeal> {
         let mut items = Vec::with_capacity(self.0.len());
-        for params in self.0 {
-            let mut owned = Vec::with_capacity(params.owned.len());
-            for assignment in params.owned {
+        for request in self.0 {
+            let mut owned = Vec::with_capacity(request.owned.len());
+            for assignment in request.owned {
                 let seal = match assignment.state.seal {
                     EitherSeal::Alt(Some(seal)) => {
                         let spk = seal.into();
@@ -202,11 +206,11 @@ impl<T: Into<ScriptPubkey>> OpRequestSet<Option<T>> {
                 });
             }
             items.push(OpRequest::<Vout> {
-                contract_id: params.contract_id,
-                method: params.method,
-                reading: params.reading,
-                using: params.using,
-                global: params.global,
+                contract_id: request.contract_id,
+                method: request.method,
+                reading: request.reading,
+                using: request.using,
+                global: request.global,
                 owned,
             });
         }
@@ -248,6 +252,27 @@ pub struct OpRequest<T> {
     pub using: Vec<UsedState>,
     pub global: Vec<NamedState<StateAtom>>,
     pub owned: Vec<NamedState<Assignment<EitherSeal<T>>>>,
+}
+
+impl OpRequest<Option<WoutAssignment>> {
+    pub fn resolve_seal(
+        &self,
+        wout: WitnessOut,
+        resolver: impl Fn(&ScriptPubkey) -> Option<Vout>,
+    ) -> Option<TxoSeal> {
+        for assignment in &self.owned {
+            if let EitherSeal::Alt(Some(assignment)) = &assignment.state.seal {
+                if assignment.wout == wout {
+                    let spk = assignment.script_pubkey();
+                    let vout = resolver(&spk)?;
+                    let primary = Outpoint::new(Txid::from([0xFFu8; 32]), vout);
+                    let seal = TxoSeal { primary, secondary: TxoSealExt::Noise(wout.noise()) };
+                    return Some(seal);
+                }
+            }
+        }
+        None
+    }
 }
 
 /// Prefabricated operation, which includes information on the contract id and closed seals

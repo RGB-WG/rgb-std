@@ -52,7 +52,7 @@ impl StrictSerialize for WitnessOut {}
 impl StrictDeserialize for WitnessOut {}
 
 impl From<WitnessOut> for ScriptPubkey {
-    fn from(val: WitnessOut) -> Self { val.address.script_pubkey() }
+    fn from(val: WitnessOut) -> Self { val.script_pubkey() }
 }
 
 impl WitnessOut {
