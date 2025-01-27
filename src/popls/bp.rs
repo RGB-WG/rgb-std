@@ -49,7 +49,9 @@ use strict_encoding::{ReadRaw, StrictDecode, StrictDeserialize, StrictReader, St
 use strict_types::StrictVal;
 
 use crate::stockpile::{ContractState, EitherSeal};
-use crate::{Assignment, CreateParams, Excavate, IssueError, Mound, MoundConsumeError, Pile, Txid};
+use crate::{
+    Assignment, CreateParams, Excavate, IssueError, Mound, MoundConsumeError, Pile, Stockpile, Txid,
+};
 
 /// Trait abstracting specific implementation of a bitcoin wallet.
 pub trait WalletProvider {
@@ -228,11 +230,12 @@ pub enum UnresolvedSeal {
     Change,
 }
 
-/// Parameters used by BP-based wallet for constructing operations.
+/// Request to construct RGB operations.
 ///
 /// NB: [`OpRequest`] must contain pre-computed information about the change; otherwise the
 /// excessive state will be lost. Change information allows wallet to construct complex transactions
-/// with multiple changes etc.
+/// with multiple changes etc. Use [`OpRequest::check`] method to verify that request includes
+/// necessary change.
 ///
 /// Differs from [`CallParams`] in the fact that it uses [`EitherSeal`]s instead of
 /// [`hypersonic::AuthTokens`] for output definitions.
@@ -273,6 +276,46 @@ impl OpRequest<Option<WoutAssignment>> {
         }
         None
     }
+}
+
+impl<T> OpRequest<T> {
+    pub fn check<C: StateCalc>(&self, mut calc: C) -> Result<C, UnmatchedState> {
+        for inp in &self.using {
+            calc.accumulate(&inp.val)?;
+        }
+        for out in &self.owned {
+            calc.lessen(&out.state.data)?;
+        }
+        if !calc.diff()?.is_empty() {
+            Err(UnmatchedState::NotEnoughChange)
+        } else {
+            Ok(calc)
+        }
+    }
+}
+
+impl<S: Supply, P: Pile> Stockpile<S, P> {
+    pub fn check_request<T>(&self, request: &OpRequest<T>) -> Result<(), UnmatchedState> {
+        let calc = self
+            .stock()
+            .articles()
+            .schema
+            .default_api
+            .calculate(request.method.clone());
+        request.check(calc)?;
+        Ok(())
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
+#[display(doc_comments)]
+pub enum UnmatchedState {
+    #[from]
+    #[display(inner)]
+    Uncomputable(UncountableState),
+
+    /// the operation request doesn't re-assigns all the state, leading to the state loss.
+    NotEnoughChange,
 }
 
 /// Prefabricated operation, which includes information on the contract id and closed seals
@@ -479,10 +522,19 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
         })
     }
 
+    /// Check whether all state used in a request is properly re-distributed to new owners, and
+    /// non-distributed state is used in the change.
+    pub fn check_request<T>(&self, request: &OpRequest<T>) -> Result<(), UnmatchedState> {
+        let stockpile = self.mound.contract(request.contract_id);
+        stockpile.check_request(request)
+    }
+
     /// Creates a single operation basing on the provided construction parameters.
-    pub fn prefab(&mut self, params: OpRequest<Vout>) -> Result<Prefab, PrefabError> {
+    pub fn prefab(&mut self, request: OpRequest<Vout>) -> Result<Prefab, PrefabError> {
+        self.check_request(&request)?;
+
         // convert ConstructParams into CallParams
-        let (closes, using) = params
+        let (closes, using) = request
             .using
             .into_iter()
             .map(|used| (used.outpoint, (used.addr, used.val)))
@@ -492,10 +544,10 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
 
         let mut seals = SmallVec::new();
         let mut noise_engine = self.noise_engine();
-        noise_engine.input_raw(params.contract_id.as_slice());
+        noise_engine.input_raw(request.contract_id.as_slice());
 
-        let mut owned = Vec::with_capacity(params.owned.len());
-        for (nonce, assignment) in params.owned.into_iter().enumerate() {
+        let mut owned = Vec::with_capacity(request.owned.len());
+        for (nonce, assignment) in request.owned.into_iter().enumerate() {
             let auth = match assignment.state.seal {
                 EitherSeal::Alt(vout) => {
                     defines
@@ -513,16 +565,16 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
         }
 
         let call = CallParams {
-            core: CoreParams { method: params.method, global: params.global, owned },
+            core: CoreParams { method: request.method, global: request.global, owned },
             using,
-            reading: params.reading,
+            reading: request.reading,
         };
 
-        let stockpile = self.mound.contract_mut(params.contract_id);
+        let stockpile = self.mound.contract_mut(request.contract_id);
         let opid = stockpile.stock_mut().call(call);
         let operation = stockpile.stock_mut().operation(opid);
         stockpile.pile_mut().keep_mut().append(opid, &seals);
-        debug_assert_eq!(operation.contract_id, params.contract_id);
+        debug_assert_eq!(operation.contract_id, request.contract_id);
 
         Ok(Prefab { closes, defines, operation })
     }
@@ -681,13 +733,18 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error)]
+#[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum PrefabError {
     /// operation request contains too many inputs (maximum number of inputs is 64k).
     TooManyInputs,
+
     /// operation request contains too many outputs (maximum number of outputs is 64k).
     TooManyOutputs,
+
+    #[from]
+    #[display(inner)]
+    UnmatchedState(UnmatchedState),
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
