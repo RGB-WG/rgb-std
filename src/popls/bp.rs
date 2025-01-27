@@ -278,31 +278,37 @@ impl OpRequest<Option<WoutAssignment>> {
     }
 }
 
-impl<T> OpRequest<T> {
-    pub fn check<C: StateCalc>(&self, mut calc: C) -> Result<C, UnmatchedState> {
-        for inp in &self.using {
+impl<S: Supply, P: Pile> Stockpile<S, P> {
+    pub fn check_request<T>(&mut self, request: &OpRequest<T>) -> Result<(), UnmatchedState> {
+        let state = self.state();
+        let api = &self.stock().articles().schema.default_api;
+        let mut calcs = BTreeMap::new();
+        for inp in &request.using {
+            let state_name = state
+                .owned
+                .iter()
+                .find_map(|(state_name, map)| {
+                    map.keys()
+                        .find(|addr| **addr == inp.addr)
+                        .map(|_| state_name)
+                })
+                .expect("unknown state included in the stock");
+            let calc = calcs
+                .entry(state_name)
+                .or_insert_with(|| api.calculate(state_name.clone()));
             calc.accumulate(&inp.val)?;
         }
-        for out in &self.owned {
+        for out in &request.owned {
+            let calc = calcs
+                .entry(&out.name)
+                .or_insert_with(|| api.calculate(out.name.clone()));
             calc.lessen(&out.state.data)?;
         }
-        if !calc.diff()?.is_empty() {
-            Err(UnmatchedState::NotEnoughChange)
-        } else {
-            Ok(calc)
+        for (state_name, calc) in calcs {
+            if !calc.diff()?.is_empty() {
+                return Err(UnmatchedState::NotEnoughChange(state_name.clone()));
+            }
         }
-    }
-}
-
-impl<S: Supply, P: Pile> Stockpile<S, P> {
-    pub fn check_request<T>(&self, request: &OpRequest<T>) -> Result<(), UnmatchedState> {
-        let calc = self
-            .stock()
-            .articles()
-            .schema
-            .default_api
-            .calculate(request.method.clone());
-        request.check(calc)?;
         Ok(())
     }
 }
@@ -314,8 +320,8 @@ pub enum UnmatchedState {
     #[display(inner)]
     Uncomputable(UncountableState),
 
-    /// the operation request doesn't re-assigns all the state, leading to the state loss.
-    NotEnoughChange,
+    /// the operation request doesn't re-assigns all the `{0}` state, leading to the state loss.
+    NotEnoughChange(StateName),
 }
 
 /// Prefabricated operation, which includes information on the contract id and closed seals
@@ -524,8 +530,8 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
 
     /// Check whether all state used in a request is properly re-distributed to new owners, and
     /// non-distributed state is used in the change.
-    pub fn check_request<T>(&self, request: &OpRequest<T>) -> Result<(), UnmatchedState> {
-        let stockpile = self.mound.contract(request.contract_id);
+    pub fn check_request<T>(&mut self, request: &OpRequest<T>) -> Result<(), UnmatchedState> {
+        let stockpile = self.mound.contract_mut(request.contract_id);
         stockpile.check_request(request)
     }
 
