@@ -64,6 +64,7 @@ pub trait WalletProvider {
         seals: impl Iterator<Item = AuthToken>,
     ) -> impl Iterator<Item = TxoSeal>;
     fn next_address(&mut self) -> Address;
+    fn next_nonce(&mut self) -> u64;
 }
 
 pub trait Coinselect {
@@ -403,16 +404,18 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
             .issue(params.transform(self.noise_engine()), supply, pile)
     }
 
-    pub fn auth_token(&mut self, nonce: u64) -> Option<AuthToken> {
+    pub fn auth_token(&mut self, nonce: Option<u64>) -> Option<AuthToken> {
         let outpoint = self.wallet.utxos().next()?;
+        let nonce = nonce.unwrap_or_else(|| self.wallet.next_nonce());
         let seal = TxoSeal::no_fallback(outpoint, self.noise_engine(), nonce);
         let auth = seal.auth_token();
         self.wallet.register_seal(seal);
         Some(auth)
     }
 
-    pub fn wout(&mut self, nonce: u64) -> WitnessOut {
+    pub fn wout(&mut self, nonce: Option<u64>) -> WitnessOut {
         let address = self.wallet.next_address();
+        let nonce = nonce.unwrap_or_else(|| self.wallet.next_nonce());
         WitnessOut::new(address.payload, nonce)
     }
 
