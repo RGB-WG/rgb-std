@@ -476,6 +476,8 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
             .ok_or(FulfillError::StateNameUnknown)?;
         let mut calc = api.calculate(state_name.clone());
 
+        let value = invoice.data.as_ref().ok_or(FulfillError::ValueMissed)?;
+
         // Do coinselection
         let (_, state) = self
             .state_own(Some(contract_id))
@@ -489,7 +491,7 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
             .map(|(addr, assignment)| (*addr, &assignment.data))
             .collect::<Vec<_>>();
         let reading = coinselect
-            .coinselect(&invoice.data, calc.as_mut(), state)
+            .coinselect(&value, calc.as_mut(), state)
             .ok_or(FulfillError::StateInsufficient)?;
 
         // Add beneficiaries
@@ -503,8 +505,8 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
                 EitherSeal::Alt(Some(wout))
             }
         };
-        calc.lessen(&invoice.data)?;
-        let assignment = Assignment { seal, data: invoice.data.clone() };
+        calc.lessen(&value)?;
+        let assignment = Assignment { seal, data: value.clone() };
         let state = NamedState { name: state_name.clone(), state: assignment };
         let mut owned = vec![state];
 
@@ -776,7 +778,7 @@ pub enum BundleError {
     TooManyBlanks,
 }
 
-#[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum FulfillError {
     /// the wallet doesn't own any state for {0} to fulfill the invoice.
@@ -801,6 +803,9 @@ pub enum FulfillError {
     /// the invoice asks to create an UTXO for the receiver, but method call doesn't provide
     /// information on how much sats can be put there (`giveaway` parameter).
     WoutRequiresGiveaway,
+
+    /// invoice misses the value, and the method call also doesn't provide one
+    ValueMissed,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
