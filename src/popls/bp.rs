@@ -320,7 +320,7 @@ pub enum UnmatchedState {
     #[display(inner)]
     Uncomputable(UncountableState),
 
-    /// the operation request doesn't re-assigns all the `{0}` state, leading to the state loss.
+    /// the operation request doesn't re-assign all of `{0}` state, leading to the state loss.
     NotEnoughChange(StateName),
 }
 

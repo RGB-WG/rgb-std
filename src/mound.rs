@@ -29,7 +29,7 @@ use std::io;
 use amplify::hex::ToHex;
 use amplify::Bytes16;
 use commit_verify::ReservedBytes;
-use hypersonic::{AuthToken, CellAddr, CodexId, ContractId, Opid, Schema, Supply};
+use hypersonic::{AuthToken, CellAddr, CodexId, ContractId, ContractName, Opid, Schema, Supply};
 use rgb::RgbSeal;
 use single_use_seals::{PublishedWitness, SingleUseSeal};
 use strict_encoding::{
@@ -37,7 +37,9 @@ use strict_encoding::{
     WriteRaw,
 };
 
-use crate::{Consensus, ConsumeError, ContractInfo, CreateParams, Pile, StateCell, Stockpile};
+use crate::{
+    Consensus, ConsumeError, ContractInfo, ContractRef, CreateParams, Pile, StateCell, Stockpile,
+};
 
 pub const MAGIC_BYTES_CONSIGNMENT: [u8; 16] = *b"RGB CONSIGNMENT\0";
 
@@ -143,6 +145,20 @@ impl<S: Supply, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
     }
 
     pub fn has_contract(&self, id: ContractId) -> bool { self.contracts.contains_key(&id) }
+
+    pub fn find_contract_id(&self, r: impl Into<ContractRef>) -> Option<ContractId> {
+        match r.into() {
+            ContractRef::Id(id) if self.has_contract(id) => Some(id),
+            ContractRef::Id(_) => None,
+            ContractRef::Name(name) => {
+                let name = ContractName::Named(name);
+                self.contracts
+                    .iter()
+                    .find(|(_, stockpile)| stockpile.stock().articles().contract.meta.name == name)
+                    .map(|(id, _)| *id)
+            }
+        }
+    }
 
     pub fn contract(&self, id: ContractId) -> &Stockpile<S, P> {
         self.contracts

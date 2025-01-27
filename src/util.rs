@@ -22,41 +22,36 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
-#![cfg_attr(not(feature = "std"), no_std)]
+use core::str::FromStr;
 
-extern crate alloc;
+use hypersonic::ContractId;
+use strict_encoding::TypeName;
 
-#[macro_use]
-extern crate amplify;
-extern crate rgbcore as rgb;
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display, From)]
+#[display(inner)]
+pub enum ContractRef {
+    #[from]
+    Id(ContractId),
 
-#[cfg(feature = "bitcoin")]
-#[macro_use]
-extern crate strict_encoding;
-#[cfg(all(feature = "serde", feature = "bitcoin"))]
-#[macro_use]
-extern crate serde;
+    #[from]
+    #[from(&'static str)]
+    Name(TypeName),
+}
 
-pub extern crate rgb_invoice as invoice;
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display, Error)]
+#[display("invalid contract reference '{0}'")]
+pub struct InvalidContractRef(String);
 
-mod pile;
-mod stockpile;
-mod mound;
-mod info;
-pub mod popls;
-mod util;
+impl FromStr for ContractRef {
+    type Err = InvalidContractRef;
 
-#[cfg(feature = "bitcoin")]
-pub use bp::{Outpoint, Txid};
-pub use hypersonic::*;
-pub use info::ContractInfo;
-#[cfg(feature = "fs")]
-pub use mound::file::{DirExcavator, DirMound};
-pub use mound::{Excavate, IssueError, Mound, MoundConsumeError, MAGIC_BYTES_CONSIGNMENT};
-#[cfg(feature = "fs")]
-pub use pile::fs::FilePile;
-pub use pile::{Index, Pile};
-pub use rgb::*;
-pub use stockpile::{Assignment, ConsumeError, CreateParams, EitherSeal, Stockpile};
-pub use util::{ContractRef, InvalidContractRef};
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if let Ok(id) = ContractId::from_str(s) {
+            Ok(ContractRef::Id(id))
+        } else if let Ok(name) = TypeName::from_str(s) {
+            Ok(ContractRef::Name(name))
+        } else {
+            Err(InvalidContractRef(s.to_owned()))
+        }
+    }
+}
