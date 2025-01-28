@@ -40,7 +40,7 @@ use commit_verify::{mpc, Digest, DigestExt, Sha256};
 use hypersonic::aora::Aora;
 use hypersonic::{
     AuthToken, CallParams, CellAddr, ContractId, CoreParams, DataCell, MethodName, NamedState,
-    Operation, StateAtom, StateCalc, StateName, Supply, UncountableState,
+    Operation, StateAtom, StateCalc, StateCalcError, StateName, Supply,
 };
 use invoice::bp::{Address, WitnessOut};
 use invoice::{RgbBeneficiary, RgbInvoice};
@@ -319,7 +319,7 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
 pub enum UnmatchedState {
     #[from]
     #[display(inner)]
-    Uncomputable(UncountableState),
+    StateCalc(StateCalcError),
 
     /// the operation request doesn't re-assign all of `{0}` state, leading to the state loss.
     NotEnoughChange(StateName),
@@ -774,7 +774,7 @@ pub enum BundleError {
 
     #[from]
     #[display(inner)]
-    UncountableState(UncountableState),
+    StateCalc(StateCalcError),
 
     /// one or multiple outputs used in operation requests contain too many contracts; it is
     /// impossible to create a bundle with more than 64k of operations.
@@ -801,7 +801,7 @@ pub enum FulfillError {
 
     #[from]
     #[display(inner)]
-    StateUncountable(UncountableState),
+    StateCalc(StateCalcError),
 
     /// the invoice asks to create an UTXO for the receiver, but method call doesn't provide
     /// information on how much sats can be put there (`giveaway` parameter).
