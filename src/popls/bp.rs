@@ -493,6 +493,7 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
             .iter()
             .map(|(addr, assignment)| (*addr, &assignment.data))
             .collect::<Vec<_>>();
+        // NB: we do state accumulation with `calc` inside coinselect
         let reading = coinselect
             .coinselect(&value, calc.as_mut(), state)
             .ok_or(FulfillError::StateInsufficient)?;
