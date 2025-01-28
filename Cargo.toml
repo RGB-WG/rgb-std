@@ -80,6 +80,7 @@ serde = [
     "strict_encoding/serde",
     "strict_types/serde",
     "commit_verify/serde",
+    "hypersonic/serde",
     "bp-core/serde",
     "rgb-core/serde",
     "rgb-invoice/serde",

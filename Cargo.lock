@@ -312,9 +312,9 @@ dependencies = [
 
 [[package]]
 name = "bumpalo"
-version = "3.16.0"
+version = "3.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79296716171880943b8470b5f8d03aa55eb2e645a4874bdbb28adb49162e012c"
+checksum = "1628fb46dfa0b37568d12e5edd512553eccf6a22a78e8bde00bb4aed84d5bdbf"
 
 [[package]]
 name = "byteorder"
@@ -526,15 +526,13 @@ dependencies = [
 [[package]]
 name = "hypersonic"
 version = "0.12.0-beta.4"
-source = "git+https://github.com/AluVM/sonic?branch=master#4a8e06cbda2b4fe2a1f83c38d57ef6fcf667282f"
+source = "git+https://github.com/AluVM/sonic?branch=master#e6ae7100a20c3fea16b3c956fbae9fc12490a307"
 dependencies = [
  "aluvm",
  "amplify",
  "commit_verify",
  "getrandom",
- "indexmap",
  "serde",
- "serde_yaml",
  "sonic-api",
  "sonic-callreq",
  "strict_encoding",
@@ -881,9 +879,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.137"
+version = "1.0.138"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "930cfb6e6abf99298aaad7d29abbef7a9999a9a8806a40088f55f0dcec03146b"
+checksum = "d434192e7da787e94a6ea7e9670b26a036d0ca41e0b7efb2676dd32bae872949"
 dependencies = [
  "itoa",
  "memchr",
@@ -953,7 +951,7 @@ dependencies = [
 [[package]]
 name = "sonic-api"
 version = "0.12.0-beta.4"
-source = "git+https://github.com/AluVM/sonic?branch=master#4a8e06cbda2b4fe2a1f83c38d57ef6fcf667282f"
+source = "git+https://github.com/AluVM/sonic?branch=master#e6ae7100a20c3fea16b3c956fbae9fc12490a307"
 dependencies = [
  "aluvm",
  "amplify",
@@ -972,7 +970,7 @@ dependencies = [
 [[package]]
 name = "sonic-callreq"
 version = "0.12.0-beta.4"
-source = "git+https://github.com/AluVM/sonic?branch=master#4a8e06cbda2b4fe2a1f83c38d57ef6fcf667282f"
+source = "git+https://github.com/AluVM/sonic?branch=master#e6ae7100a20c3fea16b3c956fbae9fc12490a307"
 dependencies = [
  "amplify",
  "baid64",
@@ -1132,7 +1130,7 @@ checksum = "42ff0bf0c66b8238c6f3b578df37d0b7848e55df8577b3f74f92a69acceeb825"
 [[package]]
 name = "ultrasonic"
 version = "0.12.0-beta.4"
-source = "git+https://github.com/AluVM/ultrasonic?branch=master#61b4f9c314e1432bf281a2cbf7a0777853c8b7ef"
+source = "git+https://github.com/AluVM/ultrasonic?branch=master#2bb7be96e316746363ff3e4f1f2ccb1c8496a94a"
 dependencies = [
  "amplify",
  "baid64",
