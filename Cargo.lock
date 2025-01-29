@@ -284,7 +284,7 @@ dependencies = [
 [[package]]
 name = "bp-invoice"
 version = "0.12.0-beta.4"
-source = "git+https://github.com/BP-WG/bp-std?branch=v0.12#f34c9a1de88293a37009504f5b2996655c909481"
+source = "git+https://github.com/BP-WG/bp-std?branch=v0.12#d8e4d74c5f6e43a8d1bab8dc3e80cf62807ada58"
 dependencies = [
  "amplify",
  "bech32",
@@ -526,7 +526,7 @@ dependencies = [
 [[package]]
 name = "hypersonic"
 version = "0.12.0-beta.4"
-source = "git+https://github.com/AluVM/sonic?branch=master#7e9ae283f3c81290e877e67c1f815b343ba99039"
+source = "git+https://github.com/AluVM/sonic?branch=master#02a20eb21293ec23da6d71bf1e6425fcdc3194ce"
 dependencies = [
  "aluvm",
  "amplify",
@@ -738,7 +738,7 @@ dependencies = [
 [[package]]
 name = "rgb-core"
 version = "0.12.0-beta.4"
-source = "git+https://github.com/RGB-WG/rgb-core?branch=v0.12#2be7f6c0926356aae0efb261a2369b1fae6f89fe"
+source = "git+https://github.com/RGB-WG/rgb-core?branch=v0.12#3f86c299cd46604edd8690ef4914ceb9c9ded0b1"
 dependencies = [
  "amplify",
  "bp-core",
@@ -951,7 +951,7 @@ dependencies = [
 [[package]]
 name = "sonic-api"
 version = "0.12.0-beta.4"
-source = "git+https://github.com/AluVM/sonic?branch=master#7e9ae283f3c81290e877e67c1f815b343ba99039"
+source = "git+https://github.com/AluVM/sonic?branch=master#02a20eb21293ec23da6d71bf1e6425fcdc3194ce"
 dependencies = [
  "aluvm",
  "amplify",
@@ -970,7 +970,7 @@ dependencies = [
 [[package]]
 name = "sonic-callreq"
 version = "0.12.0-beta.4"
-source = "git+https://github.com/AluVM/sonic?branch=master#7e9ae283f3c81290e877e67c1f815b343ba99039"
+source = "git+https://github.com/AluVM/sonic?branch=master#02a20eb21293ec23da6d71bf1e6425fcdc3194ce"
 dependencies = [
  "amplify",
  "baid64",

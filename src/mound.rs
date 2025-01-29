@@ -213,7 +213,7 @@ impl<S: Supply, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
     pub fn consume(
         &mut self,
         reader: &mut StrictReader<impl ReadRaw>,
-        seal_resolver: impl FnMut(&[StateCell]) -> Vec<P::Seal>,
+        seal_resolver: impl FnMut(&[StateCell]) -> BTreeMap<u16, P::Seal>,
     ) -> Result<(), MoundConsumeError<P::Seal>>
     where
         <P::Seal as SingleUseSeal>::CliWitness: StrictDecode,

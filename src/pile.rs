@@ -22,7 +22,7 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
-use amplify::confinement::SmallVec;
+use amplify::confinement::SmallOrdMap;
 use hypersonic::aora::Aora;
 use hypersonic::Opid;
 use rgb::{ClientSideWitness, RgbSeal};
@@ -44,7 +44,7 @@ pub trait Pile {
         Id = <<Self::Seal as SingleUseSeal>::PubWitness as PublishedWitness<Self::Seal>>::PubId,
         Item = <Self::Seal as SingleUseSeal>::PubWitness,
     >;
-    type Keep: Aora<Id = Opid, Item = SmallVec<Self::Seal>>;
+    type Keep: Aora<Id = Opid, Item = SmallOrdMap<u16, Self::Seal>>;
     type Index: Index<
         Opid,
         <<Self::Seal as SingleUseSeal>::PubWitness as PublishedWitness<Self::Seal>>::PubId,
@@ -178,7 +178,7 @@ pub mod fs {
     {
         hoard: FileAora<<Seal::PubWitness as PublishedWitness<Seal>>::PubId, Seal::CliWitness>,
         cache: FileAora<<Seal::PubWitness as PublishedWitness<Seal>>::PubId, Seal::PubWitness>,
-        keep: FileAora<Opid, SmallVec<Seal>>,
+        keep: FileAora<Opid, SmallOrdMap<u16, Seal>>,
         index: FileIndex<<<Seal as SingleUseSeal>::PubWitness as PublishedWitness<Seal>>::PubId>,
     }
 
@@ -231,7 +231,7 @@ pub mod fs {
             FileAora<<Seal::PubWitness as PublishedWitness<Seal>>::PubId, Seal::CliWitness>;
         type Cache =
             FileAora<<Seal::PubWitness as PublishedWitness<Seal>>::PubId, Seal::PubWitness>;
-        type Keep = FileAora<Opid, SmallVec<Seal>>;
+        type Keep = FileAora<Opid, SmallOrdMap<u16, Seal>>;
         type Index =
             FileIndex<<<Seal as SingleUseSeal>::PubWitness as PublishedWitness<Seal>>::PubId>;
 

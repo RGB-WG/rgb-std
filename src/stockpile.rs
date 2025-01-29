@@ -28,7 +28,7 @@ use core::marker::PhantomData;
 // TODO: Used in strict encoding; once solved there, remove here
 use std::io;
 
-use amplify::confinement::SmallVec;
+use amplify::confinement::SmallOrdMap;
 use amplify::IoError;
 use chrono::{DateTime, Utc};
 use commit_verify::ReservedBytes;
@@ -189,12 +189,15 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
     pub fn issue(schema: Schema, params: CreateParams<P::Seal>, supply: S, mut pile: P) -> Self {
         assert_eq!(params.codex_id, schema.codex.codex_id());
 
-        let seals = SmallVec::try_from_iter(
-            params
-                .owned
-                .iter()
-                .filter_map(|assignment| assignment.state.seal.to_explicit()),
-        )
+        let seals = SmallOrdMap::try_from_iter(params.owned.iter().enumerate().filter_map(
+            |(pos, assignment)| {
+                assignment
+                    .state
+                    .seal
+                    .to_explicit()
+                    .map(|seal| (pos as u16, seal))
+            },
+        ))
         .expect("too many outputs");
         let params = IssueParams {
             name: params.name,
@@ -253,7 +256,7 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
                         .into_iter()
                         .filter_map(|(addr, data)| {
                             let seals = self.pile_mut().keep_mut().read(addr.opid);
-                            let seal = seals.get(addr.pos as usize)?.clone();
+                            let seal = seals.get(&addr.pos)?.clone();
                             Some((addr, Assignment { seal, data }))
                         })
                         .collect();
@@ -304,7 +307,7 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
     pub fn consume(
         &mut self,
         stream: &mut StrictReader<impl ReadRaw>,
-        seal_resolver: impl FnMut(&[StateCell]) -> Vec<P::Seal>,
+        seal_resolver: impl FnMut(&[StateCell]) -> BTreeMap<u16, P::Seal>,
     ) -> Result<(), ConsumeError<P::Seal>>
     where
         <P::Seal as SingleUseSeal>::CliWitness: StrictDecode,
@@ -334,13 +337,13 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
     }
 }
 
-pub struct OpReader<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&[StateCell]) -> Vec<Seal>> {
+pub struct OpReader<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&[StateCell]) -> BTreeMap<u16, Seal>> {
     stream: &'r mut StrictReader<R>,
     seal_resolver: F,
     _phantom: PhantomData<Seal>,
 }
 
-impl<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&[StateCell]) -> Vec<Seal>> ReadOperation
+impl<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&[StateCell]) -> BTreeMap<u16, Seal>> ReadOperation
     for OpReader<'r, Seal, R, F>
 {
     type Seal = Seal;
@@ -349,7 +352,7 @@ impl<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&[StateCell]) -> Vec<Seal>> ReadOpe
     fn read_operation(mut self) -> Option<(OperationSeals<Self::Seal>, Self::WitnessReader)> {
         match Operation::strict_decode(self.stream) {
             Ok(operation) => {
-                let mut defined_seals = SmallVec::strict_decode(self.stream)
+                let mut defined_seals = SmallOrdMap::strict_decode(self.stream)
                     .expect("Failed to read consignment stream");
                 defined_seals
                     .extend((self.seal_resolver)(operation.destructible.as_ref()))
@@ -368,12 +371,17 @@ impl<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&[StateCell]) -> Vec<Seal>> ReadOpe
     }
 }
 
-pub struct WitnessReader<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&[StateCell]) -> Vec<Seal>> {
+pub struct WitnessReader<
+    'r,
+    Seal: RgbSeal,
+    R: ReadRaw,
+    F: FnMut(&[StateCell]) -> BTreeMap<u16, Seal>,
+> {
     left: u64,
     parent: OpReader<'r, Seal, R, F>,
 }
 
-impl<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&[StateCell]) -> Vec<Seal>> ReadWitness
+impl<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&[StateCell]) -> BTreeMap<u16, Seal>> ReadWitness
     for WitnessReader<'r, Seal, R, F>
 {
     type Seal = Seal;

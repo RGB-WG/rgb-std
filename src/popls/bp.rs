@@ -28,9 +28,7 @@
 use alloc::collections::{btree_set, BTreeMap, BTreeSet};
 use alloc::vec;
 
-use amplify::confinement::{
-    Collection, NonEmptyVec, SmallOrdMap, SmallOrdSet, SmallVec, U8 as U8MAX,
-};
+use amplify::confinement::{Collection, NonEmptyVec, SmallOrdMap, SmallOrdSet, U8 as U8MAX};
 use amplify::{confinement, ByteArray, Bytes32, Wrapper};
 use bp::dbc::tapret::TapretProof;
 use bp::seals::{mmb, Anchor, TxoSeal, TxoSealExt};
@@ -62,7 +60,7 @@ pub trait WalletProvider {
     fn resolve_seals(
         &self,
         seals: impl Iterator<Item = AuthToken>,
-    ) -> impl Iterator<Item = TxoSeal>;
+    ) -> impl Iterator<Item = (u16, TxoSeal)>;
     fn next_address(&mut self) -> Address;
     fn next_nonce(&mut self) -> u64;
 }
@@ -566,19 +564,20 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
         let closes = SmallOrdSet::try_from(closes).map_err(|_| PrefabError::TooManyInputs)?;
         let mut defines = SmallOrdSet::new();
 
-        let mut seals = SmallVec::new();
+        let mut seals = SmallOrdMap::new();
         let mut noise_engine = self.noise_engine();
         noise_engine.input_raw(request.contract_id.as_slice());
 
         let mut owned = Vec::with_capacity(request.owned.len());
-        for (nonce, assignment) in request.owned.into_iter().enumerate() {
+        for (opout_no, assignment) in request.owned.into_iter().enumerate() {
             let auth = match assignment.state.seal {
                 EitherSeal::Alt(vout) => {
                     defines
                         .push(vout)
                         .map_err(|_| PrefabError::TooManyOutputs)?;
-                    let seal = TxoSeal::vout_no_fallback(vout, noise_engine.clone(), nonce as u64);
-                    seals.push(seal).expect("checked above");
+                    let seal =
+                        TxoSeal::vout_no_fallback(vout, noise_engine.clone(), opout_no as u64);
+                    seals.insert(opout_no as u16, seal).expect("checked above");
                     seal.auth_token()
                 }
                 EitherSeal::Token(auth) => auth,
