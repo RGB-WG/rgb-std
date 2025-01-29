@@ -489,14 +489,26 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
         let state = state
             .owned
             .get(&state_name)
-            .ok_or(FulfillError::StateUnavailable)?
+            .ok_or(FulfillError::StateUnavailable)?;
+        let src = state
             .iter()
             .map(|(addr, assignment)| (*addr, &assignment.data))
             .collect::<Vec<_>>();
         // NB: we do state accumulation with `calc` inside coinselect
-        let reading = coinselect
-            .coinselect(&value, calc.as_mut(), state)
+        let using = coinselect
+            .coinselect(&value, calc.as_mut(), src)
             .ok_or(FulfillError::StateInsufficient)?;
+        let using = using
+            .into_iter()
+            .map(|addr| {
+                let assignment = state.get(&addr).expect("just selected");
+                UsedState {
+                    addr,
+                    outpoint: assignment.seal,
+                    val: assignment.data.clone(),
+                }
+            })
+            .collect();
 
         // Add beneficiaries
         let seal = match invoice.auth {
@@ -527,9 +539,9 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
         Ok(OpRequest {
             contract_id,
             method,
-            using: none!(),
+            reading: none!(),
             global: none!(),
-            reading,
+            using,
             owned,
         })
     }
