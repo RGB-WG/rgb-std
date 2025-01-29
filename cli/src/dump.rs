@@ -41,7 +41,6 @@ use rgb::{
 use serde::{Deserialize, Serialize};
 use strict_encoding::{DecodeError, StreamReader, StrictDecode, StrictEncode, StrictReader};
 
-// TODO: Auto-compute seal type out of the articles data
 pub fn dump_stockpile<Seal>(src: &Path, dst: impl AsRef<Path>) -> anyhow::Result<()>
 where
     Seal: RgbSeal + Serialize + for<'de> Deserialize<'de>,
@@ -130,7 +129,6 @@ where
     Ok(())
 }
 
-// TODO: Auto-compute seal type out of the articles data
 pub fn dump_consignment<Seal>(src: &Path, dst: impl AsRef<Path>) -> anyhow::Result<()>
 where
     Seal: RgbSeal + Serialize,
