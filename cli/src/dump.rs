@@ -44,7 +44,7 @@ use strict_encoding::{DecodeError, StreamReader, StrictDecode, StrictEncode, Str
 // TODO: Auto-compute seal type out of the articles data
 pub fn dump_stockpile<Seal>(src: &Path, dst: impl AsRef<Path>) -> anyhow::Result<()>
 where
-    Seal: RgbSeal + Serialize,
+    Seal: RgbSeal + Serialize + for<'de> Deserialize<'de>,
     Seal::CliWitness: Serialize + StrictEncode + StrictDecode,
     Seal::PubWitness: Serialize + StrictEncode + StrictDecode,
     <Seal::PubWitness as PublishedWitness<Seal>>::PubId:
@@ -77,6 +77,19 @@ where
         print!("\rProcessing trace ... {} state transition processed", no + 1);
     }
     println!();
+
+    print!("Processing state ... ");
+    let out = File::create_new(dst.join("state.yaml"))?;
+    serde_yaml::to_writer(&out, &stockpile.state())?;
+    let out = File::create_new(dst.join("state-raw.yaml"))?;
+    serde_yaml::to_writer(&out, &stockpile.stock().state().raw)?;
+    let out = File::create_new(dst.join("state-main.yaml"))?;
+    serde_yaml::to_writer(&out, &stockpile.stock().state().main)?;
+    for (name, state) in &stockpile.stock().state().aux {
+        let out = File::create_new(dst.join(format!("state-{name}.yaml")))?;
+        serde_yaml::to_writer(&out, state)?;
+    }
+    println!("success");
 
     print!("Processing anchors ... none found");
     for (no, (txid, anchor)) in stockpile.pile_mut().hoard_mut().iter().enumerate() {
