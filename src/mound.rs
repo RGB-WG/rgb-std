@@ -38,7 +38,7 @@ use strict_encoding::{
 };
 
 use crate::{
-    Consensus, ConsumeError, ContractInfo, ContractRef, CreateParams, Pile, StateCell, Stockpile,
+    Consensus, ConsumeError, ContractInfo, ContractRef, CreateParams, Operation, Pile, Stockpile,
 };
 
 pub const MAGIC_BYTES_CONSIGNMENT: [u8; 16] = *b"RGB CONSIGNMENT\0";
@@ -213,7 +213,7 @@ impl<S: Supply, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
     pub fn consume(
         &mut self,
         reader: &mut StrictReader<impl ReadRaw>,
-        seal_resolver: impl FnMut(&[StateCell]) -> BTreeMap<u16, P::Seal>,
+        seal_resolver: impl FnMut(&Operation) -> BTreeMap<u16, P::Seal>,
     ) -> Result<(), MoundConsumeError<P::Seal>>
     where
         <P::Seal as SingleUseSeal>::CliWitness: StrictDecode,

@@ -60,7 +60,7 @@ pub trait WalletProvider {
     fn resolve_seals(
         &self,
         seals: impl Iterator<Item = AuthToken>,
-    ) -> impl Iterator<Item = (u16, TxoSeal)>;
+    ) -> impl Iterator<Item = TxoSeal>;
     fn next_address(&mut self) -> Address;
     fn next_nonce(&mut self) -> u64;
 }
@@ -748,9 +748,18 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
         &mut self,
         reader: &mut StrictReader<impl ReadRaw>,
     ) -> Result<(), MoundConsumeError<TxoSeal>> {
-        self.mound.consume(reader, |cells| {
+        self.mound.consume(reader, |op| {
             self.wallet
-                .resolve_seals(cells.iter().map(|cell| cell.auth))
+                .resolve_seals(op.destructible.iter().map(|cell| cell.auth))
+                .map(|seal| {
+                    let auth = seal.auth_token();
+                    let op_out =
+                        op.destructible
+                            .iter()
+                            .position(|cell| cell.auth == auth)
+                            .expect("invalid wallet implementation") as u16;
+                    (op_out, seal)
+                })
                 .collect()
         })
     }

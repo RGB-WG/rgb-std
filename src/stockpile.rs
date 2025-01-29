@@ -50,7 +50,7 @@ use strict_encoding::{
 };
 use strict_types::StrictVal;
 
-use crate::{ContractMeta, Pile, StateCell};
+use crate::{ContractMeta, Pile};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, From)]
 #[cfg_attr(
@@ -307,7 +307,7 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
     pub fn consume(
         &mut self,
         stream: &mut StrictReader<impl ReadRaw>,
-        seal_resolver: impl FnMut(&[StateCell]) -> BTreeMap<u16, P::Seal>,
+        seal_resolver: impl FnMut(&Operation) -> BTreeMap<u16, P::Seal>,
     ) -> Result<(), ConsumeError<P::Seal>>
     where
         <P::Seal as SingleUseSeal>::CliWitness: StrictDecode,
@@ -337,13 +337,13 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
     }
 }
 
-pub struct OpReader<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&[StateCell]) -> BTreeMap<u16, Seal>> {
+pub struct OpReader<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&Operation) -> BTreeMap<u16, Seal>> {
     stream: &'r mut StrictReader<R>,
     seal_resolver: F,
     _phantom: PhantomData<Seal>,
 }
 
-impl<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&[StateCell]) -> BTreeMap<u16, Seal>> ReadOperation
+impl<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&Operation) -> BTreeMap<u16, Seal>> ReadOperation
     for OpReader<'r, Seal, R, F>
 {
     type Seal = Seal;
@@ -355,7 +355,7 @@ impl<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&[StateCell]) -> BTreeMap<u16, Seal
                 let mut defined_seals = SmallOrdMap::strict_decode(self.stream)
                     .expect("Failed to read consignment stream");
                 defined_seals
-                    .extend((self.seal_resolver)(operation.destructible.as_ref()))
+                    .extend((self.seal_resolver)(&operation))
                     .expect("Too many seals defined in the operation");
                 let op_seals = OperationSeals { operation, defined_seals };
                 let count =
@@ -371,17 +371,13 @@ impl<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&[StateCell]) -> BTreeMap<u16, Seal
     }
 }
 
-pub struct WitnessReader<
-    'r,
-    Seal: RgbSeal,
-    R: ReadRaw,
-    F: FnMut(&[StateCell]) -> BTreeMap<u16, Seal>,
-> {
+pub struct WitnessReader<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&Operation) -> BTreeMap<u16, Seal>>
+{
     left: u64,
     parent: OpReader<'r, Seal, R, F>,
 }
 
-impl<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&[StateCell]) -> BTreeMap<u16, Seal>> ReadWitness
+impl<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&Operation) -> BTreeMap<u16, Seal>> ReadWitness
     for WitnessReader<'r, Seal, R, F>
 {
     type Seal = Seal;
