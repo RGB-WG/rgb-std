@@ -78,6 +78,7 @@ pub trait Coinselect {
 pub const BP_BLANK_METHOD: &str = "_";
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct PrefabSeal {
     pub vout: Vout,
     pub noise: Option<Noise>,
