@@ -44,6 +44,8 @@ pub const WITNESS_OUT_HRI: &str = "wout:";
 #[strict_type(lib = "RGB")]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct WitnessOut {
+    #[strict_type(skip)]
+    #[cfg_attr(feature = "serde", serde(skip))]
     reserved: ReservedBytes<1>,
     salt: u64,
     address: AddressPayload,

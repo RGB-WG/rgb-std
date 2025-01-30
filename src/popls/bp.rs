@@ -78,11 +78,12 @@ pub trait Coinselect {
 pub const BP_BLANK_METHOD: &str = "_";
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
-#[display("{wout}/{amount}")]
+#[display("{wout}/{sats}")]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct WoutAssignment {
+    #[cfg_attr(feature = "serde", serde(with = "serde_with::rust::display_fromstr"))]
     pub wout: WitnessOut,
-    pub amount: Sats,
+    pub sats: Sats,
 }
 
 impl From<WoutAssignment> for ScriptPubkey {
@@ -525,7 +526,7 @@ impl<
             RgbBeneficiary::WitnessOut(wout) => {
                 let wout = WoutAssignment {
                     wout,
-                    amount: giveaway.ok_or(FulfillError::WoutRequiresGiveaway)?,
+                    sats: giveaway.ok_or(FulfillError::WoutRequiresGiveaway)?,
                 };
                 EitherSeal::Alt(Some(wout))
             }

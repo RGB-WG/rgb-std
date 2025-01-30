@@ -60,6 +60,7 @@ use crate::{ContractMeta, Index, Pile};
 )]
 pub enum EitherSeal<Seal> {
     Alt(Seal),
+
     #[from]
     Token(AuthToken),
 }
