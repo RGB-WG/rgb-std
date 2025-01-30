@@ -738,7 +738,7 @@ dependencies = [
 [[package]]
 name = "rgb-core"
 version = "0.12.0-beta.4"
-source = "git+https://github.com/RGB-WG/rgb-core?branch=wtxoseal#43d885ffee9d6bce56ea400e5dbf90878d25b443"
+source = "git+https://github.com/RGB-WG/rgb-core?branch=wtxoseal#0aabcc42d53ee4202bcc0e559b9b74c6d0a0b89f"
 dependencies = [
  "amplify",
  "bp-core",

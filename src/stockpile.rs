@@ -254,8 +254,16 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
                 let Some(seal) = seals.get(&addr.pos) else {
                     continue;
                 };
-                for wid in self.pile_mut().index_mut().get(addr.opid) {
-                    state.insert(addr, Assignment { seal: seal.resolve(wid), data: data.clone() });
+                if let Some(seal) = seal.to_src() {
+                    state.insert(addr, Assignment { seal, data });
+                } else {
+                    // We insert a copy of state for each of the witnesses created for the operation
+                    for wid in self.pile_mut().index_mut().get(addr.opid) {
+                        state.insert(addr, Assignment {
+                            seal: seal.resolve(wid),
+                            data: data.clone(),
+                        });
+                    }
                 }
             }
             owned.insert(name, state);
