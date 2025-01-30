@@ -35,25 +35,26 @@ use commit_verify::ReservedBytes;
 use hypersonic::aora::Aora;
 use hypersonic::{Articles, ContractId, FileSupply, Operation};
 use rgb::{
-    FilePile, Index, MoundConsumeError, Pile, PublishedWitness, RgbSeal, SealWitness, Stockpile,
-    MAGIC_BYTES_CONSIGNMENT,
+    FilePile, Index, MoundConsumeError, Pile, PublishedWitness, RgbSealDef, SealWitness,
+    SingleUseSeal, Stockpile, MAGIC_BYTES_CONSIGNMENT,
 };
 use serde::{Deserialize, Serialize};
 use strict_encoding::{DecodeError, StreamReader, StrictDecode, StrictEncode, StrictReader};
 
-pub fn dump_stockpile<Seal>(src: &Path, dst: impl AsRef<Path>) -> anyhow::Result<()>
+pub fn dump_stockpile<SealDef>(src: &Path, dst: impl AsRef<Path>) -> anyhow::Result<()>
 where
-    Seal: RgbSeal + Serialize + for<'de> Deserialize<'de>,
-    Seal::CliWitness: Serialize + StrictEncode + StrictDecode,
-    Seal::PubWitness: Serialize + StrictEncode + StrictDecode,
-    <Seal::PubWitness as PublishedWitness<Seal>>::PubId:
+    SealDef: RgbSealDef + Serialize + for<'de> Deserialize<'de>,
+    SealDef::Src: Serialize + for<'de> Deserialize<'de>,
+    <SealDef::Src as SingleUseSeal>::CliWitness: Serialize + StrictEncode + StrictDecode,
+    <SealDef::Src as SingleUseSeal>::PubWitness: Serialize + StrictEncode + StrictDecode,
+    <<SealDef::Src as SingleUseSeal>::PubWitness as PublishedWitness<SealDef::Src>>::PubId:
         Ord + From<[u8; 32]> + Into<[u8; 32]> + Serialize,
 {
     let dst = dst.as_ref();
     fs::create_dir_all(dst)?;
 
     print!("Reading contract stockpile from '{}' ... ", src.display());
-    let mut stockpile = Stockpile::<FileSupply, FilePile<Seal>>::load(src);
+    let mut stockpile = Stockpile::<FileSupply, FilePile<SealDef>>::load(src);
     println!("success reading {}", stockpile.contract_id());
 
     print!("Processing contract articles ... ");
@@ -129,12 +130,15 @@ where
     Ok(())
 }
 
-pub fn dump_consignment<Seal>(src: &Path, dst: impl AsRef<Path>) -> anyhow::Result<()>
+pub fn dump_consignment<SealDef>(src: &Path, dst: impl AsRef<Path>) -> anyhow::Result<()>
 where
-    Seal: RgbSeal + Serialize,
-    Seal::CliWitness: Serialize + for<'de> Deserialize<'de> + StrictEncode + StrictDecode,
-    Seal::PubWitness: Serialize + for<'de> Deserialize<'de> + StrictEncode + StrictDecode,
-    <Seal::PubWitness as PublishedWitness<Seal>>::PubId:
+    SealDef: RgbSealDef + Serialize,
+    SealDef::Src: Serialize,
+    <SealDef::Src as SingleUseSeal>::CliWitness:
+        Serialize + for<'de> Deserialize<'de> + StrictEncode + StrictDecode,
+    <SealDef::Src as SingleUseSeal>::PubWitness:
+        Serialize + for<'de> Deserialize<'de> + StrictEncode + StrictDecode,
+    <<SealDef::Src as SingleUseSeal>::PubWitness as PublishedWitness<SealDef::Src>>::PubId:
         Ord + From<[u8; 32]> + Into<[u8; 32]> + Serialize,
 {
     let dst = dst.as_ref();
@@ -146,7 +150,7 @@ where
     let magic_bytes = Bytes16::strict_decode(&mut stream)?;
     if magic_bytes.to_byte_array() != MAGIC_BYTES_CONSIGNMENT {
         return Err(anyhow!(
-            MoundConsumeError::<Seal>::UnrecognizedMagic(magic_bytes.to_hex()).to_string()
+            MoundConsumeError::<SealDef>::UnrecognizedMagic(magic_bytes.to_hex()).to_string()
         ));
     }
     // Version
@@ -173,7 +177,7 @@ where
 
     let out = File::create_new(dst.join("0000-seals.yml"))?;
     let defined_seals =
-        SmallVec::<Seal>::strict_decode(&mut stream).expect("Failed to read consignment stream");
+        SmallVec::<SealDef>::strict_decode(&mut stream).expect("Failed to read consignment stream");
     serde_yaml::to_writer(&out, &defined_seals)?;
     seal_count += defined_seals.len();
 
@@ -196,7 +200,7 @@ where
                 serde_yaml::to_writer(&out, &operation)?;
 
                 let out = File::create_new(dst.join(format!("{op_count:04}-seals.yml")))?;
-                let defined_seals = SmallVec::<Seal>::strict_decode(&mut stream)
+                let defined_seals = SmallVec::<SealDef>::strict_decode(&mut stream)
                     .expect("Failed to read consignment stream");
                 serde_yaml::to_writer(&out, &defined_seals)?;
                 seal_count += defined_seals.len();
@@ -206,7 +210,7 @@ where
                     let out = File::create_new(
                         dst.join(format!("{op_count:04}-witness-{:02}.yaml", no + 1)),
                     )?;
-                    let witness = SealWitness::<Seal>::strict_decode(&mut stream)?;
+                    let witness = SealWitness::<SealDef::Src>::strict_decode(&mut stream)?;
                     serde_yaml::to_writer(&out, &witness)?;
                 }
 

@@ -25,7 +25,7 @@
 use std::fs;
 use std::io::stdout;
 
-use bp::seals::TxoSeal;
+use bp::seals::WTxoSeal;
 use rgb::popls::bp::PrefabBundle;
 use rgb::Schema;
 use strict_encoding::StrictDeserialize;
@@ -95,7 +95,7 @@ impl Args {
                             }
                         })?;
                     }
-                    dump_consignment::<TxoSeal>(src, dst)?;
+                    dump_consignment::<WTxoSeal>(src, dst)?;
                 }
                 Some(ext) if ext == "contract" => {
                     let dst = dst
@@ -111,7 +111,7 @@ impl Args {
                             }
                         })?;
                     }
-                    dump_stockpile::<TxoSeal>(src, dst)?;
+                    dump_stockpile::<WTxoSeal>(src, dst)?;
                 }
                 Some(_) => {
                     return Err(anyhow!(
