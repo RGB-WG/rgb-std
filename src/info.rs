@@ -25,7 +25,7 @@ use std::str::FromStr;
 
 use amplify::confinement::TinyOrdSet;
 use chrono::{DateTime, TimeZone, Utc};
-use rgb::{ContractId, Genesis, Identity, Layer1, Operation, SchemaId};
+use rgb::{ChainNet, ContractId, Genesis, Identity, Operation, SchemaId};
 use strict_encoding::stl::{AlphaCapsLodash, AlphaNumLodash};
 use strict_encoding::{FieldName, RString, StrictDeserialize, StrictSerialize, TypeName};
 
@@ -281,8 +281,7 @@ pub struct ContractInfo {
     pub schema_id: SchemaId,
     pub issuer: Identity,
     pub issued_at: DateTime<Utc>,
-    pub layer1: Layer1,
-    pub testnet: bool,
+    pub chain_net: ChainNet,
 }
 
 impl ContractInfo {
@@ -295,8 +294,7 @@ impl ContractInfo {
                 .timestamp_opt(genesis.timestamp, 0)
                 .single()
                 .unwrap_or_else(Utc::now),
-            layer1: genesis.layer1,
-            testnet: genesis.testnet,
+            chain_net: genesis.chain_net,
         }
     }
 }
@@ -304,7 +302,7 @@ impl ContractInfo {
 impl Display for ContractInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.id)?;
-        write!(f, "\t{}", self.layer1)?;
+        write!(f, "\t{}", self.chain_net)?;
         write!(f, "\t{}", self.issued_at.format("%Y-%m-%d"))?;
         writeln!(f, "\t{: <80}", self.schema_id.to_string())?;
         writeln!(f, "  Developer: {}", self.issuer)

@@ -29,7 +29,7 @@ use chrono::Utc;
 use invoice::{Allocation, Amount};
 use rgb::validation::Scripts;
 use rgb::{
-    validation, Assign, AssignmentType, Assignments, AttachState, ContractId, DataState,
+    validation, Assign, AssignmentType, Assignments, AttachState, ChainNet, ContractId, DataState,
     ExposedSeal, FungibleType, Genesis, GenesisSeal, GlobalState, GraphSeal, Identity, Input,
     Layer1, MetadataError, Opout, OwnedStateSchema, RevealedAttach, RevealedData, RevealedValue,
     Schema, Transition, TransitionType, TypedAssigns,
@@ -98,10 +98,9 @@ pub enum BuilderError {
 #[derive(Clone, Debug)]
 pub struct ContractBuilder {
     builder: OperationBuilder<GenesisSeal>,
-    testnet: bool,
     scripts: Scripts,
     issuer: Identity,
-    layer1: Layer1,
+    chain_net: ChainNet,
 }
 
 impl ContractBuilder {
@@ -112,14 +111,13 @@ impl ContractBuilder {
         iimpl: IfaceImpl,
         types: TypeSystem,
         scripts: Scripts,
-        layer1: Layer1,
+        chain_net: ChainNet,
     ) -> Self {
         Self {
             builder: OperationBuilder::with(iface, schema, iimpl, types),
-            testnet: true,
             scripts,
             issuer,
-            layer1,
+            chain_net,
         }
     }
 
@@ -131,23 +129,17 @@ impl ContractBuilder {
         iimpl: IfaceImpl,
         types: TypeSystem,
         scripts: Scripts,
-        layer1: Layer1,
+        chain_net: ChainNet,
     ) -> Self {
         Self {
             builder: OperationBuilder::deterministic(iface, schema, iimpl, types),
-            testnet: true,
             scripts,
             issuer,
-            layer1,
+            chain_net,
         }
     }
 
     pub fn type_system(&self) -> &TypeSystem { self.builder.type_system() }
-
-    pub fn set_mainnet(mut self) -> Self {
-        self.testnet = false;
-        self
-    }
 
     #[inline]
     pub fn global_type(&self, name: &FieldName) -> Option<GlobalStateType> {
@@ -291,8 +283,7 @@ impl ContractBuilder {
             schema_id: schema.schema_id(),
             flags: none!(),
             timestamp,
-            layer1: self.layer1,
-            testnet: self.testnet,
+            chain_net: self.chain_net,
             metadata: empty!(),
             globals: global,
             assignments,
@@ -323,7 +314,7 @@ impl ContractBuilder {
         };
 
         let valid_contract = contract
-            .validate(&DumbResolver, self.testnet)
+            .validate(&DumbResolver, self.chain_net)
             .map_err(|(status, _)| status)?;
 
         Ok(valid_contract)

@@ -36,8 +36,8 @@ use nonasync::persistence::{CloneNoPersistence, PersistenceError, PersistencePro
 use rgb::validation::{DbcProof, ResolveWitness, WitnessResolverError};
 use rgb::vm::WitnessOrd;
 use rgb::{
-    validation, AssignmentType, BundleId, ContractId, DataState, GraphSeal, Identity, Layer1, OpId,
-    Operation, Opout, OutputSeal, SchemaId, SecretSeal, Transition,
+    validation, AssignmentType, BundleId, ChainNet, ContractId, DataState, GraphSeal, Identity,
+    OpId, Operation, Opout, OutputSeal, SchemaId, SecretSeal, Transition,
 };
 use strict_encoding::FieldName;
 
@@ -224,8 +224,8 @@ pub enum ComposeError {
     /// expired invoice.
     InvoiceExpired,
 
-    /// Invoice requesting layer 1 {0} but contract is on different layer 1 ({1})
-    InvoiceBeneficiaryWrongLayer1(Layer1, Layer1),
+    /// Invoice requesting chain-network pair {0} but contract commits to a different one ({1})
+    InvoiceBeneficiaryWrongChainNet(ChainNet, ChainNet),
 
     /// the invoice contains no contract information.
     NoContract,
@@ -667,11 +667,11 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         issuer: impl Into<Identity>,
         schema_id: SchemaId,
         iface: impl Into<IfaceRef>,
-        layer1: Layer1,
+        chain_net: ChainNet,
     ) -> Result<ContractBuilder, StockError<S, H, P>> {
         Ok(self
             .stash
-            .contract_builder(issuer.into(), schema_id, iface, layer1)?)
+            .contract_builder(issuer.into(), schema_id, iface, chain_net)?)
     }
 
     pub fn transition_builder(
@@ -993,12 +993,12 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             .ok_or(BuilderError::InvalidStateField(assignment_name.clone()))?;
 
         let contract_genesis = self.stash.genesis(contract_id)?;
-        let contract_layer1 = contract_genesis.layer1;
-        let invoice_layer1 = invoice.layer1();
-        if contract_layer1 != invoice_layer1 {
-            return Err(ComposeError::InvoiceBeneficiaryWrongLayer1(
-                invoice_layer1,
-                contract_layer1,
+        let contract_chain_net = contract_genesis.chain_net;
+        let invoice_chain_net = invoice.chain_network();
+        if contract_chain_net != invoice_chain_net {
+            return Err(ComposeError::InvoiceBeneficiaryWrongChainNet(
+                invoice_chain_net,
+                contract_chain_net,
             )
             .into());
         }

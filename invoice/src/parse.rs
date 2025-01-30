@@ -30,12 +30,10 @@ use fluent_uri::Uri;
 use indexmap::IndexMap;
 use invoice::{AddressPayload, UnknownNetwork};
 use percent_encoding::{utf8_percent_encode, AsciiSet, CONTROLS};
-use rgb::{ContractId, SecretSeal};
+use rgb::{ChainNet, ContractId, SecretSeal};
 use strict_encoding::{InvalidRString, TypeName};
 
-use crate::invoice::{
-    Beneficiary, ChainNet, InvoiceState, Pay2Vout, RgbInvoice, RgbTransport, XChainNet,
-};
+use crate::invoice::{Beneficiary, InvoiceState, Pay2Vout, RgbInvoice, RgbTransport, XChainNet};
 
 const OMITTED: &str = "~";
 const EXPIRY: &str = "expiry";
@@ -211,26 +209,10 @@ impl FromStr for RgbTransport {
 
 impl Display for XChainNet<Beneficiary> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:", self.chain_network())?;
+        write!(f, "{}:", self.chain_network().prefix())?;
         match self.into_inner() {
             Beneficiary::BlindedSeal(seal) => Display::fmt(&seal, f),
             Beneficiary::WitnessVout(payload) => payload.fmt_baid64(f),
-        }
-    }
-}
-
-impl FromStr for ChainNet {
-    type Err = InvoiceParseError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase() {
-            x if ChainNet::BitcoinMainnet.to_string() == x => Ok(ChainNet::BitcoinMainnet),
-            x if ChainNet::BitcoinTestnet.to_string() == x => Ok(ChainNet::BitcoinTestnet),
-            x if ChainNet::BitcoinSignet.to_string() == x => Ok(ChainNet::BitcoinSignet),
-            x if ChainNet::BitcoinRegtest.to_string() == x => Ok(ChainNet::BitcoinRegtest),
-            x if ChainNet::LiquidMainnet.to_string() == x => Ok(ChainNet::BitcoinMainnet),
-            x if ChainNet::LiquidTestnet.to_string() == x => Ok(ChainNet::LiquidTestnet),
-            _ => Err(InvoiceParseError::Beneficiary(s.to_owned())),
         }
     }
 }
@@ -280,7 +262,8 @@ impl FromStr for XChainNet<Beneficiary> {
         let Some((cn, beneficiary)) = s.split_once(':') else {
             return Err(InvoiceParseError::Beneficiary(s.to_owned()));
         };
-        let cn = ChainNet::from_str(cn)?;
+        let cn =
+            ChainNet::from_str(cn).map_err(|_| InvoiceParseError::Beneficiary(s.to_owned()))?;
         if let Ok(seal) = SecretSeal::from_str(beneficiary) {
             return Ok(XChainNet::with(cn, Beneficiary::BlindedSeal(seal)));
         }

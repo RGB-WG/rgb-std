@@ -26,7 +26,7 @@ use amplify::{ByteArray, Bytes32};
 use bp::{InvalidPubkey, OutputPk, PubkeyHash, ScriptHash, WPubkeyHash, WScriptHash};
 use indexmap::IndexMap;
 use invoice::{AddressNetwork, AddressPayload, Network};
-use rgb::{AttachId, ContractId, Layer1, SecretSeal};
+use rgb::{AttachId, ChainNet, ContractId, Layer1, SecretSeal};
 use strict_encoding::{FieldName, TypeName};
 
 use crate::{Amount, NonFungible};
@@ -78,61 +78,12 @@ impl FromStr for InvoiceState {
     }
 }
 
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
-#[non_exhaustive]
-pub enum ChainNet {
-    #[display("bc")]
-    BitcoinMainnet,
-    #[display("tb")]
-    BitcoinTestnet,
-    #[display("sb")]
-    BitcoinSignet,
-    #[display("bcrt")]
-    BitcoinRegtest,
-    #[display("lq")]
-    LiquidMainnet,
-    #[display("tl")]
-    LiquidTestnet,
-}
-
-impl ChainNet {
-    pub fn layer1(&self) -> Layer1 {
-        match self {
-            ChainNet::BitcoinMainnet
-            | ChainNet::BitcoinTestnet
-            | ChainNet::BitcoinSignet
-            | ChainNet::BitcoinRegtest => Layer1::Bitcoin,
-            ChainNet::LiquidMainnet | ChainNet::LiquidTestnet => Layer1::Liquid,
-        }
-    }
-
-    pub fn is_prod(&self) -> bool {
-        match self {
-            ChainNet::BitcoinMainnet | ChainNet::LiquidMainnet => true,
-
-            ChainNet::BitcoinTestnet
-            | ChainNet::BitcoinSignet
-            | ChainNet::BitcoinRegtest
-            | ChainNet::LiquidTestnet => false,
-        }
-    }
-
-    pub fn address_network(&self) -> AddressNetwork {
-        match self {
-            ChainNet::BitcoinMainnet => AddressNetwork::Mainnet,
-            ChainNet::BitcoinTestnet | ChainNet::BitcoinSignet => AddressNetwork::Testnet,
-            ChainNet::BitcoinRegtest => AddressNetwork::Regtest,
-            ChainNet::LiquidMainnet => AddressNetwork::Mainnet,
-            ChainNet::LiquidTestnet => AddressNetwork::Testnet,
-        }
-    }
-}
-
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
 #[non_exhaustive]
 pub enum XChainNet<T> {
     BitcoinMainnet(T),
-    BitcoinTestnet(T),
+    BitcoinTestnet3(T),
+    BitcoinTestnet4(T),
     BitcoinSignet(T),
     BitcoinRegtest(T),
     LiquidMainnet(T),
@@ -143,7 +94,8 @@ impl<T> XChainNet<T> {
     pub fn with(cn: ChainNet, data: T) -> Self {
         match cn {
             ChainNet::BitcoinMainnet => XChainNet::BitcoinMainnet(data),
-            ChainNet::BitcoinTestnet => XChainNet::BitcoinTestnet(data),
+            ChainNet::BitcoinTestnet3 => XChainNet::BitcoinTestnet3(data),
+            ChainNet::BitcoinTestnet4 => XChainNet::BitcoinTestnet4(data),
             ChainNet::BitcoinSignet => XChainNet::BitcoinSignet(data),
             ChainNet::BitcoinRegtest => XChainNet::BitcoinRegtest(data),
             ChainNet::LiquidMainnet => XChainNet::LiquidMainnet(data),
@@ -154,8 +106,8 @@ impl<T> XChainNet<T> {
     pub fn bitcoin(network: Network, data: T) -> Self {
         match network {
             Network::Mainnet => Self::BitcoinMainnet(data),
-            Network::Testnet3 => Self::BitcoinTestnet(data),
-            Network::Testnet4 => Self::BitcoinTestnet(data),
+            Network::Testnet3 => Self::BitcoinTestnet3(data),
+            Network::Testnet4 => Self::BitcoinTestnet4(data),
             Network::Signet => Self::BitcoinSignet(data),
             Network::Regtest => Self::BitcoinRegtest(data),
         }
@@ -164,7 +116,8 @@ impl<T> XChainNet<T> {
     pub fn chain_network(&self) -> ChainNet {
         match self {
             XChainNet::BitcoinMainnet(_) => ChainNet::BitcoinMainnet,
-            XChainNet::BitcoinTestnet(_) => ChainNet::BitcoinTestnet,
+            XChainNet::BitcoinTestnet3(_) => ChainNet::BitcoinTestnet3,
+            XChainNet::BitcoinTestnet4(_) => ChainNet::BitcoinTestnet4,
             XChainNet::BitcoinSignet(_) => ChainNet::BitcoinSignet,
             XChainNet::BitcoinRegtest(_) => ChainNet::BitcoinRegtest,
             XChainNet::LiquidMainnet(_) => ChainNet::LiquidMainnet,
@@ -175,7 +128,8 @@ impl<T> XChainNet<T> {
     pub fn into_inner(self) -> T {
         match self {
             XChainNet::BitcoinMainnet(inner)
-            | XChainNet::BitcoinTestnet(inner)
+            | XChainNet::BitcoinTestnet3(inner)
+            | XChainNet::BitcoinTestnet4(inner)
             | XChainNet::BitcoinSignet(inner)
             | XChainNet::BitcoinRegtest(inner)
             | XChainNet::LiquidMainnet(inner)
@@ -185,7 +139,6 @@ impl<T> XChainNet<T> {
 
     pub fn layer1(&self) -> Layer1 { self.chain_network().layer1() }
     pub fn address_network(&self) -> AddressNetwork { self.chain_network().address_network() }
-    pub fn is_prod(&self) -> bool { self.chain_network().is_prod() }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error)]
@@ -264,5 +217,4 @@ impl RgbInvoice {
     pub fn chain_network(&self) -> ChainNet { self.beneficiary.chain_network() }
     pub fn address_network(&self) -> AddressNetwork { self.beneficiary.address_network() }
     pub fn layer1(&self) -> Layer1 { self.beneficiary.layer1() }
-    pub fn is_prod(&self) -> bool { self.beneficiary.is_prod() }
 }

@@ -35,7 +35,7 @@ use commit_verify::mpc::MerkleBlock;
 use nonasync::persistence::{CloneNoPersistence, Persisting};
 use rgb::validation::{DbcProof, Scripts};
 use rgb::{
-    AttachId, BundleId, ContractId, Extension, Genesis, GraphSeal, Identity, Layer1, OpId,
+    AttachId, BundleId, ChainNet, ContractId, Extension, Genesis, GraphSeal, Identity, OpId,
     Operation, Schema, SchemaId, TransitionBundle, Txid,
 };
 use strict_encoding::{FieldName, TypeName};
@@ -322,7 +322,7 @@ impl<P: StashProvider> Stash<P> {
         issuer: Identity,
         schema_id: SchemaId,
         iface: impl Into<IfaceRef>,
-        layer1: Layer1,
+        chain_net: ChainNet,
     ) -> Result<ContractBuilder, StashError<P>> {
         let schema_ifaces = self.schema(schema_id)?;
         let iface = self.iface(iface)?;
@@ -340,7 +340,7 @@ impl<P: StashProvider> Stash<P> {
             iimpl.clone(),
             types,
             scripts,
-            layer1,
+            chain_net,
         );
         Ok(builder)
     }

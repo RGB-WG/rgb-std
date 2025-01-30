@@ -35,8 +35,8 @@ use baid64::{Baid64ParseError, DisplayBaid64, FromBaid64Str};
 use commit_verify::{CommitEncode, CommitEngine, CommitId, CommitmentId, DigestExt, Sha256};
 use rgb::validation::{ResolveWitness, Validator, Validity, Warning, CONSIGNMENT_MAX_LIBS};
 use rgb::{
-    impl_serde_baid64, validation, AttachId, BundleId, ContractId, Extension, Genesis, GraphSeal,
-    Operation, Schema, SchemaId,
+    impl_serde_baid64, validation, AttachId, BundleId, ChainNet, ContractId, Extension, Genesis,
+    GraphSeal, Operation, Schema, SchemaId,
 };
 use rgbcore::validation::ConsignmentApi;
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
@@ -327,13 +327,13 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
         resolver: &impl ResolveWitness,
         // TODO: Add sig validator
         //_: &impl SigValidator,
-        testnet: bool,
+        chain_net: ChainNet,
     ) -> Result<ValidConsignment<TRANSFER>, (validation::Status, Consignment<TRANSFER>)> {
         let index = IndexedConsignment::new(&self);
         let mut status = Validator::<MemContract<MemContractState>, _, _>::validate(
             &index,
             &resolver,
-            testnet,
+            chain_net,
             (&self.schema, self.contract_id()),
         );
 

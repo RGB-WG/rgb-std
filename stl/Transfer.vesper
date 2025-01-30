@@ -43,8 +43,7 @@ Consignmenttrue rec
     flags bytes len=1 aka=ReservedBytes1
     timestamp is I64
     issuer ascii aka=Identity first=AsciiPrintable rest=AsciiPrintable len=1..4096
-    layer1 enum Layer1 bitcoin=0 liquid=1
-    testnet enum Bool false=0 true=1
+    chainNet enum ChainNet bitcoinMainnet=0 bitcoinTestnet3=1 bitcoinTestnet4=2 bitcoinSignet=3 bitcoinRegtest=4 liquidMainnet=5 liquidTestnet=6
     metadata map len=0..MAX8 aka=Metadata
       key is U16 aka=MetaType
       value bytes len=0..MAX16 aka=MetaValue

@@ -22,6 +22,7 @@
 use bp::{Tx, Txid};
 use rgb::validation::{ResolveWitness, WitnessResolverError};
 use rgb::vm::WitnessOrd;
+use rgb::ChainNet;
 use strict_encoding::StrictDumb;
 
 pub(crate) struct DumbResolver;
@@ -34,4 +35,6 @@ impl ResolveWitness for DumbResolver {
     fn resolve_pub_witness_ord(&self, _: Txid) -> Result<WitnessOrd, WitnessResolverError> {
         Ok(WitnessOrd::strict_dumb())
     }
+
+    fn check_chain_net(&self, _: ChainNet) -> Result<(), WitnessResolverError> { Ok(()) }
 }

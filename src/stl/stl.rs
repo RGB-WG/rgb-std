@@ -41,7 +41,7 @@ use crate::LIB_NAME_RGB_STD;
 /// Strict types id for the library providing standard data types which may be
 /// used in RGB smart contracts.
 pub const LIB_ID_RGB_STORAGE: &str =
-    "stl:wL0tAoyH-SjbX1kG-D$O2GNF-CmfwPzv-5Mp7y3W-tBsAAVw#violin-clarion-clever";
+    "stl:c5eyy1RT-t6KrAvm-keIbJHD-CLn9soO-8texpLg-EECfSPw#prize-status-pattern";
 
 /// Strict types id for the library providing standard data types which may be
 /// used in RGB smart contracts.
@@ -50,7 +50,7 @@ pub const LIB_ID_RGB_CONTRACT: &str =
 
 /// Strict types id for the library representing of RGB StdLib data types.
 pub const LIB_ID_RGB_STD: &str =
-    "stl:jnRu6qyi-eK7pegl-XyT8Zzy-P1An7ft-2ZmbYEG-R9EbYOs#modest-marvin-mystery";
+    "stl:YgyNu!Qt-mt5DMxt-GXH55TN-bmrTwZH-o11V0B$-$jxMrfE#juliet-vega-richard";
 
 fn _rgb_std_stl() -> Result<TypeLib, CompileError> {
     LibBuilder::new(libname!(LIB_NAME_RGB_STD), tiny_bset! {
