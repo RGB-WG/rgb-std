@@ -31,7 +31,7 @@ use alloc::vec;
 use amplify::confinement::{Collection, NonEmptyVec, SmallOrdMap, SmallOrdSet, U8 as U8MAX};
 use amplify::{confinement, ByteArray, Bytes32, Wrapper};
 use bp::dbc::tapret::TapretProof;
-use bp::seals::{mmb, Anchor, TxoSeal, TxoSealExt};
+use bp::seals::{mmb, Anchor, TxoSeal, TxoSealExt, WTxoSeal};
 use bp::{Outpoint, Sats, ScriptPubkey, Tx, Vout};
 use commit_verify::mpc::ProtocolId;
 use commit_verify::{mpc, Digest, DigestExt, Sha256};
@@ -42,7 +42,7 @@ use hypersonic::{
 };
 use invoice::bp::{Address, WitnessOut};
 use invoice::{RgbBeneficiary, RgbInvoice};
-use rgb::SealAuthToken;
+use rgb::RgbSealDef;
 use strict_encoding::{ReadRaw, StrictDecode, StrictDeserialize, StrictReader, StrictSerialize};
 use strict_types::StrictVal;
 
@@ -56,11 +56,11 @@ pub trait WalletProvider {
     fn noise_seed(&self) -> Bytes32;
     fn has_utxo(&self, outpoint: Outpoint) -> bool;
     fn utxos(&self) -> impl Iterator<Item = Outpoint>;
-    fn register_seal(&mut self, seal: TxoSeal);
+    fn register_seal(&mut self, seal: WTxoSeal);
     fn resolve_seals(
         &self,
         seals: impl Iterator<Item = AuthToken>,
-    ) -> impl Iterator<Item = TxoSeal>;
+    ) -> impl Iterator<Item = WTxoSeal>;
     fn next_address(&mut self) -> Address;
     fn next_nonce(&mut self) -> u64;
 }
@@ -103,10 +103,10 @@ impl<T> EitherSeal<T> {
 }
 
 impl EitherSeal<Outpoint> {
-    pub fn transform(self, noise_engine: Sha256, nonce: u64) -> EitherSeal<TxoSeal> {
+    pub fn transform(self, noise_engine: Sha256, nonce: u64) -> EitherSeal<WTxoSeal> {
         match self {
             EitherSeal::Alt(seal) => {
-                EitherSeal::Alt(TxoSeal::no_fallback(seal, noise_engine, nonce))
+                EitherSeal::Alt(WTxoSeal::no_fallback(seal, noise_engine, nonce))
             }
             EitherSeal::Token(auth) => EitherSeal::Token(auth),
         }
@@ -114,7 +114,7 @@ impl EitherSeal<Outpoint> {
 }
 
 impl CreateParams<Outpoint> {
-    pub fn transform(self, mut noise_engine: Sha256) -> CreateParams<TxoSeal> {
+    pub fn transform(self, mut noise_engine: Sha256) -> CreateParams<WTxoSeal> {
         noise_engine.input_raw(self.codex_id.as_slice());
         noise_engine.input_raw(&[self.consensus as u8]);
         noise_engine.input_raw(self.method.as_bytes());
@@ -382,12 +382,23 @@ impl PrefabBundle {
 /// Barrow contains a bunch of RGB contract stockpiles, which are held by a single owner; such that
 /// when a new operation under any of the contracts happen it may affect other contracts sharing the
 /// same UTXOs.
-pub struct Barrow<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> {
+pub struct Barrow<
+    W: WalletProvider,
+    S: Supply,
+    P: Pile<SealDef = WTxoSeal, SealSrc = TxoSeal>,
+    X: Excavate<S, P>,
+> {
     pub wallet: W,
     pub mound: Mound<S, P, X>,
 }
 
-impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> Barrow<W, S, P, X> {
+impl<
+        W: WalletProvider,
+        S: Supply,
+        P: Pile<SealDef = WTxoSeal, SealSrc = TxoSeal>,
+        X: Excavate<S, P>,
+    > Barrow<W, S, P, X>
+{
     pub fn with(wallet: W, mound: Mound<S, P, X>) -> Self { Self { wallet, mound } }
 
     pub fn unbind(self) -> (W, Mound<S, P, X>) { (self.wallet, self.mound) }
@@ -405,7 +416,7 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
     pub fn auth_token(&mut self, nonce: Option<u64>) -> Option<AuthToken> {
         let outpoint = self.wallet.utxos().next()?;
         let nonce = nonce.unwrap_or_else(|| self.wallet.next_nonce());
-        let seal = TxoSeal::no_fallback(outpoint, self.noise_engine(), nonce);
+        let seal = WTxoSeal::no_fallback(outpoint, self.noise_engine(), nonce);
         let auth = seal.auth_token();
         self.wallet.register_seal(seal);
         Some(auth)
@@ -576,7 +587,7 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
                         .push(vout)
                         .map_err(|_| PrefabError::TooManyOutputs)?;
                     let seal =
-                        TxoSeal::vout_no_fallback(vout, noise_engine.clone(), opout_no as u64);
+                        WTxoSeal::vout_no_fallback(vout, noise_engine.clone(), opout_no as u64);
                     seals.insert(opout_no as u16, seal).expect("checked above");
                     seal.auth_token()
                 }
@@ -656,7 +667,7 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
                         .copied()
                         .enumerate()
                         .find(|(nonce, outpoint)| {
-                            let seal = TxoSeal::no_fallback(
+                            let seal = WTxoSeal::no_fallback(
                                 *outpoint,
                                 noise_engine.clone(),
                                 *nonce as u64,
@@ -747,7 +758,7 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
     pub fn consume(
         &mut self,
         reader: &mut StrictReader<impl ReadRaw>,
-    ) -> Result<(), MoundConsumeError<TxoSeal>> {
+    ) -> Result<(), MoundConsumeError<WTxoSeal>> {
         self.mound.consume(reader, |op| {
             self.wallet
                 .resolve_seals(op.destructible.iter().map(|cell| cell.auth))
@@ -856,7 +867,8 @@ pub mod file {
     use crate::mound::file::DirExcavator;
     use crate::FilePile;
 
-    pub type DirBarrow<W> = Barrow<W, FileSupply, FilePile<TxoSeal>, DirExcavator<TxoSeal>>;
+    pub type DirBarrow<W> =
+        Barrow<W, FileSupply, FilePile<WTxoSeal, TxoSeal>, DirExcavator<WTxoSeal>>;
 
     impl<W: WalletProvider> DirBarrow<W> {
         pub fn issue_to_file(
@@ -877,5 +889,5 @@ pub mod file {
         }
     }
 
-    pub type BpDirMound = Mound<FileSupply, FilePile<TxoSeal>, DirExcavator<TxoSeal>>;
+    pub type BpDirMound = Mound<FileSupply, FilePile<WTxoSeal, TxoSeal>, DirExcavator<WTxoSeal>>;
 }

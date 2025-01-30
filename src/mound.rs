@@ -30,7 +30,7 @@ use amplify::hex::ToHex;
 use amplify::Bytes16;
 use commit_verify::ReservedBytes;
 use hypersonic::{AuthToken, CellAddr, CodexId, ContractId, ContractName, Opid, Schema, Supply};
-use rgb::RgbSeal;
+use rgb::RgbSealDef;
 use single_use_seals::{PublishedWitness, SingleUseSeal};
 use strict_encoding::{
     DecodeError, ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter,
@@ -93,7 +93,7 @@ impl<S: Supply, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
 
     pub fn issue(
         &mut self,
-        params: CreateParams<P::Seal>,
+        params: CreateParams<P::SealDef>,
         supply: S,
         pile: P,
     ) -> Result<ContractId, IssueError> {
@@ -174,7 +174,7 @@ impl<S: Supply, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
 
     pub fn select<'seal>(
         &self,
-        seal: &'seal P::Seal,
+        seal: &'seal P::SealDef,
     ) -> impl Iterator<Item = (ContractId, CellAddr)> + use<'_, 'seal, S, P, X> {
         self.contracts
             .iter()
@@ -185,8 +185,8 @@ impl<S: Supply, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
         &mut self,
         contract_id: ContractId,
         opid: Opid,
-        pub_witness: &<P::Seal as SingleUseSeal>::PubWitness,
-        anchor: <P::Seal as SingleUseSeal>::CliWitness,
+        pub_witness: &<P::SealSrc as SingleUseSeal>::PubWitness,
+        anchor: <P::SealSrc as SingleUseSeal>::CliWitness,
     ) {
         self.contract_mut(contract_id)
             .include(opid, anchor, pub_witness)
@@ -199,9 +199,10 @@ impl<S: Supply, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
         mut writer: StrictWriter<impl WriteRaw>,
     ) -> io::Result<()>
     where
-        <P::Seal as SingleUseSeal>::CliWitness: StrictDumb + StrictEncode,
-        <P::Seal as SingleUseSeal>::PubWitness: StrictDumb + StrictEncode,
-        <<P::Seal as SingleUseSeal>::PubWitness as PublishedWitness<P::Seal>>::PubId: StrictEncode,
+        <P::SealSrc as SingleUseSeal>::CliWitness: StrictDumb + StrictEncode,
+        <P::SealSrc as SingleUseSeal>::PubWitness: StrictDumb + StrictEncode,
+        <<P::SealSrc as SingleUseSeal>::PubWitness as PublishedWitness<P::SealSrc>>::PubId:
+            StrictEncode,
     {
         writer = MAGIC_BYTES_CONSIGNMENT.strict_encode(writer)?;
         // Version
@@ -213,12 +214,13 @@ impl<S: Supply, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
     pub fn consume(
         &mut self,
         reader: &mut StrictReader<impl ReadRaw>,
-        seal_resolver: impl FnMut(&Operation) -> BTreeMap<u16, P::Seal>,
-    ) -> Result<(), MoundConsumeError<P::Seal>>
+        seal_resolver: impl FnMut(&Operation) -> BTreeMap<u16, P::SealDef>,
+    ) -> Result<(), MoundConsumeError<P::SealDef>>
     where
-        <P::Seal as SingleUseSeal>::CliWitness: StrictDecode,
-        <P::Seal as SingleUseSeal>::PubWitness: StrictDecode,
-        <<P::Seal as SingleUseSeal>::PubWitness as PublishedWitness<P::Seal>>::PubId: StrictDecode,
+        <P::SealSrc as SingleUseSeal>::CliWitness: StrictDecode,
+        <P::SealSrc as SingleUseSeal>::PubWitness: StrictDecode,
+        <<P::SealSrc as SingleUseSeal>::PubWitness as PublishedWitness<P::SealSrc>>::PubId:
+            StrictDecode,
     {
         let magic_bytes = Bytes16::strict_decode(reader)?;
         if magic_bytes.to_byte_array() != MAGIC_BYTES_CONSIGNMENT {
@@ -253,7 +255,7 @@ pub enum IssueError {
 
 #[derive(Display, From)]
 #[display(doc_comments)]
-pub enum MoundConsumeError<Seal: RgbSeal> {
+pub enum MoundConsumeError<Seal: RgbSealDef> {
     /// unrecognized magic bytes in consignment stream ({0})
     UnrecognizedMagic(String),
 
@@ -275,22 +277,22 @@ pub mod file {
 
     use hypersonic::expect::Expect;
     use hypersonic::FileSupply;
-    use rgb::RgbSeal;
+    use rgb::RgbSealDef;
     use single_use_seals::PublishedWitness;
     use strict_encoding::{StreamWriter, StrictDecode, StrictEncode};
 
     use super::*;
     use crate::FilePile;
 
-    pub struct DirExcavator<Seal: RgbSeal> {
+    pub struct DirExcavator<SealDef: RgbSealDef> {
         dir: PathBuf,
         consensus: Consensus,
         testnet: bool,
         no_prefix: bool,
-        _phantom: PhantomData<Seal>,
+        _phantom: PhantomData<SealDef>,
     }
 
-    impl<Seal: RgbSeal> DirExcavator<Seal> {
+    impl<SealDef: RgbSealDef> DirExcavator<SealDef> {
         pub fn new(consensus: Consensus, testnet: bool, dir: PathBuf, no_prefix: bool) -> Self {
             Self { dir, consensus, testnet, no_prefix, _phantom: PhantomData }
         }
@@ -318,11 +320,13 @@ pub mod file {
         }
     }
 
-    impl<Seal: RgbSeal> Excavate<FileSupply, FilePile<Seal>> for DirExcavator<Seal>
+    impl<SealDef: RgbSealDef> Excavate<FileSupply, FilePile<SealDef, SealDef::Src>>
+        for DirExcavator<SealDef>
     where
-        Seal::CliWitness: StrictEncode + StrictDecode,
-        Seal::PubWitness: StrictEncode + StrictDecode,
-        <Seal::PubWitness as PublishedWitness<Seal>>::PubId: Ord + From<[u8; 32]> + Into<[u8; 32]>,
+        <SealDef::Src as SingleUseSeal>::CliWitness: StrictEncode + StrictDecode,
+        <SealDef::Src as SingleUseSeal>::PubWitness: StrictEncode + StrictDecode,
+        <<SealDef::Src as SingleUseSeal>::PubWitness as PublishedWitness<SealDef::Src>>::PubId:
+            Ord + From<[u8; 32]> + Into<[u8; 32]>,
     {
         fn schemata(&mut self) -> impl Iterator<Item = (CodexId, Schema)> {
             self.contents(true).filter_map(|(ty, path)| {
@@ -338,7 +342,8 @@ pub mod file {
 
         fn contracts(
             &mut self,
-        ) -> impl Iterator<Item = (ContractId, Stockpile<FileSupply, FilePile<Seal>>)> {
+        ) -> impl Iterator<Item = (ContractId, Stockpile<FileSupply, FilePile<SealDef, SealDef::Src>>)>
+        {
             self.contents(false).filter_map(|(ty, path)| {
                 if ty.is_dir() && path.extension().and_then(OsStr::to_str) == Some("contract") {
                     let contract = Stockpile::load(path);
@@ -352,13 +357,15 @@ pub mod file {
         }
     }
 
-    pub type DirMound<Seal> = Mound<FileSupply, FilePile<Seal>, DirExcavator<Seal>>;
+    pub type DirMound<SealDef> =
+        Mound<FileSupply, FilePile<SealDef, <SealDef as RgbSealDef>::Src>, DirExcavator<SealDef>>;
 
-    impl<Seal: RgbSeal> DirMound<Seal>
+    impl<SealDef: RgbSealDef> DirMound<SealDef>
     where
-        Seal::CliWitness: StrictEncode + StrictDecode,
-        Seal::PubWitness: StrictEncode + StrictDecode,
-        <Seal::PubWitness as PublishedWitness<Seal>>::PubId: Ord + From<[u8; 32]> + Into<[u8; 32]>,
+        <SealDef::Src as SingleUseSeal>::CliWitness: StrictEncode + StrictDecode,
+        <SealDef::Src as SingleUseSeal>::PubWitness: StrictEncode + StrictDecode,
+        <<SealDef::Src as SingleUseSeal>::PubWitness as PublishedWitness<SealDef::Src>>::PubId:
+            Ord + From<[u8; 32]> + Into<[u8; 32]>,
     {
         pub fn load_testnet(consensus: Consensus, path: impl AsRef<Path>, no_prefix: bool) -> Self {
             let path = path.as_ref();
@@ -368,11 +375,11 @@ pub mod file {
 
         pub fn issue_to_file(
             &mut self,
-            params: CreateParams<Seal>,
+            params: CreateParams<SealDef>,
         ) -> Result<ContractId, IssueError> {
             let dir = self.persistence.consensus_dir();
             let supply = FileSupply::new(params.name.as_str(), &dir);
-            let pile = FilePile::<Seal>::new(params.name.as_str(), &dir);
+            let pile = FilePile::<SealDef, SealDef::Src>::new(params.name.as_str(), &dir);
             self.issue(params, supply, pile)
         }
 
@@ -385,9 +392,10 @@ pub mod file {
             path: impl AsRef<Path>,
         ) -> io::Result<()>
         where
-            Seal::CliWitness: StrictDumb,
-            Seal::PubWitness: StrictDumb,
-            <Seal::PubWitness as PublishedWitness<Seal>>::PubId: StrictEncode,
+            <SealDef::Src as SingleUseSeal>::CliWitness: StrictDumb,
+            <SealDef::Src as SingleUseSeal>::PubWitness: StrictDumb,
+            <<SealDef::Src as SingleUseSeal>::PubWitness as PublishedWitness<SealDef::Src>>::PubId:
+                StrictEncode,
         {
             let file = File::create_new(path)?;
             let writer = StrictWriter::with(StreamWriter::new::<{ usize::MAX }>(file));
