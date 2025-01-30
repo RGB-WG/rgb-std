@@ -31,7 +31,7 @@ use alloc::vec;
 use amplify::confinement::{Collection, NonEmptyVec, SmallOrdMap, SmallOrdSet, U8 as U8MAX};
 use amplify::{confinement, ByteArray, Bytes32, Wrapper};
 use bp::dbc::tapret::TapretProof;
-use bp::seals::{mmb, Anchor, TxoSeal, TxoSealExt, WTxoSeal};
+use bp::seals::{mmb, Anchor, TxoSeal, TxoSealExt, WOutpoint, WTxoSeal};
 use bp::{Outpoint, Sats, ScriptPubkey, Tx, Vout};
 use commit_verify::mpc::ProtocolId;
 use commit_verify::{mpc, Digest, DigestExt, Sha256};
@@ -48,7 +48,7 @@ use strict_types::StrictVal;
 
 use crate::stockpile::{ContractState, EitherSeal};
 use crate::{
-    Assignment, CreateParams, Excavate, IssueError, Mound, MoundConsumeError, Pile, Stockpile, Txid,
+    Assignment, CreateParams, Excavate, IssueError, Mound, MoundConsumeError, Pile, Stockpile,
 };
 
 /// Trait abstracting specific implementation of a bitcoin wallet.
@@ -261,14 +261,14 @@ impl OpRequest<Option<WoutAssignment>> {
         &self,
         wout: WitnessOut,
         resolver: impl Fn(&ScriptPubkey) -> Option<Vout>,
-    ) -> Option<TxoSeal> {
+    ) -> Option<WTxoSeal> {
         for assignment in &self.owned {
             if let EitherSeal::Alt(Some(assignment)) = &assignment.state.seal {
                 if assignment.wout == wout {
                     let spk = assignment.script_pubkey();
                     let vout = resolver(&spk)?;
-                    let primary = Outpoint::new(Txid::from([0xFFu8; 32]), vout);
-                    let seal = TxoSeal { primary, secondary: TxoSealExt::Noise(wout.noise()) };
+                    let primary = WOutpoint::Wout(vout);
+                    let seal = WTxoSeal { primary, secondary: TxoSealExt::Noise(wout.noise()) };
                     return Some(seal);
                 }
             }
