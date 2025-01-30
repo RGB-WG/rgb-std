@@ -238,7 +238,7 @@ checksum = "3eeab4423108c5d7c744f4d234de88d18d636100093ae04caf4825134b9c3a32"
 [[package]]
 name = "bp-consensus"
 version = "0.12.0-beta.4"
-source = "git+https://github.com/BP-WG/bp-core?branch=wtxoseal#1487568dba4ca18b15dc211583060a7fb01096e7"
+source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#b4b42c02d9eff9c82f34811444de06c014729136"
 dependencies = [
  "amplify",
  "chrono",
@@ -252,7 +252,7 @@ dependencies = [
 [[package]]
 name = "bp-core"
 version = "0.12.0-beta.4"
-source = "git+https://github.com/BP-WG/bp-core?branch=wtxoseal#1487568dba4ca18b15dc211583060a7fb01096e7"
+source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#b4b42c02d9eff9c82f34811444de06c014729136"
 dependencies = [
  "amplify",
  "bp-consensus",
@@ -270,7 +270,7 @@ dependencies = [
 [[package]]
 name = "bp-dbc"
 version = "0.12.0-beta.4"
-source = "git+https://github.com/BP-WG/bp-core?branch=wtxoseal#1487568dba4ca18b15dc211583060a7fb01096e7"
+source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#b4b42c02d9eff9c82f34811444de06c014729136"
 dependencies = [
  "amplify",
  "base85",
@@ -297,7 +297,7 @@ dependencies = [
 [[package]]
 name = "bp-seals"
 version = "0.12.0-beta.4"
-source = "git+https://github.com/BP-WG/bp-core?branch=wtxoseal#1487568dba4ca18b15dc211583060a7fb01096e7"
+source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#b4b42c02d9eff9c82f34811444de06c014729136"
 dependencies = [
  "amplify",
  "baid64",
@@ -738,7 +738,7 @@ dependencies = [
 [[package]]
 name = "rgb-core"
 version = "0.12.0-beta.4"
-source = "git+https://github.com/RGB-WG/rgb-core?branch=wtxoseal#0aabcc42d53ee4202bcc0e559b9b74c6d0a0b89f"
+source = "git+https://github.com/RGB-WG/rgb-core?branch=v0.12#4a020e09dcf4e30edc41432e3c9f92f3c13ad0ac"
 dependencies = [
  "amplify",
  "bp-core",
