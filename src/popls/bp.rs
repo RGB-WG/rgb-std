@@ -31,7 +31,7 @@ use alloc::vec;
 use amplify::confinement::{Collection, NonEmptyVec, SmallOrdMap, SmallOrdSet, U8 as U8MAX};
 use amplify::{confinement, ByteArray, Bytes32, Wrapper};
 use bp::dbc::tapret::TapretProof;
-use bp::seals::{mmb, Anchor, TxoSeal, TxoSealExt, WOutpoint, WTxoSeal};
+use bp::seals::{mmb, Anchor, Noise, TxoSeal, TxoSealExt, WOutpoint, WTxoSeal};
 use bp::{Outpoint, Sats, ScriptPubkey, Tx, Vout};
 use commit_verify::mpc::ProtocolId;
 use commit_verify::{mpc, Digest, DigestExt, Sha256};
@@ -76,6 +76,12 @@ pub trait Coinselect {
 }
 
 pub const BP_BLANK_METHOD: &str = "_";
+
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
+pub struct PrefabSeal {
+    pub vout: Vout,
+    pub noise: Option<Noise>,
+}
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
 #[display("{wout}/{sats}")]
@@ -183,23 +189,28 @@ impl<T> OpRequestSet<T> {
     pub fn with(request: OpRequest<T>) -> Self { Self(NonEmptyVec::with(request)) }
 }
 
-impl<T: Into<ScriptPubkey>> OpRequestSet<Option<T>> {
+impl OpRequestSet<Option<WoutAssignment>> {
     pub fn resolve_seals(
         self,
         resolver: impl Fn(&ScriptPubkey) -> Option<Vout>,
         change: Option<Vout>,
-    ) -> Result<OpRequestSet<Vout>, UnresolvedSeal> {
+    ) -> Result<OpRequestSet<PrefabSeal>, UnresolvedSeal> {
         let mut items = Vec::with_capacity(self.0.len());
         for request in self.0 {
             let mut owned = Vec::with_capacity(request.owned.len());
             for assignment in request.owned {
                 let seal = match assignment.state.seal {
                     EitherSeal::Alt(Some(seal)) => {
-                        let spk = seal.into();
+                        let spk = seal.script_pubkey();
                         let vout = resolver(&spk).ok_or(UnresolvedSeal::Spk(spk))?;
-                        EitherSeal::Alt(vout)
+                        let seal = PrefabSeal { vout, noise: Some(seal.wout.noise()) };
+                        EitherSeal::Alt(seal)
                     }
-                    EitherSeal::Alt(None) => EitherSeal::Alt(change.ok_or(UnresolvedSeal::Change)?),
+                    EitherSeal::Alt(None) => {
+                        let change = change.ok_or(UnresolvedSeal::Change)?;
+                        let seal = PrefabSeal { vout: change, noise: None };
+                        EitherSeal::Alt(seal)
+                    }
                     EitherSeal::Token(auth) => EitherSeal::Token(auth),
                 };
                 owned.push(NamedState {
@@ -207,7 +218,7 @@ impl<T: Into<ScriptPubkey>> OpRequestSet<Option<T>> {
                     state: Assignment { seal, data: assignment.state.data },
                 });
             }
-            items.push(OpRequest::<Vout> {
+            items.push(OpRequest {
                 contract_id: request.contract_id,
                 method: request.method,
                 reading: request.reading,
@@ -564,7 +575,7 @@ impl<
     }
 
     /// Creates a single operation basing on the provided construction parameters.
-    pub fn prefab(&mut self, request: OpRequest<Vout>) -> Result<Prefab, PrefabError> {
+    pub fn prefab(&mut self, request: OpRequest<PrefabSeal>) -> Result<Prefab, PrefabError> {
         self.check_request(&request)?;
 
         // convert ConstructParams into CallParams
@@ -583,12 +594,15 @@ impl<
         let mut owned = Vec::with_capacity(request.owned.len());
         for (opout_no, assignment) in request.owned.into_iter().enumerate() {
             let auth = match assignment.state.seal {
-                EitherSeal::Alt(vout) => {
+                EitherSeal::Alt(seal) => {
                     defines
-                        .push(vout)
+                        .push(seal.vout)
                         .map_err(|_| PrefabError::TooManyOutputs)?;
-                    let seal =
-                        WTxoSeal::vout_no_fallback(vout, noise_engine.clone(), opout_no as u64);
+                    let primary = WOutpoint::Wout(seal.vout);
+                    let noise = seal.noise.unwrap_or_else(|| {
+                        Noise::with(primary, noise_engine.clone(), opout_no as u64)
+                    });
+                    let seal = WTxoSeal { primary, secondary: TxoSealExt::Noise(noise) };
                     seals.insert(opout_no as u16, seal).expect("checked above");
                     seal.auth_token()
                 }
@@ -627,7 +641,7 @@ impl<
     /// - `seal`: a single-use seal definition where all blank outputs will be assigned to.
     pub fn bundle(
         &mut self,
-        requests: impl IntoIterator<Item = OpRequest<Vout>>,
+        requests: impl IntoIterator<Item = OpRequest<PrefabSeal>>,
         change: Option<Vout>,
     ) -> Result<PrefabBundle, BundleError> {
         let ops = requests.into_iter().map(|params| self.prefab(params));
@@ -692,9 +706,14 @@ impl<
             }
 
             let mut owned = Vec::new();
+            let mut nonce = 0;
             for (name, calc) in calcs {
                 for data in calc.diff()? {
-                    let change = change.ok_or(BundleError::ChangeRequired)?;
+                    let vout = change.ok_or(BundleError::ChangeRequired)?;
+                    let noise =
+                        Some(Noise::with(WOutpoint::Wout(vout), noise_engine.clone(), nonce));
+                    let change = PrefabSeal { vout, noise };
+                    nonce += 1;
                     let state = NamedState {
                         name: name.clone(),
                         state: Assignment { seal: EitherSeal::Alt(change), data },

@@ -238,7 +238,7 @@ checksum = "3eeab4423108c5d7c744f4d234de88d18d636100093ae04caf4825134b9c3a32"
 [[package]]
 name = "bp-consensus"
 version = "0.12.0-beta.4"
-source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#b4b42c02d9eff9c82f34811444de06c014729136"
+source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#6fbc7f16d028d12d6d1336a9aa7752ea8ae06e15"
 dependencies = [
  "amplify",
  "chrono",
@@ -252,7 +252,7 @@ dependencies = [
 [[package]]
 name = "bp-core"
 version = "0.12.0-beta.4"
-source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#b4b42c02d9eff9c82f34811444de06c014729136"
+source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#6fbc7f16d028d12d6d1336a9aa7752ea8ae06e15"
 dependencies = [
  "amplify",
  "bp-consensus",
@@ -270,7 +270,7 @@ dependencies = [
 [[package]]
 name = "bp-dbc"
 version = "0.12.0-beta.4"
-source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#b4b42c02d9eff9c82f34811444de06c014729136"
+source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#6fbc7f16d028d12d6d1336a9aa7752ea8ae06e15"
 dependencies = [
  "amplify",
  "base85",
@@ -297,7 +297,7 @@ dependencies = [
 [[package]]
 name = "bp-seals"
 version = "0.12.0-beta.4"
-source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#b4b42c02d9eff9c82f34811444de06c014729136"
+source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#6fbc7f16d028d12d6d1336a9aa7752ea8ae06e15"
 dependencies = [
  "amplify",
  "baid64",
@@ -567,7 +567,7 @@ dependencies = [
 [[package]]
 name = "hypersonic"
 version = "0.12.0-beta.4"
-source = "git+https://github.com/AluVM/sonic?branch=master#02a20eb21293ec23da6d71bf1e6425fcdc3194ce"
+source = "git+https://github.com/AluVM/sonic?branch=master#51069101a8b2794f9d14cc50c014c13cc18ff1a1"
 dependencies = [
  "aluvm",
  "amplify",
@@ -1021,7 +1021,7 @@ dependencies = [
 [[package]]
 name = "sonic-api"
 version = "0.12.0-beta.4"
-source = "git+https://github.com/AluVM/sonic?branch=master#02a20eb21293ec23da6d71bf1e6425fcdc3194ce"
+source = "git+https://github.com/AluVM/sonic?branch=master#51069101a8b2794f9d14cc50c014c13cc18ff1a1"
 dependencies = [
  "aluvm",
  "amplify",
@@ -1040,7 +1040,7 @@ dependencies = [
 [[package]]
 name = "sonic-callreq"
 version = "0.12.0-beta.4"
-source = "git+https://github.com/AluVM/sonic?branch=master#02a20eb21293ec23da6d71bf1e6425fcdc3194ce"
+source = "git+https://github.com/AluVM/sonic?branch=master#51069101a8b2794f9d14cc50c014c13cc18ff1a1"
 dependencies = [
  "amplify",
  "baid64",
