@@ -505,7 +505,7 @@ impl<
             .collect::<Vec<_>>();
         // NB: we do state accumulation with `calc` inside coinselect
         let using = coinselect
-            .coinselect(&value, calc.as_mut(), src)
+            .coinselect(value, calc.as_mut(), src)
             .ok_or(FulfillError::StateInsufficient)?;
         let using = using
             .into_iter()
@@ -530,7 +530,7 @@ impl<
                 EitherSeal::Alt(Some(wout))
             }
         };
-        calc.lessen(&value)?;
+        calc.lessen(value)?;
         let assignment = Assignment { seal, data: value.clone() };
         let state = NamedState { name: state_name.clone(), state: assignment };
         let mut owned = vec![state];
