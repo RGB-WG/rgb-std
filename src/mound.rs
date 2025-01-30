@@ -320,8 +320,7 @@ pub mod file {
         }
     }
 
-    impl<SealDef: RgbSealDef> Excavate<FileSupply, FilePile<SealDef, SealDef::Src>>
-        for DirExcavator<SealDef>
+    impl<SealDef: RgbSealDef> Excavate<FileSupply, FilePile<SealDef>> for DirExcavator<SealDef>
     where
         <SealDef::Src as SingleUseSeal>::CliWitness: StrictEncode + StrictDecode,
         <SealDef::Src as SingleUseSeal>::PubWitness: StrictEncode + StrictDecode,
@@ -342,8 +341,7 @@ pub mod file {
 
         fn contracts(
             &mut self,
-        ) -> impl Iterator<Item = (ContractId, Stockpile<FileSupply, FilePile<SealDef, SealDef::Src>>)>
-        {
+        ) -> impl Iterator<Item = (ContractId, Stockpile<FileSupply, FilePile<SealDef>>)> {
             self.contents(false).filter_map(|(ty, path)| {
                 if ty.is_dir() && path.extension().and_then(OsStr::to_str) == Some("contract") {
                     let contract = Stockpile::load(path);
@@ -357,8 +355,7 @@ pub mod file {
         }
     }
 
-    pub type DirMound<SealDef> =
-        Mound<FileSupply, FilePile<SealDef, <SealDef as RgbSealDef>::Src>, DirExcavator<SealDef>>;
+    pub type DirMound<SealDef> = Mound<FileSupply, FilePile<SealDef>, DirExcavator<SealDef>>;
 
     impl<SealDef: RgbSealDef> DirMound<SealDef>
     where
@@ -379,7 +376,7 @@ pub mod file {
         ) -> Result<ContractId, IssueError> {
             let dir = self.persistence.consensus_dir();
             let supply = FileSupply::new(params.name.as_str(), &dir);
-            let pile = FilePile::<SealDef, SealDef::Src>::new(params.name.as_str(), &dir);
+            let pile = FilePile::<SealDef>::new(params.name.as_str(), &dir);
             self.issue(params, supply, pile)
         }
 

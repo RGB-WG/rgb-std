@@ -867,8 +867,7 @@ pub mod file {
     use crate::mound::file::DirExcavator;
     use crate::FilePile;
 
-    pub type DirBarrow<W> =
-        Barrow<W, FileSupply, FilePile<WTxoSeal, TxoSeal>, DirExcavator<WTxoSeal>>;
+    pub type DirBarrow<W> = Barrow<W, FileSupply, FilePile<WTxoSeal>, DirExcavator<WTxoSeal>>;
 
     impl<W: WalletProvider> DirBarrow<W> {
         pub fn issue_to_file(
@@ -889,5 +888,5 @@ pub mod file {
         }
     }
 
-    pub type BpDirMound = Mound<FileSupply, FilePile<WTxoSeal, TxoSeal>, DirExcavator<WTxoSeal>>;
+    pub type BpDirMound = Mound<FileSupply, FilePile<WTxoSeal>, DirExcavator<WTxoSeal>>;
 }

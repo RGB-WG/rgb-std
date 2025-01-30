@@ -54,7 +54,7 @@ where
     fs::create_dir_all(dst)?;
 
     print!("Reading contract stockpile from '{}' ... ", src.display());
-    let mut stockpile = Stockpile::<FileSupply, FilePile<SealDef, SealDef::Src>>::load(src);
+    let mut stockpile = Stockpile::<FileSupply, FilePile<SealDef>>::load(src);
     println!("success reading {}", stockpile.contract_id());
 
     print!("Processing contract articles ... ");

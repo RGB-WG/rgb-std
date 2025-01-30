@@ -175,26 +175,27 @@ pub mod fs {
         }
     }
 
-    pub struct FilePile<SealDef: RgbSealDef<Src = SealSrc>, SealSrc: RgbSealSrc>
-    where <SealSrc::PubWitness as PublishedWitness<SealSrc>>::PubId:
+    pub struct FilePile<SealDef: RgbSealDef>
+    where <<SealDef::Src as SingleUseSeal>::PubWitness as PublishedWitness<SealDef::Src>>::PubId:
             Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>
     {
         hoard: FileAora<
-            <SealSrc::PubWitness as PublishedWitness<SealSrc>>::PubId,
-            SealSrc::CliWitness,
+            <<SealDef::Src as SingleUseSeal>::PubWitness as PublishedWitness<SealDef::Src>>::PubId,
+            <SealDef::Src as SingleUseSeal>::CliWitness,
         >,
         cache: FileAora<
-            <SealSrc::PubWitness as PublishedWitness<SealSrc>>::PubId,
-            SealSrc::PubWitness,
+            <<SealDef::Src as SingleUseSeal>::PubWitness as PublishedWitness<SealDef::Src>>::PubId,
+            <SealDef::Src as SingleUseSeal>::PubWitness,
         >,
         keep: FileAora<Opid, SmallOrdMap<u16, SealDef>>,
-        index:
-            FileIndex<<<SealSrc as SingleUseSeal>::PubWitness as PublishedWitness<SealSrc>>::PubId>,
+        index: FileIndex<
+            <<SealDef::Src as SingleUseSeal>::PubWitness as PublishedWitness<SealDef::Src>>::PubId,
+        >,
         _phantom: PhantomData<SealDef>,
     }
 
-    impl<SealDef: RgbSealDef<Src = SealSrc>, SealSrc: RgbSealSrc> FilePile<SealDef, SealSrc>
-    where <SealSrc::PubWitness as PublishedWitness<SealSrc>>::PubId:
+    impl<SealDef: RgbSealDef> FilePile<SealDef>
+    where <<SealDef::Src as SingleUseSeal>::PubWitness as PublishedWitness<SealDef::Src>>::PubId:
             Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>
     {
         pub fn new(name: &str, path: impl AsRef<Path>) -> Self {
@@ -212,8 +213,8 @@ pub mod fs {
         }
     }
 
-    impl<SealDef: RgbSealDef<Src = SealSrc>, SealSrc: RgbSealSrc> FilePile<SealDef, SealSrc>
-    where <SealSrc::PubWitness as PublishedWitness<SealSrc>>::PubId:
+    impl<SealDef: RgbSealDef> FilePile<SealDef>
+    where <<SealDef::Src as SingleUseSeal>::PubWitness as PublishedWitness<SealDef::Src>>::PubId:
             Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>
     {
         pub fn open(path: impl AsRef<Path>) -> Self {
@@ -230,26 +231,27 @@ pub mod fs {
         }
     }
 
-    impl<SealDef: RgbSealDef<Src = SealSrc>, SealSrc: RgbSealSrc> Pile for FilePile<SealDef, SealSrc>
+    impl<SealDef: RgbSealDef> Pile for FilePile<SealDef>
     where
-        SealSrc::CliWitness: StrictEncode + StrictDecode,
-        SealSrc::PubWitness: StrictEncode + StrictDecode,
-        <SealSrc::PubWitness as PublishedWitness<SealSrc>>::PubId:
+        <SealDef::Src as SingleUseSeal>::CliWitness: StrictEncode + StrictDecode,
+        <SealDef::Src as SingleUseSeal>::PubWitness: StrictEncode + StrictDecode,
+        <<SealDef::Src as SingleUseSeal>::PubWitness as PublishedWitness<SealDef::Src>>::PubId:
             Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>,
     {
-        type SealSrc = SealSrc;
         type SealDef = SealDef;
+        type SealSrc = SealDef::Src;
         type Hoard = FileAora<
-            <SealSrc::PubWitness as PublishedWitness<SealSrc>>::PubId,
-            SealSrc::CliWitness,
+            <<Self::SealSrc as SingleUseSeal>::PubWitness as PublishedWitness<SealDef::Src>>::PubId,
+            <Self::SealSrc as SingleUseSeal>::CliWitness,
         >;
         type Cache = FileAora<
-            <SealSrc::PubWitness as PublishedWitness<SealSrc>>::PubId,
-            SealSrc::PubWitness,
+            <<Self::SealSrc as SingleUseSeal>::PubWitness as PublishedWitness<SealDef::Src>>::PubId,
+            <Self::SealSrc as SingleUseSeal>::PubWitness,
         >;
         type Keep = FileAora<Opid, SmallOrdMap<u16, SealDef>>;
-        type Index =
-            FileIndex<<<SealSrc as SingleUseSeal>::PubWitness as PublishedWitness<SealSrc>>::PubId>;
+        type Index = FileIndex<
+            <<Self::SealSrc as SingleUseSeal>::PubWitness as PublishedWitness<SealDef::Src>>::PubId,
+        >;
 
         fn hoard(&self) -> &Self::Hoard { &self.hoard }
 
@@ -267,7 +269,10 @@ pub mod fs {
 
         fn index_mut(&mut self) -> &mut Self::Index { &mut self.index }
 
-        fn retrieve(&mut self, opid: Opid) -> impl ExactSizeIterator<Item = SealWitness<SealSrc>> {
+        fn retrieve(
+            &mut self,
+            opid: Opid,
+        ) -> impl ExactSizeIterator<Item = SealWitness<SealDef::Src>> {
             self.index.get(opid).map(|pubid| {
                 let client = self.hoard.read(pubid);
                 let published = self.cache.read(pubid);

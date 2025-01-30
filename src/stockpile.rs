@@ -40,8 +40,8 @@ use hypersonic::{
     Schema, StateAtom, StateName, Stock, Supply,
 };
 use rgb::{
-    ContractApi, ContractVerify, OperationSeals, ReadOperation, ReadWitness, RgbSealDef,
-    RgbSealSrc, Step, VerificationError,
+    ContractApi, ContractVerify, OperationSeals, ReadOperation, ReadWitness, RgbSealDef, Step,
+    VerificationError,
 };
 use single_use_seals::{PublishedWitness, SealWitness, SingleUseSeal};
 use strict_encoding::{
@@ -464,12 +464,11 @@ mod fs {
     use super::*;
     use crate::FilePile;
 
-    impl<SealDef: RgbSealDef<Src = SealSrc>, SealSrc: RgbSealSrc>
-        Stockpile<FileSupply, FilePile<SealDef, SealSrc>>
+    impl<SealDef: RgbSealDef> Stockpile<FileSupply, FilePile<SealDef>>
     where
-        SealSrc::CliWitness: StrictEncode + StrictDecode,
-        SealSrc::PubWitness: StrictEncode + StrictDecode,
-        <SealSrc::PubWitness as PublishedWitness<SealSrc>>::PubId:
+        <SealDef::Src as SingleUseSeal>::CliWitness: StrictEncode + StrictDecode,
+        <SealDef::Src as SingleUseSeal>::PubWitness: StrictEncode + StrictDecode,
+        <<SealDef::Src as SingleUseSeal>::PubWitness as PublishedWitness<SealDef::Src>>::PubId:
             Ord + From<[u8; 32]> + Into<[u8; 32]>,
     {
         pub fn load(path: impl AsRef<Path>) -> Self {
@@ -496,9 +495,10 @@ mod fs {
             path: impl AsRef<Path>,
         ) -> io::Result<()>
         where
-            SealSrc::CliWitness: StrictDumb,
-            SealSrc::PubWitness: StrictDumb,
-            <SealSrc::PubWitness as PublishedWitness<SealSrc>>::PubId: StrictEncode,
+            <SealDef::Src as SingleUseSeal>::CliWitness: StrictDumb,
+            <SealDef::Src as SingleUseSeal>::PubWitness: StrictDumb,
+            <<SealDef::Src as SingleUseSeal>::PubWitness as PublishedWitness<SealDef::Src>>::PubId:
+                StrictEncode,
         {
             let file = File::create_new(path)?;
             let writer = StrictWriter::with(StreamWriter::new::<{ usize::MAX }>(file));
