@@ -595,3 +595,26 @@ impl TokenData {
         }
     }
 }
+
+#[derive(Wrapper, Clone, Eq, PartialEq, Hash, From)]
+#[wrapper(Deref, Display, FromStr)]
+#[derive(StrictDumb, StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_CONTRACT)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", transparent)
+)]
+pub struct OpidRejectUrl(RString<AsciiPrintable, AsciiPrintable, 1, 8000>);
+
+impl StrictSerialize for OpidRejectUrl {}
+impl StrictDeserialize for OpidRejectUrl {}
+
+impl_ident_type!(OpidRejectUrl);
+impl_ident_subtype!(OpidRejectUrl);
+
+impl OpidRejectUrl {
+    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
+        OpidRejectUrl::from_str(&value.unwrap_string()).unwrap()
+    }
+}

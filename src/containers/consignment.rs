@@ -34,8 +34,8 @@ use baid64::{Baid64ParseError, DisplayBaid64, FromBaid64Str};
 use commit_verify::{CommitEncode, CommitEngine, CommitId, CommitmentId, DigestExt, Sha256};
 use rgb::validation::{Failure, ResolveWitness, Validator, Validity, CONSIGNMENT_MAX_LIBS};
 use rgb::{
-    impl_serde_baid64, validation, BundleId, ChainNet, ContractId, Genesis, GraphSeal, Operation,
-    Schema, SchemaId, Txid,
+    impl_serde_baid64, validation, BundleId, ChainNet, ContractId, Genesis, GraphSeal, OpId,
+    Operation, Schema, SchemaId, Txid,
 };
 use rgbcore::validation::ConsignmentApi;
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
@@ -133,6 +133,8 @@ pub struct ValidConsignment<const TRANSFER: bool> {
 
 impl<const TRANSFER: bool> ValidConsignment<TRANSFER> {
     pub fn validation_status(&self) -> &validation::Status { &self.validation_status }
+
+    pub fn validated_opids(&self) -> &BTreeSet<OpId> { &self.validation_status.validated_opids }
 
     pub fn into_consignment(self) -> Consignment<TRANSFER> { self.consignment }
 
@@ -273,11 +275,32 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
         }
     }
 
+    pub fn replace_transitions_input_ops(&self) -> BTreeSet<OpId> {
+        self.bundles
+            .iter()
+            .flat_map(|b| b.bundle().known_transitions.values())
+            .filter(|t| t.transition_type.is_replace())
+            .flat_map(|t| t.inputs.iter())
+            .filter(|i| i.ty.is_asset())
+            .map(|i| i.op)
+            .collect::<BTreeSet<_>>()
+    }
+
     pub fn validate(
         self,
         resolver: &impl ResolveWitness,
         chain_net: ChainNet,
         safe_height: Option<NonZeroU32>,
+    ) -> Result<ValidConsignment<TRANSFER>, (validation::Status, Consignment<TRANSFER>)> {
+        self.validate_with_opids(resolver, chain_net, safe_height, bset![])
+    }
+
+    pub fn validate_with_opids(
+        self,
+        resolver: &impl ResolveWitness,
+        chain_net: ChainNet,
+        safe_height: Option<NonZeroU32>,
+        trusted_op_seals: BTreeSet<OpId>,
     ) -> Result<ValidConsignment<TRANSFER>, (validation::Status, Consignment<TRANSFER>)> {
         let index = IndexedConsignment::new(&self);
         let mut status = Validator::<MemContract<MemContractState>, _, _>::validate(
@@ -286,6 +309,7 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
             chain_net,
             (&self.schema, self.contract_id()),
             safe_height,
+            trusted_op_seals,
         );
 
         let validity = status.validity();

@@ -32,7 +32,7 @@ use strict_types::{CompileError, LibBuilder, SemId, SymbolicSys, TypeLib, TypeSy
 
 use super::{
     AssetSpec, AttachmentType, BurnMeta, ContractSpec, ContractTerms, EmbeddedMedia, Error,
-    IssueMeta, MediaType, TokenData, LIB_NAME_RGB_CONTRACT, LIB_NAME_RGB_STORAGE,
+    IssueMeta, MediaType, OpidRejectUrl, TokenData, LIB_NAME_RGB_CONTRACT, LIB_NAME_RGB_STORAGE,
 };
 use crate::containers::{Contract, Kit, Transfer};
 use crate::persistence::{MemIndex, MemStash, MemState};
@@ -47,7 +47,7 @@ pub const LIB_ID_RGB_STORAGE: &str =
 /// Strict types id for the library providing standard data types which may be
 /// used in RGB smart contracts.
 pub const LIB_ID_RGB_CONTRACT: &str =
-    "stl:8L2UHLUU-oXTeo0N-KUXzNkI-ECQK3NQ-nXVu928-9lm4Lqk#pretend-natasha-aurora";
+    "stl:1uyMC~lT-xPK57Lr-IgIhB0r-WxYd9io-2wZav_s-6TbR4LY#nuclear-liquid-sonic";
 
 /// Strict types id for the library representing of RGB StdLib data types.
 pub const LIB_ID_RGB_STD: &str =
@@ -89,6 +89,7 @@ fn _rgb_contract_stl() -> Result<TypeLib, CompileError> {
     .transpile::<AttachmentType>()
     .transpile::<TokenData>()
     .transpile::<EmbeddedMedia>()
+    .transpile::<OpidRejectUrl>()
     .compile()
 }
 

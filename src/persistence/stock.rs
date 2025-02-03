@@ -668,17 +668,26 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             }
         }
 
+        let is_asset_replacement =
+            |tt: TransitionType, at: AssignmentType| -> bool { tt.is_replace() && at.is_asset() };
+
         // 2. Collect all state transitions between terminals and genesis
         let mut ids = vec![];
         for transition in transitions.values() {
-            ids.extend(transition.inputs().iter().map(|input| input.op));
+            ids.extend(transition.inputs().iter().map(|input| {
+                (input.op, is_asset_replacement(transition.transition_type, input.ty))
+            }));
         }
-        while let Some(id) = ids.pop() {
+        while let Some((id, asset_replacement)) = ids.pop() {
             if id == contract_id {
                 continue; // we skip genesis since it will be present anywhere
             }
             let transition = self.transition(id)?;
-            ids.extend(transition.inputs().iter().map(|input| input.op));
+            if !asset_replacement {
+                ids.extend(transition.inputs().iter().map(|input| {
+                    (input.op, is_asset_replacement(transition.transition_type, input.ty))
+                }));
+            }
             let bundle_id = self.index.bundle_id_for_op(transition.id())?;
             bundles
                 .entry(bundle_id)

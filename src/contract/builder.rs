@@ -227,7 +227,7 @@ impl ContractBuilder {
         self,
         timestamp: i64,
     ) -> Result<ValidConsignment<false>, BuilderError> {
-        let (schema, global, assignments, types) = self.builder.complete();
+        let (schema, global, assignments, types, metadata) = self.builder.complete();
 
         let genesis = Genesis {
             ffv: none!(),
@@ -235,7 +235,7 @@ impl ContractBuilder {
             timestamp,
             chain_net: self.chain_net,
             seal_closing_strategy: Default::default(),
-            metadata: empty!(),
+            metadata,
             globals: global,
             assignments,
             issuer: self.issuer,
@@ -427,14 +427,14 @@ impl TransitionBuilder {
     pub fn has_inputs(&self) -> bool { !self.inputs.is_empty() }
 
     pub fn complete_transition(self) -> Result<Transition, BuilderError> {
-        let (_, global, assignments, _) = self.builder.complete();
+        let (_, global, assignments, _, metadata) = self.builder.complete();
 
         let transition = Transition {
             ffv: none!(),
             contract_id: self.contract_id,
             nonce: self.nonce,
             transition_type: self.transition_type,
-            metadata: empty!(),
+            metadata,
             globals: global,
             inputs: NonEmptyOrdSet::from_iter_checked(self.inputs.into_keys()).into(),
             assignments,
@@ -685,7 +685,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         Ok(self)
     }
 
-    fn complete(self) -> (Schema, GlobalState, Assignments<Seal>, TypeSystem) {
+    fn complete(self) -> (Schema, GlobalState, Assignments<Seal>, TypeSystem, Metadata) {
         let owned_state = self.fungible.into_iter().map(|(id, vec)| {
             let vec = vec
                 .into_iter()
@@ -735,6 +735,6 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             .extend(Assignments::from_inner(owned_rights).into_inner())
             .expect("too many assignments");
 
-        (self.schema, self.global, assignments, self.types)
+        (self.schema, self.global, assignments, self.types, self.meta)
     }
 }
