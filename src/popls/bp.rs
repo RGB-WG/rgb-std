@@ -857,7 +857,8 @@ pub enum FulfillError {
     StateCalc(StateCalcError),
 
     /// the invoice asks to create an UTXO for the receiver, but method call doesn't provide
-    /// information on how much sats can be put there (`giveaway` parameter).
+    /// information on how much sats can be put there (`giveaway` argument in `Barrow::fulfill`
+    /// call must not be set to None).
     WoutRequiresGiveaway,
 
     /// invoice misses the value, and the method call also doesn't provide one
