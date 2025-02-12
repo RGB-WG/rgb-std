@@ -1052,10 +1052,9 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
                         main_builder.add_fungible_state_raw(assignment_id, beneficiary, amt)?;
                 }
 
-                let change_seal = output_for_assignment(contract_id, assignment_id)?;
-
                 // Pay change
                 if sum_inputs > amt {
+                    let change_seal = output_for_assignment(contract_id, assignment_id)?;
                     main_builder = main_builder.add_fungible_state_raw(
                         assignment_id,
                         change_seal,
