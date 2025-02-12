@@ -138,7 +138,18 @@ impl<T> XChainNet<T> {
     }
 
     pub fn layer1(&self) -> Layer1 { self.chain_network().layer1() }
-    pub fn address_network(&self) -> AddressNetwork { self.chain_network().address_network() }
+
+    pub fn address_network(&self) -> AddressNetwork {
+        match self.chain_network() {
+            ChainNet::BitcoinMainnet => AddressNetwork::Mainnet,
+            ChainNet::BitcoinTestnet3 | ChainNet::BitcoinTestnet4 | ChainNet::BitcoinSignet => {
+                AddressNetwork::Testnet
+            }
+            ChainNet::BitcoinRegtest => AddressNetwork::Regtest,
+            ChainNet::LiquidMainnet => AddressNetwork::Mainnet,
+            ChainNet::LiquidTestnet => AddressNetwork::Testnet,
+        }
+    }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error)]
