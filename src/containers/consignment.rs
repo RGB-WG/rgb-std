@@ -22,6 +22,7 @@
 use std::collections::BTreeSet;
 use std::fmt;
 use std::fmt::{Display, Formatter};
+use std::num::NonZeroU32;
 use std::ops::Deref;
 use std::str::FromStr;
 
@@ -328,6 +329,7 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
         // TODO: Add sig validator
         //_: &impl SigValidator,
         chain_net: ChainNet,
+        safe_height: Option<NonZeroU32>,
     ) -> Result<ValidConsignment<TRANSFER>, (validation::Status, Consignment<TRANSFER>)> {
         let index = IndexedConsignment::new(&self);
         let mut status = Validator::<MemContract<MemContractState>, _, _>::validate(
@@ -335,6 +337,7 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
             &resolver,
             chain_net,
             (&self.schema, self.contract_id()),
+            safe_height,
         );
 
         let validity = status.validity();

@@ -314,7 +314,7 @@ impl ContractBuilder {
         };
 
         let valid_contract = contract
-            .validate(&DumbResolver, self.chain_net)
+            .validate(&DumbResolver, self.chain_net, None)
             .map_err(|(status, _)| status)?;
 
         Ok(valid_contract)
