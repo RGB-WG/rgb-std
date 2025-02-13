@@ -666,6 +666,8 @@ impl<
             .contracts_mut()
             .filter(|(id, _)| !contracts.contains(id))
         {
+            let genesis_opid = stockpile.stock().articles().contract.genesis_opid();
+
             let mut noise_engine = root_noise_engine.clone();
             noise_engine.input_raw(contract_id.as_slice());
 
@@ -676,9 +678,12 @@ impl<
                 .iter()
                 .flat_map(|(name, map)| map.iter().map(move |(addr, val)| (name, *addr, val)))
                 .filter_map(|(name, addr, val)| {
-                    let auth = stockpile.stock_mut().operation(addr.opid).destructible
-                        [addr.pos as usize]
-                        .auth;
+                    let outs = if addr.opid == genesis_opid {
+                        &stockpile.stock().articles().contract.genesis.destructible
+                    } else {
+                        &stockpile.stock_mut().operation(addr.opid).destructible
+                    };
+                    let auth = outs[addr.pos as usize].auth;
                     outpoints
                         .iter()
                         .copied()
