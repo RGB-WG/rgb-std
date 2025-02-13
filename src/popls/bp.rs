@@ -623,6 +623,7 @@ impl<
         let stockpile = self.mound.contract_mut(request.contract_id);
         let opid = stockpile.stock_mut().call(call);
         let operation = stockpile.stock_mut().operation(opid);
+        debug_assert_eq!(operation.opid(), opid);
         stockpile.pile_mut().keep_mut().append(opid, &seals);
         debug_assert_eq!(operation.contract_id, request.contract_id);
 
