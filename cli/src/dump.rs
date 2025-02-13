@@ -28,7 +28,7 @@ use std::io::Write;
 use std::path::Path;
 use std::{fs, io};
 
-use amplify::confinement::SmallVec;
+use amplify::confinement::SmallOrdMap;
 use amplify::hex::ToHex;
 use amplify::Bytes16;
 use commit_verify::ReservedBytes;
@@ -176,8 +176,8 @@ where
     serde_yaml::to_writer(&out, &articles.schema)?;
 
     let out = File::create_new(dst.join("0000-seals.yml"))?;
-    let defined_seals =
-        SmallVec::<SealDef>::strict_decode(&mut stream).expect("Failed to read consignment stream");
+    let defined_seals = SmallOrdMap::<u16, SealDef>::strict_decode(&mut stream)
+        .expect("Failed to read consignment stream");
     serde_yaml::to_writer(&out, &defined_seals)?;
     seal_count += defined_seals.len();
 
@@ -198,7 +198,7 @@ where
                 serde_yaml::to_writer(&out, &operation)?;
 
                 let out = File::create_new(dst.join(format!("{op_count:04}-seals.yml")))?;
-                let defined_seals = SmallVec::<SealDef>::strict_decode(&mut stream)
+                let defined_seals = SmallOrdMap::<u16, SealDef>::strict_decode(&mut stream)
                     .expect("Failed to read consignment stream");
                 serde_yaml::to_writer(&out, &defined_seals)?;
                 seal_count += defined_seals.len();
