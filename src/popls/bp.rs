@@ -48,7 +48,8 @@ use strict_types::StrictVal;
 
 use crate::stockpile::{ContractState, EitherSeal};
 use crate::{
-    Assignment, CreateParams, Excavate, IssueError, Mound, MoundConsumeError, Pile, Stockpile,
+    Assignment, CreateParams, Excavate, Index, IssueError, Mound, MoundConsumeError, Pile,
+    Stockpile,
 };
 
 /// Trait abstracting specific implementation of a bitcoin wallet.
@@ -666,40 +667,24 @@ impl<
             .contracts_mut()
             .filter(|(id, _)| !contracts.contains(id))
         {
-            let genesis_opid = stockpile.stock().articles().contract.genesis_opid();
-
-            let mut noise_engine = root_noise_engine.clone();
-            noise_engine.input_raw(contract_id.as_slice());
-
-            // TODO: Simplify the expression
             // We need to clone here not to conflict with mutable call below
             let owned = stockpile.stock().state().main.owned.clone();
             let (using, prev): (_, Vec<_>) = owned
                 .iter()
                 .flat_map(|(name, map)| map.iter().map(move |(addr, val)| (name, *addr, val)))
                 .filter_map(|(name, addr, val)| {
-                    let outs = if addr.opid == genesis_opid {
-                        &stockpile.stock().articles().contract.genesis.destructible
-                    } else {
-                        &stockpile.stock_mut().operation(addr.opid).destructible
+                    let seals = stockpile.pile_mut().keep_mut().read(addr.opid);
+                    let Some(seal) = seals.get(&addr.pos) else {
+                        return None;
                     };
-                    let auth = outs[addr.pos as usize].auth;
-                    outpoints
-                        .iter()
-                        .copied()
-                        .enumerate()
-                        .find(|(nonce, outpoint)| {
-                            let seal = WTxoSeal::no_fallback(
-                                *outpoint,
-                                noise_engine.clone(),
-                                *nonce as u64,
-                            );
-                            seal.auth_token() == auth
-                        })
-                        .map(|(_, outpoint)| {
-                            let prevout = UsedState { addr, outpoint, val: StrictVal::Unit };
-                            (prevout, (name.clone(), val))
-                        })
+                    for witness_id in stockpile.pile_mut().index_mut().get(addr.opid) {
+                        let outpoint = seal.resolve(witness_id).primary;
+                        if outpoints.contains(&outpoint) {
+                            let prevout = UsedState { addr, outpoint, val: val.clone() };
+                            return Some((prevout, (name.clone(), val)));
+                        }
+                    }
+                    None
                 })
                 .unzip();
 
@@ -714,6 +699,8 @@ impl<
 
             let mut owned = Vec::new();
             let mut nonce = 0;
+            let mut noise_engine = root_noise_engine.clone();
+            noise_engine.input_raw(contract_id.as_slice());
             for (name, calc) in calcs {
                 for data in calc.diff()? {
                     let vout = change.ok_or(BundleError::ChangeRequired)?;
