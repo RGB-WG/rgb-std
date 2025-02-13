@@ -667,26 +667,38 @@ impl<
             .contracts_mut()
             .filter(|(id, _)| !contracts.contains(id))
         {
-            // We need to clone here not to conflict with mutable call below
+            // We need to clone here not to conflict with mutable calls below
             let owned = stockpile.stock().state().main.owned.clone();
-            let (using, prev): (_, Vec<_>) = owned
+            let (using, prev): (Vec<_>, Vec<_>) = owned
                 .iter()
                 .flat_map(|(name, map)| map.iter().map(move |(addr, val)| (name, *addr, val)))
                 .filter_map(|(name, addr, val)| {
                     let seals = stockpile.pile_mut().keep_mut().read(addr.opid);
-                    let Some(seal) = seals.get(&addr.pos) else {
-                        return None;
-                    };
-                    for witness_id in stockpile.pile_mut().index_mut().get(addr.opid) {
-                        let outpoint = seal.resolve(witness_id).primary;
-                        if outpoints.contains(&outpoint) {
-                            let prevout = UsedState { addr, outpoint, val: val.clone() };
-                            return Some((prevout, (name.clone(), val)));
+                    let seal = seals.get(&addr.pos)?;
+                    let outpoint = if let WOutpoint::Extern(outpoint) = seal.primary {
+                        if !outpoints.contains(&outpoint) {
+                            return None;
                         }
-                    }
-                    None
+                        outpoint
+                    } else {
+                        let mut outpoint = None;
+                        for witness_id in stockpile.pile_mut().index_mut().get(addr.opid) {
+                            let o = seal.resolve(witness_id).primary;
+                            if outpoints.contains(&o) {
+                                outpoint = Some(o);
+                                break;
+                            }
+                        }
+                        outpoint?
+                    };
+                    let prevout = UsedState { addr, outpoint, val: val.clone() };
+                    return Some((prevout, (name.clone(), val)));
                 })
                 .unzip();
+
+            if using.is_empty() {
+                continue;
+            };
 
             let api = &stockpile.stock().articles().schema.default_api;
             let mut calcs = BTreeMap::<StateName, Box<dyn StateCalc>>::new();
