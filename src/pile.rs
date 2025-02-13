@@ -73,7 +73,7 @@ pub trait Pile {
     ) {
         let pubid = published.pub_id();
         self.index_mut().add(opid, pubid);
-        if self.hoard_mut().has(pubid) {
+        if self.hoard_mut().has(&pubid) {
             let mut prev_anchor = self.hoard_mut().read(pubid);
             if prev_anchor != anchor {
                 prev_anchor.merge(anchor).expect(
@@ -238,7 +238,7 @@ pub mod fs {
     impl<SealDef: RgbSealDef> Pile for FilePile<SealDef>
     where
         <SealDef::Src as SingleUseSeal>::CliWitness: StrictEncode + StrictDecode,
-        <SealDef::Src as SingleUseSeal>::PubWitness: StrictEncode + StrictDecode,
+        <SealDef::Src as SingleUseSeal>::PubWitness: Eq + StrictEncode + StrictDecode,
         <<SealDef::Src as SingleUseSeal>::PubWitness as PublishedWitness<SealDef::Src>>::PubId:
             Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>,
     {

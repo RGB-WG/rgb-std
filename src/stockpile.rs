@@ -470,7 +470,7 @@ mod fs {
     impl<SealDef: RgbSealDef> Stockpile<FileSupply, FilePile<SealDef>>
     where
         <SealDef::Src as SingleUseSeal>::CliWitness: StrictEncode + StrictDecode,
-        <SealDef::Src as SingleUseSeal>::PubWitness: StrictEncode + StrictDecode,
+        <SealDef::Src as SingleUseSeal>::PubWitness: Eq + StrictEncode + StrictDecode,
         <<SealDef::Src as SingleUseSeal>::PubWitness as PublishedWitness<SealDef::Src>>::PubId:
             Ord + From<[u8; 32]> + Into<[u8; 32]>,
     {

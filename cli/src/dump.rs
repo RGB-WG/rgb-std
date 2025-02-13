@@ -46,7 +46,7 @@ where
     SealDef: RgbSealDef + Serialize + for<'de> Deserialize<'de>,
     SealDef::Src: Serialize + for<'de> Deserialize<'de>,
     <SealDef::Src as SingleUseSeal>::CliWitness: Serialize + StrictEncode + StrictDecode,
-    <SealDef::Src as SingleUseSeal>::PubWitness: Serialize + StrictEncode + StrictDecode,
+    <SealDef::Src as SingleUseSeal>::PubWitness: Eq + Serialize + StrictEncode + StrictDecode,
     <<SealDef::Src as SingleUseSeal>::PubWitness as PublishedWitness<SealDef::Src>>::PubId:
         Ord + From<[u8; 32]> + Into<[u8; 32]> + Serialize,
 {
