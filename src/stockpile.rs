@@ -425,6 +425,8 @@ impl<S: Supply, P: Pile> ContractApi<P::SealDef> for Stockpile<S, P> {
 
     fn memory(&self) -> &impl Memory { &self.stock.state().raw }
 
+    fn is_known(&self, opid: Opid) -> bool { self.stock.has_operation(opid) }
+
     fn apply_operation(&mut self, op: OperationSeals<P::SealDef>) {
         self.pile
             .keep_mut()
