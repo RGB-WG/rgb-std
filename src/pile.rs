@@ -30,6 +30,7 @@ use single_use_seals::{PublishedWitness, SealWitness, SingleUseSeal};
 
 pub trait Index<K, V> {
     fn keys(&self) -> impl Iterator<Item = K>;
+    fn has(&self, key: K) -> bool;
     fn get(&self, key: K) -> impl ExactSizeIterator<Item = V>;
     fn add(&mut self, key: K, val: V);
 }
@@ -90,7 +91,7 @@ pub trait Pile {
 
 #[cfg(feature = "fs")]
 pub mod fs {
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, BTreeSet};
     use std::fs::File;
     use std::io;
     use std::io::{Read, Write};
@@ -108,7 +109,7 @@ pub mod fs {
     where Id: Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>
     {
         path: PathBuf,
-        cache: BTreeMap<Opid, Vec<Id>>,
+        cache: BTreeMap<Opid, BTreeSet<Id>>,
     }
 
     impl<Id> FileIndex<Id>
@@ -125,7 +126,7 @@ pub mod fs {
             let mut buf = [0u8; 32];
             while index_file.read_exact(&mut buf).is_ok() {
                 let opid = Opid::from(buf);
-                let mut ids = Vec::new();
+                let mut ids = BTreeSet::new();
                 let mut len = [0u8; 4];
                 index_file
                     .read_exact(&mut len)
@@ -135,7 +136,8 @@ pub mod fs {
                     index_file
                         .read_exact(&mut buf)
                         .expect("cannot read index file");
-                    ids.push(buf.into());
+                    let res = ids.insert(buf.into());
+                    debug_assert!(res, "duplicate id in index file");
                     len -= 1;
                 }
                 cache.insert(opid, ids);
@@ -162,15 +164,17 @@ pub mod fs {
     {
         fn keys(&self) -> impl Iterator<Item = Opid> { self.cache.keys().copied() }
 
+        fn has(&self, key: Opid) -> bool { self.cache.contains_key(&key) }
+
         fn get(&self, key: Opid) -> impl ExactSizeIterator<Item = Id> {
             match self.cache.get(&key) {
                 Some(ids) => ids.clone().into_iter(),
-                None => vec![].into_iter(),
+                None => bset![].into_iter(),
             }
         }
 
         fn add(&mut self, key: Opid, val: Id) {
-            self.cache.entry(key).or_default().push(val);
+            self.cache.entry(key).or_default().insert(val);
             self.save().expect("Cannot save index file");
         }
     }

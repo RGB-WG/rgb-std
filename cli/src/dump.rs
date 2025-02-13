@@ -184,9 +184,7 @@ where
     let count = u64::strict_decode(&mut stream)?;
     if count != 0 {
         println!("error");
-        return Err(anyhow!(
-            "consignment stream has {count} witnesses, but 0 witnesses are expected",
-        ));
+        bail!("Consignment stream has {count} witnesses, but 0 witnesses are expected",);
     }
     println!("success");
 
@@ -218,7 +216,7 @@ where
                 op_count += 1;
             }
             Err(DecodeError::Io(e)) if e.kind() == io::ErrorKind::UnexpectedEof => break,
-            Err(e) => return Err(anyhow!("Failed to read consignment stream: {}", e)),
+            Err(e) => bail!("Failed to read consignment stream: {}", e),
         }
         print!(
             "\rParsing stream ... {op_count} operations, {seal_count} seals, {witness_count} \
