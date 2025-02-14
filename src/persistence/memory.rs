@@ -1440,7 +1440,7 @@ impl IndexWriteProvider for MemIndex {
 
         for (no, assign) in vec.iter().enumerate() {
             let opout = Opout::new(opid, type_id, no as u16);
-            if let Assign::ConfidentialState { seal, .. } | Assign::Revealed { seal, .. } = assign {
+            if let Assign::Revealed { seal, .. } = assign {
                 let output = seal
                     .to_output_seal()
                     .expect("genesis seals always have outpoint");
@@ -1474,7 +1474,7 @@ impl IndexWriteProvider for MemIndex {
 
         for (no, assign) in vec.iter().enumerate() {
             let opout = Opout::new(opid, type_id, no as u16);
-            if let Assign::ConfidentialState { seal, .. } | Assign::Revealed { seal, .. } = assign {
+            if let Assign::Revealed { seal, .. } = assign {
                 let output = seal.to_output_seal_or_default(witness_id);
                 match index.outpoint_opouts.get_mut(&output) {
                     Some(opouts) => {
@@ -1501,9 +1501,7 @@ impl MemIndex {
     ) -> Result<(), IndexWriteError<MemError>> {
         for (no, assign) in vec.iter().enumerate() {
             let opout = Opout::new(opid, type_id, no as u16);
-            if let Assign::Confidential { seal, .. } | Assign::ConfidentialSeal { seal, .. } =
-                assign
-            {
+            if let Assign::ConfidentialSeal { seal, .. } = assign {
                 self.add_terminal(*seal, opout)?;
             }
         }

@@ -227,13 +227,6 @@ impl<Seal: ExposedSeal> TypedAssignsExt<Seal> for TypedAssigns<Seal> {
                             lock: *lock,
                         }
                     }
-                    Assign::Confidential { seal, state, lock } if *seal == revealed.conceal() => {
-                        *assign = Assign::ConfidentialState {
-                            seal: revealed,
-                            state: *state,
-                            lock: *lock,
-                        }
-                    }
                     _ => {}
                 }
             }
