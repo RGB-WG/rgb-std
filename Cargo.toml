@@ -3,7 +3,7 @@ members = [".", "cli", "invoice"]
 default-members = [".", "invoice"]
 
 [workspace.package]
-version = "0.12.0-beta.4"
+version = "0.12.0-beta.5"
 keywords = ["bitcoin", "lightning", "rgb", "smart-contracts", "lnp-bp"]
 categories = ["cryptography::cryptocurrencies"]
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
@@ -16,17 +16,17 @@ license = "Apache-2.0"
 [workspace.dependencies]
 amplify = "4.8.0"
 strict_encoding = "2.8.1"
-strict_types = "2.8.1"
-commit_verify = "=0.12.0-beta.4"
-single_use_seals = "=0.12.0-beta.4"
+strict_types = "2.8.2"
+commit_verify = "=0.12.0-beta.5"
+single_use_seals = "=0.12.0-beta.5"
 baid64 = "0.4.1"
-hypersonic = "=0.12.0-beta.4"
-sonic-callreq = "=0.12.0-beta.4"
-bp-core = "=0.12.0-beta.4"
-bp-invoice = "=0.12.0-beta.4"
-rgb-core = "=0.12.0-beta.4"
-rgb-std = { version = "=0.12.0-beta.4", path = "." }
-rgb-invoice = { version = "=0.12.0-beta.4", path = "./invoice" }
+hypersonic = "=0.12.0-beta.5"
+sonic-callreq = "=0.12.0-beta.5"
+bp-core = "=0.12.0-beta.5"
+bp-invoice = "=0.12.0-beta.5"
+rgb-core = "=0.12.0-beta.5"
+rgb-std = { version = "=0.12.0-beta.5", path = "." }
+rgb-invoice = { version = "=0.12.0-beta.5", path = "./invoice" }
 chrono = "0.4.39"
 serde = "1.0.215"
 serde_with = "1.14.0"
@@ -104,15 +104,3 @@ wasm-bindgen-test = "0.3"
 
 [package.metadata.docs.rs]
 features = ["all"]
-
-[patch.crates-io]
-ultrasonic = { git = "https://github.com/AluVM/ultrasonic", branch = "master" }
-hypersonic = { git = "https://github.com/AluVM/sonic", branch = "master" }
-sonic-api = { git = "https://github.com/AluVM/sonic", branch = "master" }
-sonic-callreq = { git = "https://github.com/AluVM/sonic", branch = "master" }
-bp-consensus = { git = "https://github.com/BP-WG/bp-core", branch = "v0.12" }
-bp-dbc = { git = "https://github.com/BP-WG/bp-core", branch = "v0.12" }
-bp-seals = { git = "https://github.com/BP-WG/bp-core", branch = "v0.12" }
-bp-core = { git = "https://github.com/BP-WG/bp-core", branch = "v0.12" }
-bp-invoice = { git = "https://github.com/BP-WG/bp-std", branch = "v0.12" }
-rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "v0.12" }
