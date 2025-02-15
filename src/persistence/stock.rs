@@ -33,7 +33,7 @@ use bp::{Outpoint, Txid, Vout};
 use chrono::Utc;
 use invoice::{Amount, Beneficiary, InvoiceState, NonFungible, RgbInvoice};
 use nonasync::persistence::{CloneNoPersistence, PersistenceError, PersistenceProvider};
-use rgb::validation::{DbcProof, ResolveWitness, WitnessResolverError};
+use rgb::validation::{DbcProof, ResolveWitness, UnsafeHistoryMap, WitnessResolverError};
 use rgb::vm::WitnessOrd;
 use rgb::{
     validation, AssignmentType, BundleId, ChainNet, ContractId, DataState, GraphSeal, Identity,
@@ -868,7 +868,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         let mut bundles = BTreeMap::<Txid, WitnessBundle>::new();
         for anchored_bundle in anchored_bundles.into_values() {
             let witness_ids = self.index.bundle_info(anchored_bundle.bundle_id())?.0;
-            let witness_id = self.state.select_valid_witness(witness_ids)?;
+            let (witness_id, _) = self.state.select_valid_witness(witness_ids)?;
             let pub_witness = self.stash.witness(witness_id)?.public.clone();
             let wb = WitnessBundle::with(pub_witness, anchored_bundle);
             let res = bundles.insert(witness_id, wb);
@@ -1253,7 +1253,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         let (witness_ids, contract_id) = self.index.bundle_info(bundle_id)?;
 
         let bundle = self.stash.bundle(bundle_id)?.clone();
-        let witness_id = self.state.select_valid_witness(witness_ids)?;
+        let (witness_id, _) = self.state.select_valid_witness(witness_ids)?;
         let witness = self.stash.witness(witness_id)?;
         let (merkle_block, dbc, close_method) = match &witness.anchor {
             AnchorSet::Tapret(tapret) => (
@@ -1485,6 +1485,80 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
         self.state.commit_transaction()?;
         Ok(UpdateRes { succeeded, failed })
+    }
+
+    fn _check_bundle_history(
+        &self,
+        bundle_id: &BundleId,
+        safe_height: NonZeroU32,
+        contract_history: &mut HashMap<ContractId, HashMap<u32, HashSet<Txid>>>,
+    ) -> Result<(), StockError<S, H, P>> {
+        let (bundle_witness_ids, contract_id) = self.index.bundle_info(*bundle_id)?;
+        let (witness_id, ord) = self.state.select_valid_witness(bundle_witness_ids)?;
+        match ord {
+            WitnessOrd::Mined(witness_pos) => {
+                let witness_height = witness_pos.height();
+                if witness_height > safe_height {
+                    contract_history
+                        .entry(contract_id)
+                        .or_default()
+                        .entry(witness_height.into())
+                        .or_default()
+                        .insert(witness_id);
+                }
+            }
+            WitnessOrd::Tentative | WitnessOrd::Ignored | WitnessOrd::Archived => {
+                contract_history
+                    .entry(contract_id)
+                    .or_default()
+                    .entry(0)
+                    .or_default()
+                    .insert(witness_id);
+            }
+        }
+
+        // recursively check bundle ancestors
+        let bundle = self.stash.bundle(*bundle_id)?.clone();
+        for transition in bundle.known_transitions.values() {
+            for input in &transition.inputs {
+                let input_opid = input.prev_out.op;
+                let input_bundle_id = match self.index.bundle_id_for_op(input_opid) {
+                    Ok(id) => Some(id),
+                    Err(IndexError::Inconsistency(IndexInconsistency::BundleAbsent(_))) => {
+                        // reached genesis
+                        None
+                    }
+                    Err(e) => return Err(e.into()),
+                };
+
+                if let Some(input_bundle_id) = input_bundle_id {
+                    self._check_bundle_history(&input_bundle_id, safe_height, contract_history)?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn get_outpoint_unsafe_history(
+        &self,
+        outpoint: Outpoint,
+        safe_height: NonZeroU32,
+    ) -> Result<HashMap<ContractId, UnsafeHistoryMap>, StockError<S, H, P>> {
+        let mut contract_history: HashMap<ContractId, HashMap<u32, HashSet<Txid>>> = HashMap::new();
+
+        for id in self.contracts_assigning([outpoint])? {
+            let state = self.contract_assignments_for(id, [outpoint])?;
+            for opid in state
+                .iter()
+                .flat_map(|(_, assigns)| assigns.keys().map(|opout| opout.op))
+            {
+                let bundle_id = self.index.bundle_id_for_op(opid)?;
+                self._check_bundle_history(&bundle_id, safe_height, &mut contract_history)?;
+            }
+        }
+
+        Ok(contract_history)
     }
 }
 

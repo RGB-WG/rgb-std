@@ -129,7 +129,7 @@ impl<P: StateProvider> State<P> {
     pub fn select_valid_witness(
         &self,
         witness_ids: impl IntoIterator<Item = impl Borrow<Txid>>,
-    ) -> Result<Txid, StateError<P>> {
+    ) -> Result<(Txid, WitnessOrd), StateError<P>> {
         let witnesses = self.as_provider().witnesses();
         let mut best_candidate = None;
         for id in witness_ids {
@@ -148,7 +148,7 @@ impl<P: StateProvider> State<P> {
         if best_ord == WitnessOrd::Archived {
             Err(StateError::AbsentValidWitness)
         } else {
-            Ok(best_id)
+            Ok((best_id, best_ord))
         }
     }
 
