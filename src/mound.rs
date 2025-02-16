@@ -279,7 +279,7 @@ pub mod file {
     use hypersonic::FileSupply;
     use rgb::RgbSealDef;
     use single_use_seals::PublishedWitness;
-    use strict_encoding::{StreamWriter, StrictDecode, StrictEncode};
+    use strict_encoding::{DeserializeError, StreamWriter, StrictDecode, StrictEncode};
 
     use super::*;
     use crate::FilePile;
@@ -368,6 +368,16 @@ pub mod file {
             let path = path.as_ref();
             let excavator = DirExcavator::new(consensus, true, path.to_owned(), no_prefix);
             Self::open_testnet(consensus, excavator)
+        }
+
+        pub fn load_issuer(
+            &mut self,
+            issuer: impl AsRef<Path>,
+        ) -> Result<CodexId, DeserializeError> {
+            let schema = Schema::load(issuer)?;
+            let codex_id = schema.codex.codex_id();
+            self.schemata.insert(codex_id, schema);
+            Ok(codex_id)
         }
 
         pub fn issue_to_file(
