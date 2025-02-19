@@ -11,7 +11,7 @@ default-members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.11.0-beta.9.1"
+version = "0.11.1-alpha.1"
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
 homepage = "https://github.com/RGB-WG"
 repository = "https://github.com/RGB-WG/rgb-std"
@@ -63,7 +63,7 @@ strict_types = { workspace = true }
 commit_verify = { workspace = true }
 bp-core = { workspace = true }
 rgb-core = { workspace = true }
-rgb-invoice = { version = "0.11.0-beta.9", path = "invoice" }
+rgb-invoice = { version = "0.11.1-alpha.1", path = "invoice" }
 aluvm = "0.11.0-beta.9"
 base85 = "=2.0.0"
 chrono = "0.4.38"
