@@ -99,50 +99,7 @@ impl<State: ExposedState, Seal: ExposedSeal> MergeReveal for Assign<State, Seal>
                 Ok(state)
             }
 
-            // ConfidentialAmount + ConfidentialSeal = Revealed
-            (
-                Assign::ConfidentialSeal {
-                    state, lock: lock1, ..
-                },
-                Assign::ConfidentialState {
-                    seal, lock: lock2, ..
-                },
-            ) => {
-                debug_assert_eq!(lock1, lock2);
-                Ok(Assign::Revealed {
-                    seal,
-                    state,
-                    lock: lock1,
-                })
-            }
-
-            // ConfidentialSeal + ConfidentialAmount = Revealed
-            (
-                Assign::ConfidentialState {
-                    seal, lock: lock1, ..
-                },
-                Assign::ConfidentialSeal {
-                    state, lock: lock2, ..
-                },
-            ) => {
-                debug_assert_eq!(lock1, lock2);
-                Ok(Assign::Revealed {
-                    seal,
-                    state,
-                    lock: lock1,
-                })
-            }
-
-            // if self and other is of same variant return self
-            (state @ Assign::ConfidentialState { .. }, Assign::ConfidentialState { .. }) => {
-                Ok(state)
-            }
             (state @ Assign::ConfidentialSeal { .. }, Assign::ConfidentialSeal { .. }) => Ok(state),
-
-            // Anything + Confidential = Anything
-            (state, Assign::Confidential { .. }) | (Assign::Confidential { .. }, state) => {
-                Ok(state)
-            }
         }
     }
 }
