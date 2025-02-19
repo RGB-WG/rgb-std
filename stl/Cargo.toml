@@ -20,4 +20,4 @@ path = "src/main.rs"
 amplify = { workspace = true }
 strict_types = { workspace = true }
 commit_verify = { workspace = true }
-rgb-std = { version = "0.11.0-beta.4", path = ".." }
+rgb-std = { version = "0.11.1-alpha.1", path = ".." }
