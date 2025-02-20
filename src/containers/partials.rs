@@ -111,7 +111,7 @@ pub enum TransitionInfoError {
 )]
 pub struct Batch {
     pub main: TransitionInfo,
-    pub blanks: Confined<Vec<TransitionInfo>, 0, { U24 - 1 }>,
+    pub extras: Confined<Vec<TransitionInfo>, 0, { U24 - 1 }>,
 }
 
 impl StrictSerialize for Batch {}
@@ -122,7 +122,7 @@ impl IntoIterator for Batch {
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
-        let mut vec = self.blanks.release();
+        let mut vec = self.extras.release();
         vec.push(self.main);
         vec.into_iter()
     }
@@ -131,7 +131,7 @@ impl IntoIterator for Batch {
 impl Batch {
     pub fn set_priority(&mut self, priority: u64) {
         self.main.transition.nonce = priority;
-        for info in &mut self.blanks {
+        for info in &mut self.extras {
             info.transition.nonce = priority;
         }
     }

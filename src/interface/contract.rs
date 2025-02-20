@@ -450,7 +450,7 @@ impl<S: ContractStateRead> ContractIface<S> {
                         .difference(&our_allocations)
                         .cloned()
                         .collect::<HashSet<_>>();
-                    // This was a blank state transition with no external payment
+                    // This was an extra state transition with no external payment
                     if ext_allocations.is_empty() {
                         continue;
                     }

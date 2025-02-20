@@ -254,7 +254,12 @@ impl<D: dbc::Proof> ClientBundle<D> {
         transition: Transition,
     ) -> Result<bool, UnrelatedTransition> {
         let opid = transition.id();
-        if self.bundle.input_map.values().all(|id| *id != opid) {
+        if self
+            .bundle
+            .input_map
+            .values()
+            .all(|ids| !ids.contains(&opid))
+        {
             return Err(UnrelatedTransition(opid, transition));
         }
         if self.bundle.known_transitions.contains_key(&opid) {

@@ -41,7 +41,7 @@ use strict_types::{decode, SemId, TypeSystem};
 use crate::containers::{BuilderSeal, ContainerVer, Contract, ValidConsignment};
 use crate::interface::resolver::DumbResolver;
 use crate::interface::{Iface, IfaceImpl, TransitionIface};
-use crate::persistence::PersistedState;
+use crate::persistence::{PersistedState, StashInconsistency};
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
@@ -61,6 +61,12 @@ pub enum BuilderError {
 
     /// transition `{0}` is not known to the schema.
     TransitionNotFound(FieldName),
+
+    /// cannot find a transition type to move assignment of type {0}.
+    TransitionTypeNotFound(AssignmentType),
+
+    /// cannot find the name of transition of type {0}.
+    TransitionNameNotFound(TransitionType),
 
     /// unknown owned state name `{0}`.
     InvalidStateField(FieldName),
@@ -89,6 +95,10 @@ pub enum BuilderError {
     #[from]
     #[display(inner)]
     Confinement(confinement::Error),
+
+    #[from]
+    #[display(doc_comments)]
+    Inconsistency(StashInconsistency),
 
     #[from]
     #[display(inner)]
@@ -331,26 +341,6 @@ pub struct TransitionBuilder {
 }
 
 impl TransitionBuilder {
-    pub fn blank_transition(
-        contract_id: ContractId,
-        iface: Iface,
-        schema: Schema,
-        iimpl: IfaceImpl,
-        types: TypeSystem,
-    ) -> Self {
-        Self::with(contract_id, iface, schema, iimpl, TransitionType::BLANK, types)
-    }
-
-    pub fn blank_transition_det(
-        contract_id: ContractId,
-        iface: Iface,
-        schema: Schema,
-        iimpl: IfaceImpl,
-        types: TypeSystem,
-    ) -> Self {
-        Self::deterministic(contract_id, iface, schema, iimpl, TransitionType::BLANK, types)
-    }
-
     pub fn default_transition(
         contract_id: ContractId,
         iface: Iface,

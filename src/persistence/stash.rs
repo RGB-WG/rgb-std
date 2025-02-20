@@ -383,45 +383,6 @@ impl<P: StashProvider> Stash<P> {
         Ok(builder)
     }
 
-    pub(super) fn blank_builder(
-        &self,
-        contract_id: ContractId,
-        iface: impl Into<IfaceRef>,
-    ) -> Result<TransitionBuilder, StashError<P>> {
-        let schema_ifaces = self.provider.contract_schema(contract_id)?;
-        let iface = self.iface(iface)?;
-        let schema = &schema_ifaces.schema;
-        if schema_ifaces.iimpls.is_empty() {
-            return Err(StashDataError::NoIfaceImpl(schema.schema_id(), iface.iface_id()).into());
-        }
-
-        let (types, _) = self.extract(&schema_ifaces.schema, [iface])?;
-
-        let builder = if let Some(iimpl) = schema_ifaces.get(iface.iface_id()) {
-            TransitionBuilder::blank_transition(
-                contract_id,
-                iface.clone(),
-                schema.clone(),
-                iimpl.clone(),
-                types,
-            )
-        } else {
-            let (default_iface_name, default_iimpl) =
-                schema_ifaces.iimpls.first_key_value().unwrap();
-            let default_iface = self.iface(default_iface_name.clone())?;
-
-            TransitionBuilder::blank_transition(
-                contract_id,
-                default_iface.clone(),
-                schema.clone(),
-                default_iimpl.clone(),
-                types,
-            )
-        };
-
-        Ok(builder)
-    }
-
     pub(super) fn consume_kit(&mut self, kit: Kit) -> Result<(), StashError<P>> {
         self.provider
             .consume_types(kit.types)

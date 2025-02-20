@@ -213,7 +213,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> From<AnchoredBundleMi
 pub enum ComposeError {
     /// no outputs available to store state of type {1} with velocity class
     /// '{0}'.
-    NoBlankOrChange(VelocityHint, AssignmentType),
+    NoExtraOrChange(VelocityHint, AssignmentType),
 
     /// the provided PSBT doesn't pay any sats to the RGB beneficiary address.
     NoBeneficiaryOutput,
@@ -245,9 +245,9 @@ pub enum ComposeError {
     #[display(inner)]
     Transition(TransitionInfoError),
 
-    /// the operation produces too many blank state transitions which can't fit
+    /// the operation produces too many extra state transitions which can't fit
     /// the container requirements.
-    TooManyBlanks,
+    TooManyExtras,
 
     #[from]
     #[display(inner)]
@@ -685,14 +685,6 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             .transition_builder(contract_id, iface, transition_name)?)
     }
 
-    pub fn blank_builder(
-        &self,
-        contract_id: ContractId,
-        iface: impl Into<IfaceRef>,
-    ) -> Result<TransitionBuilder, StockError<S, H, P>> {
-        Ok(self.stash.blank_builder(contract_id, iface)?)
-    }
-
     pub fn export_schema(&self, schema_id: SchemaId) -> Result<ValidKit, StockError<S, H, P>> {
         let mut kit = Kit::default();
         let schema_ifaces = self.schema(schema_id)?;
@@ -909,7 +901,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
     /// Composes a batch of state transitions updating state for the provided
     /// set of previous outputs, satisfying requirements of the invoice, paying
-    /// the change back and including the necessary blank state transitions.
+    /// the change back and including the necessary extra state transitions.
     #[allow(clippy::result_large_err)]
     pub fn compose(
         &self,
@@ -930,7 +922,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
     /// Composes a batch of state transitions updating state for the provided
     /// set of previous outputs, satisfying requirements of the invoice, paying
-    /// the change back and including the necessary blank state transitions.
+    /// the change back and including the necessary extra state transitions.
     #[allow(clippy::too_many_arguments, clippy::result_large_err)]
     pub fn compose_deterministic(
         &self,
@@ -967,7 +959,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
                     })
                     .unwrap_or_default();
                 let vout = allocator(id, assignment_type, velocity)
-                    .ok_or(ComposeError::NoBlankOrChange(velocity, assignment_type))?;
+                    .ok_or(ComposeError::NoExtraOrChange(velocity, assignment_type))?;
                 let seal = GraphSeal::with_blinded_vout(vout, seal_blinder(id, assignment_type));
                 Ok(BuilderSeal::Revealed(seal))
             };
@@ -1084,7 +1076,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
         // 3. Prepare other transitions
         // Enumerate state
-        let mut blank_state =
+        let mut extra_state =
             HashMap::<ContractId, HashMap<OutputSeal, HashMap<Opout, PersistedState>>>::new();
         for id in self.contracts_assigning(prev_outputs.iter().copied())? {
             // Skip current contract
@@ -1092,33 +1084,52 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
                 continue;
             }
             let state = self.contract_assignments_for(id, prev_outputs.iter().copied())?;
-            let entry = blank_state.entry(id).or_default();
+            let entry = extra_state.entry(id).or_default();
             for (seal, assigns) in state {
                 entry.entry(seal).or_default().extend(assigns);
             }
         }
 
-        // Construct blank transitions
-        let mut blanks = Confined::<Vec<_>, 0, { U24 - 1 }>::with_capacity(blank_state.len());
-        for (id, list) in blank_state {
-            let mut blank_builder = self.blank_builder(id, iface.clone())?;
-            let mut outputs = Vec::with_capacity(list.len());
-            for (output, assigns) in list {
-                outputs.push(output);
+        // Construct transitions for extra state
+        let mut extras = Confined::<Vec<_>, 0, { U24 - 1 }>::with_capacity(extra_state.len());
+        for (id, seal_map) in extra_state {
+            let schema_ifaces = self
+                .as_stash_provider()
+                .contract_schema(id)
+                .map_err(|_| BuilderError::Inconsistency(StashInconsistency::ContractAbsent(id)))?;
+            let schema = &schema_ifaces.schema;
+            // assuming any interface implementation is ok
+            let (iimpl_tn, iimpl) = schema_ifaces.iimpls.iter().next().unwrap();
+
+            for (output, assigns) in seal_map {
                 for (opout, state) in assigns {
+                    let transition_type = schema
+                        .transition_for_assignment_type(&opout.ty)
+                        .ok_or(BuilderError::TransitionTypeNotFound(opout.ty))?;
+                    let transition_name = iimpl
+                        .transition_name(transition_type)
+                        .ok_or(BuilderError::TransitionNameNotFound(transition_type))?;
+
+                    let mut extra_builder = self.transition_builder(
+                        id,
+                        iimpl_tn.clone(),
+                        Some(transition_name.clone()),
+                    )?;
+
                     let seal = output_for_assignment(id, opout.ty)?;
-                    blank_builder = blank_builder
+                    extra_builder = extra_builder
                         .add_input(opout, state.clone())?
-                        .add_owned_state_raw(opout.ty, seal, state)?
+                        .add_owned_state_raw(opout.ty, seal, state)?;
+
+                    if !extra_builder.has_inputs() {
+                        continue;
+                    }
+                    let transition = extra_builder.complete_transition()?;
+                    let info = TransitionInfo::new(transition, [output])
+                        .map_err(|_| ComposeError::TooManyInputs)?;
+                    extras.push(info).map_err(|_| ComposeError::TooManyExtras)?;
                 }
             }
-            if !blank_builder.has_inputs() {
-                continue;
-            }
-            let transition = blank_builder.complete_transition()?;
-            let info = TransitionInfo::new(transition, outputs)
-                .map_err(|_| ComposeError::TooManyInputs)?;
-            blanks.push(info).map_err(|_| ComposeError::TooManyBlanks)?;
         }
 
         if !main_builder.has_inputs() {
@@ -1127,7 +1138,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
         let main = TransitionInfo::new(main_builder.complete_transition()?, main_inputs)
             .map_err(|_| ComposeError::TooManyInputs)?;
-        let mut batch = Batch { main, blanks };
+        let mut batch = Batch { main, extras };
         batch.set_priority(priority);
         Ok(batch)
     }
@@ -1227,7 +1238,11 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
                     .keys()
                     .copied()
                     .collect::<BTreeSet<_>>();
-                let ids2 = bundle.input_map.values().copied().collect::<BTreeSet<_>>();
+                let ids2 = bundle
+                    .input_map
+                    .values()
+                    .flat_map(|opids| opids.to_unconfined())
+                    .collect::<BTreeSet<_>>();
                 if !ids1.is_subset(&ids2) {
                     return Err(FasciaError::InvalidBundle(contract_id, bundle.bundle_id()).into());
                 }
@@ -1574,7 +1589,6 @@ mod test {
 
     use baid64::FromBaid64Str;
     use commit_verify::{Conceal, DigestExt, Sha256};
-    use strict_encoding::TypeName;
 
     use super::*;
     use crate::containers::ConsignmentExt;
@@ -1612,31 +1626,6 @@ mod test {
         let schema_id = SchemaId::from(hasher);
         if let Ok(schema) = stock.export_schema(schema_id) {
             println!("{:?}", schema.kit_id())
-        }
-    }
-
-    #[test]
-    fn test_blank_builder_ifaceid() {
-        let stock = Stock::in_memory();
-        let hasher = Sha256::default();
-        let iface_id = IfaceId::from(hasher.clone());
-        let bytes_hash = hasher.finish();
-        let contract_id = ContractId::copy_from_slice(bytes_hash).unwrap();
-        if let Ok(builder) = stock.blank_builder(contract_id, IfaceRef::Id(iface_id)) {
-            println!("{:?}", builder.transition_type())
-        }
-    }
-
-    #[test]
-    fn test_blank_builder_ifacename() {
-        let stock = Stock::in_memory();
-        let hasher = Sha256::default();
-        let bytes_hash = hasher.finish();
-        let contract_id = ContractId::copy_from_slice(bytes_hash).unwrap();
-        if let Ok(builder) =
-            stock.blank_builder(contract_id, IfaceRef::Name(TypeName::from_str("RGB20").unwrap()))
-        {
-            println!("{:?}", builder.transition_type())
         }
     }
 
