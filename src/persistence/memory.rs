@@ -571,14 +571,6 @@ impl StateReadProvider for MemState {
         })
     }
 
-    fn is_valid_witness(&self, witness_id: Txid) -> Result<bool, Self::Error> {
-        let ord = self
-            .witnesses
-            .get(&witness_id)
-            .ok_or(StateInconsistency::AbsentWitness(witness_id))?;
-        Ok(ord.is_valid())
-    }
-
     fn witnesses(&self) -> LargeOrdMap<Txid, WitnessOrd> { self.witnesses.clone() }
 
     fn invalid_bundles(&self) -> LargeOrdSet<BundleId> { self.invalid_bundles.clone() }

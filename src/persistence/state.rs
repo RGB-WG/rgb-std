@@ -130,17 +130,26 @@ impl<P: StateProvider> State<P> {
         &self,
         witness_ids: impl IntoIterator<Item = impl Borrow<Txid>>,
     ) -> Result<Txid, StateError<P>> {
-        for witness_id in witness_ids {
-            let witness_id = *witness_id.borrow();
-            if self
-                .provider
-                .is_valid_witness(witness_id)
-                .map_err(StateError::ReadProvider)?
-            {
-                return Ok(witness_id);
-            }
+        let witnesses = self.as_provider().witnesses();
+        let mut best_candidate = None;
+        for id in witness_ids {
+            let id = *id.borrow();
+            let Some(&ord) = witnesses.get(&id) else {
+                return Err(StateError::Inconsistency(StateInconsistency::AbsentWitness(id)));
+            };
+            best_candidate = match best_candidate {
+                Some((_, curr_ord)) if ord < curr_ord => Some((id, ord)),
+                None => Some((id, ord)),
+                _ => best_candidate,
+            };
         }
-        Err(StateError::AbsentValidWitness)
+
+        let (best_id, best_ord) = best_candidate.expect("one witness ID should always be there");
+        if best_ord == WitnessOrd::Archived {
+            Err(StateError::AbsentValidWitness)
+        } else {
+            Ok(best_id)
+        }
     }
 
     pub fn update_from_bundle<R: ResolveWitness>(
@@ -276,8 +285,6 @@ pub trait StateReadProvider {
         &self,
         contract_id: ContractId,
     ) -> Result<Self::ContractRead<'_>, Self::Error>;
-
-    fn is_valid_witness(&self, witness_id: Txid) -> Result<bool, Self::Error>;
 
     fn witnesses(&self) -> LargeOrdMap<Txid, WitnessOrd>;
 
