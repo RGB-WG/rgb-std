@@ -34,7 +34,7 @@ use amplify::{ByteArray, Bytes32};
 use armor::{ArmorHeader, AsciiArmor, StrictArmor, StrictArmorError};
 use baid64::{Baid64ParseError, DisplayBaid64, FromBaid64Str};
 use commit_verify::{CommitEncode, CommitEngine, CommitId, CommitmentId, DigestExt, Sha256};
-use rgb::validation::{ResolveWitness, Validator, Validity, Warning, CONSIGNMENT_MAX_LIBS};
+use rgb::validation::{Failure, ResolveWitness, Validator, Validity, CONSIGNMENT_MAX_LIBS};
 use rgb::{
     impl_serde_baid64, validation, AttachId, BundleId, ChainNet, ContractId, Extension, Genesis,
     GraphSeal, Operation, Schema, SchemaId,
@@ -343,12 +343,12 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
         let validity = status.validity();
 
         if self.transfer != TRANSFER {
-            status.add_warning(Warning::Custom(s!("invalid consignment type")));
+            status.add_failure(Failure::Custom(s!("invalid consignment type")));
         }
         // check ifaceid match implementation
         for (iface, iimpl) in self.ifaces.iter() {
             if iface.iface_id() != iimpl.iface_id {
-                status.add_warning(Warning::Custom(format!(
+                status.add_failure(Failure::Custom(format!(
                     "implementation {} targets different interface {} than expected {}",
                     iimpl.impl_id(),
                     iimpl.iface_id,
@@ -360,7 +360,7 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
         // check bundle ids listed in terminals are present in the consignment
         for bundle_id in self.terminals.keys() {
             if !index.bundle_ids().any(|id| id == *bundle_id) {
-                status.add_warning(Warning::Custom(format!(
+                status.add_failure(Failure::Custom(format!(
                     "terminal bundle id {bundle_id} is not present in the consignment"
                 )));
             }
@@ -370,7 +370,7 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
         // TODO: Check that all extensions present in the consignment are used by state
         // transitions
 
-        if validity != Validity::Valid {
+        if validity == Validity::Invalid {
             Err((status, self))
         } else {
             Ok(ValidConsignment {
