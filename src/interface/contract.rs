@@ -361,10 +361,9 @@ impl<S: ContractStateRead> ContractIface<S> {
         }
 
         f(filter, self.state.rights_all())
-            .map(OwnedAllocation::from)
-            .chain(f(filter, self.state.fungible_all()).map(OwnedAllocation::from))
-            .chain(f(filter, self.state.data_all()).map(OwnedAllocation::from))
-            .chain(f(filter, self.state.attach_all()).map(OwnedAllocation::from))
+            .chain(f(filter, self.state.fungible_all()))
+            .chain(f(filter, self.state.data_all()))
+            .chain(f(filter, self.state.attach_all()))
     }
 
     pub fn outpoint_allocations(
