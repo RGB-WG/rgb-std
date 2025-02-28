@@ -689,8 +689,7 @@ dependencies = [
 [[package]]
 name = "rgb-core"
 version = "0.11.1-alpha.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ae7debf4fc13bbf2d217f71d29a0233fddf5fc5b148ded64175df36c3635029"
+source = "git+https://github.com/zoedberg/rgb-core?branch=0.11.1-2#7bcb7c842c4a4b3aeae3eedee133a8be4d5fda5b"
 dependencies = [
  "aluvm",
  "amplify",
