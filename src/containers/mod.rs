@@ -36,7 +36,6 @@ mod partials;
 mod indexed;
 mod file;
 mod kit;
-mod suppl;
 
 pub use anchors::{
     AnchorSet, AnchoredBundle, AnchoredBundleMismatch, ClientBundle, PubWitness, SealWitness,
@@ -52,11 +51,6 @@ pub use indexed::IndexedConsignment;
 pub use kit::{Kit, KitId, ValidKit};
 pub use partials::{Batch, Fascia, TransitionInfo, TransitionInfoError};
 pub use seal::{BuilderSeal, VoutSeal};
-pub use suppl::{
-    AnnotationName, Annotations, ContentRef, SupplId, SupplItem, SupplMap, SupplSub, Supplement,
-    TickerSuppl, VelocityHint, SUPPL_ANNOT_IFACE_CLASS, SUPPL_ANNOT_IFACE_FEATURES,
-    SUPPL_ANNOT_VELOCITY,
-};
 pub use util::{
     ContainerVer, ContentId, ContentSigs, DumbValidator, SigBlob, SigValidator, TrustLevel,
 };
@@ -68,7 +62,6 @@ pub const ASCII_ARMOR_SCHEMA: &str = "Schema";
 pub const ASCII_ARMOR_CONTRACT: &str = "Contract";
 pub const ASCII_ARMOR_VERSION: &str = "Version";
 pub const ASCII_ARMOR_TERMINAL: &str = "Terminal";
-pub const ASCII_ARMOR_SUPPL: &str = "Supplement";
 pub const ASCII_ARMOR_SCRIPT: &str = "Alu-Lib";
 pub const ASCII_ARMOR_TYPE_SYSTEM: &str = "Type-System";
 pub const ASCII_ARMOR_CONSIGNMENT_TYPE: &str = "Type";

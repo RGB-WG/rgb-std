@@ -23,8 +23,6 @@ ConsignmentId commitment hasher=SHA256 tagged=urn:lnp-bp:rgb:consignment#2024-03
     SecretSeal mapValue
   AttachId set len=0..MAX16
     AttachId element
-  SupplId set len=0..MAX8
-    SupplId element
   TypeSysId serialized
   LibId set len=0..MAX16
     LibId element
@@ -710,30 +708,6 @@ Consignmenttrue rec
           name ascii aka=VariantName first=AlphaSmallLodash rest=AlphaNumLodash len=1..100
           reserved bytes len=4 aka=ReservedBytes4
       developer ascii aka=Identity first=AsciiPrintable rest=AsciiPrintable len=1..4096
-  supplements set len=0..MAX8
-    Supplement rec
-      contentId union ContentRef
-        schema bytes len=32 wrapped aka=SchemaId tag=0
-        genesis bytes len=32 wrapped aka=ContractId tag=1
-        iface bytes len=32 wrapped aka=IfaceId tag=2
-        ifaceImpl bytes len=32 wrapped aka=ImplId tag=3
-      timestamp is I64
-      creator ascii aka=Identity first=AsciiPrintable rest=AsciiPrintable len=1..4096
-      annotations map len=0..MAX8
-        key enum {
-          SupplSub itself=0 meta=1 global=2 owned=3 valency=4 assignment=5 genesis=6 transition=7
-          extension=8 exception=9
-        }
-        value map len=0..MAX8 aka=SupplMap
-          key union SupplItem
-            default is Unit tag=0
-            typeNo is U16 wrapped tag=1
-            typeName ascii wrapped aka=TypeName first=AlphaCapsLodash rest=AlphaNumLodash len=1..100 tag=2
-            fieldName ascii wrapped aka=FieldName first=AlphaSmallLodash rest=AlphaNumLodash len=1..100 tag=3
-            variantName ascii wrapped aka=VariantName first=AlphaSmallLodash rest=AlphaNumLodash len=1..100 tag=4
-          value map len=0..MAX8 aka=Annotations
-            key ascii aka=AnnotationName first=AlphaCaps rest=AlphaNumDash len=1..MAX8
-            value bytes len=0..MAX16
   types map len=0..MAX24 aka=TypeSystem
     key bytes len=32 aka=SemId
     value union TySemId
@@ -790,7 +764,6 @@ Consignmenttrue rec
       genesis bytes len=32 wrapped aka=ContractId tag=1
       iface bytes len=32 wrapped aka=IfaceId tag=2
       ifaceImpl bytes len=32 wrapped aka=ImplId tag=3
-      suppl bytes len=32 wrapped aka=SupplId tag=4
     value map len=1..10 aka=ContentSigs
       key ascii aka=Identity first=AsciiPrintable rest=AsciiPrintable len=1..4096
       value bytes len=1..4096 aka=SigBlob

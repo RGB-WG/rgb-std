@@ -44,7 +44,7 @@ use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 use strict_types::TypeSystem;
 
 use super::{
-    ContainerVer, ContentId, ContentSigs, IndexedConsignment, Supplement, WitnessBundle,
+    ContainerVer, ContentId, ContentSigs, IndexedConsignment, WitnessBundle,
     ASCII_ARMOR_CONSIGNMENT_TYPE, ASCII_ARMOR_CONTRACT, ASCII_ARMOR_IFACE, ASCII_ARMOR_SCHEMA,
     ASCII_ARMOR_TERMINAL, ASCII_ARMOR_VERSION,
 };
@@ -204,9 +204,6 @@ pub struct Consignment<const TRANSFER: bool> {
     /// Interfaces supported by the contract.
     pub ifaces: TinyOrdMap<Iface, IfaceImpl>,
 
-    /// Known supplements.
-    pub supplements: TinyOrdSet<Supplement>,
-
     /// Type system covering all types used in schema, interfaces and
     /// implementations.
     pub types: TypeSystem,
@@ -249,9 +246,6 @@ impl<const TRANSFER: bool> CommitEncode for Consignment<TRANSFER> {
         e.commit_to_map(&self.terminals);
 
         e.commit_to_set(&SmallOrdSet::from_iter_checked(self.attachments.keys().copied()));
-        e.commit_to_set(&TinyOrdSet::from_iter_checked(
-            self.supplements.iter().map(|suppl| suppl.suppl_id()),
-        ));
 
         e.commit_to_serialized(&self.types.id());
         e.commit_to_set(&SmallOrdSet::from_iter_checked(self.scripts.iter().map(|lib| lib.id())));
@@ -311,7 +305,6 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
             transfer: false,
             schema: self.schema,
             ifaces: self.ifaces,
-            supplements: self.supplements,
             types: self.types,
             genesis: self.genesis,
             terminals: self.terminals,

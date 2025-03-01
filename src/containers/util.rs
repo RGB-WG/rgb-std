@@ -26,7 +26,6 @@ use commit_verify::StrictHash;
 use rgb::{ContractId, Identity, SchemaId};
 use strict_encoding::StrictDumb;
 
-use super::SupplId;
 use crate::interface::{IfaceId, ImplId};
 use crate::LIB_NAME_RGB_STD;
 
@@ -94,7 +93,6 @@ pub enum ContentId {
     Genesis(ContractId),
     Iface(IfaceId),
     IfaceImpl(ImplId),
-    Suppl(SupplId),
 }
 
 #[derive(Wrapper, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, From, Display)]

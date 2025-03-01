@@ -319,8 +319,7 @@ impl ContractBuilder {
             types,
             scripts,
 
-            supplements: none!(), // TODO: Add supplements
-            signatures: none!(),  // TODO: Add signatures
+            signatures: none!(), // TODO: Add signatures
         };
 
         let valid_contract = contract

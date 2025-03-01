@@ -27,7 +27,6 @@ use std::fmt::Debug;
 use std::num::NonZeroU32;
 
 use amplify::confinement::{Confined, LargeOrdSet, U24};
-use amplify::Wrapper;
 use bp::seals::txout::CloseMethod;
 use bp::{Outpoint, Txid, Vout};
 use chrono::Utc;
@@ -50,9 +49,8 @@ use super::{
 };
 use crate::containers::{
     AnchorSet, AnchoredBundleMismatch, Batch, BuilderSeal, ClientBundle, Consignment, ContainerVer,
-    ContentId, ContentRef, Contract, Fascia, Kit, SealWitness, SupplItem, SupplSub, Transfer,
-    TransitionInfo, TransitionInfoError, UnrelatedTransition, ValidConsignment, ValidContract,
-    ValidKit, ValidTransfer, VelocityHint, WitnessBundle, SUPPL_ANNOT_VELOCITY,
+    ContentId, Contract, Fascia, Kit, SealWitness, Transfer, TransitionInfo, TransitionInfoError,
+    UnrelatedTransition, ValidConsignment, ValidContract, ValidKit, ValidTransfer, WitnessBundle,
 };
 use crate::info::{ContractInfo, IfaceInfo, SchemaInfo};
 use crate::interface::{
@@ -158,8 +156,6 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider, E: Error> From<IndexE
 pub enum ConsignError {
     /// unable to construct consignment: too many signatures provided.
     TooManySignatures,
-    /// unable to construct consignment: too many supplements provided.
-    TooManySupplements,
 
     /// unable to construct consignment: too many terminals provided.
     TooManyTerminals,
@@ -211,9 +207,8 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> From<AnchoredBundleMi
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum ComposeError {
-    /// no outputs available to store state of type {1} with velocity class
-    /// '{0}'.
-    NoExtraOrChange(VelocityHint, AssignmentType),
+    /// no outputs available to store state of type {0}
+    NoExtraOrChange(AssignmentType),
 
     /// the provided PSBT doesn't pay any sats to the RGB beneficiary address.
     NoBeneficiaryOutput,
@@ -482,14 +477,10 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             .ifaces()?
             .map(|iface| (iface.iface_id(), iface.name.clone()))
             .collect::<HashMap<_, _>>();
-        Ok(self.stash.ifaces()?.map(move |iface| {
-            let suppl = self
-                .stash
-                .supplement(ContentRef::Iface(iface.iface_id()))
-                .ok()
-                .flatten();
-            IfaceInfo::new(iface, &names, suppl)
-        }))
+        Ok(self
+            .stash
+            .ifaces()?
+            .map(move |iface| IfaceInfo::new(iface, &names)))
     }
     pub fn iface(&self, iface: impl Into<IfaceRef>) -> Result<&Iface, StockError<S, H, P>> {
         Ok(self.stash.iface(iface)?)
@@ -734,8 +725,6 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     ) -> Result<Consignment<TRANSFER>, StockError<S, H, P, ConsignError>> {
         let outputs = outputs.as_ref();
 
-        // Initialize supplements with btree set
-        let mut supplements = bset![];
         // Initialize signatures with btree map
         let mut signatures = bmap! {};
         // Get genesis signature by contract id
@@ -744,10 +733,6 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             .map(|genesis_sig| {
                 signatures.insert(ContentId::Genesis(contract_id), genesis_sig.clone())
             });
-        // Get genesis supplement by contract id
-        self.stash
-            .supplement(ContentRef::Genesis(contract_id))?
-            .map(|genesis_suppl| supplements.insert(genesis_suppl.clone()));
         // 1. Collect initial set of anchored bundles
         // 1.1. Get all public outputs
         let mut opouts = self.index.public_opouts(contract_id)?;
@@ -823,10 +808,6 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             .map(|schema_signature| {
                 signatures.insert(ContentId::Schema(genesis.schema_id), schema_signature.clone())
             });
-        // Get schema supplement by schema id
-        self.stash
-            .supplement(ContentRef::Schema(genesis.schema_id))?
-            .map(|schema_suppl| supplements.insert(schema_suppl.clone()));
 
         let schema_ifaces = self.stash.schema(genesis.schema_id)?.clone();
         let mut ifaces = BTreeMap::new();
@@ -844,14 +825,6 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
                     signatures
                         .insert(ContentId::IfaceImpl(iimpl.impl_id()), iimpl_signature.clone())
                 });
-            // Get iface and iimpl supplement by iface id and iimpl id
-            self.stash
-                .supplement(ContentRef::Iface(iface.iface_id()))?
-                .map(|iface_suppl| supplements.insert(iface_suppl.clone()));
-
-            self.stash
-                .supplement(ContentRef::IfaceImpl(iimpl.impl_id()))?
-                .map(|iimpl_suppl| supplements.insert(iimpl_suppl.clone()));
 
             ifaces.insert(iface.clone(), iimpl);
         }
@@ -873,8 +846,6 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
         let (types, scripts) = self.stash.extract(&schema_ifaces.schema, ifaces.keys())?;
         let scripts = Confined::from_iter_checked(scripts.into_values());
-        let supplements =
-            Confined::try_from(supplements).map_err(|_| ConsignError::TooManySupplements)?;
         let signatures =
             Confined::try_from(signatures).map_err(|_| ConsignError::TooManySignatures)?;
         // TODO: Conceal everything we do not need
@@ -893,7 +864,6 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             attachments: none!(),
 
             signatures,
-            supplements,
             types,
             scripts,
         })
@@ -908,7 +878,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         invoice: &RgbInvoice,
         prev_outputs: impl IntoIterator<Item = impl Into<OutputSeal>>,
         beneficiary_vout: Option<impl Into<Vout>>,
-        allocator: impl Fn(ContractId, AssignmentType, VelocityHint) -> Option<Vout>,
+        allocator: impl Fn(ContractId, AssignmentType) -> Option<Vout>,
     ) -> Result<Batch, StockError<S, H, P, ComposeError>> {
         self.compose_deterministic(
             invoice,
@@ -930,7 +900,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         prev_outputs: impl IntoIterator<Item = impl Into<OutputSeal>>,
         beneficiary_vout: Option<impl Into<Vout>>,
         priority: u64,
-        allocator: impl Fn(ContractId, AssignmentType, VelocityHint) -> Option<Vout>,
+        allocator: impl Fn(ContractId, AssignmentType) -> Option<Vout>,
         seal_blinder: impl Fn(ContractId, AssignmentType) -> u64,
     ) -> Result<Batch, StockError<S, H, P, ComposeError>> {
         let prev_outputs = prev_outputs
@@ -943,23 +913,8 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             |id: ContractId,
              assignment_type: AssignmentType|
              -> Result<BuilderSeal<GraphSeal>, StockError<S, H, P, ComposeError>> {
-                let mut suppl = self.stash.supplements(ContentRef::Genesis(id))?;
-                let velocity = suppl
-                    .next()
-                    .and_then(|suppl| {
-                        suppl
-                            .get(
-                                SupplSub::Assignment,
-                                SupplItem::TypeNo(assignment_type.to_inner()),
-                                SUPPL_ANNOT_VELOCITY,
-                            )
-                            .transpose()
-                            .ok()
-                            .flatten()
-                    })
-                    .unwrap_or_default();
-                let vout = allocator(id, assignment_type, velocity)
-                    .ok_or(ComposeError::NoExtraOrChange(velocity, assignment_type))?;
+                let vout = allocator(id, assignment_type)
+                    .ok_or(ComposeError::NoExtraOrChange(assignment_type))?;
                 let seal = GraphSeal::with_blinded_vout(vout, seal_blinder(id, assignment_type));
                 Ok(BuilderSeal::Revealed(seal))
             };
@@ -1604,7 +1559,7 @@ mod test {
             ContractId::from_baid64_str("rgb:qFuT6DN8-9AuO95M-7R8R8Mc-AZvs7zG-obum1Va-BRnweKk")
                 .unwrap();
         if let Ok(transfer) = stock.consign::<true>(contract_id, [], Some(secret_seal), None) {
-            println!("{:?}", transfer.supplements)
+            println!("{:?}", transfer)
         }
     }
 

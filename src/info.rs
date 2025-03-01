@@ -29,9 +29,6 @@ use rgb::{ChainNet, ContractId, Genesis, Identity, Operation, SchemaId};
 use strict_encoding::stl::{AlphaCapsLodash, AlphaNumLodash};
 use strict_encoding::{FieldName, RString, StrictDeserialize, StrictSerialize, TypeName};
 
-use crate::containers::{
-    SupplSub, Supplement, SUPPL_ANNOT_IFACE_CLASS, SUPPL_ANNOT_IFACE_FEATURES,
-};
 use crate::interface::{Iface, IfaceId, IfaceImpl, IfaceRef, ImplId, VerNo};
 use crate::persistence::SchemaIfaces;
 use crate::LIB_NAME_RGB_STD;
@@ -73,8 +70,6 @@ pub struct IfaceInfo {
     pub id: IfaceId,
     pub version: VerNo,
     pub name: TypeName,
-    pub standard: Option<IfaceClassName>,
-    pub features: FeatureList,
     pub developer: Identity,
     pub created_at: DateTime<Utc>,
     pub inherits: Vec<IfaceRef>,
@@ -82,37 +77,11 @@ pub struct IfaceInfo {
 }
 
 impl IfaceInfo {
-    pub fn new(
-        iface: &Iface,
-        names: &HashMap<IfaceId, TypeName>,
-        suppl: Option<&Supplement>,
-    ) -> Self {
-        let mut standard = None;
-        let mut features = none!();
-        if let Some(suppl) = suppl {
-            standard =
-                suppl.get_default_opt::<IfaceClassName>(SupplSub::Itself, SUPPL_ANNOT_IFACE_CLASS);
-            if let Some(list) =
-                suppl.get_default_opt::<FeatureList>(SupplSub::Itself, SUPPL_ANNOT_IFACE_FEATURES)
-            {
-                features = list
-            };
-        }
-        Self::with(iface, standard, features, names)
-    }
-
-    pub fn with(
-        iface: &Iface,
-        standard: Option<IfaceClassName>,
-        features: FeatureList,
-        names: &HashMap<IfaceId, TypeName>,
-    ) -> Self {
+    pub fn new(iface: &Iface, names: &HashMap<IfaceId, TypeName>) -> Self {
         IfaceInfo {
             id: iface.iface_id(),
             version: iface.version,
             name: iface.name.clone(),
-            standard,
-            features,
             developer: iface.developer.clone(),
             created_at: Utc
                 .timestamp_opt(iface.timestamp, 0)
@@ -136,28 +105,10 @@ impl IfaceInfo {
 
 impl Display for IfaceInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}\t",
-            self.standard
-                .as_ref()
-                .map(IfaceClassName::to_string)
-                .unwrap_or_else(|| s!("~"))
-        )?;
         write!(f, "{: <40}\t", self.name.to_string())?;
         write!(f, "{}\t", self.created_at.format("%Y-%m-%d"))?;
         write!(f, "{}\t", self.version)?;
         writeln!(f, "{}", self.id)?;
-
-        writeln!(
-            f,
-            "  Features:    {}",
-            self.features
-                .iter()
-                .map(FieldName::to_string)
-                .collect::<Vec<_>>()
-                .join(", ")
-        )?;
 
         writeln!(
             f,

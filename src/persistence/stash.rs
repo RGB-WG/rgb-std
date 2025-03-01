@@ -43,8 +43,8 @@ use strict_types::typesys::UnknownType;
 use strict_types::TypeSystem;
 
 use crate::containers::{
-    AnchorSet, Consignment, ConsignmentExt, ContentId, ContentRef, ContentSigs, Kit, SealWitness,
-    SigBlob, Supplement, TrustLevel, WitnessBundle,
+    AnchorSet, Consignment, ConsignmentExt, ContentId, ContentSigs, Kit, SealWitness, SigBlob,
+    TrustLevel, WitnessBundle,
 };
 use crate::interface::{
     ContractBuilder, Iface, IfaceClass, IfaceId, IfaceImpl, IfaceRef, TransitionBuilder,
@@ -265,30 +265,12 @@ impl<P: StashProvider> Stash<P> {
         Ok(self.provider.witness(witness_id)?)
     }
 
-    pub(super) fn supplements(
-        &self,
-        content_ref: ContentRef,
-    ) -> Result<impl Iterator<Item = Supplement> + '_, StashError<P>> {
-        self.provider
-            .supplements(content_ref)
-            .map_err(StashError::ReadProvider)
-    }
-
     pub(super) fn sigs_for(
         &self,
         content_id: &ContentId,
     ) -> Result<Option<&ContentSigs>, StashError<P>> {
         self.provider
             .sigs_for(content_id)
-            .map_err(StashError::ReadProvider)
-    }
-
-    pub(super) fn supplement(
-        &self,
-        content_ref: ContentRef,
-    ) -> Result<Option<&Supplement>, StashError<P>> {
-        self.provider
-            .supplement(content_ref)
             .map_err(StashError::ReadProvider)
     }
 
@@ -411,11 +393,6 @@ impl<P: StashProvider> Stash<P> {
         }
 
         // TODO: filter out non-trusted signers
-        for suppl in kit.supplements {
-            self.provider
-                .add_supplement(suppl)
-                .map_err(StashError::WriteProvider)?;
-        }
 
         for (content_id, sigs) in kit.signatures {
             // TODO: Filter sigs by trust level
@@ -488,7 +465,6 @@ impl<P: StashProvider> Stash<P> {
             ifaces: Confined::from_checked(ifaces),
             schemata: tiny_bset![consignment.schema],
             iimpls: Confined::from_checked(iimpls),
-            supplements: consignment.supplements,
             types: consignment.types,
             scripts: Confined::from_checked(consignment.scripts.release()),
             signatures: consignment.signatures,
@@ -633,11 +609,6 @@ pub trait StashReadProvider {
     }
 
     fn get_trust(&self, identity: &Identity) -> Result<TrustLevel, Self::Error>;
-    fn supplement(&self, content_ref: ContentRef) -> Result<Option<&Supplement>, Self::Error>;
-    fn supplements(
-        &self,
-        content_ref: ContentRef,
-    ) -> Result<impl Iterator<Item = Supplement>, Self::Error>;
 
     fn sigs_for(&self, content_id: &ContentId) -> Result<Option<&ContentSigs>, Self::Error>;
     fn witness_ids(&self) -> Result<impl Iterator<Item = Txid>, Self::Error>;
@@ -672,7 +643,6 @@ pub trait StashWriteProvider: StoreTransaction<TransactionErr = Self::Error> {
         identity: Identity,
         trust: TrustLevel,
     ) -> Result<(), confinement::Error>;
-    fn add_supplement(&mut self, suppl: Supplement) -> Result<(), Self::Error>;
     fn import_sigs<I>(&mut self, content_id: ContentId, sigs: I) -> Result<(), Self::Error>
     where I: IntoIterator<Item = (Identity, SigBlob)>;
 

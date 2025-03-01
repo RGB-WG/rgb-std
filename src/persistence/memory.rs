@@ -56,9 +56,7 @@ use super::{
     StashInconsistency, StashProvider, StashProviderError, StashReadProvider, StashWriteProvider,
     StateInconsistency, StateProvider, StateReadProvider, StateWriteProvider, StoreTransaction,
 };
-use crate::containers::{
-    AnchorSet, ContentId, ContentRef, ContentSigs, SealWitness, SigBlob, Supplement, TrustLevel,
-};
+use crate::containers::{AnchorSet, ContentId, ContentSigs, SealWitness, SigBlob, TrustLevel};
 use crate::contract::{GlobalOut, KnownState, OpWitness, OutputAssignment};
 use crate::interface::{Iface, IfaceClass, IfaceId, IfaceImpl, IfaceRef};
 use crate::LIB_NAME_RGB_STORAGE;
@@ -90,7 +88,6 @@ pub struct MemStash {
     schemata: TinyOrdMap<SchemaId, SchemaIfaces>,
     ifaces: TinyOrdMap<IfaceId, Iface>,
     geneses: TinyOrdMap<ContractId, Genesis>,
-    suppl: TinyOrdMap<ContentRef, TinyOrdSet<Supplement>>,
     bundles: LargeOrdMap<BundleId, TransitionBundle>,
     extensions: LargeOrdMap<OpId, Extension>,
     witnesses: LargeOrdMap<Txid, SealWitness>,
@@ -112,7 +109,6 @@ impl MemStash {
             schemata: empty!(),
             ifaces: empty!(),
             geneses: empty!(),
-            suppl: empty!(),
             bundles: empty!(),
             extensions: empty!(),
             witnesses: empty!(),
@@ -133,7 +129,6 @@ impl CloneNoPersistence for MemStash {
             schemata: self.schemata.clone(),
             ifaces: self.ifaces.clone(),
             geneses: self.geneses.clone(),
-            suppl: self.suppl.clone(),
             bundles: self.bundles.clone(),
             extensions: self.extensions.clone(),
             witnesses: self.witnesses.clone(),
@@ -242,22 +237,6 @@ impl StashReadProvider for MemStash {
 
     fn get_trust(&self, identity: &Identity) -> Result<TrustLevel, Self::Error> {
         Ok(self.identities.get(identity).copied().unwrap_or_default())
-    }
-
-    fn supplement(&self, content_ref: ContentRef) -> Result<Option<&Supplement>, Self::Error> {
-        Ok(self.suppl.get(&content_ref).and_then(|s| s.first()))
-    }
-
-    fn supplements(
-        &self,
-        content_ref: ContentRef,
-    ) -> Result<impl Iterator<Item = Supplement>, Self::Error> {
-        Ok(self
-            .suppl
-            .get(&content_ref)
-            .cloned()
-            .unwrap_or_default()
-            .into_iter())
     }
 
     fn sigs_for(&self, content_id: &ContentId) -> Result<Option<&ContentSigs>, Self::Error> {
@@ -383,16 +362,6 @@ impl StashWriteProvider for MemStash {
         trust: TrustLevel,
     ) -> Result<(), confinement::Error> {
         self.identities.insert(identity, trust)?;
-        Ok(())
-    }
-
-    fn add_supplement(&mut self, suppl: Supplement) -> Result<(), Self::Error> {
-        match self.suppl.get_mut(&suppl.content_id) {
-            None => {
-                self.suppl.insert(suppl.content_id, tiny_bset![suppl])?;
-            }
-            Some(suppls) => suppls.push(suppl)?,
-        }
         Ok(())
     }
 

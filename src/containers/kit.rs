@@ -35,8 +35,8 @@ use strict_encoding::{StrictDeserialize, StrictSerialize};
 use strict_types::TypeSystem;
 
 use super::{
-    ContentRef, Supplement, ASCII_ARMOR_IFACE, ASCII_ARMOR_IIMPL, ASCII_ARMOR_SCHEMA,
-    ASCII_ARMOR_SCRIPT, ASCII_ARMOR_TYPE_SYSTEM, ASCII_ARMOR_VERSION,
+    ASCII_ARMOR_IFACE, ASCII_ARMOR_IIMPL, ASCII_ARMOR_SCHEMA, ASCII_ARMOR_SCRIPT,
+    ASCII_ARMOR_TYPE_SYSTEM, ASCII_ARMOR_VERSION,
 };
 use crate::containers::{ContainerVer, ContentId, ContentSigs};
 use crate::interface::{Iface, IfaceImpl};
@@ -129,8 +129,6 @@ pub struct Kit {
 
     pub iimpls: TinyOrdSet<IfaceImpl>,
 
-    pub supplements: TinyOrdSet<Supplement>,
-
     /// Type system covering all types used in schema, interfaces and
     /// implementations.
     pub types: TypeSystem,
@@ -159,9 +157,6 @@ impl CommitEncode for Kit {
         ));
         e.commit_to_set(&TinyOrdSet::from_iter_checked(
             self.iimpls.iter().map(|iimpl| iimpl.impl_id()),
-        ));
-        e.commit_to_set(&TinyOrdSet::from_iter_checked(
-            self.supplements.iter().map(|suppl| suppl.suppl_id()),
         ));
 
         e.commit_to_serialized(&self.types.id());
@@ -208,15 +203,6 @@ impl StrictArmor for Kit {
             header
                 .params
                 .push((s!("dev"), schema.developer.to_string()));
-            if let Some(suppl) = self
-                .supplements
-                .iter()
-                .find(|s| s.content_id == ContentRef::Schema(id))
-            {
-                header
-                    .params
-                    .push((s!("suppl"), format!("{:-}", suppl.suppl_id())));
-            }
             headers.push(header);
         }
         for iface in &self.ifaces {
@@ -224,15 +210,6 @@ impl StrictArmor for Kit {
             let id = iface.iface_id();
             header.params.push((s!("id"), format!("{id:-}")));
             header.params.push((s!("dev"), iface.developer.to_string()));
-            if let Some(suppl) = self
-                .supplements
-                .iter()
-                .find(|s| s.content_id == ContentRef::Iface(id))
-            {
-                header
-                    .params
-                    .push((s!("suppl"), format!("{:-}", suppl.suppl_id())));
-            }
             headers.push(header);
         }
         for iimpl in &self.iimpls {
@@ -245,15 +222,6 @@ impl StrictArmor for Kit {
                 .params
                 .push((s!("schema"), format!("{:-}", iimpl.schema_id)));
             header.params.push((s!("dev"), iimpl.developer.to_string()));
-            if let Some(suppl) = self
-                .supplements
-                .iter()
-                .find(|s| s.content_id == ContentRef::IfaceImpl(id))
-            {
-                header
-                    .params
-                    .push((s!("suppl"), format!("{:-}", suppl.suppl_id())));
-            }
             headers.push(header);
         }
         headers.push(ArmorHeader::new(ASCII_ARMOR_TYPE_SYSTEM, self.types.id().to_string()));
@@ -291,12 +259,12 @@ mod test {
     fn error_kit_strs() {
         assert!(Kit::from_str(
             r#"-----BEGIN RGB KIT-----
-Id: rgb:kit:e1jW6Rgc-2$JzXDg-XmR8XRJ-v!q$Dzf-yImkPjD-t8EjfvI
+Id: rgb:kit:5PcH5BM9-JI91Fhx-R0TUG4o-ZqLwv6r-UHlivQn-x1q6XqA
 Version: 2
 Type-System: sts:8Vb$sM1F-5MsQc20-HEixf55-gJR37FM-0zRKfpY-SwIp35w#design-farmer-camel
-Check-SHA256: 5563cc1568e244183804e0db3cec6ff9bf577f4a403924096177bf4a586160da
+Check-SHA256: 337a32712f14c5df0b57a64bd6c321a043081688ecd4f33fd8319470da2256b1
 
-0ssI2000000000
+0ssI200000000
 
 -----END RGB KIT-----"#
         )

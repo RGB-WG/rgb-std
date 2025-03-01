@@ -1,5 +1,5 @@
 {-
-  Id: stl:AmLN675O-IQepoSd-Y$3m8xJ-$wBBGY3-qMTw8sv-f1Ges1Q#scarlet-visitor-partner
+  Id: stl:QkFHCxkU-TsSTMCW-RT5TBmt-E2Pip0T-m7rHDnk-R9xxUA4#postage-alert-disney
   Name: RGBStd
   Version: 0.11.0
   Description: RGB standard library
@@ -117,7 +117,6 @@ import Std#ralph-blue-lucky
   use AlphaCaps#picnic-soprano-aurora
   use AsciiPrintable#ultra-sunset-format
   use Bool#oxygen-complex-duet
-  use AlphaNumDash#sponsor-snake-nice
   use AlphaCapsNum#aladdin-zebra-marble
   use AlphaNumLodash#percent-bingo-caesar
   use AlphaCapsLodash#duet-hammer-labor
@@ -150,12 +149,6 @@ import Bitcoin#signal-color-cipher
 data AnchoredBundle    : tapret#1 ClientBundleTapretProof
                        | opret ClientBundleOpretProof
 
-@mnemonic(domino-waiter-orlando)
-data AnnotationName    : Std.AlphaCaps, [Std.AlphaNumDash ^ ..0xfe]
-
-@mnemonic(phantom-habitat-pegasus)
-data Annotations       : {AnnotationName -> ^ ..0xff [Byte]}
-
 @mnemonic(baby-infant-cake)
 data AssignIface       : ownedState OwnedIface
                        , public Std.Bool
@@ -172,7 +165,7 @@ data ClientBundleTapretProof : mpcProof CommitVerify.MerkleProof
                        , dbcProof BPCore.TapretProof
                        , bundle RGBCommit.TransitionBundle
 
-@mnemonic(sugar-rival-avatar)
+@mnemonic(velvet-price-radio)
 data Consignmentfalse  : version ContainerVer
                        , transfer Std.Bool
                        , terminals {RGBCommit.BundleId -> BPCore.SecretSeal}
@@ -181,13 +174,12 @@ data Consignmentfalse  : version ContainerVer
                        , bundles {WitnessBundle ^ ..0xffffffff}
                        , schema RGBCommit.Schema
                        , ifaces {Iface -> ^ ..0xff IfaceImpl}
-                       , supplements {Supplement ^ ..0xff}
                        , types StrictTypes.TypeSystem
                        , scripts {AluVM.Lib ^ ..0x400}
                        , attachments {RGBCommit.AttachId -> [Byte ^ ..0xffffff]}
                        , signatures {ContentId -> ^ ..0xff ContentSigs}
 
-@mnemonic(snow-sabine-crystal)
+@mnemonic(guru-north-forest)
 data Consignmenttrue   : version ContainerVer
                        , transfer Std.Bool
                        , terminals {RGBCommit.BundleId -> BPCore.SecretSeal}
@@ -196,7 +188,6 @@ data Consignmenttrue   : version ContainerVer
                        , bundles {WitnessBundle ^ ..0xffffffff}
                        , schema RGBCommit.Schema
                        , ifaces {Iface -> ^ ..0xff IfaceImpl}
-                       , supplements {Supplement ^ ..0xff}
                        , types StrictTypes.TypeSystem
                        , scripts {AluVM.Lib ^ ..0x400}
                        , attachments {RGBCommit.AttachId -> [Byte ^ ..0xffffff]}
@@ -206,15 +197,8 @@ data Consignmenttrue   : version ContainerVer
 data ContainerVer      : v2#2 | (|)
 
 
-@mnemonic(dispute-senator-parody)
+@mnemonic(comet-price-scorpio)
 data ContentId         : schema RGBCommit.SchemaId
-                       | genesis RGBCommit.ContractId
-                       | iface IfaceId
-                       | ifaceImpl ImplId
-                       | suppl SupplId
-
-@mnemonic(reward-sharp-orca)
-data ContentRef        : schema RGBCommit.SchemaId
                        | genesis RGBCommit.ContractId
                        | iface IfaceId
                        | ifaceImpl ImplId
@@ -282,12 +266,11 @@ data IfaceImpl         : version VerNo
 @mnemonic(seminar-data-table)
 data ImplId            : [Byte ^ 32]
 
-@mnemonic(sultan-dexter-lotus)
+@mnemonic(numeric-vital-passive)
 data Kit               : version ContainerVer
                        , ifaces {Iface ^ ..0xff}
                        , schemata {RGBCommit.Schema ^ ..0xff}
                        , iimpls {IfaceImpl ^ ..0xff}
-                       , supplements {Supplement ^ ..0xff}
                        , types StrictTypes.TypeSystem
                        , scripts {AluVM.Lib}
                        , signatures {ContentId -> ^ ..0xff ContentSigs}
@@ -345,31 +328,6 @@ data PubWitness        : txid Bitcoin.Txid
 
 @mnemonic(insect-cello-avalon)
 data SigBlob           : [Byte ^ 1..0x1000]
-
-@mnemonic(pilot-claudia-minute)
-data SupplId           : [Byte ^ 32]
-
-@mnemonic(jargon-orchid-forget)
-data SupplItem         : default ()
-                       | typeNo U16
-                       | typeName#17 StrictTypes.TypeName
-                       | fieldName StrictTypes.FieldName
-                       | variantName StrictTypes.VariantName
-
-@mnemonic(phone-claudia-kiwi)
-data SupplMap          : {SupplItem -> ^ ..0xff Annotations}
-
-@mnemonic(canoe-denmark-short)
-data SupplSub          : itself | meta | global | owned
-                       | valency | assignment | genesis | transition
-                       | extension | exception
-
-
-@mnemonic(lobster-traffic-flame)
-data Supplement        : contentId ContentRef
-                       , timestamp I64
-                       , creator RGBCommit.Identity
-                       , annotations {SupplSub -> ^ ..0xff SupplMap}
 
 @mnemonic(sigma-rose-cubic)
 data TransitionIface   : modifier Modifier
