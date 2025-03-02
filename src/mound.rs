@@ -124,7 +124,9 @@ impl<S: Supply, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
         self.schemata.iter().map(|(id, schema)| (*id, schema))
     }
 
-    pub fn schema(&self, codex_id: CodexId) -> Option<&Schema> { self.schemata.get(&codex_id) }
+    pub fn schema(&self, codex_id: CodexId) -> Option<&Schema> {
+        self.schemata.get(&codex_id)
+    }
 
     pub fn contract_ids(&self) -> impl Iterator<Item = ContractId> + use<'_, S, P, X> {
         self.contracts.keys().copied()
@@ -144,7 +146,9 @@ impl<S: Supply, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
         self.contracts.iter_mut().map(|(id, stock)| (*id, stock))
     }
 
-    pub fn has_contract(&self, id: ContractId) -> bool { self.contracts.contains_key(&id) }
+    pub fn has_contract(&self, id: ContractId) -> bool {
+        self.contracts.contains_key(&id)
+    }
 
     pub fn find_contract_id(&self, r: impl Into<ContractRef>) -> Option<ContractId> {
         match r.into() {
@@ -269,6 +273,7 @@ pub enum MoundConsumeError<Seal: RgbSealDef> {
 
 #[cfg(feature = "fs")]
 pub mod file {
+    use core::any::Any;
     use std::ffi::OsStr;
     use std::fs;
     use std::fs::{File, FileType};
@@ -276,10 +281,12 @@ pub mod file {
     use std::path::{Path, PathBuf};
 
     use hypersonic::expect::Expect;
-    use hypersonic::FileSupply;
+    use hypersonic::{Articles, FileSupply, Stock};
     use rgb::RgbSealDef;
     use single_use_seals::PublishedWitness;
-    use strict_encoding::{DeserializeError, StreamWriter, StrictDecode, StrictEncode};
+    use strict_encoding::{
+        DeserializeError, StreamReader, StreamWriter, StrictDecode, StrictEncode,
+    };
 
     use super::*;
     use crate::FilePile;
@@ -390,7 +397,9 @@ pub mod file {
             self.issue(params, supply, pile)
         }
 
-        pub fn path(&self) -> PathBuf { self.persistence.consensus_dir() }
+        pub fn path(&self) -> PathBuf {
+            self.persistence.consensus_dir()
+        }
 
         pub fn consign_to_file(
             &mut self,
@@ -407,6 +416,38 @@ pub mod file {
             let file = File::create_new(path)?;
             let writer = StrictWriter::with(StreamWriter::new::<{ usize::MAX }>(file));
             self.consign(contract_id, terminals, writer)
+        }
+
+        pub fn import_articles(
+            &mut self,
+            dir: impl AsRef<Path>, // articles
+        ) -> io::Result<()>
+        where
+            <SealDef::Src as SingleUseSeal>::CliWitness: StrictDecode,
+            <SealDef::Src as SingleUseSeal>::PubWitness: StrictDecode,
+            <<SealDef::Src as SingleUseSeal>::PubWitness as PublishedWitness<SealDef::Src>>::PubId:
+                StrictDecode,
+        {
+            let path = dir.as_ref().join("contract.articles");
+            let articles =
+                Articles::load(&path).expect("unable to load articles from specified file");
+            let name = articles.contract.meta.name.to_string();
+            let contract_id = articles.contract.contract_id();
+            let target_dir = self.persistence.consensus_dir();
+            println!(
+                "-- DEBUG: importing contract id={} name={} from file {} to {}",
+                contract_id,
+                name,
+                path.display(),
+                target_dir.display()
+            );
+            let supply = FileSupply::new(name.as_str(), &target_dir);
+            let _pile = FilePile::<SealDef>::new(name.as_str(), &target_dir);
+            let _stock = Stock::create(articles, supply);
+            let stockpile = Stockpile::load(dir.as_ref());
+            let id = stockpile.contract_id();
+            self.contracts.insert(id, stockpile);
+            Ok(())
         }
     }
 }
