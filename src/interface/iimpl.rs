@@ -29,8 +29,8 @@ use baid64::{Baid64ParseError, DisplayBaid64, FromBaid64Str};
 use chrono::{DateTime, TimeZone, Utc};
 use commit_verify::{CommitId, CommitmentId, DigestExt, Sha256};
 use rgb::{
-    impl_serde_baid64, AssignmentType, ExtensionType, GlobalStateType, Identity, MetaType, Schema,
-    SchemaId, TransitionType, ValencyType,
+    impl_serde_baid64, AssignmentType, GlobalStateType, Identity, MetaType, Schema, SchemaId,
+    TransitionType,
 };
 use strict_encoding::{FieldName, StrictDumb, VariantName};
 use strict_types::encoding::{StrictDecode, StrictEncode, StrictType};
@@ -47,8 +47,6 @@ impl SchemaTypeIndex for u8 {} // Error types
 impl SchemaTypeIndex for MetaType {}
 impl SchemaTypeIndex for GlobalStateType {}
 impl SchemaTypeIndex for AssignmentType {}
-impl SchemaTypeIndex for ValencyType {}
-impl SchemaTypeIndex for ExtensionType {}
 impl SchemaTypeIndex for TransitionType {}
 
 /// Interface identifier.
@@ -95,8 +93,7 @@ impl ImplId {
     pub const fn from_array(id: [u8; 32]) -> Self { ImplId(Bytes32::from_array(id)) }
 }
 
-/// Maps certain form of type id (global or owned state or a valency) to a
-/// human-readable name.
+/// Maps certain form of type id (global or owned state) to a human-readable name.
 ///
 /// Two distinct [`NamedField`] objects must always have both different state
 /// ids and names.   
@@ -132,8 +129,7 @@ impl<T: SchemaTypeIndex> NamedField<T> {
     }
 }
 
-/// Maps certain form of type id (global or owned state or a valency) to a
-/// human-readable name.
+/// Maps certain form of type id (global or owned state) to a human-readable name.
 ///
 /// Two distinct [`crate::interface::NamedField`] objects must always have both
 /// different state ids and names.
@@ -223,9 +219,7 @@ pub struct IfaceImpl {
     pub metadata: TinyOrdSet<NamedField<MetaType>>,
     pub global_state: TinyOrdSet<NamedField<GlobalStateType>>,
     pub assignments: TinyOrdSet<NamedField<AssignmentType>>,
-    pub valencies: TinyOrdSet<NamedField<ValencyType>>,
     pub transitions: TinyOrdSet<NamedField<TransitionType>>,
-    pub extensions: TinyOrdSet<NamedField<ExtensionType>>,
     pub errors: TinyOrdSet<NamedVariant<u8>>,
     pub developer: Identity,
 }
@@ -269,33 +263,6 @@ impl IfaceImpl {
             .map(|nt| nt.id)
     }
 
-    pub fn extension_name(&self, id: ExtensionType) -> Option<&FieldName> {
-        self.extensions
-            .iter()
-            .find(|nt| nt.id == id)
-            .map(|nt| &nt.name)
-    }
-
-    pub fn extension_type(&self, name: &FieldName) -> Option<ExtensionType> {
-        self.extensions
-            .iter()
-            .find(|nt| &nt.name == name)
-            .map(|nt| nt.id)
-    }
-
-    pub fn valency_type(&self, name: &FieldName) -> Option<ValencyType> {
-        self.valencies
-            .iter()
-            .find(|nt| &nt.name == name)
-            .map(|nt| nt.id)
-    }
-
-    pub fn valency_name(&self, id: ValencyType) -> Option<&FieldName> {
-        self.valencies
-            .iter()
-            .find(|nt| nt.id == id)
-            .map(|nt| &nt.name)
-    }
     pub fn global_name(&self, id: GlobalStateType) -> Option<&FieldName> {
         self.global_state
             .iter()
@@ -353,25 +320,12 @@ pub enum ImplInconsistency {
     /// state type {1}.
     SchemaAssignmentAbsent(FieldName, AssignmentType),
 
-    /// interface valency field '{0}' is not resolved by the implementation.
-    IfaceValencyAbsent(FieldName),
-    /// implementation valency field '{0}' maps to an unknown schema valency
-    /// {1}.
-    SchemaValencyAbsent(FieldName, ValencyType),
-
     /// interface state transition name '{0}' is not resolved by the
     /// implementation.
     IfaceTransitionAbsent(FieldName),
     /// implementation state transition name '{0}' maps to an unknown schema
     /// state transition type {1}.
     SchemaTransitionAbsent(FieldName, TransitionType),
-
-    /// interface state extension name '{0}' is not resolved by the
-    /// implementation.
-    IfaceExtensionAbsent(FieldName),
-    /// implementation state extension name '{0}' maps to an unknown schema
-    /// state extension type {1}.
-    SchemaExtensionAbsent(FieldName, ExtensionType),
 
     /// implementation references unknown interface error '{0}'.
     IfaceErrorAbsent(VariantName),
@@ -385,14 +339,8 @@ pub enum ImplInconsistency {
     /// assignments field '{0}' is repeated {1} times
     RepeatedAssignments(FieldName, i32),
 
-    /// valencies field '{0}' is repeated {1} times
-    RepeatedValencies(FieldName, i32),
-
     /// transition field '{0}' is repeated {1} times
     RepeatedTransitions(FieldName, i32),
-
-    /// extension field '{0}' is repeated {1} times
-    RepeatedExtensions(FieldName, i32),
 }
 
 impl IfaceImpl {
@@ -402,9 +350,7 @@ impl IfaceImpl {
         let mut dup_metadata = HashMap::new();
         let mut dup_global_state = HashMap::new();
         let mut dup_assignments = HashMap::new();
-        let mut dup_valencies = HashMap::new();
         let mut dup_transitions = HashMap::new();
-        let mut dup_extensions = HashMap::new();
 
         match Utc.timestamp_opt(self.timestamp, 0).single() {
             Some(ts) if ts > now => errors.push(ImplInconsistency::FutureTimestamp(ts)),
@@ -479,28 +425,6 @@ impl IfaceImpl {
                 errors.push(ImplInconsistency::RepeatedAssignments(field_name.clone(), count));
             });
 
-        for name in iface.valencies.keys() {
-            if self.valencies.iter().all(|field| &field.name != name) {
-                errors.push(ImplInconsistency::IfaceValencyAbsent(name.clone()));
-            }
-        }
-        for field in &self.valencies {
-            dup_valencies
-                .entry(field.name.clone())
-                .and_modify(|counter| *counter += 1)
-                .or_insert(0);
-
-            if !schema.valency_types.contains(&field.id) {
-                errors.push(ImplInconsistency::SchemaValencyAbsent(field.name.clone(), field.id));
-            }
-        }
-        dup_valencies
-            .iter()
-            .filter(|(_, &count)| count > 1)
-            .for_each(|(field_name, &count)| {
-                errors.push(ImplInconsistency::RepeatedValencies(field_name.clone(), count));
-            });
-
         for name in iface.transitions.keys() {
             if self.transitions.iter().all(|field| &field.name != name) {
                 errors.push(ImplInconsistency::IfaceTransitionAbsent(name.clone()));
@@ -523,29 +447,6 @@ impl IfaceImpl {
             .filter(|(_, &count)| count > 1)
             .for_each(|(field_name, &count)| {
                 errors.push(ImplInconsistency::RepeatedTransitions(field_name.clone(), count));
-            });
-
-        for name in iface.extensions.keys() {
-            if self.extensions.iter().all(|field| &field.name != name) {
-                errors.push(ImplInconsistency::IfaceExtensionAbsent(name.clone()));
-            }
-        }
-        for field in &self.extensions {
-            dup_extensions
-                .entry(field.name.clone())
-                .and_modify(|counter| *counter += 1)
-                .or_insert(0);
-
-            if !schema.extensions.contains_key(&field.id) {
-                errors.push(ImplInconsistency::SchemaExtensionAbsent(field.name.clone(), field.id));
-            }
-        }
-
-        dup_extensions
-            .iter()
-            .filter(|(_, &count)| count > 1)
-            .for_each(|(field_name, &count)| {
-                errors.push(ImplInconsistency::RepeatedExtensions(field_name.clone(), count));
             });
 
         for var in &self.errors {

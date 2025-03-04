@@ -27,8 +27,8 @@ use amplify::confinement::{self, TinyOrdSet};
 use bp::{Outpoint, Txid};
 use nonasync::persistence::{CloneNoPersistence, Persisting};
 use rgb::{
-    Assign, AssignmentType, BundleId, ContractId, ExposedState, Extension, Genesis, GenesisSeal,
-    GraphSeal, OpId, Operation, Opout, TransitionBundle, TypedAssigns,
+    Assign, AssignmentType, BundleId, ContractId, ExposedState, Genesis, GenesisSeal, GraphSeal,
+    OpId, Operation, Opout, TransitionBundle, TypedAssigns,
 };
 
 use crate::containers::{ConsignmentExt, ToWitnessId, WitnessBundle};
@@ -166,9 +166,6 @@ impl<P: IndexProvider> Index<P> {
             .register_contract(contract_id)
             .map_err(IndexError::WriteProvider)?;
         self.index_genesis(contract_id, consignment.genesis())?;
-        for extension in consignment.extensions() {
-            self.index_extension(contract_id, extension)?;
-        }
         for WitnessBundle {
             pub_witness,
             anchored_bundle,
@@ -185,35 +182,6 @@ impl<P: IndexProvider> Index<P> {
     fn index_genesis(&mut self, id: ContractId, genesis: &Genesis) -> Result<(), IndexError<P>> {
         let opid = genesis.id();
         for (type_id, assign) in genesis.assignments.iter() {
-            match assign {
-                TypedAssigns::Declarative(vec) => {
-                    self.provider
-                        .index_genesis_assignments(id, vec, opid, *type_id)?;
-                }
-                TypedAssigns::Fungible(vec) => {
-                    self.provider
-                        .index_genesis_assignments(id, vec, opid, *type_id)?;
-                }
-                TypedAssigns::Structured(vec) => {
-                    self.provider
-                        .index_genesis_assignments(id, vec, opid, *type_id)?;
-                }
-                TypedAssigns::Attachment(vec) => {
-                    self.provider
-                        .index_genesis_assignments(id, vec, opid, *type_id)?;
-                }
-            }
-        }
-        Ok(())
-    }
-
-    fn index_extension(
-        &mut self,
-        id: ContractId,
-        extension: &Extension,
-    ) -> Result<(), IndexError<P>> {
-        let opid = extension.id();
-        for (type_id, assign) in extension.assignments.iter() {
             match assign {
                 TypedAssigns::Declarative(vec) => {
                     self.provider

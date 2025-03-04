@@ -20,10 +20,8 @@
 // limitations under the License.
 
 use std::borrow::Borrow;
-use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt::Debug;
-use std::iter;
 
 use amplify::confinement::{LargeOrdMap, LargeOrdSet};
 use invoice::Amount;
@@ -31,8 +29,8 @@ use nonasync::persistence::{CloneNoPersistence, Persisting};
 use rgb::validation::{ResolveWitness, WitnessResolverError};
 use rgb::vm::{ContractStateAccess, WitnessOrd};
 use rgb::{
-    AttachState, BundleId, ContractId, DataState, Extension, Genesis, Operation, RevealedAttach,
-    RevealedData, RevealedValue, Schema, SchemaId, Transition, TransitionBundle, Txid, VoidState,
+    AttachState, BundleId, ContractId, DataState, Genesis, RevealedAttach, RevealedData,
+    RevealedValue, Schema, SchemaId, Transition, TransitionBundle, Txid, VoidState,
 };
 
 use crate::containers::{ConsignmentExt, ToWitnessId};
@@ -185,12 +183,6 @@ impl<P: StateProvider> State<P> {
             .as_provider_mut()
             .register_contract(consignment.schema(), consignment.genesis())
             .map_err(StateError::WriteProvider)?;
-        let mut extension_idx = consignment
-            .extensions()
-            .map(Extension::id)
-            .zip(iter::repeat(false))
-            .collect::<BTreeMap<_, _>>();
-        let mut ordered_extensions = BTreeMap::new();
         for witness_bundle in consignment.bundled_witnesses() {
             let bundle = witness_bundle.bundle();
             let bundle_id = bundle.bundle_id();
@@ -203,34 +195,7 @@ impl<P: StateProvider> State<P> {
                 state
                     .add_transition(transition, witness_id, witness_ord, bundle_id)
                     .map_err(StateError::WriteProvider)?;
-                for (id, used) in &mut extension_idx {
-                    if *used {
-                        continue;
-                    }
-                    for input in &transition.inputs {
-                        if input.prev_out.op == *id {
-                            *used = true;
-                            if let Some((_, witness_ord2)) = ordered_extensions.get_mut(id) {
-                                if *witness_ord2 < witness_ord {
-                                    *witness_ord2 = witness_ord;
-                                }
-                            } else {
-                                ordered_extensions.insert(*id, (witness_id, witness_ord));
-                            }
-                        }
-                    }
-                }
             }
-        }
-        for extension in consignment.extensions() {
-            if let Some((witness_id, witness_ord)) = ordered_extensions.get(&extension.id()) {
-                state
-                    .add_extension(extension, *witness_id, *witness_ord)
-                    .map_err(StateError::WriteProvider)?;
-            }
-            // Otherwise consignment includes state extensions which are not
-            // used in transaction graph. This must not be the case for the
-            // validated consignments.
         }
 
         Ok(())
@@ -337,12 +302,5 @@ pub trait ContractStateWrite {
         witness_id: Txid,
         witness_ord: WitnessOrd,
         bundle_id: BundleId,
-    ) -> Result<(), Self::Error>;
-
-    fn add_extension(
-        &mut self,
-        extension: &Extension,
-        witness_id: Txid,
-        witness_ord: WitnessOrd,
     ) -> Result<(), Self::Error>;
 }

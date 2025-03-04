@@ -42,10 +42,10 @@ use rgb::vm::{
 };
 use rgb::{
     Assign, AssignmentType, Assignments, AssignmentsRef, AttachId, AttachState, BundleId,
-    ContractId, DataState, ExposedSeal, ExposedState, Extension, FungibleState, Genesis,
-    GenesisSeal, GlobalStateType, GraphSeal, Identity, OpId, Operation, Opout, OutputSeal,
-    RevealedAttach, RevealedData, RevealedValue, Schema, SchemaId, SecretSeal, Transition,
-    TransitionBundle, TypedAssigns, VoidState,
+    ContractId, DataState, ExposedSeal, ExposedState, FungibleState, Genesis, GenesisSeal,
+    GlobalStateType, GraphSeal, Identity, OpId, Operation, Opout, OutputSeal, RevealedAttach,
+    RevealedData, RevealedValue, Schema, SchemaId, SecretSeal, Transition, TransitionBundle,
+    TypedAssigns, VoidState,
 };
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 use strict_types::TypeSystem;
@@ -89,7 +89,6 @@ pub struct MemStash {
     ifaces: TinyOrdMap<IfaceId, Iface>,
     geneses: TinyOrdMap<ContractId, Genesis>,
     bundles: LargeOrdMap<BundleId, TransitionBundle>,
-    extensions: LargeOrdMap<OpId, Extension>,
     witnesses: LargeOrdMap<Txid, SealWitness>,
     attachments: SmallOrdMap<AttachId, MediumBlob>,
     secret_seals: MediumOrdSet<GraphSeal>,
@@ -110,7 +109,6 @@ impl MemStash {
             ifaces: empty!(),
             geneses: empty!(),
             bundles: empty!(),
-            extensions: empty!(),
             witnesses: empty!(),
             attachments: empty!(),
             secret_seals: empty!(),
@@ -130,7 +128,6 @@ impl CloneNoPersistence for MemStash {
             ifaces: self.ifaces.clone(),
             geneses: self.geneses.clone(),
             bundles: self.bundles.clone(),
-            extensions: self.extensions.clone(),
             witnesses: self.witnesses.clone(),
             attachments: self.attachments.clone(),
             secret_seals: self.secret_seals.clone(),
@@ -281,16 +278,6 @@ impl StashReadProvider for MemStash {
             .ok_or(StashInconsistency::BundleAbsent(bundle_id).into())
     }
 
-    fn extension_ids(&self) -> Result<impl Iterator<Item = OpId>, Self::Error> {
-        Ok(self.extensions.keys().copied())
-    }
-
-    fn extension(&self, op_id: OpId) -> Result<&Extension, StashProviderError<Self::Error>> {
-        self.extensions
-            .get(&op_id)
-            .ok_or(StashInconsistency::OperationAbsent(op_id).into())
-    }
-
     fn witness(&self, witness_id: Txid) -> Result<&SealWitness, StashProviderError<Self::Error>> {
         self.witnesses
             .get(&witness_id)
@@ -368,12 +355,6 @@ impl StashWriteProvider for MemStash {
     fn replace_genesis(&mut self, genesis: Genesis) -> Result<bool, Self::Error> {
         let contract_id = genesis.contract_id();
         let present = self.geneses.insert(contract_id, genesis)?.is_some();
-        Ok(!present)
-    }
-
-    fn replace_extension(&mut self, extension: Extension) -> Result<bool, Self::Error> {
-        let opid = extension.id();
-        let present = self.extensions.insert(opid, extension)?.is_some();
         Ok(!present)
     }
 
@@ -864,10 +845,6 @@ impl<M: Borrow<MemContractState>> ContractStateAccess for MemContract<M> {
                                 let ord = self.filter.get(&id)?;
                                 GlobalOrd::transition(out.opid, out.index, ty, out.nonce, *ord)
                             }
-                            OpWitness::Extension(id, ty) => {
-                                let ord = self.filter.get(&id)?;
-                                GlobalOrd::extension(out.opid, out.index, ty, out.nonce, *ord)
-                            }
                         };
                         Some((ord, data))
                     })
@@ -984,10 +961,6 @@ impl ContractStateEvolve for MemContract<MemContractState> {
                 let mut writer = writer(self);
                 writer.add_transition(transition, witness_id, ord, bundle_id)
             }
-            OrdOpRef::Extension(extension, witness_id, ord) => {
-                let mut writer = writer(self);
-                writer.add_extension(extension, witness_id, ord)
-            }
         }
         .map_err(|err| {
             // TODO: remove once evolve_state would accept arbitrary errors
@@ -1084,22 +1057,6 @@ impl ContractStateWrite for MemContractWriter<'_> {
         (self.writer)(witness_id, ord)?;
         self.contract
             .add_operation(OrdOpRef::Transition(transition, witness_id, ord, bundle_id));
-        Ok(())
-    }
-
-    /// # Panics
-    ///
-    /// If state extension violates RGB consensus rules and wasn't checked
-    /// against the schema before adding to the history.
-    fn add_extension(
-        &mut self,
-        extension: &Extension,
-        witness_id: Txid,
-        ord: WitnessOrd,
-    ) -> Result<(), Self::Error> {
-        (self.writer)(witness_id, ord)?;
-        self.contract
-            .add_operation(OrdOpRef::Extension(extension, witness_id, ord));
         Ok(())
     }
 }

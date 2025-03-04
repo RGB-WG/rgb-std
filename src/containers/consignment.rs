@@ -36,8 +36,8 @@ use baid64::{Baid64ParseError, DisplayBaid64, FromBaid64Str};
 use commit_verify::{CommitEncode, CommitEngine, CommitId, CommitmentId, DigestExt, Sha256};
 use rgb::validation::{Failure, ResolveWitness, Validator, Validity, CONSIGNMENT_MAX_LIBS};
 use rgb::{
-    impl_serde_baid64, validation, AttachId, BundleId, ChainNet, ContractId, Extension, Genesis,
-    GraphSeal, Operation, Schema, SchemaId,
+    impl_serde_baid64, validation, AttachId, BundleId, ChainNet, ContractId, Genesis, GraphSeal,
+    Operation, Schema, SchemaId,
 };
 use rgbcore::validation::ConsignmentApi;
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
@@ -60,7 +60,6 @@ pub trait ConsignmentExt {
     fn schema_id(&self) -> SchemaId;
     fn schema(&self) -> &Schema;
     fn genesis(&self) -> &Genesis;
-    fn extensions(&self) -> impl Iterator<Item = &Extension>;
     fn bundled_witnesses(&self) -> impl Iterator<Item = &WitnessBundle>;
 }
 
@@ -76,9 +75,6 @@ impl<C: ConsignmentExt> ConsignmentExt for &C {
 
     #[inline]
     fn genesis(&self) -> &Genesis { (*self).genesis() }
-
-    #[inline]
-    fn extensions(&self) -> impl Iterator<Item = &Extension> { (*self).extensions() }
 
     #[inline]
     fn bundled_witnesses(&self) -> impl Iterator<Item = &WitnessBundle> {
@@ -191,9 +187,6 @@ pub struct Consignment<const TRANSFER: bool> {
     /// Genesis data.
     pub genesis: Genesis,
 
-    /// All state extensions contained in the consignment.
-    pub extensions: LargeOrdSet<Extension>,
-
     /// All bundled state transitions contained in the consignment, together
     /// with their witness data.
     pub bundles: LargeOrdSet<WitnessBundle>,
@@ -240,9 +233,6 @@ impl<const TRANSFER: bool> CommitEncode for Consignment<TRANSFER> {
         e.commit_to_set(&LargeOrdSet::from_iter_checked(
             self.bundles.iter().map(WitnessBundle::commit_id),
         ));
-        e.commit_to_set(&LargeOrdSet::from_iter_checked(
-            self.extensions.iter().map(Extension::disclose_hash),
-        ));
         e.commit_to_map(&self.terminals);
 
         e.commit_to_set(&SmallOrdSet::from_iter_checked(self.attachments.keys().copied()));
@@ -266,9 +256,6 @@ impl<const TRANSFER: bool> ConsignmentExt for Consignment<TRANSFER> {
 
     #[inline]
     fn genesis(&self) -> &Genesis { &self.genesis }
-
-    #[inline]
-    fn extensions(&self) -> impl Iterator<Item = &Extension> { self.extensions.iter() }
 
     #[inline]
     fn bundled_witnesses(&self) -> impl Iterator<Item = &WitnessBundle> { self.bundles.iter() }
@@ -309,7 +296,6 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
             genesis: self.genesis,
             terminals: self.terminals,
             bundles: self.bundles,
-            extensions: self.extensions,
             attachments: self.attachments,
             signatures: self.signatures,
             scripts: self.scripts,
@@ -360,8 +346,6 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
         }
         // TODO: check attach ids from data containers are present in operations
         // TODO: validate sigs and remove untrusted
-        // TODO: Check that all extensions present in the consignment are used by state
-        // transitions
 
         if validity == Validity::Invalid {
             Err((status, self))

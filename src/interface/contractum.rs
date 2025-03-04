@@ -28,9 +28,7 @@ use rgb::Occurrences;
 use strict_encoding::{FieldName, TypeName, VariantName};
 use strict_types::{SemId, SymbolicSys};
 
-use super::{
-    ArgMap, ExtensionIface, GenesisIface, Iface, IfaceId, Modifier, OwnedIface, TransitionIface,
-};
+use super::{ArgMap, GenesisIface, Iface, IfaceId, Modifier, OwnedIface, TransitionIface};
 
 struct ArgMapDisplay<'a>(&'a ArgMap);
 
@@ -60,7 +58,6 @@ struct OpIfaceDisplay<'a> {
     metadata: &'a TinyOrdSet<FieldName>,
     globals: &'a ArgMap,
     assignments: &'a ArgMap,
-    valencies: &'a TinyOrdSet<FieldName>,
     errors: &'a TinyOrdSet<VariantName>,
 }
 
@@ -70,7 +67,6 @@ impl<'a> OpIfaceDisplay<'a> {
             metadata: &op.metadata,
             globals: &op.globals,
             assignments: &op.assignments,
-            valencies: &op.valencies,
             errors: &op.errors,
         }
     }
@@ -80,17 +76,6 @@ impl<'a> OpIfaceDisplay<'a> {
             metadata: &op.metadata,
             globals: &op.globals,
             assignments: &op.assignments,
-            valencies: &op.valencies,
-            errors: &op.errors,
-        }
-    }
-
-    fn extension(op: &'a ExtensionIface) -> Self {
-        Self {
-            metadata: &op.metadata,
-            globals: &op.globals,
-            assignments: &op.assignments,
-            valencies: &op.valencies,
             errors: &op.errors,
         }
     }
@@ -121,16 +106,6 @@ impl Display for OpIfaceDisplay<'_> {
         }
         if !self.globals.is_empty() {
             writeln!(f, "\t\tglobals: {}", ArgMapDisplay(self.globals))?;
-        }
-        if !self.valencies.is_empty() {
-            write!(f, "\t\tvalencies: ")?;
-            for (i, name) in self.valencies.iter().enumerate() {
-                if i > 0 {
-                    f.write_str(", ")?
-                }
-                write!(f, "{name}")?;
-            }
-            writeln!(f)?;
         }
         if !self.assignments.is_empty() {
             writeln!(f, "\t\tassigns: {}", ArgMapDisplay(self.assignments))?;
@@ -280,17 +255,6 @@ impl Display for IfaceDisplay<'_> {
             writeln!(f)?;
         }
 
-        for (fname, v) in &self.iface.valencies {
-            write!(f, "\tvalency {fname}")?;
-            if !v.required {
-                write!(f, "(?)")?;
-            }
-            writeln!(f)?;
-        }
-        if !self.iface.valencies.is_empty() {
-            writeln!(f)?;
-        }
-
         for (name, descr) in &self.iface.errors {
             writeln!(f, "\terror {name}")?;
             writeln!(f, "\t\t\"{descr}\"")?;
@@ -315,29 +279,6 @@ impl Display for IfaceDisplay<'_> {
             }
 
             writeln!(f, "\t\tinputs: {}", ArgMapDisplay(&t.inputs))?;
-
-            writeln!(f)?;
-        }
-
-        for (name, e) in &self.iface.extensions {
-            let default = self.iface.default_operation.as_ref() == Some(name);
-            opsugar(f, "extension", Some(name), e.modifier, e.optional, default)?;
-
-            let op = OpIfaceDisplay::extension(e);
-            write!(f, "{op}")?;
-
-            if let Some(ref d) = e.default_assignment {
-                writeln!(f, "\t\tdefault: {d}")?;
-            }
-
-            write!(f, "\t\tredeems: ")?;
-            for (i, name) in e.redeems.iter().enumerate() {
-                if i > 0 {
-                    f.write_str(", ")?
-                }
-                write!(f, "{name}")?;
-            }
-            writeln!(f)?;
 
             writeln!(f)?;
         }

@@ -21,13 +21,12 @@
 
 use amplify::confinement::{Confined, TinyOrdMap, TinyOrdSet};
 use rgb::{
-    AssignmentType, ExtensionType, GlobalStateType, Occurrences, OpFullType, OpSchema, Schema,
-    TransitionType, ValencyType,
+    AssignmentType, GlobalStateType, Occurrences, OpFullType, OpSchema, Schema, TransitionType,
 };
 use strict_encoding::{FieldName, TypeName};
 
 use crate::interface::{
-    ExtensionIface, GenesisIface, Iface, IfaceImpl, Modifier, OpName, OwnedIface, TransitionIface,
+    GenesisIface, Iface, IfaceImpl, Modifier, OpName, OwnedIface, TransitionIface,
 };
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, From)]
@@ -44,15 +43,9 @@ pub enum InheritanceFailure {
     /// invalid schema - no match with root schema requirements for assignment
     /// type #{0}.
     AssignmentTypeMismatch(AssignmentType),
-    /// invalid schema - no match with root schema requirements for valency
-    /// type #{0}.
-    ValencyTypeMismatch(ValencyType),
     /// invalid schema - no match with root schema requirements for transition
     /// type #{0}.
     TransitionTypeMismatch(TransitionType),
-    /// invalid schema - no match with root schema requirements for extension
-    /// type #{0}.
-    ExtensionTypeMismatch(ExtensionType),
 
     /// invalid schema - no match with root schema requirements for global state
     /// type #{1} used in {0}.
@@ -60,15 +53,9 @@ pub enum InheritanceFailure {
     /// invalid schema - no match with root schema requirements for input
     /// type #{1} used in {0}.
     OpInputMismatch(OpFullType, AssignmentType),
-    /// invalid schema - no match with root schema requirements for redeem
-    /// type #{1} used in {0}.
-    OpRedeemMismatch(OpFullType, ValencyType),
     /// invalid schema - no match with root schema requirements for assignment
     /// type #{1} used in {0}.
     OpAssignmentsMismatch(OpFullType, AssignmentType),
-    /// invalid schema - no match with root schema requirements for valency
-    /// type #{1} used in {0}.
-    OpValencyMismatch(OpFullType, ValencyType),
 }
 
 pub trait CheckInheritance {
@@ -99,12 +86,6 @@ impl CheckInheritance for Schema {
             };
         }
 
-        for valencies_type in &self.valency_types {
-            if !root.valency_types.contains(valencies_type) {
-                status.push(InheritanceFailure::ValencyTypeMismatch(*valencies_type));
-            }
-        }
-
         self.genesis
             .check_schema_op_inheritance(OpFullType::Genesis, &root.genesis)
             .map_err(|e| status.extend(e))
@@ -121,19 +102,6 @@ impl CheckInheritance for Schema {
                     .ok();
             } else {
                 status.push(InheritanceFailure::TransitionTypeMismatch(*type_id));
-            }
-        }
-        for (type_id, extension_schema) in &self.extensions {
-            if let Some(root_extension_schema) = root.extensions.get(type_id) {
-                extension_schema
-                    .check_schema_op_inheritance(
-                        OpFullType::StateExtension(*type_id),
-                        root_extension_schema,
-                    )
-                    .map_err(|e| status.extend(e))
-                    .ok();
-            } else {
-                status.push(InheritanceFailure::ExtensionTypeMismatch(*type_id));
             }
         }
 
@@ -197,21 +165,6 @@ where T: OpSchema
             };
         }
 
-        if let Some(redeems) = self.redeems() {
-            let root_redeems = root.redeems().expect("generic guarantees");
-            for type_id in redeems {
-                if !root_redeems.contains(type_id) {
-                    status.push(InheritanceFailure::OpRedeemMismatch(op_type, *type_id));
-                }
-            }
-        }
-
-        for type_id in self.valencies() {
-            if !root.valencies().contains(type_id) {
-                status.push(InheritanceFailure::OpValencyMismatch(op_type, *type_id));
-            }
-        }
-
         if status.is_empty() {
             Ok(())
         } else {
@@ -246,14 +199,8 @@ pub enum ExtensionError {
     AssignmentOcc(FieldName),
     /// global state '{0}' has lower visibility than in the parent interface.
     AssignmentPublic(FieldName),
-    /// too many valency types defined.
-    ValencyOverflow,
-    /// valency '{0}' has fewer occurrences than in the parent interface.
-    ValencyOcc(FieldName),
     /// too many state transitions.
     TransitionOverflow,
-    /// too many state extensions.
-    ExtensionOverflow,
     /// too many error types defined.
     ErrorOverflow,
     /// inherited interface tries to override the parent default operation.
@@ -414,28 +361,6 @@ impl Iface {
             }
         }
 
-        for (name, e) in ext.valencies {
-            match self.valencies.get_mut(&name) {
-                None => {
-                    if self
-                        .valencies
-                        .insert(name, e)
-                        .map_err(|_| errors.push(ExtensionError::ValencyOverflow))
-                        .is_err()
-                    {
-                        break;
-                    }
-                }
-                Some(orig) => {
-                    if orig.required & !e.required {
-                        errors.push(ExtensionError::ValencyOcc(name));
-                    } else {
-                        *orig = e;
-                    }
-                }
-            }
-        }
-
         self.clone()
             .genesis
             .extended(ext.genesis)
@@ -459,29 +384,6 @@ impl Iface {
                 Ok(Some(orig)) => {
                     orig.extended(op, name.clone())
                         .map(|op| self.transitions.insert(name, op).expect("same size"))
-                        .map_err(|errs| errors.extend(errs))
-                        .ok();
-                }
-                Err(_) => unreachable!(),
-            }
-        }
-
-        for (name, op) in ext.extensions {
-            match self.extensions.remove(&name) {
-                Ok(None) if op.optional => continue,
-                Ok(None) => {
-                    if self
-                        .extensions
-                        .insert(name, op)
-                        .map_err(|_| errors.push(ExtensionError::TransitionOverflow))
-                        .is_err()
-                    {
-                        break;
-                    }
-                }
-                Ok(Some(orig)) => {
-                    orig.extended(op, name.clone())
-                        .map(|op| self.extensions.insert(name, op).expect("same size"))
                         .map_err(|errs| errors.extend(errs))
                         .ok();
                 }
@@ -584,7 +486,6 @@ impl GenesisIface {
         check_occs(&mut self.globals, ext.globals, op.clone(), "global", &mut errors);
         check_occs(&mut self.assignments, ext.assignments, op.clone(), "assignment", &mut errors);
 
-        check_presence(&mut self.valencies, ext.valencies, op.clone(), "valency", &mut errors);
         check_presence(&mut self.errors, ext.errors, op.clone(), "error", &mut errors);
 
         if errors.is_empty() {
@@ -615,48 +516,6 @@ impl TransitionIface {
         check_occs(&mut self.assignments, ext.assignments, op.clone(), "assignment", &mut errors);
         check_occs(&mut self.inputs, ext.inputs, op.clone(), "input", &mut errors);
 
-        check_presence(&mut self.valencies, ext.valencies, op.clone(), "valency", &mut errors);
-        check_presence(&mut self.errors, ext.errors, op.clone(), "error", &mut errors);
-
-        if ext.default_assignment.is_some() {
-            if self.default_assignment.is_some()
-                && self.default_assignment != ext.default_assignment
-            {
-                errors.push(ExtensionError::OpDefaultOverride(op.clone()));
-            } else {
-                self.default_assignment = ext.default_assignment
-            }
-        }
-
-        if errors.is_empty() {
-            Ok(self)
-        } else {
-            Err(errors)
-        }
-    }
-}
-
-impl ExtensionIface {
-    pub fn extended(mut self, ext: Self, op_name: FieldName) -> Result<Self, Vec<ExtensionError>> {
-        let mut errors = vec![];
-
-        let op = OpName::Transition(op_name);
-        if self.modifier.is_final() {
-            errors.push(ExtensionError::OpFinal(op.clone()));
-        } else if !self.modifier.can_be_overridden_by(ext.modifier) {
-            errors.push(ExtensionError::OpNoOverride(op.clone()));
-        }
-        self.optional = self.optional.max(ext.optional);
-
-        self.metadata
-            .extend(ext.metadata)
-            .map_err(|_| errors.push(ExtensionError::OpOverflow(op.clone(), "metadata")))
-            .ok();
-        check_occs(&mut self.globals, ext.globals, op.clone(), "global", &mut errors);
-        check_occs(&mut self.assignments, ext.assignments, op.clone(), "assignment", &mut errors);
-
-        check_presence(&mut self.valencies, ext.valencies, op.clone(), "valency", &mut errors);
-        check_presence(&mut self.redeems, ext.redeems, op.clone(), "input", &mut errors);
         check_presence(&mut self.errors, ext.errors, op.clone(), "error", &mut errors);
 
         if ext.default_assignment.is_some() {
@@ -708,13 +567,6 @@ impl IfaceImpl {
                     .cloned()
             }));
 
-        self.valencies = Confined::from_iter_checked(base.assignments.keys().filter_map(|name| {
-            self.valencies
-                .iter()
-                .find(|i| parent.valencies.contains_key(name) && &i.name == name)
-                .cloned()
-        }));
-
         self.transitions =
             Confined::from_iter_checked(base.transitions.keys().filter_map(|name| {
                 self.transitions
@@ -722,13 +574,6 @@ impl IfaceImpl {
                     .find(|i| parent.transitions.contains_key(name) && &i.name == name)
                     .cloned()
             }));
-
-        self.extensions = Confined::from_iter_checked(base.extensions.keys().filter_map(|name| {
-            self.extensions
-                .iter()
-                .find(|i| parent.extensions.contains_key(name) && &i.name == name)
-                .cloned()
-        }));
 
         self.iface_id = parent_id;
 

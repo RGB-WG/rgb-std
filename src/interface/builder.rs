@@ -34,7 +34,7 @@ use rgb::{
     Layer1, MetadataError, Opout, OwnedStateSchema, RevealedAttach, RevealedData, RevealedValue,
     Schema, Transition, TransitionType, TypedAssigns,
 };
-use rgbcore::{GlobalStateSchema, GlobalStateType, MetaType, Metadata, ValencyType};
+use rgbcore::{GlobalStateSchema, GlobalStateType, MetaType, Metadata};
 use strict_encoding::{FieldName, SerializeError, StrictSerialize};
 use strict_types::{decode, SemId, TypeSystem};
 
@@ -154,16 +154,6 @@ impl ContractBuilder {
     #[inline]
     pub fn global_type(&self, name: &FieldName) -> Option<GlobalStateType> {
         self.builder.global_type(name)
-    }
-
-    #[inline]
-    pub fn valency_type(&self, name: &FieldName) -> Option<ValencyType> {
-        self.builder.valency_type(name)
-    }
-
-    #[inline]
-    pub fn valency_name(&self, type_id: ValencyType) -> &FieldName {
-        self.builder.valency_name(type_id)
     }
 
     #[inline]
@@ -297,7 +287,6 @@ impl ContractBuilder {
             metadata: empty!(),
             globals: global,
             assignments,
-            valencies: none!(),
             issuer: self.issuer,
             validator: none!(),
         };
@@ -310,7 +299,6 @@ impl ContractBuilder {
             transfer: false,
             terminals: none!(),
             genesis,
-            extensions: none!(),
             bundles: none!(),
             schema,
             ifaces,
@@ -486,15 +474,6 @@ impl TransitionBuilder {
         self.builder.global_type(name)
     }
 
-    #[inline]
-    pub fn valency_type(&self, name: &FieldName) -> Option<ValencyType> {
-        self.builder.valency_type(name)
-    }
-
-    pub fn valency_name(&self, type_id: ValencyType) -> &FieldName {
-        self.builder.valency_name(type_id)
-    }
-
     pub fn meta_name(&self, type_id: MetaType) -> &FieldName { self.builder.meta_name(type_id) }
 
     pub fn add_owned_state_det(
@@ -631,7 +610,6 @@ impl TransitionBuilder {
             globals: global,
             inputs: SmallOrdSet::from_iter_checked(self.inputs.into_keys()).into(),
             assignments,
-            valencies: none!(),
             witness: none!(),
             validator: none!(),
         };
@@ -658,7 +636,6 @@ pub struct OperationBuilder<Seal: ExposedSeal> {
     data: TinyOrdMap<AssignmentType, Confined<BTreeMap<BuilderSeal<Seal>, RevealedData>, 1, U16>>,
     attachments:
         TinyOrdMap<AssignmentType, Confined<BTreeMap<BuilderSeal<Seal>, RevealedAttach>, 1, U16>>,
-    // TODO: add valencies
     types: TypeSystem,
 }
 
@@ -721,14 +698,6 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
 
     fn global_type(&self, name: &FieldName) -> Option<GlobalStateType> {
         self.iimpl.global_type(name)
-    }
-
-    fn valency_type(&self, name: &FieldName) -> Option<ValencyType> {
-        self.iimpl.valency_type(name)
-    }
-
-    fn valency_name(&self, ty: ValencyType) -> &FieldName {
-        self.iimpl.valency_name(ty).expect("internal inconsistency")
     }
 
     #[inline]

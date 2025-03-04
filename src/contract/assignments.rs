@@ -168,7 +168,7 @@ impl<State: KnownState> OutputAssignment<State> {
             opout: Opout::new(opid, ty, no),
             seal: seal.to_output_seal().expect(
                 "processing contract from unverified/invalid stash: seal must have txid \
-                 information since it comes from genesis or extension",
+                 information since it comes from genesis",
             ),
             state,
             bundle_id,

@@ -1,5 +1,5 @@
 {-
-  Id: stl:QkFHCxkU-TsSTMCW-RT5TBmt-E2Pip0T-m7rHDnk-R9xxUA4#postage-alert-disney
+  Id: stl:MCec0pTS-StBbKEL-eHh0yYz-Ugpf2Qs-ffDfuVp-BeYrsvI#bonanza-triton-andrea
   Name: RGBStd
   Version: 0.11.0
   Description: RGB standard library
@@ -22,59 +22,53 @@ import BPCore#symbol-tropic-grand
   use BlindSealTxPtr#content-paradox-dominic
   use TxPtr#italian-july-eddie
 
-import RGBCommit#sunset-cherry-melody
-  use ExtensionSchema#active-eddie-empty
+import RGBCommit#fossil-latin-random
   use BundleId#carmen-farmer-diesel
   use AttachState#lady-japan-fiesta
   use GlobalValues#pilot-boris-alice
   use MetaValue#split-package-recycle
-  use GenesisSchema#iron-forbid-hamlet
   use OwnedStateSchema#python-snake-capsule
   use VoidState#email-snow-safari
   use DataState#short-noise-postal
   use TransitionType#picture-reflex-brigade
   use RevealedFungible#java-canvas-shelter
   use Occurrences#source-olga-mirage
-  use Schema#vocal-hammer-logic
   use AssignRevealedAttachBlindSealTxPtr#ranger-graph-explore
   use AssignmentsBlindSealTxid#maze-jeep-citrus
   use MediaType#isabel-heaven-north
-  use ValencyType#aloha-dublin-brush
   use AssignRevealedDataBlindSealTxPtr#scratch-pocket-japan
+  use GenesisSchema#jasmine-product-totem
   use GlobalStateSchema#silk-college-august
   use AssignRevealedAttachBlindSealTxid#sonar-example-titanic
   use AssignRevealedValueBlindSealTxid#fiona-neptune-episode
-  use ExtensionType#apropos-scoop-viva
   use AssignRevealedDataBlindSealTxid#france-voodoo-dilemma
   use InputMap#press-elegant-guru
   use AssignmentsBlindSealTxPtr#reply-totem-octopus
   use AssignVoidStateBlindSealTxPtr#voltage-othello-dynamic
   use MetaType#quebec-mission-quota
-  use TransitionSchema#jumbo-matrix-normal
+  use Genesis#neptune-carmen-chief
   use AttachId#factor-hair-everest
   use AssignmentType#secret-penguin-limit
   use Opout#yoga-samba-karma
   use SchemaId#ramirez-patron-simon
   use OpId#picnic-single-gloria
-  use Extension#open-rapid-sonar
   use ContractId#uniform-welcome-papa
   use FungibleState#guide-poker-coconut
-  use Genesis#simple-media-bombay
+  use TransitionBundle#smile-burger-think
   use Inputs#herman-liberal-galaxy
+  use TransitionSchema#linear-origin-james
   use ChainNet#ringo-fashion-enrico
-  use Transition#survive-ambient-brandy
   use TypedAssignsBlindSealTxPtr#alfonso-miranda-object
   use AssignVoidStateBlindSealTxid#waiter-stuart-madam
   use Identity#smart-pioneer-nominal
-  use TransitionBundle#under-ohio-volume
+  use Transition#actor-alaska-titanic
   use AssignRevealedValueBlindSealTxPtr#china-deluxe-spirit
   use Input#actor-minus-multi
   use GlobalStateType#yoga-quick-jasmine
+  use Schema#bonanza-hilton-cobalt
   use TypedAssignsBlindSealTxid#carrot-left-option
   use Ffv#pigment-career-hippie
-  use Valencies#light-letter-comet
   use GlobalState#stadium-barcode-bazaar
-  use Redeemed#mile-lady-perfect
   use RevealedAttach#slalom-phantom-voyage
   use Metadata#member-nobody-imitate
   use FungibleType#matrix-optimal-sinatra
@@ -155,22 +149,21 @@ data AssignIface       : ownedState OwnedIface
                        , required Std.Bool
                        , multiple Std.Bool
 
-@mnemonic(level-aspect-danube)
+@mnemonic(legend-amazon-crystal)
 data ClientBundleOpretProof : mpcProof CommitVerify.MerkleProof
                        , dbcProof BPCore.OpretProof
                        , bundle RGBCommit.TransitionBundle
 
-@mnemonic(portal-sample-moses)
+@mnemonic(liberal-morgan-absorb)
 data ClientBundleTapretProof : mpcProof CommitVerify.MerkleProof
                        , dbcProof BPCore.TapretProof
                        , bundle RGBCommit.TransitionBundle
 
-@mnemonic(velvet-price-radio)
+@mnemonic(pizza-focus-sigma)
 data Consignmentfalse  : version ContainerVer
                        , transfer Std.Bool
                        , terminals {RGBCommit.BundleId -> BPCore.SecretSeal}
                        , genesis RGBCommit.Genesis
-                       , extensions {RGBCommit.Extension ^ ..0xffffffff}
                        , bundles {WitnessBundle ^ ..0xffffffff}
                        , schema RGBCommit.Schema
                        , ifaces {Iface -> ^ ..0xff IfaceImpl}
@@ -179,12 +172,11 @@ data Consignmentfalse  : version ContainerVer
                        , attachments {RGBCommit.AttachId -> [Byte ^ ..0xffffff]}
                        , signatures {ContentId -> ^ ..0xff ContentSigs}
 
-@mnemonic(guru-north-forest)
+@mnemonic(exile-baker-hope)
 data Consignmenttrue   : version ContainerVer
                        , transfer Std.Bool
                        , terminals {RGBCommit.BundleId -> BPCore.SecretSeal}
                        , genesis RGBCommit.Genesis
-                       , extensions {RGBCommit.Extension ^ ..0xffffffff}
                        , bundles {WitnessBundle ^ ..0xffffffff}
                        , schema RGBCommit.Schema
                        , ifaces {Iface -> ^ ..0xff IfaceImpl}
@@ -206,23 +198,11 @@ data ContentId         : schema RGBCommit.SchemaId
 @mnemonic(apropos-horizon-couple)
 data ContentSigs       : {RGBCommit.Identity -> ^ 1..0xa SigBlob}
 
-@mnemonic(corner-reptile-pagoda)
-data ExtensionIface    : modifier Modifier
-                       , optional Std.Bool
-                       , metadata {StrictTypes.FieldName ^ ..0xff}
-                       , globals {StrictTypes.FieldName -> ^ ..0xff RGBCommit.Occurrences}
-                       , assignments {StrictTypes.FieldName -> ^ ..0xff RGBCommit.Occurrences}
-                       , redeems {StrictTypes.FieldName ^ ..0xff}
-                       , valencies {StrictTypes.FieldName ^ ..0xff}
-                       , errors {StrictTypes.VariantName ^ ..0xff}
-                       , defaultAssignment StrictTypes.FieldName?
-
-@mnemonic(oregano-virus-ringo)
+@mnemonic(reply-echo-castle)
 data GenesisIface      : modifier Modifier
                        , metadata {StrictTypes.FieldName ^ ..0xff}
                        , globals {StrictTypes.FieldName -> ^ ..0xff RGBCommit.Occurrences}
                        , assignments {StrictTypes.FieldName -> ^ ..0xff RGBCommit.Occurrences}
-                       , valencies {StrictTypes.FieldName ^ ..0xff}
                        , errors {StrictTypes.VariantName ^ ..0xff}
 
 @mnemonic(concert-combat-charm)
@@ -230,7 +210,7 @@ data GlobalIface       : semId StrictTypes.SemId?
                        , required Std.Bool
                        , multiple Std.Bool
 
-@mnemonic(exodus-rider-garcia)
+@mnemonic(combat-presto-blue)
 data Iface             : version VerNo
                        , name StrictTypes.TypeName
                        , inherits [IfaceId ^ ..0xff]
@@ -238,10 +218,8 @@ data Iface             : version VerNo
                        , metadata {StrictTypes.FieldName -> ^ ..0xff StrictTypes.SemId}
                        , globalState {StrictTypes.FieldName -> ^ ..0xff GlobalIface}
                        , assignments {StrictTypes.FieldName -> ^ ..0xff AssignIface}
-                       , valencies {StrictTypes.FieldName -> ^ ..0xff ValencyIface}
                        , genesis GenesisIface
                        , transitions {StrictTypes.FieldName -> ^ ..0xff TransitionIface}
-                       , extensions {StrictTypes.FieldName -> ^ ..0xff ExtensionIface}
                        , defaultOperation StrictTypes.FieldName?
                        , errors {StrictTypes.VariantName -> ^ ..0xff [Unicode ^ ..0xff]}
                        , developer RGBCommit.Identity
@@ -249,7 +227,7 @@ data Iface             : version VerNo
 @mnemonic(nova-cola-carbon)
 data IfaceId           : [Byte ^ 32]
 
-@mnemonic(chris-earth-pony)
+@mnemonic(police-garbo-alert)
 data IfaceImpl         : version VerNo
                        , schemaId RGBCommit.SchemaId
                        , ifaceId IfaceId
@@ -257,16 +235,14 @@ data IfaceImpl         : version VerNo
                        , metadata {NamedFieldMetaType ^ ..0xff}
                        , globalState {NamedFieldGlobalStateType ^ ..0xff}
                        , assignments {NamedFieldAssignmentType ^ ..0xff}
-                       , valencies {NamedFieldValencyType ^ ..0xff}
                        , transitions {NamedFieldTransitionType ^ ..0xff}
-                       , extensions {NamedFieldExtensionType ^ ..0xff}
                        , errors {NamedVariantu8 ^ ..0xff}
                        , developer RGBCommit.Identity
 
 @mnemonic(seminar-data-table)
 data ImplId            : [Byte ^ 32]
 
-@mnemonic(numeric-vital-passive)
+@mnemonic(uncle-multi-alamo)
 data Kit               : version ContainerVer
                        , ifaces {Iface ^ ..0xff}
                        , schemata {RGBCommit.Schema ^ ..0xff}
@@ -284,11 +260,6 @@ data NamedFieldAssignmentType : id RGBCommit.AssignmentType
                        , name StrictTypes.FieldName
                        , reserved CommitVerify.ReservedBytes4
 
-@mnemonic(tuna-archer-melon)
-data NamedFieldExtensionType : id RGBCommit.ExtensionType
-                       , name StrictTypes.FieldName
-                       , reserved CommitVerify.ReservedBytes4
-
 @mnemonic(museum-ohio-arizona)
 data NamedFieldGlobalStateType : id RGBCommit.GlobalStateType
                        , name StrictTypes.FieldName
@@ -301,11 +272,6 @@ data NamedFieldMetaType : id RGBCommit.MetaType
 
 @mnemonic(express-brush-desire)
 data NamedFieldTransitionType : id RGBCommit.TransitionType
-                       , name StrictTypes.FieldName
-                       , reserved CommitVerify.ReservedBytes4
-
-@mnemonic(invest-apollo-inca)
-data NamedFieldValencyType : id RGBCommit.ValencyType
                        , name StrictTypes.FieldName
                        , reserved CommitVerify.ReservedBytes4
 
@@ -329,19 +295,15 @@ data PubWitness        : txid Bitcoin.Txid
 @mnemonic(insect-cello-avalon)
 data SigBlob           : [Byte ^ 1..0x1000]
 
-@mnemonic(sigma-rose-cubic)
+@mnemonic(europe-nerve-oxygen)
 data TransitionIface   : modifier Modifier
                        , optional Std.Bool
                        , metadata {StrictTypes.FieldName ^ ..0xff}
                        , globals {StrictTypes.FieldName -> ^ ..0xff RGBCommit.Occurrences}
                        , inputs {StrictTypes.FieldName -> ^ ..0xff RGBCommit.Occurrences}
                        , assignments {StrictTypes.FieldName -> ^ ..0xff RGBCommit.Occurrences}
-                       , valencies {StrictTypes.FieldName ^ ..0xff}
                        , errors {StrictTypes.VariantName ^ ..0xff}
                        , defaultAssignment StrictTypes.FieldName?
-
-@mnemonic(buzzer-holiday-fiber)
-data ValencyIface      : required Std.Bool
 
 @mnemonic(textile-next-stretch)
 data VerNo             : v0 | v1

@@ -35,8 +35,8 @@ use commit_verify::mpc::MerkleBlock;
 use nonasync::persistence::{CloneNoPersistence, Persisting};
 use rgb::validation::{DbcProof, Scripts};
 use rgb::{
-    AttachId, BundleId, ChainNet, ContractId, Extension, Genesis, GraphSeal, Identity, OpId,
-    Operation, Schema, SchemaId, TransitionBundle, Txid,
+    AttachId, BundleId, ChainNet, ContractId, Genesis, GraphSeal, Identity, OpId, Schema, SchemaId,
+    TransitionBundle, Txid,
 };
 use strict_encoding::{FieldName, TypeName};
 use strict_types::typesys::UnknownType;
@@ -429,17 +429,6 @@ impl<P: StashProvider> Stash<P> {
             .replace_genesis(genesis)
             .map_err(StashError::WriteProvider)?;
 
-        for extension in consignment.extensions {
-            let opid = extension.id();
-            let extension = match self.provider.extension(opid) {
-                Ok(e) => e.clone().merge_reveal(extension)?,
-                Err(_) => extension,
-            };
-            self.provider
-                .replace_extension(extension)
-                .map_err(StashError::WriteProvider)?;
-        }
-
         for witness_bundles in consignment.bundles {
             self.consume_witness_bundle(contract_id, witness_bundles)?;
         }
@@ -614,8 +603,6 @@ pub trait StashReadProvider {
     fn witness_ids(&self) -> Result<impl Iterator<Item = Txid>, Self::Error>;
     fn bundle_ids(&self) -> Result<impl Iterator<Item = BundleId>, Self::Error>;
     fn bundle(&self, bundle_id: BundleId) -> Result<&TransitionBundle, ProviderError<Self::Error>>;
-    fn extension_ids(&self) -> Result<impl Iterator<Item = OpId>, Self::Error>;
-    fn extension(&self, op_id: OpId) -> Result<&Extension, ProviderError<Self::Error>>;
     fn witness(&self, witness_id: Txid) -> Result<&SealWitness, ProviderError<Self::Error>>;
 
     fn taprets(&self) -> Result<impl Iterator<Item = (Txid, TapretCommitment)>, Self::Error>;
@@ -630,7 +617,6 @@ pub trait StashWriteProvider: StoreTransaction<TransactionErr = Self::Error> {
     fn replace_iface(&mut self, iface: Iface) -> Result<bool, Self::Error>;
     fn replace_iimpl(&mut self, iimpl: IfaceImpl) -> Result<bool, Self::Error>;
     fn replace_genesis(&mut self, genesis: Genesis) -> Result<bool, Self::Error>;
-    fn replace_extension(&mut self, extension: Extension) -> Result<bool, Self::Error>;
     fn replace_bundle(&mut self, bundle: TransitionBundle) -> Result<bool, Self::Error>;
     fn replace_witness(&mut self, witness: SealWitness) -> Result<bool, Self::Error>;
     fn replace_attachment(&mut self, id: AttachId, attach: MediumBlob)

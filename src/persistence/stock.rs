@@ -860,7 +860,6 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             genesis,
             terminals,
             bundles,
-            extensions: none!(),
             attachments: none!(),
 
             signatures,

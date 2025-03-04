@@ -135,18 +135,6 @@ impl Req {
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-pub struct ValencyIface {
-    pub required: bool,
-}
-
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
 pub struct GlobalIface {
     pub sem_id: Option<SemId>,
     pub required: bool,
@@ -286,29 +274,7 @@ pub struct GenesisIface {
     pub metadata: TinyOrdSet<FieldName>,
     pub globals: ArgMap,
     pub assignments: ArgMap,
-    pub valencies: TinyOrdSet<FieldName>,
     pub errors: TinyOrdSet<VariantName>,
-}
-
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-pub struct ExtensionIface {
-    pub modifier: Modifier,
-    /// Defines whence schema may omit providing this operation.
-    pub optional: bool,
-    pub metadata: TinyOrdSet<FieldName>,
-    pub globals: ArgMap,
-    pub assignments: ArgMap,
-    pub redeems: TinyOrdSet<FieldName>,
-    pub valencies: TinyOrdSet<FieldName>,
-    pub errors: TinyOrdSet<VariantName>,
-    pub default_assignment: Option<FieldName>,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
@@ -327,7 +293,6 @@ pub struct TransitionIface {
     pub globals: ArgMap,
     pub inputs: ArgMap,
     pub assignments: ArgMap,
-    pub valencies: TinyOrdSet<FieldName>,
     pub errors: TinyOrdSet<VariantName>,
     pub default_assignment: Option<FieldName>,
 }
@@ -389,10 +354,8 @@ pub struct Iface {
     pub metadata: TinyOrdMap<FieldName, SemId>,
     pub global_state: TinyOrdMap<FieldName, GlobalIface>,
     pub assignments: TinyOrdMap<FieldName, AssignIface>,
-    pub valencies: TinyOrdMap<FieldName, ValencyIface>,
     pub genesis: GenesisIface,
     pub transitions: TinyOrdMap<FieldName, TransitionIface>,
-    pub extensions: TinyOrdMap<FieldName, ExtensionIface>,
     pub default_operation: Option<FieldName>,
     pub errors: TinyOrdMap<VariantName, TinyString>,
     pub developer: Identity,
@@ -488,15 +451,6 @@ impl Iface {
                     }
                 }
             };
-        let proc_valencies = |op_name: &OpName,
-                              valencies: &TinyOrdSet<FieldName>,
-                              errors: &mut Vec<IfaceInconsistency>| {
-            for name in valencies {
-                if self.valencies.get(name).is_none() {
-                    errors.push(IfaceInconsistency::UnknownValency(op_name.clone(), name.clone()));
-                }
-            }
-        };
         let proc_errors = |op_name: &OpName,
                            errs: &TinyOrdSet<VariantName>,
                            errors: &mut Vec<IfaceInconsistency>| {
@@ -523,7 +477,6 @@ impl Iface {
         }
         proc_globals(&OpName::Genesis, &self.genesis.globals, &mut errors);
         proc_assignments(&OpName::Genesis, &self.genesis.assignments, &mut errors);
-        proc_valencies(&OpName::Genesis, &self.genesis.valencies, &mut errors);
         proc_errors(&OpName::Genesis, &self.genesis.errors, &mut errors);
 
         for (name, t) in &self.transitions {
@@ -536,7 +489,6 @@ impl Iface {
             }
             proc_globals(&op_name, &t.globals, &mut errors);
             proc_assignments(&op_name, &t.assignments, &mut errors);
-            proc_valencies(&op_name, &t.valencies, &mut errors);
             proc_errors(&op_name, &t.errors, &mut errors);
 
             for (name, occ) in &t.inputs {
@@ -559,40 +511,8 @@ impl Iface {
             }
         }
 
-        for (name, e) in &self.extensions {
-            let op_name = OpName::Extension(name.clone());
-
-            for name in &e.metadata {
-                if !self.metadata.contains_key(name) {
-                    errors.push(IfaceInconsistency::UnknownMetadata(op_name.clone(), name.clone()));
-                }
-            }
-            proc_globals(&op_name, &e.globals, &mut errors);
-            proc_assignments(&op_name, &e.assignments, &mut errors);
-            proc_valencies(&op_name, &e.valencies, &mut errors);
-            proc_errors(&op_name, &e.errors, &mut errors);
-
-            for name in &e.redeems {
-                if self.valencies.get(name).is_none() {
-                    errors.push(IfaceInconsistency::UnknownRedeem(op_name.clone(), name.clone()));
-                }
-            }
-            if let Some(ref name) = e.default_assignment {
-                if e.assignments.get(name).is_none() {
-                    errors
-                        .push(IfaceInconsistency::UnknownDefaultAssignment(op_name, name.clone()));
-                }
-            }
-        }
-
-        for name in self.transitions.keys() {
-            if self.extensions.contains_key(name) {
-                errors.push(IfaceInconsistency::RepeatedOperationName(name.clone()));
-            }
-        }
-
         if let Some(ref name) = self.default_operation {
-            if self.transitions.get(name).is_none() && self.extensions.get(name).is_none() {
+            if self.transitions.get(name).is_none() {
                 errors.push(IfaceInconsistency::UnknownDefaultOp(name.clone()));
             }
         }
@@ -605,11 +525,6 @@ impl Iface {
         for (name, a) in &self.assignments {
             if a.required && self.genesis.assignments.get(name).is_none() {
                 errors.push(IfaceInconsistency::RequiredAssignmentAbsent(name.clone()));
-            }
-        }
-        for (name, v) in &self.valencies {
-            if v.required && self.genesis.valencies.get(name).is_none() {
-                errors.push(IfaceInconsistency::RequiredValencyAbsent(name.clone()));
             }
         }
 
@@ -645,8 +560,6 @@ pub enum OpName {
     Genesis,
     #[display("transition '{0}'")]
     Transition(FieldName),
-    #[display("extension '{0}'")]
-    Extension(FieldName),
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display, Error)]
@@ -658,10 +571,6 @@ pub enum IfaceInconsistency {
     FutureTimestamp(DateTime<Utc>),
     /// unknown global state '{1}' referenced from {0}.
     UnknownGlobal(OpName, FieldName),
-    /// unknown valency '{1}' referenced from {0}.
-    UnknownValency(OpName, FieldName),
-    /// unknown input '{1}' referenced from {0}.
-    UnknownRedeem(OpName, FieldName),
     /// unknown assignment '{1}' referenced from {0}.
     UnknownAssignment(OpName, FieldName),
     /// unknown input '{1}' referenced from {0}.
@@ -683,12 +592,8 @@ pub enum IfaceInconsistency {
     /// assignment '{1}' is unique, but operation {0} defines multiple inputs of
     /// this type, which is not possible.
     MultipleInputs(OpName, FieldName),
-    /// operation name '{0}' is used by both state transition and extension.
-    RepeatedOperationName(FieldName),
     /// global state '{0}' is required, but genesis doesn't define it.
     RequiredGlobalAbsent(FieldName),
     /// assignment '{0}' is required, but genesis doesn't define it.
     RequiredAssignmentAbsent(FieldName),
-    /// valency '{0}' is required, but genesis doesn't define it.
-    RequiredValencyAbsent(FieldName),
 }

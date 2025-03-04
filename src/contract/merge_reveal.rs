@@ -26,8 +26,8 @@ use amplify::Wrapper;
 use bp::Txid;
 use commit_verify::{mpc, Conceal};
 use rgb::{
-    Assign, Assignments, BundleId, ExposedSeal, ExposedState, Extension, Genesis, OpId, Operation,
-    Transition, TransitionBundle, TypedAssigns,
+    Assign, Assignments, BundleId, ExposedSeal, ExposedState, Genesis, OpId, Operation, Transition,
+    TransitionBundle, TypedAssigns,
 };
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error, From)]
@@ -227,18 +227,6 @@ impl MergeReveal for Genesis {
 }
 
 impl MergeReveal for Transition {
-    fn merge_reveal(mut self, other: Self) -> Result<Self, MergeRevealError> {
-        let self_id = self.id();
-        let other_id = other.id();
-        if self_id != other_id {
-            return Err(MergeRevealError::OperationMismatch(self_id, other_id));
-        }
-        self.assignments = self.assignments.merge_reveal(other.assignments)?;
-        Ok(self)
-    }
-}
-
-impl MergeReveal for Extension {
     fn merge_reveal(mut self, other: Self) -> Result<Self, MergeRevealError> {
         let self_id = self.id();
         let other_id = other.id();

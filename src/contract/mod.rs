@@ -25,7 +25,7 @@ mod merge_reveal;
 pub use assignments::{KnownState, OutputAssignment, TypedAssignsExt, WitnessInfo};
 pub use merge_reveal::{MergeReveal, MergeRevealError};
 use rgb::vm::OrdOpRef;
-use rgb::{ExtensionType, OpId, TransitionType, Txid};
+use rgb::{OpId, TransitionType, Txid};
 
 use crate::LIB_NAME_RGB_STD;
 
@@ -41,7 +41,6 @@ pub enum OpWitness {
     #[strict_type(dumb)]
     Genesis,
     Transition(Txid, TransitionType),
-    Extension(Txid, ExtensionType),
 }
 
 impl From<OrdOpRef<'_>> for OpWitness {
@@ -50,9 +49,6 @@ impl From<OrdOpRef<'_>> for OpWitness {
             OrdOpRef::Genesis(_) => OpWitness::Genesis,
             OrdOpRef::Transition(op, witness_id, ..) => {
                 OpWitness::Transition(witness_id, op.transition_type)
-            }
-            OrdOpRef::Extension(op, witness_id, ..) => {
-                OpWitness::Extension(witness_id, op.extension_type)
             }
         }
     }
@@ -63,9 +59,7 @@ impl OpWitness {
     pub fn witness_id(&self) -> Option<Txid> {
         match self {
             OpWitness::Genesis => None,
-            OpWitness::Transition(witness_id, _) | OpWitness::Extension(witness_id, _) => {
-                Some(*witness_id)
-            }
+            OpWitness::Transition(witness_id, _) => Some(*witness_id),
         }
     }
 }

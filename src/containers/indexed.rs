@@ -23,9 +23,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Deref;
 
 use rgb::validation::{ConsignmentApi, EAnchor, OpRef, Scripts};
-use rgb::{
-    BundleId, Extension, Genesis, OpId, Operation, Schema, Transition, TransitionBundle, Txid,
-};
+use rgb::{BundleId, Genesis, OpId, Operation, Schema, Transition, TransitionBundle, Txid};
 use strict_types::TypeSystem;
 
 use super::{Consignment, PubWitness};
@@ -40,7 +38,6 @@ pub struct IndexedConsignment<'c, const TRANSFER: bool> {
     bundle_idx: BTreeMap<BundleId, &'c TransitionBundle>,
     op_witness_idx: BTreeMap<OpId, Txid>,
     op_bundle_idx: BTreeMap<OpId, BundleId>,
-    extension_idx: BTreeMap<OpId, &'c Extension>,
     witness_idx: BTreeMap<Txid, &'c PubWitness>,
 }
 
@@ -56,7 +53,6 @@ impl<'c, const TRANSFER: bool> IndexedConsignment<'c, TRANSFER> {
         let mut bundle_idx = BTreeMap::new();
         let mut op_witness_idx = BTreeMap::new();
         let mut op_bundle_idx = BTreeMap::new();
-        let mut extension_idx = BTreeMap::new();
         let mut witness_idx = BTreeMap::new();
         for witness_bundle in &consignment.bundles {
             witness_idx
@@ -73,9 +69,6 @@ impl<'c, const TRANSFER: bool> IndexedConsignment<'c, TRANSFER> {
                 op_bundle_idx.insert(*opid, bundle_id);
             }
         }
-        for extension in &consignment.extensions {
-            extension_idx.insert(extension.id(), extension);
-        }
         let scripts = Scripts::from_iter_checked(
             consignment
                 .scripts
@@ -89,12 +82,9 @@ impl<'c, const TRANSFER: bool> IndexedConsignment<'c, TRANSFER> {
             bundle_idx,
             op_witness_idx,
             op_bundle_idx,
-            extension_idx,
             witness_idx,
         }
     }
-
-    fn extension(&self, opid: OpId) -> Option<&Extension> { self.extension_idx.get(&opid).copied() }
 
     fn transition(&self, opid: OpId) -> Option<&Transition> {
         self.op_bundle_idx
@@ -119,9 +109,7 @@ impl<const TRANSFER: bool> ConsignmentApi for IndexedConsignment<'_, TRANSFER> {
         if opid == self.genesis.id() {
             return Some(OpRef::Genesis(&self.genesis));
         }
-        self.transition(opid)
-            .map(OpRef::Transition)
-            .or_else(|| self.extension(opid).map(OpRef::Extension))
+        self.transition(opid).map(OpRef::Transition)
     }
 
     fn genesis(&self) -> &Genesis { &self.genesis }
