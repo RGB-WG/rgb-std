@@ -20,12 +20,24 @@
 // limitations under the License.
 
 mod assignments;
+mod builder;
+mod data;
+mod filter;
 mod merge_reveal;
+mod schema;
+pub(crate) mod resolver;
 
 pub use assignments::{KnownState, OutputAssignment, TypedAssignsExt, WitnessInfo};
+pub use builder::{BuilderError, ContractBuilder, TransitionBuilder};
+pub use data::{
+    AllocatedState, AttachAllocation, ContractData, ContractError, ContractOp, DataAllocation,
+    FungibleAllocation, OpDirection, OwnedAllocation, RightsAllocation,
+};
+pub use filter::{AssignmentsFilter, FilterExclude, FilterIncludeAll};
 pub use merge_reveal::{MergeReveal, MergeRevealError};
 use rgb::vm::OrdOpRef;
 use rgb::{OpId, TransitionType, Txid};
+pub use schema::{IssuerWrapper, SchemaWrapper};
 
 use crate::LIB_NAME_RGB_STD;
 

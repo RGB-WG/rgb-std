@@ -56,8 +56,6 @@ pub use util::{
 };
 
 pub const ASCII_ARMOR_NAME: &str = "Name";
-pub const ASCII_ARMOR_IFACE: &str = "Interface";
-pub const ASCII_ARMOR_IIMPL: &str = "Implementation";
 pub const ASCII_ARMOR_SCHEMA: &str = "Schema";
 pub const ASCII_ARMOR_CONTRACT: &str = "Contract";
 pub const ASCII_ARMOR_VERSION: &str = "Version";

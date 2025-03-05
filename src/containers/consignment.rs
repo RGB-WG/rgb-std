@@ -28,7 +28,7 @@ use std::str::FromStr;
 
 use aluvm::library::Lib;
 use amplify::confinement::{
-    Confined, LargeOrdSet, MediumBlob, SmallOrdMap, SmallOrdSet, TinyOrdMap, TinyOrdSet,
+    Confined, LargeOrdSet, MediumBlob, SmallOrdMap, SmallOrdSet, TinyOrdMap,
 };
 use amplify::{ByteArray, Bytes32};
 use armor::{ArmorHeader, AsciiArmor, StrictArmor, StrictArmorError};
@@ -45,10 +45,9 @@ use strict_types::TypeSystem;
 
 use super::{
     ContainerVer, ContentId, ContentSigs, IndexedConsignment, WitnessBundle,
-    ASCII_ARMOR_CONSIGNMENT_TYPE, ASCII_ARMOR_CONTRACT, ASCII_ARMOR_IFACE, ASCII_ARMOR_SCHEMA,
-    ASCII_ARMOR_TERMINAL, ASCII_ARMOR_VERSION,
+    ASCII_ARMOR_CONSIGNMENT_TYPE, ASCII_ARMOR_CONTRACT, ASCII_ARMOR_SCHEMA, ASCII_ARMOR_TERMINAL,
+    ASCII_ARMOR_VERSION,
 };
-use crate::interface::{Iface, IfaceImpl};
 use crate::persistence::{MemContract, MemContractState};
 use crate::{SecretSeal, LIB_NAME_RGB_STD};
 
@@ -82,9 +81,7 @@ impl<C: ConsignmentExt> ConsignmentExt for &C {
     }
 }
 
-/// Interface identifier.
-///
-/// Interface identifier commits to all the interface data.
+/// Consignment identifier.
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
 #[wrapper(Deref, BorrowSlice, Hex, Index, RangeOps)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
@@ -194,11 +191,7 @@ pub struct Consignment<const TRANSFER: bool> {
     /// Schema (plus root schema, if any) under which contract is issued.
     pub schema: Schema,
 
-    /// Interfaces supported by the contract.
-    pub ifaces: TinyOrdMap<Iface, IfaceImpl>,
-
-    /// Type system covering all types used in schema, interfaces and
-    /// implementations.
+    /// Type system covering all types used in schema.
     pub types: TypeSystem,
 
     /// Collection of scripts used across consignment.
@@ -226,9 +219,6 @@ impl<const TRANSFER: bool> CommitEncode for Consignment<TRANSFER> {
 
         e.commit_to_serialized(&self.contract_id());
         e.commit_to_serialized(&self.genesis.disclose_hash());
-        e.commit_to_set(&TinyOrdSet::from_iter_checked(
-            self.ifaces.values().map(|iimpl| iimpl.impl_id()),
-        ));
 
         e.commit_to_set(&LargeOrdSet::from_iter_checked(
             self.bundles.iter().map(WitnessBundle::commit_id),
@@ -291,7 +281,6 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
             version: self.version,
             transfer: false,
             schema: self.schema,
-            ifaces: self.ifaces,
             types: self.types,
             genesis: self.genesis,
             terminals: self.terminals,
@@ -323,17 +312,6 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
 
         if self.transfer != TRANSFER {
             status.add_failure(Failure::Custom(s!("invalid consignment type")));
-        }
-        // check ifaceid match implementation
-        for (iface, iimpl) in self.ifaces.iter() {
-            if iface.iface_id() != iimpl.iface_id {
-                status.add_failure(Failure::Custom(format!(
-                    "implementation {} targets different interface {} than expected {}",
-                    iimpl.impl_id(),
-                    iimpl.iface_id,
-                    iface.iface_id()
-                )));
-            }
         }
 
         // check bundle ids listed in terminals are present in the consignment
@@ -373,12 +351,6 @@ impl<const TRANSFER: bool> StrictArmor for Consignment<TRANSFER> {
             ArmorHeader::new(ASCII_ARMOR_CONTRACT, self.contract_id().to_string()),
             ArmorHeader::new(ASCII_ARMOR_SCHEMA, self.schema.schema_id().to_string()),
         ];
-        if !self.ifaces.is_empty() {
-            headers.push(ArmorHeader::with(
-                ASCII_ARMOR_IFACE,
-                self.ifaces.keys().map(|iface| iface.name.to_string()),
-            ));
-        }
         if !self.terminals.is_empty() {
             headers.push(ArmorHeader::with(
                 ASCII_ARMOR_TERMINAL,
@@ -388,7 +360,7 @@ impl<const TRANSFER: bool> StrictArmor for Consignment<TRANSFER> {
         headers
     }
     fn parse_armor_headers(&mut self, headers: Vec<ArmorHeader>) -> Result<(), StrictArmorError> {
-        // TODO: Check remaining headers - terminals, version, iface, contract, schema
+        // TODO: Check remaining headers - terminals, version, contract, schema
         if let Some(header) = headers
             .iter()
             .find(|header| header.title == ASCII_ARMOR_CONSIGNMENT_TYPE)

@@ -25,22 +25,21 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use bp::Outpoint;
 use invoice::{Allocation, Amount};
 use rgb::{
-    AssignmentType, AttachState, ContractId, DataState, OpId, OutputSeal, RevealedAttach,
-    RevealedData, RevealedValue, Schema, Txid, VoidState,
+    AssignmentType, AttachState, ContractId, DataState, GlobalStateType, OpId, OutputSeal,
+    RevealedAttach, RevealedData, RevealedValue, Schema, Txid, VoidState,
 };
 use strict_encoding::{FieldName, StrictDecode, StrictDumb, StrictEncode};
 use strict_types::{StrictVal, TypeSystem};
 
-use crate::contract::{KnownState, OutputAssignment, WitnessInfo};
+use crate::contract::{AssignmentsFilter, KnownState, OutputAssignment, WitnessInfo};
 use crate::info::ContractInfo;
-use crate::interface::{AssignmentsFilter, IfaceImpl};
 use crate::persistence::ContractStateRead;
 use crate::LIB_NAME_RGB_STD;
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum ContractError {
-    /// field name {0} is unknown to the contract interface
+    /// field name {0} is unknown to the contract schema
     FieldNameUnknown(FieldName),
 }
 
@@ -229,54 +228,52 @@ impl ContractOp {
     }
 }
 
-/// Contract state is an in-memory structure providing API to read structured
-/// data from the [`rgb::ContractHistory`].
+/// Data of a contract.
 #[derive(Clone, Eq, PartialEq, Debug)]
-pub struct ContractIface<S: ContractStateRead> {
+pub struct ContractData<S: ContractStateRead> {
     pub state: S,
     pub schema: Schema,
-    pub iface: IfaceImpl,
     pub types: TypeSystem,
     pub info: ContractInfo,
 }
 
-impl<S: ContractStateRead> ContractIface<S> {
+impl<S: ContractStateRead> ContractData<S> {
     pub fn contract_id(&self) -> ContractId { self.state.contract_id() }
 
     /// # Panics
     ///
-    /// If data are corrupted and contract schema doesn't match interface
-    /// implementations.
-    pub fn global(
-        &self,
-        name: impl Into<FieldName>,
-    ) -> Result<impl Iterator<Item = StrictVal> + '_, ContractError> {
-        let name = name.into();
-        let type_id = self
-            .iface
-            .global_type(&name)
-            .ok_or(ContractError::FieldNameUnknown(name))?;
-        let global_schema = self
+    /// If data is corrupted.
+    pub fn global(&self, name: impl Into<FieldName>) -> impl Iterator<Item = StrictVal> + '_ {
+        self.global_raw(self.schema.global_type(name))
+    }
+
+    /// # Panics
+    ///
+    /// If data is corrupted.
+    pub fn global_raw(&self, type_id: GlobalStateType) -> impl Iterator<Item = StrictVal> + '_ {
+        let global_details = self
             .schema
             .global_types
             .get(&type_id)
-            .expect("schema doesn't match interface");
-        Ok(self
-            .state
+            .expect("cannot find type ID in schema global types");
+        self.state
             .global(type_id)
-            .expect("schema doesn't match interface")
+            .expect("cannot find type ID in global state")
             .map(|data| {
                 self.types
-                    .strict_deserialize_type(global_schema.sem_id, data.borrow().as_slice())
+                    .strict_deserialize_type(
+                        global_details.global_state_schema.sem_id,
+                        data.borrow().as_slice(),
+                    )
                     .expect("unvalidated contract data in stash")
                     .unbox()
-            }))
+            })
     }
 
     fn extract_state<'c, A, U>(
         &'c self,
         state: impl IntoIterator<Item = &'c OutputAssignment<A>> + 'c,
-        name: impl Into<FieldName>,
+        type_id: AssignmentType,
         filter: impl AssignmentsFilter + 'c,
     ) -> Result<impl Iterator<Item = OutputAssignment<U>> + 'c, ContractError>
     where
@@ -284,24 +281,19 @@ impl<S: ContractStateRead> ContractIface<S> {
         U: From<A> + KnownState + 'c,
     {
         Ok(self
-            .extract_state_unfiltered(state, name)?
+            .extract_state_unfiltered(state, type_id)?
             .filter(move |outp| filter.should_include(outp.seal, outp.witness)))
     }
 
     fn extract_state_unfiltered<'c, A, U>(
         &'c self,
         state: impl IntoIterator<Item = &'c OutputAssignment<A>> + 'c,
-        name: impl Into<FieldName>,
+        type_id: AssignmentType,
     ) -> Result<impl Iterator<Item = OutputAssignment<U>> + 'c, ContractError>
     where
         A: Clone + KnownState + 'c,
         U: From<A> + KnownState + 'c,
     {
-        let name = name.into();
-        let type_id = self
-            .iface
-            .assignments_type(&name)
-            .ok_or(ContractError::FieldNameUnknown(name))?;
         Ok(state
             .into_iter()
             .filter(move |outp| outp.opout.ty == type_id)
@@ -314,7 +306,16 @@ impl<S: ContractStateRead> ContractIface<S> {
         name: impl Into<FieldName>,
         filter: impl AssignmentsFilter + 'c,
     ) -> Result<impl Iterator<Item = RightsAllocation> + 'c, ContractError> {
-        self.extract_state(self.state.rights_all(), name, filter)
+        let type_id = self.schema.assignment_type(name);
+        self.rights_raw(type_id, filter)
+    }
+
+    pub fn rights_raw<'c>(
+        &'c self,
+        type_id: AssignmentType,
+        filter: impl AssignmentsFilter + 'c,
+    ) -> Result<impl Iterator<Item = RightsAllocation> + 'c, ContractError> {
+        self.extract_state(self.state.rights_all(), type_id, filter)
     }
 
     pub fn fungible<'c>(
@@ -322,7 +323,16 @@ impl<S: ContractStateRead> ContractIface<S> {
         name: impl Into<FieldName>,
         filter: impl AssignmentsFilter + 'c,
     ) -> Result<impl Iterator<Item = FungibleAllocation> + 'c, ContractError> {
-        self.extract_state(self.state.fungible_all(), name, filter)
+        let type_id = self.schema.assignment_type(name);
+        self.fungible_raw(type_id, filter)
+    }
+
+    pub fn fungible_raw<'c>(
+        &'c self,
+        type_id: AssignmentType,
+        filter: impl AssignmentsFilter + 'c,
+    ) -> Result<impl Iterator<Item = FungibleAllocation> + 'c, ContractError> {
+        self.extract_state(self.state.fungible_all(), type_id, filter)
     }
 
     pub fn data<'c>(
@@ -330,7 +340,16 @@ impl<S: ContractStateRead> ContractIface<S> {
         name: impl Into<FieldName>,
         filter: impl AssignmentsFilter + 'c,
     ) -> Result<impl Iterator<Item = DataAllocation> + 'c, ContractError> {
-        self.extract_state(self.state.data_all(), name, filter)
+        let type_id = self.schema.assignment_type(name);
+        self.data_raw(type_id, filter)
+    }
+
+    pub fn data_raw<'c>(
+        &'c self,
+        type_id: AssignmentType,
+        filter: impl AssignmentsFilter + 'c,
+    ) -> Result<impl Iterator<Item = DataAllocation> + 'c, ContractError> {
+        self.extract_state(self.state.data_all(), type_id, filter)
     }
 
     pub fn attachments<'c>(
@@ -338,7 +357,16 @@ impl<S: ContractStateRead> ContractIface<S> {
         name: impl Into<FieldName>,
         filter: impl AssignmentsFilter + 'c,
     ) -> Result<impl Iterator<Item = AttachAllocation> + 'c, ContractError> {
-        self.extract_state(self.state.attach_all(), name, filter)
+        let type_id = self.schema.assignment_type(name);
+        self.attachments_raw(type_id, filter)
+    }
+
+    pub fn attachments_raw<'c>(
+        &'c self,
+        type_id: AssignmentType,
+        filter: impl AssignmentsFilter + 'c,
+    ) -> Result<impl Iterator<Item = AttachAllocation> + 'c, ContractError> {
+        self.extract_state(self.state.attach_all(), type_id, filter)
     }
 
     pub fn allocations<'c>(

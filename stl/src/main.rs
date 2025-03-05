@@ -50,7 +50,7 @@ fn main() {
             "0.11.0",
             Some(
                 "
-  Description: Types for writing RGB contracts and interfaces
+  Description: Types for writing RGB schemata
   Author: Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
   Copyright (C) 2023-2024 LNP/BP Standards Association. All rights reserved.
   License: Apache-2.0",

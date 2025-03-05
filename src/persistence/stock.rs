@@ -26,37 +26,34 @@ use std::error::Error;
 use std::fmt::Debug;
 use std::num::NonZeroU32;
 
-use amplify::confinement::{Confined, LargeOrdSet, U24};
+use amplify::confinement::{Confined, LargeOrdSet};
 use bp::seals::txout::CloseMethod;
-use bp::{Outpoint, Txid, Vout};
-use chrono::Utc;
-use invoice::{Amount, Beneficiary, InvoiceState, NonFungible, RgbInvoice};
+use bp::{Outpoint, Txid};
 use nonasync::persistence::{CloneNoPersistence, PersistenceError, PersistenceProvider};
 use rgb::validation::{DbcProof, ResolveWitness, UnsafeHistoryMap, WitnessResolverError};
 use rgb::vm::WitnessOrd;
 use rgb::{
-    validation, AssignmentType, BundleId, ChainNet, ContractId, DataState, GraphSeal, Identity,
-    OpId, Operation, Opout, OutputSeal, SchemaId, SecretSeal, Transition,
+    validation, AssignmentType, BundleId, ChainNet, ContractId, GraphSeal, Identity, OpId,
+    Operation, Opout, OutputSeal, Schema, SchemaId, SecretSeal, Transition, TransitionType,
 };
-use strict_encoding::FieldName;
+use strict_types::FieldName;
 
 use super::{
     ContractStateRead, Index, IndexError, IndexInconsistency, IndexProvider, IndexReadProvider,
-    IndexWriteProvider, MemIndex, MemStash, MemState, PersistedState, SchemaIfaces, Stash,
-    StashDataError, StashError, StashInconsistency, StashProvider, StashReadProvider,
-    StashWriteProvider, State, StateError, StateInconsistency, StateProvider, StateReadProvider,
-    StateWriteProvider, StoreTransaction,
+    IndexWriteProvider, MemIndex, MemStash, MemState, PersistedState, Stash, StashDataError,
+    StashError, StashInconsistency, StashProvider, StashReadProvider, StashWriteProvider, State,
+    StateError, StateInconsistency, StateProvider, StateReadProvider, StateWriteProvider,
+    StoreTransaction,
 };
 use crate::containers::{
-    AnchorSet, AnchoredBundleMismatch, Batch, BuilderSeal, ClientBundle, Consignment, ContainerVer,
-    ContentId, Contract, Fascia, Kit, SealWitness, Transfer, TransitionInfo, TransitionInfoError,
-    UnrelatedTransition, ValidConsignment, ValidContract, ValidKit, ValidTransfer, WitnessBundle,
+    AnchorSet, AnchoredBundleMismatch, ClientBundle, Consignment, ContainerVer, ContentId,
+    Contract, Fascia, Kit, SealWitness, Transfer, TransitionInfoError, UnrelatedTransition,
+    ValidConsignment, ValidContract, ValidKit, ValidTransfer, WitnessBundle,
 };
-use crate::info::{ContractInfo, IfaceInfo, SchemaInfo};
-use crate::interface::{
-    BuilderError, ContractBuilder, ContractIface, Iface, IfaceClass, IfaceId, IfaceRef,
-    IfaceWrapper, TransitionBuilder,
+use crate::contract::{
+    BuilderError, ContractBuilder, ContractData, IssuerWrapper, SchemaWrapper, TransitionBuilder,
 };
+use crate::info::{ContractInfo, SchemaInfo};
 use crate::MergeRevealError;
 
 pub type ContractAssignments = HashMap<OutputSeal, HashMap<Opout, PersistedState>>;
@@ -219,14 +216,8 @@ pub enum ComposeError {
     /// expired invoice.
     InvoiceExpired,
 
-    /// Invoice requesting chain-network pair {0} but contract commits to a different one ({1})
-    InvoiceBeneficiaryWrongChainNet(ChainNet, ChainNet),
-
     /// the invoice contains no contract information.
     NoContract,
-
-    /// the invoice contains no interface information.
-    NoIface,
 
     /// the invoice requirements can't be fulfilled using available assets or
     /// smart contract state.
@@ -275,20 +266,6 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> From<FasciaError>
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
-#[display(doc_comments)]
-pub enum ContractIfaceError {
-    /// no known implementations of {0::<0} parent interfaces for
-    /// the schema {1::<0}.
-    NoAbstractImpl(IfaceId, SchemaId),
-}
-
-impl<S: StashProvider, H: StateProvider, P: IndexProvider> From<ContractIfaceError>
-    for StockError<S, H, P, ContractIfaceError>
-{
-    fn from(err: ContractIfaceError) -> Self { Self::InvalidInput(err) }
-}
-
-#[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(inner)]
 pub enum InputError {
     #[from]
@@ -297,8 +274,6 @@ pub enum InputError {
     Consign(ConsignError),
     #[from]
     Fascia(FasciaError),
-    #[from]
-    ContractIface(ContractIfaceError),
 }
 
 macro_rules! stock_err_conv {
@@ -340,19 +315,14 @@ impl From<Infallible> for ConsignError {
 impl From<Infallible> for FasciaError {
     fn from(_: Infallible) -> Self { unreachable!() }
 }
-impl From<Infallible> for ContractIfaceError {
-    fn from(_: Infallible) -> Self { unreachable!() }
-}
 
 stock_err_conv!(Infallible, ComposeError);
 stock_err_conv!(Infallible, ConsignError);
 stock_err_conv!(Infallible, FasciaError);
-stock_err_conv!(Infallible, ContractIfaceError);
 stock_err_conv!(Infallible, InputError);
 stock_err_conv!(ComposeError, InputError);
 stock_err_conv!(ConsignError, InputError);
 stock_err_conv!(FasciaError, InputError);
-stock_err_conv!(ContractIfaceError, InputError);
 
 pub type StockErrorMem<E = Infallible> = StockError<MemStash, MemState, MemIndex, E>;
 pub type StockErrorAll<S = MemStash, H = MemState, P = MemIndex> = StockError<S, H, P, InputError>;
@@ -471,24 +441,10 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     #[doc(hidden)]
     pub fn as_index_provider_mut(&mut self) -> &mut P { self.index.as_provider_mut() }
 
-    pub fn ifaces(&self) -> Result<impl Iterator<Item = IfaceInfo> + '_, StockError<S, H, P>> {
-        let names = self
-            .stash
-            .ifaces()?
-            .map(|iface| (iface.iface_id(), iface.name.clone()))
-            .collect::<HashMap<_, _>>();
-        Ok(self
-            .stash
-            .ifaces()?
-            .map(move |iface| IfaceInfo::new(iface, &names)))
-    }
-    pub fn iface(&self, iface: impl Into<IfaceRef>) -> Result<&Iface, StockError<S, H, P>> {
-        Ok(self.stash.iface(iface)?)
-    }
     pub fn schemata(&self) -> Result<impl Iterator<Item = SchemaInfo> + '_, StockError<S, H, P>> {
         Ok(self.stash.schemata()?.map(SchemaInfo::with))
     }
-    pub fn schema(&self, schema_id: SchemaId) -> Result<&SchemaIfaces, StockError<S, H, P>> {
+    pub fn schema(&self, schema_id: SchemaId) -> Result<&Schema, StockError<S, H, P>> {
         Ok(self.stash.schema(schema_id)?)
     }
 
@@ -496,23 +452,6 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         &self,
     ) -> Result<impl Iterator<Item = ContractInfo> + '_, StockError<S, H, P>> {
         Ok(self.stash.geneses()?.map(ContractInfo::with))
-    }
-
-    #[allow(clippy::multiple_bound_locations, clippy::type_complexity)]
-    pub fn contracts_by<'a, C: IfaceClass + 'a>(
-        &'a self,
-    ) -> Result<
-        impl Iterator<
-                Item = <C::Wrapper<H::ContractRead<'a>> as IfaceWrapper<H::ContractRead<'a>>>::Info,
-            > + 'a,
-        StockError<S, H, P>,
-    > {
-        Ok(self.stash.geneses_by::<C>()?.filter_map(|genesis| {
-            self.contract_iface_class::<C>(genesis.contract_id())
-                .as_ref()
-                .map(<C::Wrapper<H::ContractRead<'_>> as IfaceWrapper<H::ContractRead<'_>>>::info)
-                .ok()
-        }))
     }
 
     /// Iterates over ids of all contract assigning state to the provided set of
@@ -532,11 +471,11 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     fn contract_raw(
         &self,
         contract_id: ContractId,
-    ) -> Result<(&SchemaIfaces, H::ContractRead<'_>, ContractInfo), StockError<S, H, P>> {
+    ) -> Result<(&Schema, H::ContractRead<'_>, ContractInfo), StockError<S, H, P>> {
         let state = self.state.contract_state(contract_id)?;
         let schema_id = state.schema_id();
-        let schema_ifaces = self.stash.schema(schema_id)?;
-        Ok((schema_ifaces, state, self.contract_info(contract_id)?))
+        let schema = self.stash.schema(schema_id)?;
+        Ok((schema, state, self.contract_info(contract_id)?))
     }
 
     pub fn contract_info(
@@ -555,46 +494,26 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             .map_err(StockError::from)
     }
 
-    #[allow(clippy::multiple_bound_locations, clippy::type_complexity)]
-    pub fn contract_iface_class<C: IfaceClass>(
+    pub fn contract_wrapper<C: IssuerWrapper>(
         &self,
         contract_id: ContractId,
-    ) -> Result<C::Wrapper<H::ContractRead<'_>>, StockError<S, H, P, ContractIfaceError>> {
-        let (schema_ifaces, state, info) = self.contract_raw(contract_id)?;
-        let iimpl = self.stash.impl_for::<C>(schema_ifaces)?;
-
-        let iface = self.stash.iface(iimpl.iface_id)?;
-        let (types, _) = self.stash.extract(&schema_ifaces.schema, [iface])?;
-
-        Ok(C::Wrapper::with(ContractIface {
-            state,
-            schema: schema_ifaces.schema.clone(),
-            iface: iimpl.clone(),
-            types,
-            info,
-        }))
+    ) -> Result<C::Wrapper<H::ContractRead<'_>>, StockError<S, H, P>> {
+        let contract_data = self.contract_data(contract_id)?;
+        Ok(C::Wrapper::with(contract_data))
     }
 
-    /// Returns the best matching abstract interface to a contract.
-    pub fn contract_iface(
+    /// Returns the contract data for the given contract ID
+    pub fn contract_data(
         &self,
         contract_id: ContractId,
-        iface: impl Into<IfaceRef>,
-    ) -> Result<ContractIface<H::ContractRead<'_>>, StockError<S, H, P, ContractIfaceError>> {
-        let (schema_ifaces, state, info) = self.contract_raw(contract_id)?;
-        let iface = self.stash.iface(iface)?;
-        let iface_id = iface.iface_id();
+    ) -> Result<ContractData<H::ContractRead<'_>>, StockError<S, H, P>> {
+        let (schema, state, info) = self.contract_raw(contract_id)?;
 
-        let iimpl = iface.find_abstractable_impl(schema_ifaces).ok_or_else(|| {
-            ContractIfaceError::NoAbstractImpl(iface_id, schema_ifaces.schema.schema_id())
-        })?;
+        let (types, _) = self.stash.extract(schema)?;
 
-        let (types, _) = self.stash.extract(&schema_ifaces.schema, [iface])?;
-
-        Ok(ContractIface {
+        Ok(ContractData {
             state,
-            schema: schema_ifaces.schema.clone(),
-            iface: iimpl.clone(),
+            schema: schema.clone(),
             types,
             info,
         })
@@ -657,39 +576,38 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         &self,
         issuer: impl Into<Identity>,
         schema_id: SchemaId,
-        iface: impl Into<IfaceRef>,
         chain_net: ChainNet,
     ) -> Result<ContractBuilder, StockError<S, H, P>> {
         Ok(self
             .stash
-            .contract_builder(issuer.into(), schema_id, iface, chain_net)?)
+            .contract_builder(issuer.into(), schema_id, chain_net)?)
     }
 
     pub fn transition_builder(
         &self,
         contract_id: ContractId,
-        iface: impl Into<IfaceRef>,
-        transition_name: Option<impl Into<FieldName>>,
+        transition_name: impl Into<FieldName>,
     ) -> Result<TransitionBuilder, StockError<S, H, P>> {
         Ok(self
             .stash
-            .transition_builder(contract_id, iface, transition_name)?)
+            .transition_builder(contract_id, transition_name)?)
+    }
+
+    pub fn transition_builder_raw(
+        &self,
+        contract_id: ContractId,
+        transition_type: TransitionType,
+    ) -> Result<TransitionBuilder, StockError<S, H, P>> {
+        Ok(self
+            .stash
+            .transition_builder_raw(contract_id, transition_type)?)
     }
 
     pub fn export_schema(&self, schema_id: SchemaId) -> Result<ValidKit, StockError<S, H, P>> {
         let mut kit = Kit::default();
-        let schema_ifaces = self.schema(schema_id)?;
-        kit.schemata
-            .push(schema_ifaces.schema.clone())
-            .expect("single item");
-        for name in schema_ifaces.iimpls.keys() {
-            let iface = self.stash.iface(name.clone())?;
-            kit.ifaces.push(iface.clone()).expect("type guarantees");
-        }
-        kit.iimpls
-            .extend(schema_ifaces.iimpls.values().cloned())
-            .expect("type guarantees");
-        let (types, scripts) = self.stash.extract(&schema_ifaces.schema, &kit.ifaces)?;
+        let schema = self.schema(schema_id)?;
+        kit.schemata.push(schema.clone()).expect("single item");
+        let (types, scripts) = self.stash.extract(schema)?;
         kit.scripts
             .extend(scripts.into_values())
             .expect("type guarantees");
@@ -809,26 +727,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
                 signatures.insert(ContentId::Schema(genesis.schema_id), schema_signature.clone())
             });
 
-        let schema_ifaces = self.stash.schema(genesis.schema_id)?.clone();
-        let mut ifaces = BTreeMap::new();
-        for (iface_id, iimpl) in schema_ifaces.iimpls {
-            let iface = self.stash.iface(iface_id)?;
-            // Get iface and iimpl signatures by iface id and iimpl id
-            self.stash
-                .sigs_for(&ContentId::Iface(iface.iface_id()))?
-                .map(|iface_signature| {
-                    signatures.insert(ContentId::Iface(iface.iface_id()), iface_signature.clone())
-                });
-            self.stash
-                .sigs_for(&ContentId::IfaceImpl(iimpl.impl_id()))?
-                .map(|iimpl_signature| {
-                    signatures
-                        .insert(ContentId::IfaceImpl(iimpl.impl_id()), iimpl_signature.clone())
-                });
-
-            ifaces.insert(iface.clone(), iimpl);
-        }
-        let ifaces = Confined::from_checked(ifaces);
+        let schema = self.stash.schema(genesis.schema_id)?.clone();
 
         let mut bundles = BTreeMap::<Txid, WitnessBundle>::new();
         for anchored_bundle in anchored_bundles.into_values() {
@@ -844,7 +743,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         let terminals =
             Confined::try_from(terminals).map_err(|_| ConsignError::TooManyTerminals)?;
 
-        let (types, scripts) = self.stash.extract(&schema_ifaces.schema, ifaces.keys())?;
+        let (types, scripts) = self.stash.extract(&schema)?;
         let scripts = Confined::from_iter_checked(scripts.into_values());
         let signatures =
             Confined::try_from(signatures).map_err(|_| ConsignError::TooManySignatures)?;
@@ -855,8 +754,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             version: ContainerVer::V2,
             transfer: TRANSFER,
 
-            schema: schema_ifaces.schema,
-            ifaces,
+            schema,
             genesis,
             terminals,
             bundles,
@@ -866,235 +764,6 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             types,
             scripts,
         })
-    }
-
-    /// Composes a batch of state transitions updating state for the provided
-    /// set of previous outputs, satisfying requirements of the invoice, paying
-    /// the change back and including the necessary extra state transitions.
-    #[allow(clippy::result_large_err)]
-    pub fn compose(
-        &self,
-        invoice: &RgbInvoice,
-        prev_outputs: impl IntoIterator<Item = impl Into<OutputSeal>>,
-        beneficiary_vout: Option<impl Into<Vout>>,
-        allocator: impl Fn(ContractId, AssignmentType) -> Option<Vout>,
-    ) -> Result<Batch, StockError<S, H, P, ComposeError>> {
-        self.compose_deterministic(
-            invoice,
-            prev_outputs,
-            beneficiary_vout,
-            u64::MAX,
-            allocator,
-            |_, _| rand::random(),
-        )
-    }
-
-    /// Composes a batch of state transitions updating state for the provided
-    /// set of previous outputs, satisfying requirements of the invoice, paying
-    /// the change back and including the necessary extra state transitions.
-    #[allow(clippy::too_many_arguments, clippy::result_large_err)]
-    pub fn compose_deterministic(
-        &self,
-        invoice: &RgbInvoice,
-        prev_outputs: impl IntoIterator<Item = impl Into<OutputSeal>>,
-        beneficiary_vout: Option<impl Into<Vout>>,
-        priority: u64,
-        allocator: impl Fn(ContractId, AssignmentType) -> Option<Vout>,
-        seal_blinder: impl Fn(ContractId, AssignmentType) -> u64,
-    ) -> Result<Batch, StockError<S, H, P, ComposeError>> {
-        let prev_outputs = prev_outputs
-            .into_iter()
-            .map(|o| o.into())
-            .collect::<HashSet<OutputSeal>>();
-
-        #[allow(clippy::type_complexity)]
-        let output_for_assignment =
-            |id: ContractId,
-             assignment_type: AssignmentType|
-             -> Result<BuilderSeal<GraphSeal>, StockError<S, H, P, ComposeError>> {
-                let vout = allocator(id, assignment_type)
-                    .ok_or(ComposeError::NoExtraOrChange(assignment_type))?;
-                let seal = GraphSeal::with_blinded_vout(vout, seal_blinder(id, assignment_type));
-                Ok(BuilderSeal::Revealed(seal))
-            };
-
-        // 1. Prepare the data
-        if let Some(expiry) = invoice.expiry {
-            if expiry < Utc::now().timestamp() {
-                return Err(ComposeError::InvoiceExpired.into());
-            }
-        }
-        let contract_id = invoice.contract.ok_or(ComposeError::NoContract)?;
-        let iface = invoice.iface.as_ref().ok_or(ComposeError::NoIface)?;
-        let mut main_builder =
-            self.transition_builder(contract_id, iface.clone(), invoice.operation.clone())?;
-        let assignment_name = invoice
-            .assignment
-            .as_ref()
-            .or_else(|| main_builder.default_assignment().ok())
-            .ok_or(BuilderError::NoDefaultAssignment)?
-            .clone();
-        let assignment_id = main_builder
-            .assignments_type(&assignment_name)
-            .ok_or(BuilderError::InvalidStateField(assignment_name.clone()))?;
-
-        let contract_genesis = self.stash.genesis(contract_id)?;
-        let contract_chain_net = contract_genesis.chain_net;
-        let invoice_chain_net = invoice.chain_network();
-        if contract_chain_net != invoice_chain_net {
-            return Err(ComposeError::InvoiceBeneficiaryWrongChainNet(
-                invoice_chain_net,
-                contract_chain_net,
-            )
-            .into());
-        }
-
-        let beneficiary = match (invoice.beneficiary.into_inner(), beneficiary_vout) {
-            (Beneficiary::BlindedSeal(seal), None) => BuilderSeal::Concealed(seal),
-            (Beneficiary::BlindedSeal(_), Some(_)) => {
-                return Err(ComposeError::BeneficiaryVout.into());
-            }
-            (Beneficiary::WitnessVout(_), Some(vout)) => {
-                let blinding = seal_blinder(contract_id, assignment_id);
-                let seal = GraphSeal::with_blinded_vout(vout, blinding);
-                BuilderSeal::Revealed(seal)
-            }
-            (Beneficiary::WitnessVout(_), None) => {
-                return Err(ComposeError::NoBeneficiaryOutput.into());
-            }
-        };
-
-        // 2. Prepare transition
-        let mut main_inputs = Vec::<OutputSeal>::new();
-        let mut sum_inputs = Amount::ZERO;
-        let mut data_inputs = vec![];
-
-        for (output, list) in
-            self.contract_assignments_for(contract_id, prev_outputs.iter().copied())?
-        {
-            main_inputs.push(output);
-            for (opout, state) in list {
-                main_builder = main_builder.add_input(opout, state.clone())?;
-                if opout.ty != assignment_id {
-                    let seal = output_for_assignment(contract_id, opout.ty)?;
-                    main_builder = main_builder.add_owned_state_raw(opout.ty, seal, state)?;
-                } else if let PersistedState::Amount(value) = state {
-                    sum_inputs += value;
-                } else if let PersistedState::Data(value, _) = state {
-                    data_inputs.push(value);
-                }
-            }
-        }
-        // Add payments to beneficiary and change
-        match invoice.owned_state.clone() {
-            InvoiceState::Amount(amt) => {
-                // Pay beneficiary
-                if sum_inputs < amt {
-                    return Err(ComposeError::InsufficientState.into());
-                }
-
-                if amt > Amount::ZERO {
-                    main_builder =
-                        main_builder.add_fungible_state_raw(assignment_id, beneficiary, amt)?;
-                }
-
-                // Pay change
-                if sum_inputs > amt {
-                    let change_seal = output_for_assignment(contract_id, assignment_id)?;
-                    main_builder = main_builder.add_fungible_state_raw(
-                        assignment_id,
-                        change_seal,
-                        sum_inputs - amt,
-                    )?;
-                }
-            }
-            InvoiceState::Data(data) => match data {
-                NonFungible::RGB21(allocation) => {
-                    let lookup_state = DataState::from(allocation);
-                    if !data_inputs.into_iter().any(|x| x == lookup_state) {
-                        return Err(ComposeError::InsufficientState.into());
-                    }
-
-                    let seal = seal_blinder(contract_id, assignment_id);
-                    main_builder =
-                        main_builder.add_data_raw(assignment_id, beneficiary, allocation, seal)?;
-                }
-            },
-            _ => {
-                todo!(
-                    "only PersistedState::Amount and PersistedState::Allocation are currently \
-                     supported"
-                )
-            }
-        }
-
-        // 3. Prepare other transitions
-        // Enumerate state
-        let mut extra_state =
-            HashMap::<ContractId, HashMap<OutputSeal, HashMap<Opout, PersistedState>>>::new();
-        for id in self.contracts_assigning(prev_outputs.iter().copied())? {
-            // Skip current contract
-            if id == contract_id {
-                continue;
-            }
-            let state = self.contract_assignments_for(id, prev_outputs.iter().copied())?;
-            let entry = extra_state.entry(id).or_default();
-            for (seal, assigns) in state {
-                entry.entry(seal).or_default().extend(assigns);
-            }
-        }
-
-        // Construct transitions for extra state
-        let mut extras = Confined::<Vec<_>, 0, { U24 - 1 }>::with_capacity(extra_state.len());
-        for (id, seal_map) in extra_state {
-            let schema_ifaces = self
-                .as_stash_provider()
-                .contract_schema(id)
-                .map_err(|_| BuilderError::Inconsistency(StashInconsistency::ContractAbsent(id)))?;
-            let schema = &schema_ifaces.schema;
-            // assuming any interface implementation is ok
-            let (iimpl_tn, iimpl) = schema_ifaces.iimpls.iter().next().unwrap();
-
-            for (output, assigns) in seal_map {
-                for (opout, state) in assigns {
-                    let transition_type = schema
-                        .transition_for_assignment_type(&opout.ty)
-                        .ok_or(BuilderError::TransitionTypeNotFound(opout.ty))?;
-                    let transition_name = iimpl
-                        .transition_name(transition_type)
-                        .ok_or(BuilderError::TransitionNameNotFound(transition_type))?;
-
-                    let mut extra_builder = self.transition_builder(
-                        id,
-                        iimpl_tn.clone(),
-                        Some(transition_name.clone()),
-                    )?;
-
-                    let seal = output_for_assignment(id, opout.ty)?;
-                    extra_builder = extra_builder
-                        .add_input(opout, state.clone())?
-                        .add_owned_state_raw(opout.ty, seal, state)?;
-
-                    if !extra_builder.has_inputs() {
-                        continue;
-                    }
-                    let transition = extra_builder.complete_transition()?;
-                    let info = TransitionInfo::new(transition, [output])
-                        .map_err(|_| ComposeError::TooManyInputs)?;
-                    extras.push(info).map_err(|_| ComposeError::TooManyExtras)?;
-                }
-            }
-        }
-
-        if !main_builder.has_inputs() {
-            return Err(ComposeError::InsufficientState.into());
-        }
-
-        let main = TransitionInfo::new(main_builder.complete_transition()?, main_inputs)
-            .map_err(|_| ComposeError::TooManyInputs)?;
-        let mut batch = Batch { main, extras };
-        batch.set_priority(priority);
-        Ok(batch)
     }
 
     fn store_transaction<E: Error>(
@@ -1539,9 +1208,8 @@ pub struct UpdateRes {
 
 #[cfg(test)]
 mod test {
-    use std::str::FromStr;
-
     use baid64::FromBaid64Str;
+    use bp::Vout;
     use commit_verify::{Conceal, DigestExt, Sha256};
 
     use super::*;
@@ -1587,16 +1255,11 @@ mod test {
     fn test_transition_builder() {
         let stock = Stock::in_memory();
         let hasher = Sha256::default();
-        let iface_id = IfaceId::from(hasher.clone());
 
         let bytes_hash = hasher.finish();
         let contract_id = ContractId::copy_from_slice(bytes_hash).unwrap();
 
-        if let Ok(builder) = stock.transition_builder(
-            contract_id,
-            IfaceRef::Id(iface_id),
-            Some(FieldName::from_str("transfer").unwrap()),
-        ) {
+        if let Ok(builder) = stock.transition_builder(contract_id, "transfer") {
             println!("{:?}", builder.transition_type())
         }
     }

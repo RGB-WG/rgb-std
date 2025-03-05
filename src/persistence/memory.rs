@@ -51,14 +51,13 @@ use strict_encoding::{StrictDeserialize, StrictSerialize};
 use strict_types::TypeSystem;
 
 use super::{
-    ContractIfaceError, ContractStateRead, ContractStateWrite, IndexInconsistency, IndexProvider,
-    IndexReadError, IndexReadProvider, IndexWriteError, IndexWriteProvider, SchemaIfaces,
-    StashInconsistency, StashProvider, StashProviderError, StashReadProvider, StashWriteProvider,
-    StateInconsistency, StateProvider, StateReadProvider, StateWriteProvider, StoreTransaction,
+    ContractStateRead, ContractStateWrite, IndexInconsistency, IndexProvider, IndexReadError,
+    IndexReadProvider, IndexWriteError, IndexWriteProvider, StashInconsistency, StashProvider,
+    StashProviderError, StashReadProvider, StashWriteProvider, StateInconsistency, StateProvider,
+    StateReadProvider, StateWriteProvider, StoreTransaction,
 };
 use crate::containers::{AnchorSet, ContentId, ContentSigs, SealWitness, SigBlob, TrustLevel};
 use crate::contract::{GlobalOut, KnownState, OpWitness, OutputAssignment};
-use crate::interface::{Iface, IfaceClass, IfaceId, IfaceImpl, IfaceRef};
 use crate::LIB_NAME_RGB_STORAGE;
 
 #[derive(Debug, Display, Error, From)]
@@ -85,8 +84,7 @@ pub struct MemStash {
     #[strict_type(skip)]
     persistence: Option<Persistence<Self>>,
 
-    schemata: TinyOrdMap<SchemaId, SchemaIfaces>,
-    ifaces: TinyOrdMap<IfaceId, Iface>,
+    schemata: TinyOrdMap<SchemaId, Schema>,
     geneses: TinyOrdMap<ContractId, Genesis>,
     bundles: LargeOrdMap<BundleId, TransitionBundle>,
     witnesses: LargeOrdMap<Txid, SealWitness>,
@@ -106,7 +104,6 @@ impl MemStash {
         Self {
             persistence: none!(),
             schemata: empty!(),
-            ifaces: empty!(),
             geneses: empty!(),
             bundles: empty!(),
             witnesses: empty!(),
@@ -125,7 +122,6 @@ impl CloneNoPersistence for MemStash {
         Self {
             persistence: None,
             schemata: self.schemata.clone(),
-            ifaces: self.ifaces.clone(),
             geneses: self.geneses.clone(),
             bundles: self.bundles.clone(),
             witnesses: self.witnesses.clone(),
@@ -175,58 +171,11 @@ impl StashReadProvider for MemStash {
             .ok_or_else(|| StashInconsistency::LibAbsent(id).into())
     }
 
-    fn ifaces(&self) -> Result<impl Iterator<Item = &Iface>, Self::Error> {
-        Ok(self.ifaces.values())
-    }
-
-    fn iface(&self, iface: impl Into<IfaceRef>) -> Result<&Iface, StashProviderError<Self::Error>> {
-        let iref = iface.into();
-        match iref {
-            IfaceRef::Name(ref name) => self.ifaces.values().find(|iface| &iface.name == name),
-            IfaceRef::Id(ref id) => self.ifaces.get(id),
-        }
-        .ok_or_else(|| StashInconsistency::IfaceAbsent(iref).into())
-    }
-
-    fn schemata(&self) -> Result<impl Iterator<Item = &SchemaIfaces>, Self::Error> {
+    fn schemata(&self) -> Result<impl Iterator<Item = &Schema>, Self::Error> {
         Ok(self.schemata.values())
     }
-    fn schemata_by<C: IfaceClass>(
-        &self,
-    ) -> Result<impl Iterator<Item = &SchemaIfaces>, Self::Error> {
-        Ok(self
-            .schemata
-            .values()
-            .filter(|schema_ifaces| self.impl_for::<C>(schema_ifaces).is_ok()))
-    }
 
-    fn impl_for<'a, C: IfaceClass + 'a>(
-        &'a self,
-        schema_ifaces: &'a SchemaIfaces,
-    ) -> Result<&'a IfaceImpl, StashProviderError<Self::Error>> {
-        schema_ifaces
-            .iimpls
-            .values()
-            .find(|iimpl| C::IFACE_IDS.contains(&iimpl.iface_id))
-            .or_else(|| {
-                C::IFACE_IDS.iter().find_map(|id| {
-                    let iface = self.iface(*id).ok()?;
-                    iface.find_abstractable_impl(schema_ifaces)
-                })
-            })
-            .ok_or_else(move || {
-                ContractIfaceError::NoAbstractImpl(
-                    C::IFACE_IDS[0],
-                    schema_ifaces.schema.schema_id(),
-                )
-                .into()
-            })
-    }
-
-    fn schema(
-        &self,
-        schema_id: SchemaId,
-    ) -> Result<&SchemaIfaces, StashProviderError<Self::Error>> {
+    fn schema(&self, schema_id: SchemaId) -> Result<&Schema, StashProviderError<Self::Error>> {
         self.schemata
             .get(&schema_id)
             .ok_or_else(|| StashInconsistency::SchemaAbsent(schema_id).into())
@@ -242,14 +191,6 @@ impl StashReadProvider for MemStash {
 
     fn geneses(&self) -> Result<impl Iterator<Item = &Genesis>, Self::Error> {
         Ok(self.geneses.values())
-    }
-
-    fn geneses_by<C: IfaceClass>(&self) -> Result<impl Iterator<Item = &Genesis>, Self::Error> {
-        Ok(self.schemata_by::<C>()?.flat_map(|schema_ifaces| {
-            self.geneses
-                .values()
-                .filter(|genesis| schema_ifaces.schema.schema_id() == genesis.schema_id)
-        }))
     }
 
     fn genesis(
@@ -316,31 +257,10 @@ impl StashWriteProvider for MemStash {
     fn replace_schema(&mut self, schema: Schema) -> Result<bool, Self::Error> {
         let schema_id = schema.schema_id();
         if !self.schemata.contains_key(&schema_id) {
-            self.schemata.insert(schema_id, SchemaIfaces::new(schema))?;
+            self.schemata.insert(schema_id, schema)?;
             return Ok(true);
         }
         Ok(false)
-    }
-
-    fn replace_iface(&mut self, iface: Iface) -> Result<bool, Self::Error> {
-        let iface_id = iface.iface_id();
-        if !self.ifaces.contains_key(&iface_id) {
-            self.ifaces.insert(iface_id, iface)?;
-            return Ok(true);
-        }
-        Ok(false)
-    }
-
-    fn replace_iimpl(&mut self, iimpl: IfaceImpl) -> Result<bool, Self::Error> {
-        let schema_ifaces = self
-            .schemata
-            .get_mut(&iimpl.schema_id)
-            .expect("unknown schema");
-        let iface = self.ifaces.get(&iimpl.iface_id).expect("unknown interface");
-        let iface_name = iface.name.clone();
-        let present = schema_ifaces.iimpls.contains_key(&iface_name);
-        schema_ifaces.iimpls.insert(iface_name, iimpl)?;
-        Ok(!present)
     }
 
     fn set_trust(
@@ -661,7 +581,7 @@ impl MemContractState {
             schema
                 .global_types
                 .iter()
-                .map(|(ty, glob)| (*ty, MemGlobalState::new(glob.max_items))),
+                .map(|(ty, glob)| (*ty, MemGlobalState::new(glob.global_state_schema.max_items))),
         );
         MemContractState {
             schema_id: schema.schema_id(),

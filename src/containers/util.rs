@@ -26,7 +26,6 @@ use commit_verify::StrictHash;
 use rgb::{ContractId, Identity, SchemaId};
 use strict_encoding::StrictDumb;
 
-use crate::interface::{IfaceId, ImplId};
 use crate::LIB_NAME_RGB_STD;
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, Default)]
@@ -91,8 +90,6 @@ impl TrustLevel {
 pub enum ContentId {
     Schema(SchemaId),
     Genesis(ContractId),
-    Iface(IfaceId),
-    IfaceImpl(ImplId),
 }
 
 #[derive(Wrapper, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, From, Display)]

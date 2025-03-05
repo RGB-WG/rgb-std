@@ -30,8 +30,8 @@ use strict_types::typesys::SystemBuilder;
 use strict_types::{CompileError, LibBuilder, SemId, SymbolicSys, TypeLib, TypeSystem};
 
 use super::{
-    AssetSpec, BurnMeta, ContractSpec, ContractTerms, Error, IssueMeta, MediaType,
-    LIB_NAME_RGB_CONTRACT, LIB_NAME_RGB_STORAGE,
+    AssetSpec, AttachmentType, BurnMeta, ContractSpec, ContractTerms, EmbeddedMedia, Error,
+    IssueMeta, MediaType, TokenData, LIB_NAME_RGB_CONTRACT, LIB_NAME_RGB_STORAGE,
 };
 use crate::containers::{Contract, Kit, Transfer};
 use crate::persistence::{MemIndex, MemStash, MemState};
@@ -41,16 +41,16 @@ use crate::LIB_NAME_RGB_STD;
 /// Strict types id for the library providing standard data types which may be
 /// used in RGB smart contracts.
 pub const LIB_ID_RGB_STORAGE: &str =
-    "stl:Uff3BVV7-5rzmzwJ-fAnuME5-I6FTdLn-Zc1VZPW-S$WqzfA#monday-pogo-mouse";
+    "stl:3Nbio$T0-EhuMLY9-tz2Gmly-burBB$H-M$KGA8Y-6EjSPgg#mile-madam-vertigo";
 
 /// Strict types id for the library providing standard data types which may be
 /// used in RGB smart contracts.
 pub const LIB_ID_RGB_CONTRACT: &str =
-    "stl:!r5yXt4a-v3XXv0M-E9Z6eoh-BFZweik-fxS6CB4-8AaO!MM#rover-annual-disney";
+    "stl:fWKPSJqR-PvDeR2v-KRCNxUx-OvrnHDp-!J2rdts-aVKTsnY#copy-current-dilemma";
 
 /// Strict types id for the library representing of RGB StdLib data types.
 pub const LIB_ID_RGB_STD: &str =
-    "stl:MCec0pTS-StBbKEL-eHh0yYz-Ugpf2Qs-ffDfuVp-BeYrsvI#bonanza-triton-andrea";
+    "stl:cVpunDny-aaRHwS8-6slUiHD-qL2!nvb-pyNKohU-GBZjlOY#bikini-gravity-culture";
 
 fn _rgb_std_stl() -> Result<TypeLib, CompileError> {
     LibBuilder::new(libname!(LIB_NAME_RGB_STD), tiny_bset! {
@@ -83,6 +83,9 @@ fn _rgb_contract_stl() -> Result<TypeLib, CompileError> {
     .transpile::<ProofOfReserves>()
     .transpile::<BurnMeta>()
     .transpile::<IssueMeta>()
+    .transpile::<AttachmentType>()
+    .transpile::<TokenData>()
+    .transpile::<EmbeddedMedia>()
     .compile()
 }
 

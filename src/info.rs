@@ -19,122 +19,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashMap;
 use std::fmt::{self, Debug, Display, Formatter};
-use std::str::FromStr;
 
-use amplify::confinement::TinyOrdSet;
 use chrono::{DateTime, TimeZone, Utc};
-use rgb::{ChainNet, ContractId, Genesis, Identity, Operation, SchemaId};
-use strict_encoding::stl::{AlphaCapsLodash, AlphaNumLodash};
-use strict_encoding::{FieldName, RString, StrictDeserialize, StrictSerialize, TypeName};
-
-use crate::interface::{Iface, IfaceId, IfaceImpl, IfaceRef, ImplId, VerNo};
-use crate::persistence::SchemaIfaces;
-use crate::LIB_NAME_RGB_STD;
-
-#[derive(Wrapper, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, From)]
-#[wrapper(Deref, Display, FromStr)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", transparent)
-)]
-pub struct IfaceClassName(RString<AlphaCapsLodash, AlphaNumLodash, 1, 64>);
-
-impl_ident_type!(IfaceClassName);
-impl_ident_subtype!(IfaceClassName);
-impl_strict_newtype!(IfaceClassName, LIB_NAME_RGB_STD);
-
-impl StrictSerialize for IfaceClassName {}
-impl StrictDeserialize for IfaceClassName {}
-
-#[derive(Wrapper, WrapperMut, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Default, From)]
-#[wrapper(Deref)]
-#[wrapper_mut(DerefMut)]
-#[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
-pub struct FeatureList(TinyOrdSet<FieldName>);
-
-impl StrictSerialize for FeatureList {}
-impl StrictDeserialize for FeatureList {}
-
-#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-pub struct IfaceInfo {
-    pub id: IfaceId,
-    pub version: VerNo,
-    pub name: TypeName,
-    pub developer: Identity,
-    pub created_at: DateTime<Utc>,
-    pub inherits: Vec<IfaceRef>,
-    pub default_op: Option<FieldName>,
-}
-
-impl IfaceInfo {
-    pub fn new(iface: &Iface, names: &HashMap<IfaceId, TypeName>) -> Self {
-        IfaceInfo {
-            id: iface.iface_id(),
-            version: iface.version,
-            name: iface.name.clone(),
-            developer: iface.developer.clone(),
-            created_at: Utc
-                .timestamp_opt(iface.timestamp, 0)
-                .single()
-                .unwrap_or_else(Utc::now),
-            inherits: iface
-                .inherits
-                .iter()
-                .map(|id| {
-                    names
-                        .get(id)
-                        .cloned()
-                        .map(IfaceRef::Name)
-                        .unwrap_or(IfaceRef::Id(*id))
-                })
-                .collect(),
-            default_op: iface.default_operation.clone(),
-        }
-    }
-}
-
-impl Display for IfaceInfo {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{: <40}\t", self.name.to_string())?;
-        write!(f, "{}\t", self.created_at.format("%Y-%m-%d"))?;
-        write!(f, "{}\t", self.version)?;
-        writeln!(f, "{}", self.id)?;
-
-        writeln!(
-            f,
-            "  Defaults to: {}",
-            self.default_op
-                .as_ref()
-                .map(FieldName::to_string)
-                .unwrap_or_else(|| s!("~"))
-        )?;
-
-        writeln!(f, "  Developer:   {}", self.developer)?;
-
-        writeln!(
-            f,
-            "  Inherits:    {}",
-            self.inherits
-                .iter()
-                .map(|f| format!("{:#}", f))
-                .collect::<Vec<_>>()
-                .chunks(5)
-                .map(|chunk| chunk.join(", "))
-                .collect::<Vec<_>>()
-                .join("\n               ")
-        )
-    }
-}
+use rgb::{ChainNet, ContractId, Genesis, Identity, Operation, Schema, SchemaId};
+use strict_encoding::TypeName;
 
 #[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
 #[cfg_attr(
@@ -147,12 +36,10 @@ pub struct SchemaInfo {
     pub name: TypeName,
     pub developer: Identity,
     pub created_at: DateTime<Utc>,
-    pub implements: Vec<ImplInfo>,
 }
 
 impl SchemaInfo {
-    pub fn with(schema_ifaces: &SchemaIfaces) -> Self {
-        let schema = &schema_ifaces.schema;
+    pub fn with(schema: &Schema) -> Self {
         SchemaInfo {
             id: schema.schema_id(),
             name: schema.name.clone(),
@@ -161,11 +48,6 @@ impl SchemaInfo {
                 .timestamp_opt(schema.timestamp, 0)
                 .single()
                 .unwrap_or_else(Utc::now),
-            implements: schema_ifaces
-                .iimpls
-                .iter()
-                .map(|(name, iimpl)| ImplInfo::with(name.clone(), iimpl))
-                .collect(),
         }
     }
 }
@@ -176,48 +58,7 @@ impl Display for SchemaInfo {
         write!(f, "\t{: <80}", self.id.to_string())?;
         write!(f, "\t{}", self.created_at.format("%Y-%m-%d"))?;
         writeln!(f, "\t{}", self.developer)?;
-        for info in &self.implements {
-            write!(f, "  {info}")?;
-        }
         Ok(())
-    }
-}
-
-#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-pub struct ImplInfo {
-    pub id: ImplId,
-    pub iface_id: IfaceId,
-    pub iface_name: TypeName,
-    pub developer: Identity,
-    pub created_at: DateTime<Utc>,
-}
-
-impl ImplInfo {
-    pub fn with(iface_name: TypeName, iimpl: &IfaceImpl) -> Self {
-        ImplInfo {
-            id: iimpl.impl_id(),
-            iface_id: iimpl.iface_id,
-            iface_name,
-            developer: iimpl.developer.clone(),
-            created_at: Utc
-                .timestamp_opt(iimpl.timestamp, 0)
-                .single()
-                .unwrap_or_else(Utc::now),
-        }
-    }
-}
-
-impl Display for ImplInfo {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{: <24}", self.iface_name.to_string())?;
-        write!(f, "\t{: <80}", self.id.to_string())?;
-        write!(f, "\t{}", self.created_at.format("%Y-%m-%d"))?;
-        writeln!(f, "\t{}", self.developer)
     }
 }
 

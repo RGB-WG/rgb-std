@@ -26,8 +26,8 @@ use amplify::{ByteArray, Bytes32};
 use bp::{InvalidPubkey, OutputPk, PubkeyHash, ScriptHash, WPubkeyHash, WScriptHash};
 use indexmap::IndexMap;
 use invoice::{AddressNetwork, AddressPayload, Network};
-use rgb::{AttachId, ChainNet, ContractId, Layer1, SecretSeal};
-use strict_encoding::{FieldName, TypeName};
+use rgb::{AttachId, ChainNet, ContractId, Layer1, SchemaId, SecretSeal, StateType};
+use strict_types::FieldName;
 
 use crate::{Amount, NonFungible};
 
@@ -74,6 +74,17 @@ impl FromStr for InvoiceState {
             Ok(InvoiceState::Attach(attach))
         } else {
             Err(InvoiceStateError::ParseError(s.to_owned()))
+        }
+    }
+}
+
+impl From<InvoiceState> for StateType {
+    fn from(val: InvoiceState) -> Self {
+        match val {
+            InvoiceState::Void => StateType::Void,
+            InvoiceState::Amount(_) => StateType::Fungible,
+            InvoiceState::Data(_) => StateType::Structured,
+            InvoiceState::Attach(_) => StateType::Attachment,
         }
     }
 }
@@ -214,11 +225,10 @@ pub enum Beneficiary {
 pub struct RgbInvoice {
     pub transports: Vec<RgbTransport>,
     pub contract: Option<ContractId>,
-    pub iface: Option<TypeName>,
-    pub operation: Option<FieldName>,
-    pub assignment: Option<FieldName>,
+    pub schema: Option<SchemaId>,
+    pub assignment_name: Option<FieldName>,
+    pub assignment_state: InvoiceState,
     pub beneficiary: XChainNet<Beneficiary>,
-    pub owned_state: InvoiceState,
     /// UTC unix timestamp
     pub expiry: Option<i64>,
     pub unknown_query: IndexMap<String, String>,

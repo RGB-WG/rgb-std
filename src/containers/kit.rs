@@ -34,12 +34,8 @@ use rgb::{validation, Schema};
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 use strict_types::TypeSystem;
 
-use super::{
-    ASCII_ARMOR_IFACE, ASCII_ARMOR_IIMPL, ASCII_ARMOR_SCHEMA, ASCII_ARMOR_SCRIPT,
-    ASCII_ARMOR_TYPE_SYSTEM, ASCII_ARMOR_VERSION,
-};
+use super::{ASCII_ARMOR_SCHEMA, ASCII_ARMOR_SCRIPT, ASCII_ARMOR_TYPE_SYSTEM, ASCII_ARMOR_VERSION};
 use crate::containers::{ContainerVer, ContentId, ContentSigs};
-use crate::interface::{Iface, IfaceImpl};
 use crate::LIB_NAME_RGB_STD;
 
 /// Kit identifier.
@@ -123,14 +119,9 @@ pub struct Kit {
     /// Version.
     pub version: ContainerVer,
 
-    pub ifaces: TinyOrdSet<Iface>,
-
     pub schemata: TinyOrdSet<Schema>,
 
-    pub iimpls: TinyOrdSet<IfaceImpl>,
-
-    /// Type system covering all types used in schema, interfaces and
-    /// implementations.
+    /// Type system covering all types used in schema.
     pub types: TypeSystem,
 
     /// Collection of scripts used across kit data.
@@ -150,13 +141,7 @@ impl CommitEncode for Kit {
         e.commit_to_serialized(&self.version);
 
         e.commit_to_set(&TinyOrdSet::from_iter_checked(
-            self.ifaces.iter().map(|iface| iface.iface_id()),
-        ));
-        e.commit_to_set(&TinyOrdSet::from_iter_checked(
             self.schemata.iter().map(|schema| schema.schema_id()),
-        ));
-        e.commit_to_set(&TinyOrdSet::from_iter_checked(
-            self.iimpls.iter().map(|iimpl| iimpl.impl_id()),
         ));
 
         e.commit_to_serialized(&self.types.id());
@@ -177,8 +162,6 @@ impl Kit {
     ) -> Result<ValidKit, (validation::Status, Kit)> {
         let status = validation::Status::new();
         // TODO:
-        //  - Verify integrity for each interface
-        //  - Verify implementations against interfaces
         //  - Check schema integrity
         //  - Validate content sigs and remove untrusted ones
         Ok(ValidKit {
@@ -203,25 +186,6 @@ impl StrictArmor for Kit {
             header
                 .params
                 .push((s!("dev"), schema.developer.to_string()));
-            headers.push(header);
-        }
-        for iface in &self.ifaces {
-            let mut header = ArmorHeader::new(ASCII_ARMOR_IFACE, iface.name.to_string());
-            let id = iface.iface_id();
-            header.params.push((s!("id"), format!("{id:-}")));
-            header.params.push((s!("dev"), iface.developer.to_string()));
-            headers.push(header);
-        }
-        for iimpl in &self.iimpls {
-            let id = iimpl.impl_id();
-            let mut header = ArmorHeader::new(ASCII_ARMOR_IIMPL, format!("{id:-}"));
-            header
-                .params
-                .push((s!("interface"), format!("{:-}", iimpl.iface_id)));
-            header
-                .params
-                .push((s!("schema"), format!("{:-}", iimpl.schema_id)));
-            header.params.push((s!("dev"), iimpl.developer.to_string()));
             headers.push(header);
         }
         headers.push(ArmorHeader::new(ASCII_ARMOR_TYPE_SYSTEM, self.types.id().to_string()));
@@ -259,12 +223,12 @@ mod test {
     fn error_kit_strs() {
         assert!(Kit::from_str(
             r#"-----BEGIN RGB KIT-----
-Id: rgb:kit:5PcH5BM9-JI91Fhx-R0TUG4o-ZqLwv6r-UHlivQn-x1q6XqA
+Id: rgb:kit:ij7UAXOl-MCrXzKt-L8fC6Vu-e$xPh5k-GEurStO-4RNfzsI
 Version: 2
 Type-System: sts:8Vb$sM1F-5MsQc20-HEixf55-gJR37FM-0zRKfpY-SwIp35w#design-farmer-camel
-Check-SHA256: 337a32712f14c5df0b57a64bd6c321a043081688ecd4f33fd8319470da2256b1
+Check-SHA256: d86e8112f3c4c4442126f8e9f44f16867da487f29052bf91b810457db34209a4
 
-0ssI200000000
+0ssI200000
 
 -----END RGB KIT-----"#
         )
@@ -276,9 +240,9 @@ Check-SHA256: 337a32712f14c5df0b57a64bd6c321a043081688ecd4f33fd8319470da2256b1
 Id: rgb:kit:11111111-2222222-XmR8XRJ-v!q$Dzf-yImkPjD-t8EjfvI
 Version: 2
 Type-System: sts:8Vb$sM1F-5MsQc20-HEixf55-gJR37FM-0zRKfpY-SwIp35w#design-farmer-camel
-Check-SHA256: 5563cc1568e244183804e0db3cec6ff9bf577f4a403924096177bf4a586160da
+Check-SHA256: d86e8112f3c4c4442126f8e9f44f16867da487f29052bf91b810457db34209a4
 
-0ssI2000000000
+0ssI200000
 
 -----END RGB KIT-----"#
         )
@@ -287,12 +251,12 @@ Check-SHA256: 5563cc1568e244183804e0db3cec6ff9bf577f4a403924096177bf4a586160da
         // wrong checksum
         assert!(Kit::from_str(
             r#"-----BEGIN RGB KIT-----
-Id: rgb:kit:e1jW6Rgc-2$JzXDg-XmR8XRJ-v!q$Dzf-yImkPjD-t8EjfvI
+Id: rgb:kit:ij7UAXOl-MCrXzKt-L8fC6Vu-e$xPh5k-GEurStO-4RNfzsI
 Version: 2
 Type-System: sts:8Vb$sM1F-5MsQc20-HEixf55-gJR37FM-0zRKfpY-SwIp35w#design-farmer-camel
 Check-SHA256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
-0ssI2000000000
+0ssI200000
 
 -----END RGB KIT-----"#
         )

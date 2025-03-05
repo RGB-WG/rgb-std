@@ -38,10 +38,9 @@ extern crate serde_crate as serde;
 pub extern crate rgbinvoice as invoice;
 
 pub mod stl;
-pub mod interface;
 pub mod containers;
 pub mod persistence;
-mod contract;
+pub mod contract;
 pub mod info;
 
 pub use bp::{Outpoint, Txid};

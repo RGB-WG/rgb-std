@@ -37,14 +37,14 @@ use crate::LIB_NAME_RGB_CONTRACT;
 )]
 pub enum NonFungible {
     #[display(inner)]
-    RGB21(Allocation),
+    FractionedToken(Allocation),
 }
 
 impl FromStr for NonFungible {
     type Err = AllocationParseError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let allocation = Allocation::from_str(s)?;
-        Ok(NonFungible::RGB21(allocation))
+        Ok(NonFungible::FractionedToken(allocation))
     }
 }
 
