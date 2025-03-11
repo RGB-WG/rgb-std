@@ -41,6 +41,7 @@ pub mod stl;
 pub mod containers;
 pub mod persistence;
 pub mod contract;
+pub mod indexers;
 pub mod info;
 
 pub use bp::{Outpoint, Txid};
