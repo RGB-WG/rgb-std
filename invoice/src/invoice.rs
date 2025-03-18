@@ -23,7 +23,7 @@ use std::ops::Deref;
 use std::str::FromStr;
 
 use amplify::{ByteArray, Bytes32};
-use bp::{InvalidPubkey, OutputPk, PubkeyHash, ScriptHash, WPubkeyHash, WScriptHash};
+use bp::{InternalPk, InvalidPubkey, OutputPk, PubkeyHash, ScriptHash, WPubkeyHash, WScriptHash};
 use indexmap::IndexMap;
 use invoice::{AddressNetwork, AddressPayload, Network};
 use rgb::{AttachId, ChainNet, ContractId, Layer1, SchemaId, SecretSeal, StateType};
@@ -216,8 +216,7 @@ impl TryFrom<[u8; 33]> for Pay2Vout {
 pub enum Beneficiary {
     #[from]
     BlindedSeal(SecretSeal),
-    #[from]
-    WitnessVout(Pay2Vout),
+    WitnessVout(Pay2Vout, Option<InternalPk>),
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
