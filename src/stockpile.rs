@@ -187,6 +187,10 @@ pub struct Stockpile<S: Supply, P: Pile> {
 }
 
 impl<S: Supply, P: Pile> Stockpile<S, P> {
+    pub fn new(stock: Stock<S>, pile: P) -> Self {
+        Self { stock, pile }
+    }
+
     pub fn issue(schema: Schema, params: CreateParams<P::SealDef>, supply: S, mut pile: P) -> Self {
         assert_eq!(params.codex_id, schema.codex.codex_id());
 
