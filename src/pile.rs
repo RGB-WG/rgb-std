@@ -235,6 +235,48 @@ pub mod fs {
         }
     }
 
+
+    impl<SealDef: RgbSealDef> FilePile<SealDef>
+    where
+        <<SealDef::Src as SingleUseSeal>::PubWitness as PublishedWitness<SealDef::Src>>::PubId:
+            Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>,
+    {
+        pub fn export(&mut self, name: &str, path: impl AsRef<Path>) -> io::Result<Self>
+        where
+            <SealDef::Src as SingleUseSeal>::PubWitness: Eq,
+        {
+            let target_path = path.as_ref().to_path_buf();
+
+            if !target_path.exists() {
+                std::fs::create_dir_all(&target_path)?;
+            }
+
+            let mut exported_pile = Self::new(name, &target_path);
+
+            let mut operations = Vec::new();
+            for opid in self.index.keys() {
+                let pubids: Vec<_> = self.index.get(opid).collect();
+                operations.push((opid, pubids));
+            }
+
+            for (opid, seal_def) in self.keep_mut().iter() {
+                exported_pile.keep_mut().append(opid, &seal_def);
+            }
+
+            for (opid, pubids) in operations {
+                for pubid in pubids {
+                    let client_witness = self.hoard_mut().read(pubid);
+                    let published_witness = self.cache_mut().read(pubid);
+
+                    exported_pile.append(opid, client_witness, &published_witness);
+                }
+            }
+
+            Ok(exported_pile)
+        }
+    }
+
+
     impl<SealDef: RgbSealDef> Pile for FilePile<SealDef>
     where
         <SealDef::Src as SingleUseSeal>::CliWitness: StrictEncode + StrictDecode,
