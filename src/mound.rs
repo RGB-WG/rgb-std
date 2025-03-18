@@ -470,22 +470,23 @@ pub mod file {
                 let codex_id = schema.codex.codex_id();
                 let name = articles.contract.meta.name.to_string();
                 let mut old_stock = Stock::load(src_path);
-                let writer = StrictWriter::in_memory();
-                old_stock.export_all(writer).map_err(|err| {
+                let tmp_file = self.path().join(format!("{}.tmp", name));
+                old_stock.backup_to_file(&tmp_file).map_err(|err| {
                     io::Error::new(
                         io::ErrorKind::InvalidData,
                         format!("Failed to backup contract: {}", err),
                     )
                 })?;
-                let mut reader = StrictReader::in_memory(writer.unbox().unconfine());
+
                 let mut new_stock = Stock::new(articles, self.path());
-                new_stock.import(&mut reader).map_err(|err| {
+                new_stock.accept_from_file(&tmp_file).map_err(|err| {
+                    let _ = fs::remove_file(&tmp_file);
                     io::Error::new(
                         io::ErrorKind::InvalidData,
                         format!("Failed to import contract: {}", err),
                     )
                 })?;
-
+                let _ = fs::remove_file(&tmp_file);
                 let mut path = self.path().join(&name);
                 path.set_extension("contract");
                 let mut old_pile = FilePile::<SealDef>::open(src_path);
