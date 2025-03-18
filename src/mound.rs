@@ -424,7 +424,7 @@ pub mod file {
                 ));
             }
 
-            let articles_path = src_path.join(FileSupply::FILENAME_ARTICLES);
+            let articles_path = src_path.join("contract.articles");
             if !articles_path.exists() {
                 return Err(io::Error::new(
                     io::ErrorKind::NotFound,
@@ -470,16 +470,16 @@ pub mod file {
                 let codex_id = schema.codex.codex_id();
                 let name = articles.contract.meta.name.to_string();
                 let mut old_stock = Stock::load(src_path);
-                let tmp_file = self.path().join(format!("{}.tmp", name));
-                old_stock.backup_to_file(&tmp_file).map_err(|err| {
+                let stock_export_tmpfile = self.path().join(format!("{}.tmp", name));
+                old_stock.backup_to_file(&stock_export_tmpfile).map_err(|err| {
                     io::Error::new(
                         io::ErrorKind::InvalidData,
                         format!("Failed to backup contract: {}", err),
                     )
                 })?;
-                println!("backup to {:?}", &tmp_file);
+
                 let mut new_stock = Stock::new(articles, self.path());
-                new_stock.accept_from_file(&tmp_file).map_err(|err| {
+                new_stock.accept_from_file(&stock_export_tmpfile).map_err(|err| {
                     io::Error::new(
                         io::ErrorKind::InvalidData,
                         format!("Failed to import contract: {}", err),
