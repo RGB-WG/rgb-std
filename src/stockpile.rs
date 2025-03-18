@@ -346,6 +346,12 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
         self.stock.complete_update();
         Ok(())
     }
+
+    pub fn merge_articles(&mut self, articles: Articles) -> Result<(), MergeError> {
+        self.stock.merge_articles(articles)?;
+        self.stock.complete_update();
+        Ok(())
+    }
 }
 
 pub struct OpReader<
