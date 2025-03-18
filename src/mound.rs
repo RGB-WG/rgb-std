@@ -276,7 +276,7 @@ pub mod file {
     use std::path::{Path, PathBuf};
 
     use hypersonic::expect::Expect;
-    use hypersonic::{FileSupply, Stock};
+    use hypersonic::{Articles, FileSupply, Stock};
     use rgb::RgbSealDef;
     use single_use_seals::PublishedWitness;
     use strict_encoding::{
@@ -411,42 +411,95 @@ pub mod file {
             self.consign(contract_id, terminals, writer)
         }
 
-        pub fn import_articles(&mut self, source_dir: impl AsRef<Path>) -> io::Result<()>
-        where
-            <SealDef::Src as SingleUseSeal>::CliWitness: StrictDecode,
-            <SealDef::Src as SingleUseSeal>::PubWitness: StrictDecode,
-            <<SealDef::Src as SingleUseSeal>::PubWitness as PublishedWitness<SealDef::Src>>::PubId:
-                StrictDecode,
-        {
-            let stock = Stock::<FileSupply>::load(source_dir.as_ref());
-            let articles = stock.articles().clone();
+        pub fn import_articles(&mut self, source_contract_dir: impl AsRef<Path>) -> io::Result<()> {
+            let src_path = source_contract_dir.as_ref();
 
-            // Prevent duplicate contract IDs
-            if self.has_contract(articles.contract.contract_id()) {
+            if !src_path.exists() || !src_path.is_dir() {
                 return Err(io::Error::new(
-                    io::ErrorKind::AlreadyExists,
-                    format!("contract {} already exists", articles.contract.contract_id()),
+                    io::ErrorKind::NotFound,
+                    format!(
+                        "Source directory {} does not exist or is not a directory",
+                        src_path.display()
+                    ),
                 ));
             }
 
-            let contract_id = articles.contract.contract_id();
-            let name = articles.contract.meta.name.to_string();
-            let target_dir = self.persistence.consensus_dir();
+            let articles_path = src_path.join(FileSupply::FILENAME_ARTICLES);
+            if !articles_path.exists() {
+                return Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!("Articles file not found at {}", articles_path.display()),
+                ));
+            }
 
-            // Persist articles to target directory
-            let _new_supply = FileSupply::new(&name, &target_dir);
-            let _new_pile = FilePile::<SealDef>::new(&name, &target_dir);
-            let _new_stock = Stock::create(articles, _new_supply);
+            let articles = match Articles::load(&articles_path) {
+                Ok(articles) => articles,
+                Err(err) => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!("Failed to load articles: {}", err),
+                    ))
+                }
+            };
 
-            // Load from persisted location
-            let mut contract_dir = target_dir.join(&name);
-            contract_dir.set_extension("contract");
+            let contract_id = articles.contract_id();
 
-            let stockpile = Stockpile::load(&contract_dir);
+            if self.has_contract(contract_id) {
+                if let Some(schema) = self.schemata.get_mut(&articles.schema.codex.codex_id()) {
+                    if let Err(err) = schema.merge(articles.schema.clone()) {
+                        return Err(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            format!("Failed to merge schema: {:?}", err),
+                        ));
+                    }
+                } else {
+                    self.schemata
+                        .insert(articles.schema.codex.codex_id(), articles.schema.clone());
+                }
 
-            // Verify contract ID matches loaded articles and insert into mound
-            assert_eq!(contract_id, stockpile.contract_id());
-            self.contracts.insert(contract_id, stockpile);
+                if let Some(stockpile) = self.contracts.get_mut(&contract_id) {
+                    if let Err(err) = stockpile.merge_articles(articles) {
+                        return Err(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            format!("Failed to merge articles: {:?}", err),
+                        ));
+                    }
+                }
+            } else {
+                let schema = articles.schema.clone();
+                let codex_id = schema.codex.codex_id();
+                let name = articles.contract.meta.name.to_string();
+                let mut old_stock = Stock::load(src_path);
+                let tmp_file = self.path().join(format!("{}.tmp", name));
+                old_stock.backup_to_file(&tmp_file).map_err(|err| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!("Failed to backup contract: {}", err),
+                    )
+                })?;
+                println!("backup to {:?}", &tmp_file);
+                let mut new_stock = Stock::new(articles, self.path());
+                new_stock.accept_from_file(&tmp_file).map_err(|err| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!("Failed to import contract: {}", err),
+                    )
+                })?;
+                let mut path = self.path().join(&name);
+                path.set_extension("contract");
+                let mut old_pile = FilePile::<SealDef>::open(src_path);
+                let pile = old_pile.export(&name, &self.path()).map_err(|err| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!("Failed to export pile: {}", err),
+                    )
+                })?;
+                let stockpile = Stockpile::new(new_stock, pile);
+                self.contracts.insert(contract_id, stockpile);
+
+                self.schemata.insert(codex_id, schema);
+            }
+
             Ok(())
         }
     }
