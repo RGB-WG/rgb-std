@@ -284,6 +284,15 @@ pub mod file {
     use super::*;
     use crate::FilePile;
 
+    #[derive(Debug, Display, Error)]
+    #[display(doc_comments)]
+    pub enum PurgeError {
+        /// unknown contract {0} can't be purged
+        UnknownContract(ContractId),
+        /// error removing contract data from storage: {0}
+        StorageError(io::Error),
+    }
+
     pub struct DirExcavator<SealDef: RgbSealDef> {
         dir: PathBuf,
         consensus: Consensus,
@@ -407,6 +416,46 @@ pub mod file {
             let file = File::create_new(path)?;
             let writer = StrictWriter::with(StreamWriter::new::<{ usize::MAX }>(file));
             self.consign(contract_id, terminals, writer)
+        }
+
+        /// Purges a contract from the mound and filesystem.
+        ///
+        /// # Arguments
+        /// * `contract_id` - The ID of the contract to purge
+        /// * `keep_files` - If true, keeps the contract files on disk (soft delete)
+        ///
+        /// # Returns
+        /// * `Result<(), PurgeError>` - Ok if successful, or an error
+        pub fn purge_contract(
+            &mut self,
+            contract_id: ContractId,
+            keep_files: bool,
+        ) -> Result<(), PurgeError> {
+            if !self.has_contract(contract_id) {
+                return Err(PurgeError::UnknownContract(contract_id));
+            }
+
+            let contract_name = self
+                .contract(contract_id)
+                .stock()
+                .articles()
+                .contract
+                .meta
+                .name
+                .to_string();
+
+            self.contracts.remove(&contract_id);
+
+            if !keep_files {
+                let mut contract_dir = self.path().join(&contract_name);
+                contract_dir.set_extension("contract");
+
+                if contract_dir.exists() {
+                    fs::remove_dir_all(&contract_dir).map_err(|e| PurgeError::StorageError(e))?;
+                }
+            }
+
+            Ok(())
         }
     }
 }
