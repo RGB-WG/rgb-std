@@ -107,6 +107,8 @@ wasm-bindgen-test = "0.3"
 features = ["all"]
 
 [patch.crates-io]
+bp-consensus = { git = "https://github.com/zoedberg/bp-core", branch = "0.11.1-2" }
+bp-core = { git = "https://github.com/zoedberg/bp-core", branch = "0.11.1-2" }
 bp-electrum = { git = "https://github.com/zoedberg/bp-electrum-client", branch = "remove_bpstd" }
 bp-esplora = { git = "https://github.com/zoedberg/bp-esplora-client", branch = "remove_bpstd" }
 rgb-core = { git = "https://github.com/zoedberg/rgb-core", branch = "0.11.1-2" }

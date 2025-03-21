@@ -24,7 +24,7 @@ use std::collections::{BTreeSet, HashMap};
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use amplify::confinement::SmallVec;
+use amplify::confinement::{NonEmptyVec, U16};
 use invoice::Amount;
 use rgb::vm::WitnessOrd;
 use rgb::{
@@ -213,7 +213,7 @@ pub trait TypedAssignsExt<Seal: ExposedSeal> {
 impl<Seal: ExposedSeal> TypedAssignsExt<Seal> for TypedAssigns<Seal> {
     fn reveal_seal(&mut self, seal: Seal) {
         fn reveal<State: ExposedState, Seal: ExposedSeal>(
-            vec: &mut SmallVec<Assign<State, Seal>>,
+            vec: &mut NonEmptyVec<Assign<State, Seal>, U16>,
             revealed: Seal,
         ) {
             for assign in vec.iter_mut() {

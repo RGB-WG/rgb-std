@@ -27,6 +27,7 @@ use amplify::confinement::{Confined, SmallOrdSet, TinyOrdMap, U16};
 use amplify::{confinement, Wrapper};
 use chrono::Utc;
 use invoice::{Allocation, Amount};
+use rgb::assignments::AssignVec;
 use rgb::validation::Scripts;
 use rgb::{
     validation, Assign, AssignmentType, Assignments, AttachState, ChainNet, ContractId, DataState,
@@ -973,7 +974,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
                 })
                 .collect::<Vec<_>>();
             let state = Confined::try_from_iter(vec).expect("at least one element");
-            let state = TypedAssigns::Fungible(state);
+            let state = TypedAssigns::Fungible(AssignVec::with(state));
             (id, state)
         });
         let owned_data = self.data.into_iter().map(|(id, vec)| {
@@ -990,7 +991,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
                 },
             });
             let state_data = Confined::try_from_iter(vec_data).expect("at least one element");
-            let state_data = TypedAssigns::Structured(state_data);
+            let state_data = TypedAssigns::Structured(AssignVec::with(state_data));
             (id, state_data)
         });
         let owned_rights = self.rights.into_iter().map(|(id, vec)| {
@@ -1007,7 +1008,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
                 },
             });
             let state_data = Confined::try_from_iter(vec_data).expect("at least one element");
-            let state_data = TypedAssigns::Declarative(state_data);
+            let state_data = TypedAssigns::Declarative(AssignVec::with(state_data));
             (id, state_data)
         });
         let owned_attachments = self.attachments.into_iter().map(|(id, vec)| {
@@ -1024,7 +1025,7 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
                 },
             });
             let state_data = Confined::try_from_iter(vec_data).expect("at least one element");
-            let state_data = TypedAssigns::Attachment(state_data);
+            let state_data = TypedAssigns::Attachment(AssignVec::with(state_data));
             (id, state_data)
         });
 

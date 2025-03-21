@@ -25,6 +25,7 @@ use amplify::confinement::Confined;
 use amplify::Wrapper;
 use bp::Txid;
 use commit_verify::{mpc, Conceal};
+use rgb::assignments::AssignVec;
 use rgb::{
     Assign, Assignments, BundleId, ExposedSeal, ExposedState, Genesis, OpId, Operation, Transition,
     TransitionBundle, TypedAssigns,
@@ -112,9 +113,9 @@ impl<Seal: ExposedSeal> MergeReveal for TypedAssigns<Seal> {
                 for (first, second) in first_vec.into_iter().zip(second_vec.into_iter()) {
                     result.push(first.merge_reveal(second)?);
                 }
-                Ok(TypedAssigns::Declarative(
+                Ok(TypedAssigns::Declarative(AssignVec::with(
                     Confined::try_from(result).expect("collection of the same size"),
-                ))
+                )))
             }
 
             (TypedAssigns::Fungible(first_vec), TypedAssigns::Fungible(second_vec)) => {
@@ -122,9 +123,9 @@ impl<Seal: ExposedSeal> MergeReveal for TypedAssigns<Seal> {
                 for (first, second) in first_vec.into_iter().zip(second_vec.into_iter()) {
                     result.push(first.merge_reveal(second)?);
                 }
-                Ok(TypedAssigns::Fungible(
+                Ok(TypedAssigns::Fungible(AssignVec::with(
                     Confined::try_from(result).expect("collection of the same size"),
-                ))
+                )))
             }
 
             (TypedAssigns::Structured(first_vec), TypedAssigns::Structured(second_vec)) => {
@@ -132,9 +133,9 @@ impl<Seal: ExposedSeal> MergeReveal for TypedAssigns<Seal> {
                 for (first, second) in first_vec.into_iter().zip(second_vec.into_iter()) {
                     result.push(first.merge_reveal(second)?);
                 }
-                Ok(TypedAssigns::Structured(
+                Ok(TypedAssigns::Structured(AssignVec::with(
                     Confined::try_from(result).expect("collection of the same size"),
-                ))
+                )))
             }
 
             (TypedAssigns::Attachment(first_vec), TypedAssigns::Attachment(second_vec)) => {
@@ -142,9 +143,9 @@ impl<Seal: ExposedSeal> MergeReveal for TypedAssigns<Seal> {
                 for (first, second) in first_vec.into_iter().zip(second_vec.into_iter()) {
                     result.push(first.merge_reveal(second)?);
                 }
-                Ok(TypedAssigns::Attachment(
+                Ok(TypedAssigns::Attachment(AssignVec::with(
                     Confined::try_from(result).expect("collection of the same size"),
-                ))
+                )))
             }
             // No other patterns possible, should not reach here
             _ => {
