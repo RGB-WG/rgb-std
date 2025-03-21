@@ -92,7 +92,7 @@ pub trait Pile {
 #[cfg(feature = "fs")]
 pub mod fs {
     use std::collections::{BTreeMap, BTreeSet};
-    use std::fs::File;
+    use std::fs::{create_dir_all, File};
     use std::io;
     use std::io::{Read, Write};
     use std::marker::PhantomData;
@@ -100,7 +100,7 @@ pub mod fs {
 
     use hypersonic::aora::file::FileAora;
     use hypersonic::expect::Expect;
-    use strict_encoding::{StrictDecode, StrictEncode};
+    use strict_encoding::{ReadRaw, StrictDecode, StrictEncode, StrictReader, StrictWriter, WriteRaw};
 
     use super::*;
 
@@ -282,6 +282,50 @@ pub mod fs {
                 let published = self.cache.read(pubid);
                 SealWitness::new(published, client)
             })
+        }
+    }
+
+    impl<SealDef: RgbSealDef> FilePile<SealDef>
+    where
+        <SealDef::Src as SingleUseSeal>::CliWitness: StrictEncode + StrictDecode,
+        <SealDef::Src as SingleUseSeal>::PubWitness: Eq + StrictEncode + StrictDecode,
+        <<SealDef::Src as SingleUseSeal>::PubWitness as PublishedWitness<SealDef::Src>>::PubId:
+            Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>,
+    {
+        pub fn export(&self, path: impl AsRef<Path>) -> io::Result<()> {
+            let path = path.as_ref();
+            create_dir_all(path)?;
+
+            // 导出 hoard
+            self.hoard.export(path.join("hoard"))?;
+
+            // 导出 cache
+            self.cache.export(path.join("cache"))?;
+
+            // 导出 keep
+            self.keep.export(path.join("keep"))?;
+
+            // 导出 index
+            self.index.save()?;
+
+            Ok(())
+        }
+
+        pub fn strict_encode<W: WriteRaw>(&self, writer: &mut StrictWriter<W>) -> io::Result<()> {
+            self.hoard.strict_encode(writer)?;
+            self.cache.strict_encode(writer)?;
+            self.keep.strict_encode(writer)?;
+            self.index.strict_encode(writer)?;
+            Ok(())
+        }
+
+        pub fn strict_decode<R: ReadRaw>(reader: &mut StrictReader<R>) -> io::Result<Self> {
+            let hoard = FileAora::strict_decode(reader)?;
+            let cache = FileAora::strict_decode(reader)?;
+            let keep = FileAora::strict_decode(reader)?;
+            let index = FileIndex::strict_decode(reader)?;
+
+            Ok(Self { hoard, cache, keep, index, _phantom: PhantomData })
         }
     }
 }

@@ -409,4 +409,85 @@ pub mod file {
             self.consign(contract_id, terminals, writer)
         }
     }
+
+    impl<S: Supply, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
+        pub fn export_to_directory(&mut self, contract_id: ContractId, dir: impl AsRef<Path>) -> io::Result<()> {
+            let dir = dir.as_ref();
+            fs::create_dir_all(dir)?;
+    
+            let stockpile = self.contract_mut(contract_id);
+            let articles = stockpile.stock().articles();
+    
+            // 导出 contract.articles
+            let articles_path = dir.join("contract.articles");
+            articles.save(&articles_path)?;
+    
+            // 导出 stock
+            let stock_path = dir.join("stock.dat");
+            stockpile.stock().backup_to_file(&stock_path)?;
+    
+            // 导出 pile
+            let pile_path = dir.join("pile");
+            fs::create_dir_all(&pile_path)?;
+            stockpile.pile().export(&pile_path)?;
+    
+            Ok(())
+        }
+
+        pub fn export_to_file(&mut self, contract_id: ContractId, file: impl AsRef<Path>) -> io::Result<()> {
+            let file = file.as_ref();
+            let mut writer = StrictWriter::with(StreamWriter::new(File::create(file)?));
+    
+            let stockpile = self.contract_mut(contract_id);
+            let articles = stockpile.stock.articles();
+    
+            writer.write_all(b"RGB_EXPORT")?;
+    
+            writer.write_u16::<LittleEndian>(1)?;
+    
+            contract_id.strict_encode(&mut writer)?;
+    
+            articles.strict_encode(&mut writer)?;
+    
+            stockpile.stock.strict_encode(&mut writer)?;
+    
+            stockpile.pile.strict_encode(&mut writer)?;
+    
+            Ok(())
+        }
+    
+        pub fn import_from_file(&mut self, file: impl AsRef<Path>) -> io::Result<ContractId> {
+            let file = file.as_ref();
+            let mut reader = StrictReader::with(StreamReader::new(File::open(file)?));
+    
+            let mut magic = [0u8; 10];
+            reader.read_exact(&mut magic)?;
+            if magic != b"RGB_EXPORT" {
+                return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid file format"));
+            }
+    
+            let version = reader.read_u16::<LittleEndian>()?;
+            if version != 1 {
+                return Err(io::Error::new(io::ErrorKind::InvalidData, "Unsupported version"));
+            }
+    
+            let contract_id = ContractId::strict_decode(&mut reader)?;
+    
+            let articles = Articles::strict_decode(&mut reader)?;
+    
+            let stock = Stock::strict_decode(&mut reader)?;
+    
+            let pile = P::strict_decode(&mut reader)?;
+    
+            let stockpile = Stockpile::new(stock, pile);
+            self.contracts.insert(contract_id, stockpile);
+    
+            let schema = articles.schema.clone();
+            let codex_id = schema.codex.codex_id();
+            self.schemata.insert(codex_id, schema);
+    
+            Ok(contract_id)
+        }
+    }
+    
 }
