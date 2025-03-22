@@ -23,7 +23,7 @@
 
 use std::collections::{BTreeMap, HashSet};
 
-use amplify::confinement::{Confined, SmallOrdSet, TinyOrdMap, U16};
+use amplify::confinement::{Confined, NonEmptyOrdSet, TinyOrdMap, U16};
 use amplify::{confinement, Wrapper};
 use chrono::Utc;
 use invoice::{Allocation, Amount};
@@ -580,7 +580,7 @@ impl TransitionBuilder {
             transition_type: self.transition_type,
             metadata: empty!(),
             globals: global,
-            inputs: SmallOrdSet::from_iter_checked(self.inputs.into_keys()).into(),
+            inputs: NonEmptyOrdSet::from_iter_checked(self.inputs.into_keys()).into(),
             assignments,
             witness: none!(),
             validator: none!(),
