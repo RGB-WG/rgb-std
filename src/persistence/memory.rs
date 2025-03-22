@@ -848,6 +848,7 @@ impl<M: Borrow<MemContractState>> ContractStateAccess for MemContract<M> {
 
 impl ContractStateEvolve for MemContract<MemContractState> {
     type Context<'ctx> = (&'ctx Schema, ContractId);
+    type Error = MemError;
 
     fn init(context: Self::Context<'_>) -> Self {
         Self {
@@ -857,7 +858,7 @@ impl ContractStateEvolve for MemContract<MemContractState> {
         }
     }
 
-    fn evolve_state(&mut self, op: OrdOpRef) -> Result<(), confinement::Error> {
+    fn evolve_state(&mut self, op: OrdOpRef) -> Result<(), Self::Error> {
         fn writer(me: &mut MemContract<MemContractState>) -> MemContractWriter {
             MemContractWriter {
                 writer: Box::new(
@@ -881,14 +882,7 @@ impl ContractStateEvolve for MemContract<MemContractState> {
                 let mut writer = writer(self);
                 writer.add_transition(transition, witness_id, ord, bundle_id)
             }
-        }
-        .map_err(|err| {
-            // TODO: remove once evolve_state would accept arbitrary errors
-            match err {
-                MemError::Persistence(_) => unreachable!("only confinement errors are possible"),
-                MemError::Confinement(e) => e,
-            }
-        })?;
+        }?;
         Ok(())
     }
 }
