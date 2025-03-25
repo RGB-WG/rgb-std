@@ -418,15 +418,12 @@ pub mod file {
             let stockpile = self.contract_mut(contract_id);
             let articles = stockpile.stock().articles();
     
-            // 导出 contract.articles
             let articles_path = dir.join("contract.articles");
             articles.save(&articles_path)?;
     
-            // 导出 stock
             let stock_path = dir.join("stock.dat");
             stockpile.stock().backup_to_file(&stock_path)?;
     
-            // 导出 pile
             let pile_path = dir.join("pile");
             fs::create_dir_all(&pile_path)?;
             stockpile.pile().export(&pile_path)?;

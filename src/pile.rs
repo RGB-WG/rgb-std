@@ -296,16 +296,12 @@ pub mod fs {
             let path = path.as_ref();
             create_dir_all(path)?;
 
-            // 导出 hoard
             self.hoard.export(path.join("hoard"))?;
 
-            // 导出 cache
             self.cache.export(path.join("cache"))?;
 
-            // 导出 keep
             self.keep.export(path.join("keep"))?;
 
-            // 导出 index
             self.index.save()?;
 
             Ok(())
