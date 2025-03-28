@@ -27,17 +27,15 @@ use std::ops::Deref;
 use std::str::FromStr;
 
 use aluvm::library::Lib;
-use amplify::confinement::{
-    Confined, LargeOrdSet, MediumBlob, SmallOrdMap, SmallOrdSet, TinyOrdMap,
-};
+use amplify::confinement::{Confined, LargeOrdSet, SmallOrdMap, SmallOrdSet, TinyOrdMap};
 use amplify::{ByteArray, Bytes32};
 use armor::{ArmorHeader, AsciiArmor, StrictArmor, StrictArmorError};
 use baid64::{Baid64ParseError, DisplayBaid64, FromBaid64Str};
 use commit_verify::{CommitEncode, CommitEngine, CommitId, CommitmentId, DigestExt, Sha256};
 use rgb::validation::{Failure, ResolveWitness, Validator, Validity, CONSIGNMENT_MAX_LIBS};
 use rgb::{
-    impl_serde_baid64, validation, AttachId, BundleId, ChainNet, ContractId, Genesis, GraphSeal,
-    Operation, Schema, SchemaId, Txid,
+    impl_serde_baid64, validation, BundleId, ChainNet, ContractId, Genesis, GraphSeal, Operation,
+    Schema, SchemaId, Txid,
 };
 use rgbcore::validation::ConsignmentApi;
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
@@ -197,11 +195,6 @@ pub struct Consignment<const TRANSFER: bool> {
     /// Collection of scripts used across consignment.
     pub scripts: Confined<BTreeSet<Lib>, 0, CONSIGNMENT_MAX_LIBS>,
 
-    /// Data containers coming with this consignment. For the purposes of
-    /// in-memory consignments we are restricting the size of the containers to
-    /// 24 bit value (RGB allows containers up to 32-bit values in size).
-    pub attachments: SmallOrdMap<AttachId, MediumBlob>,
-
     /// Signatures on the pieces of content which are the part of the
     /// consignment.
     pub signatures: TinyOrdMap<ContentId, ContentSigs>,
@@ -224,8 +217,6 @@ impl<const TRANSFER: bool> CommitEncode for Consignment<TRANSFER> {
             self.bundles.iter().map(WitnessBundle::commit_id),
         ));
         e.commit_to_map(&self.terminals);
-
-        e.commit_to_set(&SmallOrdSet::from_iter_checked(self.attachments.keys().copied()));
 
         e.commit_to_serialized(&self.types.id());
         e.commit_to_set(&SmallOrdSet::from_iter_checked(self.scripts.iter().map(|lib| lib.id())));
@@ -285,7 +276,6 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
             genesis: self.genesis,
             terminals: self.terminals,
             bundles: self.bundles,
-            attachments: self.attachments,
             signatures: self.signatures,
             scripts: self.scripts,
         }
@@ -322,7 +312,6 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
                 )));
             }
         }
-        // TODO: check attach ids from data containers are present in operations
         // TODO: validate sigs and remove untrusted
 
         if validity == Validity::Invalid {

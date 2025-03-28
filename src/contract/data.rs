@@ -25,8 +25,8 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use bp::Outpoint;
 use invoice::{Allocation, Amount};
 use rgb::{
-    AssignmentType, AttachState, ContractId, DataState, GlobalStateType, OpId, OutputSeal,
-    RevealedAttach, RevealedData, RevealedValue, Schema, Txid, VoidState,
+    AssignmentType, ContractId, DataState, GlobalStateType, OpId, OutputSeal, RevealedData,
+    RevealedValue, Schema, Txid, VoidState,
 };
 use strict_encoding::{FieldName, StrictDecode, StrictDumb, StrictEncode};
 use strict_types::{StrictVal, TypeSystem};
@@ -69,11 +69,6 @@ pub enum AllocatedState {
     #[from(Allocation)]
     #[strict_type(tag = 2)]
     Data(DataState),
-
-    #[from]
-    #[from(RevealedAttach)]
-    #[strict_type(tag = 3)]
-    Attachment(AttachState),
 }
 
 impl KnownState for AllocatedState {
@@ -93,7 +88,6 @@ pub type OwnedAllocation = OutputAssignment<AllocatedState>;
 pub type RightsAllocation = OutputAssignment<VoidState>;
 pub type FungibleAllocation = OutputAssignment<Amount>;
 pub type DataAllocation = OutputAssignment<DataState>;
-pub type AttachAllocation = OutputAssignment<AttachState>;
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display)]
 #[cfg_attr(
@@ -352,23 +346,6 @@ impl<S: ContractStateRead> ContractData<S> {
         self.extract_state(self.state.data_all(), type_id, filter)
     }
 
-    pub fn attachments<'c>(
-        &'c self,
-        name: impl Into<FieldName>,
-        filter: impl AssignmentsFilter + 'c,
-    ) -> Result<impl Iterator<Item = AttachAllocation> + 'c, ContractError> {
-        let type_id = self.schema.assignment_type(name);
-        self.attachments_raw(type_id, filter)
-    }
-
-    pub fn attachments_raw<'c>(
-        &'c self,
-        type_id: AssignmentType,
-        filter: impl AssignmentsFilter + 'c,
-    ) -> Result<impl Iterator<Item = AttachAllocation> + 'c, ContractError> {
-        self.extract_state(self.state.attach_all(), type_id, filter)
-    }
-
     pub fn allocations<'c>(
         &'c self,
         filter: impl AssignmentsFilter + Copy + 'c,
@@ -391,7 +368,6 @@ impl<S: ContractStateRead> ContractData<S> {
         f(filter, self.state.rights_all())
             .chain(f(filter, self.state.fungible_all()))
             .chain(f(filter, self.state.data_all()))
-            .chain(f(filter, self.state.attach_all()))
     }
 
     pub fn outpoint_allocations(
@@ -410,7 +386,6 @@ impl<S: ContractStateRead> ContractData<S> {
             .into_iter()
             .chain(self.history_rights(filter_outpoints.clone(), filter_witnesses.clone()))
             .chain(self.history_data(filter_outpoints.clone(), filter_witnesses.clone()))
-            .chain(self.history_attach(filter_outpoints, filter_witnesses))
             .collect()
     }
 
@@ -535,14 +510,6 @@ impl<S: ContractStateRead> ContractData<S> {
         filter_witnesses: impl AssignmentsFilter,
     ) -> Vec<ContractOp> {
         self.operations(|state| state.data_all(), filter_outpoints, filter_witnesses)
-    }
-
-    pub fn history_attach(
-        &self,
-        filter_outpoints: impl AssignmentsFilter,
-        filter_witnesses: impl AssignmentsFilter,
-    ) -> Vec<ContractOp> {
-        self.operations(|state| state.attach_all(), filter_outpoints, filter_witnesses)
     }
 
     pub fn witness_info(&self, witness_id: Txid) -> Option<WitnessInfo> {

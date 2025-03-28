@@ -559,16 +559,6 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             }
         }
 
-        for item in state.attach_all() {
-            let outpoint = item.seal.into();
-            if outputs.contains::<Outpoint>(&outpoint) {
-                res.entry(item.seal).or_default().insert(
-                    item.opout,
-                    PersistedState::Attachment(item.state.clone().into(), item.state.salt),
-                );
-            }
-        }
-
         Ok(res)
     }
 
@@ -758,7 +748,6 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             genesis,
             terminals,
             bundles,
-            attachments: none!(),
 
             signatures,
             types,

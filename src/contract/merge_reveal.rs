@@ -143,15 +143,6 @@ impl<Seal: ExposedSeal> MergeReveal for TypedAssigns<Seal> {
                 )))
             }
 
-            (TypedAssigns::Attachment(first_vec), TypedAssigns::Attachment(second_vec)) => {
-                let mut result = Vec::with_capacity(first_vec.len());
-                for (first, second) in first_vec.into_iter().zip(second_vec.into_iter()) {
-                    result.push(first.merge_reveal(second)?);
-                }
-                Ok(TypedAssigns::Attachment(AssignVec::with(
-                    Confined::try_from(result).expect("collection of the same size"),
-                )))
-            }
             // No other patterns possible, should not reach here
             _ => {
                 unreachable!("Assignments::consensus_commitments is broken")

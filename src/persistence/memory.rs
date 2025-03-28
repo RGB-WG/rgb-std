@@ -28,8 +28,8 @@ use std::{iter, mem};
 
 use aluvm::library::{Lib, LibId};
 use amplify::confinement::{
-    self, Confined, LargeOrdMap, LargeOrdSet, MediumBlob, MediumOrdMap, MediumOrdSet, SmallOrdMap,
-    TinyOrdMap, TinyOrdSet,
+    self, Confined, LargeOrdMap, LargeOrdSet, MediumOrdMap, MediumOrdSet, SmallOrdMap, TinyOrdMap,
+    TinyOrdSet,
 };
 use amplify::num::u24;
 use bp::dbc::tapret::TapretCommitment;
@@ -41,11 +41,10 @@ use rgb::vm::{
     OrdOpRef, UnknownGlobalStateType, WitnessOrd,
 };
 use rgb::{
-    Assign, AssignmentType, Assignments, AssignmentsRef, AttachId, AttachState, BundleId,
-    ContractId, DataState, ExposedSeal, ExposedState, FungibleState, Genesis, GenesisSeal,
-    GlobalStateType, GraphSeal, Identity, OpId, Operation, Opout, OutputSeal, RevealedAttach,
-    RevealedData, RevealedValue, Schema, SchemaId, SecretSeal, Transition, TransitionBundle,
-    TypedAssigns, VoidState,
+    Assign, AssignmentType, Assignments, AssignmentsRef, BundleId, ContractId, DataState,
+    ExposedSeal, ExposedState, FungibleState, Genesis, GenesisSeal, GlobalStateType, GraphSeal,
+    Identity, OpId, Operation, Opout, OutputSeal, RevealedData, RevealedValue, Schema, SchemaId,
+    SecretSeal, Transition, TransitionBundle, TypedAssigns, VoidState,
 };
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 use strict_types::TypeSystem;
@@ -88,7 +87,6 @@ pub struct MemStash {
     geneses: TinyOrdMap<ContractId, Genesis>,
     bundles: LargeOrdMap<BundleId, TransitionBundle>,
     witnesses: LargeOrdMap<Txid, SealWitness>,
-    attachments: SmallOrdMap<AttachId, MediumBlob>,
     secret_seals: MediumOrdSet<GraphSeal>,
     type_system: TypeSystem,
     identities: SmallOrdMap<Identity, TrustLevel>,
@@ -107,7 +105,6 @@ impl MemStash {
             geneses: empty!(),
             bundles: empty!(),
             witnesses: empty!(),
-            attachments: empty!(),
             secret_seals: empty!(),
             type_system: none!(),
             identities: empty!(),
@@ -125,7 +122,6 @@ impl CloneNoPersistence for MemStash {
             geneses: self.geneses.clone(),
             bundles: self.bundles.clone(),
             witnesses: self.witnesses.clone(),
-            attachments: self.attachments.clone(),
             secret_seals: self.secret_seals.clone(),
             type_system: self.type_system.clone(),
             identities: self.identities.clone(),
@@ -290,15 +286,6 @@ impl StashWriteProvider for MemStash {
         Ok(!present)
     }
 
-    fn replace_attachment(
-        &mut self,
-        id: AttachId,
-        attach: MediumBlob,
-    ) -> Result<bool, Self::Error> {
-        let present = self.attachments.insert(id, attach)?.is_some();
-        Ok(!present)
-    }
-
     fn consume_types(&mut self, types: TypeSystem) -> Result<(), Self::Error> {
         Ok(self.type_system.extend(types)?)
     }
@@ -430,7 +417,6 @@ impl StateReadProvider for MemState {
                     || unfiltered.rights.iter().any(|a| a.witness == id)
                     || unfiltered.fungibles.iter().any(|a| a.witness == id)
                     || unfiltered.data.iter().any(|a| a.witness == id)
-                    || unfiltered.attach.iter().any(|a| a.witness == id)
             })
             .map(|(id, ord)| (*id, *ord))
             .collect();
@@ -572,7 +558,6 @@ pub struct MemContractState {
     rights: LargeOrdSet<OutputAssignment<VoidState>>,
     fungibles: LargeOrdSet<OutputAssignment<RevealedValue>>,
     data: LargeOrdSet<OutputAssignment<RevealedData>>,
-    attach: LargeOrdSet<OutputAssignment<RevealedAttach>>,
 }
 
 impl MemContractState {
@@ -590,7 +575,6 @@ impl MemContractState {
             rights: empty!(),
             fungibles: empty!(),
             data: empty!(),
-            attach: empty!(),
         }
     }
 
@@ -671,9 +655,6 @@ impl MemContractState {
                 }
                 TypedAssigns::Structured(assignments) => {
                     process(&mut self.data, assignments, bundle_id, opid, *ty, witness_id)
-                }
-                TypedAssigns::Attachment(assignments) => {
-                    process(&mut self.attach, assignments, bundle_id, opid, *ty, witness_id)
                 }
             }
         }
@@ -827,23 +808,6 @@ impl<M: Borrow<MemContractState>> ContractStateAccess for MemContract<M> {
             .filter(|assignment| assignment.check_bundle(&self.invalid_bundles))
             .map(|assignment| &assignment.state.value)
     }
-
-    fn attach(
-        &self,
-        outpoint: Outpoint,
-        ty: AssignmentType,
-    ) -> impl DoubleEndedIterator<Item = impl Borrow<AttachState>> {
-        self.unfiltered
-            .borrow()
-            .attach
-            .iter()
-            .filter(move |assignment| {
-                assignment.seal.to_outpoint() == outpoint && assignment.opout.ty == ty
-            })
-            .filter(|assignment| assignment.check_witness(&self.filter))
-            .filter(|assignment| assignment.check_bundle(&self.invalid_bundles))
-            .map(|assignment| &assignment.state.file)
-    }
 }
 
 impl ContractStateEvolve for MemContract<MemContractState> {
@@ -924,16 +888,6 @@ impl<M: Borrow<MemContractState>> ContractStateRead for MemContract<M> {
         self.unfiltered
             .borrow()
             .data
-            .iter()
-            .filter(|assignment| assignment.check_witness(&self.filter))
-            .filter(|assignment| assignment.check_bundle(&self.invalid_bundles))
-    }
-
-    #[inline]
-    fn attach_all(&self) -> impl Iterator<Item = &OutputAssignment<RevealedAttach>> {
-        self.unfiltered
-            .borrow()
-            .attach
             .iter()
             .filter(|assignment| assignment.check_witness(&self.filter))
             .filter(|assignment| assignment.check_bundle(&self.invalid_bundles))

@@ -28,9 +28,9 @@ use amplify::confinement::{NonEmptyVec, U16};
 use invoice::Amount;
 use rgb::vm::WitnessOrd;
 use rgb::{
-    Assign, AssignAttach, AssignData, AssignFungible, AssignRights, AssignmentType, AttachState,
-    BundleId, DataState, ExposedSeal, ExposedState, OpId, Opout, OutputSeal, RevealedAttach,
-    RevealedData, RevealedValue, Txid, TypedAssigns, VoidState,
+    Assign, AssignData, AssignFungible, AssignRights, AssignmentType, BundleId, DataState,
+    ExposedSeal, ExposedState, OpId, Opout, OutputSeal, RevealedData, RevealedValue, Txid,
+    TypedAssigns, VoidState,
 };
 use strict_encoding::{StrictDecode, StrictDumb, StrictEncode};
 
@@ -55,16 +55,10 @@ impl KnownState for DataState {
 impl KnownState for Amount {
     const IS_FUNGIBLE: bool = true;
 }
-impl KnownState for AttachState {
-    const IS_FUNGIBLE: bool = false;
-}
 impl KnownState for RevealedValue {
     const IS_FUNGIBLE: bool = true;
 }
 impl KnownState for RevealedData {
-    const IS_FUNGIBLE: bool = false;
-}
-impl KnownState for RevealedAttach {
     const IS_FUNGIBLE: bool = false;
 }
 
@@ -236,7 +230,6 @@ impl<Seal: ExposedSeal> TypedAssignsExt<Seal> for TypedAssigns<Seal> {
             TypedAssigns::Declarative(v) => reveal(v, seal),
             TypedAssigns::Fungible(v) => reveal(v, seal),
             TypedAssigns::Structured(v) => reveal(v, seal),
-            TypedAssigns::Attachment(v) => reveal(v, seal),
         }
     }
 
@@ -249,9 +242,6 @@ impl<Seal: ExposedSeal> TypedAssignsExt<Seal> for TypedAssigns<Seal> {
                 s.iter().filter_map(AssignFungible::revealed_seal).collect()
             }
             TypedAssigns::Structured(s) => s.iter().filter_map(AssignData::revealed_seal).collect(),
-            TypedAssigns::Attachment(s) => {
-                s.iter().filter_map(AssignAttach::revealed_seal).collect()
-            }
         }
     }
 }

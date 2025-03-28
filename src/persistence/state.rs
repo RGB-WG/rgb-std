@@ -29,8 +29,8 @@ use nonasync::persistence::{CloneNoPersistence, Persisting};
 use rgb::validation::{ResolveWitness, WitnessResolverError};
 use rgb::vm::{ContractStateAccess, WitnessOrd};
 use rgb::{
-    AttachState, BundleId, ContractId, DataState, Genesis, RevealedAttach, RevealedData,
-    RevealedValue, Schema, SchemaId, Transition, TransitionBundle, Txid, VoidState,
+    BundleId, ContractId, DataState, Genesis, RevealedData, RevealedValue, Schema, SchemaId,
+    Transition, TransitionBundle, Txid, VoidState,
 };
 
 use crate::containers::{ConsignmentExt, ToWitnessId};
@@ -78,8 +78,6 @@ pub enum PersistedState {
     Amount(Amount),
     // TODO: Use RevealedData
     Data(DataState, u128),
-    // TODO: Use RevealedAttach
-    Attachment(AttachState, u64),
 }
 
 #[derive(Debug)]
@@ -288,7 +286,6 @@ pub trait ContractStateRead: ContractStateAccess {
     fn rights_all(&self) -> impl Iterator<Item = &OutputAssignment<VoidState>>;
     fn fungible_all(&self) -> impl Iterator<Item = &OutputAssignment<RevealedValue>>;
     fn data_all(&self) -> impl Iterator<Item = &OutputAssignment<RevealedData>>;
-    fn attach_all(&self) -> impl Iterator<Item = &OutputAssignment<RevealedAttach>>;
 }
 
 pub trait ContractStateWrite {

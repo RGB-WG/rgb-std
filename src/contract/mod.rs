@@ -30,8 +30,8 @@ pub(crate) mod resolver;
 pub use assignments::{KnownState, OutputAssignment, TypedAssignsExt, WitnessInfo};
 pub use builder::{BuilderError, ContractBuilder, TransitionBuilder};
 pub use data::{
-    AllocatedState, AttachAllocation, ContractData, ContractError, ContractOp, DataAllocation,
-    FungibleAllocation, OpDirection, OwnedAllocation, RightsAllocation,
+    AllocatedState, ContractData, ContractError, ContractOp, DataAllocation, FungibleAllocation,
+    OpDirection, OwnedAllocation, RightsAllocation,
 };
 pub use filter::{AssignmentsFilter, FilterExclude, FilterIncludeAll};
 pub use merge_reveal::{MergeReveal, MergeRevealError};

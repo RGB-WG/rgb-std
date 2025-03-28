@@ -26,7 +26,7 @@ use amplify::{ByteArray, Bytes32};
 use bp::{InternalPk, InvalidPubkey, OutputPk, PubkeyHash, ScriptHash, WPubkeyHash, WScriptHash};
 use indexmap::IndexMap;
 use invoice::{AddressNetwork, AddressPayload, Network};
-use rgb::{AttachId, ChainNet, ContractId, Layer1, SchemaId, SecretSeal, StateType};
+use rgb::{ChainNet, ContractId, Layer1, SchemaId, SecretSeal, StateType};
 use strict_types::FieldName;
 
 use crate::{Amount, NonFungible};
@@ -57,8 +57,6 @@ pub enum InvoiceState {
     Amount(Amount),
     #[display(inner)]
     Data(NonFungible),
-    #[display(inner)]
-    Attach(AttachId),
 }
 
 impl FromStr for InvoiceState {
@@ -70,8 +68,6 @@ impl FromStr for InvoiceState {
             Ok(InvoiceState::Amount(amount))
         } else if let Ok(data) = NonFungible::from_str(s) {
             Ok(InvoiceState::Data(data))
-        } else if let Ok(attach) = AttachId::from_str(s) {
-            Ok(InvoiceState::Attach(attach))
         } else {
             Err(InvoiceStateError::ParseError(s.to_owned()))
         }
@@ -84,7 +80,6 @@ impl From<InvoiceState> for StateType {
             InvoiceState::Void => StateType::Void,
             InvoiceState::Amount(_) => StateType::Fungible,
             InvoiceState::Data(_) => StateType::Structured,
-            InvoiceState::Attach(_) => StateType::Attachment,
         }
     }
 }

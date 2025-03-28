@@ -30,10 +30,10 @@ use invoice::{Allocation, Amount};
 use rgb::assignments::AssignVec;
 use rgb::validation::Scripts;
 use rgb::{
-    validation, Assign, AssignmentType, Assignments, AttachState, ChainNet, ContractId, DataState,
-    ExposedSeal, FungibleType, Genesis, GenesisSeal, GlobalState, GraphSeal, Identity, Input,
-    Layer1, MetadataError, Opout, OwnedStateSchema, RevealedAttach, RevealedData, RevealedValue,
-    Schema, Transition, TransitionType, TypedAssigns,
+    validation, Assign, AssignmentType, Assignments, ChainNet, ContractId, DataState, ExposedSeal,
+    FungibleType, Genesis, GenesisSeal, GlobalState, GraphSeal, Identity, Input, Layer1,
+    MetadataError, Opout, OwnedStateSchema, RevealedData, RevealedValue, Schema, Transition,
+    TransitionType, TypedAssigns,
 };
 use rgbcore::{GlobalStateSchema, GlobalStateType, MetaType, Metadata};
 use strict_encoding::{FieldName, SerializeError, StrictSerialize};
@@ -256,39 +256,6 @@ impl ContractBuilder {
         Ok(self)
     }
 
-    pub fn add_attachment(
-        mut self,
-        name: impl Into<FieldName>,
-        seal: impl Into<BuilderSeal<GenesisSeal>>,
-        attachment: AttachState,
-    ) -> Result<Self, BuilderError> {
-        let seal = seal.into();
-        self.builder = self.builder.add_attachment(name, seal, attachment)?;
-        Ok(self)
-    }
-
-    pub fn add_attachment_det(
-        mut self,
-        name: impl Into<FieldName>,
-        seal: impl Into<BuilderSeal<GenesisSeal>>,
-        attachment: RevealedAttach,
-    ) -> Result<Self, BuilderError> {
-        let seal = seal.into();
-        self.builder = self.builder.add_attachment_det(name, seal, attachment)?;
-        Ok(self)
-    }
-
-    pub fn add_attachment_raw(
-        mut self,
-        type_id: AssignmentType,
-        seal: impl Into<BuilderSeal<GenesisSeal>>,
-        state: RevealedAttach,
-    ) -> Result<Self, BuilderError> {
-        let seal = seal.into();
-        self.builder = self.builder.add_attachment_raw(type_id, seal, state)?;
-        Ok(self)
-    }
-
     pub fn issue_contract(self) -> Result<ValidConsignment<false>, BuilderError> {
         debug_assert!(
             !self.builder.deterministic,
@@ -333,7 +300,6 @@ impl ContractBuilder {
             genesis,
             bundles: none!(),
             schema,
-            attachments: none!(), // TODO: Add support for attachment files
 
             types,
             scripts,
@@ -548,26 +514,6 @@ impl TransitionBuilder {
         Ok(self)
     }
 
-    pub fn add_attachment(
-        mut self,
-        name: impl Into<FieldName>,
-        seal: impl Into<BuilderSeal<GraphSeal>>,
-        attachment: AttachState,
-    ) -> Result<Self, BuilderError> {
-        self.builder = self.builder.add_attachment(name, seal, attachment)?;
-        Ok(self)
-    }
-
-    pub fn add_attachment_det(
-        mut self,
-        name: impl Into<FieldName>,
-        seal: impl Into<BuilderSeal<GraphSeal>>,
-        attachment: RevealedAttach,
-    ) -> Result<Self, BuilderError> {
-        self.builder = self.builder.add_attachment_det(name, seal, attachment)?;
-        Ok(self)
-    }
-
     pub fn has_inputs(&self) -> bool { !self.inputs.is_empty() }
 
     pub fn complete_transition(self) -> Result<Transition, BuilderError> {
@@ -605,8 +551,6 @@ pub struct OperationBuilder<Seal: ExposedSeal> {
     fungible:
         TinyOrdMap<AssignmentType, Confined<BTreeMap<BuilderSeal<Seal>, RevealedValue>, 1, U16>>,
     data: TinyOrdMap<AssignmentType, Confined<BTreeMap<BuilderSeal<Seal>, RevealedData>, 1, U16>>,
-    attachments:
-        TinyOrdMap<AssignmentType, Confined<BTreeMap<BuilderSeal<Seal>, RevealedAttach>, 1, U16>>,
     types: TypeSystem,
 }
 
@@ -620,7 +564,6 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             meta: none!(),
             rights: none!(),
             fungible: none!(),
-            attachments: none!(),
             data: none!(),
 
             types,
@@ -636,7 +579,6 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             meta: none!(),
             rights: none!(),
             fungible: none!(),
-            attachments: none!(),
             data: none!(),
 
             types,
@@ -765,11 +707,6 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             PersistedState::Data(data, salt) => {
                 self.add_data_raw(type_id, seal, RevealedData::with_salt(data, salt))
             }
-            PersistedState::Attachment(attach, salt) => self.add_attachment_raw(
-                type_id,
-                seal,
-                RevealedAttach::with_salt(attach.id, attach.media_type, salt),
-            ),
         }
     }
 
@@ -898,65 +835,6 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         Ok(self)
     }
 
-    fn add_attachment(
-        self,
-        name: impl Into<FieldName>,
-        seal: impl Into<BuilderSeal<Seal>>,
-        state: AttachState,
-    ) -> Result<Self, BuilderError> {
-        debug_assert!(
-            !self.deterministic,
-            "for adding state to deterministic contracts you have to use add_*_det methods"
-        );
-
-        let type_id = self.assignment_type(name);
-        self.add_attachment_raw(
-            type_id,
-            seal,
-            RevealedAttach::new_random_salt(state.id, state.media_type),
-        )
-    }
-
-    fn add_attachment_det(
-        self,
-        name: impl Into<FieldName>,
-        seal: impl Into<BuilderSeal<Seal>>,
-        state: RevealedAttach,
-    ) -> Result<Self, BuilderError> {
-        debug_assert!(
-            self.deterministic,
-            "to add owned state in deterministic way the builder has to be created using \
-             deterministic constructor"
-        );
-
-        let type_id = self.assignment_type(name);
-        self.add_attachment_raw(type_id, seal, state)
-    }
-
-    fn add_attachment_raw(
-        mut self,
-        type_id: AssignmentType,
-        seal: impl Into<BuilderSeal<Seal>>,
-        state: RevealedAttach,
-    ) -> Result<Self, BuilderError> {
-        let state_schema = self.state_schema(type_id);
-        if let OwnedStateSchema::Attachment(_) = *state_schema {
-            let seal = seal.into();
-            match self.attachments.get_mut(&type_id) {
-                Some(assignments) => {
-                    assignments.insert(seal, state)?;
-                }
-                None => {
-                    self.attachments
-                        .insert(type_id, Confined::with((seal, state)))?;
-                }
-            }
-        } else {
-            return Err(BuilderError::InvalidStateType(type_id));
-        }
-        Ok(self)
-    }
-
     fn complete(self) -> (Schema, GlobalState, Assignments<Seal>, TypeSystem) {
         let owned_state = self.fungible.into_iter().map(|(id, vec)| {
             let vec = vec
@@ -1012,28 +890,10 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             let state_data = TypedAssigns::Declarative(AssignVec::with(state_data));
             (id, state_data)
         });
-        let owned_attachments = self.attachments.into_iter().map(|(id, vec)| {
-            let vec_data = vec.into_iter().map(|(seal, value)| match seal {
-                BuilderSeal::Revealed(seal) => Assign::Revealed {
-                    seal,
-                    state: value,
-                    lock: none!(),
-                },
-                BuilderSeal::Concealed(seal) => Assign::ConfidentialSeal {
-                    seal,
-                    state: value,
-                    lock: none!(),
-                },
-            });
-            let state_data = Confined::try_from_iter(vec_data).expect("at least one element");
-            let state_data = TypedAssigns::Attachment(AssignVec::with(state_data));
-            (id, state_data)
-        });
 
         let owned_state = Confined::try_from_iter(owned_state).expect("same size");
         let owned_data = Confined::try_from_iter(owned_data).expect("same size");
         let owned_rights = Confined::try_from_iter(owned_rights).expect("same size");
-        let owned_attachments = Confined::try_from_iter(owned_attachments).expect("same size");
 
         let mut assignments = Assignments::from_inner(owned_state);
         assignments
@@ -1041,9 +901,6 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             .expect("too many assignments");
         assignments
             .extend(Assignments::from_inner(owned_rights).into_inner())
-            .expect("too many assignments");
-        assignments
-            .extend(Assignments::from_inner(owned_attachments).into_inner())
             .expect("too many assignments");
 
         (self.schema, self.global, assignments, self.types)

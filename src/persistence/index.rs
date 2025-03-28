@@ -195,10 +195,6 @@ impl<P: IndexProvider> Index<P> {
                     self.provider
                         .index_genesis_assignments(id, vec, opid, *type_id)?;
                 }
-                TypedAssigns::Attachment(vec) => {
-                    self.provider
-                        .index_genesis_assignments(id, vec, opid, *type_id)?;
-                }
             }
         }
         Ok(())
@@ -242,15 +238,6 @@ impl<P: IndexProvider> Index<P> {
                         )?;
                     }
                     TypedAssigns::Structured(vec) => {
-                        self.provider.index_transition_assignments(
-                            contract_id,
-                            vec,
-                            *opid,
-                            *type_id,
-                            witness_id,
-                        )?;
-                    }
-                    TypedAssigns::Attachment(vec) => {
                         self.provider.index_transition_assignments(
                             contract_id,
                             vec,

@@ -24,7 +24,7 @@ use std::error::Error;
 use std::fmt::Debug;
 
 use aluvm::library::{Lib, LibId};
-use amplify::confinement::{Confined, MediumBlob};
+use amplify::confinement::Confined;
 use amplify::{confinement, ByteArray};
 use bp::dbc::anchor::MergeError;
 use bp::dbc::tapret::TapretCommitment;
@@ -35,7 +35,7 @@ use commit_verify::mpc::MerkleBlock;
 use nonasync::persistence::{CloneNoPersistence, Persisting};
 use rgb::validation::{DbcProof, Scripts};
 use rgb::{
-    AttachId, BundleId, ChainNet, ContractId, Genesis, GraphSeal, Identity, OpId, Schema, SchemaId,
+    BundleId, ChainNet, ContractId, Genesis, GraphSeal, Identity, OpId, Schema, SchemaId,
     TransitionBundle, TransitionType, Txid,
 };
 use strict_types::typesys::UnknownType;
@@ -323,12 +323,6 @@ impl<P: StashProvider> Stash<P> {
             self.consume_witness_bundle(contract_id, witness_bundles)?;
         }
 
-        for (id, attach) in consignment.attachments {
-            self.provider
-                .replace_attachment(id, attach)
-                .map_err(StashError::WriteProvider)?;
-        }
-
         self.consume_kit(Kit {
             version: consignment.version,
             schemata: tiny_bset![consignment.schema],
@@ -485,8 +479,6 @@ pub trait StashWriteProvider: StoreTransaction<TransactionErr = Self::Error> {
     fn replace_genesis(&mut self, genesis: Genesis) -> Result<bool, Self::Error>;
     fn replace_bundle(&mut self, bundle: TransitionBundle) -> Result<bool, Self::Error>;
     fn replace_witness(&mut self, witness: SealWitness) -> Result<bool, Self::Error>;
-    fn replace_attachment(&mut self, id: AttachId, attach: MediumBlob)
-        -> Result<bool, Self::Error>;
 
     fn replace_lib(&mut self, lib: Lib) -> Result<bool, Self::Error>;
     fn consume_types(&mut self, types: TypeSystem) -> Result<(), Self::Error>;
