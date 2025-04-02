@@ -431,22 +431,19 @@ pub mod file {
             contract_id: ContractId,
             keep_files: bool,
         ) -> Result<(), PurgeError> {
-            if !self.has_contract(contract_id) {
+            let contract = self.contracts.remove(&contract_id) else {
                 return Err(PurgeError::UnknownContract(contract_id));
-            }
-
-            let contract_name = self
-                .contract(contract_id)
-                .stock()
-                .articles()
-                .contract
-                .meta
-                .name
-                .to_string();
-
-            self.contracts.remove(&contract_id);
+            };
 
             if !keep_files {
+                let contract_name = contract
+                    .stock()
+                    .articles()
+                    .contract
+                    .meta
+                    .name
+                    .to_string();
+            
                 let mut contract_dir = self.path().join(&contract_name);
                 contract_dir.set_extension("contract");
 
