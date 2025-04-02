@@ -31,7 +31,7 @@ use strict_types::{CompileError, LibBuilder, SemId, SymbolicSys, TypeLib, TypeSy
 
 use super::{
     AssetSpec, AttachmentType, BurnMeta, ContractSpec, ContractTerms, EmbeddedMedia, Error,
-    IssueMeta, MediaType, TokenData, LIB_NAME_RGB_CONTRACT, LIB_NAME_RGB_STORAGE,
+    IssueMeta, MediaType, PublicKey, TokenData, LIB_NAME_RGB_CONTRACT, LIB_NAME_RGB_STORAGE,
 };
 use crate::containers::{Contract, Kit, Transfer};
 use crate::persistence::{MemIndex, MemStash, MemState};
@@ -41,16 +41,16 @@ use crate::LIB_NAME_RGB_STD;
 /// Strict types id for the library providing standard data types which may be
 /// used in RGB smart contracts.
 pub const LIB_ID_RGB_STORAGE: &str =
-    "stl:p5DFjLua-$XSBTAi-COEO1o1-AOblvYW-SeJ5Lqg-IfbPCJk#travel-london-select";
+    "stl:CIA4VRtG-cR8nPkR-FpmpNXN-wYFETpB-SuBekic-FEp4VOA#prelude-arnold-anita";
 
 /// Strict types id for the library providing standard data types which may be
 /// used in RGB smart contracts.
 pub const LIB_ID_RGB_CONTRACT: &str =
-    "stl:fWKPSJqR-PvDeR2v-KRCNxUx-OvrnHDp-!J2rdts-aVKTsnY#copy-current-dilemma";
+    "stl:qTFUMxXl-Sh7Gw4T-NLhA7SW-buPesdA-kClvRBg-YF5vK58#winter-cubic-page";
 
 /// Strict types id for the library representing of RGB StdLib data types.
 pub const LIB_ID_RGB_STD: &str =
-    "stl:71EKfnGt-QIHLkIf-UIKbQK9-acSV8jX-G1Fcjay-FEsMNGU#evident-laura-wedding";
+    "stl:vgno8TJX-UFFEQwc-LXl!UCl-5pXn498-BHcCa!5-grjVm54#duet-sister-comrade";
 
 fn _rgb_std_stl() -> Result<TypeLib, CompileError> {
     LibBuilder::new(libname!(LIB_NAME_RGB_STD), tiny_bset! {
@@ -86,6 +86,7 @@ fn _rgb_contract_stl() -> Result<TypeLib, CompileError> {
     .transpile::<AttachmentType>()
     .transpile::<TokenData>()
     .transpile::<EmbeddedMedia>()
+    .transpile::<PublicKey>()
     .compile()
 }
 

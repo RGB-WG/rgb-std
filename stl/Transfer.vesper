@@ -256,6 +256,7 @@ Consignmenttrue rec
                           lock bytes len=2 aka=ReservedBytes2
                 validator bytes len=1 aka=ReservedBytes1
                 witness bytes len=2 aka=ReservedBytes2
+                  some bytes len=64 option wrapped aka=Signature tag=1
         opret rec ClientBundleOpretProof wrapped tag=1
           mpcProof rec MerkleProof
             pos is U32
@@ -370,6 +371,7 @@ Consignmenttrue rec
                           lock bytes len=2 aka=ReservedBytes2
                 validator bytes len=1 aka=ReservedBytes1
                 witness bytes len=2 aka=ReservedBytes2
+                  some bytes len=64 option wrapped aka=Signature tag=1
   schema rec Schema
     ffv is U16 aka=Ffv
     flags bytes len=1 aka=ReservedBytes1

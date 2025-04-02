@@ -30,7 +30,8 @@ use amplify::ascii::AsciiString;
 use amplify::confinement::{
     Confined, NonEmptyString, NonEmptyVec, SmallBlob, SmallOrdSet, SmallString, U8,
 };
-use amplify::Bytes32;
+use amplify::{Array, Bytes32};
+use bp::secp256k1;
 use invoice::{Precision, TokenIndex};
 use strict_encoding::stl::{Alpha, AlphaNum, AsciiPrintable};
 use strict_encoding::{
@@ -593,5 +594,24 @@ impl TokenData {
             attachments,
             reserves,
         }
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_CONTRACT, dumb = { Self(Array::from_array([0u8; 33])) })]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct PublicKey(Array<u8, 33>);
+impl StrictSerialize for PublicKey {}
+impl StrictDeserialize for PublicKey {}
+
+impl PublicKey {
+    pub fn new(bytes: [u8; 33]) -> Result<Self, secp256k1::Error> {
+        secp256k1::PublicKey::from_slice(&bytes)?;
+        Ok(Self(bytes.into()))
     }
 }

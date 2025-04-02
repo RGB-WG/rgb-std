@@ -584,6 +584,7 @@ impl TransitionBuilder {
             assignments,
             witness: none!(),
             validator: none!(),
+            signature: none!(),
         };
 
         // TODO: Validate against schema

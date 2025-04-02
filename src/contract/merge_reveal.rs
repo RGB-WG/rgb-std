@@ -34,10 +34,15 @@ use rgb::{
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum MergeRevealError {
-    /// operations {0} and {1} has different commitment ids and can't be
+    /// operations {0} and {1} have different commitment ids and can't be
     /// merge-revealed. This usually means internal application business logic
     /// error which should be reported to the software vendor.
     OperationMismatch(OpId, OpId),
+
+    /// operations with ID {0} have different signatures and can't be merge-revealed.
+    /// This usually means internal application business logic
+    /// error which should be reported to the software vendor.
+    SignatureMismatch(OpId),
 
     /// mismatch in anchor chains: one grip references bitcoin transaction
     /// {bitcoin} and the other merged part references liquid transaction
@@ -235,6 +240,14 @@ impl MergeReveal for Transition {
             return Err(MergeRevealError::OperationMismatch(self_id, other_id));
         }
         self.assignments = self.assignments.merge_reveal(other.assignments)?;
+        let signature = match (self.signature, other.signature) {
+            (None, None) => None,
+            (Some(sig), None) => Some(sig),
+            (None, Some(sig)) => Some(sig),
+            (Some(sig1), Some(sig2)) if sig1 == sig2 => Some(sig1),
+            _ => return Err(MergeRevealError::SignatureMismatch(self_id)),
+        };
+        self.signature = signature;
         Ok(self)
     }
 }
