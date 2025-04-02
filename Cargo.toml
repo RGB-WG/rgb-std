@@ -17,7 +17,7 @@ homepage = "https://github.com/RGB-WG"
 repository = "https://github.com/RGB-WG/rgb-std"
 keywords = ["bitcoin", "lightning", "rgb", "smart-contracts", "lnp-bp"]
 categories = ["cryptography::cryptocurrencies"]
-rust-version = "1.80.0"
+rust-version = "1.81.0"
 edition = "2021"
 license = "Apache-2.0"
 
@@ -107,8 +107,10 @@ wasm-bindgen-test = "0.3"
 features = ["all"]
 
 [patch.crates-io]
+aluvm = { git = "https://github.com/zoedberg/rust-aluvm", branch = "0.11.1-2" }
+commit_verify = { git = "https://github.com/zoedberg/client_side_validation", branch = "0.11.1-2" }
 bp-consensus = { git = "https://github.com/zoedberg/bp-core", branch = "0.11.1-2" }
 bp-core = { git = "https://github.com/zoedberg/bp-core", branch = "0.11.1-2" }
-bp-electrum = { git = "https://github.com/zoedberg/bp-electrum-client", branch = "remove_bpstd" }
-bp-esplora = { git = "https://github.com/zoedberg/bp-esplora-client", branch = "remove_bpstd" }
+bp-electrum = { git = "https://github.com/zoedberg/bp-electrum-client", branch = "0.11.1-2" }
+bp-esplora = { git = "https://github.com/zoedberg/bp-esplora-client", branch = "0.11.1-2" }
 rgb-core = { git = "https://github.com/zoedberg/rgb-core", branch = "0.11.1-2" }
