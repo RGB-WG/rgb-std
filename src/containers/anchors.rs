@@ -313,6 +313,13 @@ impl AnchoredBundle {
         }
     }
 
+    pub fn bundle_mut(&mut self) -> &mut TransitionBundle {
+        match self {
+            AnchoredBundle::Tapret(tapret) => &mut tapret.bundle,
+            AnchoredBundle::Opret(opret) => &mut opret.bundle,
+        }
+    }
+
     pub fn into_bundle(self) -> TransitionBundle {
         match self {
             AnchoredBundle::Tapret(tapret) => tapret.bundle,

@@ -37,7 +37,7 @@ use commit_verify::{CommitEncode, CommitEngine, CommitId, CommitmentId, DigestEx
 use rgb::validation::{Failure, ResolveWitness, Validator, Validity, CONSIGNMENT_MAX_LIBS};
 use rgb::{
     impl_serde_baid64, validation, AttachId, BundleId, ChainNet, ContractId, Genesis, GraphSeal,
-    Operation, Schema, SchemaId,
+    Operation, Schema, SchemaId, Txid,
 };
 use rgbcore::validation::ConsignmentApi;
 use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
@@ -333,6 +333,32 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
                 consignment: self,
             })
         }
+    }
+
+    /// Modify a bundle in the consignment if it exists
+    pub fn modify_bundle<F>(&mut self, witness_id: Txid, modifier: F) -> bool
+    where F: Fn(&mut WitnessBundle) {
+        let mut found = false;
+        let mut modified_bundles = BTreeSet::new();
+
+        let bundles: Vec<_> = self.bundles.iter().cloned().collect();
+
+        for bundle in bundles {
+            if bundle.witness_id() == witness_id {
+                let mut modified_bundle = bundle.clone();
+                modifier(&mut modified_bundle);
+                modified_bundles.insert(modified_bundle);
+                found = true;
+            } else {
+                modified_bundles.insert(bundle);
+            }
+        }
+
+        if found {
+            self.bundles = Confined::try_from_iter(modified_bundles).unwrap();
+        }
+
+        found
     }
 }
 
