@@ -58,9 +58,8 @@ impl<'c, const TRANSFER: bool> IndexedConsignment<'c, TRANSFER> {
             witness_idx
                 .insert(witness_bundle.pub_witness.to_witness_id(), &witness_bundle.pub_witness);
             let witness_id = witness_bundle.pub_witness.to_witness_id();
-            let anchored_bundle = witness_bundle.anchored_bundle();
-            let anchor = anchored_bundle.eanchor();
-            let bundle = anchored_bundle.bundle();
+            let anchor = witness_bundle.eanchor();
+            let bundle = witness_bundle.bundle();
             let bundle_id = bundle.bundle_id();
             bundle_idx.insert(bundle_id, bundle);
             anchor_idx.insert(bundle_id, (witness_id, anchor));

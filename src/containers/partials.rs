@@ -30,7 +30,7 @@ use strict_encoding::{
     StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, StrictType,
 };
 
-use crate::containers::{AnchorSet, PubWitness};
+use super::SealWitness;
 use crate::LIB_NAME_RGB_STD;
 
 #[derive(Clone, Eq, Debug)]
@@ -149,16 +149,14 @@ impl Batch {
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct Fascia {
-    pub witness: PubWitness,
-    pub anchor: AnchorSet,
+    pub seal_witness: SealWitness,
     pub bundles: NonEmptyOrdMap<ContractId, TransitionBundle, U24>,
 }
 
 impl StrictDumb for Fascia {
     fn strict_dumb() -> Self {
         Fascia {
-            witness: strict_dumb!(),
-            anchor: strict_dumb!(),
+            seal_witness: strict_dumb!(),
             bundles: NonEmptyOrdMap::with_key_value(strict_dumb!(), strict_dumb!()),
         }
     }
@@ -167,7 +165,7 @@ impl StrictSerialize for Fascia {}
 impl StrictDeserialize for Fascia {}
 
 impl Fascia {
-    pub fn witness_id(&self) -> Txid { self.witness.txid() }
+    pub fn witness_id(&self) -> Txid { self.seal_witness.public.txid() }
 
     pub fn into_bundles(self) -> impl IntoIterator<Item = (ContractId, TransitionBundle)> {
         self.bundles.into_iter()

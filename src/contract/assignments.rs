@@ -24,13 +24,11 @@ use std::collections::{BTreeSet, HashMap};
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use amplify::confinement::{NonEmptyVec, U16};
 use invoice::Amount;
 use rgb::vm::WitnessOrd;
 use rgb::{
-    Assign, AssignData, AssignFungible, AssignRights, AssignmentType, BundleId, DataState,
-    ExposedSeal, ExposedState, OpId, Opout, OutputSeal, RevealedData, RevealedValue, Txid,
-    TypedAssigns, VoidState,
+    AssignmentType, BundleId, DataState, ExposedSeal, OpId, Opout, OutputSeal, RevealedData,
+    RevealedValue, Txid, VoidState,
 };
 use strict_encoding::{StrictDecode, StrictDumb, StrictEncode};
 
@@ -194,54 +192,6 @@ impl<State: KnownState> OutputAssignment<State> {
         match self.bundle_id {
             Some(bundle_id) => !invalid_bundles.contains(&bundle_id),
             None => true,
-        }
-    }
-}
-
-pub trait TypedAssignsExt<Seal: ExposedSeal> {
-    fn reveal_seal(&mut self, seal: Seal);
-
-    fn filter_revealed_seals(&self) -> Vec<Seal>;
-}
-
-impl<Seal: ExposedSeal> TypedAssignsExt<Seal> for TypedAssigns<Seal> {
-    fn reveal_seal(&mut self, seal: Seal) {
-        fn reveal<State: ExposedState, Seal: ExposedSeal>(
-            vec: &mut NonEmptyVec<Assign<State, Seal>, U16>,
-            revealed: Seal,
-        ) {
-            for assign in vec.iter_mut() {
-                match assign {
-                    Assign::ConfidentialSeal { seal, state, lock }
-                        if *seal == revealed.conceal() =>
-                    {
-                        *assign = Assign::Revealed {
-                            seal: revealed,
-                            state: state.clone(),
-                            lock: *lock,
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
-
-        match self {
-            TypedAssigns::Declarative(v) => reveal(v, seal),
-            TypedAssigns::Fungible(v) => reveal(v, seal),
-            TypedAssigns::Structured(v) => reveal(v, seal),
-        }
-    }
-
-    fn filter_revealed_seals(&self) -> Vec<Seal> {
-        match self {
-            TypedAssigns::Declarative(s) => {
-                s.iter().filter_map(AssignRights::revealed_seal).collect()
-            }
-            TypedAssigns::Fungible(s) => {
-                s.iter().filter_map(AssignFungible::revealed_seal).collect()
-            }
-            TypedAssigns::Structured(s) => s.iter().filter_map(AssignData::revealed_seal).collect(),
         }
     }
 }

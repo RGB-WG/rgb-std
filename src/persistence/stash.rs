@@ -26,14 +26,11 @@ use std::fmt::Debug;
 use aluvm::library::{Lib, LibId};
 use amplify::confinement::Confined;
 use amplify::{confinement, ByteArray};
-use bp::dbc::anchor::MergeError;
 use bp::dbc::tapret::TapretCommitment;
-use bp::dbc::Anchor;
 use bp::seals::txout::CloseMethod;
-use commit_verify::mpc;
-use commit_verify::mpc::MerkleBlock;
+use commit_verify::mpc::{self, MerkleBlock};
 use nonasync::persistence::{CloneNoPersistence, Persisting};
-use rgb::validation::{DbcProof, Scripts};
+use rgb::validation::Scripts;
 use rgb::{
     BundleId, ChainNet, ContractId, Genesis, GraphSeal, Identity, OpId, Schema, SchemaId,
     TransitionBundle, TransitionType, Txid,
@@ -42,8 +39,8 @@ use strict_types::typesys::UnknownType;
 use strict_types::{FieldName, TypeSystem};
 
 use crate::containers::{
-    AnchorSet, Consignment, ConsignmentExt, ContentId, ContentSigs, Kit, SealWitness, SigBlob,
-    TrustLevel, WitnessBundle,
+    Consignment, ConsignmentExt, ContentId, ContentSigs, Kit, SealWitness, SealWitnessMergeError,
+    SigBlob, TrustLevel, WitnessBundle,
 };
 use crate::contract::{ContractBuilder, TransitionBuilder};
 use crate::persistence::StoreTransaction;
@@ -68,7 +65,7 @@ pub enum StashError<P: StashProvider> {
     /// Errors caused by invalid input arguments.
     #[from]
     #[from(UnknownType)]
-    #[from(MergeError)]
+    #[from(SealWitnessMergeError)]
     #[from(MergeRevealError)]
     #[from(mpc::InvalidProof)]
     Data(StashDataError),
@@ -136,7 +133,7 @@ pub enum StashDataError {
 
     #[from]
     #[display(inner)]
-    Merge(MergeError),
+    Merge(SealWitnessMergeError),
 
     #[from]
     #[display(inner)]
@@ -337,53 +334,31 @@ impl<P: StashProvider> Stash<P> {
         contract_id: ContractId,
         witness_bundle: WitnessBundle,
     ) -> Result<(), StashError<P>> {
-        let WitnessBundle {
-            pub_witness,
-            anchored_bundle,
-        } = witness_bundle;
-
         // TODO: Save pub witness transaction SPVs
-
-        let eanchor = anchored_bundle.eanchor();
-        let bundle = anchored_bundle.into_bundle();
+        let bundle = witness_bundle.bundle();
+        let eanchor = witness_bundle.eanchor();
 
         let bundle_id = bundle.bundle_id();
-        self.consume_bundle(bundle)?;
+        self.consume_bundle(bundle.clone())?;
 
         let proto = mpc::ProtocolId::from_byte_array(contract_id.to_byte_array());
         let msg = mpc::Message::from_byte_array(bundle_id.to_byte_array());
         let merkle_block = MerkleBlock::with(&eanchor.mpc_proof, proto, msg)?;
-        let anchor = Anchor::new(merkle_block, eanchor.dbc_proof);
 
-        let anchor = match anchor {
-            Anchor {
-                dbc_proof: DbcProof::Opret(opret),
-                mpc_proof,
-                ..
-            } => AnchorSet::Opret(Anchor::new(mpc_proof, opret)),
-            Anchor {
-                dbc_proof: DbcProof::Tapret(opret),
-                mpc_proof,
-                ..
-            } => AnchorSet::Tapret(Anchor::new(mpc_proof, opret)),
-        };
         let witness = SealWitness {
-            public: pub_witness.clone(),
-            anchor,
+            public: witness_bundle.pub_witness.clone(),
+            merkle_block,
+            dbc_proof: eanchor.dbc_proof,
         };
-        self.consume_witness(witness)?;
+        self.consume_witness(&witness)?;
 
         Ok(())
     }
 
-    pub(crate) fn consume_witness(&mut self, witness: SealWitness) -> Result<bool, StashError<P>> {
+    pub(crate) fn consume_witness(&mut self, witness: &SealWitness) -> Result<bool, StashError<P>> {
         let witness = match self.provider.witness(witness.witness_id()).cloned() {
-            Ok(mut w) => {
-                w.public = w.public.clone().merge_reveal(witness.public)?;
-                w.anchor = w.anchor.clone().merge_reveal(witness.anchor)?;
-                w
-            }
-            Err(_) => witness,
+            Ok(w) => w.merge_reveal(witness.clone())?,
+            Err(_) => witness.clone(),
         };
 
         self.provider

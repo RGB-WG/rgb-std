@@ -27,7 +27,7 @@ mod merge_reveal;
 mod schema;
 pub(crate) mod resolver;
 
-pub use assignments::{KnownState, OutputAssignment, TypedAssignsExt, WitnessInfo};
+pub use assignments::{KnownState, OutputAssignment, WitnessInfo};
 pub use builder::{BuilderError, ContractBuilder, TransitionBuilder};
 pub use data::{
     AllocatedState, ContractData, ContractError, ContractOp, DataAllocation, FungibleAllocation,

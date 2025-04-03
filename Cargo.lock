@@ -285,7 +285,7 @@ dependencies = [
 [[package]]
 name = "bp-consensus"
 version = "0.11.1-alpha.1"
-source = "git+https://github.com/zoedberg/bp-core?branch=0.11.1-2#2f0fd1f6c5cd81f748bacd8237993bdb7bdfe9d1"
+source = "git+https://github.com/zoedberg/bp-core?branch=0.11.1-2#55e5cd9ba902c198ae4cfdcc241047a6190630cd"
 dependencies = [
  "amplify",
  "chrono",
@@ -299,7 +299,7 @@ dependencies = [
 [[package]]
 name = "bp-core"
 version = "0.11.1-alpha.1"
-source = "git+https://github.com/zoedberg/bp-core?branch=0.11.1-2#2f0fd1f6c5cd81f748bacd8237993bdb7bdfe9d1"
+source = "git+https://github.com/zoedberg/bp-core?branch=0.11.1-2#55e5cd9ba902c198ae4cfdcc241047a6190630cd"
 dependencies = [
  "amplify",
  "bp-consensus",
@@ -317,7 +317,7 @@ dependencies = [
 [[package]]
 name = "bp-dbc"
 version = "0.11.1-alpha.1"
-source = "git+https://github.com/zoedberg/bp-core?branch=0.11.1-2#2f0fd1f6c5cd81f748bacd8237993bdb7bdfe9d1"
+source = "git+https://github.com/zoedberg/bp-core?branch=0.11.1-2#55e5cd9ba902c198ae4cfdcc241047a6190630cd"
 dependencies = [
  "amplify",
  "base85",
@@ -376,7 +376,7 @@ dependencies = [
 [[package]]
 name = "bp-seals"
 version = "0.11.1-alpha.1"
-source = "git+https://github.com/zoedberg/bp-core?branch=0.11.1-2#2f0fd1f6c5cd81f748bacd8237993bdb7bdfe9d1"
+source = "git+https://github.com/zoedberg/bp-core?branch=0.11.1-2#55e5cd9ba902c198ae4cfdcc241047a6190630cd"
 dependencies = [
  "amplify",
  "baid64",
@@ -1069,7 +1069,7 @@ checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
 [[package]]
 name = "rgb-core"
 version = "0.11.1-alpha.1"
-source = "git+https://github.com/zoedberg/rgb-core?branch=0.11.1-2#ec336165ee35371b46fc4160f67131233acd31f8"
+source = "git+https://github.com/zoedberg/rgb-core?branch=0.11.1-2#1d7d45ef05a10d4695e26fa581fd2cccff4477f4"
 dependencies = [
  "aluvm",
  "amplify",

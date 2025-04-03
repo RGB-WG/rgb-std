@@ -188,26 +188,6 @@ impl MergeReveal for TransitionBundle {
     }
 }
 
-/*
-impl MergeRevealContract for AnchoredBundle {
-    fn merge_reveal_contract(
-        self,
-        other: Self,
-        contract_id: ContractId,
-    ) -> Result<Self, MergeRevealError> {
-        let bundle_id = self.bundle_id();
-        let anchor1 = self.anchor.into_merkle_block(contract_id, bundle_id)?;
-        let anchor2 = other.anchor.into_merkle_block(contract_id, bundle_id)?;
-        Ok(AnchoredBundle {
-            anchor: anchor1
-                .merge_reveal(anchor2)?
-                .into_merkle_proof(contract_id)?,
-            bundle: self.bundle.merge_reveal(other.bundle)?,
-        })
-    }
-}
- */
-
 impl MergeReveal for Genesis {
     fn merge_reveal(mut self, other: Self) -> Result<Self, MergeRevealError> {
         let self_id = self.id();

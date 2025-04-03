@@ -258,7 +258,7 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
         for mut witness_bundle in self.bundles {
             for (bundle_id, secret) in &self.terminals {
                 if let Some(seal) = f(*secret)? {
-                    witness_bundle.reveal_seal(*bundle_id, seal);
+                    witness_bundle.bundle.reveal_seal(*bundle_id, seal);
                 }
             }
             bundles.push(witness_bundle).ok();

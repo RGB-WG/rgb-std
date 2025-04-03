@@ -36,6 +36,7 @@ use bp::dbc::tapret::TapretCommitment;
 use bp::{Outpoint, Txid};
 use commit_verify::{CommitId, Conceal};
 use nonasync::persistence::{CloneNoPersistence, Persistence, PersistenceError, Persisting};
+use rgb::validation::DbcProof;
 use rgb::vm::{
     ContractStateAccess, ContractStateEvolve, GlobalContractState, GlobalOrd, GlobalStateIter,
     OrdOpRef, UnknownGlobalStateType, WitnessOrd,
@@ -55,7 +56,7 @@ use super::{
     StashProviderError, StashReadProvider, StashWriteProvider, StateInconsistency, StateProvider,
     StateReadProvider, StateWriteProvider, StoreTransaction,
 };
-use crate::containers::{AnchorSet, ContentId, ContentSigs, SealWitness, SigBlob, TrustLevel};
+use crate::containers::{ContentId, ContentSigs, SealWitness, SigBlob, TrustLevel};
 use crate::contract::{GlobalOut, KnownState, OpWitness, OutputAssignment};
 use crate::LIB_NAME_RGB_STORAGE;
 
@@ -225,10 +226,10 @@ impl StashReadProvider for MemStash {
         Ok(self
             .witnesses
             .iter()
-            .filter_map(|(witness_id, witness)| match &witness.anchor {
-                AnchorSet::Tapret(anchor) => Some((*witness_id, TapretCommitment {
-                    mpc: anchor.mpc_proof.commit_id(),
-                    nonce: anchor.dbc_proof.path_proof.nonce(),
+            .filter_map(|(witness_id, witness)| match &witness.dbc_proof {
+                DbcProof::Tapret(tapret_proof) => Some((*witness_id, TapretCommitment {
+                    mpc: witness.merkle_block.commit_id(),
+                    nonce: tapret_proof.path_proof.nonce(),
                 })),
                 _ => None,
             }))
