@@ -124,8 +124,8 @@ mod test {
             .tx(&txid)
             .expect("Failed to get tx")
             .expect("Tx not found");
-        assert!(tx.inputs.len() > 0);
-        assert!(tx.outputs.len() > 0);
+        assert!(!tx.inputs.is_empty());
+        assert!(!tx.outputs.is_empty());
         assert_eq!(tx.outputs[0].value, 5_000_000_000);
     }
 }
