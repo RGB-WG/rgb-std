@@ -23,7 +23,7 @@
 // the License.
 
 use amplify::confinement::SmallOrdMap;
-use hypersonic::aora::Aora;
+use aora::Aora;
 use hypersonic::Opid;
 use rgb::{ClientSideWitness, RgbSealDef, RgbSealSrc};
 use single_use_seals::{PublishedWitness, SealWitness, SingleUseSeal};
@@ -98,8 +98,7 @@ pub mod fs {
     use std::marker::PhantomData;
     use std::path::{Path, PathBuf};
 
-    use hypersonic::aora::file::FileAora;
-    use hypersonic::expect::Expect;
+    use aora::file::FileAora;
     use strict_encoding::{StrictDecode, StrictEncode};
 
     use super::*;
@@ -211,7 +210,7 @@ pub mod fs {
             let cache = FileAora::new(&path, "cache");
             let keep = FileAora::new(&path, "keep");
             let index = FileIndex::create(path.join("index.dat"))
-                .expect_or(format!("unable to create index file `{}`", path.display()));
+                .unwrap_or_else(|_| panic!("unable to create index file `{}`", path.display()));
 
             Self { hoard, cache, keep, index, _phantom: PhantomData }
         }
@@ -229,7 +228,7 @@ pub mod fs {
 
             let index_name = path.join("index.dat");
             let index = FileIndex::new(index_name.clone())
-                .expect_or(format!("unable to open index file `{}`", index_name.display()));
+                .unwrap_or_else(|_| panic!("unable to open index file `{}`", index_name.display()));
 
             Self { hoard, cache, keep, index, _phantom: PhantomData }
         }

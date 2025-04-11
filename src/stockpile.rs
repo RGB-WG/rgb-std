@@ -30,9 +30,9 @@ use std::io;
 
 use amplify::confinement::SmallOrdMap;
 use amplify::IoError;
+use aora::Aora;
 use chrono::{DateTime, Utc};
 use commit_verify::ReservedBytes;
-use hypersonic::aora::Aora;
 use hypersonic::sigs::ContentSigs;
 use hypersonic::{
     Articles, AuthToken, CellAddr, Codex, CodexId, Consensus, Contract, ContractId, CoreParams,
@@ -50,7 +50,7 @@ use strict_encoding::{
 };
 use strict_types::StrictVal;
 
-use crate::{ContractMeta, Index, Pile};
+use crate::{CallError, ContractMeta, Index, Pile, VerifiedOperation};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, From)]
 #[cfg_attr(
@@ -187,7 +187,12 @@ pub struct Stockpile<S: Supply, P: Pile> {
 }
 
 impl<S: Supply, P: Pile> Stockpile<S, P> {
-    pub fn issue(schema: Schema, params: CreateParams<P::SealDef>, supply: S, mut pile: P) -> Self {
+    pub fn issue(
+        schema: Schema,
+        params: CreateParams<P::SealDef>,
+        supply: S,
+        mut pile: P,
+    ) -> Result<Self, CallError> {
         assert_eq!(params.codex_id, schema.codex.codex_id());
 
         let seals = SmallOrdMap::try_from_iter(params.owned.iter().enumerate().filter_map(
@@ -224,13 +229,13 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
         };
 
         let articles = schema.issue(params);
-        let stock = Stock::create(articles, supply);
+        let stock = Stock::create(articles, supply)?;
 
         // Init seals
         pile.keep_mut()
             .append(stock.articles().contract.genesis_opid(), &seals);
 
-        Self { stock, pile }
+        Ok(Self { stock, pile })
     }
 
     pub fn open(articles: Articles, supply: S, pile: P) -> Self {
@@ -427,11 +432,9 @@ impl<S: Supply, P: Pile> ContractApi<P::SealDef> for Stockpile<S, P> {
 
     fn is_known(&self, opid: Opid) -> bool { self.stock.has_operation(opid) }
 
-    fn apply_operation(&mut self, op: OperationSeals<P::SealDef>) {
-        self.pile
-            .keep_mut()
-            .append(op.operation.opid(), &op.defined_seals);
-        self.stock.apply(op.operation);
+    fn apply_operation(&mut self, op: VerifiedOperation, seals: SmallOrdMap<u16, P::SealDef>) {
+        self.pile.keep_mut().append(op.opid(), &seals);
+        self.stock.apply(op);
     }
 
     fn apply_witness(&mut self, opid: Opid, witness: SealWitness<P::SealSrc>) {
@@ -485,7 +488,7 @@ mod fs {
             schema: Schema,
             params: CreateParams<SealDef>,
             path: impl AsRef<Path>,
-        ) -> Self {
+        ) -> Result<Self, CallError> {
             let path = path.as_ref();
             let pile = FilePile::new(params.name.as_str(), path);
             let supply = FileSupply::new(params.name.as_str(), path);

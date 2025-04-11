@@ -38,7 +38,8 @@ use strict_encoding::{
 };
 
 use crate::{
-    Consensus, ConsumeError, ContractInfo, ContractRef, CreateParams, Operation, Pile, Stockpile,
+    CallError, Consensus, ConsumeError, ContractInfo, ContractRef, CreateParams, Operation, Pile,
+    Stockpile,
 };
 
 pub const MAGIC_BYTES_CONSIGNMENT: [u8; 16] = *b"RGB CONSIGNMENT\0";
@@ -110,7 +111,7 @@ impl<S: Supply, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
         let schema = self
             .schema(params.codex_id)
             .ok_or(IssueError::UnknownCodex(params.codex_id))?;
-        let stockpile = Stockpile::issue(schema.clone(), params, supply, pile);
+        let stockpile = Stockpile::issue(schema.clone(), params, supply, pile)?;
         let id = stockpile.contract_id();
         self.contracts.insert(id, stockpile);
         Ok(id)
@@ -240,7 +241,7 @@ impl<S: Supply, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
     }
 }
 
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, Error)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum IssueError {
     /// proof of publication layer mismatch.
@@ -251,6 +252,9 @@ pub enum IssueError {
     MainnetMismatch,
     /// unknown codex for contract issue {0}.
     UnknownCodex(CodexId),
+    /// invalid schema; {0}
+    #[from]
+    InvalidSchema(CallError),
 }
 
 #[derive(Display, From)]
@@ -275,7 +279,6 @@ pub mod file {
     use std::marker::PhantomData;
     use std::path::{Path, PathBuf};
 
-    use hypersonic::expect::Expect;
     use hypersonic::FileSupply;
     use rgb::RgbSealDef;
     use single_use_seals::PublishedWitness;
@@ -311,7 +314,7 @@ pub mod file {
         fn contents(&mut self, top: bool) -> impl Iterator<Item = (FileType, PathBuf)> {
             let dir =
                 if top { fs::read_dir(&self.dir) } else { fs::read_dir(self.consensus_dir()) };
-            dir.expect_or_else(|| format!("unable to read directory `{}`", self.dir.display()))
+            dir.unwrap_or_else(|_| panic!("unable to read directory `{}`", self.dir.display()))
                 .map(|entry| {
                     let entry = entry.expect("unable to read directory");
                     let ty = entry.file_type().expect("unable to read file type");

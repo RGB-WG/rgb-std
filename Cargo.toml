@@ -19,6 +19,7 @@ strict_encoding = "2.8.1"
 strict_types = "2.8.2"
 commit_verify = "=0.12.0-beta.5"
 single_use_seals = "=0.12.0-beta.5"
+aora = "0.2.0"
 baid64 = "0.4.1"
 hypersonic = "=0.12.0-beta.5"
 sonic-callreq = "=0.12.0-beta.5"
@@ -55,6 +56,7 @@ strict_encoding.workspace = true
 strict_types.workspace = true
 commit_verify.workspace = true
 single_use_seals.workspace = true
+aora.workspace = true
 hypersonic.workspace = true
 bp-core = { workspace = true, optional = true }
 bp-invoice = { workspace = true, optional = true }
@@ -74,7 +76,7 @@ liquid = ["rgb-core/liquid", "rgb-invoice/liquid"]
 prime = ["rgb-core/prime", "rgb-invoice/prime"]
 
 uri = ["rgb-invoice/uri"]
-fs = ["std", "hypersonic/persist-file"]
+fs = ["std", "hypersonic/persist-file", "aora/file-strict"]
 serde = [
     "std",
     "dep:serde",
@@ -104,3 +106,12 @@ wasm-bindgen-test = "0.3"
 
 [package.metadata.docs.rs]
 features = ["all"]
+
+[patch.crates-io]
+aluvm = { git = "https://github.com/AluVM/aluvm", branch = "master" }
+zk-aluvm = { git = "https://github.com/AluVM/zk-aluvm", branch = "master" }
+ultrasonic = { git = "https://github.com/AluVM/ultrasonic", branch = "master" }
+sonic-api = { git = "https://github.com/AluVM/sonic", branch = "master" }
+sonic-callreq = { git = "https://github.com/AluVM/sonic", branch = "master" }
+hypersonic = { git = "https://github.com/AluVM/sonic", branch = "master" }
+rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "v0.12" }

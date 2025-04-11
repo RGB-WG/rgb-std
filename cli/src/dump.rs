@@ -31,8 +31,8 @@ use std::{fs, io};
 use amplify::confinement::SmallOrdMap;
 use amplify::hex::ToHex;
 use amplify::Bytes16;
+use aora::Aora;
 use commit_verify::ReservedBytes;
-use hypersonic::aora::Aora;
 use hypersonic::{Articles, ContractId, FileSupply, Operation};
 use rgb::{
     FilePile, Index, MoundConsumeError, Pile, PublishedWitness, RgbSealDef, SealWitness,
