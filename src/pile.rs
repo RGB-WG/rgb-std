@@ -42,7 +42,7 @@ pub trait Index<K, V> {
 
 pub trait Cru<K, V> {
     fn has(&self, key: &K) -> bool;
-    fn read(&self, key: &K) -> Option<V>;
+    fn read(&self, key: &K) -> V;
     fn create(&mut self, key: K, val: V);
     fn create_if_absent(&mut self, key: K, val: V) {
         if !self.has(&key) {
@@ -54,16 +54,12 @@ pub trait Cru<K, V> {
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Display)]
 #[display("{mining_height}, {mining_id}")]
-#[derive(StrictType, StrictEncode, StrictDecode)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct WitnessStatus {
     pub mining_height: u64,
     pub mining_id: Bytes32,
-}
-
-impl Default for WitnessStatus {
-    fn default() -> Self { Self { mining_height: u64::MAX, mining_id: Bytes32::with_fill(0xFF) } }
 }
 
 pub trait Pile {
@@ -79,7 +75,7 @@ pub trait Pile {
     >;
     type Keep: Aora<Id = Opid, Item = SmallOrdMap<u16, <Self::Seal as RgbSeal>::Definiton>>;
     type Index: Index<Opid, <Self::Seal as RgbSeal>::WitnessId>;
-    type Mine: Cru<<Self::Seal as RgbSeal>::WitnessId, WitnessStatus>;
+    type Mine: Cru<<Self::Seal as RgbSeal>::WitnessId, Option<WitnessStatus>>;
 
     fn hoard(&self) -> &Self::Hoard;
     fn cache(&self) -> &Self::Cache;
@@ -115,9 +111,17 @@ pub trait Pile {
         } else {
             self.hoard_mut().append(pubid, &anchor);
         }
-        self.mine_mut()
-            .create_if_absent(pubid, WitnessStatus::default());
+        self.mine_mut().create_if_absent(pubid, None);
         self.cache_mut().append(pubid, published);
+    }
+
+    /// Get mining status for a given operation.
+    fn since(&self, opid: Opid) -> Option<u64> {
+        self.index()
+            .get(opid)
+            .map(|pubid| self.mine().read(&pubid).map(|status| status.mining_height))
+            .max()
+            .flatten()
     }
 }
 
@@ -154,7 +158,7 @@ pub mod fs {
     impl<K, V> Cru<K, V> for FileCru {
         fn has(&self, key: &K) -> bool { todo!() }
 
-        fn read(&self, key: &K) -> Option<V> { todo!() }
+        fn read(&self, key: &K) -> V { todo!() }
 
         fn create(&mut self, key: K, val: V) { todo!() }
 

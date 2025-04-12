@@ -87,14 +87,31 @@ impl<Seal> EitherSeal<Seal> {
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
-    serde(
-        rename_all = "camelCase",
-        bound = "Seal: serde::Serialize + for<'d> serde::Deserialize<'d>"
-    )
+    serde(bound = "Seal: serde::Serialize + for<'d> serde::Deserialize<'d>")
 )]
 pub struct Assignment<Seal> {
     pub seal: Seal,
     pub data: StrictVal,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(bound = "Seal: serde::Serialize + for<'d> serde::Deserialize<'d>")
+)]
+pub struct OwnedState<Seal> {
+    #[cfg_attr(feature = "serde", serde(flatten))]
+    pub assignment: Assignment<Seal>,
+    pub since: Option<u64>,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct ImmutableState {
+    #[cfg_attr(feature = "serde", serde(flatten))]
+    pub data: StateAtom,
+    pub since: Option<u64>,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Default)]
@@ -107,9 +124,10 @@ pub struct Assignment<Seal> {
     )
 )]
 pub struct ContractState<Seal> {
-    pub immutable: BTreeMap<StateName, BTreeMap<CellAddr, StateAtom>>,
-    pub owned: BTreeMap<StateName, BTreeMap<CellAddr, Assignment<Seal>>>,
+    pub immutable: BTreeMap<StateName, BTreeMap<CellAddr, ImmutableState>>,
+    pub owned: BTreeMap<StateName, BTreeMap<CellAddr, OwnedState<Seal>>>,
     pub computed: BTreeMap<StateName, StrictVal>,
+    // TODO: Add "computed pending"
 }
 
 impl<Seal> ContractState<Seal> {
@@ -123,7 +141,13 @@ impl<Seal> ContractState<Seal> {
                     let map = map
                         .into_iter()
                         .map(|(addr, data)| {
-                            (addr, Assignment { seal: f(data.seal), data: data.data })
+                            (addr, OwnedState {
+                                assignment: Assignment {
+                                    seal: f(data.assignment.seal),
+                                    data: data.assignment.data,
+                                },
+                                since: data.since,
+                            })
                         })
                         .collect();
                     (name, map)
@@ -143,7 +167,13 @@ impl<Seal> ContractState<Seal> {
                     let map = map
                         .into_iter()
                         .filter_map(|(addr, data)| {
-                            Some((addr, Assignment { seal: f(data.seal)?, data: data.data }))
+                            Some((addr, OwnedState {
+                                assignment: Assignment {
+                                    seal: f(data.assignment.seal)?,
+                                    data: data.assignment.data,
+                                },
+                                since: data.since,
+                            }))
                         })
                         .collect();
                     (name, map)
@@ -251,30 +281,45 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
     }
 
     pub fn state(&mut self) -> ContractState<P::Seal> {
+        let mut cache = bmap! {};
         let state = self.stock().state().main.clone();
         let mut owned = bmap! {};
         for (name, map) in state.owned {
             let mut state = bmap! {};
             for (addr, data) in map {
+                let since = *cache
+                    .entry(addr.opid)
+                    .or_insert_with(|| self.pile().since(addr.opid));
                 let seals = self.pile_mut().keep_mut().read(addr.opid);
                 let Some(seal) = seals.get(&addr.pos) else {
                     continue;
                 };
                 if let Some(seal) = seal.to_src() {
-                    state.insert(addr, Assignment { seal, data });
+                    state.insert(addr, OwnedState { assignment: Assignment { seal, data }, since });
                 } else {
                     // We insert a copy of state for each of the witnesses created for the operation
                     for wid in self.pile_mut().index_mut().get(addr.opid) {
-                        state.insert(addr, Assignment {
-                            seal: seal.resolve(wid),
-                            data: data.clone(),
+                        state.insert(addr, OwnedState {
+                            assignment: Assignment { seal: seal.resolve(wid), data: data.clone() },
+                            since,
                         });
                     }
                 }
             }
             owned.insert(name, state);
         }
-        ContractState { immutable: state.immutable, owned, computed: state.computed }
+        let mut immutable = bmap! {};
+        for (name, map) in state.immutable {
+            let mut state = bmap! {};
+            for (addr, data) in map {
+                let since = *cache
+                    .entry(addr.opid)
+                    .or_insert_with(|| self.pile().since(addr.opid));
+                state.insert(addr, ImmutableState { data, since });
+            }
+            immutable.insert(name, state);
+        }
+        ContractState { immutable, owned, computed: state.computed }
     }
 
     pub fn include(

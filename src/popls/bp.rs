@@ -504,7 +504,7 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
             .ok_or(FulfillError::StateUnavailable)?;
         let src = state
             .iter()
-            .map(|(addr, assignment)| (*addr, &assignment.data))
+            .map(|(addr, owned)| (*addr, &owned.assignment.data))
             .collect::<Vec<_>>();
         // NB: we do state accumulation with `calc` inside coinselect
         let using = coinselect
@@ -513,11 +513,11 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
         let using = using
             .into_iter()
             .map(|addr| {
-                let assignment = state.get(&addr).expect("just selected");
+                let owned = state.get(&addr).expect("just selected");
                 UsedState {
                     addr,
-                    outpoint: assignment.seal,
-                    val: assignment.data.clone(),
+                    outpoint: owned.assignment.seal,
+                    val: owned.assignment.data.clone(),
                 }
             })
             .collect();

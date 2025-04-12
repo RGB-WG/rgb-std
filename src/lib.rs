@@ -59,7 +59,9 @@ pub use mound::{Excavate, IssueError, Mound, MoundConsumeError, MAGIC_BYTES_CONS
 pub use pile::fs::FilePile;
 pub use pile::{Cru, Index, Pile, WitnessStatus};
 pub use rgb::*;
-pub use stockpile::{Assignment, ConsumeError, CreateParams, EitherSeal, Stockpile};
+pub use stockpile::{
+    Assignment, ConsumeError, CreateParams, EitherSeal, ImmutableState, OwnedState, Stockpile,
+};
 pub use util::{ContractRef, InvalidContractRef};
 
 pub const LIB_NAME_RGB_STD: &str = "RgbStd";
