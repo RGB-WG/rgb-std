@@ -25,7 +25,7 @@
 use std::fs;
 use std::io::stdout;
 
-use bp::seals::WTxoSeal;
+use bp::seals::{TxoSeal, WTxoSeal};
 use rgb::popls::bp::PrefabBundle;
 use rgb::Schema;
 use strict_encoding::StrictDeserialize;
@@ -111,7 +111,7 @@ impl Args {
                             }
                         })?;
                     }
-                    dump_stockpile::<WTxoSeal>(src, dst)?;
+                    dump_stockpile::<TxoSeal>(src, dst)?;
                 }
                 Some(_) => {
                     return Err(anyhow!(

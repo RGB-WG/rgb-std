@@ -43,14 +43,14 @@ use rgb::{
     ContractApi, ContractVerify, OperationSeals, ReadOperation, ReadWitness, RgbSealDef, Step,
     VerificationError,
 };
-use single_use_seals::{PublishedWitness, SealWitness, SingleUseSeal};
+use single_use_seals::SealWitness;
 use strict_encoding::{
     DecodeError, ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter,
     TypeName, WriteRaw,
 };
 use strict_types::StrictVal;
 
-use crate::{CallError, ContractMeta, Index, Pile, VerifiedOperation};
+use crate::{CallError, ContractMeta, Index, Pile, Seal, VerifiedOperation};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, From)]
 #[cfg_attr(
@@ -189,7 +189,7 @@ pub struct Stockpile<S: Supply, P: Pile> {
 impl<S: Supply, P: Pile> Stockpile<S, P> {
     pub fn issue(
         schema: Schema,
-        params: CreateParams<P::SealDef>,
+        params: CreateParams<<P::Seal as Seal>::Definiton>,
         supply: S,
         mut pile: P,
     ) -> Result<Self, CallError> {
@@ -245,12 +245,12 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
 
     pub fn contract_id(&self) -> ContractId { self.stock.contract_id() }
 
-    pub fn seal(&self, seal: &P::SealDef) -> Option<CellAddr> {
+    pub fn seal(&self, seal: &<P::Seal as Seal>::Definiton) -> Option<CellAddr> {
         let auth = seal.auth_token();
         self.stock.state().raw.auth.get(&auth).copied()
     }
 
-    pub fn state(&mut self) -> ContractState<P::SealSrc> {
+    pub fn state(&mut self) -> ContractState<P::Seal> {
         let state = self.stock().state().main.clone();
         let mut owned = bmap! {};
         for (name, map) in state.owned {
@@ -280,8 +280,8 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
     pub fn include(
         &mut self,
         opid: Opid,
-        anchor: <P::SealSrc as SingleUseSeal>::CliWitness,
-        published: &<P::SealSrc as SingleUseSeal>::PubWitness,
+        anchor: <P::Seal as Seal>::Client,
+        published: &<P::Seal as Seal>::Published,
     ) {
         self.pile.append(opid, anchor, published)
     }
@@ -292,10 +292,9 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
         writer: StrictWriter<impl WriteRaw>,
     ) -> io::Result<()>
     where
-        <P::SealSrc as SingleUseSeal>::CliWitness: StrictDumb + StrictEncode,
-        <P::SealSrc as SingleUseSeal>::PubWitness: StrictDumb + StrictEncode,
-        <<P::SealSrc as SingleUseSeal>::PubWitness as PublishedWitness<P::SealSrc>>::PubId:
-            StrictEncode,
+        <P::Seal as Seal>::Client: StrictDumb + StrictEncode,
+        <P::Seal as Seal>::Published: StrictDumb + StrictEncode,
+        <P::Seal as Seal>::WitnessId: StrictEncode,
     {
         self.stock
             .export_aux(terminals, writer, |opid, mut writer| {
@@ -318,13 +317,12 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
     pub fn consume(
         &mut self,
         stream: &mut StrictReader<impl ReadRaw>,
-        seal_resolver: impl FnMut(&Operation) -> BTreeMap<u16, P::SealDef>,
-    ) -> Result<(), ConsumeError<P::SealDef>>
+        seal_resolver: impl FnMut(&Operation) -> BTreeMap<u16, <P::Seal as Seal>::Definiton>,
+    ) -> Result<(), ConsumeError<<P::Seal as Seal>::Definiton>>
     where
-        <P::SealSrc as SingleUseSeal>::CliWitness: StrictDecode,
-        <P::SealSrc as SingleUseSeal>::PubWitness: StrictDecode,
-        <<P::SealSrc as SingleUseSeal>::PubWitness as PublishedWitness<P::SealSrc>>::PubId:
-            StrictDecode,
+        <P::Seal as Seal>::Client: StrictDecode,
+        <P::Seal as Seal>::Published: StrictDecode,
+        <P::Seal as Seal>::WitnessId: StrictDecode,
     {
         // We need to read articles field by field since we have to evaluate genesis separately
         let schema = Schema::strict_decode(stream)?;
@@ -421,7 +419,7 @@ impl<'r, SealDef: RgbSealDef, R: ReadRaw, F: FnMut(&Operation) -> BTreeMap<u16, 
     }
 }
 
-impl<S: Supply, P: Pile> ContractApi<P::SealDef> for Stockpile<S, P> {
+impl<S: Supply, P: Pile> ContractApi<<P::Seal as Seal>::Definiton> for Stockpile<S, P> {
     fn contract_id(&self) -> ContractId { self.stock.contract_id() }
 
     fn codex(&self) -> &Codex { &self.stock.articles().schema.codex }
@@ -432,12 +430,16 @@ impl<S: Supply, P: Pile> ContractApi<P::SealDef> for Stockpile<S, P> {
 
     fn is_known(&self, opid: Opid) -> bool { self.stock.has_operation(opid) }
 
-    fn apply_operation(&mut self, op: VerifiedOperation, seals: SmallOrdMap<u16, P::SealDef>) {
+    fn apply_operation(
+        &mut self,
+        op: VerifiedOperation,
+        seals: SmallOrdMap<u16, <P::Seal as Seal>::Definiton>,
+    ) {
         self.pile.keep_mut().append(op.opid(), &seals);
         self.stock.apply(op);
     }
 
-    fn apply_witness(&mut self, opid: Opid, witness: SealWitness<P::SealSrc>) {
+    fn apply_witness(&mut self, opid: Opid, witness: SealWitness<P::Seal>) {
         self.pile.append(opid, witness.client, &witness.published)
     }
 }
@@ -470,12 +472,11 @@ mod fs {
     use super::*;
     use crate::FilePile;
 
-    impl<SealDef: RgbSealDef> Stockpile<FileSupply, FilePile<SealDef>>
+    impl<SealSrc: Seal> Stockpile<FileSupply, FilePile<SealSrc>>
     where
-        <SealDef::Src as SingleUseSeal>::CliWitness: StrictEncode + StrictDecode,
-        <SealDef::Src as SingleUseSeal>::PubWitness: Eq + StrictEncode + StrictDecode,
-        <<SealDef::Src as SingleUseSeal>::PubWitness as PublishedWitness<SealDef::Src>>::PubId:
-            Ord + From<[u8; 32]> + Into<[u8; 32]>,
+        SealSrc::Client: StrictEncode + StrictDecode,
+        SealSrc::Published: Eq + StrictEncode + StrictDecode,
+        SealSrc::WitnessId: Ord + From<[u8; 32]> + Into<[u8; 32]>,
     {
         pub fn load(path: impl AsRef<Path>) -> Self {
             let path = path.as_ref();
@@ -486,7 +487,7 @@ mod fs {
 
         pub fn issue_to_file(
             schema: Schema,
-            params: CreateParams<SealDef>,
+            params: CreateParams<SealSrc::Definiton>,
             path: impl AsRef<Path>,
         ) -> Result<Self, CallError> {
             let path = path.as_ref();
@@ -501,10 +502,9 @@ mod fs {
             path: impl AsRef<Path>,
         ) -> io::Result<()>
         where
-            <SealDef::Src as SingleUseSeal>::CliWitness: StrictDumb,
-            <SealDef::Src as SingleUseSeal>::PubWitness: StrictDumb,
-            <<SealDef::Src as SingleUseSeal>::PubWitness as PublishedWitness<SealDef::Src>>::PubId:
-                StrictEncode,
+            SealSrc::Client: StrictDumb,
+            SealSrc::Published: StrictDumb,
+            SealSrc::WitnessId: StrictEncode,
         {
             let file = File::create_new(path)?;
             let writer = StrictWriter::with(StreamWriter::new::<{ usize::MAX }>(file));

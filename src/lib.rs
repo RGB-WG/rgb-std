@@ -57,7 +57,9 @@ pub use mound::file::{DirExcavator, DirMound};
 pub use mound::{Excavate, IssueError, Mound, MoundConsumeError, MAGIC_BYTES_CONSIGNMENT};
 #[cfg(feature = "fs")]
 pub use pile::fs::FilePile;
-pub use pile::{Index, Pile};
+pub use pile::{Cru, Index, Pile, Seal, WitnessStatus};
 pub use rgb::*;
 pub use stockpile::{Assignment, ConsumeError, CreateParams, EitherSeal, Stockpile};
 pub use util::{ContractRef, InvalidContractRef};
+
+pub const LIB_NAME_RGB_STD: &str = "RgbStd";

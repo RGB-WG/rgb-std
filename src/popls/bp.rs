@@ -33,7 +33,7 @@ use amplify::{confinement, ByteArray, Bytes32, Wrapper};
 use aora::Aora;
 use bp::dbc::tapret::TapretProof;
 use bp::seals::{mmb, Anchor, Noise, TxoSeal, TxoSealExt, WOutpoint, WTxoSeal};
-use bp::{Outpoint, Sats, ScriptPubkey, Tx, Vout};
+use bp::{Outpoint, Sats, ScriptPubkey, Tx, Txid, Vout};
 use commit_verify::mpc::ProtocolId;
 use commit_verify::{mpc, Digest, DigestExt, Sha256};
 use hypersonic::{
@@ -48,9 +48,16 @@ use strict_types::StrictVal;
 
 use crate::stockpile::{ContractState, EitherSeal};
 use crate::{
-    Assignment, CreateParams, Excavate, Index, IssueError, Mound, MoundConsumeError, Pile,
+    Assignment, CreateParams, Excavate, Index, IssueError, Mound, MoundConsumeError, Pile, Seal,
     Stockpile,
 };
+
+impl Seal for TxoSeal {
+    type Definiton = WTxoSeal;
+    type Published = Tx;
+    type Client = Anchor;
+    type WitnessId = Txid;
+}
 
 /// Trait abstracting specific implementation of a bitcoin wallet.
 pub trait WalletProvider {
@@ -396,23 +403,12 @@ impl PrefabBundle {
 /// Barrow contains a bunch of RGB contract stockpiles, which are held by a single owner; such that
 /// when a new operation under any of the contracts happen it may affect other contracts sharing the
 /// same UTXOs.
-pub struct Barrow<
-    W: WalletProvider,
-    S: Supply,
-    P: Pile<SealDef = WTxoSeal, SealSrc = TxoSeal>,
-    X: Excavate<S, P>,
-> {
+pub struct Barrow<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> {
     pub wallet: W,
     pub mound: Mound<S, P, X>,
 }
 
-impl<
-        W: WalletProvider,
-        S: Supply,
-        P: Pile<SealDef = WTxoSeal, SealSrc = TxoSeal>,
-        X: Excavate<S, P>,
-    > Barrow<W, S, P, X>
-{
+impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> Barrow<W, S, P, X> {
     pub fn with(wallet: W, mound: Mound<S, P, X>) -> Self { Self { wallet, mound } }
 
     pub fn unbind(self) -> (W, Mound<S, P, X>) { (self.wallet, self.mound) }
@@ -894,7 +890,7 @@ pub mod file {
     use crate::mound::file::DirExcavator;
     use crate::FilePile;
 
-    pub type DirBarrow<W> = Barrow<W, FileSupply, FilePile<WTxoSeal>, DirExcavator<WTxoSeal>>;
+    pub type DirBarrow<W> = Barrow<W, FileSupply, FilePile<TxoSeal>, DirExcavator<TxoSeal>>;
 
     impl<W: WalletProvider> DirBarrow<W> {
         pub fn issue_to_file(
@@ -915,5 +911,5 @@ pub mod file {
         }
     }
 
-    pub type BpDirMound = Mound<FileSupply, FilePile<WTxoSeal>, DirExcavator<WTxoSeal>>;
+    pub type BpDirMound = Mound<FileSupply, FilePile<TxoSeal>, DirExcavator<TxoSeal>>;
 }
