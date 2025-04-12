@@ -22,13 +22,13 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
-use core::fmt::{Debug, Display};
+use core::fmt::Debug;
 
 use amplify::confinement::SmallOrdMap;
 use amplify::Bytes32;
 use aora::Aora;
 use hypersonic::Opid;
-use rgb::{ClientSideWitness, RgbSealDef, RgbSealSrc};
+use rgb::{ClientSideWitness, RgbSeal};
 use single_use_seals::{PublishedWitness, SealWitness};
 
 use crate::LIB_NAME_RGB_STD;
@@ -47,13 +47,6 @@ pub trait Cru<K, V> {
     fn update(&mut self, key: K, val: V);
 }
 
-pub trait Seal: RgbSealSrc<PubWitness = Self::Published, CliWitness = Self::Client> {
-    type Definiton: RgbSealDef<Src = Self>;
-    type Published: PublishedWitness<Self, PubId = Self::WitnessId>;
-    type Client: ClientSideWitness;
-    type WitnessId: Copy + Ord + Debug + Display;
-}
-
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Display)]
 #[display("{mining_height}, {mining_id}")]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
@@ -65,13 +58,19 @@ pub struct WitnessStatus {
 }
 
 pub trait Pile {
-    type Seal: Seal;
+    type Seal: RgbSeal;
 
-    type Hoard: Aora<Id = <Self::Seal as Seal>::WitnessId, Item = <Self::Seal as Seal>::Client>;
-    type Cache: Aora<Id = <Self::Seal as Seal>::WitnessId, Item = <Self::Seal as Seal>::Published>;
-    type Keep: Aora<Id = Opid, Item = SmallOrdMap<u16, <Self::Seal as Seal>::Definiton>>;
-    type Index: Index<Opid, <Self::Seal as Seal>::WitnessId>;
-    type Mine: Cru<<Self::Seal as Seal>::WitnessId, WitnessStatus>;
+    type Hoard: Aora<
+        Id = <Self::Seal as RgbSeal>::WitnessId,
+        Item = <Self::Seal as RgbSeal>::Client,
+    >;
+    type Cache: Aora<
+        Id = <Self::Seal as RgbSeal>::WitnessId,
+        Item = <Self::Seal as RgbSeal>::Published,
+    >;
+    type Keep: Aora<Id = Opid, Item = SmallOrdMap<u16, <Self::Seal as RgbSeal>::Definiton>>;
+    type Index: Index<Opid, <Self::Seal as RgbSeal>::WitnessId>;
+    type Mine: Cru<<Self::Seal as RgbSeal>::WitnessId, WitnessStatus>;
 
     fn hoard(&self) -> &Self::Hoard;
     fn cache(&self) -> &Self::Cache;
@@ -88,8 +87,8 @@ pub trait Pile {
     fn append(
         &mut self,
         opid: Opid,
-        anchor: <Self::Seal as Seal>::Client,
-        published: &<Self::Seal as Seal>::Published,
+        anchor: <Self::Seal as RgbSeal>::Client,
+        published: &<Self::Seal as RgbSeal>::Published,
     ) {
         let pubid = published.pub_id();
         self.index_mut().add(opid, pubid);
@@ -125,6 +124,7 @@ pub mod fs {
 
     pub struct FileCru;
 
+    /// Create-Read-Update database (with no delete operation).
     impl<K, V> Cru<K, V> for FileCru {
         fn has(&self, key: K) -> bool { todo!() }
 
@@ -210,18 +210,18 @@ pub mod fs {
         }
     }
 
-    pub struct FilePile<SealSrc: Seal>
-    where SealSrc::WitnessId: Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>
+    pub struct FilePile<Seal: RgbSeal>
+    where Seal::WitnessId: Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>
     {
-        hoard: FileAora<SealSrc::WitnessId, SealSrc::Client>,
-        cache: FileAora<SealSrc::WitnessId, SealSrc::Published>,
-        keep: FileAora<Opid, SmallOrdMap<u16, SealSrc::Definiton>>,
-        index: FileIndex<SealSrc::WitnessId>,
-        _phantom: PhantomData<SealSrc>,
+        hoard: FileAora<Seal::WitnessId, Seal::Client>,
+        cache: FileAora<Seal::WitnessId, Seal::Published>,
+        keep: FileAora<Opid, SmallOrdMap<u16, Seal::Definiton>>,
+        index: FileIndex<Seal::WitnessId>,
+        _phantom: PhantomData<Seal>,
     }
 
-    impl<SealSrc: Seal> FilePile<SealSrc>
-    where SealSrc::WitnessId: Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>
+    impl<Seal: RgbSeal> FilePile<Seal>
+    where Seal::WitnessId: Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>
     {
         pub fn new(name: &str, path: impl AsRef<Path>) -> Self {
             let mut path = path.as_ref().to_path_buf();
@@ -238,8 +238,8 @@ pub mod fs {
         }
     }
 
-    impl<SealSrc: Seal> FilePile<SealSrc>
-    where SealSrc::WitnessId: Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>
+    impl<Seal: RgbSeal> FilePile<Seal>
+    where Seal::WitnessId: Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>
     {
         pub fn open(path: impl AsRef<Path>) -> Self {
             let path = path.as_ref().to_path_buf();
@@ -255,18 +255,18 @@ pub mod fs {
         }
     }
 
-    impl<SealSrc: Seal> Pile for FilePile<SealSrc>
+    impl<Seal: RgbSeal> Pile for FilePile<Seal>
     where
-        SealSrc::Client: StrictEncode + StrictDecode,
-        SealSrc::Published: Eq + StrictEncode + StrictDecode,
-        SealSrc::WitnessId: Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>,
+        Seal::Client: StrictEncode + StrictDecode,
+        Seal::Published: Eq + StrictEncode + StrictDecode,
+        Seal::WitnessId: Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>,
     {
-        type Seal = SealSrc;
+        type Seal = Seal;
 
-        type Hoard = FileAora<SealSrc::WitnessId, SealSrc::Client>;
-        type Cache = FileAora<SealSrc::WitnessId, SealSrc::Published>;
-        type Keep = FileAora<Opid, SmallOrdMap<u16, SealSrc::Definiton>>;
-        type Index = FileIndex<SealSrc::WitnessId>;
+        type Hoard = FileAora<Seal::WitnessId, Seal::Client>;
+        type Cache = FileAora<Seal::WitnessId, Seal::Published>;
+        type Keep = FileAora<Opid, SmallOrdMap<u16, Seal::Definiton>>;
+        type Index = FileIndex<Seal::WitnessId>;
         type Mine = FileCru;
 
         fn hoard(&self) -> &Self::Hoard { &self.hoard }
@@ -285,7 +285,7 @@ pub mod fs {
 
         fn index_mut(&mut self) -> &mut Self::Index { &mut self.index }
 
-        fn retrieve(&mut self, opid: Opid) -> impl ExactSizeIterator<Item = SealWitness<SealSrc>> {
+        fn retrieve(&mut self, opid: Opid) -> impl ExactSizeIterator<Item = SealWitness<Seal>> {
             self.index.get(opid).map(|pubid| {
                 let client = self.hoard.read(pubid);
                 let published = self.cache.read(pubid);

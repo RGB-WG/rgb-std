@@ -35,25 +35,25 @@ use aora::Aora;
 use commit_verify::ReservedBytes;
 use hypersonic::{Articles, ContractId, FileSupply, Operation};
 use rgb::{
-    FilePile, Index, MoundConsumeError, Pile, PublishedWitness, RgbSealDef, Seal, SealWitness,
+    FilePile, Index, MoundConsumeError, Pile, PublishedWitness, RgbSeal, RgbSealDef, SealWitness,
     SingleUseSeal, Stockpile, MAGIC_BYTES_CONSIGNMENT,
 };
 use serde::{Deserialize, Serialize};
 use strict_encoding::{DecodeError, StreamReader, StrictDecode, StrictEncode, StrictReader};
 
-pub fn dump_stockpile<SealSrc>(src: &Path, dst: impl AsRef<Path>) -> anyhow::Result<()>
+pub fn dump_stockpile<Seal>(src: &Path, dst: impl AsRef<Path>) -> anyhow::Result<()>
 where
-    SealSrc: Seal + Serialize + for<'de> Deserialize<'de>,
-    SealSrc::Definiton: Serialize + for<'de> Deserialize<'de>,
-    SealSrc::Client: Serialize + StrictEncode + StrictDecode,
-    SealSrc::Published: Eq + Serialize + StrictEncode + StrictDecode,
-    SealSrc::WitnessId: Ord + From<[u8; 32]> + Into<[u8; 32]> + Serialize,
+    Seal: RgbSeal + Serialize + for<'de> Deserialize<'de>,
+    Seal::Definiton: Serialize + for<'de> Deserialize<'de>,
+    Seal::Client: Serialize + StrictEncode + StrictDecode,
+    Seal::Published: Eq + Serialize + StrictEncode + StrictDecode,
+    Seal::WitnessId: Ord + From<[u8; 32]> + Into<[u8; 32]> + Serialize,
 {
     let dst = dst.as_ref();
     fs::create_dir_all(dst)?;
 
     print!("Reading contract stockpile from '{}' ... ", src.display());
-    let mut stockpile = Stockpile::<FileSupply, FilePile<SealSrc>>::load(src);
+    let mut stockpile = Stockpile::<FileSupply, FilePile<Seal>>::load(src);
     println!("success reading {}", stockpile.contract_id());
 
     print!("Processing contract articles ... ");

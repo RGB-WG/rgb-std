@@ -33,7 +33,7 @@ use amplify::{confinement, ByteArray, Bytes32, Wrapper};
 use aora::Aora;
 use bp::dbc::tapret::TapretProof;
 use bp::seals::{mmb, Anchor, Noise, TxoSeal, TxoSealExt, WOutpoint, WTxoSeal};
-use bp::{Outpoint, Sats, ScriptPubkey, Tx, Txid, Vout};
+use bp::{Outpoint, Sats, ScriptPubkey, Tx, Vout};
 use commit_verify::mpc::ProtocolId;
 use commit_verify::{mpc, Digest, DigestExt, Sha256};
 use hypersonic::{
@@ -48,16 +48,9 @@ use strict_types::StrictVal;
 
 use crate::stockpile::{ContractState, EitherSeal};
 use crate::{
-    Assignment, CreateParams, Excavate, Index, IssueError, Mound, MoundConsumeError, Pile, Seal,
+    Assignment, CreateParams, Excavate, Index, IssueError, Mound, MoundConsumeError, Pile,
     Stockpile,
 };
-
-impl Seal for TxoSeal {
-    type Definiton = WTxoSeal;
-    type Published = Tx;
-    type Client = Anchor;
-    type WitnessId = Txid;
-}
 
 /// Trait abstracting specific implementation of a bitcoin wallet.
 pub trait WalletProvider {

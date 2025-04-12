@@ -40,8 +40,8 @@ use hypersonic::{
     Schema, StateAtom, StateName, Stock, Supply,
 };
 use rgb::{
-    ContractApi, ContractVerify, OperationSeals, ReadOperation, ReadWitness, RgbSealDef, Step,
-    VerificationError,
+    ContractApi, ContractVerify, OperationSeals, ReadOperation, ReadWitness, RgbSeal, RgbSealDef,
+    Step, VerificationError,
 };
 use single_use_seals::SealWitness;
 use strict_encoding::{
@@ -50,7 +50,7 @@ use strict_encoding::{
 };
 use strict_types::StrictVal;
 
-use crate::{CallError, ContractMeta, Index, Pile, Seal, VerifiedOperation};
+use crate::{CallError, ContractMeta, Index, Pile, VerifiedOperation};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, From)]
 #[cfg_attr(
@@ -189,7 +189,7 @@ pub struct Stockpile<S: Supply, P: Pile> {
 impl<S: Supply, P: Pile> Stockpile<S, P> {
     pub fn issue(
         schema: Schema,
-        params: CreateParams<<P::Seal as Seal>::Definiton>,
+        params: CreateParams<<P::Seal as RgbSeal>::Definiton>,
         supply: S,
         mut pile: P,
     ) -> Result<Self, CallError> {
@@ -245,7 +245,7 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
 
     pub fn contract_id(&self) -> ContractId { self.stock.contract_id() }
 
-    pub fn seal(&self, seal: &<P::Seal as Seal>::Definiton) -> Option<CellAddr> {
+    pub fn seal(&self, seal: &<P::Seal as RgbSeal>::Definiton) -> Option<CellAddr> {
         let auth = seal.auth_token();
         self.stock.state().raw.auth.get(&auth).copied()
     }
@@ -280,8 +280,8 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
     pub fn include(
         &mut self,
         opid: Opid,
-        anchor: <P::Seal as Seal>::Client,
-        published: &<P::Seal as Seal>::Published,
+        anchor: <P::Seal as RgbSeal>::Client,
+        published: &<P::Seal as RgbSeal>::Published,
     ) {
         self.pile.append(opid, anchor, published)
     }
@@ -292,9 +292,9 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
         writer: StrictWriter<impl WriteRaw>,
     ) -> io::Result<()>
     where
-        <P::Seal as Seal>::Client: StrictDumb + StrictEncode,
-        <P::Seal as Seal>::Published: StrictDumb + StrictEncode,
-        <P::Seal as Seal>::WitnessId: StrictEncode,
+        <P::Seal as RgbSeal>::Client: StrictDumb + StrictEncode,
+        <P::Seal as RgbSeal>::Published: StrictDumb + StrictEncode,
+        <P::Seal as RgbSeal>::WitnessId: StrictEncode,
     {
         self.stock
             .export_aux(terminals, writer, |opid, mut writer| {
@@ -317,12 +317,12 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
     pub fn consume(
         &mut self,
         stream: &mut StrictReader<impl ReadRaw>,
-        seal_resolver: impl FnMut(&Operation) -> BTreeMap<u16, <P::Seal as Seal>::Definiton>,
-    ) -> Result<(), ConsumeError<<P::Seal as Seal>::Definiton>>
+        seal_resolver: impl FnMut(&Operation) -> BTreeMap<u16, <P::Seal as RgbSeal>::Definiton>,
+    ) -> Result<(), ConsumeError<<P::Seal as RgbSeal>::Definiton>>
     where
-        <P::Seal as Seal>::Client: StrictDecode,
-        <P::Seal as Seal>::Published: StrictDecode,
-        <P::Seal as Seal>::WitnessId: StrictDecode,
+        <P::Seal as RgbSeal>::Client: StrictDecode,
+        <P::Seal as RgbSeal>::Published: StrictDecode,
+        <P::Seal as RgbSeal>::WitnessId: StrictDecode,
     {
         // We need to read articles field by field since we have to evaluate genesis separately
         let schema = Schema::strict_decode(stream)?;
@@ -419,7 +419,7 @@ impl<'r, SealDef: RgbSealDef, R: ReadRaw, F: FnMut(&Operation) -> BTreeMap<u16, 
     }
 }
 
-impl<S: Supply, P: Pile> ContractApi<<P::Seal as Seal>::Definiton> for Stockpile<S, P> {
+impl<S: Supply, P: Pile> ContractApi<P::Seal> for Stockpile<S, P> {
     fn contract_id(&self) -> ContractId { self.stock.contract_id() }
 
     fn codex(&self) -> &Codex { &self.stock.articles().schema.codex }
@@ -433,7 +433,7 @@ impl<S: Supply, P: Pile> ContractApi<<P::Seal as Seal>::Definiton> for Stockpile
     fn apply_operation(
         &mut self,
         op: VerifiedOperation,
-        seals: SmallOrdMap<u16, <P::Seal as Seal>::Definiton>,
+        seals: SmallOrdMap<u16, <P::Seal as RgbSeal>::Definiton>,
     ) {
         self.pile.keep_mut().append(op.opid(), &seals);
         self.stock.apply(op);
@@ -472,7 +472,7 @@ mod fs {
     use super::*;
     use crate::FilePile;
 
-    impl<SealSrc: Seal> Stockpile<FileSupply, FilePile<SealSrc>>
+    impl<SealSrc: RgbSeal> Stockpile<FileSupply, FilePile<SealSrc>>
     where
         SealSrc::Client: StrictEncode + StrictDecode,
         SealSrc::Published: Eq + StrictEncode + StrictDecode,
