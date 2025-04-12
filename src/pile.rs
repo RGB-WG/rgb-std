@@ -22,7 +22,10 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
+use core::fmt::{Debug, Display};
+
 use amplify::confinement::SmallOrdMap;
+use amplify::Bytes32;
 use aora::Aora;
 use hypersonic::Opid;
 use rgb::{ClientSideWitness, RgbSealDef, RgbSealSrc};
@@ -33,6 +36,24 @@ pub trait Index<K, V> {
     fn has(&self, key: K) -> bool;
     fn get(&self, key: K) -> impl ExactSizeIterator<Item = V>;
     fn add(&mut self, key: K, val: V);
+}
+
+pub trait Cru<K, V> {
+    fn has(&self, key: K) -> bool;
+    fn read(&self, key: K) -> Option<V>;
+    fn create(&mut self, key: K, val: V);
+    fn update(&mut self, key: K, val: V);
+}
+
+pub trait WitnessStatus: Debug + Display {
+    fn mining_id(&self) -> Bytes32;
+    fn mining_height(&self) -> u64;
+}
+
+pub trait RgbWitness<SealSrc: RgbSealSrc<PubWitness = Self::Published, CliWitness = Self::Client>> {
+    type Published: PublishedWitness<SealSrc>;
+    type Client: ClientSideWitness;
+    type Status: WitnessStatus;
 }
 
 pub trait Pile {
@@ -50,6 +71,10 @@ pub trait Pile {
     type Index: Index<
         Opid,
         <<Self::SealSrc as SingleUseSeal>::PubWitness as PublishedWitness<Self::SealSrc>>::PubId,
+    >;
+    type Mine: Cru<
+        <<Self::SealSrc as SingleUseSeal>::PubWitness as PublishedWitness<Self::SealSrc>>::PubId,
+        Bytes32,
     >;
 
     fn hoard(&self) -> &Self::Hoard;
@@ -102,6 +127,18 @@ pub mod fs {
     use strict_encoding::{StrictDecode, StrictEncode};
 
     use super::*;
+
+    pub struct FileCru;
+
+    impl<K, V> Cru<K, V> for FileCru {
+        fn has(&self, key: K) -> bool { todo!() }
+
+        fn read(&self, key: K) -> Option<V> { todo!() }
+
+        fn create(&mut self, key: K, val: V) { todo!() }
+
+        fn update(&mut self, key: K, val: V) { todo!() }
+    }
 
     #[derive(Clone, Debug, From)]
     pub struct FileIndex<Id>
@@ -255,6 +292,7 @@ pub mod fs {
         type Index = FileIndex<
             <<Self::SealSrc as SingleUseSeal>::PubWitness as PublishedWitness<SealDef::Src>>::PubId,
         >;
+        type Mine = FileCru;
 
         fn hoard(&self) -> &Self::Hoard { &self.hoard }
 
