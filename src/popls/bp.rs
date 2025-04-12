@@ -662,7 +662,7 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
                 .iter()
                 .flat_map(|(name, map)| map.iter().map(move |(addr, val)| (name, *addr, val)))
                 .filter_map(|(name, addr, val)| {
-                    let seals = stockpile.pile_mut().keep_mut().read(addr.opid);
+                    let seals = stockpile.pile_mut().keep_mut().read(&addr.opid);
                     let seal = seals.get(&addr.pos)?;
                     let outpoint = if let WOutpoint::Extern(outpoint) = seal.primary {
                         if !outpoints.contains(&outpoint) {

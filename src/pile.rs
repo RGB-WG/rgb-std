@@ -67,18 +67,14 @@ pub struct WitnessStatus {
     pub mining_id: Bytes32,
 }
 
-pub trait Pile {
+pub trait Pile
+where <Self::Seal as RgbSeal>::WitnessId: From<[u8; 32]> + Into<[u8; 32]>
+{
     type Seal: RgbSeal;
 
-    type Hoard: Aora<
-        Id = <Self::Seal as RgbSeal>::WitnessId,
-        Item = <Self::Seal as RgbSeal>::Client,
-    >;
-    type Cache: Aora<
-        Id = <Self::Seal as RgbSeal>::WitnessId,
-        Item = <Self::Seal as RgbSeal>::Published,
-    >;
-    type Keep: Aora<Id = Opid, Item = SmallOrdMap<u16, <Self::Seal as RgbSeal>::Definiton>>;
+    type Hoard: Aora<<Self::Seal as RgbSeal>::WitnessId, <Self::Seal as RgbSeal>::Client>;
+    type Cache: Aora<<Self::Seal as RgbSeal>::WitnessId, <Self::Seal as RgbSeal>::Published>;
+    type Keep: Aora<Opid, SmallOrdMap<u16, <Self::Seal as RgbSeal>::Definiton>>;
     type Index: Index<Opid, <Self::Seal as RgbSeal>::WitnessId>;
     type Stand: Index<<Self::Seal as RgbSeal>::WitnessId, Opid>;
     type Mine: Cru<<Self::Seal as RgbSeal>::WitnessId, Option<WitnessStatus>>;
@@ -109,7 +105,7 @@ pub trait Pile {
         self.index_mut().add(opid, pubid);
         self.stand_mut().add(pubid, opid);
         if self.hoard_mut().has(&pubid) {
-            let mut prev_anchor = self.hoard_mut().read(pubid);
+            let mut prev_anchor = self.hoard_mut().read(&pubid);
             if prev_anchor != anchor {
                 prev_anchor.merge(anchor).expect(
                     "existing anchor is not compatible with new one; this indicates either bug in \
@@ -384,8 +380,8 @@ pub mod fs {
 
         fn retrieve(&mut self, opid: Opid) -> impl ExactSizeIterator<Item = SealWitness<Seal>> {
             self.index.get(opid).map(|pubid| {
-                let client = self.hoard.read(pubid);
-                let published = self.cache.read(pubid);
+                let client = self.hoard.read(&pubid);
+                let published = self.cache.read(&pubid);
                 SealWitness::new(published, client)
             })
         }

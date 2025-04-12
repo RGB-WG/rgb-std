@@ -35,9 +35,9 @@ use chrono::{DateTime, Utc};
 use commit_verify::ReservedBytes;
 use hypersonic::sigs::ContentSigs;
 use hypersonic::{
-    Articles, AuthToken, CellAddr, Codex, CodexId, Consensus, Contract, ContractId, CoreParams,
-    DataCell, IssueParams, LibRepo, Memory, MergeError, MethodName, NamedState, Operation, Opid,
-    Schema, StateAtom, StateName, Stock, Supply,
+    AcceptError, Articles, AuthToken, CellAddr, Codex, CodexId, Consensus, Contract, ContractId,
+    CoreParams, DataCell, IssueParams, LibRepo, Memory, MergeError, MethodName, NamedState,
+    Operation, Opid, Schema, StateAtom, StateName, Stock, Supply,
 };
 use rgb::{
     ContractApi, ContractVerify, OperationSeals, ReadOperation, ReadWitness, RgbSeal, RgbSealDef,
@@ -290,7 +290,7 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
                 let since = *cache
                     .entry(addr.opid)
                     .or_insert_with(|| self.pile().since(addr.opid));
-                let seals = self.pile_mut().keep_mut().read(addr.opid);
+                let seals = self.pile_mut().keep_mut().read(&addr.opid);
                 let Some(seal) = seals.get(&addr.pos) else {
                     continue;
                 };
@@ -344,7 +344,7 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
         self.stock
             .export_aux(terminals, writer, |opid, mut writer| {
                 // Write seal definitions
-                let seals = self.pile.keep_mut().read(opid);
+                let seals = self.pile.keep_mut().read(&opid);
                 writer = seals.strict_encode(writer)?;
 
                 // Write witnesses
@@ -438,14 +438,15 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
         &mut self,
         pubid: <P::Seal as RgbSeal>::WitnessId,
         status: Option<WitnessStatus>,
-    ) {
+    ) -> Result<(), AcceptError> {
         let opids = self.pile.stand().get(pubid);
         if status.is_none() {
             self.stock.rollback(opids);
         } else {
-            self.stock.forward(opids);
+            self.stock.forward(opids)?;
         }
         self.pile_mut().mine_mut().update(pubid, status);
+        Ok(())
     }
 }
 
