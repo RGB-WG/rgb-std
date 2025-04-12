@@ -50,7 +50,7 @@ use strict_encoding::{
 };
 use strict_types::StrictVal;
 
-use crate::{CallError, ContractMeta, Index, Pile, VerifiedOperation};
+use crate::{CallError, ContractMeta, Cru, Index, Pile, VerifiedOperation, WitnessStatus};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, From)]
 #[cfg_attr(
@@ -378,7 +378,9 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
 
         // We need to clone due to a borrow checker.
         let op_reader = OpReader { stream, seal_resolver, _phantom: PhantomData };
+        self.pile_mut().mine_mut().begin_transaction();
         self.evaluate(op_reader)?;
+        self.pile_mut().mine_mut().commit_transaction();
 
         let genesis = self.stock.articles().contract.genesis.clone();
         let articles = Articles {
@@ -389,6 +391,55 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
         self.stock.merge_articles(articles)?;
         self.stock.complete_update();
         Ok(())
+    }
+
+    pub fn witnesses_since(
+        &self,
+        transaction_no: u64,
+    ) -> impl Iterator<Item = <P::Seal as RgbSeal>::WitnessId> + use<'_, S, P> {
+        struct WitnessIter<'pile, Id, M: Cru<Id, Option<WitnessStatus>>> {
+            curr: u64,
+            max: u64,
+            mine: &'pile M,
+            iter: Option<Box<dyn Iterator<Item = Id> + 'pile>>,
+            _phantom: PhantomData<Id>,
+        }
+        impl<'pile, Id: 'pile, M: Cru<Id, Option<WitnessStatus>>> Iterator for WitnessIter<'pile, Id, M> {
+            type Item = Id;
+            fn next(&mut self) -> Option<Self::Item> {
+                loop {
+                    match self.iter.as_mut()?.next() {
+                        None => {
+                            self.curr += 1;
+                            if self.curr >= self.max {
+                                return None;
+                            }
+                            self.iter = Some(Box::new(self.mine.transaction_keys(self.curr)));
+                        }
+                        Some(el) => return Some(el),
+                    }
+                }
+            }
+        }
+
+        let to = self.pile.mine().last_transaction_no();
+
+        let mine = self.pile.mine();
+        WitnessIter {
+            curr: transaction_no + 1,
+            max: to,
+            mine,
+            iter: Some(Box::new(mine.transaction_keys(transaction_no))),
+            _phantom: PhantomData,
+        }
+    }
+
+    pub fn witness_update_status(
+        &self,
+        pubid: <P::Seal as RgbSeal>::WitnessId,
+        status: Option<WitnessStatus>,
+    ) {
+        // TODO: Perform rollback
     }
 }
 

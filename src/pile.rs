@@ -50,6 +50,11 @@ pub trait Cru<K, V> {
         }
     }
     fn update(&mut self, key: K, val: V);
+
+    fn begin_transaction(&mut self);
+    fn commit_transaction(&mut self) -> u64;
+    fn transaction_keys(&self, no: u64) -> impl ExactSizeIterator<Item = K>;
+    fn last_transaction_no(&self) -> u64;
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Display)]
@@ -129,10 +134,10 @@ pub trait Pile {
 pub mod fs {
     use std::collections::{BTreeMap, BTreeSet};
     use std::fs::File;
-    use std::io;
     use std::io::{Read, Write};
     use std::marker::PhantomData;
     use std::path::{Path, PathBuf};
+    use std::{io, iter};
 
     use aora::file::FileAora;
     use strict_encoding::{StrictDecode, StrictEncode};
@@ -163,6 +168,17 @@ pub mod fs {
         fn create(&mut self, key: K, val: V) { todo!() }
 
         fn update(&mut self, key: K, val: V) { todo!() }
+
+        fn begin_transaction(&mut self) { todo!() }
+
+        fn commit_transaction(&mut self) -> u64 { todo!() }
+
+        fn transaction_keys(&self, no: u64) -> impl ExactSizeIterator<Item = K> {
+            todo!();
+            iter::empty()
+        }
+
+        fn last_transaction_no(&self) -> u64 { todo!() }
     }
 
     #[derive(Clone, Debug)]
