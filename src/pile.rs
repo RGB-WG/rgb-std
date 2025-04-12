@@ -76,11 +76,13 @@ pub trait Pile {
     fn cache(&self) -> &Self::Cache;
     fn keep(&self) -> &Self::Keep;
     fn index(&self) -> &Self::Index;
+    fn mine(&self) -> &Self::Mine;
 
     fn hoard_mut(&mut self) -> &mut Self::Hoard;
     fn cache_mut(&mut self) -> &mut Self::Cache;
     fn keep_mut(&mut self) -> &mut Self::Keep;
     fn index_mut(&mut self) -> &mut Self::Index;
+    fn mine_mut(&mut self) -> &mut Self::Mine;
 
     fn retrieve(&mut self, opid: Opid) -> impl ExactSizeIterator<Item = SealWitness<Self::Seal>>;
 
@@ -122,7 +124,20 @@ pub mod fs {
 
     use super::*;
 
-    pub struct FileCru;
+    #[derive(Clone, Debug)]
+    pub struct FileCru {
+        path: PathBuf,
+        // TODO: Add cache
+    }
+
+    impl FileCru {
+        pub fn create(path: PathBuf) -> io::Result<Self> {
+            File::create_new(&path)?;
+            Ok(Self { path })
+        }
+
+        pub fn open(path: PathBuf) -> io::Result<Self> { Ok(Self { path }) }
+    }
 
     /// Create-Read-Update database (with no delete operation).
     impl<K, V> Cru<K, V> for FileCru {
@@ -135,7 +150,7 @@ pub mod fs {
         fn update(&mut self, key: K, val: V) { todo!() }
     }
 
-    #[derive(Clone, Debug, From)]
+    #[derive(Clone, Debug)]
     pub struct FileIndex<Id>
     where Id: Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>
     {
@@ -151,22 +166,18 @@ pub mod fs {
             Ok(Self { cache: none!(), path })
         }
 
-        pub fn new(path: PathBuf) -> io::Result<Self> {
+        pub fn open(path: PathBuf) -> io::Result<Self> {
             let mut cache = BTreeMap::new();
-            let mut index_file = File::open(&path)?;
+            let mut file = File::open(&path)?;
             let mut buf = [0u8; 32];
-            while index_file.read_exact(&mut buf).is_ok() {
+            while file.read_exact(&mut buf).is_ok() {
                 let opid = Opid::from(buf);
                 let mut ids = BTreeSet::new();
                 let mut len = [0u8; 4];
-                index_file
-                    .read_exact(&mut len)
-                    .expect("cannot read index file");
+                file.read_exact(&mut len).expect("cannot read index file");
                 let mut len = u32::from_le_bytes(len);
                 while len > 0 {
-                    index_file
-                        .read_exact(&mut buf)
-                        .expect("cannot read index file");
+                    file.read_exact(&mut buf).expect("cannot read index file");
                     let res = ids.insert(buf.into());
                     debug_assert!(res, "duplicate id in index file");
                     len -= 1;
@@ -217,6 +228,7 @@ pub mod fs {
         cache: FileAora<Seal::WitnessId, Seal::Published>,
         keep: FileAora<Opid, SmallOrdMap<u16, Seal::Definiton>>,
         index: FileIndex<Seal::WitnessId>,
+        mine: FileCru,
         _phantom: PhantomData<Seal>,
     }
 
@@ -231,10 +243,17 @@ pub mod fs {
             let hoard = FileAora::new(&path, "hoard");
             let cache = FileAora::new(&path, "cache");
             let keep = FileAora::new(&path, "keep");
-            let index = FileIndex::create(path.join("index.dat"))
-                .unwrap_or_else(|_| panic!("unable to create index file `{}`", path.display()));
 
-            Self { hoard, cache, keep, index, _phantom: PhantomData }
+            let index_file = path.join("index.dat");
+            let index = FileIndex::create(index_file.clone()).unwrap_or_else(|_| {
+                panic!("unable to create index file '{}'", index_file.display())
+            });
+            let mine_file = path.join("mine.dat");
+            let mine = FileCru::create(mine_file.clone()).unwrap_or_else(|_| {
+                panic!("unable to create mining info file '{}'", mine_file.display())
+            });
+
+            Self { hoard, cache, keep, index, mine, _phantom: PhantomData }
         }
     }
 
@@ -247,11 +266,15 @@ pub mod fs {
             let cache = FileAora::open(&path, "cache");
             let keep = FileAora::open(&path, "keep");
 
-            let index_name = path.join("index.dat");
-            let index = FileIndex::new(index_name.clone())
-                .unwrap_or_else(|_| panic!("unable to open index file `{}`", index_name.display()));
+            let index_file = path.join("index.dat");
+            let index = FileIndex::open(index_file.clone())
+                .unwrap_or_else(|_| panic!("unable to open index file '{}'", index_file.display()));
+            let mine_file = path.join("mine.dat");
+            let mine = FileCru::open(mine_file.clone()).unwrap_or_else(|_| {
+                panic!("unable to open mining info file '{}'", mine_file.display())
+            });
 
-            Self { hoard, cache, keep, index, _phantom: PhantomData }
+            Self { hoard, cache, keep, index, mine, _phantom: PhantomData }
         }
     }
 
@@ -277,6 +300,8 @@ pub mod fs {
 
         fn index(&self) -> &Self::Index { &self.index }
 
+        fn mine(&self) -> &Self::Mine { &self.mine }
+
         fn hoard_mut(&mut self) -> &mut Self::Hoard { &mut self.hoard }
 
         fn cache_mut(&mut self) -> &mut Self::Cache { &mut self.cache }
@@ -284,6 +309,8 @@ pub mod fs {
         fn keep_mut(&mut self) -> &mut Self::Keep { &mut self.keep }
 
         fn index_mut(&mut self) -> &mut Self::Index { &mut self.index }
+
+        fn mine_mut(&mut self) -> &mut Self::Mine { &mut self.mine }
 
         fn retrieve(&mut self, opid: Opid) -> impl ExactSizeIterator<Item = SealWitness<Seal>> {
             self.index.get(opid).map(|pubid| {
