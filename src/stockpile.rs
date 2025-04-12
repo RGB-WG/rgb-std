@@ -434,12 +434,18 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
         }
     }
 
-    pub fn witness_update_status(
-        &self,
+    pub fn update_witness_status(
+        &mut self,
         pubid: <P::Seal as RgbSeal>::WitnessId,
         status: Option<WitnessStatus>,
     ) {
-        // TODO: Perform rollback
+        let opids = self.pile.stand().get(pubid);
+        if status.is_none() {
+            self.stock.rollback(opids);
+        } else {
+            self.stock.forward(opids);
+        }
+        self.pile_mut().mine_mut().update(pubid, status);
     }
 }
 

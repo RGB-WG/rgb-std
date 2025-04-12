@@ -80,18 +80,21 @@ pub trait Pile {
     >;
     type Keep: Aora<Id = Opid, Item = SmallOrdMap<u16, <Self::Seal as RgbSeal>::Definiton>>;
     type Index: Index<Opid, <Self::Seal as RgbSeal>::WitnessId>;
+    type Stand: Index<<Self::Seal as RgbSeal>::WitnessId, Opid>;
     type Mine: Cru<<Self::Seal as RgbSeal>::WitnessId, Option<WitnessStatus>>;
 
     fn hoard(&self) -> &Self::Hoard;
     fn cache(&self) -> &Self::Cache;
     fn keep(&self) -> &Self::Keep;
     fn index(&self) -> &Self::Index;
+    fn stand(&self) -> &Self::Stand;
     fn mine(&self) -> &Self::Mine;
 
     fn hoard_mut(&mut self) -> &mut Self::Hoard;
     fn cache_mut(&mut self) -> &mut Self::Cache;
     fn keep_mut(&mut self) -> &mut Self::Keep;
     fn index_mut(&mut self) -> &mut Self::Index;
+    fn stand_mut(&mut self) -> &mut Self::Stand;
     fn mine_mut(&mut self) -> &mut Self::Mine;
 
     fn retrieve(&mut self, opid: Opid) -> impl ExactSizeIterator<Item = SealWitness<Self::Seal>>;
@@ -104,6 +107,7 @@ pub trait Pile {
     ) {
         let pubid = published.pub_id();
         self.index_mut().add(opid, pubid);
+        self.stand_mut().add(pubid, opid);
         if self.hoard_mut().has(&pubid) {
             let mut prev_anchor = self.hoard_mut().read(pubid);
             if prev_anchor != anchor {
@@ -182,15 +186,19 @@ pub mod fs {
     }
 
     #[derive(Clone, Debug)]
-    pub struct FileIndex<Id>
-    where Id: Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>
+    pub struct FileIndex<K, V>
+    where
+        K: Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>,
+        V: Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>,
     {
         path: PathBuf,
-        cache: BTreeMap<Opid, BTreeSet<Id>>,
+        cache: BTreeMap<K, BTreeSet<V>>,
     }
 
-    impl<Id> FileIndex<Id>
-    where Id: Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>
+    impl<K, V> FileIndex<K, V>
+    where
+        K: Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>,
+        V: Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>,
     {
         pub fn create(path: PathBuf) -> io::Result<Self> {
             File::create_new(&path)?;
@@ -202,7 +210,7 @@ pub mod fs {
             let mut file = File::open(&path)?;
             let mut buf = [0u8; 32];
             while file.read_exact(&mut buf).is_ok() {
-                let opid = Opid::from(buf);
+                let opid = K::from(buf);
                 let mut ids = BTreeSet::new();
                 let mut len = [0u8; 4];
                 file.read_exact(&mut len).expect("cannot read index file");
@@ -220,11 +228,11 @@ pub mod fs {
 
         pub fn save(&self) -> io::Result<()> {
             let mut index_file = File::create(&self.path)?;
-            for (opid, ids) in &self.cache {
-                index_file.write_all(opid.as_slice())?;
-                let len = ids.len() as u32;
+            for (key, values) in &self.cache {
+                index_file.write_all((*key).into().as_slice())?;
+                let len = values.len() as u32;
                 index_file.write_all(&len.to_le_bytes())?;
-                for id in ids {
+                for id in values {
                     index_file.write_all(&(*id).into())?;
                 }
             }
@@ -232,21 +240,23 @@ pub mod fs {
         }
     }
 
-    impl<Id: Copy> Index<Opid, Id> for FileIndex<Id>
-    where Id: Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>
+    impl<K, V> Index<K, V> for FileIndex<K, V>
+    where
+        K: Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>,
+        V: Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>,
     {
-        fn keys(&self) -> impl Iterator<Item = Opid> { self.cache.keys().copied() }
+        fn keys(&self) -> impl Iterator<Item = K> { self.cache.keys().copied() }
 
-        fn has(&self, key: Opid) -> bool { self.cache.contains_key(&key) }
+        fn has(&self, key: K) -> bool { self.cache.contains_key(&key) }
 
-        fn get(&self, key: Opid) -> impl ExactSizeIterator<Item = Id> {
+        fn get(&self, key: K) -> impl ExactSizeIterator<Item = V> {
             match self.cache.get(&key) {
                 Some(ids) => ids.clone().into_iter(),
                 None => bset![].into_iter(),
             }
         }
 
-        fn add(&mut self, key: Opid, val: Id) {
+        fn add(&mut self, key: K, val: V) {
             self.cache.entry(key).or_default().insert(val);
             self.save().expect("Cannot save index file");
         }
@@ -258,7 +268,8 @@ pub mod fs {
         hoard: FileAora<Seal::WitnessId, Seal::Client>,
         cache: FileAora<Seal::WitnessId, Seal::Published>,
         keep: FileAora<Opid, SmallOrdMap<u16, Seal::Definiton>>,
-        index: FileIndex<Seal::WitnessId>,
+        index: FileIndex<Opid, Seal::WitnessId>,
+        stand: FileIndex<Seal::WitnessId, Opid>,
         mine: FileCru,
         _phantom: PhantomData<Seal>,
     }
@@ -279,12 +290,24 @@ pub mod fs {
             let index = FileIndex::create(index_file.clone()).unwrap_or_else(|_| {
                 panic!("unable to create index file '{}'", index_file.display())
             });
+            let stand_file = path.join("stand.dat");
+            let stand = FileIndex::create(stand_file.clone()).unwrap_or_else(|_| {
+                panic!("unable to create stand file '{}'", stand_file.display())
+            });
             let mine_file = path.join("mine.dat");
             let mine = FileCru::create(mine_file.clone()).unwrap_or_else(|_| {
                 panic!("unable to create mining info file '{}'", mine_file.display())
             });
 
-            Self { hoard, cache, keep, index, mine, _phantom: PhantomData }
+            Self {
+                hoard,
+                cache,
+                keep,
+                index,
+                stand,
+                mine,
+                _phantom: PhantomData,
+            }
         }
     }
 
@@ -300,12 +323,23 @@ pub mod fs {
             let index_file = path.join("index.dat");
             let index = FileIndex::open(index_file.clone())
                 .unwrap_or_else(|_| panic!("unable to open index file '{}'", index_file.display()));
+            let stand_file = path.join("stand.dat");
+            let stand = FileIndex::open(stand_file.clone())
+                .unwrap_or_else(|_| panic!("unable to open stand file '{}'", stand_file.display()));
             let mine_file = path.join("mine.dat");
             let mine = FileCru::open(mine_file.clone()).unwrap_or_else(|_| {
                 panic!("unable to open mining info file '{}'", mine_file.display())
             });
 
-            Self { hoard, cache, keep, index, mine, _phantom: PhantomData }
+            Self {
+                hoard,
+                cache,
+                keep,
+                index,
+                stand,
+                mine,
+                _phantom: PhantomData,
+            }
         }
     }
 
@@ -320,7 +354,8 @@ pub mod fs {
         type Hoard = FileAora<Seal::WitnessId, Seal::Client>;
         type Cache = FileAora<Seal::WitnessId, Seal::Published>;
         type Keep = FileAora<Opid, SmallOrdMap<u16, Seal::Definiton>>;
-        type Index = FileIndex<Seal::WitnessId>;
+        type Index = FileIndex<Opid, Seal::WitnessId>;
+        type Stand = FileIndex<Seal::WitnessId, Opid>;
         type Mine = FileCru;
 
         fn hoard(&self) -> &Self::Hoard { &self.hoard }
@@ -331,6 +366,8 @@ pub mod fs {
 
         fn index(&self) -> &Self::Index { &self.index }
 
+        fn stand(&self) -> &Self::Stand { &self.stand }
+
         fn mine(&self) -> &Self::Mine { &self.mine }
 
         fn hoard_mut(&mut self) -> &mut Self::Hoard { &mut self.hoard }
@@ -340,6 +377,8 @@ pub mod fs {
         fn keep_mut(&mut self) -> &mut Self::Keep { &mut self.keep }
 
         fn index_mut(&mut self) -> &mut Self::Index { &mut self.index }
+
+        fn stand_mut(&mut self) -> &mut Self::Stand { &mut self.stand }
 
         fn mine_mut(&mut self) -> &mut Self::Mine { &mut self.mine }
 
