@@ -41,20 +41,29 @@ pub trait Index<K, V> {
 }
 
 pub trait Cru<K, V> {
-    fn has(&self, key: K) -> bool;
-    fn read(&self, key: K) -> Option<V>;
+    fn has(&self, key: &K) -> bool;
+    fn read(&self, key: &K) -> Option<V>;
     fn create(&mut self, key: K, val: V);
+    fn create_if_absent(&mut self, key: K, val: V) {
+        if !self.has(&key) {
+            self.create(key, val);
+        }
+    }
     fn update(&mut self, key: K, val: V);
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Display)]
 #[display("{mining_height}, {mining_id}")]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB_STD)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct WitnessStatus {
-    pub mining_height: u32,
+    pub mining_height: u64,
     pub mining_id: Bytes32,
+}
+
+impl Default for WitnessStatus {
+    fn default() -> Self { Self { mining_height: u64::MAX, mining_id: Bytes32::with_fill(0xFF) } }
 }
 
 pub trait Pile {
@@ -106,6 +115,8 @@ pub trait Pile {
         } else {
             self.hoard_mut().append(pubid, &anchor);
         }
+        self.mine_mut()
+            .create_if_absent(pubid, WitnessStatus::default());
         self.cache_mut().append(pubid, published);
     }
 }
@@ -141,9 +152,9 @@ pub mod fs {
 
     /// Create-Read-Update database (with no delete operation).
     impl<K, V> Cru<K, V> for FileCru {
-        fn has(&self, key: K) -> bool { todo!() }
+        fn has(&self, key: &K) -> bool { todo!() }
 
-        fn read(&self, key: K) -> Option<V> { todo!() }
+        fn read(&self, key: &K) -> Option<V> { todo!() }
 
         fn create(&mut self, key: K, val: V) { todo!() }
 
