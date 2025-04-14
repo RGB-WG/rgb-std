@@ -19,7 +19,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub use bp::bc::stl::bp_tx_stl;
+pub use bp::bc::stl::{bp_consensus_stl, bp_tx_stl};
 pub use bp::stl::bp_core_stl;
 #[allow(unused_imports)]
 pub use commit_verify::stl::{commit_verify_stl, LIB_ID_COMMIT_VERIFY};
@@ -32,7 +32,7 @@ use strict_types::{CompileError, LibBuilder, SemId, SymbolicSys, TypeLib, TypeSy
 
 use super::{
     AssetSpec, AttachmentType, BurnMeta, ContractSpec, ContractTerms, EmbeddedMedia, Error,
-    IssueMeta, MediaType, PublicKey, TokenData, LIB_NAME_RGB_CONTRACT, LIB_NAME_RGB_STORAGE,
+    IssueMeta, MediaType, TokenData, LIB_NAME_RGB_CONTRACT, LIB_NAME_RGB_STORAGE,
 };
 use crate::containers::{Contract, Kit, Transfer};
 use crate::persistence::{MemIndex, MemStash, MemState};
@@ -47,7 +47,7 @@ pub const LIB_ID_RGB_STORAGE: &str =
 /// Strict types id for the library providing standard data types which may be
 /// used in RGB smart contracts.
 pub const LIB_ID_RGB_CONTRACT: &str =
-    "stl:qTFUMxXl-Sh7Gw4T-NLhA7SW-buPesdA-kClvRBg-YF5vK58#winter-cubic-page";
+    "stl:M0pACQFr-pgDuEhY-ncDL2FF-4YZIABF-TRsvtBT-2D4mTPY#patriot-mono-charter";
 
 /// Strict types id for the library representing of RGB StdLib data types.
 pub const LIB_ID_RGB_STD: &str =
@@ -73,7 +73,7 @@ fn _rgb_std_stl() -> Result<TypeLib, CompileError> {
 fn _rgb_contract_stl() -> Result<TypeLib, CompileError> {
     LibBuilder::new(libname!(LIB_NAME_RGB_CONTRACT), tiny_bset! {
         std_stl().to_dependency(),
-        bp_tx_stl().to_dependency()
+        bp_consensus_stl().to_dependency()
     })
     .transpile::<Amount>()
     .transpile::<Allocation>()
@@ -87,7 +87,6 @@ fn _rgb_contract_stl() -> Result<TypeLib, CompileError> {
     .transpile::<AttachmentType>()
     .transpile::<TokenData>()
     .transpile::<EmbeddedMedia>()
-    .transpile::<PublicKey>()
     .compile()
 }
 
@@ -129,7 +128,7 @@ pub struct StandardTypes(SymbolicSys);
 
 impl StandardTypes {
     pub fn with(lib: TypeLib) -> Self {
-        Self::try_with([std_stl(), bp_tx_stl(), rgb_contract_stl(), lib])
+        Self::try_with([std_stl(), bp_consensus_stl(), rgb_contract_stl(), lib])
             .expect("error in standard RGBContract type system")
     }
 
