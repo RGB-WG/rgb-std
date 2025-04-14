@@ -30,7 +30,7 @@ use std::io;
 
 use amplify::confinement::SmallOrdMap;
 use amplify::IoError;
-use aora::Aora;
+use aora::{AoraIndex, AoraMap, AuraMap, TransactionalMap};
 use chrono::{DateTime, Utc};
 use commit_verify::ReservedBytes;
 use hypersonic::sigs::ContentSigs;
@@ -50,7 +50,7 @@ use strict_encoding::{
 };
 use strict_types::StrictVal;
 
-use crate::{CallError, ContractMeta, Cru, Index, Pile, VerifiedOperation, WitnessStatus};
+use crate::{CallError, ContractMeta, MiningInfo, Pile, VerifiedOperation};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, From)]
 #[cfg_attr(
@@ -263,7 +263,7 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
 
         // Init seals
         pile.keep_mut()
-            .append(stock.articles().contract.genesis_opid(), &seals);
+            .insert(stock.articles().contract.genesis_opid(), &seals);
 
         Ok(Self { stock, pile })
     }
@@ -290,7 +290,7 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
                 let since = *cache
                     .entry(addr.opid)
                     .or_insert_with(|| self.pile().since(addr.opid));
-                let seals = self.pile_mut().keep_mut().read(&addr.opid);
+                let seals = self.pile_mut().keep_mut().get_expect(addr.opid);
                 let Some(seal) = seals.get(&addr.pos) else {
                     continue;
                 };
@@ -344,7 +344,7 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
         self.stock
             .export_aux(terminals, writer, |opid, mut writer| {
                 // Write seal definitions
-                let seals = self.pile.keep_mut().read(&opid);
+                let seals = self.pile.keep_mut().get_expect(opid);
                 writer = seals.strict_encode(writer)?;
 
                 // Write witnesses
@@ -378,7 +378,6 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
 
         // We need to clone due to a borrow checker.
         let op_reader = OpReader { stream, seal_resolver, _phantom: PhantomData };
-        self.pile_mut().mine_mut().begin_transaction();
         self.evaluate(op_reader)?;
         self.pile_mut().mine_mut().commit_transaction();
 
@@ -397,14 +396,22 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
         &self,
         transaction_no: u64,
     ) -> impl Iterator<Item = <P::Seal as RgbSeal>::WitnessId> + use<'_, S, P> {
-        struct WitnessIter<'pile, Id, M: Cru<Id, Option<WitnessStatus>>> {
+        struct WitnessIter<'pile, Id, M>
+        where
+            Id: From<[u8; 32]> + Into<[u8; 32]>,
+            M: AuraMap<Id, MiningInfo, 32, 40>,
+        {
             curr: u64,
             max: u64,
             mine: &'pile M,
             iter: Option<Box<dyn Iterator<Item = Id> + 'pile>>,
             _phantom: PhantomData<Id>,
         }
-        impl<'pile, Id: 'pile, M: Cru<Id, Option<WitnessStatus>>> Iterator for WitnessIter<'pile, Id, M> {
+        impl<'pile, Id: 'pile, M> Iterator for WitnessIter<'pile, Id, M>
+        where
+            Id: From<[u8; 32]> + Into<[u8; 32]>,
+            M: AuraMap<Id, MiningInfo, 32, 40> + TransactionalMap<Id>,
+        {
             type Item = Id;
             fn next(&mut self) -> Option<Self::Item> {
                 loop {
@@ -422,7 +429,7 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
             }
         }
 
-        let to = self.pile.mine().last_transaction_no();
+        let to = self.pile.mine().transaction_count();
 
         let mine = self.pile.mine();
         WitnessIter {
@@ -437,15 +444,15 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
     pub fn update_witness_status(
         &mut self,
         pubid: <P::Seal as RgbSeal>::WitnessId,
-        status: Option<WitnessStatus>,
+        status: MiningInfo,
     ) -> Result<(), AcceptError> {
         let opids = self.pile.stand().get(pubid);
-        if status.is_none() {
-            self.stock.rollback(opids);
-        } else {
+        if status.is_mined() {
             self.stock.forward(opids)?;
+        } else {
+            self.stock.rollback(opids);
         }
-        self.pile_mut().mine_mut().update(pubid, status);
+        self.pile_mut().mine_mut().update_only(pubid, status);
         Ok(())
     }
 }
@@ -538,7 +545,7 @@ impl<S: Supply, P: Pile> ContractApi<P::Seal> for Stockpile<S, P> {
         op: VerifiedOperation,
         seals: SmallOrdMap<u16, <P::Seal as RgbSeal>::Definiton>,
     ) {
-        self.pile.keep_mut().append(op.opid(), &seals);
+        self.pile.keep_mut().insert(op.opid(), &seals);
         self.stock.apply(op);
     }
 

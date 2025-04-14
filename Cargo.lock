@@ -5,7 +5,7 @@ version = 3
 [[package]]
 name = "aluvm"
 version = "0.12.0-beta.5"
-source = "git+https://github.com/AluVM/aluvm?branch=master#3e8f8ea500bcd91b3b7bd3ec2caeafad18542bf2"
+source = "git+https://github.com/AluVM/aluvm?branch=master#c730486abdd8031d5131b2d4b962f8b478969076"
 dependencies = [
  "amplify",
  "baid64",
@@ -132,15 +132,16 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.97"
+version = "1.0.98"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dcfed56ad506cb2c684a14971b8861fdc3baaaae314b9e5f9bb532cbe3ba7a4f"
+checksum = "e16d2d3311acee920a9eb8d33b8cbc1787ce4a264e85f964c2404b969bdcd487"
 
 [[package]]
 name = "aora"
 version = "0.2.0"
-source = "git+https://github.com/rust-amplify/aora?branch=master#875c4556cb074a25af709ee391afb9306a52a551"
+source = "git+https://github.com/rust-amplify/aora?branch=refactor#db531516b223be6dae4cf4ca0d16f75e5ae63309"
 dependencies = [
+ "indexmap",
  "strict_encoding",
 ]
 
@@ -360,9 +361,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.5.35"
+version = "4.5.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8aa86934b44c19c50f87cc2790e19f54f7a67aedb64101c2e1a2e5ecfb73944"
+checksum = "2df961d8c8a0d08aa9945718ccf584145eee3f3aa06cddbeac12933781102e04"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -370,9 +371,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.5.35"
+version = "4.5.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2414dbb2dd0695280da6ea9261e327479e9d37b0630f6b53ba2a11c60c679fd9"
+checksum = "132dbda40fb6753878316a489d5a1242a8ef2f0d9e47ba01c951ea8aa7d013a5"
 dependencies = [
  "anstream",
  "anstyle",
@@ -573,7 +574,7 @@ dependencies = [
 [[package]]
 name = "hypersonic"
 version = "0.12.0-beta.5"
-source = "git+https://github.com/AluVM/sonic?branch=rollback#6ae6f067e486c688ef1523ac15158ee616ecd15a"
+source = "git+https://github.com/AluVM/sonic?branch=rollback#2f0dc43da87de11e31bb8a7c094c3ee4de5c3e79"
 dependencies = [
  "aluvm",
  "amplify",
@@ -1031,7 +1032,7 @@ dependencies = [
 [[package]]
 name = "sonic-api"
 version = "0.12.0-beta.5"
-source = "git+https://github.com/AluVM/sonic?branch=rollback#6ae6f067e486c688ef1523ac15158ee616ecd15a"
+source = "git+https://github.com/AluVM/sonic?branch=rollback#2f0dc43da87de11e31bb8a7c094c3ee4de5c3e79"
 dependencies = [
  "aluvm",
  "amplify",
@@ -1050,7 +1051,7 @@ dependencies = [
 [[package]]
 name = "sonic-callreq"
 version = "0.12.0-beta.5"
-source = "git+https://github.com/AluVM/sonic?branch=rollback#6ae6f067e486c688ef1523ac15158ee616ecd15a"
+source = "git+https://github.com/AluVM/sonic?branch=rollback#2f0dc43da87de11e31bb8a7c094c3ee4de5c3e79"
 dependencies = [
  "amplify",
  "baid64",

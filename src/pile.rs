@@ -26,45 +26,78 @@ use core::fmt::Debug;
 
 use amplify::confinement::SmallOrdMap;
 use amplify::Bytes32;
-use aora::Aora;
+use aora::{AoraIndex, AoraMap, AuraMap, TransactionalMap};
 use hypersonic::Opid;
 use rgb::{ClientSideWitness, RgbSeal};
 use single_use_seals::{PublishedWitness, SealWitness};
 
-use crate::LIB_NAME_RGB_STD;
-
-pub trait Index<K, V> {
-    fn keys(&self) -> impl Iterator<Item = K>;
-    fn has(&self, key: K) -> bool;
-    fn get(&self, key: K) -> impl ExactSizeIterator<Item = V>;
-    fn add(&mut self, key: K, val: V);
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct MiningInfo {
+    height: u64,
+    id: Bytes32,
 }
 
-pub trait Cru<K, V> {
-    fn has(&self, key: &K) -> bool;
-    fn read(&self, key: &K) -> V;
-    fn create(&mut self, key: K, val: V);
-    fn create_if_absent(&mut self, key: K, val: V) {
-        if !self.has(&key) {
-            self.create(key, val);
+impl Default for MiningInfo {
+    fn default() -> Self { Self::unmined() }
+}
+
+impl MiningInfo {
+    pub fn mined(height: u64, id: Bytes32) -> Self {
+        assert_ne!(height, u64::MAX);
+        assert_ne!(id, Bytes32::with_fill(0xFF));
+        Self { height, id }
+    }
+
+    pub fn unmined() -> Self { Self { height: u64::MAX, id: Bytes32::with_fill(0xFF) } }
+    pub fn is_mined(&self) -> bool {
+        self.height != u64::MAX && self.id != Bytes32::with_fill(0xFF)
+    }
+    pub fn height(&self) -> Option<u64> {
+        if self.is_mined() {
+            Some(self.height)
+        } else {
+            None
         }
     }
-    fn update(&mut self, key: K, val: V);
-
-    fn begin_transaction(&mut self);
-    fn commit_transaction(&mut self) -> u64;
-    fn transaction_keys(&self, no: u64) -> impl ExactSizeIterator<Item = K>;
-    fn last_transaction_no(&self) -> u64;
+    pub fn mining_id(&self) -> Option<Bytes32> {
+        if self.is_mined() {
+            Some(self.id)
+        } else {
+            None
+        }
+    }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Display)]
-#[display("{mining_height}, {mining_id}")]
-#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
-pub struct WitnessStatus {
-    pub mining_height: u64,
-    pub mining_id: Bytes32,
+// We use big-endian encoding in order to allow lexicographic sorting
+impl From<[u8; 40]> for MiningInfo {
+    fn from(mut value: [u8; 40]) -> Self {
+        let mut buf1 = [0u8; 8];
+        buf1.copy_from_slice(&value[0..8]);
+        let height = u64::from_be_bytes(buf1);
+
+        let mut buf2 = [0u8; 32];
+        let rev = &mut value[8..];
+        rev.reverse();
+        buf2.copy_from_slice(rev);
+        let id = Bytes32::from_byte_array(buf2);
+
+        MiningInfo { height, id }
+    }
+}
+
+// We use big-endian encoding in order to allow lexicographic sorting
+impl From<MiningInfo> for [u8; 40] {
+    fn from(mut value: MiningInfo) -> Self {
+        let mut buf = [0u8; 40];
+        buf[..8].copy_from_slice(&value.height.to_be_bytes());
+
+        let rev = value.id.as_slice_mut();
+        rev.reverse();
+        buf[8..].copy_from_slice(rev);
+
+        buf
+    }
 }
 
 pub trait Pile
@@ -72,12 +105,13 @@ where <Self::Seal as RgbSeal>::WitnessId: From<[u8; 32]> + Into<[u8; 32]>
 {
     type Seal: RgbSeal;
 
-    type Hoard: Aora<<Self::Seal as RgbSeal>::WitnessId, <Self::Seal as RgbSeal>::Client>;
-    type Cache: Aora<<Self::Seal as RgbSeal>::WitnessId, <Self::Seal as RgbSeal>::Published>;
-    type Keep: Aora<Opid, SmallOrdMap<u16, <Self::Seal as RgbSeal>::Definiton>>;
-    type Index: Index<Opid, <Self::Seal as RgbSeal>::WitnessId>;
-    type Stand: Index<<Self::Seal as RgbSeal>::WitnessId, Opid>;
-    type Mine: Cru<<Self::Seal as RgbSeal>::WitnessId, Option<WitnessStatus>>;
+    type Hoard: AoraMap<<Self::Seal as RgbSeal>::WitnessId, <Self::Seal as RgbSeal>::Client>;
+    type Cache: AoraMap<<Self::Seal as RgbSeal>::WitnessId, <Self::Seal as RgbSeal>::Published>;
+    type Keep: AoraMap<Opid, SmallOrdMap<u16, <Self::Seal as RgbSeal>::Definiton>>;
+    type Index: AoraIndex<Opid, <Self::Seal as RgbSeal>::WitnessId>;
+    type Stand: AoraIndex<<Self::Seal as RgbSeal>::WitnessId, Opid>;
+    type Mine: AuraMap<<Self::Seal as RgbSeal>::WitnessId, MiningInfo, 32, 40>
+        + TransactionalMap<<Self::Seal as RgbSeal>::WitnessId>;
 
     fn hoard(&self) -> &Self::Hoard;
     fn cache(&self) -> &Self::Cache;
@@ -102,196 +136,77 @@ where <Self::Seal as RgbSeal>::WitnessId: From<[u8; 32]> + Into<[u8; 32]>
         published: &<Self::Seal as RgbSeal>::Published,
     ) {
         let pubid = published.pub_id();
-        self.index_mut().add(opid, pubid);
-        self.stand_mut().add(pubid, opid);
-        if self.hoard_mut().has(&pubid) {
-            let mut prev_anchor = self.hoard_mut().read(&pubid);
+        self.index_mut().push(opid, pubid);
+        self.stand_mut().push(pubid, opid);
+        if self.hoard_mut().contains_key(pubid) {
+            let mut prev_anchor = self.hoard_mut().get_expect(pubid);
             if prev_anchor != anchor {
                 prev_anchor.merge(anchor).expect(
                     "existing anchor is not compatible with new one; this indicates either bug in \
                      RGB standard library or a compromised storage",
                 );
-                self.hoard_mut().append(pubid, &prev_anchor);
+                self.hoard_mut().insert(pubid, &prev_anchor);
             }
         } else {
-            self.hoard_mut().append(pubid, &anchor);
+            self.hoard_mut().insert(pubid, &anchor);
         }
-        self.mine_mut().create_if_absent(pubid, None);
-        self.cache_mut().append(pubid, published);
+        self.mine_mut().insert_only(pubid, MiningInfo::unmined());
+        self.cache_mut().insert(pubid, published);
     }
 
     /// Get mining status for a given operation.
     fn since(&self, opid: Opid) -> Option<u64> {
         self.index()
             .get(opid)
-            .map(|pubid| self.mine().read(&pubid).map(|status| status.mining_height))
+            .flat_map(|pubid| self.mine().get_expect(pubid).height())
             .max()
-            .flatten()
     }
 }
 
 #[cfg(feature = "fs")]
 pub mod fs {
-    use std::collections::{BTreeMap, BTreeSet};
-    use std::fs::File;
-    use std::io::{Read, Write};
     use std::marker::PhantomData;
-    use std::path::{Path, PathBuf};
-    use std::{io, iter};
+    use std::path::Path;
 
-    use aora::file::FileAora;
+    use aora::file::{FileAoraIndex, FileAoraMap, FileAuraMap};
     use strict_encoding::{StrictDecode, StrictEncode};
 
     use super::*;
 
-    #[derive(Clone, Debug)]
-    pub struct FileCru {
-        path: PathBuf,
-        // TODO: Add cache
-    }
-
-    impl FileCru {
-        pub fn create(path: PathBuf) -> io::Result<Self> {
-            File::create_new(&path)?;
-            Ok(Self { path })
-        }
-
-        pub fn open(path: PathBuf) -> io::Result<Self> { Ok(Self { path }) }
-    }
-
-    /// Create-Read-Update database (with no delete operation).
-    impl<K, V> Cru<K, V> for FileCru {
-        fn has(&self, key: &K) -> bool { todo!() }
-
-        fn read(&self, key: &K) -> V { todo!() }
-
-        fn create(&mut self, key: K, val: V) { todo!() }
-
-        fn update(&mut self, key: K, val: V) { todo!() }
-
-        fn begin_transaction(&mut self) { todo!() }
-
-        fn commit_transaction(&mut self) -> u64 { todo!() }
-
-        fn transaction_keys(&self, no: u64) -> impl ExactSizeIterator<Item = K> {
-            todo!();
-            iter::empty()
-        }
-
-        fn last_transaction_no(&self) -> u64 { todo!() }
-    }
-
-    #[derive(Clone, Debug)]
-    pub struct FileIndex<K, V>
-    where
-        K: Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>,
-        V: Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>,
-    {
-        path: PathBuf,
-        cache: BTreeMap<K, BTreeSet<V>>,
-    }
-
-    impl<K, V> FileIndex<K, V>
-    where
-        K: Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>,
-        V: Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>,
-    {
-        pub fn create(path: PathBuf) -> io::Result<Self> {
-            File::create_new(&path)?;
-            Ok(Self { cache: none!(), path })
-        }
-
-        pub fn open(path: PathBuf) -> io::Result<Self> {
-            let mut cache = BTreeMap::new();
-            let mut file = File::open(&path)?;
-            let mut buf = [0u8; 32];
-            while file.read_exact(&mut buf).is_ok() {
-                let opid = K::from(buf);
-                let mut ids = BTreeSet::new();
-                let mut len = [0u8; 4];
-                file.read_exact(&mut len).expect("cannot read index file");
-                let mut len = u32::from_le_bytes(len);
-                while len > 0 {
-                    file.read_exact(&mut buf).expect("cannot read index file");
-                    let res = ids.insert(buf.into());
-                    debug_assert!(res, "duplicate id in index file");
-                    len -= 1;
-                }
-                cache.insert(opid, ids);
-            }
-            Ok(Self { path, cache })
-        }
-
-        pub fn save(&self) -> io::Result<()> {
-            let mut index_file = File::create(&self.path)?;
-            for (key, values) in &self.cache {
-                index_file.write_all((*key).into().as_slice())?;
-                let len = values.len() as u32;
-                index_file.write_all(&len.to_le_bytes())?;
-                for id in values {
-                    index_file.write_all(&(*id).into())?;
-                }
-            }
-            Ok(())
-        }
-    }
-
-    impl<K, V> Index<K, V> for FileIndex<K, V>
-    where
-        K: Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>,
-        V: Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>,
-    {
-        fn keys(&self) -> impl Iterator<Item = K> { self.cache.keys().copied() }
-
-        fn has(&self, key: K) -> bool { self.cache.contains_key(&key) }
-
-        fn get(&self, key: K) -> impl ExactSizeIterator<Item = V> {
-            match self.cache.get(&key) {
-                Some(ids) => ids.clone().into_iter(),
-                None => bset![].into_iter(),
-            }
-        }
-
-        fn add(&mut self, key: K, val: V) {
-            self.cache.entry(key).or_default().insert(val);
-            self.save().expect("Cannot save index file");
-        }
-    }
-
     pub struct FilePile<Seal: RgbSeal>
-    where Seal::WitnessId: Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>
+    where Seal::WitnessId: From<[u8; 32]> + Into<[u8; 32]>
     {
-        hoard: FileAora<Seal::WitnessId, Seal::Client>,
-        cache: FileAora<Seal::WitnessId, Seal::Published>,
-        keep: FileAora<Opid, SmallOrdMap<u16, Seal::Definiton>>,
-        index: FileIndex<Opid, Seal::WitnessId>,
-        stand: FileIndex<Seal::WitnessId, Opid>,
-        mine: FileCru,
+        hoard: FileAoraMap<Seal::WitnessId, Seal::Client>,
+        cache: FileAoraMap<Seal::WitnessId, Seal::Published>,
+        keep: FileAoraMap<Opid, SmallOrdMap<u16, Seal::Definiton>>,
+        index: FileAoraIndex<Opid, Seal::WitnessId>,
+        stand: FileAoraIndex<Seal::WitnessId, Opid>,
+        mine: FileAuraMap<Seal::WitnessId, MiningInfo, 32, 40>,
         _phantom: PhantomData<Seal>,
     }
 
     impl<Seal: RgbSeal> FilePile<Seal>
-    where Seal::WitnessId: Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>
+    where Seal::WitnessId: From<[u8; 32]> + Into<[u8; 32]>
     {
         pub fn new(name: &str, path: impl AsRef<Path>) -> Self {
             let mut path = path.as_ref().to_path_buf();
             path.push(name);
             path.set_extension("contract");
 
-            let hoard = FileAora::new(&path, "hoard");
-            let cache = FileAora::new(&path, "cache");
-            let keep = FileAora::new(&path, "keep");
+            let hoard = FileAoraMap::new(&path, "hoard");
+            let cache = FileAoraMap::new(&path, "cache");
+            let keep = FileAoraMap::new(&path, "keep");
 
             let index_file = path.join("index.dat");
-            let index = FileIndex::create(index_file.clone()).unwrap_or_else(|_| {
+            let index = FileAoraIndex::create(index_file.clone()).unwrap_or_else(|_| {
                 panic!("unable to create index file '{}'", index_file.display())
             });
             let stand_file = path.join("stand.dat");
-            let stand = FileIndex::create(stand_file.clone()).unwrap_or_else(|_| {
+            let stand = FileAoraIndex::create(stand_file.clone()).unwrap_or_else(|_| {
                 panic!("unable to create stand file '{}'", stand_file.display())
             });
             let mine_file = path.join("mine.dat");
-            let mine = FileCru::create(mine_file.clone()).unwrap_or_else(|_| {
+            let mine = FileAuraMap::create(mine_file.clone()).unwrap_or_else(|_| {
                 panic!("unable to create mining info file '{}'", mine_file.display())
             });
 
@@ -308,22 +223,22 @@ pub mod fs {
     }
 
     impl<Seal: RgbSeal> FilePile<Seal>
-    where Seal::WitnessId: Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>
+    where Seal::WitnessId: From<[u8; 32]> + Into<[u8; 32]>
     {
         pub fn open(path: impl AsRef<Path>) -> Self {
             let path = path.as_ref().to_path_buf();
-            let hoard = FileAora::open(&path, "hoard");
-            let cache = FileAora::open(&path, "cache");
-            let keep = FileAora::open(&path, "keep");
+            let hoard = FileAoraMap::open(&path, "hoard");
+            let cache = FileAoraMap::open(&path, "cache");
+            let keep = FileAoraMap::open(&path, "keep");
 
             let index_file = path.join("index.dat");
-            let index = FileIndex::open(index_file.clone())
+            let index = FileAoraIndex::open(index_file.clone())
                 .unwrap_or_else(|_| panic!("unable to open index file '{}'", index_file.display()));
             let stand_file = path.join("stand.dat");
-            let stand = FileIndex::open(stand_file.clone())
+            let stand = FileAoraIndex::open(stand_file.clone())
                 .unwrap_or_else(|_| panic!("unable to open stand file '{}'", stand_file.display()));
             let mine_file = path.join("mine.dat");
-            let mine = FileCru::open(mine_file.clone()).unwrap_or_else(|_| {
+            let mine = FileAuraMap::open(mine_file.clone()).unwrap_or_else(|_| {
                 panic!("unable to open mining info file '{}'", mine_file.display())
             });
 
@@ -343,16 +258,16 @@ pub mod fs {
     where
         Seal::Client: StrictEncode + StrictDecode,
         Seal::Published: Eq + StrictEncode + StrictDecode,
-        Seal::WitnessId: Copy + Ord + From<[u8; 32]> + Into<[u8; 32]>,
+        Seal::WitnessId: From<[u8; 32]> + Into<[u8; 32]>,
     {
         type Seal = Seal;
 
-        type Hoard = FileAora<Seal::WitnessId, Seal::Client>;
-        type Cache = FileAora<Seal::WitnessId, Seal::Published>;
-        type Keep = FileAora<Opid, SmallOrdMap<u16, Seal::Definiton>>;
-        type Index = FileIndex<Opid, Seal::WitnessId>;
-        type Stand = FileIndex<Seal::WitnessId, Opid>;
-        type Mine = FileCru;
+        type Hoard = FileAoraMap<Seal::WitnessId, Seal::Client>;
+        type Cache = FileAoraMap<Seal::WitnessId, Seal::Published>;
+        type Keep = FileAoraMap<Opid, SmallOrdMap<u16, Seal::Definiton>>;
+        type Index = FileAoraIndex<Opid, Seal::WitnessId>;
+        type Stand = FileAoraIndex<Seal::WitnessId, Opid>;
+        type Mine = FileAuraMap<Seal::WitnessId, MiningInfo, 32, 40>;
 
         fn hoard(&self) -> &Self::Hoard { &self.hoard }
 
@@ -380,8 +295,8 @@ pub mod fs {
 
         fn retrieve(&mut self, opid: Opid) -> impl ExactSizeIterator<Item = SealWitness<Seal>> {
             self.index.get(opid).map(|pubid| {
-                let client = self.hoard.read(&pubid);
-                let published = self.cache.read(&pubid);
+                let client = self.hoard.get_expect(pubid);
+                let published = self.cache.get_expect(pubid);
                 SealWitness::new(published, client)
             })
         }

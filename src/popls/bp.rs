@@ -30,7 +30,7 @@ use alloc::vec;
 
 use amplify::confinement::{Collection, NonEmptyVec, SmallOrdMap, SmallOrdSet, U8 as U8MAX};
 use amplify::{confinement, ByteArray, Bytes32, Wrapper};
-use aora::Aora;
+use aora::{AoraIndex, AoraMap};
 use bp::dbc::tapret::TapretProof;
 use bp::seals::{mmb, Anchor, Noise, TxoSeal, TxoSealExt, WOutpoint, WTxoSeal};
 use bp::{Outpoint, Sats, ScriptPubkey, Tx, Vout};
@@ -48,8 +48,7 @@ use strict_types::StrictVal;
 
 use crate::stockpile::{ContractState, EitherSeal};
 use crate::{
-    Assignment, CreateParams, Excavate, Index, IssueError, Mound, MoundConsumeError, Pile,
-    Stockpile,
+    Assignment, CreateParams, Excavate, IssueError, Mound, MoundConsumeError, Pile, Stockpile,
 };
 
 /// Trait abstracting specific implementation of a bitcoin wallet.
@@ -614,7 +613,7 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
         let opid = stockpile.stock_mut().call(call);
         let operation = stockpile.stock_mut().operation(opid);
         debug_assert_eq!(operation.opid(), opid);
-        stockpile.pile_mut().keep_mut().append(opid, &seals);
+        stockpile.pile_mut().keep_mut().insert(opid, &seals);
         debug_assert_eq!(operation.contract_id, request.contract_id);
 
         Ok(Prefab { closes, defines, operation })
@@ -662,7 +661,7 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
                 .iter()
                 .flat_map(|(name, map)| map.iter().map(move |(addr, val)| (name, *addr, val)))
                 .filter_map(|(name, addr, val)| {
-                    let seals = stockpile.pile_mut().keep_mut().read(&addr.opid);
+                    let seals = stockpile.pile_mut().keep_mut().get_expect(addr.opid);
                     let seal = seals.get(&addr.pos)?;
                     let outpoint = if let WOutpoint::Extern(outpoint) = seal.primary {
                         if !outpoints.contains(&outpoint) {
