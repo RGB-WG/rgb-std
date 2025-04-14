@@ -25,6 +25,7 @@ pub use bp::stl::bp_core_stl;
 pub use commit_verify::stl::{commit_verify_stl, LIB_ID_COMMIT_VERIFY};
 use invoice::{Allocation, Amount};
 pub use rgb::stl::{aluvm_stl, rgb_commit_stl, rgb_logic_stl, LIB_ID_RGB_COMMIT, LIB_ID_RGB_LOGIC};
+use rgb::Schema;
 use strict_types::stl::{std_stl, strict_types_stl};
 use strict_types::typesys::SystemBuilder;
 use strict_types::{CompileError, LibBuilder, SemId, SymbolicSys, TypeLib, TypeSystem};
@@ -126,16 +127,7 @@ pub fn rgb_storage_stl() -> TypeLib {
 #[derive(Debug)]
 pub struct StandardTypes(SymbolicSys);
 
-impl Default for StandardTypes {
-    fn default() -> Self { StandardTypes::new() }
-}
-
 impl StandardTypes {
-    pub fn new() -> Self {
-        Self::try_with([std_stl(), bp_tx_stl(), rgb_contract_stl()])
-            .expect("error in standard RGBContract type system")
-    }
-
     pub fn with(lib: TypeLib) -> Self {
         Self::try_with([std_stl(), bp_tx_stl(), rgb_contract_stl(), lib])
             .expect("error in standard RGBContract type system")
@@ -151,7 +143,9 @@ impl StandardTypes {
         Ok(Self(sys))
     }
 
-    pub fn type_system(&self) -> TypeSystem { self.0.as_types().clone() }
+    pub fn type_system(&self, schema: Schema) -> TypeSystem {
+        self.0.as_types().extract(schema.types()).unwrap()
+    }
 
     pub fn get(&self, name: &'static str) -> SemId {
         *self.0.resolve(name).unwrap_or_else(|| {
