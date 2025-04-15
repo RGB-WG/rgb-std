@@ -57,7 +57,7 @@ pub use mound::file::{DirExcavator, DirMound};
 pub use mound::{Excavate, IssueError, Mound, MoundConsumeError, MAGIC_BYTES_CONSIGNMENT};
 #[cfg(feature = "fs")]
 pub use pile::fs::FilePile;
-pub use pile::{MiningInfo, Pile};
+pub use pile::{Pile, WitnessStatus};
 pub use rgb::*;
 pub use stockpile::{
     Assignment, ConsumeError, CreateParams, EitherSeal, ImmutableState, OwnedState, Stockpile,

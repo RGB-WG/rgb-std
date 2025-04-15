@@ -23,80 +23,81 @@
 // the License.
 
 use core::fmt::Debug;
+use std::num::NonZeroU64;
 
 use amplify::confinement::SmallOrdMap;
-use amplify::Bytes32;
 use aora::{AoraIndex, AoraMap, AuraMap, TransactionalMap};
 use hypersonic::Opid;
 use rgb::{ClientSideWitness, RgbSeal};
 use single_use_seals::{PublishedWitness, SealWitness};
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct MiningInfo {
-    height: u64,
-    id: Bytes32,
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display, Default)]
+#[display(lowercase)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
+pub enum WitnessStatus {
+    /// Indicates past public witness which is no more valid - it is not included in the
+    /// blockchain, not present in the mempool or belongs to the past Lightning channel state.
+    #[default]
+    Archived,
+
+    /// Valid public witness included into the current consensus at specific height, which,
+    /// however, may be eventually re-orged.
+    #[display(inner)]
+    Mined(NonZeroU64),
+
+    /// Indicates known public witness which can be replaced or RBF'ed without the control of the
+    /// receiving side.
+    Tentative,
+
+    /// Indicates offchain status where the used is in a full control over transaction execution
+    /// and the transaction can't be replaced (RBFed) without the receiver participation - for
+    /// instance, like in lightning channel transactions (but only for the current channel
+    /// state).
+    Offchain,
 }
 
-impl Default for MiningInfo {
-    fn default() -> Self { Self::unmined() }
-}
+impl WitnessStatus {
+    const ARCHIVED: u64 = 0;
+    const TENTATIVE: u64 = u64::MAX.wrapping_sub(1);
+    const OFFCHAIN: u64 = u64::MAX;
 
-impl MiningInfo {
-    pub fn mined(height: u64, id: Bytes32) -> Self {
-        assert_ne!(height, u64::MAX);
-        assert_ne!(id, Bytes32::with_fill(0xFF));
-        Self { height, id }
-    }
-
-    pub fn unmined() -> Self { Self { height: u64::MAX, id: Bytes32::with_fill(0xFF) } }
-    pub fn is_mined(&self) -> bool {
-        self.height != u64::MAX && self.id != Bytes32::with_fill(0xFF)
-    }
+    pub fn is_mined(&self) -> bool { matches!(self, Self::Mined(_)) }
+    pub fn is_valid(&self) -> bool { !matches!(self, Self::Archived) }
+    pub fn is_tentative(&self) -> bool { matches!(self, Self::Tentative) }
+    pub fn is_archived(&self) -> bool { matches!(self, Self::Archived) }
+    pub fn is_offchain(&self) -> bool { matches!(self, Self::Offchain) }
     pub fn height(&self) -> Option<u64> {
-        if self.is_mined() {
-            Some(self.height)
-        } else {
-            None
-        }
-    }
-    pub fn mining_id(&self) -> Option<Bytes32> {
-        if self.is_mined() {
-            Some(self.id)
-        } else {
-            None
+        match self {
+            Self::Archived => None,
+            Self::Mined(height) => Some(height.get()),
+            Self::Tentative => Some(0),
+            Self::Offchain => Some(u64::MAX),
         }
     }
 }
 
 // We use big-endian encoding in order to allow lexicographic sorting
-impl From<[u8; 40]> for MiningInfo {
-    fn from(mut value: [u8; 40]) -> Self {
-        let mut buf1 = [0u8; 8];
-        buf1.copy_from_slice(&value[0..8]);
-        let height = u64::from_be_bytes(buf1);
-
-        let mut buf2 = [0u8; 32];
-        let rev = &mut value[8..];
-        rev.reverse();
-        buf2.copy_from_slice(rev);
-        let id = Bytes32::from_byte_array(buf2);
-
-        MiningInfo { height, id }
+impl From<[u8; 8]> for WitnessStatus {
+    fn from(value: [u8; 8]) -> Self {
+        match u64::from_be_bytes(value) {
+            Self::ARCHIVED => Self::Archived,
+            Self::TENTATIVE => Self::Tentative,
+            Self::OFFCHAIN => Self::Offchain,
+            height => Self::Mined(unsafe { NonZeroU64::new_unchecked(height) }),
+        }
     }
 }
 
 // We use big-endian encoding in order to allow lexicographic sorting
-impl From<MiningInfo> for [u8; 40] {
-    fn from(mut value: MiningInfo) -> Self {
-        let mut buf = [0u8; 40];
-        buf[..8].copy_from_slice(&value.height.to_be_bytes());
-
-        let rev = value.id.as_slice_mut();
-        rev.reverse();
-        buf[8..].copy_from_slice(rev);
-
-        buf
+impl From<WitnessStatus> for [u8; 8] {
+    fn from(value: WitnessStatus) -> Self {
+        let fake_height = match value {
+            WitnessStatus::Archived => WitnessStatus::ARCHIVED,
+            WitnessStatus::Mined(info) => info.get(),
+            WitnessStatus::Tentative => WitnessStatus::TENTATIVE,
+            WitnessStatus::Offchain => WitnessStatus::OFFCHAIN,
+        };
+        fake_height.to_be_bytes()
     }
 }
 
@@ -110,7 +111,7 @@ where <Self::Seal as RgbSeal>::WitnessId: From<[u8; 32]> + Into<[u8; 32]>
     type Keep: AoraMap<Opid, SmallOrdMap<u16, <Self::Seal as RgbSeal>::Definiton>>;
     type Index: AoraIndex<Opid, <Self::Seal as RgbSeal>::WitnessId>;
     type Stand: AoraIndex<<Self::Seal as RgbSeal>::WitnessId, Opid>;
-    type Mine: AuraMap<<Self::Seal as RgbSeal>::WitnessId, MiningInfo, 32, 40>
+    type Mine: AuraMap<<Self::Seal as RgbSeal>::WitnessId, WitnessStatus, 32, 8>
         + TransactionalMap<<Self::Seal as RgbSeal>::WitnessId>;
 
     fn hoard(&self) -> &Self::Hoard;
@@ -150,7 +151,7 @@ where <Self::Seal as RgbSeal>::WitnessId: From<[u8; 32]> + Into<[u8; 32]>
         } else {
             self.hoard_mut().insert(pubid, &anchor);
         }
-        self.mine_mut().insert_only(pubid, MiningInfo::unmined());
+        self.mine_mut().insert_only(pubid, WitnessStatus::Archived);
         self.cache_mut().insert(pubid, published);
     }
 
@@ -181,7 +182,7 @@ pub mod fs {
         keep: FileAoraMap<Opid, SmallOrdMap<u16, Seal::Definiton>>,
         index: FileAoraIndex<Opid, Seal::WitnessId>,
         stand: FileAoraIndex<Seal::WitnessId, Opid>,
-        mine: FileAuraMap<Seal::WitnessId, MiningInfo, 32, 40>,
+        mine: FileAuraMap<Seal::WitnessId, WitnessStatus, 32, 8>,
         _phantom: PhantomData<Seal>,
     }
 
@@ -267,7 +268,7 @@ pub mod fs {
         type Keep = FileAoraMap<Opid, SmallOrdMap<u16, Seal::Definiton>>;
         type Index = FileAoraIndex<Opid, Seal::WitnessId>;
         type Stand = FileAoraIndex<Seal::WitnessId, Opid>;
-        type Mine = FileAuraMap<Seal::WitnessId, MiningInfo, 32, 40>;
+        type Mine = FileAuraMap<Seal::WitnessId, WitnessStatus, 32, 8>;
 
         fn hoard(&self) -> &Self::Hoard { &self.hoard }
 

@@ -50,7 +50,7 @@ use strict_encoding::{
 };
 use strict_types::StrictVal;
 
-use crate::{CallError, ContractMeta, MiningInfo, Pile, VerifiedOperation};
+use crate::{CallError, ContractMeta, Pile, VerifiedOperation, WitnessStatus};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, From)]
 #[cfg_attr(
@@ -399,7 +399,7 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
         struct WitnessIter<'pile, Id, M>
         where
             Id: From<[u8; 32]> + Into<[u8; 32]>,
-            M: AuraMap<Id, MiningInfo, 32, 40>,
+            M: AuraMap<Id, WitnessStatus, 32, 8>,
         {
             curr: u64,
             max: u64,
@@ -410,7 +410,7 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
         impl<'pile, Id: 'pile, M> Iterator for WitnessIter<'pile, Id, M>
         where
             Id: From<[u8; 32]> + Into<[u8; 32]>,
-            M: AuraMap<Id, MiningInfo, 32, 40> + TransactionalMap<Id>,
+            M: AuraMap<Id, WitnessStatus, 32, 8> + TransactionalMap<Id>,
         {
             type Item = Id;
             fn next(&mut self) -> Option<Self::Item> {
@@ -444,7 +444,7 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
     pub fn update_witness_status(
         &mut self,
         pubid: <P::Seal as RgbSeal>::WitnessId,
-        status: MiningInfo,
+        status: WitnessStatus,
     ) -> Result<(), AcceptError> {
         let opids = self.pile.stand().get(pubid);
         if status.is_mined() {
