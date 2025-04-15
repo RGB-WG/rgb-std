@@ -38,8 +38,11 @@ use core::fmt::{self, Display, Formatter};
 use core::str::FromStr;
 
 use baid64::Baid64ParseError;
-use hypersonic::{AuthToken, Consensus};
+use chrono::{DateTime, Utc};
+use hypersonic::{AuthToken, Consensus, ContractId};
 use sonic_callreq::{CallRequest, CallScope};
+use strict_types::value::StrictNum;
+use strict_types::StrictVal;
 
 pub type RgbInvoice<T = CallScope<ContractQuery>> = CallRequest<T, RgbBeneficiary>;
 
@@ -123,4 +126,23 @@ pub enum ParseInvoiceError {
     #[cfg(any(feature = "bitcoin", feature = "liquid"))]
     #[from]
     Bp(bp::ParseWitnessOutError),
+}
+
+pub fn new_invoice(
+    contract_id: ContractId,
+    beneficiary: RgbBeneficiary,
+    value: Option<u64>,
+    expiry_time: Option<DateTime<Utc>>,
+) -> RgbInvoice {
+    let mut req = CallRequest::new(
+        CallScope::ContractId(contract_id),
+        beneficiary,
+        value.map(|v: u64| StrictVal::num(v)),
+    );
+
+    if let Some(time) = expiry_time {
+        req = req.use_expiry(time);
+    }
+
+    req
 }
