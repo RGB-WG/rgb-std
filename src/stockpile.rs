@@ -30,27 +30,27 @@ use std::io;
 
 use amplify::confinement::SmallOrdMap;
 use amplify::IoError;
-use aora::Aora;
+use aora::{AoraIndex, AoraMap, AuraMap, TransactionalMap};
 use chrono::{DateTime, Utc};
 use commit_verify::ReservedBytes;
 use hypersonic::sigs::ContentSigs;
 use hypersonic::{
-    Articles, AuthToken, CellAddr, Codex, CodexId, Consensus, Contract, ContractId, CoreParams,
-    DataCell, IssueParams, LibRepo, Memory, MergeError, MethodName, NamedState, Operation, Opid,
-    Schema, StateAtom, StateName, Stock, Supply,
+    AcceptError, Articles, AuthToken, CellAddr, Codex, CodexId, Consensus, Contract, ContractId,
+    CoreParams, DataCell, IssueParams, LibRepo, Memory, MergeError, MethodName, NamedState,
+    Operation, Opid, Schema, StateAtom, StateName, Stock, Supply,
 };
 use rgb::{
-    ContractApi, ContractVerify, OperationSeals, ReadOperation, ReadWitness, RgbSealDef, Step,
-    VerificationError,
+    ContractApi, ContractVerify, OperationSeals, ReadOperation, ReadWitness, RgbSeal, RgbSealDef,
+    Step, VerificationError,
 };
-use single_use_seals::{PublishedWitness, SealWitness, SingleUseSeal};
+use single_use_seals::SealWitness;
 use strict_encoding::{
     DecodeError, ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter,
     TypeName, WriteRaw,
 };
 use strict_types::StrictVal;
 
-use crate::{CallError, ContractMeta, Index, Pile, VerifiedOperation};
+use crate::{CallError, ContractMeta, Pile, VerifiedOperation, WitnessStatus};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, From)]
 #[cfg_attr(
@@ -87,14 +87,31 @@ impl<Seal> EitherSeal<Seal> {
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
-    serde(
-        rename_all = "camelCase",
-        bound = "Seal: serde::Serialize + for<'d> serde::Deserialize<'d>"
-    )
+    serde(bound = "Seal: serde::Serialize + for<'d> serde::Deserialize<'d>")
 )]
 pub struct Assignment<Seal> {
     pub seal: Seal,
     pub data: StrictVal,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(bound = "Seal: serde::Serialize + for<'d> serde::Deserialize<'d>")
+)]
+pub struct OwnedState<Seal> {
+    #[cfg_attr(feature = "serde", serde(flatten))]
+    pub assignment: Assignment<Seal>,
+    pub since: Option<u64>,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct ImmutableState {
+    #[cfg_attr(feature = "serde", serde(flatten))]
+    pub data: StateAtom,
+    pub since: Option<u64>,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Default)]
@@ -107,9 +124,10 @@ pub struct Assignment<Seal> {
     )
 )]
 pub struct ContractState<Seal> {
-    pub immutable: BTreeMap<StateName, BTreeMap<CellAddr, StateAtom>>,
-    pub owned: BTreeMap<StateName, BTreeMap<CellAddr, Assignment<Seal>>>,
+    pub immutable: BTreeMap<StateName, BTreeMap<CellAddr, ImmutableState>>,
+    pub owned: BTreeMap<StateName, BTreeMap<CellAddr, OwnedState<Seal>>>,
     pub computed: BTreeMap<StateName, StrictVal>,
+    // TODO: Add "computed pending"
 }
 
 impl<Seal> ContractState<Seal> {
@@ -123,7 +141,13 @@ impl<Seal> ContractState<Seal> {
                     let map = map
                         .into_iter()
                         .map(|(addr, data)| {
-                            (addr, Assignment { seal: f(data.seal), data: data.data })
+                            (addr, OwnedState {
+                                assignment: Assignment {
+                                    seal: f(data.assignment.seal),
+                                    data: data.assignment.data,
+                                },
+                                since: data.since,
+                            })
                         })
                         .collect();
                     (name, map)
@@ -143,7 +167,13 @@ impl<Seal> ContractState<Seal> {
                     let map = map
                         .into_iter()
                         .filter_map(|(addr, data)| {
-                            Some((addr, Assignment { seal: f(data.seal)?, data: data.data }))
+                            Some((addr, OwnedState {
+                                assignment: Assignment {
+                                    seal: f(data.assignment.seal)?,
+                                    data: data.assignment.data,
+                                },
+                                since: data.since,
+                            }))
                         })
                         .collect();
                     (name, map)
@@ -189,7 +219,7 @@ pub struct Stockpile<S: Supply, P: Pile> {
 impl<S: Supply, P: Pile> Stockpile<S, P> {
     pub fn issue(
         schema: Schema,
-        params: CreateParams<P::SealDef>,
+        params: CreateParams<<P::Seal as RgbSeal>::Definiton>,
         supply: S,
         mut pile: P,
     ) -> Result<Self, CallError> {
@@ -233,7 +263,7 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
 
         // Init seals
         pile.keep_mut()
-            .append(stock.articles().contract.genesis_opid(), &seals);
+            .insert(stock.articles().contract.genesis_opid(), &seals);
 
         Ok(Self { stock, pile })
     }
@@ -245,43 +275,58 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
 
     pub fn contract_id(&self) -> ContractId { self.stock.contract_id() }
 
-    pub fn seal(&self, seal: &P::SealDef) -> Option<CellAddr> {
+    pub fn seal(&self, seal: &<P::Seal as RgbSeal>::Definiton) -> Option<CellAddr> {
         let auth = seal.auth_token();
         self.stock.state().raw.auth.get(&auth).copied()
     }
 
-    pub fn state(&mut self) -> ContractState<P::SealSrc> {
+    pub fn state(&mut self) -> ContractState<P::Seal> {
+        let mut cache = bmap! {};
         let state = self.stock().state().main.clone();
         let mut owned = bmap! {};
         for (name, map) in state.owned {
             let mut state = bmap! {};
             for (addr, data) in map {
-                let seals = self.pile_mut().keep_mut().read(addr.opid);
+                let since = *cache
+                    .entry(addr.opid)
+                    .or_insert_with(|| self.pile().since(addr.opid));
+                let seals = self.pile_mut().keep_mut().get_expect(addr.opid);
                 let Some(seal) = seals.get(&addr.pos) else {
                     continue;
                 };
                 if let Some(seal) = seal.to_src() {
-                    state.insert(addr, Assignment { seal, data });
+                    state.insert(addr, OwnedState { assignment: Assignment { seal, data }, since });
                 } else {
                     // We insert a copy of state for each of the witnesses created for the operation
                     for wid in self.pile_mut().index_mut().get(addr.opid) {
-                        state.insert(addr, Assignment {
-                            seal: seal.resolve(wid),
-                            data: data.clone(),
+                        state.insert(addr, OwnedState {
+                            assignment: Assignment { seal: seal.resolve(wid), data: data.clone() },
+                            since,
                         });
                     }
                 }
             }
             owned.insert(name, state);
         }
-        ContractState { immutable: state.immutable, owned, computed: state.computed }
+        let mut immutable = bmap! {};
+        for (name, map) in state.immutable {
+            let mut state = bmap! {};
+            for (addr, data) in map {
+                let since = *cache
+                    .entry(addr.opid)
+                    .or_insert_with(|| self.pile().since(addr.opid));
+                state.insert(addr, ImmutableState { data, since });
+            }
+            immutable.insert(name, state);
+        }
+        ContractState { immutable, owned, computed: state.computed }
     }
 
     pub fn include(
         &mut self,
         opid: Opid,
-        anchor: <P::SealSrc as SingleUseSeal>::CliWitness,
-        published: &<P::SealSrc as SingleUseSeal>::PubWitness,
+        anchor: <P::Seal as RgbSeal>::Client,
+        published: &<P::Seal as RgbSeal>::Published,
     ) {
         self.pile.append(opid, anchor, published)
     }
@@ -292,15 +337,14 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
         writer: StrictWriter<impl WriteRaw>,
     ) -> io::Result<()>
     where
-        <P::SealSrc as SingleUseSeal>::CliWitness: StrictDumb + StrictEncode,
-        <P::SealSrc as SingleUseSeal>::PubWitness: StrictDumb + StrictEncode,
-        <<P::SealSrc as SingleUseSeal>::PubWitness as PublishedWitness<P::SealSrc>>::PubId:
-            StrictEncode,
+        <P::Seal as RgbSeal>::Client: StrictDumb + StrictEncode,
+        <P::Seal as RgbSeal>::Published: StrictDumb + StrictEncode,
+        <P::Seal as RgbSeal>::WitnessId: StrictEncode,
     {
         self.stock
             .export_aux(terminals, writer, |opid, mut writer| {
                 // Write seal definitions
-                let seals = self.pile.keep_mut().read(opid);
+                let seals = self.pile.keep_mut().get_expect(opid);
                 writer = seals.strict_encode(writer)?;
 
                 // Write witnesses
@@ -318,13 +362,12 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
     pub fn consume(
         &mut self,
         stream: &mut StrictReader<impl ReadRaw>,
-        seal_resolver: impl FnMut(&Operation) -> BTreeMap<u16, P::SealDef>,
-    ) -> Result<(), ConsumeError<P::SealDef>>
+        seal_resolver: impl FnMut(&Operation) -> BTreeMap<u16, <P::Seal as RgbSeal>::Definiton>,
+    ) -> Result<(), ConsumeError<<P::Seal as RgbSeal>::Definiton>>
     where
-        <P::SealSrc as SingleUseSeal>::CliWitness: StrictDecode,
-        <P::SealSrc as SingleUseSeal>::PubWitness: StrictDecode,
-        <<P::SealSrc as SingleUseSeal>::PubWitness as PublishedWitness<P::SealSrc>>::PubId:
-            StrictDecode,
+        <P::Seal as RgbSeal>::Client: StrictDecode,
+        <P::Seal as RgbSeal>::Published: StrictDecode,
+        <P::Seal as RgbSeal>::WitnessId: StrictDecode,
     {
         // We need to read articles field by field since we have to evaluate genesis separately
         let schema = Schema::strict_decode(stream)?;
@@ -336,6 +379,7 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
         // We need to clone due to a borrow checker.
         let op_reader = OpReader { stream, seal_resolver, _phantom: PhantomData };
         self.evaluate(op_reader)?;
+        self.pile_mut().mine_mut().commit_transaction();
 
         let genesis = self.stock.articles().contract.genesis.clone();
         let articles = Articles {
@@ -345,6 +389,70 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
         };
         self.stock.merge_articles(articles)?;
         self.stock.complete_update();
+        Ok(())
+    }
+
+    pub fn witnesses_since(
+        &self,
+        transaction_no: u64,
+    ) -> impl Iterator<Item = <P::Seal as RgbSeal>::WitnessId> + use<'_, S, P> {
+        struct WitnessIter<'pile, Id, M>
+        where
+            Id: From<[u8; 32]> + Into<[u8; 32]>,
+            M: AuraMap<Id, WitnessStatus, 32, 8>,
+        {
+            curr: u64,
+            max: u64,
+            mine: &'pile M,
+            iter: Option<Box<dyn Iterator<Item = Id> + 'pile>>,
+            _phantom: PhantomData<Id>,
+        }
+        impl<'pile, Id: 'pile, M> Iterator for WitnessIter<'pile, Id, M>
+        where
+            Id: From<[u8; 32]> + Into<[u8; 32]>,
+            M: AuraMap<Id, WitnessStatus, 32, 8> + TransactionalMap<Id>,
+        {
+            type Item = Id;
+            fn next(&mut self) -> Option<Self::Item> {
+                loop {
+                    match self.iter.as_mut()?.next() {
+                        None => {
+                            self.curr += 1;
+                            if self.curr >= self.max {
+                                return None;
+                            }
+                            self.iter = Some(Box::new(self.mine.transaction_keys(self.curr)));
+                        }
+                        Some(el) => return Some(el),
+                    }
+                }
+            }
+        }
+
+        let to = self.pile.mine().transaction_count();
+
+        let mine = self.pile.mine();
+        WitnessIter {
+            curr: transaction_no + 1,
+            max: to,
+            mine,
+            iter: Some(Box::new(mine.transaction_keys(transaction_no))),
+            _phantom: PhantomData,
+        }
+    }
+
+    pub fn update_witness_status(
+        &mut self,
+        pubid: <P::Seal as RgbSeal>::WitnessId,
+        status: WitnessStatus,
+    ) -> Result<(), AcceptError> {
+        let opids = self.pile.stand().get(pubid);
+        if status.is_mined() {
+            self.stock.forward(opids)?;
+        } else {
+            self.stock.rollback(opids);
+        }
+        self.pile_mut().mine_mut().update_only(pubid, status);
         Ok(())
     }
 }
@@ -421,7 +529,7 @@ impl<'r, SealDef: RgbSealDef, R: ReadRaw, F: FnMut(&Operation) -> BTreeMap<u16, 
     }
 }
 
-impl<S: Supply, P: Pile> ContractApi<P::SealDef> for Stockpile<S, P> {
+impl<S: Supply, P: Pile> ContractApi<P::Seal> for Stockpile<S, P> {
     fn contract_id(&self) -> ContractId { self.stock.contract_id() }
 
     fn codex(&self) -> &Codex { &self.stock.articles().schema.codex }
@@ -432,12 +540,16 @@ impl<S: Supply, P: Pile> ContractApi<P::SealDef> for Stockpile<S, P> {
 
     fn is_known(&self, opid: Opid) -> bool { self.stock.has_operation(opid) }
 
-    fn apply_operation(&mut self, op: VerifiedOperation, seals: SmallOrdMap<u16, P::SealDef>) {
-        self.pile.keep_mut().append(op.opid(), &seals);
+    fn apply_operation(
+        &mut self,
+        op: VerifiedOperation,
+        seals: SmallOrdMap<u16, <P::Seal as RgbSeal>::Definiton>,
+    ) {
+        self.pile.keep_mut().insert(op.opid(), &seals);
         self.stock.apply(op);
     }
 
-    fn apply_witness(&mut self, opid: Opid, witness: SealWitness<P::SealSrc>) {
+    fn apply_witness(&mut self, opid: Opid, witness: SealWitness<P::Seal>) {
         self.pile.append(opid, witness.client, &witness.published)
     }
 }
@@ -470,12 +582,11 @@ mod fs {
     use super::*;
     use crate::FilePile;
 
-    impl<SealDef: RgbSealDef> Stockpile<FileSupply, FilePile<SealDef>>
+    impl<SealSrc: RgbSeal> Stockpile<FileSupply, FilePile<SealSrc>>
     where
-        <SealDef::Src as SingleUseSeal>::CliWitness: StrictEncode + StrictDecode,
-        <SealDef::Src as SingleUseSeal>::PubWitness: Eq + StrictEncode + StrictDecode,
-        <<SealDef::Src as SingleUseSeal>::PubWitness as PublishedWitness<SealDef::Src>>::PubId:
-            Ord + From<[u8; 32]> + Into<[u8; 32]>,
+        SealSrc::Client: StrictEncode + StrictDecode,
+        SealSrc::Published: Eq + StrictEncode + StrictDecode,
+        SealSrc::WitnessId: Ord + From<[u8; 32]> + Into<[u8; 32]>,
     {
         pub fn load(path: impl AsRef<Path>) -> Self {
             let path = path.as_ref();
@@ -486,7 +597,7 @@ mod fs {
 
         pub fn issue_to_file(
             schema: Schema,
-            params: CreateParams<SealDef>,
+            params: CreateParams<SealSrc::Definiton>,
             path: impl AsRef<Path>,
         ) -> Result<Self, CallError> {
             let path = path.as_ref();
@@ -501,10 +612,9 @@ mod fs {
             path: impl AsRef<Path>,
         ) -> io::Result<()>
         where
-            <SealDef::Src as SingleUseSeal>::CliWitness: StrictDumb,
-            <SealDef::Src as SingleUseSeal>::PubWitness: StrictDumb,
-            <<SealDef::Src as SingleUseSeal>::PubWitness as PublishedWitness<SealDef::Src>>::PubId:
-                StrictEncode,
+            SealSrc::Client: StrictDumb,
+            SealSrc::Published: StrictDumb,
+            SealSrc::WitnessId: StrictEncode,
         {
             let file = File::create_new(path)?;
             let writer = StrictWriter::with(StreamWriter::new::<{ usize::MAX }>(file));

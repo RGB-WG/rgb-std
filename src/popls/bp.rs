@@ -30,7 +30,7 @@ use alloc::vec;
 
 use amplify::confinement::{Collection, NonEmptyVec, SmallOrdMap, SmallOrdSet, U8 as U8MAX};
 use amplify::{confinement, ByteArray, Bytes32, Wrapper};
-use aora::Aora;
+use aora::{AoraIndex, AoraMap};
 use bp::dbc::tapret::TapretProof;
 use bp::seals::{mmb, Anchor, Noise, TxoSeal, TxoSealExt, WOutpoint, WTxoSeal};
 use bp::{Outpoint, Sats, ScriptPubkey, Tx, Vout};
@@ -48,8 +48,7 @@ use strict_types::StrictVal;
 
 use crate::stockpile::{ContractState, EitherSeal};
 use crate::{
-    Assignment, CreateParams, Excavate, Index, IssueError, Mound, MoundConsumeError, Pile,
-    Stockpile,
+    Assignment, CreateParams, Excavate, IssueError, Mound, MoundConsumeError, Pile, Stockpile,
 };
 
 /// Trait abstracting specific implementation of a bitcoin wallet.
@@ -396,23 +395,12 @@ impl PrefabBundle {
 /// Barrow contains a bunch of RGB contract stockpiles, which are held by a single owner; such that
 /// when a new operation under any of the contracts happen it may affect other contracts sharing the
 /// same UTXOs.
-pub struct Barrow<
-    W: WalletProvider,
-    S: Supply,
-    P: Pile<SealDef = WTxoSeal, SealSrc = TxoSeal>,
-    X: Excavate<S, P>,
-> {
+pub struct Barrow<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> {
     pub wallet: W,
     pub mound: Mound<S, P, X>,
 }
 
-impl<
-        W: WalletProvider,
-        S: Supply,
-        P: Pile<SealDef = WTxoSeal, SealSrc = TxoSeal>,
-        X: Excavate<S, P>,
-    > Barrow<W, S, P, X>
-{
+impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> Barrow<W, S, P, X> {
     pub fn with(wallet: W, mound: Mound<S, P, X>) -> Self { Self { wallet, mound } }
 
     pub fn unbind(self) -> (W, Mound<S, P, X>) { (self.wallet, self.mound) }
@@ -515,7 +503,7 @@ impl<
             .ok_or(FulfillError::StateUnavailable)?;
         let src = state
             .iter()
-            .map(|(addr, assignment)| (*addr, &assignment.data))
+            .map(|(addr, owned)| (*addr, &owned.assignment.data))
             .collect::<Vec<_>>();
         // NB: we do state accumulation with `calc` inside coinselect
         let using = coinselect
@@ -524,11 +512,11 @@ impl<
         let using = using
             .into_iter()
             .map(|addr| {
-                let assignment = state.get(&addr).expect("just selected");
+                let owned = state.get(&addr).expect("just selected");
                 UsedState {
                     addr,
-                    outpoint: assignment.seal,
-                    val: assignment.data.clone(),
+                    outpoint: owned.assignment.seal,
+                    val: owned.assignment.data.clone(),
                 }
             })
             .collect();
@@ -625,7 +613,7 @@ impl<
         let opid = stockpile.stock_mut().call(call);
         let operation = stockpile.stock_mut().operation(opid);
         debug_assert_eq!(operation.opid(), opid);
-        stockpile.pile_mut().keep_mut().append(opid, &seals);
+        stockpile.pile_mut().keep_mut().insert(opid, &seals);
         debug_assert_eq!(operation.contract_id, request.contract_id);
 
         Ok(Prefab { closes, defines, operation })
@@ -673,7 +661,7 @@ impl<
                 .iter()
                 .flat_map(|(name, map)| map.iter().map(move |(addr, val)| (name, *addr, val)))
                 .filter_map(|(name, addr, val)| {
-                    let seals = stockpile.pile_mut().keep_mut().read(addr.opid);
+                    let seals = stockpile.pile_mut().keep_mut().get_expect(addr.opid);
                     let seal = seals.get(&addr.pos)?;
                     let outpoint = if let WOutpoint::Extern(outpoint) = seal.primary {
                         if !outpoints.contains(&outpoint) {
@@ -692,7 +680,7 @@ impl<
                         outpoint?
                     };
                     let prevout = UsedState { addr, outpoint, val: val.clone() };
-                    return Some((prevout, (name.clone(), val)));
+                    Some((prevout, (name.clone(), val)))
                 })
                 .unzip();
 
@@ -894,7 +882,7 @@ pub mod file {
     use crate::mound::file::DirExcavator;
     use crate::FilePile;
 
-    pub type DirBarrow<W> = Barrow<W, FileSupply, FilePile<WTxoSeal>, DirExcavator<WTxoSeal>>;
+    pub type DirBarrow<W> = Barrow<W, FileSupply, FilePile<TxoSeal>, DirExcavator<TxoSeal>>;
 
     impl<W: WalletProvider> DirBarrow<W> {
         pub fn issue_to_file(
@@ -915,5 +903,5 @@ pub mod file {
         }
     }
 
-    pub type BpDirMound = Mound<FileSupply, FilePile<WTxoSeal>, DirExcavator<WTxoSeal>>;
+    pub type BpDirMound = Mound<FileSupply, FilePile<TxoSeal>, DirExcavator<TxoSeal>>;
 }
