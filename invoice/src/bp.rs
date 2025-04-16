@@ -37,7 +37,7 @@ use commit_verify::{Digest, DigestExt, ReservedBytes, Sha256};
 pub use invoice::*;
 use strict_encoding::{DeserializeError, StrictDeserialize, StrictSerialize};
 
-pub const WITNESS_OUT_HRI: &str = "wout:";
+pub const WITNESS_OUT_HRI: &str = "wout";
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
@@ -87,6 +87,7 @@ impl WitnessOut {
 impl Display for WitnessOut {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str(WITNESS_OUT_HRI)?;
+        f.write_str(":")?;
 
         let mut data = self
             .to_strict_serialized::<{ u8::MAX as usize }>()
@@ -117,6 +118,7 @@ impl FromStr for WitnessOut {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s
             .strip_prefix(WITNESS_OUT_HRI)
+            .and_then(|s| s.strip_prefix(':'))
             .ok_or(ParseWitnessOutError::NoPrefix)?
             .replace('-', "");
 
@@ -178,7 +180,7 @@ mod tests {
     fn display_from_str() {
         let wout = WitnessOut::new(AddressPayload::Tr(OutputPk::strict_dumb()), 0xdeadbeaf1badcafe);
         let s = wout.to_string();
-        assert_eq!(s, "wout:AP7KrRuv-vq3eIAEB-AQEBAQEB-AQEBAQEB-AQEBAQEB-AQEBAQEB-AQEBAQEB-zbu7~w");
+        assert_eq!(s, "wout:~sqtG6__-rd4gAQEB-AQEBAQEB-AQEBAQEB-AQEBAQEB-AQEBAQEB-AQEBAQFM-DAx2");
         let wout2 = WitnessOut::from_str(&s).unwrap();
         assert_eq!(wout, wout2);
     }

@@ -680,7 +680,7 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
                         outpoint?
                     };
                     let prevout = UsedState { addr, outpoint, val: val.clone() };
-                    return Some((prevout, (name.clone(), val)));
+                    Some((prevout, (name.clone(), val)))
                 })
                 .unzip();
 
