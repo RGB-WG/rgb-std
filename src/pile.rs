@@ -174,15 +174,22 @@ pub mod fs {
 
     use super::*;
 
+    const HOARD_MAGIC: u64 = u64::from_be_bytes(*b"RGBHOARD");
+    const CACHE_MAGIC: u64 = u64::from_be_bytes(*b"RGBCACHE");
+    const KEEP_MAGIC: u64 = u64::from_be_bytes(*b"RGBKEEPS");
+    const INDEX_MAGIC: u64 = u64::from_be_bytes(*b"RGBINDEX");
+    const STAND_MAGIC: u64 = u64::from_be_bytes(*b"RGBSTAND");
+    const MINE_MAGIC: u64 = u64::from_be_bytes(*b"RGBMINES");
+
     pub struct FilePile<Seal: RgbSeal>
     where Seal::WitnessId: From<[u8; 32]> + Into<[u8; 32]>
     {
-        hoard: FileAoraMap<Seal::WitnessId, Seal::Client>,
-        cache: FileAoraMap<Seal::WitnessId, Seal::Published>,
-        keep: FileAoraMap<Opid, SmallOrdMap<u16, Seal::Definiton>>,
-        index: FileAoraIndex<Opid, Seal::WitnessId>,
-        stand: FileAoraIndex<Seal::WitnessId, Opid>,
-        mine: FileAuraMap<Seal::WitnessId, WitnessStatus, 32, 8>,
+        hoard: FileAoraMap<Seal::WitnessId, Seal::Client, HOARD_MAGIC, 1>,
+        cache: FileAoraMap<Seal::WitnessId, Seal::Published, CACHE_MAGIC, 1>,
+        keep: FileAoraMap<Opid, SmallOrdMap<u16, Seal::Definiton>, KEEP_MAGIC, 1>,
+        index: FileAoraIndex<Opid, Seal::WitnessId, INDEX_MAGIC, 1>,
+        stand: FileAoraIndex<Seal::WitnessId, Opid, STAND_MAGIC, 1>,
+        mine: FileAuraMap<Seal::WitnessId, WitnessStatus, MINE_MAGIC, 1, 32, 8>,
         _phantom: PhantomData<Seal>,
     }
 
@@ -263,12 +270,12 @@ pub mod fs {
     {
         type Seal = Seal;
 
-        type Hoard = FileAoraMap<Seal::WitnessId, Seal::Client>;
-        type Cache = FileAoraMap<Seal::WitnessId, Seal::Published>;
-        type Keep = FileAoraMap<Opid, SmallOrdMap<u16, Seal::Definiton>>;
-        type Index = FileAoraIndex<Opid, Seal::WitnessId>;
-        type Stand = FileAoraIndex<Seal::WitnessId, Opid>;
-        type Mine = FileAuraMap<Seal::WitnessId, WitnessStatus, 32, 8>;
+        type Hoard = FileAoraMap<Seal::WitnessId, Seal::Client, HOARD_MAGIC, 1>;
+        type Cache = FileAoraMap<Seal::WitnessId, Seal::Published, CACHE_MAGIC, 1>;
+        type Keep = FileAoraMap<Opid, SmallOrdMap<u16, Seal::Definiton>, KEEP_MAGIC, 1>;
+        type Index = FileAoraIndex<Opid, Seal::WitnessId, INDEX_MAGIC, 1>;
+        type Stand = FileAoraIndex<Seal::WitnessId, Opid, STAND_MAGIC, 1>;
+        type Mine = FileAuraMap<Seal::WitnessId, WitnessStatus, MINE_MAGIC, 1, 32, 8>;
 
         fn hoard(&self) -> &Self::Hoard { &self.hoard }
 

@@ -138,10 +138,11 @@ checksum = "e16d2d3311acee920a9eb8d33b8cbc1787ce4a264e85f964c2404b969bdcd487"
 
 [[package]]
 name = "aora"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "99685e2af1fbf0119d59a1085f2e8c05ef658929c80f442065c20309f2455f84"
+checksum = "d20d908b443b82063d02543282f046fa7ac5e05abc6a7c9958313f0fa4da5881"
 dependencies = [
+ "binfile",
  "indexmap",
  "strict_encoding",
 ]
@@ -212,6 +213,15 @@ name = "bech32"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d86b93f97252c47b41663388e6d155714a9d0c398b99f1005cbc5f978b29f445"
+
+[[package]]
+name = "binfile"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6274ba7d40c4296332ddf908383673f96412b853337a4df0f6ecc9495ec5ff7d"
+dependencies = [
+ "amplify",
+]
 
 [[package]]
 name = "bitcoin-io"
@@ -575,7 +585,7 @@ dependencies = [
 [[package]]
 name = "hypersonic"
 version = "0.12.0-beta.5"
-source = "git+https://github.com/AluVM/sonic?branch=master#e590ec14f7971fa898c53ab366b4e25f5ed2ed7a"
+source = "git+https://github.com/AluVM/sonic?branch=master#921f34ffc65d21bc42b0a1034b9d9a3b24f472ed"
 dependencies = [
  "aluvm",
  "amplify",
@@ -1033,7 +1043,7 @@ dependencies = [
 [[package]]
 name = "sonic-api"
 version = "0.12.0-beta.5"
-source = "git+https://github.com/AluVM/sonic?branch=master#e590ec14f7971fa898c53ab366b4e25f5ed2ed7a"
+source = "git+https://github.com/AluVM/sonic?branch=master#921f34ffc65d21bc42b0a1034b9d9a3b24f472ed"
 dependencies = [
  "aluvm",
  "amplify",
@@ -1052,7 +1062,7 @@ dependencies = [
 [[package]]
 name = "sonic-callreq"
 version = "0.12.0-beta.5"
-source = "git+https://github.com/AluVM/sonic?branch=master#e590ec14f7971fa898c53ab366b4e25f5ed2ed7a"
+source = "git+https://github.com/AluVM/sonic?branch=master#921f34ffc65d21bc42b0a1034b9d9a3b24f472ed"
 dependencies = [
  "amplify",
  "baid64",
