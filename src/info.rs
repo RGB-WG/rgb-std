@@ -34,8 +34,6 @@ use strict_encoding::TypeName;
 pub struct SchemaInfo {
     pub id: SchemaId,
     pub name: TypeName,
-    pub developer: Identity,
-    pub created_at: DateTime<Utc>,
 }
 
 impl SchemaInfo {
@@ -43,11 +41,6 @@ impl SchemaInfo {
         SchemaInfo {
             id: schema.schema_id(),
             name: schema.name.clone(),
-            developer: schema.developer.clone(),
-            created_at: Utc
-                .timestamp_opt(schema.timestamp, 0)
-                .single()
-                .unwrap_or_else(Utc::now),
         }
     }
 }
@@ -56,8 +49,6 @@ impl Display for SchemaInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{: <24}", self.name.to_string())?;
         write!(f, "\t{: <80}", self.id.to_string())?;
-        write!(f, "\t{}", self.created_at.format("%Y-%m-%d"))?;
-        writeln!(f, "\t{}", self.developer)?;
         Ok(())
     }
 }

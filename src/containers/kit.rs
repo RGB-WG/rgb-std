@@ -183,9 +183,6 @@ impl StrictArmor for Kit {
             let mut header = ArmorHeader::new(ASCII_ARMOR_SCHEMA, schema.name.to_string());
             let id = schema.schema_id();
             header.params.push((s!("id"), format!("{id:-}")));
-            header
-                .params
-                .push((s!("dev"), schema.developer.to_string()));
             headers.push(header);
         }
         headers.push(ArmorHeader::new(ASCII_ARMOR_TYPE_SYSTEM, self.types.id().to_string()));
