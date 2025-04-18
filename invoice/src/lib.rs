@@ -36,6 +36,7 @@ pub mod bp;
 
 use core::fmt::{self, Display, Formatter};
 use core::str::FromStr;
+use std::ops::{Deref, DerefMut};
 
 use amplify::confinement::{ConfinedVec, TinyBlob};
 use baid64::Baid64ParseError;
@@ -126,11 +127,11 @@ pub enum ParseInvoiceError {
     Bp(bp::ParseWitnessOutError),
 }
 
-pub struct RgbInvoice(CallRequest<CallScope<ContractQuery>, RgbBeneficiary>);
+pub struct RgbInvoice<T: Display + FromStr>(CallRequest<T, RgbBeneficiary>);
 
-impl RgbInvoice {
+impl<T: Display + FromStr> RgbInvoice<T> {
     pub fn new(
-        contract_id: ContractId,
+        scope: T,
         beneficiary: RgbBeneficiary,
         // Core parameters
         value: Option<u64>,
@@ -142,7 +143,7 @@ impl RgbInvoice {
         endpoints: Option<impl Into<ConfinedVec<Endpoint, 0, 10>>>,
     ) -> Self {
         Self(CallRequest {
-            scope: CallScope::ContractId(contract_id),
+            scope,
             auth: beneficiary,
             data: value.map(StrictVal::num),
             expiry: expiry_time,
@@ -155,8 +156,16 @@ impl RgbInvoice {
     }
 }
 
-impl From<RgbInvoice> for CallRequest<CallScope<ContractQuery>, RgbBeneficiary> {
-    fn from(val: RgbInvoice) -> Self {
-        val.0
-    }
+impl<T: Display + FromStr> From<RgbInvoice<T>> for CallRequest<T, RgbBeneficiary> {
+    fn from(val: RgbInvoice<T>) -> Self { val.0 }
+}
+
+impl<T: Display + FromStr> Deref for RgbInvoice<T> {
+    type Target = CallRequest<T, RgbBeneficiary>;
+
+    fn deref(&self) -> &Self::Target { &self.0 }
+}
+
+impl<T: Display + FromStr> DerefMut for RgbInvoice<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
 }
