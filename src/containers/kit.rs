@@ -208,9 +208,9 @@ mod test {
     fn error_kit_strs() {
         assert!(Kit::from_str(
             r#"-----BEGIN RGB KIT-----
-Id: rgb:kit:jXOeJYkD-NlOgJoP-!zT1Hvl-0fP71Zo-b2mAh2C-i5ISROo
+Id: rgb:kit:jXOeJYkD-NlOgJoP-_zT1Hvl-0fP71Zo-b2mAh2C-i5ISROo
 Version: 0
-Type-System: sts:8Vb$sM1F-5MsQc20-HEixf55-gJR37FM-0zRKfpY-SwIp35w#design-farmer-camel
+Type-System: sts:8Vb~sM1F-5MsQc20-HEixf55-gJR37FM-0zRKfpY-SwIp35w#design-farmer-camel
 Check-SHA256: 837885c8f8091aeaeb9ec3c3f85a6ff470a415e610b8ba3e49f9b33c9cf9d619
 
 000000000
@@ -224,7 +224,7 @@ Check-SHA256: 837885c8f8091aeaeb9ec3c3f85a6ff470a415e610b8ba3e49f9b33c9cf9d619
             r#"-----BEGIN RGB KIT-----
 Id: rgb:kit:11111111-2222222-XmR8XRJ-v!q$Dzf-yImkPjD-t8EjfvI
 Version: 0
-Type-System: sts:8Vb$sM1F-5MsQc20-HEixf55-gJR37FM-0zRKfpY-SwIp35w#design-farmer-camel
+Type-System: sts:8Vb~sM1F-5MsQc20-HEixf55-gJR37FM-0zRKfpY-SwIp35w#design-farmer-camel
 Check-SHA256: 837885c8f8091aeaeb9ec3c3f85a6ff470a415e610b8ba3e49f9b33c9cf9d619
 
 000000000
@@ -236,9 +236,9 @@ Check-SHA256: 837885c8f8091aeaeb9ec3c3f85a6ff470a415e610b8ba3e49f9b33c9cf9d619
         // wrong checksum
         assert!(Kit::from_str(
             r#"-----BEGIN RGB KIT-----
-Id: rgb:kit:jXOeJYkD-NlOgJoP-!zT1Hvl-0fP71Zo-b2mAh2C-i5ISROo
+Id: rgb:kit:jXOeJYkD-NlOgJoP-_zT1Hvl-0fP71Zo-b2mAh2C-i5ISROo
 Version: 0
-Type-System: sts:8Vb$sM1F-5MsQc20-HEixf55-gJR37FM-0zRKfpY-SwIp35w#design-farmer-camel
+Type-System: sts:8Vb~sM1F-5MsQc20-HEixf55-gJR37FM-0zRKfpY-SwIp35w#design-farmer-camel
 Check-SHA256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
 000000000

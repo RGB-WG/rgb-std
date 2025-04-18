@@ -42,28 +42,30 @@ use crate::LIB_NAME_RGB_STD;
 /// Strict types id for the library providing standard data types which may be
 /// used in RGB smart contracts.
 pub const LIB_ID_RGB_STORAGE: &str =
-    "stl:qn07P$ya-1mbGh3I-8NwoLgo-0PIG3K7-nEOn!VB-NpOQh6o#donald-volcano-episode";
+    "stl:IQP_AS3R-7HuH7DJ-Su6cdYc-RICVoR9-9uJBnHq-C68pj4o#gamma-bonjour-hexagon";
 
 /// Strict types id for the library providing standard data types which may be
 /// used in RGB smart contracts.
 pub const LIB_ID_RGB_CONTRACT: &str =
-    "stl:M0pACQFr-pgDuEhY-ncDL2FF-4YZIABF-TRsvtBT-2D4mTPY#patriot-mono-charter";
+    "stl:8L2UHLUU-oXTeo0N-KUXzNkI-ECQK3NQ-nXVu928-9lm4Lqk#pretend-natasha-aurora";
 
 /// Strict types id for the library representing of RGB StdLib data types.
 pub const LIB_ID_RGB_STD: &str =
-    "stl:SKJhAQka-7aQ5rqx-Ts4LnIo-PkFgnkS-ffDPl01-pkNFpAE#juice-echo-venice";
+    "stl:TlieNkRT-cotOJQV-oiIa4Cu-XyVwDNc-2e33rOE-Ps38G~Y#safari-miller-convert";
 
 fn _rgb_std_stl() -> Result<TypeLib, CompileError> {
-    LibBuilder::new(libname!(LIB_NAME_RGB_STD), tiny_bset! {
+    // TODO: wait for fix in strict_types to use LibBuilder::with
+    #[allow(deprecated)]
+    LibBuilder::new(libname!(LIB_NAME_RGB_STD), [
         std_stl().to_dependency(),
         strict_types_stl().to_dependency(),
         commit_verify_stl().to_dependency(),
-        bp_tx_stl().to_dependency(),
+        bp_consensus_stl().to_dependency(),
         bp_core_stl().to_dependency(),
         aluvm_stl().to_dependency(),
         rgb_commit_stl().to_dependency(),
         rgb_logic_stl().to_dependency(),
-    })
+    ])
     .transpile::<Transfer>()
     .transpile::<Contract>()
     .transpile::<Kit>()
@@ -71,10 +73,10 @@ fn _rgb_std_stl() -> Result<TypeLib, CompileError> {
 }
 
 fn _rgb_contract_stl() -> Result<TypeLib, CompileError> {
-    LibBuilder::new(libname!(LIB_NAME_RGB_CONTRACT), tiny_bset! {
-        std_stl().to_dependency(),
-        bp_consensus_stl().to_dependency()
-    })
+    LibBuilder::with(libname!(LIB_NAME_RGB_CONTRACT), [
+        std_stl().to_dependency_types(),
+        bp_consensus_stl().to_dependency_types(),
+    ])
     .transpile::<Amount>()
     .transpile::<Allocation>()
     .transpile::<ContractSpec>()
@@ -91,7 +93,9 @@ fn _rgb_contract_stl() -> Result<TypeLib, CompileError> {
 }
 
 fn _rgb_storage_stl() -> Result<TypeLib, CompileError> {
-    LibBuilder::new(libname!(LIB_NAME_RGB_STORAGE), tiny_bset! {
+    // TODO: wait for fix in strict_types to use LibBuilder::with
+    #[allow(deprecated)]
+    LibBuilder::new(libname!(LIB_NAME_RGB_STORAGE), [
         std_stl().to_dependency(),
         strict_types_stl().to_dependency(),
         commit_verify_stl().to_dependency(),
@@ -100,8 +104,8 @@ fn _rgb_storage_stl() -> Result<TypeLib, CompileError> {
         aluvm_stl().to_dependency(),
         rgb_commit_stl().to_dependency(),
         rgb_logic_stl().to_dependency(),
-        rgb_std_stl().to_dependency()
-    })
+        rgb_std_stl().to_dependency(),
+    ])
     .transpile::<MemIndex>()
     .transpile::<MemState>()
     .transpile::<MemStash>()

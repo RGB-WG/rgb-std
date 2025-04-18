@@ -7,287 +7,288 @@
 
 Seals vesper lexicon=types+commitments
 
-ConsignmentId commitment hasher=SHA256 tagged=urn:lnp-bp:rgb:consignment#2024-03-11
-  ContainerVer serialized
-  Bool serialized
-  ContractId serialized
-  DiscloseHash serialized
-  DiscloseHash set len=0..MAX32
-    DiscloseHash element
-  SecretSeal map len=0..MAX16
-    BundleId mapKey
-    SecretSeal mapValue
-  TypeSysId serialized
-  LibId set len=0..MAX16
-    LibId element
+commitment ConsignmentId, hasher SHA256, tagged urn:lnp-bp:rgb:consignment#2024-03-11
+  serialized ContainerVer
+  serialized Bool
+  serialized ContractId
+  serialized DiscloseHash
+  set DiscloseHash, len 0..MAX32
+    element DiscloseHash
+  map SecretSeal, len 0..MAX16
+    mapKey BundleId
+    mapValue SecretSeal
+  serialized TypeSysId
+  set LibId, len 0..MAX16
+    element LibId
 
-Consignmenttrue rec
-  version enum ContainerVer v0=0
-  transfer enum Bool false=0 true=1
-  terminals map len=0..MAX16
-    value bytes len=32 aka=SecretSeal
-  genesis rec Genesis
-    ffv is U16 aka=Ffv
-    schemaId bytes len=32 aka=SchemaId
-    timestamp is I64
-    issuer ascii aka=Identity first=AsciiPrintable rest=AsciiPrintable len=1..4096
-    chainNet enum ChainNet bitcoinMainnet=0 bitcoinTestnet3=1 bitcoinTestnet4=2 bitcoinSignet=3 bitcoinRegtest=4 liquidMainnet=5 liquidTestnet=6
-    metadata map len=0..MAX8 aka=Metadata
-      key is U16 aka=MetaType
-      value bytes len=0..MAX16 aka=MetaValue
-    globals map len=0..MAX8 aka=GlobalState
-      key is U16 aka=GlobalStateType
-      value list len=1..MAX16 aka=GlobalValues
-        element bytes len=0..MAX16 aka=DataState
-    assignments map len=0..MAX8 aka=AssignmentsBlindSealTxid
-      key is U16 aka=AssignmentType
-      value union TypedAssignsBlindSealTxid
-        declarative list len=1..MAX16 wrapped aka=AssignVecAssignVoidStateBlindSealTxid tag=0
-          AssignVoidStateBlindSealTxid union
-            revealed rec tag=0
-              seal rec BlindSealTxid
-                txid bytes len=32 aka=Txid
-                vout is U32 aka=Vout
-                blinding is U64
-              state is Unit aka=VoidState
-            confidentialSeal rec tag=1
-              seal bytes len=32 aka=SecretSeal
-              state is Unit aka=VoidState
-        fungible list len=1..MAX16 wrapped aka=AssignVecAssignRevealedValueBlindSealTxid tag=1
-          AssignRevealedValueBlindSealTxid union
-            revealed rec tag=0
-              seal rec BlindSealTxid
-                txid bytes len=32 aka=Txid
-                vout is U32 aka=Vout
-                blinding is U64
-              state rec RevealedFungible
-                value union FungibleState
-                  bits64 is U64 wrapped tag=0
-            confidentialSeal rec tag=1
-              seal bytes len=32 aka=SecretSeal
-              state rec RevealedFungible
-                value union FungibleState
-                  bits64 is U64 wrapped tag=0
-        structured list len=1..MAX16 wrapped aka=AssignVecAssignRevealedDataBlindSealTxid tag=2
-          AssignRevealedDataBlindSealTxid union
-            revealed rec tag=0
-              seal rec BlindSealTxid
-                txid bytes len=32 aka=Txid
-                vout is U32 aka=Vout
-                blinding is U64
-              state rec RevealedData
-                value bytes len=0..MAX16 aka=DataState
-                salt is U128
-            confidentialSeal rec tag=1
-              seal bytes len=32 aka=SecretSeal
-              state rec RevealedData
-                value bytes len=0..MAX16 aka=DataState
-                salt is U128
-  bundles set len=0..MAX32
-    WitnessBundle rec
-      pubWitness union PubWitness
-        txid bytes len=32 wrapped aka=Txid tag=0
-        tx rec Tx wrapped tag=1
-          version is I32 aka=TxVer
-          inputs list len=0..MAX32
-            TxIn rec
-              prevOutput rec Outpoint
-                txid bytes len=32 aka=Txid
-                vout is U32 aka=Vout
-              sigScript bytes len=0..MAX32 aka=SigScript aka=ScriptBytes
-              sequence is U32 aka=SeqNo
-              witness list len=0..MAX32 aka=Witness
-                element bytes len=0..MAX32 aka=ByteStr
-          outputs list len=0..MAX32
-            TxOut rec
-              value is U64 aka=Sats
-              scriptPubkey bytes len=0..MAX32 aka=ScriptPubkey aka=ScriptBytes
-          lockTime is U32 aka=LockTime
-      bundle rec TransitionBundle
-        inputMap map len=1..MAX16 aka=InputMap
-          key is U32 aka=Vout
-          value set len=0..MAX16
-            element bytes len=32 aka=OpId
-        knownTransitions map len=1..MAX16
-          key bytes len=32 aka=OpId
-          value rec Transition
-            ffv is U16 aka=Ffv
-            contractId bytes len=32 aka=ContractId
-            nonce is U64
-            transitionType is U16 aka=TransitionType
-            metadata map len=0..MAX8 aka=Metadata
-              key is U16 aka=MetaType
-              value bytes len=0..MAX16 aka=MetaValue
-            globals map len=0..MAX8 aka=GlobalState
-              key is U16 aka=GlobalStateType
-              value list len=1..MAX16 aka=GlobalValues
-                element bytes len=0..MAX16 aka=DataState
-            inputs set len=1..MAX16 aka=Inputs
-              Opout rec
-                op bytes len=32 aka=OpId
-                ty is U16 aka=AssignmentType
-                no is U16
-            assignments map len=0..MAX8 aka=AssignmentsBlindSealTxPtr
-              key is U16 aka=AssignmentType
-              value union TypedAssignsBlindSealTxPtr
-                declarative list len=1..MAX16 wrapped aka=AssignVecAssignVoidStateBlindSealTxPtr tag=0
-                  AssignVoidStateBlindSealTxPtr union
-                    revealed rec tag=0
-                      seal rec BlindSealTxPtr
-                        txid union TxPtr
-                          witnessTx is Unit tag=0
-                          txid bytes len=32 wrapped aka=Txid tag=1
-                        vout is U32 aka=Vout
-                        blinding is U64
-                      state is Unit aka=VoidState
-                    confidentialSeal rec tag=1
-                      seal bytes len=32 aka=SecretSeal
-                      state is Unit aka=VoidState
-                fungible list len=1..MAX16 wrapped aka=AssignVecAssignRevealedValueBlindSealTxPtr tag=1
-                  AssignRevealedValueBlindSealTxPtr union
-                    revealed rec tag=0
-                      seal rec BlindSealTxPtr
-                        txid union TxPtr
-                          witnessTx is Unit tag=0
-                          txid bytes len=32 wrapped aka=Txid tag=1
-                        vout is U32 aka=Vout
-                        blinding is U64
-                      state rec RevealedFungible
-                        value union FungibleState
-                          bits64 is U64 wrapped tag=0
-                    confidentialSeal rec tag=1
-                      seal bytes len=32 aka=SecretSeal
-                      state rec RevealedFungible
-                        value union FungibleState
-                          bits64 is U64 wrapped tag=0
-                structured list len=1..MAX16 wrapped aka=AssignVecAssignRevealedDataBlindSealTxPtr tag=2
-                  AssignRevealedDataBlindSealTxPtr union
-                    revealed rec tag=0
-                      seal rec BlindSealTxPtr
-                        txid union TxPtr
-                          witnessTx is Unit tag=0
-                          txid bytes len=32 wrapped aka=Txid tag=1
-                        vout is U32 aka=Vout
-                        blinding is U64
-                      state rec RevealedData
-                        value bytes len=0..MAX16 aka=DataState
-                        salt is U128
-                    confidentialSeal rec tag=1
-                      seal bytes len=32 aka=SecretSeal
-                      state rec RevealedData
-                        value bytes len=0..MAX16 aka=DataState
-                        salt is U128
-              some bytes len=64 option wrapped aka=Signature tag=1
-  schema rec Schema
-    ffv is U16 aka=Ffv
-    name ascii aka=TypeName first=AlphaCapsLodash rest=AlphaNumLodash len=1..100
-    metaTypes map len=0..MAX8
-      key is U16 aka=MetaType
-      value rec MetaDetails
-        semId bytes len=32 aka=SemId
-        name ascii aka=FieldName first=AlphaSmallLodash rest=AlphaNumLodash len=1..100
-    globalTypes map len=0..MAX8
-      key is U16 aka=GlobalStateType
-      value rec GlobalDetails
-        globalStateSchema rec GlobalStateSchema
-          semId bytes len=32 aka=SemId
-          maxItems is U24
-        name ascii aka=FieldName first=AlphaSmallLodash rest=AlphaNumLodash len=1..100
-    ownedTypes map len=0..MAX8
-      key is U16 aka=AssignmentType
-      value rec AssignmentDetails
-        ownedStateSchema union OwnedStateSchema
-          declarative is Unit tag=0
-          fungible enum FungibleType wrapped unsigned64Bit=8 tag=1
-          structured bytes len=32 wrapped aka=SemId tag=2
-        name ascii aka=FieldName first=AlphaSmallLodash rest=AlphaNumLodash len=1..100
-        defaultTransition is U16 aka=TransitionType
-    genesis rec GenesisSchema
-      metadata set len=0..MAX8
-        element is U16 aka=MetaType
-      globals map len=0..MAX8
-        key is U16 aka=GlobalStateType
-        value rec Occurrences
-          min is U16
-          max is U16
-      assignments map len=0..MAX8
-        key is U16 aka=AssignmentType
-        value rec Occurrences
-          min is U16
-          max is U16
-        some rec LibSite option wrapped tag=1
-          lib bytes len=32 aka=LibId
-          pos is U16
-    transitions map len=0..MAX8
-      key is U16 aka=TransitionType
-      value rec TransitionDetails
-        transitionSchema rec TransitionSchema
-          metadata set len=0..MAX8
-            element is U16 aka=MetaType
-          globals map len=0..MAX8
-            key is U16 aka=GlobalStateType
-            value rec Occurrences
-              min is U16
-              max is U16
-          inputs map len=0..MAX8
-            key is U16 aka=AssignmentType
-            value rec Occurrences
-              min is U16
-              max is U16
-          assignments map len=0..MAX8
-            key is U16 aka=AssignmentType
-            value rec Occurrences
-              min is U16
-              max is U16
-            some rec LibSite option wrapped tag=1
-              lib bytes len=32 aka=LibId
-              pos is U16
-        name ascii aka=FieldName first=AlphaSmallLodash rest=AlphaNumLodash len=1..100
-  types map len=0..MAX24 aka=TypeSystem
-    key bytes len=32 aka=SemId
-    value union TySemId
-      primitive is U8 wrapped aka=Primitive tag=0
-      unicode is Unit tag=1
-      enum set len=1..MAX8 wrapped aka=EnumVariants tag=2
-        Variant rec
-          name ascii aka=VariantName first=AlphaSmallLodash rest=AlphaNumLodash len=1..100
-          tag is U8
-      union map len=0..MAX8 wrapped aka=UnionVariantsSemId tag=3
-        key is U8
-        value rec VariantInfoSemId
-          name ascii aka=VariantName first=AlphaSmallLodash rest=AlphaNumLodash len=1..100
-          ty bytes len=32 aka=SemId
-      tuple list len=1..MAX8 wrapped aka=UnnamedFieldsSemId tag=4
-        element bytes len=32 aka=SemId
-      struct list len=1..MAX8 wrapped aka=NamedFieldsSemId tag=5
-        FieldSemId rec
-          name ascii aka=FieldName first=AlphaSmallLodash rest=AlphaNumLodash len=1..100
-          ty bytes len=32 aka=SemId
-      array tuple tag=6
-        _ bytes len=32 aka=SemId
-        _ is U16
-      list tuple tag=7
-        _ bytes len=32 aka=SemId
-        Sizing rec
-          min is U64
-          max is U64
-      set tuple tag=8
-        _ bytes len=32 aka=SemId
-        Sizing rec
-          min is U64
-          max is U64
-      map tuple tag=9
-        _ bytes len=32 aka=SemId
-        _ bytes len=32 aka=SemId
-        Sizing rec
-          min is U64
-          max is U64
-  scripts set len=0..1024
-    Lib rec
-      isae set len=0..64 aka=IsaSeg
-        element ascii aka=IsaName first=AlphaCaps rest=AlphaCapsNum len=2..8
-      code bytes len=0..MAX16
-      data bytes len=0..MAX16
-      libs set len=0..MAX8 aka=LibSeg
-        element bytes len=32 aka=LibId
+rec Consignmenttrue
+  enum version, ContainerVer, v0 0
+  enum transfer, Bool, false 0, true 1
+  map terminals, len 0..MAX16
+    bytes key, len 32, aka BundleId
+    bytes value, len 32, aka SecretSeal
+  rec genesis, Genesis
+    is ffv, U16, aka Ffv
+    bytes schemaId, len 32, aka SchemaId
+    is timestamp, I64
+    ascii issuer, aka Identity, first AsciiPrintable, rest AsciiPrintable, len 1..4096
+    enum chainNet, ChainNet, bitcoinMainnet 0, bitcoinTestnet3 1, bitcoinTestnet4 2, bitcoinSignet 3, bitcoinRegtest 4, liquidMainnet 5, liquidTestnet 6
+    map metadata, len 0..MAX8, aka Metadata
+      is key, U16, aka MetaType
+      bytes value, len 0..MAX16, aka MetaValue
+    map globals, len 0..MAX8, aka GlobalState
+      is key, U16, aka GlobalStateType
+      list value, len 1..MAX16, aka GlobalValues
+        bytes element, len 0..MAX16, aka DataState
+    map assignments, len 0..MAX8, aka AssignmentsBlindSealTxid
+      is key, U16, aka AssignmentType
+      union value, TypedAssignsBlindSealTxid
+        list declarative, len 1..MAX16, wrapped, aka AssignVecAssignVoidStateBlindSealTxid, tag 0
+          union AssignVoidStateBlindSealTxid
+            rec revealed, tag 0
+              rec seal, BlindSealTxid
+                bytes txid, len 32, aka Txid
+                is vout, U32, aka Vout
+                is blinding, U64
+              is state, Unit, aka VoidState
+            rec confidentialSeal, tag 1
+              bytes seal, len 32, aka SecretSeal
+              is state, Unit, aka VoidState
+        list fungible, len 1..MAX16, wrapped, aka AssignVecAssignRevealedValueBlindSealTxid, tag 1
+          union AssignRevealedValueBlindSealTxid
+            rec revealed, tag 0
+              rec seal, BlindSealTxid
+                bytes txid, len 32, aka Txid
+                is vout, U32, aka Vout
+                is blinding, U64
+              rec state, RevealedFungible
+                union value, FungibleState
+                  is bits64, U64, wrapped, tag 0
+            rec confidentialSeal, tag 1
+              bytes seal, len 32, aka SecretSeal
+              rec state, RevealedFungible
+                union value, FungibleState
+                  is bits64, U64, wrapped, tag 0
+        list structured, len 1..MAX16, wrapped, aka AssignVecAssignRevealedDataBlindSealTxid, tag 2
+          union AssignRevealedDataBlindSealTxid
+            rec revealed, tag 0
+              rec seal, BlindSealTxid
+                bytes txid, len 32, aka Txid
+                is vout, U32, aka Vout
+                is blinding, U64
+              rec state, RevealedData
+                bytes value, len 0..MAX16, aka DataState
+                is salt, U128
+            rec confidentialSeal, tag 1
+              bytes seal, len 32, aka SecretSeal
+              rec state, RevealedData
+                bytes value, len 0..MAX16, aka DataState
+                is salt, U128
+  set bundles, len 0..MAX32
+    rec WitnessBundle
+      union pubWitness, PubWitness
+        bytes txid, len 32, wrapped, aka Txid, tag 0
+        rec tx, Tx, wrapped, tag 1
+          is version, I32, aka TxVer
+          list inputs, len 0..MAX32
+            rec TxIn
+              rec prevOutput, Outpoint
+                bytes txid, len 32, aka Txid
+                is vout, U32, aka Vout
+              bytes sigScript, len 0..MAX32, aka SigScript, aka ScriptBytes
+              is sequence, U32, aka SeqNo
+              list witness, len 0..MAX32, aka Witness
+                bytes element, len 0..MAX32, aka ByteStr
+          list outputs, len 0..MAX32
+            rec TxOut
+              is value, U64, aka Sats
+              bytes scriptPubkey, len 0..MAX32, aka ScriptPubkey, aka ScriptBytes
+          is lockTime, U32, aka LockTime
+      rec bundle, TransitionBundle
+        map inputMap, len 1..MAX16, aka InputMap
+          is key, U32, aka Vout
+          set value, len 0..MAX16
+            bytes element, len 32, aka OpId
+        map knownTransitions, len 1..MAX16
+          bytes key, len 32, aka OpId
+          rec value, Transition
+            is ffv, U16, aka Ffv
+            bytes contractId, len 32, aka ContractId
+            is nonce, U64
+            is transitionType, U16, aka TransitionType
+            map metadata, len 0..MAX8, aka Metadata
+              is key, U16, aka MetaType
+              bytes value, len 0..MAX16, aka MetaValue
+            map globals, len 0..MAX8, aka GlobalState
+              is key, U16, aka GlobalStateType
+              list value, len 1..MAX16, aka GlobalValues
+                bytes element, len 0..MAX16, aka DataState
+            set inputs, len 1..MAX16, aka Inputs
+              rec Opout
+                bytes op, len 32, aka OpId
+                is ty, U16, aka AssignmentType
+                is no, U16
+            map assignments, len 0..MAX8, aka AssignmentsBlindSealTxPtr
+              is key, U16, aka AssignmentType
+              union value, TypedAssignsBlindSealTxPtr
+                list declarative, len 1..MAX16, wrapped, aka AssignVecAssignVoidStateBlindSealTxPtr, tag 0
+                  union AssignVoidStateBlindSealTxPtr
+                    rec revealed, tag 0
+                      rec seal, BlindSealTxPtr
+                        union txid, TxPtr
+                          is witnessTx, Unit, tag 0
+                          bytes txid, len 32, wrapped, aka Txid, tag 1
+                        is vout, U32, aka Vout
+                        is blinding, U64
+                      is state, Unit, aka VoidState
+                    rec confidentialSeal, tag 1
+                      bytes seal, len 32, aka SecretSeal
+                      is state, Unit, aka VoidState
+                list fungible, len 1..MAX16, wrapped, aka AssignVecAssignRevealedValueBlindSealTxPtr, tag 1
+                  union AssignRevealedValueBlindSealTxPtr
+                    rec revealed, tag 0
+                      rec seal, BlindSealTxPtr
+                        union txid, TxPtr
+                          is witnessTx, Unit, tag 0
+                          bytes txid, len 32, wrapped, aka Txid, tag 1
+                        is vout, U32, aka Vout
+                        is blinding, U64
+                      rec state, RevealedFungible
+                        union value, FungibleState
+                          is bits64, U64, wrapped, tag 0
+                    rec confidentialSeal, tag 1
+                      bytes seal, len 32, aka SecretSeal
+                      rec state, RevealedFungible
+                        union value, FungibleState
+                          is bits64, U64, wrapped, tag 0
+                list structured, len 1..MAX16, wrapped, aka AssignVecAssignRevealedDataBlindSealTxPtr, tag 2
+                  union AssignRevealedDataBlindSealTxPtr
+                    rec revealed, tag 0
+                      rec seal, BlindSealTxPtr
+                        union txid, TxPtr
+                          is witnessTx, Unit, tag 0
+                          bytes txid, len 32, wrapped, aka Txid, tag 1
+                        is vout, U32, aka Vout
+                        is blinding, U64
+                      rec state, RevealedData
+                        bytes value, len 0..MAX16, aka DataState
+                        is salt, U128
+                    rec confidentialSeal, tag 1
+                      bytes seal, len 32, aka SecretSeal
+                      rec state, RevealedData
+                        bytes value, len 0..MAX16, aka DataState
+                        is salt, U128
+              bytes some, len 64, option, wrapped, aka Signature, tag 1
+  rec schema, Schema
+    is ffv, U16, aka Ffv
+    ascii name, aka TypeName, first AlphaCapsLodash, rest AlphaNumLodash, len 1..100
+    map metaTypes, len 0..MAX8
+      is key, U16, aka MetaType
+      rec value, MetaDetails
+        bytes semId, len 32, aka SemId
+        ascii name, aka FieldName, first AlphaSmallLodash, rest AlphaNumLodash, len 1..100
+    map globalTypes, len 0..MAX8
+      is key, U16, aka GlobalStateType
+      rec value, GlobalDetails
+        rec globalStateSchema, GlobalStateSchema
+          bytes semId, len 32, aka SemId
+          is maxItems, U24
+        ascii name, aka FieldName, first AlphaSmallLodash, rest AlphaNumLodash, len 1..100
+    map ownedTypes, len 0..MAX8
+      is key, U16, aka AssignmentType
+      rec value, AssignmentDetails
+        union ownedStateSchema, OwnedStateSchema
+          is declarative, Unit, tag 0
+          enum fungible, FungibleType, wrapped, unsigned64Bit 8, tag 1
+          bytes structured, len 32, wrapped, aka SemId, tag 2
+        ascii name, aka FieldName, first AlphaSmallLodash, rest AlphaNumLodash, len 1..100
+        is defaultTransition, U16, aka TransitionType
+    rec genesis, GenesisSchema
+      set metadata, len 0..MAX8
+        is element, U16, aka MetaType
+      map globals, len 0..MAX8
+        is key, U16, aka GlobalStateType
+        rec value, Occurrences
+          is min, U16
+          is max, U16
+      map assignments, len 0..MAX8
+        is key, U16, aka AssignmentType
+        rec value, Occurrences
+          is min, U16
+          is max, U16
+        rec some, LibSite, option, wrapped, tag 1
+          bytes lib, len 32, aka LibId
+          is pos, U16
+    map transitions, len 0..MAX8
+      is key, U16, aka TransitionType
+      rec value, TransitionDetails
+        rec transitionSchema, TransitionSchema
+          set metadata, len 0..MAX8
+            is element, U16, aka MetaType
+          map globals, len 0..MAX8
+            is key, U16, aka GlobalStateType
+            rec value, Occurrences
+              is min, U16
+              is max, U16
+          map inputs, len 0..MAX8
+            is key, U16, aka AssignmentType
+            rec value, Occurrences
+              is min, U16
+              is max, U16
+          map assignments, len 0..MAX8
+            is key, U16, aka AssignmentType
+            rec value, Occurrences
+              is min, U16
+              is max, U16
+            rec some, LibSite, option, wrapped, tag 1
+              bytes lib, len 32, aka LibId
+              is pos, U16
+        ascii name, aka FieldName, first AlphaSmallLodash, rest AlphaNumLodash, len 1..100
+  map types, len 0..MAX24, aka TypeSystem
+    bytes key, len 32, aka SemId
+    union value, TySemId
+      is primitive, U8, wrapped, aka Primitive, tag 0
+      is unicode, Unit, tag 1
+      set enum, len 1..MAX8, wrapped, aka EnumVariants, tag 2
+        rec Variant
+          ascii name, aka VariantName, first AlphaSmallLodash, rest AlphaNumLodash, len 1..100
+          is tag, U8
+      map union, len 0..MAX8, wrapped, aka UnionVariantsSemId, tag 3
+        is key, U8
+        rec value, VariantInfoSemId
+          ascii name, aka VariantName, first AlphaSmallLodash, rest AlphaNumLodash, len 1..100
+          bytes ty, len 32, aka SemId
+      list tuple, len 1..MAX8, wrapped, aka UnnamedFieldsSemId, tag 4
+        bytes element, len 32, aka SemId
+      list struct, len 1..MAX8, wrapped, aka NamedFieldsSemId, tag 5
+        rec FieldSemId
+          ascii name, aka FieldName, first AlphaSmallLodash, rest AlphaNumLodash, len 1..100
+          bytes ty, len 32, aka SemId
+      tuple array, tag 6
+        bytes _, len 32, aka SemId
+        is _, U16
+      tuple list, tag 7
+        bytes _, len 32, aka SemId
+        rec Sizing
+          is min, U64
+          is max, U64
+      tuple set, tag 8
+        bytes _, len 32, aka SemId
+        rec Sizing
+          is min, U64
+          is max, U64
+      tuple map, tag 9
+        bytes _, len 32, aka SemId
+        bytes _, len 32, aka SemId
+        rec Sizing
+          is min, U64
+          is max, U64
+  set scripts, len 0..1024
+    rec Lib
+      set isae, len 0..64, aka IsaSeg
+        ascii element, aka IsaName, first AlphaCaps, rest AlphaCapsNum, len 2..8
+      bytes code, len 0..MAX16
+      bytes data, len 0..MAX16
+      set libs, len 0..MAX8, aka LibSeg
+        bytes element, len 32, aka LibId
 

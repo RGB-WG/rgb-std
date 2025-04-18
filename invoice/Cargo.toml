@@ -25,10 +25,10 @@ bp-core = { workspace = true }
 bp-invoice = { workspace = true }
 rgb-core = { workspace = true }
 indexmap = { workspace = true }
-fluent-uri = "0.1.4"
+fluent-uri = "0.3.2"
 percent-encoding = "2.3.1"
 serde_crate = { workspace = true, optional = true }
-rand = "0.8.5"
+rand = "0.9.1"
 
 [features]
 default = []
