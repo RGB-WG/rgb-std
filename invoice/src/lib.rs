@@ -41,10 +41,7 @@ use baid64::Baid64ParseError;
 use chrono::{DateTime, Utc};
 use hypersonic::{AuthToken, Consensus, ContractId};
 use sonic_callreq::{CallRequest, CallScope};
-use strict_types::value::StrictNum;
 use strict_types::StrictVal;
-
-pub type RgbInvoice<T = CallScope<ContractQuery>> = CallRequest<T, RgbBeneficiary>;
 
 #[derive(Clone, Eq, PartialEq, Debug, Display)]
 #[display(inner)]
@@ -128,21 +125,25 @@ pub enum ParseInvoiceError {
     Bp(bp::ParseWitnessOutError),
 }
 
-pub fn new_invoice(
-    contract_id: ContractId,
-    beneficiary: RgbBeneficiary,
-    value: Option<u64>,
-    expiry_time: Option<DateTime<Utc>>,
-) -> RgbInvoice {
-    let mut req = CallRequest::new(
-        CallScope::ContractId(contract_id),
-        beneficiary,
-        value.map(|v: u64| StrictVal::num(v)),
-    );
+pub struct RgbInvoice(CallRequest<CallScope<ContractQuery>, RgbBeneficiary>);
 
-    if let Some(time) = expiry_time {
-        req = req.use_expiry(time);
+impl RgbInvoice {
+    pub fn new(
+        contract_id: ContractId,
+        beneficiary: RgbBeneficiary,
+        value: Option<u64>,
+        expiry_time: Option<DateTime<Utc>>,
+    ) -> Self {
+        let mut req = CallRequest::new(
+            CallScope::ContractId(contract_id),
+            beneficiary,
+            value.map(|v: u64| StrictVal::num(v)),
+        );
+
+        if let Some(time) = expiry_time {
+            req = req.use_expiry(time);
+        }
+
+        Self(req)
     }
-
-    req
 }
