@@ -542,10 +542,10 @@ impl MemContractState {
                 .expect("global map must be initialized from the schema");
             for (idx, s) in state.iter().enumerate() {
                 let out = GlobalOut {
-                    opid,
-                    nonce: op.nonce(),
                     index: idx as u16,
                     op_witness: OpWitness::from(op),
+                    nonce: op.nonce(),
+                    opid,
                 };
                 map.known
                     .insert(out, s.clone())

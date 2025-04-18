@@ -85,10 +85,10 @@ impl OpWitness {
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct GlobalOut {
-    pub opid: OpId,
-    pub nonce: u64,
     pub index: u16,
     pub op_witness: OpWitness,
+    pub nonce: u64,
+    pub opid: OpId,
 }
 
 impl GlobalOut {
