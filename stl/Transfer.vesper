@@ -32,7 +32,6 @@ Consignmenttrue rec
   genesis rec Genesis
     ffv is U16 aka=Ffv
     schemaId bytes len=32 aka=SchemaId
-    flags bytes len=1 aka=ReservedBytes1
     timestamp is I64
     issuer ascii aka=Identity first=AsciiPrintable rest=AsciiPrintable len=1..4096
     chainNet enum ChainNet bitcoinMainnet=0 bitcoinTestnet3=1 bitcoinTestnet4=2 bitcoinSignet=3 bitcoinRegtest=4 liquidMainnet=5 liquidTestnet=6
@@ -54,11 +53,9 @@ Consignmenttrue rec
                 vout is U32 aka=Vout
                 blinding is U64
               state is Unit aka=VoidState
-              lock bytes len=2 aka=ReservedBytes2
             confidentialSeal rec tag=1
               seal bytes len=32 aka=SecretSeal
               state is Unit aka=VoidState
-              lock bytes len=2 aka=ReservedBytes2
         fungible list len=1..MAX16 wrapped aka=AssignVecAssignRevealedValueBlindSealTxid tag=1
           AssignRevealedValueBlindSealTxid union
             revealed rec tag=0
@@ -69,13 +66,11 @@ Consignmenttrue rec
               state rec RevealedFungible
                 value union FungibleState
                   bits64 is U64 wrapped tag=0
-              lock bytes len=2 aka=ReservedBytes2
             confidentialSeal rec tag=1
               seal bytes len=32 aka=SecretSeal
               state rec RevealedFungible
                 value union FungibleState
                   bits64 is U64 wrapped tag=0
-              lock bytes len=2 aka=ReservedBytes2
         structured list len=1..MAX16 wrapped aka=AssignVecAssignRevealedDataBlindSealTxid tag=2
           AssignRevealedDataBlindSealTxid union
             revealed rec tag=0
@@ -86,14 +81,11 @@ Consignmenttrue rec
               state rec RevealedData
                 value bytes len=0..MAX16 aka=DataState
                 salt is U128
-              lock bytes len=2 aka=ReservedBytes2
             confidentialSeal rec tag=1
               seal bytes len=32 aka=SecretSeal
               state rec RevealedData
                 value bytes len=0..MAX16 aka=DataState
                 salt is U128
-              lock bytes len=2 aka=ReservedBytes2
-    validator bytes len=1 aka=ReservedBytes1
   bundles set len=0..MAX32
     WitnessBundle rec
       pubWitness union PubWitness
@@ -134,12 +126,10 @@ Consignmenttrue rec
               value list len=1..MAX16 aka=GlobalValues
                 element bytes len=0..MAX16 aka=DataState
             inputs set len=1..MAX16 aka=Inputs
-              Input rec
-                prevOut rec Opout
-                  op bytes len=32 aka=OpId
-                  ty is U16 aka=AssignmentType
-                  no is U16
-                reserved bytes len=2 aka=ReservedBytes2
+              Opout rec
+                op bytes len=32 aka=OpId
+                ty is U16 aka=AssignmentType
+                no is U16
             assignments map len=0..MAX8 aka=AssignmentsBlindSealTxPtr
               key is U16 aka=AssignmentType
               value union TypedAssignsBlindSealTxPtr
@@ -153,11 +143,9 @@ Consignmenttrue rec
                         vout is U32 aka=Vout
                         blinding is U64
                       state is Unit aka=VoidState
-                      lock bytes len=2 aka=ReservedBytes2
                     confidentialSeal rec tag=1
                       seal bytes len=32 aka=SecretSeal
                       state is Unit aka=VoidState
-                      lock bytes len=2 aka=ReservedBytes2
                 fungible list len=1..MAX16 wrapped aka=AssignVecAssignRevealedValueBlindSealTxPtr tag=1
                   AssignRevealedValueBlindSealTxPtr union
                     revealed rec tag=0
@@ -170,13 +158,11 @@ Consignmenttrue rec
                       state rec RevealedFungible
                         value union FungibleState
                           bits64 is U64 wrapped tag=0
-                      lock bytes len=2 aka=ReservedBytes2
                     confidentialSeal rec tag=1
                       seal bytes len=32 aka=SecretSeal
                       state rec RevealedFungible
                         value union FungibleState
                           bits64 is U64 wrapped tag=0
-                      lock bytes len=2 aka=ReservedBytes2
                 structured list len=1..MAX16 wrapped aka=AssignVecAssignRevealedDataBlindSealTxPtr tag=2
                   AssignRevealedDataBlindSealTxPtr union
                     revealed rec tag=0
@@ -189,19 +175,14 @@ Consignmenttrue rec
                       state rec RevealedData
                         value bytes len=0..MAX16 aka=DataState
                         salt is U128
-                      lock bytes len=2 aka=ReservedBytes2
                     confidentialSeal rec tag=1
                       seal bytes len=32 aka=SecretSeal
                       state rec RevealedData
                         value bytes len=0..MAX16 aka=DataState
                         salt is U128
-                      lock bytes len=2 aka=ReservedBytes2
-            validator bytes len=1 aka=ReservedBytes1
-            witness bytes len=2 aka=ReservedBytes2
               some bytes len=64 option wrapped aka=Signature tag=1
   schema rec Schema
     ffv is U16 aka=Ffv
-    flags bytes len=1 aka=ReservedBytes1
     name ascii aka=TypeName first=AlphaCapsLodash rest=AlphaNumLodash len=1..100
     metaTypes map len=0..MAX8
       key is U16 aka=MetaType

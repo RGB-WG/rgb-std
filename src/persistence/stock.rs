@@ -683,14 +683,14 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         // 2. Collect all state transitions between terminals and genesis
         let mut ids = vec![];
         for transition in transitions.values() {
-            ids.extend(transition.inputs().iter().map(|input| input.prev_out.op));
+            ids.extend(transition.inputs().iter().map(|input| input.op));
         }
         while let Some(id) = ids.pop() {
             if id == contract_id {
                 continue; // we skip genesis since it will be present anywhere
             }
             let transition = self.transition(id)?;
-            ids.extend(transition.inputs().iter().map(|input| input.prev_out.op));
+            ids.extend(transition.inputs().iter().map(|input| input.op));
             transitions.insert(id, transition.clone());
             let bundle_id = self.index.bundle_id_for_op(transition.id())?;
             bundles
@@ -916,7 +916,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         // recursively visit bundle ancestors
         for transition in bundle.known_transitions.values() {
             for input in &transition.inputs {
-                let input_opid = input.prev_out.op;
+                let input_opid = input.op;
                 let input_bundle_id = match self.index.bundle_id_for_op(input_opid) {
                     Ok(id) => Some(id),
                     Err(IndexError::Inconsistency(IndexInconsistency::BundleAbsent(_))) => {
@@ -1119,7 +1119,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         let bundle = self.stash.bundle(*bundle_id)?.clone();
         for transition in bundle.known_transitions.values() {
             for input in &transition.inputs {
-                let input_opid = input.prev_out.op;
+                let input_opid = input.op;
                 let input_bundle_id = match self.index.bundle_id_for_op(input_opid) {
                     Ok(id) => Some(id),
                     Err(IndexError::Inconsistency(IndexInconsistency::BundleAbsent(_))) => {

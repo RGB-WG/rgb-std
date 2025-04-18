@@ -31,9 +31,9 @@ use rgb::assignments::AssignVec;
 use rgb::validation::Scripts;
 use rgb::{
     validation, Assign, AssignmentType, Assignments, ChainNet, ContractId, DataState, ExposedSeal,
-    FungibleType, Genesis, GenesisSeal, GlobalState, GraphSeal, Identity, Input, Layer1,
-    MetadataError, Opout, OwnedStateSchema, RevealedData, RevealedValue, Schema, Transition,
-    TransitionType, TypedAssigns,
+    FungibleType, Genesis, GenesisSeal, GlobalState, GraphSeal, Identity, Layer1, MetadataError,
+    Opout, OwnedStateSchema, RevealedData, RevealedValue, Schema, Transition, TransitionType,
+    TypedAssigns,
 };
 use rgbcore::{GlobalStateSchema, GlobalStateType, MetaType, Metadata};
 use strict_encoding::{FieldName, SerializeError, StrictSerialize};
@@ -281,14 +281,12 @@ impl ContractBuilder {
         let genesis = Genesis {
             ffv: none!(),
             schema_id: schema.schema_id(),
-            flags: none!(),
             timestamp,
             chain_net: self.chain_net,
             metadata: empty!(),
             globals: global,
             assignments,
             issuer: self.issuer,
-            validator: none!(),
         };
 
         let scripts = Confined::from_iter_checked(self.scripts.into_values());
@@ -321,7 +319,7 @@ pub struct TransitionBuilder {
     builder: OperationBuilder<GraphSeal>,
     nonce: u64,
     transition_type: TransitionType,
-    inputs: TinyOrdMap<Input, PersistedState>,
+    inputs: TinyOrdMap<Opout, PersistedState>,
 }
 
 impl TransitionBuilder {
@@ -415,7 +413,7 @@ impl TransitionBuilder {
     }
 
     pub fn add_input(mut self, opout: Opout, state: PersistedState) -> Result<Self, BuilderError> {
-        self.inputs.insert(Input::with(opout), state)?;
+        self.inputs.insert(opout, state)?;
         Ok(self)
     }
 
@@ -528,8 +526,6 @@ impl TransitionBuilder {
             globals: global,
             inputs: NonEmptyOrdSet::from_iter_checked(self.inputs.into_keys()).into(),
             assignments,
-            witness: none!(),
-            validator: none!(),
             signature: none!(),
         };
 
@@ -840,16 +836,8 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
             let vec = vec
                 .into_iter()
                 .map(|(seal, value)| match seal {
-                    BuilderSeal::Revealed(seal) => Assign::Revealed {
-                        seal,
-                        state: value,
-                        lock: none!(),
-                    },
-                    BuilderSeal::Concealed(seal) => Assign::ConfidentialSeal {
-                        seal,
-                        state: value,
-                        lock: none!(),
-                    },
+                    BuilderSeal::Revealed(seal) => Assign::Revealed { seal, state: value },
+                    BuilderSeal::Concealed(seal) => Assign::ConfidentialSeal { seal, state: value },
                 })
                 .collect::<Vec<_>>();
             let state = Confined::try_from_iter(vec).expect("at least one element");
@@ -858,16 +846,8 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
         });
         let owned_data = self.data.into_iter().map(|(id, vec)| {
             let vec_data = vec.into_iter().map(|(seal, value)| match seal {
-                BuilderSeal::Revealed(seal) => Assign::Revealed {
-                    seal,
-                    state: value,
-                    lock: none!(),
-                },
-                BuilderSeal::Concealed(seal) => Assign::ConfidentialSeal {
-                    seal,
-                    state: value,
-                    lock: none!(),
-                },
+                BuilderSeal::Revealed(seal) => Assign::Revealed { seal, state: value },
+                BuilderSeal::Concealed(seal) => Assign::ConfidentialSeal { seal, state: value },
             });
             let state_data = Confined::try_from_iter(vec_data).expect("at least one element");
             let state_data = TypedAssigns::Structured(AssignVec::with(state_data));
@@ -878,12 +858,10 @@ impl<Seal: ExposedSeal> OperationBuilder<Seal> {
                 BuilderSeal::Revealed(seal) => Assign::Revealed {
                     seal,
                     state: none!(),
-                    lock: none!(),
                 },
                 BuilderSeal::Concealed(seal) => Assign::ConfidentialSeal {
                     seal,
                     state: none!(),
-                    lock: none!(),
                 },
             });
             let state_data = Confined::try_from_iter(vec_data).expect("at least one element");

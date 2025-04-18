@@ -214,8 +214,7 @@ impl<P: IndexProvider> Index<P> {
         for (opid, transition) in &bundle.known_transitions {
             self.provider.register_operation(*opid, bundle_id)?;
             for input in &transition.inputs {
-                self.provider
-                    .register_spending(input.prev_out.op, bundle_id)?;
+                self.provider.register_spending(input.op, bundle_id)?;
             }
             for (type_id, assign) in transition.assignments.iter() {
                 match assign {
