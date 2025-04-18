@@ -37,11 +37,12 @@ pub mod bp;
 use core::fmt::{self, Display, Formatter};
 use core::str::FromStr;
 
+use amplify::confinement::{ConfinedVec, TinyBlob};
 use baid64::Baid64ParseError;
 use chrono::{DateTime, Utc};
-use hypersonic::{AuthToken, Consensus, ContractId};
+use hypersonic::{AuthToken, CallState, Consensus, ContractId, Endpoint};
 use sonic_callreq::{CallRequest, CallScope};
-use strict_types::StrictVal;
+use strict_types::{StrictVal, TypeName};
 
 #[derive(Clone, Eq, PartialEq, Debug, Display)]
 #[display(inner)]
@@ -131,19 +132,31 @@ impl RgbInvoice {
     pub fn new(
         contract_id: ContractId,
         beneficiary: RgbBeneficiary,
+        // Core parameters
         value: Option<u64>,
         expiry_time: Option<DateTime<Utc>>,
+        // Additional fields
+        api: Option<TypeName>,
+        call: Option<CallState>,
+        lock: Option<TinyBlob>,
+        endpoints: Option<impl Into<ConfinedVec<Endpoint, 0, 10>>>,
     ) -> Self {
-        let mut req = CallRequest::new(
-            CallScope::ContractId(contract_id),
-            beneficiary,
-            value.map(|v: u64| StrictVal::num(v)),
-        );
+        Self(CallRequest {
+            scope: CallScope::ContractId(contract_id),
+            auth: beneficiary,
+            data: value.map(StrictVal::num),
+            expiry: expiry_time,
+            api,
+            call,
+            lock,
+            endpoints: endpoints.map(|e| e.into()).unwrap_or_default(),
+            unknown_query: Default::default(),
+        })
+    }
+}
 
-        if let Some(time) = expiry_time {
-            req = req.use_expiry(time);
-        }
-
-        Self(req)
+impl From<RgbInvoice> for CallRequest<CallScope<ContractQuery>, RgbBeneficiary> {
+    fn from(val: RgbInvoice) -> Self {
+        val.0
     }
 }
