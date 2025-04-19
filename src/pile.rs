@@ -128,7 +128,13 @@ where <Self::Seal as RgbSeal>::WitnessId: From<[u8; 32]> + Into<[u8; 32]>
     fn stand_mut(&mut self) -> &mut Self::Stand;
     fn mine_mut(&mut self) -> &mut Self::Mine;
 
-    fn retrieve(&mut self, opid: Opid) -> impl ExactSizeIterator<Item = SealWitness<Self::Seal>>;
+    fn retrieve(&self, opid: Opid) -> impl ExactSizeIterator<Item = SealWitness<Self::Seal>> {
+        self.index().get(opid).map(|pubid| {
+            let client = self.hoard().get_expect(pubid);
+            let published = self.cache().get_expect(pubid);
+            SealWitness::new(published, client)
+        })
+    }
 
     fn append(
         &mut self,
@@ -139,8 +145,8 @@ where <Self::Seal as RgbSeal>::WitnessId: From<[u8; 32]> + Into<[u8; 32]>
         let pubid = published.pub_id();
         self.index_mut().push(opid, pubid);
         self.stand_mut().push(pubid, opid);
-        if self.hoard_mut().contains_key(pubid) {
-            let mut prev_anchor = self.hoard_mut().get_expect(pubid);
+        if self.hoard().contains_key(pubid) {
+            let mut prev_anchor = self.hoard().get_expect(pubid);
             if prev_anchor != anchor {
                 prev_anchor.merge(anchor).expect(
                     "existing anchor is not compatible with new one; this indicates either bug in \
@@ -278,35 +284,17 @@ pub mod fs {
         type Mine = FileAuraMap<Seal::WitnessId, WitnessStatus, MINE_MAGIC, 1, 32, 8>;
 
         fn hoard(&self) -> &Self::Hoard { &self.hoard }
-
         fn cache(&self) -> &Self::Cache { &self.cache }
-
         fn keep(&self) -> &Self::Keep { &self.keep }
-
         fn index(&self) -> &Self::Index { &self.index }
-
         fn stand(&self) -> &Self::Stand { &self.stand }
-
         fn mine(&self) -> &Self::Mine { &self.mine }
 
         fn hoard_mut(&mut self) -> &mut Self::Hoard { &mut self.hoard }
-
         fn cache_mut(&mut self) -> &mut Self::Cache { &mut self.cache }
-
         fn keep_mut(&mut self) -> &mut Self::Keep { &mut self.keep }
-
         fn index_mut(&mut self) -> &mut Self::Index { &mut self.index }
-
         fn stand_mut(&mut self) -> &mut Self::Stand { &mut self.stand }
-
         fn mine_mut(&mut self) -> &mut Self::Mine { &mut self.mine }
-
-        fn retrieve(&mut self, opid: Opid) -> impl ExactSizeIterator<Item = SealWitness<Seal>> {
-            self.index.get(opid).map(|pubid| {
-                let client = self.hoard.get_expect(pubid);
-                let published = self.cache.get_expect(pubid);
-                SealWitness::new(published, client)
-            })
-        }
     }
 }

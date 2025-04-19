@@ -62,7 +62,7 @@ where
     println!("success");
 
     print!("Processing operations ... none found");
-    for (no, (opid, op)) in stockpile.stock_mut().operations().enumerate() {
+    for (no, (opid, op)) in stockpile.stock().operations().enumerate() {
         let out = File::create_new(dst.join(format!("{:04}-{opid}.op.yaml", no + 1)))?;
         serde_yaml::to_writer(&out, &op)?;
         print!("\rProcessing operations ... {} processed", no + 1);
@@ -70,7 +70,7 @@ where
     println!();
 
     print!("Processing trace ... none state transitions found");
-    for (no, (opid, st)) in stockpile.stock_mut().trace().enumerate() {
+    for (no, (opid, st)) in stockpile.stock().trace().enumerate() {
         let out = File::create_new(dst.join(format!("{:04}-{opid}.st.yaml", no + 1)))?;
         serde_yaml::to_writer(&out, &st)?;
         print!("\rProcessing trace ... {} state transition processed", no + 1);
@@ -91,7 +91,7 @@ where
     println!("success");
 
     print!("Processing anchors ... none found");
-    for (no, (txid, anchor)) in stockpile.pile_mut().hoard_mut().iter().enumerate() {
+    for (no, (txid, anchor)) in stockpile.pile().hoard().iter().enumerate() {
         let out = File::create_new(dst.join(format!("{txid}.anchor.yaml")))?;
         serde_yaml::to_writer(&out, &anchor)?;
         print!("\rProcessing anchors ... {} processed", no + 1);
@@ -99,7 +99,7 @@ where
     println!();
 
     print!("Processing witness transactions ... none found");
-    for (no, (txid, tx)) in stockpile.pile_mut().cache_mut().iter().enumerate() {
+    for (no, (txid, tx)) in stockpile.pile().cache().iter().enumerate() {
         let out = File::create_new(dst.join(format!("{txid}.yaml")))?;
         serde_yaml::to_writer(&out, &tx)?;
         print!("\rProcessing witness transactions ... {} processed", no + 1);
@@ -108,7 +108,7 @@ where
 
     print!("Processing seal definitions ... none found");
     let mut seal_count = 0;
-    for (no, (opid, seals)) in stockpile.pile_mut().keep_mut().iter().enumerate() {
+    for (no, (opid, seals)) in stockpile.pile().keep().iter().enumerate() {
         let out = File::create_new(dst.join(format!("{no:04}-{opid}.seals.yaml")))?;
         serde_yaml::to_writer(&out, &seals)?;
         seal_count += seals.len();

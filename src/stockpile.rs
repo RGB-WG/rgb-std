@@ -290,7 +290,7 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
                 let since = *cache
                     .entry(addr.opid)
                     .or_insert_with(|| self.pile().since(addr.opid));
-                let seals = self.pile_mut().keep_mut().get_expect(addr.opid);
+                let seals = self.pile().keep().get_expect(addr.opid);
                 let Some(seal) = seals.get(&addr.pos) else {
                     continue;
                 };
@@ -298,7 +298,7 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
                     state.insert(addr, OwnedState { assignment: Assignment { seal, data }, since });
                 } else {
                     // We insert a copy of state for each of the witnesses created for the operation
-                    for wid in self.pile_mut().index_mut().get(addr.opid) {
+                    for wid in self.pile().index().get(addr.opid) {
                         state.insert(addr, OwnedState {
                             assignment: Assignment { seal: seal.resolve(wid), data: data.clone() },
                             since,
@@ -344,7 +344,7 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
         self.stock
             .export_aux(terminals, writer, |opid, mut writer| {
                 // Write seal definitions
-                let seals = self.pile.keep_mut().get_expect(opid);
+                let seals = self.pile.keep().get_expect(opid);
                 writer = seals.strict_encode(writer)?;
 
                 // Write witnesses
@@ -376,11 +376,11 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
         let meta = ContractMeta::strict_decode(stream)?;
         let codex = Codex::strict_decode(stream)?;
 
-        // We need to clone due to a borrow checker.
         let op_reader = OpReader { stream, seal_resolver, _phantom: PhantomData };
         self.evaluate(op_reader)?;
         self.pile_mut().mine_mut().commit_transaction();
 
+        // We need to clone due to a borrow checker.
         let genesis = self.stock.articles().contract.genesis.clone();
         let articles = Articles {
             contract: Contract { version: codex_version, meta, codex, genesis },
@@ -389,6 +389,7 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
         };
         self.stock.merge_articles(articles)?;
         self.stock.complete_update();
+        // TODO: Save stock
         Ok(())
     }
 
