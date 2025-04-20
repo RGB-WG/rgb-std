@@ -22,22 +22,20 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
-use std::collections::BTreeMap;
 use std::fs::File;
-use std::io::Write;
 use std::path::Path;
 use std::{fs, io};
 
 use amplify::confinement::SmallOrdMap;
 use amplify::hex::ToHex;
 use amplify::Bytes16;
-use aora::{AoraIndex, AoraMap};
 use commit_verify::ReservedBytes;
 use hypersonic::persistance::StockFs;
 use hypersonic::{Articles, ContractId, Operation};
+use rgb::providers::PileFs;
 use rgb::{
-    Contract, FilePile, MoundConsumeError, Pile, PublishedWitness, RgbSeal, RgbSealDef,
-    SealWitness, SingleUseSeal, MAGIC_BYTES_CONSIGNMENT,
+    Contract, MoundConsumeError, Pile, PublishedWitness, RgbSeal, RgbSealDef, SealWitness,
+    SingleUseSeal, MAGIC_BYTES_CONSIGNMENT,
 };
 use serde::{Deserialize, Serialize};
 use strict_encoding::{DecodeError, StreamReader, StrictDecode, StrictEncode, StrictReader};
@@ -54,7 +52,7 @@ where
     fs::create_dir_all(dst)?;
 
     print!("Reading contract contract from '{}' ... ", src.display());
-    let contract = Contract::<StockFs, FilePile<Seal>>::load_from_path(src.to_path_buf())?;
+    let contract = Contract::<StockFs, PileFs<Seal>>::load_from_path(src.to_path_buf())?;
     println!("success reading {}", contract.contract_id());
 
     print!("Processing contract articles ... ");
@@ -91,41 +89,21 @@ where
     }
     println!("success");
 
-    print!("Processing anchors ... none found");
-    for (no, (txid, anchor)) in contract.pile().hoard().iter().enumerate() {
-        let out = File::create_new(dst.join(format!("{txid}.anchor.yaml")))?;
-        serde_yaml::to_writer(&out, &anchor)?;
-        print!("\rProcessing anchors ... {} processed", no + 1);
+    print!("Processing witnesses ... none found");
+    for (no, witness) in contract.pile().witnesses().enumerate() {
+        let out = File::create_new(dst.join(format!("witness-{}.yaml", witness.id)))?;
+        serde_yaml::to_writer(&out, &witness)?;
+        print!("\rProcessing witnesses ... {} processed", no + 1);
     }
     println!();
 
-    print!("Processing witness transactions ... none found");
-    for (no, (txid, tx)) in contract.pile().cache().iter().enumerate() {
-        let out = File::create_new(dst.join(format!("{txid}.yaml")))?;
-        serde_yaml::to_writer(&out, &tx)?;
-        print!("\rProcessing witness transactions ... {} processed", no + 1);
+    print!("Processing operation pile ... none found");
+    for (no, op) in contract.pile().ops().enumerate() {
+        let out = File::create_new(dst.join(format!("{no:04}-{}.pile.yaml", op.opid)))?;
+        serde_yaml::to_writer(&out, &op)?;
+        print!("\rProcessing operation pike ... {no} processed");
     }
     println!();
-
-    print!("Processing seal definitions ... none found");
-    let mut seal_count = 0;
-    for (no, (opid, seals)) in contract.pile().keep().iter().enumerate() {
-        let out = File::create_new(dst.join(format!("{no:04}-{opid}.seals.yaml")))?;
-        serde_yaml::to_writer(&out, &seals)?;
-        seal_count += seals.len();
-        print!("\rProcessing seal definitions ... {seal_count} processed");
-    }
-    println!();
-
-    print!("Processing index ... ");
-    let index = contract.pile().index();
-    let index = index
-        .keys()
-        .map(|opid| (opid, index.get(opid).collect::<Vec<_>>()))
-        .collect::<BTreeMap<_, _>>();
-    let mut out = File::create_new(dst.join("index.toml"))?;
-    out.write_all(toml::to_string(&index)?.as_bytes())?;
-    println!("success");
 
     Ok(())
 }

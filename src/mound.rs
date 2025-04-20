@@ -286,7 +286,7 @@ pub mod file {
     use strict_encoding::{DeserializeError, StreamWriter, StrictDecode, StrictEncode};
 
     use super::*;
-    use crate::FilePile;
+    use crate::providers::PileFs;
 
     pub struct DirExcavator<Seal: RgbSeal> {
         dir: PathBuf,
@@ -324,7 +324,7 @@ pub mod file {
         }
     }
 
-    impl<Seal: RgbSeal> Excavate<StockFs, FilePile<Seal>> for DirExcavator<Seal>
+    impl<Seal: RgbSeal> Excavate<StockFs, PileFs<Seal>> for DirExcavator<Seal>
     where
         Seal::Client: StrictEncode + StrictDecode,
         Seal::Published: Eq + StrictEncode + StrictDecode,
@@ -342,9 +342,7 @@ pub mod file {
             })
         }
 
-        fn contracts(
-            &self,
-        ) -> impl Iterator<Item = (ContractId, Contract<StockFs, FilePile<Seal>>)> {
+        fn contracts(&self) -> impl Iterator<Item = (ContractId, Contract<StockFs, PileFs<Seal>>)> {
             self.contents(false).filter_map(|(ty, path)| {
                 if ty.is_dir() && path.extension().and_then(OsStr::to_str) == Some("contract") {
                     let contract = Contract::load_from_path(path.clone())
@@ -362,7 +360,7 @@ pub mod file {
         }
     }
 
-    pub type DirMound<Seal> = Mound<StockFs, FilePile<Seal>, DirExcavator<Seal>>;
+    pub type DirMound<Seal> = Mound<StockFs, PileFs<Seal>, DirExcavator<Seal>>;
 
     impl<Seal: RgbSeal> DirMound<Seal>
     where
@@ -391,7 +389,7 @@ pub mod file {
             params: CreateParams<Seal::Definiton>,
         ) -> Result<ContractId, IssueError<io::Error>> {
             let dir = self.persistence.consensus_dir();
-            let pile = FilePile::<Seal>::create_new(params.name.as_str(), &dir)
+            let pile = PileFs::<Seal>::create_new(params.name.as_str(), &dir)
                 .map_err(hypersonic::IssueError::OtherPersistence)?;
             self.issue(params, dir, pile)
         }

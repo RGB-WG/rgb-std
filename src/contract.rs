@@ -30,7 +30,6 @@ use std::io;
 
 use amplify::confinement::SmallOrdMap;
 use amplify::IoError;
-use aora::{AoraIndex, AoraMap, AuraMap, TransactionalMap};
 use chrono::{DateTime, Utc};
 use commit_verify::ReservedBytes;
 use hypersonic::sigs::ContentSigs;
@@ -262,8 +261,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         let contract = Ledger::issue(articles, stock_conf)?;
 
         // Init seals
-        pile.keep_mut()
-            .insert(contract.articles().issue.genesis_opid(), &seals);
+        pile.add_seals(contract.articles().issue.genesis_opid(), seals);
 
         Ok(Self { ledger: contract, pile })
     }
@@ -291,8 +289,8 @@ impl<S: Stock, P: Pile> Contract<S, P> {
             for (addr, data) in map {
                 let since = *cache
                     .entry(addr.opid)
-                    .or_insert_with(|| self.pile().since(addr.opid));
-                let seals = self.pile().keep().get_expect(addr.opid);
+                    .or_insert_with(|| self.pile().witness_height(addr.opid));
+                let seals = self.pile().op_seals(addr.opid);
                 let Some(seal) = seals.get(&addr.pos) else {
                     continue;
                 };
@@ -300,7 +298,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
                     state.insert(addr, OwnedState { assignment: Assignment { seal, data }, since });
                 } else {
                     // We insert a copy of state for each of the witnesses created for the operation
-                    for wid in self.pile().index().get(addr.opid) {
+                    for wid in self.pile().op_witness_ids(addr.opid) {
                         state.insert(addr, OwnedState {
                             assignment: Assignment { seal: seal.resolve(wid), data: data.clone() },
                             since,
@@ -316,7 +314,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
             for (addr, data) in map {
                 let since = *cache
                     .entry(addr.opid)
-                    .or_insert_with(|| self.pile().since(addr.opid));
+                    .or_insert_with(|| self.pile().witness_height(addr.opid));
                 state.insert(addr, ImmutableState { data, since });
             }
             immutable.insert(name, state);
@@ -334,7 +332,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         anchor: <P::Seal as RgbSeal>::Client,
         published: &<P::Seal as RgbSeal>::Published,
     ) {
-        self.pile.append(opid, anchor, published)
+        self.pile.append_witness(opid, anchor, published)
     }
 
     pub fn consign(
@@ -350,7 +348,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         self.ledger
             .export_aux(terminals, writer, |opid, mut writer| {
                 // Write seal definitions
-                let seals = self.pile.keep().get_expect(opid);
+                let seals = self.pile.op_seals(opid);
                 writer = seals.strict_encode(writer)?;
 
                 // Write witnesses
@@ -384,7 +382,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
 
         let op_reader = OpReader { stream, seal_resolver, _phantom: PhantomData };
         self.evaluate(op_reader)?;
-        self.pile_mut().mine_mut().commit_transaction();
+        self.pile_mut().commit_transaction();
 
         // We need to clone due to a borrow checker.
         let genesis = self.ledger.articles().issue.genesis.clone();
@@ -397,67 +395,18 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         Ok(())
     }
 
-    pub fn witnesses_since(
-        &self,
-        transaction_no: u64,
-    ) -> impl Iterator<Item = <P::Seal as RgbSeal>::WitnessId> + use<'_, S, P> {
-        struct WitnessIter<'pile, Id, M>
-        where
-            Id: From<[u8; 32]> + Into<[u8; 32]>,
-            M: AuraMap<Id, WitnessStatus, 32, 8>,
-        {
-            curr: u64,
-            max: u64,
-            mine: &'pile M,
-            iter: Option<Box<dyn Iterator<Item = Id> + 'pile>>,
-            _phantom: PhantomData<Id>,
-        }
-        impl<'pile, Id: 'pile, M> Iterator for WitnessIter<'pile, Id, M>
-        where
-            Id: From<[u8; 32]> + Into<[u8; 32]>,
-            M: AuraMap<Id, WitnessStatus, 32, 8> + TransactionalMap<Id>,
-        {
-            type Item = Id;
-            fn next(&mut self) -> Option<Self::Item> {
-                loop {
-                    match self.iter.as_mut()?.next() {
-                        None => {
-                            self.curr += 1;
-                            if self.curr >= self.max {
-                                return None;
-                            }
-                            self.iter = Some(Box::new(self.mine.transaction_keys(self.curr)));
-                        }
-                        Some(el) => return Some(el),
-                    }
-                }
-            }
-        }
-
-        let to = self.pile.mine().transaction_count();
-
-        let mine = self.pile.mine();
-        WitnessIter {
-            curr: transaction_no + 1,
-            max: to,
-            mine,
-            iter: Some(Box::new(mine.transaction_keys(transaction_no))),
-            _phantom: PhantomData,
-        }
-    }
-
     pub fn update_witness_status(
         &mut self,
-        pubid: <P::Seal as RgbSeal>::WitnessId,
+        wid: <P::Seal as RgbSeal>::WitnessId,
         status: WitnessStatus,
     ) -> Result<(), AcceptError> {
-        let opids = self.pile.stand().get(pubid);
+        let opids = self.pile.ops_by_witness_id(wid);
         if status.is_mined() {
             self.ledger.forward(opids)?;
         } else {
             self.ledger.rollback(opids)?;
         }
-        self.pile_mut().mine_mut().update_only(pubid, status);
+        self.pile_mut().update_witness_status(wid, status);
         Ok(())
     }
 }
@@ -550,12 +499,13 @@ impl<S: Stock, P: Pile> ContractApi<P::Seal> for Contract<S, P> {
         op: VerifiedOperation,
         seals: SmallOrdMap<u16, <P::Seal as RgbSeal>::Definiton>,
     ) {
-        self.pile.keep_mut().insert(op.opid(), &seals);
+        self.pile.add_seals(op.opid(), seals);
         self.ledger.apply(op).expect("unable to apply operation");
     }
 
     fn apply_witness(&mut self, opid: Opid, witness: SealWitness<P::Seal>) {
-        self.pile.append(opid, witness.client, &witness.published)
+        self.pile
+            .append_witness(opid, witness.client, &witness.published)
     }
 }
 
@@ -586,9 +536,9 @@ mod fs {
     use strict_encoding::{StreamWriter, StrictDecode, StrictDumb, StrictEncode};
 
     use super::*;
-    use crate::FilePile;
+    use crate::providers::PileFs;
 
-    impl<SealSrc: RgbSeal> Contract<StockFs, FilePile<SealSrc>>
+    impl<SealSrc: RgbSeal> Contract<StockFs, PileFs<SealSrc>>
     where
         SealSrc::Client: StrictEncode + StrictDecode,
         SealSrc::Published: Eq + StrictEncode + StrictDecode,
@@ -596,7 +546,7 @@ mod fs {
     {
         // TODO: This method will be not needed after Pile refactoring
         pub fn load_from_path(path: PathBuf) -> Result<Self, LoadError<io::Error>> {
-            let pile = FilePile::open(&path).map_err(LoadError::OtherPersistence)?;
+            let pile = PileFs::open(&path).map_err(LoadError::OtherPersistence)?;
             Self::open(path, pile)
         }
 
@@ -606,7 +556,7 @@ mod fs {
             params: CreateParams<SealSrc::Definiton>,
             path: PathBuf,
         ) -> Result<Self, IssueError<io::Error>> {
-            let pile = FilePile::create_new(params.name.as_str(), &path)
+            let pile = PileFs::create_new(params.name.as_str(), &path)
                 .map_err(IssueError::OtherPersistence)?;
             let contract = Self::issue(schema, params, path, pile)?;
             Ok(contract)

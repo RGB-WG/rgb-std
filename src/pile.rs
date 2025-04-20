@@ -23,10 +23,11 @@
 // the License.
 
 use core::fmt::Debug;
+use std::collections::{BTreeSet, HashSet};
+use std::marker::PhantomData;
 use std::num::NonZeroU64;
 
 use amplify::confinement::SmallOrdMap;
-use aora::{AoraIndex, AoraMap, AuraMap, TransactionalMap};
 use hypersonic::Opid;
 use rgb::{ClientSideWitness, RgbSeal};
 use single_use_seals::{PublishedWitness, SealWitness};
@@ -101,185 +102,131 @@ impl From<WitnessStatus> for [u8; 8] {
     }
 }
 
-pub trait Pile
-where <Self::Seal as RgbSeal>::WitnessId: From<[u8; 32]> + Into<[u8; 32]>
-{
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub struct Witness<Seal: RgbSeal> {
+    pub id: Seal::WitnessId,
+    pub published: Seal::Published,
+    pub client: Seal::Client,
+    pub status: WitnessStatus,
+    pub opids: HashSet<Opid>,
+}
+
+#[derive(Clone, Debug)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize),
+    serde(bound = "Seal::WitnessId: serde::Serialize, Seal::Definiton: serde::Serialize")
+)]
+pub struct OpRels<Seal: RgbSeal> {
+    pub opid: Opid,
+    pub witness_ids: BTreeSet<Seal::WitnessId>,
+    pub defines: SmallOrdMap<u16, Seal::Definiton>,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub _phantom: PhantomData<Seal>,
+}
+
+// TODO: Move all methods with code to `Contract`
+pub trait Pile {
     type Seal: RgbSeal;
 
-    type Hoard: AoraMap<<Self::Seal as RgbSeal>::WitnessId, <Self::Seal as RgbSeal>::Client>;
-    type Cache: AoraMap<<Self::Seal as RgbSeal>::WitnessId, <Self::Seal as RgbSeal>::Published>;
-    type Keep: AoraMap<Opid, SmallOrdMap<u16, <Self::Seal as RgbSeal>::Definiton>>;
-    type Index: AoraIndex<Opid, <Self::Seal as RgbSeal>::WitnessId>;
-    type Stand: AoraIndex<<Self::Seal as RgbSeal>::WitnessId, Opid>;
-    type Mine: AuraMap<<Self::Seal as RgbSeal>::WitnessId, WitnessStatus, 32, 8>
-        + TransactionalMap<<Self::Seal as RgbSeal>::WitnessId>;
+    fn pub_witness(
+        &self,
+        wid: <Self::Seal as RgbSeal>::WitnessId,
+    ) -> <Self::Seal as RgbSeal>::Published;
 
-    fn hoard(&self) -> &Self::Hoard;
-    fn cache(&self) -> &Self::Cache;
-    fn keep(&self) -> &Self::Keep;
-    fn index(&self) -> &Self::Index;
-    fn stand(&self) -> &Self::Stand;
-    fn mine(&self) -> &Self::Mine;
+    fn has_witness(&self, wid: <Self::Seal as RgbSeal>::WitnessId) -> bool;
 
-    fn hoard_mut(&mut self) -> &mut Self::Hoard;
-    fn cache_mut(&mut self) -> &mut Self::Cache;
-    fn keep_mut(&mut self) -> &mut Self::Keep;
-    fn index_mut(&mut self) -> &mut Self::Index;
-    fn stand_mut(&mut self) -> &mut Self::Stand;
-    fn mine_mut(&mut self) -> &mut Self::Mine;
+    fn cli_witness(
+        &self,
+        wid: <Self::Seal as RgbSeal>::WitnessId,
+    ) -> <Self::Seal as RgbSeal>::Client;
+
+    fn witness_status(&self, wid: <Self::Seal as RgbSeal>::WitnessId) -> WitnessStatus;
+
+    fn witnesses(&self) -> impl Iterator<Item = Witness<Self::Seal>>;
+
+    fn witnesses_since(
+        &self,
+        transaction_no: u64,
+    ) -> impl Iterator<Item = <Self::Seal as RgbSeal>::WitnessId>;
+
+    /// Get mining status for a given operation.
+    fn witness_height(&self, opid: Opid) -> Option<u64> {
+        self.op_witness_ids(opid)
+            .flat_map(|wid| self.witness_status(wid).height())
+            .max()
+    }
+
+    fn op_witness_ids(
+        &self,
+        opid: Opid,
+    ) -> impl ExactSizeIterator<Item = <Self::Seal as RgbSeal>::WitnessId>;
+
+    fn ops_by_witness_id(
+        &self,
+        wid: <Self::Seal as RgbSeal>::WitnessId,
+    ) -> impl ExactSizeIterator<Item = Opid>;
+
+    fn op_seals(&self, opid: Opid) -> SmallOrdMap<u16, <Self::Seal as RgbSeal>::Definiton>;
+
+    fn ops(&self) -> impl Iterator<Item = OpRels<Self::Seal>>;
 
     fn retrieve(&self, opid: Opid) -> impl ExactSizeIterator<Item = SealWitness<Self::Seal>> {
-        self.index().get(opid).map(|pubid| {
-            let client = self.hoard().get_expect(pubid);
-            let published = self.cache().get_expect(pubid);
+        self.op_witness_ids(opid).map(|wid| {
+            let client = self.cli_witness(wid);
+            let published = self.pub_witness(wid);
             SealWitness::new(published, client)
         })
     }
 
-    fn append(
+    /// Adds operation id and witness components, registers witness as `Archived`.
+    ///
+    /// If the anchor (client-side witness) already present, MUST update the anchor.
+    fn add_witness(
+        &mut self,
+        opid: Opid,
+        wid: <Self::Seal as RgbSeal>::WitnessId,
+        published: &<Self::Seal as RgbSeal>::Published,
+        anchor: &<Self::Seal as RgbSeal>::Client,
+    );
+
+    fn add_seals(
+        &mut self,
+        opid: Opid,
+        seals: SmallOrdMap<u16, <Self::Seal as RgbSeal>::Definiton>,
+    );
+
+    /// # Panics
+    ///
+    /// If the witness is not known
+    fn update_witness_status(
+        &mut self,
+        wid: <Self::Seal as RgbSeal>::WitnessId,
+        status: WitnessStatus,
+    );
+
+    fn commit_transaction(&mut self);
+
+    fn append_witness(
         &mut self,
         opid: Opid,
         anchor: <Self::Seal as RgbSeal>::Client,
         published: &<Self::Seal as RgbSeal>::Published,
     ) {
-        let pubid = published.pub_id();
-        self.index_mut().push(opid, pubid);
-        self.stand_mut().push(pubid, opid);
-        if self.hoard().contains_key(pubid) {
-            let mut prev_anchor = self.hoard().get_expect(pubid);
+        let wid = published.pub_id();
+        let anchor = if self.has_witness(wid) {
+            let mut prev_anchor = self.cli_witness(wid);
             if prev_anchor != anchor {
                 prev_anchor.merge(anchor).expect(
                     "existing anchor is not compatible with new one; this indicates either bug in \
                      RGB standard library or a compromised storage",
                 );
-                self.hoard_mut().insert(pubid, &prev_anchor);
             }
+            prev_anchor
         } else {
-            self.hoard_mut().insert(pubid, &anchor);
-        }
-        self.mine_mut().insert_only(pubid, WitnessStatus::Archived);
-        self.cache_mut().insert(pubid, published);
-    }
-
-    /// Get mining status for a given operation.
-    fn since(&self, opid: Opid) -> Option<u64> {
-        self.index()
-            .get(opid)
-            .flat_map(|pubid| self.mine().get_expect(pubid).height())
-            .max()
-    }
-}
-
-#[cfg(feature = "fs")]
-pub mod fs {
-    use std::io;
-    use std::marker::PhantomData;
-    use std::path::Path;
-
-    use aora::file::{FileAoraIndex, FileAoraMap, FileAuraMap};
-    use strict_encoding::{StrictDecode, StrictEncode};
-
-    use super::*;
-
-    const HOARD_MAGIC: u64 = u64::from_be_bytes(*b"RGBHOARD");
-    const CACHE_MAGIC: u64 = u64::from_be_bytes(*b"RGBCACHE");
-    const KEEP_MAGIC: u64 = u64::from_be_bytes(*b"RGBKEEPS");
-    const INDEX_MAGIC: u64 = u64::from_be_bytes(*b"RGBINDEX");
-    const STAND_MAGIC: u64 = u64::from_be_bytes(*b"RGBSTAND");
-    const MINE_MAGIC: u64 = u64::from_be_bytes(*b"RGBMINES");
-
-    pub struct FilePile<Seal: RgbSeal>
-    where Seal::WitnessId: From<[u8; 32]> + Into<[u8; 32]>
-    {
-        hoard: FileAoraMap<Seal::WitnessId, Seal::Client, HOARD_MAGIC, 1>,
-        cache: FileAoraMap<Seal::WitnessId, Seal::Published, CACHE_MAGIC, 1>,
-        keep: FileAoraMap<Opid, SmallOrdMap<u16, Seal::Definiton>, KEEP_MAGIC, 1>,
-        index: FileAoraIndex<Opid, Seal::WitnessId, INDEX_MAGIC, 1>,
-        stand: FileAoraIndex<Seal::WitnessId, Opid, STAND_MAGIC, 1>,
-        mine: FileAuraMap<Seal::WitnessId, WitnessStatus, MINE_MAGIC, 1, 32, 8>,
-        _phantom: PhantomData<Seal>,
-    }
-
-    impl<Seal: RgbSeal> FilePile<Seal>
-    where Seal::WitnessId: From<[u8; 32]> + Into<[u8; 32]>
-    {
-        pub fn create_new(name: &str, path: impl AsRef<Path>) -> io::Result<Self> {
-            let mut path = path.as_ref().to_path_buf();
-            path.push(name);
-            path.set_extension("contract");
-
-            let hoard = FileAoraMap::create_new(&path, "hoard")?;
-            let cache = FileAoraMap::create_new(&path, "cache")?;
-            let keep = FileAoraMap::create_new(&path, "keep")?;
-
-            let index = FileAoraIndex::create_new(&path, "index.dat")?;
-            let stand = FileAoraIndex::create_new(&path, "stand.dat")?;
-            let mine = FileAuraMap::create_new(&path, "mine.dat")?;
-
-            Ok(Self {
-                hoard,
-                cache,
-                keep,
-                index,
-                stand,
-                mine,
-                _phantom: PhantomData,
-            })
-        }
-    }
-
-    impl<Seal: RgbSeal> FilePile<Seal>
-    where Seal::WitnessId: From<[u8; 32]> + Into<[u8; 32]>
-    {
-        pub fn open(path: impl AsRef<Path>) -> io::Result<Self> {
-            let path = path.as_ref().to_path_buf();
-            let hoard = FileAoraMap::open(&path, "hoard")?;
-            let cache = FileAoraMap::open(&path, "cache")?;
-            let keep = FileAoraMap::open(&path, "keep")?;
-
-            let index = FileAoraIndex::open(&path, "index.dat")?;
-            let stand = FileAoraIndex::open(&path, "stand.dat")?;
-            let mine = FileAuraMap::open(&path, "mine.dat")?;
-
-            Ok(Self {
-                hoard,
-                cache,
-                keep,
-                index,
-                stand,
-                mine,
-                _phantom: PhantomData,
-            })
-        }
-    }
-
-    impl<Seal: RgbSeal> Pile for FilePile<Seal>
-    where
-        Seal::Client: StrictEncode + StrictDecode,
-        Seal::Published: Eq + StrictEncode + StrictDecode,
-        Seal::WitnessId: From<[u8; 32]> + Into<[u8; 32]>,
-    {
-        type Seal = Seal;
-
-        type Hoard = FileAoraMap<Seal::WitnessId, Seal::Client, HOARD_MAGIC, 1>;
-        type Cache = FileAoraMap<Seal::WitnessId, Seal::Published, CACHE_MAGIC, 1>;
-        type Keep = FileAoraMap<Opid, SmallOrdMap<u16, Seal::Definiton>, KEEP_MAGIC, 1>;
-        type Index = FileAoraIndex<Opid, Seal::WitnessId, INDEX_MAGIC, 1>;
-        type Stand = FileAoraIndex<Seal::WitnessId, Opid, STAND_MAGIC, 1>;
-        type Mine = FileAuraMap<Seal::WitnessId, WitnessStatus, MINE_MAGIC, 1, 32, 8>;
-
-        fn hoard(&self) -> &Self::Hoard { &self.hoard }
-        fn cache(&self) -> &Self::Cache { &self.cache }
-        fn keep(&self) -> &Self::Keep { &self.keep }
-        fn index(&self) -> &Self::Index { &self.index }
-        fn stand(&self) -> &Self::Stand { &self.stand }
-        fn mine(&self) -> &Self::Mine { &self.mine }
-
-        fn hoard_mut(&mut self) -> &mut Self::Hoard { &mut self.hoard }
-        fn cache_mut(&mut self) -> &mut Self::Cache { &mut self.cache }
-        fn keep_mut(&mut self) -> &mut Self::Keep { &mut self.keep }
-        fn index_mut(&mut self) -> &mut Self::Index { &mut self.index }
-        fn stand_mut(&mut self) -> &mut Self::Stand { &mut self.stand }
-        fn mine_mut(&mut self) -> &mut Self::Mine { &mut self.mine }
+            anchor
+        };
+        self.add_witness(opid, wid, published, &anchor);
     }
 }

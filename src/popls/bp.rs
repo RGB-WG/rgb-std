@@ -30,7 +30,6 @@ use alloc::vec;
 
 use amplify::confinement::{Collection, NonEmptyVec, SmallOrdMap, SmallOrdSet, U8 as U8MAX};
 use amplify::{confinement, ByteArray, Bytes32, Wrapper};
-use aora::{AoraIndex, AoraMap};
 use bp::dbc::tapret::TapretProof;
 use bp::seals::{mmb, Anchor, Noise, TxoSeal, TxoSealExt, WOutpoint, WTxoSeal};
 use bp::{Outpoint, Sats, ScriptPubkey, Tx, Vout};
@@ -613,7 +612,7 @@ impl<W: WalletProvider, S: Stock, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> Ba
         let opid = contract.call(call)?;
         let operation = contract.ledger().operation(opid);
         debug_assert_eq!(operation.opid(), opid);
-        contract.pile_mut().keep_mut().insert(opid, &seals);
+        contract.pile_mut().add_seals(opid, seals);
         debug_assert_eq!(operation.contract_id, request.contract_id);
 
         Ok(Prefab { closes, defines, operation })
@@ -661,7 +660,7 @@ impl<W: WalletProvider, S: Stock, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> Ba
                 .iter()
                 .flat_map(|(name, map)| map.iter().map(move |(addr, val)| (name, *addr, val)))
                 .filter_map(|(name, addr, val)| {
-                    let seals = contract.pile().keep().get_expect(addr.opid);
+                    let seals = contract.pile().op_seals(addr.opid);
                     let seal = seals.get(&addr.pos)?;
                     let outpoint = if let WOutpoint::Extern(outpoint) = seal.primary {
                         if !outpoints.contains(&outpoint) {
@@ -670,7 +669,7 @@ impl<W: WalletProvider, S: Stock, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> Ba
                         outpoint
                     } else {
                         let mut outpoint = None;
-                        for witness_id in contract.pile().index().get(addr.opid) {
+                        for witness_id in contract.pile().op_witness_ids(addr.opid) {
                             let o = seal.resolve(witness_id).primary;
                             if outpoints.contains(&o) {
                                 outpoint = Some(o);
@@ -884,9 +883,9 @@ pub mod file {
 
     use super::*;
     use crate::mound::file::DirExcavator;
-    use crate::FilePile;
+    use crate::providers::PileFs;
 
-    pub type DirBarrow<W> = Barrow<W, StockFs, FilePile<TxoSeal>, DirExcavator<TxoSeal>>;
+    pub type DirBarrow<W> = Barrow<W, StockFs, PileFs<TxoSeal>, DirExcavator<TxoSeal>>;
 
     impl<W: WalletProvider> DirBarrow<W> {
         pub fn issue_to_file(
@@ -907,5 +906,5 @@ pub mod file {
         }
     }
 
-    pub type BpDirMound = Mound<StockFs, FilePile<TxoSeal>, DirExcavator<TxoSeal>>;
+    pub type BpDirMound = Mound<StockFs, PileFs<TxoSeal>, DirExcavator<TxoSeal>>;
 }
