@@ -36,8 +36,8 @@ use commit_verify::ReservedBytes;
 use hypersonic::persistance::StockFs;
 use hypersonic::{Articles, ContractId, Operation};
 use rgb::{
-    FilePile, MoundConsumeError, Pile, PublishedWitness, RgbSeal, RgbSealDef, SealWitness,
-    SingleUseSeal, Stockpile, MAGIC_BYTES_CONSIGNMENT,
+    Contract, FilePile, MoundConsumeError, Pile, PublishedWitness, RgbSeal, RgbSealDef,
+    SealWitness, SingleUseSeal, MAGIC_BYTES_CONSIGNMENT,
 };
 use serde::{Deserialize, Serialize};
 use strict_encoding::{DecodeError, StreamReader, StrictDecode, StrictEncode, StrictReader};
@@ -53,17 +53,17 @@ where
     let dst = dst.as_ref();
     fs::create_dir_all(dst)?;
 
-    print!("Reading contract stockpile from '{}' ... ", src.display());
-    let mut stockpile = Stockpile::<StockFs, FilePile<Seal>>::load_from_path(src.to_path_buf())?;
-    println!("success reading {}", stockpile.contract_id());
+    print!("Reading contract contract from '{}' ... ", src.display());
+    let contract = Contract::<StockFs, FilePile<Seal>>::load_from_path(src.to_path_buf())?;
+    println!("success reading {}", contract.contract_id());
 
     print!("Processing contract articles ... ");
     let out = File::create_new(dst.join("articles.yaml"))?;
-    serde_yaml::to_writer(&out, stockpile.contract().articles())?;
+    serde_yaml::to_writer(&out, contract.articles())?;
     println!("success");
 
     print!("Processing operations ... none found");
-    for (no, (opid, op)) in stockpile.contract().operations().enumerate() {
+    for (no, (opid, op)) in contract.ledger().operations().enumerate() {
         let out = File::create_new(dst.join(format!("{:04}-{opid}.op.yaml", no + 1)))?;
         serde_yaml::to_writer(&out, &op)?;
         print!("\rProcessing operations ... {} processed", no + 1);
@@ -71,7 +71,7 @@ where
     println!();
 
     print!("Processing trace ... none state transitions found");
-    for (no, (opid, st)) in stockpile.contract().trace().enumerate() {
+    for (no, (opid, st)) in contract.ledger().trace().enumerate() {
         let out = File::create_new(dst.join(format!("{:04}-{opid}.st.yaml", no + 1)))?;
         serde_yaml::to_writer(&out, &st)?;
         print!("\rProcessing trace ... {} state transition processed", no + 1);
@@ -80,19 +80,19 @@ where
 
     print!("Processing state ... ");
     let out = File::create_new(dst.join("state.yaml"))?;
-    serde_yaml::to_writer(&out, &stockpile.state())?;
+    serde_yaml::to_writer(&out, &contract.state())?;
     let out = File::create_new(dst.join("state-raw.yaml"))?;
-    serde_yaml::to_writer(&out, &stockpile.contract().state().raw)?;
+    serde_yaml::to_writer(&out, &contract.ledger().state().raw)?;
     let out = File::create_new(dst.join("state-main.yaml"))?;
-    serde_yaml::to_writer(&out, &stockpile.contract().state().main)?;
-    for (name, state) in &stockpile.contract().state().aux {
+    serde_yaml::to_writer(&out, &contract.ledger().state().main)?;
+    for (name, state) in &contract.ledger().state().aux {
         let out = File::create_new(dst.join(format!("state-{name}.yaml")))?;
         serde_yaml::to_writer(&out, state)?;
     }
     println!("success");
 
     print!("Processing anchors ... none found");
-    for (no, (txid, anchor)) in stockpile.pile().hoard().iter().enumerate() {
+    for (no, (txid, anchor)) in contract.pile().hoard().iter().enumerate() {
         let out = File::create_new(dst.join(format!("{txid}.anchor.yaml")))?;
         serde_yaml::to_writer(&out, &anchor)?;
         print!("\rProcessing anchors ... {} processed", no + 1);
@@ -100,7 +100,7 @@ where
     println!();
 
     print!("Processing witness transactions ... none found");
-    for (no, (txid, tx)) in stockpile.pile().cache().iter().enumerate() {
+    for (no, (txid, tx)) in contract.pile().cache().iter().enumerate() {
         let out = File::create_new(dst.join(format!("{txid}.yaml")))?;
         serde_yaml::to_writer(&out, &tx)?;
         print!("\rProcessing witness transactions ... {} processed", no + 1);
@@ -109,7 +109,7 @@ where
 
     print!("Processing seal definitions ... none found");
     let mut seal_count = 0;
-    for (no, (opid, seals)) in stockpile.pile().keep().iter().enumerate() {
+    for (no, (opid, seals)) in contract.pile().keep().iter().enumerate() {
         let out = File::create_new(dst.join(format!("{no:04}-{opid}.seals.yaml")))?;
         serde_yaml::to_writer(&out, &seals)?;
         seal_count += seals.len();
@@ -118,7 +118,7 @@ where
     println!();
 
     print!("Processing index ... ");
-    let index = stockpile.pile().index();
+    let index = contract.pile().index();
     let index = index
         .keys()
         .map(|opid| (opid, index.get(opid).collect::<Vec<_>>()))

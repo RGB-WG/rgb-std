@@ -35,9 +35,9 @@ use chrono::{DateTime, Utc};
 use commit_verify::ReservedBytes;
 use hypersonic::sigs::ContentSigs;
 use hypersonic::{
-    AcceptError, Articles, AuthToken, CellAddr, Codex, CodexId, Consensus, ContractId, CoreParams,
-    DataCell, IssueError, IssueParams, Ledger, LibRepo, LoadError, Memory, MergeError, MethodName,
-    NamedState, Operation, Opid, Schema, StateAtom, StateName, Stock, StockError,
+    AcceptError, Articles, AuthToken, CallParams, CellAddr, Codex, CodexId, Consensus, ContractId,
+    CoreParams, DataCell, IssueError, IssueParams, Ledger, LibRepo, LoadError, Memory, MergeError,
+    MethodName, NamedState, Operation, Opid, Schema, StateAtom, StateName, Stock, StockError,
 };
 use rgb::{
     ContractApi, ContractVerify, OperationSeals, ReadOperation, ReadWitness, RgbSeal, RgbSealDef,
@@ -209,14 +209,14 @@ pub struct CreateParams<Seal: Clone> {
 }
 
 #[derive(Getters)]
-pub struct Stockpile<S: Stock, P: Pile> {
+pub struct Contract<S: Stock, P: Pile> {
     #[getter(as_mut)]
-    contract: Ledger<S>,
+    ledger: Ledger<S>,
     #[getter(as_mut)]
     pile: P,
 }
 
-impl<S: Stock, P: Pile> Stockpile<S, P> {
+impl<S: Stock, P: Pile> Contract<S, P> {
     pub fn issue(
         schema: Schema,
         params: CreateParams<<P::Seal as RgbSeal>::Definiton>,
@@ -265,24 +265,26 @@ impl<S: Stock, P: Pile> Stockpile<S, P> {
         pile.keep_mut()
             .insert(contract.articles().issue.genesis_opid(), &seals);
 
-        Ok(Self { contract, pile })
+        Ok(Self { ledger: contract, pile })
     }
 
     pub fn open(stock_conf: S::Conf, pile: P) -> Result<Self, LoadError<S::Error>> {
         let contract = Ledger::load(stock_conf)?;
-        Ok(Self { contract, pile })
+        Ok(Self { ledger: contract, pile })
     }
 
-    pub fn contract_id(&self) -> ContractId { self.contract.contract_id() }
+    pub fn contract_id(&self) -> ContractId { self.ledger.contract_id() }
+
+    pub fn articles(&self) -> &Articles { self.ledger.articles() }
 
     pub fn seal(&self, seal: &<P::Seal as RgbSeal>::Definiton) -> Option<CellAddr> {
         let auth = seal.auth_token();
-        self.contract.state().raw.auth.get(&auth).copied()
+        self.ledger.state().raw.auth.get(&auth).copied()
     }
 
-    pub fn state(&mut self) -> ContractState<P::Seal> {
+    pub fn state(&self) -> ContractState<P::Seal> {
         let mut cache = bmap! {};
-        let state = self.contract().state().main.clone();
+        let state = self.ledger().state().main.clone();
         let mut owned = bmap! {};
         for (name, map) in state.owned {
             let mut state = bmap! {};
@@ -322,6 +324,10 @@ impl<S: Stock, P: Pile> Stockpile<S, P> {
         ContractState { immutable, owned, computed: state.computed }
     }
 
+    pub fn call(&mut self, params: CallParams) -> Result<Opid, AcceptError> {
+        self.ledger.call(params)
+    }
+
     pub fn include(
         &mut self,
         opid: Opid,
@@ -341,7 +347,7 @@ impl<S: Stock, P: Pile> Stockpile<S, P> {
         <P::Seal as RgbSeal>::Published: StrictDumb + StrictEncode,
         <P::Seal as RgbSeal>::WitnessId: StrictEncode,
     {
-        self.contract
+        self.ledger
             .export_aux(terminals, writer, |opid, mut writer| {
                 // Write seal definitions
                 let seals = self.pile.keep().get_expect(opid);
@@ -381,13 +387,13 @@ impl<S: Stock, P: Pile> Stockpile<S, P> {
         self.pile_mut().mine_mut().commit_transaction();
 
         // We need to clone due to a borrow checker.
-        let genesis = self.contract.articles().issue.genesis.clone();
+        let genesis = self.ledger.articles().issue.genesis.clone();
         let articles = Articles {
             issue: Issue { version: codex_version, meta, codex, genesis },
             contract_sigs,
             schema,
         };
-        self.contract.merge_articles(articles)?;
+        self.ledger.merge_articles(articles)?;
         Ok(())
     }
 
@@ -447,9 +453,9 @@ impl<S: Stock, P: Pile> Stockpile<S, P> {
     ) -> Result<(), AcceptError> {
         let opids = self.pile.stand().get(pubid);
         if status.is_mined() {
-            self.contract.forward(opids)?;
+            self.ledger.forward(opids)?;
         } else {
-            self.contract.rollback(opids)?;
+            self.ledger.rollback(opids)?;
         }
         self.pile_mut().mine_mut().update_only(pubid, status);
         Ok(())
@@ -528,16 +534,16 @@ impl<'r, SealDef: RgbSealDef, R: ReadRaw, F: FnMut(&Operation) -> BTreeMap<u16, 
     }
 }
 
-impl<S: Stock, P: Pile> ContractApi<P::Seal> for Stockpile<S, P> {
-    fn contract_id(&self) -> ContractId { self.contract.contract_id() }
+impl<S: Stock, P: Pile> ContractApi<P::Seal> for Contract<S, P> {
+    fn contract_id(&self) -> ContractId { self.ledger.contract_id() }
 
-    fn codex(&self) -> &Codex { &self.contract.articles().schema.codex }
+    fn codex(&self) -> &Codex { &self.ledger.articles().schema.codex }
 
-    fn repo(&self) -> &impl LibRepo { &self.contract.articles().schema }
+    fn repo(&self) -> &impl LibRepo { &self.ledger.articles().schema }
 
-    fn memory(&self) -> &impl Memory { &self.contract.state().raw }
+    fn memory(&self) -> &impl Memory { &self.ledger.state().raw }
 
-    fn is_known(&self, opid: Opid) -> bool { self.contract.has_operation(opid) }
+    fn is_known(&self, opid: Opid) -> bool { self.ledger.has_operation(opid) }
 
     fn apply_operation(
         &mut self,
@@ -545,7 +551,7 @@ impl<S: Stock, P: Pile> ContractApi<P::Seal> for Stockpile<S, P> {
         seals: SmallOrdMap<u16, <P::Seal as RgbSeal>::Definiton>,
     ) {
         self.pile.keep_mut().insert(op.opid(), &seals);
-        self.contract.apply(op).expect("unable to apply operation");
+        self.ledger.apply(op).expect("unable to apply operation");
     }
 
     fn apply_witness(&mut self, opid: Opid, witness: SealWitness<P::Seal>) {
@@ -582,7 +588,7 @@ mod fs {
     use super::*;
     use crate::FilePile;
 
-    impl<SealSrc: RgbSeal> Stockpile<StockFs, FilePile<SealSrc>>
+    impl<SealSrc: RgbSeal> Contract<StockFs, FilePile<SealSrc>>
     where
         SealSrc::Client: StrictEncode + StrictDecode,
         SealSrc::Published: Eq + StrictEncode + StrictDecode,

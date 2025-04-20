@@ -46,9 +46,9 @@ use rgb::RgbSealDef;
 use strict_encoding::{ReadRaw, StrictDecode, StrictDeserialize, StrictReader, StrictSerialize};
 use strict_types::StrictVal;
 
-use crate::stockpile::{ContractState, EitherSeal};
+use crate::contract::{ContractState, EitherSeal};
 use crate::{
-    Assignment, CreateParams, Excavate, IssueError, Mound, MoundConsumeError, Pile, Stockpile,
+    Assignment, Contract, CreateParams, Excavate, IssueError, Mound, MoundConsumeError, Pile,
 };
 
 /// Trait abstracting specific implementation of a bitcoin wallet.
@@ -290,10 +290,10 @@ impl OpRequest<Option<WoutAssignment>> {
     }
 }
 
-impl<S: Stock, P: Pile> Stockpile<S, P> {
-    pub fn check_request<T>(&mut self, request: &OpRequest<T>) -> Result<(), UnmatchedState> {
+impl<S: Stock, P: Pile> Contract<S, P> {
+    pub fn check_request<T>(&self, request: &OpRequest<T>) -> Result<(), UnmatchedState> {
         let state = self.state();
-        let api = &self.contract().articles().schema.default_api;
+        let api = &self.articles().schema.default_api;
         let mut calcs = BTreeMap::new();
         for inp in &request.using {
             let state_name = state
@@ -431,14 +431,14 @@ impl<W: WalletProvider, S: Stock, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> Ba
     }
 
     pub fn state_own(
-        &mut self,
+        &self,
         contract_id: Option<ContractId>,
     ) -> impl Iterator<Item = (ContractId, ContractState<Outpoint>)> + use<'_, W, S, P, X> {
         self.mound
-            .contracts_mut()
+            .contracts()
             .filter(move |(id, _)| contract_id.is_none() || Some(*id) == contract_id)
-            .map(|(id, stockpile)| {
-                let state = stockpile.state().filter_map(|seal| {
+            .map(|(id, contract)| {
+                let state = contract.state().filter_map(|seal| {
                     if self.wallet.has_utxo(seal.primary) {
                         Some(seal.primary)
                     } else {
@@ -450,13 +450,13 @@ impl<W: WalletProvider, S: Stock, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> Ba
     }
 
     pub fn state_all(
-        &mut self,
+        &self,
         contract_id: Option<ContractId>,
     ) -> impl Iterator<Item = (ContractId, ContractState<Outpoint>)> + use<'_, W, S, P, X> {
         self.mound
-            .contracts_mut()
+            .contracts()
             .filter(move |(id, _)| contract_id.is_none() || Some(*id) == contract_id)
-            .map(|(id, stockpile)| (id, stockpile.state().map(|seal| seal.primary)))
+            .map(|(id, contract)| (id, contract.state().map(|seal| seal.primary)))
     }
 
     fn noise_engine(&self) -> Sha256 {
@@ -476,8 +476,8 @@ impl<W: WalletProvider, S: Stock, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> Ba
         let contract_id = invoice.scope;
 
         // Determine method
-        let stockpile = self.mound.contract(contract_id);
-        let api = &stockpile.contract().articles().schema.default_api;
+        let contract = self.mound.contract(contract_id);
+        let api = &contract.articles().schema.default_api;
         let call = invoice
             .call
             .as_ref()
@@ -560,8 +560,8 @@ impl<W: WalletProvider, S: Stock, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> Ba
     /// Check whether all state used in a request is properly re-distributed to new owners, and
     /// non-distributed state is used in the change.
     pub fn check_request<T>(&mut self, request: &OpRequest<T>) -> Result<(), UnmatchedState> {
-        let stockpile = self.mound.contract_mut(request.contract_id);
-        stockpile.check_request(request)
+        let contract = self.mound.contract_mut(request.contract_id);
+        contract.check_request(request)
     }
 
     /// Creates a single operation basing on the provided construction parameters.
@@ -609,11 +609,11 @@ impl<W: WalletProvider, S: Stock, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> Ba
             reading: request.reading,
         };
 
-        let stockpile = self.mound.contract_mut(request.contract_id);
-        let opid = stockpile.contract_mut().call(call)?;
-        let operation = stockpile.contract_mut().operation(opid);
+        let contract = self.mound.contract_mut(request.contract_id);
+        let opid = contract.call(call)?;
+        let operation = contract.ledger().operation(opid);
         debug_assert_eq!(operation.opid(), opid);
-        stockpile.pile_mut().keep_mut().insert(opid, &seals);
+        contract.pile_mut().keep_mut().insert(opid, &seals);
         debug_assert_eq!(operation.contract_id, request.contract_id);
 
         Ok(Prefab { closes, defines, operation })
@@ -650,18 +650,18 @@ impl<W: WalletProvider, S: Stock, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> Ba
         // Constructing blank operation requests
         let mut blank_requests = Vec::new();
         let root_noise_engine = self.noise_engine();
-        for (contract_id, stockpile) in self
+        for (contract_id, contract) in self
             .mound
             .contracts_mut()
             .filter(|(id, _)| !contracts.contains(id))
         {
             // We need to clone here not to conflict with mutable calls below
-            let owned = stockpile.contract().state().main.owned.clone();
+            let owned = contract.ledger().state().main.owned.clone();
             let (using, prev): (Vec<_>, Vec<_>) = owned
                 .iter()
                 .flat_map(|(name, map)| map.iter().map(move |(addr, val)| (name, *addr, val)))
                 .filter_map(|(name, addr, val)| {
-                    let seals = stockpile.pile().keep().get_expect(addr.opid);
+                    let seals = contract.pile().keep().get_expect(addr.opid);
                     let seal = seals.get(&addr.pos)?;
                     let outpoint = if let WOutpoint::Extern(outpoint) = seal.primary {
                         if !outpoints.contains(&outpoint) {
@@ -670,7 +670,7 @@ impl<W: WalletProvider, S: Stock, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> Ba
                         outpoint
                     } else {
                         let mut outpoint = None;
-                        for witness_id in stockpile.pile().index().get(addr.opid) {
+                        for witness_id in contract.pile().index().get(addr.opid) {
                             let o = seal.resolve(witness_id).primary;
                             if outpoints.contains(&o) {
                                 outpoint = Some(o);
@@ -688,7 +688,7 @@ impl<W: WalletProvider, S: Stock, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> Ba
                 continue;
             };
 
-            let api = &stockpile.contract().articles().schema.default_api;
+            let api = &contract.articles().schema.default_api;
             let mut calcs = BTreeMap::<StateName, Box<dyn StateCalc>>::new();
             for (name, val) in prev {
                 let calc = calcs

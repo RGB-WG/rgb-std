@@ -38,15 +38,15 @@ use strict_encoding::{
 };
 
 use crate::{
-    CallError, Consensus, ConsumeError, ContractInfo, ContractRef, CreateParams, Operation, Pile,
-    Stockpile,
+    CallError, Consensus, ConsumeError, Contract, ContractInfo, ContractRef, CreateParams,
+    Operation, Pile,
 };
 
 pub const MAGIC_BYTES_CONSIGNMENT: [u8; 16] = *b"RGB CONSIGNMENT\0";
 
 pub trait Excavate<S: Stock, P: Pile> {
-    fn schemata(&mut self) -> impl Iterator<Item = (CodexId, Schema)>;
-    fn contracts(&mut self) -> impl Iterator<Item = (ContractId, Stockpile<S, P>)>;
+    fn schemata(&self) -> impl Iterator<Item = (CodexId, Schema)>;
+    fn contracts(&self) -> impl Iterator<Item = (ContractId, Contract<S, P>)>;
 }
 
 /// Mound is a collection of smart contracts which have homogenous capabilities.
@@ -54,7 +54,7 @@ pub struct Mound<S: Stock, P: Pile, X: Excavate<S, P>> {
     consensus: Consensus,
     testnet: bool,
     schemata: BTreeMap<CodexId, Schema>,
-    contracts: BTreeMap<ContractId, Stockpile<S, P>>,
+    contracts: BTreeMap<ContractId, Contract<S, P>>,
     /// Persistence does loading of a stockpiles and their storage when a new contract is added.
     persistence: X,
 }
@@ -82,7 +82,7 @@ impl<S: Stock, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
         }
     }
 
-    pub fn open_testnet(consensus: Consensus, mut persistance: X) -> Self {
+    pub fn open_testnet(consensus: Consensus, persistance: X) -> Self {
         Self {
             testnet: true,
             consensus,
@@ -111,9 +111,9 @@ impl<S: Stock, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
         let schema = self
             .schema(params.codex_id)
             .ok_or(IssueError::UnknownCodex(params.codex_id))?;
-        let stockpile = Stockpile::issue(schema.clone(), params, stock_conf, pile)?;
-        let id = stockpile.contract_id();
-        self.contracts.insert(id, stockpile);
+        let contract = Contract::issue(schema.clone(), params, stock_conf, pile)?;
+        let id = contract.contract_id();
+        self.contracts.insert(id, contract);
         Ok(id)
     }
 
@@ -131,17 +131,17 @@ impl<S: Stock, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
         self.contracts.keys().copied()
     }
 
-    pub fn contracts(&self) -> impl Iterator<Item = (ContractId, &Stockpile<S, P>)> {
+    pub fn contracts(&self) -> impl Iterator<Item = (ContractId, &Contract<S, P>)> {
         self.contracts.iter().map(|(id, stock)| (*id, stock))
     }
 
     pub fn contracts_info(&self) -> impl Iterator<Item = ContractInfo> + use<'_, S, P, X> {
         self.contracts
             .iter()
-            .map(|(id, stockpile)| ContractInfo::new(*id, stockpile.contract().articles()))
+            .map(|(id, contract)| ContractInfo::new(*id, contract.articles()))
     }
 
-    pub fn contracts_mut(&mut self) -> impl Iterator<Item = (ContractId, &mut Stockpile<S, P>)> {
+    pub fn contracts_mut(&mut self) -> impl Iterator<Item = (ContractId, &mut Contract<S, P>)> {
         self.contracts.iter_mut().map(|(id, ledger)| (*id, ledger))
     }
 
@@ -155,19 +155,19 @@ impl<S: Stock, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
                 let name = ContractName::Named(name);
                 self.contracts
                     .iter()
-                    .find(|(_, stockpile)| stockpile.contract().articles().issue.meta.name == name)
+                    .find(|(_, contract)| contract.articles().issue.meta.name == name)
                     .map(|(id, _)| *id)
             }
         }
     }
 
-    pub fn contract(&self, id: ContractId) -> &Stockpile<S, P> {
+    pub fn contract(&self, id: ContractId) -> &Contract<S, P> {
         self.contracts
             .get(&id)
             .unwrap_or_else(|| panic!("unknown contract {id}"))
     }
 
-    pub fn contract_mut(&mut self, id: ContractId) -> &mut Stockpile<S, P> {
+    pub fn contract_mut(&mut self, id: ContractId) -> &mut Contract<S, P> {
         self.contracts
             .get_mut(&id)
             .unwrap_or_else(|| panic!("unknown contract {id}"))
@@ -179,7 +179,7 @@ impl<S: Stock, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
     ) -> impl Iterator<Item = (ContractId, CellAddr)> + use<'_, 'seal, S, P, X> {
         self.contracts
             .iter()
-            .filter_map(|(id, stockpile)| stockpile.seal(seal).map(|addr| (*id, addr)))
+            .filter_map(|(id, contract)| contract.seal(seal).map(|addr| (*id, addr)))
     }
 
     pub fn include(
@@ -312,7 +312,7 @@ pub mod file {
             dir
         }
 
-        fn contents(&mut self, top: bool) -> impl Iterator<Item = (FileType, PathBuf)> {
+        fn contents(&self, top: bool) -> impl Iterator<Item = (FileType, PathBuf)> {
             let dir =
                 if top { fs::read_dir(&self.dir) } else { fs::read_dir(self.consensus_dir()) };
             dir.unwrap_or_else(|_| panic!("unable to read directory `{}`", self.dir.display()))
@@ -330,7 +330,7 @@ pub mod file {
         Seal::Published: Eq + StrictEncode + StrictDecode,
         Seal::WitnessId: Ord + From<[u8; 32]> + Into<[u8; 32]>,
     {
-        fn schemata(&mut self) -> impl Iterator<Item = (CodexId, Schema)> {
+        fn schemata(&self) -> impl Iterator<Item = (CodexId, Schema)> {
             self.contents(true).filter_map(|(ty, path)| {
                 if ty.is_file() && path.extension().and_then(OsStr::to_str) == Some("issuer") {
                     Schema::load(path)
@@ -343,16 +343,16 @@ pub mod file {
         }
 
         fn contracts(
-            &mut self,
-        ) -> impl Iterator<Item = (ContractId, Stockpile<StockFs, FilePile<Seal>>)> {
+            &self,
+        ) -> impl Iterator<Item = (ContractId, Contract<StockFs, FilePile<Seal>>)> {
             self.contents(false).filter_map(|(ty, path)| {
                 if ty.is_dir() && path.extension().and_then(OsStr::to_str) == Some("contract") {
-                    let contract = Stockpile::load_from_path(path.clone())
+                    let contract = Contract::load_from_path(path.clone())
                         .inspect_err(|err| {
                             eprintln!("Unable to read contract in '{}': {err}", path.display());
                         })
                         .ok()?;
-                    let meta = &contract.contract().articles().issue.meta;
+                    let meta = &contract.articles().issue.meta;
                     if meta.consensus == self.consensus && meta.testnet == self.testnet {
                         return Some((contract.contract_id(), contract));
                     }

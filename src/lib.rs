@@ -42,7 +42,7 @@ extern crate serde;
 pub extern crate rgb_invoice as invoice;
 
 mod pile;
-mod stockpile;
+mod contract;
 mod mound;
 mod info;
 pub mod popls;
@@ -50,6 +50,9 @@ mod util;
 
 #[cfg(feature = "bitcoin")]
 pub use bp::{Outpoint, Txid};
+pub use contract::{
+    Assignment, ConsumeError, Contract, CreateParams, EitherSeal, ImmutableState, OwnedState,
+};
 pub use hypersonic::*;
 pub use info::ContractInfo;
 #[cfg(feature = "fs")]
@@ -59,7 +62,4 @@ pub use mound::{Excavate, IssueError, Mound, MoundConsumeError, MAGIC_BYTES_CONS
 pub use pile::fs::FilePile;
 pub use pile::{Pile, WitnessStatus};
 pub use rgb::*;
-pub use stockpile::{
-    Assignment, ConsumeError, CreateParams, EitherSeal, ImmutableState, OwnedState, Stockpile,
-};
 pub use util::{ContractRef, InvalidContractRef};
