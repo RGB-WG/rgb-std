@@ -24,12 +24,13 @@
 
 use alloc::collections::BTreeMap;
 use core::borrow::Borrow;
+use core::error::Error as StdError;
 use std::io;
 
 use amplify::hex::ToHex;
 use amplify::Bytes16;
 use commit_verify::ReservedBytes;
-use hypersonic::{AuthToken, CellAddr, CodexId, ContractId, ContractName, Opid, Schema, Supply};
+use hypersonic::{AuthToken, CellAddr, CodexId, ContractId, ContractName, Opid, Schema, Stock};
 use rgb::{RgbSeal, RgbSealDef};
 use strict_encoding::{
     DecodeError, ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter,
@@ -43,13 +44,13 @@ use crate::{
 
 pub const MAGIC_BYTES_CONSIGNMENT: [u8; 16] = *b"RGB CONSIGNMENT\0";
 
-pub trait Excavate<S: Supply, P: Pile> {
+pub trait Excavate<S: Stock, P: Pile> {
     fn schemata(&mut self) -> impl Iterator<Item = (CodexId, Schema)>;
     fn contracts(&mut self) -> impl Iterator<Item = (ContractId, Stockpile<S, P>)>;
 }
 
 /// Mound is a collection of smart contracts which have homogenous capabilities.
-pub struct Mound<S: Supply, P: Pile, X: Excavate<S, P>> {
+pub struct Mound<S: Stock, P: Pile, X: Excavate<S, P>> {
     consensus: Consensus,
     testnet: bool,
     schemata: BTreeMap<CodexId, Schema>,
@@ -58,7 +59,7 @@ pub struct Mound<S: Supply, P: Pile, X: Excavate<S, P>> {
     persistence: X,
 }
 
-impl<S: Supply, P: Pile, X: Excavate<S, P> + Default> Mound<S, P, X> {
+impl<S: Stock, P: Pile, X: Excavate<S, P> + Default> Mound<S, P, X> {
     pub fn bitcoin_testnet() -> Self {
         Self {
             testnet: true,
@@ -70,7 +71,7 @@ impl<S: Supply, P: Pile, X: Excavate<S, P> + Default> Mound<S, P, X> {
     }
 }
 
-impl<S: Supply, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
+impl<S: Stock, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
     pub fn with_testnet(consensus: Consensus, persistence: X) -> Self {
         Self {
             testnet: true,
@@ -94,9 +95,9 @@ impl<S: Supply, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
     pub fn issue(
         &mut self,
         params: CreateParams<<P::Seal as RgbSeal>::Definiton>,
-        supply: S,
+        stock_conf: S::Conf,
         pile: P,
-    ) -> Result<ContractId, IssueError> {
+    ) -> Result<ContractId, IssueError<S::Error>> {
         if params.consensus != self.consensus {
             return Err(IssueError::ConsensusMismatch);
         }
@@ -110,7 +111,7 @@ impl<S: Supply, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
         let schema = self
             .schema(params.codex_id)
             .ok_or(IssueError::UnknownCodex(params.codex_id))?;
-        let stockpile = Stockpile::issue(schema.clone(), params, supply, pile)?;
+        let stockpile = Stockpile::issue(schema.clone(), params, stock_conf, pile)?;
         let id = stockpile.contract_id();
         self.contracts.insert(id, stockpile);
         Ok(id)
@@ -137,11 +138,11 @@ impl<S: Supply, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
     pub fn contracts_info(&self) -> impl Iterator<Item = ContractInfo> + use<'_, S, P, X> {
         self.contracts
             .iter()
-            .map(|(id, stockpile)| ContractInfo::new(*id, stockpile.stock().articles()))
+            .map(|(id, stockpile)| ContractInfo::new(*id, stockpile.contract().articles()))
     }
 
     pub fn contracts_mut(&mut self) -> impl Iterator<Item = (ContractId, &mut Stockpile<S, P>)> {
-        self.contracts.iter_mut().map(|(id, stock)| (*id, stock))
+        self.contracts.iter_mut().map(|(id, ledger)| (*id, ledger))
     }
 
     pub fn has_contract(&self, id: ContractId) -> bool { self.contracts.contains_key(&id) }
@@ -154,7 +155,7 @@ impl<S: Supply, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
                 let name = ContractName::Named(name);
                 self.contracts
                     .iter()
-                    .find(|(_, stockpile)| stockpile.stock().articles().contract.meta.name == name)
+                    .find(|(_, stockpile)| stockpile.contract().articles().issue.meta.name == name)
                     .map(|(id, _)| *id)
             }
         }
@@ -238,9 +239,9 @@ impl<S: Supply, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error, From)]
+#[derive(Debug, Display, Error, From)]
 #[display(doc_comments)]
-pub enum IssueError {
+pub enum IssueError<E: StdError> {
     /// proof of publication layer mismatch.
     ConsensusMismatch,
     /// unable to consume a testnet contract for mainnet.
@@ -249,9 +250,14 @@ pub enum IssueError {
     MainnetMismatch,
     /// unknown codex for contract issue {0}.
     UnknownCodex(CodexId),
+
     /// invalid schema; {0}
     #[from]
     InvalidSchema(CallError),
+
+    #[from]
+    #[display(inner)]
+    Inner(hypersonic::IssueError<E>),
 }
 
 #[derive(Display, From)]
@@ -276,7 +282,7 @@ pub mod file {
     use std::marker::PhantomData;
     use std::path::{Path, PathBuf};
 
-    use hypersonic::FileSupply;
+    use hypersonic::persistance::StockFs;
     use strict_encoding::{DeserializeError, StreamWriter, StrictDecode, StrictEncode};
 
     use super::*;
@@ -318,7 +324,7 @@ pub mod file {
         }
     }
 
-    impl<Seal: RgbSeal> Excavate<FileSupply, FilePile<Seal>> for DirExcavator<Seal>
+    impl<Seal: RgbSeal> Excavate<StockFs, FilePile<Seal>> for DirExcavator<Seal>
     where
         Seal::Client: StrictEncode + StrictDecode,
         Seal::Published: Eq + StrictEncode + StrictDecode,
@@ -338,11 +344,15 @@ pub mod file {
 
         fn contracts(
             &mut self,
-        ) -> impl Iterator<Item = (ContractId, Stockpile<FileSupply, FilePile<Seal>>)> {
+        ) -> impl Iterator<Item = (ContractId, Stockpile<StockFs, FilePile<Seal>>)> {
             self.contents(false).filter_map(|(ty, path)| {
                 if ty.is_dir() && path.extension().and_then(OsStr::to_str) == Some("contract") {
-                    let contract = Stockpile::load(path);
-                    let meta = &contract.stock().articles().contract.meta;
+                    let contract = Stockpile::load_from_path(path.clone())
+                        .inspect_err(|err| {
+                            eprintln!("Unable to read contract in '{}': {err}", path.display());
+                        })
+                        .ok()?;
+                    let meta = &contract.contract().articles().issue.meta;
                     if meta.consensus == self.consensus && meta.testnet == self.testnet {
                         return Some((contract.contract_id(), contract));
                     }
@@ -352,7 +362,7 @@ pub mod file {
         }
     }
 
-    pub type DirMound<Seal> = Mound<FileSupply, FilePile<Seal>, DirExcavator<Seal>>;
+    pub type DirMound<Seal> = Mound<StockFs, FilePile<Seal>, DirExcavator<Seal>>;
 
     impl<Seal: RgbSeal> DirMound<Seal>
     where
@@ -379,11 +389,11 @@ pub mod file {
         pub fn issue_to_file(
             &mut self,
             params: CreateParams<Seal::Definiton>,
-        ) -> Result<ContractId, IssueError> {
+        ) -> Result<ContractId, IssueError<io::Error>> {
             let dir = self.persistence.consensus_dir();
-            let supply = FileSupply::new(params.name.as_str(), &dir);
-            let pile = FilePile::<Seal>::new(params.name.as_str(), &dir);
-            self.issue(params, supply, pile)
+            let pile = FilePile::<Seal>::create_new(params.name.as_str(), &dir)
+                .map_err(hypersonic::IssueError::OtherPersistence)?;
+            self.issue(params, dir, pile)
         }
 
         pub fn path(&self) -> PathBuf { self.persistence.consensus_dir() }

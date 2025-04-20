@@ -172,6 +172,7 @@ where <Self::Seal as RgbSeal>::WitnessId: From<[u8; 32]> + Into<[u8; 32]>
 
 #[cfg(feature = "fs")]
 pub mod fs {
+    use std::io;
     use std::marker::PhantomData;
     use std::path::Path;
 
@@ -202,29 +203,20 @@ pub mod fs {
     impl<Seal: RgbSeal> FilePile<Seal>
     where Seal::WitnessId: From<[u8; 32]> + Into<[u8; 32]>
     {
-        pub fn new(name: &str, path: impl AsRef<Path>) -> Self {
+        pub fn create_new(name: &str, path: impl AsRef<Path>) -> io::Result<Self> {
             let mut path = path.as_ref().to_path_buf();
             path.push(name);
             path.set_extension("contract");
 
-            let hoard = FileAoraMap::new(&path, "hoard");
-            let cache = FileAoraMap::new(&path, "cache");
-            let keep = FileAoraMap::new(&path, "keep");
+            let hoard = FileAoraMap::create_new(&path, "hoard")?;
+            let cache = FileAoraMap::create_new(&path, "cache")?;
+            let keep = FileAoraMap::create_new(&path, "keep")?;
 
-            let index_file = path.join("index.dat");
-            let index = FileAoraIndex::create(index_file.clone()).unwrap_or_else(|_| {
-                panic!("unable to create index file '{}'", index_file.display())
-            });
-            let stand_file = path.join("stand.dat");
-            let stand = FileAoraIndex::create(stand_file.clone()).unwrap_or_else(|_| {
-                panic!("unable to create stand file '{}'", stand_file.display())
-            });
-            let mine_file = path.join("mine.dat");
-            let mine = FileAuraMap::create(mine_file.clone()).unwrap_or_else(|_| {
-                panic!("unable to create mining info file '{}'", mine_file.display())
-            });
+            let index = FileAoraIndex::create_new(&path, "index.dat")?;
+            let stand = FileAoraIndex::create_new(&path, "stand.dat")?;
+            let mine = FileAuraMap::create_new(&path, "mine.dat")?;
 
-            Self {
+            Ok(Self {
                 hoard,
                 cache,
                 keep,
@@ -232,31 +224,24 @@ pub mod fs {
                 stand,
                 mine,
                 _phantom: PhantomData,
-            }
+            })
         }
     }
 
     impl<Seal: RgbSeal> FilePile<Seal>
     where Seal::WitnessId: From<[u8; 32]> + Into<[u8; 32]>
     {
-        pub fn open(path: impl AsRef<Path>) -> Self {
+        pub fn open(path: impl AsRef<Path>) -> io::Result<Self> {
             let path = path.as_ref().to_path_buf();
-            let hoard = FileAoraMap::open(&path, "hoard");
-            let cache = FileAoraMap::open(&path, "cache");
-            let keep = FileAoraMap::open(&path, "keep");
+            let hoard = FileAoraMap::open(&path, "hoard")?;
+            let cache = FileAoraMap::open(&path, "cache")?;
+            let keep = FileAoraMap::open(&path, "keep")?;
 
-            let index_file = path.join("index.dat");
-            let index = FileAoraIndex::open(index_file.clone())
-                .unwrap_or_else(|_| panic!("unable to open index file '{}'", index_file.display()));
-            let stand_file = path.join("stand.dat");
-            let stand = FileAoraIndex::open(stand_file.clone())
-                .unwrap_or_else(|_| panic!("unable to open stand file '{}'", stand_file.display()));
-            let mine_file = path.join("mine.dat");
-            let mine = FileAuraMap::open(mine_file.clone()).unwrap_or_else(|_| {
-                panic!("unable to open mining info file '{}'", mine_file.display())
-            });
+            let index = FileAoraIndex::open(&path, "index.dat")?;
+            let stand = FileAoraIndex::open(&path, "stand.dat")?;
+            let mine = FileAuraMap::open(&path, "mine.dat")?;
 
-            Self {
+            Ok(Self {
                 hoard,
                 cache,
                 keep,
@@ -264,7 +249,7 @@ pub mod fs {
                 stand,
                 mine,
                 _phantom: PhantomData,
-            }
+            })
         }
     }
 

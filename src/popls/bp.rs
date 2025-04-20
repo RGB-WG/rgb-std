@@ -37,8 +37,8 @@ use bp::{Outpoint, Sats, ScriptPubkey, Tx, Vout};
 use commit_verify::mpc::ProtocolId;
 use commit_verify::{mpc, Digest, DigestExt, Sha256};
 use hypersonic::{
-    AuthToken, CallParams, CellAddr, ContractId, CoreParams, DataCell, MethodName, NamedState,
-    Operation, StateAtom, StateCalc, StateCalcError, StateName, Supply,
+    AcceptError, AuthToken, CallParams, CellAddr, ContractId, CoreParams, DataCell, MethodName,
+    NamedState, Operation, StateAtom, StateCalc, StateCalcError, StateName, Stock,
 };
 use invoice::bp::{Address, WitnessOut};
 use invoice::{RgbBeneficiary, RgbInvoice};
@@ -290,10 +290,10 @@ impl OpRequest<Option<WoutAssignment>> {
     }
 }
 
-impl<S: Supply, P: Pile> Stockpile<S, P> {
+impl<S: Stock, P: Pile> Stockpile<S, P> {
     pub fn check_request<T>(&mut self, request: &OpRequest<T>) -> Result<(), UnmatchedState> {
         let state = self.state();
-        let api = &self.stock().articles().schema.default_api;
+        let api = &self.contract().articles().schema.default_api;
         let mut calcs = BTreeMap::new();
         for inp in &request.using {
             let state_name = state
@@ -304,7 +304,7 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
                         .find(|addr| **addr == inp.addr)
                         .map(|_| state_name)
                 })
-                .expect("unknown state included in the stock");
+                .expect("unknown state included in the contract stock");
             let calc = calcs
                 .entry(state_name)
                 .or_insert_with(|| api.calculate(state_name.clone()));
@@ -395,12 +395,12 @@ impl PrefabBundle {
 /// Barrow contains a bunch of RGB contract stockpiles, which are held by a single owner; such that
 /// when a new operation under any of the contracts happen it may affect other contracts sharing the
 /// same UTXOs.
-pub struct Barrow<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> {
+pub struct Barrow<W: WalletProvider, S: Stock, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> {
     pub wallet: W,
     pub mound: Mound<S, P, X>,
 }
 
-impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> Barrow<W, S, P, X> {
+impl<W: WalletProvider, S: Stock, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> Barrow<W, S, P, X> {
     pub fn with(wallet: W, mound: Mound<S, P, X>) -> Self { Self { wallet, mound } }
 
     pub fn unbind(self) -> (W, Mound<S, P, X>) { (self.wallet, self.mound) }
@@ -408,11 +408,11 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
     pub fn issue(
         &mut self,
         params: CreateParams<Outpoint>,
-        supply: S,
+        stock_conf: S::Conf,
         pile: P,
-    ) -> Result<ContractId, IssueError> {
+    ) -> Result<ContractId, IssueError<S::Error>> {
         self.mound
-            .issue(params.transform(self.noise_engine()), supply, pile)
+            .issue(params.transform(self.noise_engine()), stock_conf, pile)
     }
 
     pub fn auth_token(&mut self, nonce: Option<u64>) -> Option<AuthToken> {
@@ -477,7 +477,7 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
 
         // Determine method
         let stockpile = self.mound.contract(contract_id);
-        let api = &stockpile.stock().articles().schema.default_api;
+        let api = &stockpile.contract().articles().schema.default_api;
         let call = invoice
             .call
             .as_ref()
@@ -610,8 +610,8 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
         };
 
         let stockpile = self.mound.contract_mut(request.contract_id);
-        let opid = stockpile.stock_mut().call(call);
-        let operation = stockpile.stock_mut().operation(opid);
+        let opid = stockpile.contract_mut().call(call)?;
+        let operation = stockpile.contract_mut().operation(opid);
         debug_assert_eq!(operation.opid(), opid);
         stockpile.pile_mut().keep_mut().insert(opid, &seals);
         debug_assert_eq!(operation.contract_id, request.contract_id);
@@ -656,7 +656,7 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
             .filter(|(id, _)| !contracts.contains(id))
         {
             // We need to clone here not to conflict with mutable calls below
-            let owned = stockpile.stock().state().main.owned.clone();
+            let owned = stockpile.contract().state().main.owned.clone();
             let (using, prev): (Vec<_>, Vec<_>) = owned
                 .iter()
                 .flat_map(|(name, map)| map.iter().map(move |(addr, val)| (name, *addr, val)))
@@ -688,7 +688,7 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
                 continue;
             };
 
-            let api = &stockpile.stock().articles().schema.default_api;
+            let api = &stockpile.contract().articles().schema.default_api;
             let mut calcs = BTreeMap::<StateName, Box<dyn StateCalc>>::new();
             for (name, val) in prev {
                 let calc = calcs
@@ -790,7 +790,7 @@ impl<W: WalletProvider, S: Supply, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> B
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
+#[derive(Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum PrefabError {
     /// operation request contains too many inputs (maximum number of inputs is 64k).
@@ -802,9 +802,13 @@ pub enum PrefabError {
     #[from]
     #[display(inner)]
     UnmatchedState(UnmatchedState),
+
+    #[from]
+    #[display(inner)]
+    Accept(AcceptError),
 }
 
-#[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
+#[derive(Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum BundleError {
     #[from]
@@ -875,20 +879,20 @@ pub mod file {
     use std::io;
     use std::path::Path;
 
-    use hypersonic::FileSupply;
+    use hypersonic::persistance::StockFs;
     use strict_encoding::StreamReader;
 
     use super::*;
     use crate::mound::file::DirExcavator;
     use crate::FilePile;
 
-    pub type DirBarrow<W> = Barrow<W, FileSupply, FilePile<TxoSeal>, DirExcavator<TxoSeal>>;
+    pub type DirBarrow<W> = Barrow<W, StockFs, FilePile<TxoSeal>, DirExcavator<TxoSeal>>;
 
     impl<W: WalletProvider> DirBarrow<W> {
         pub fn issue_to_file(
             &mut self,
             params: CreateParams<Outpoint>,
-        ) -> Result<ContractId, IssueError> {
+        ) -> Result<ContractId, IssueError<io::Error>> {
             // TODO: check that if the issue belongs to the wallet add it to the unspents
             self.mound
                 .issue_to_file(params.transform(self.noise_engine()))
@@ -903,5 +907,5 @@ pub mod file {
         }
     }
 
-    pub type BpDirMound = Mound<FileSupply, FilePile<TxoSeal>, DirExcavator<TxoSeal>>;
+    pub type BpDirMound = Mound<StockFs, FilePile<TxoSeal>, DirExcavator<TxoSeal>>;
 }

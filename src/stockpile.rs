@@ -35,9 +35,9 @@ use chrono::{DateTime, Utc};
 use commit_verify::ReservedBytes;
 use hypersonic::sigs::ContentSigs;
 use hypersonic::{
-    AcceptError, Articles, AuthToken, CellAddr, Codex, CodexId, Consensus, Contract, ContractId,
-    CoreParams, DataCell, IssueParams, LibRepo, Memory, MergeError, MethodName, NamedState,
-    Operation, Opid, Schema, StateAtom, StateName, Stock, Supply,
+    AcceptError, Articles, AuthToken, CellAddr, Codex, CodexId, Consensus, ContractId, CoreParams,
+    DataCell, IssueError, IssueParams, Ledger, LibRepo, LoadError, Memory, MergeError, MethodName,
+    NamedState, Operation, Opid, Schema, StateAtom, StateName, Stock, StockError,
 };
 use rgb::{
     ContractApi, ContractVerify, OperationSeals, ReadOperation, ReadWitness, RgbSeal, RgbSealDef,
@@ -50,7 +50,7 @@ use strict_encoding::{
 };
 use strict_types::StrictVal;
 
-use crate::{CallError, ContractMeta, Pile, VerifiedOperation, WitnessStatus};
+use crate::{ContractMeta, Issue, Pile, VerifiedOperation, WitnessStatus};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, From)]
 #[cfg_attr(
@@ -209,20 +209,20 @@ pub struct CreateParams<Seal: Clone> {
 }
 
 #[derive(Getters)]
-pub struct Stockpile<S: Supply, P: Pile> {
+pub struct Stockpile<S: Stock, P: Pile> {
     #[getter(as_mut)]
-    stock: Stock<S>,
+    contract: Ledger<S>,
     #[getter(as_mut)]
     pile: P,
 }
 
-impl<S: Supply, P: Pile> Stockpile<S, P> {
+impl<S: Stock, P: Pile> Stockpile<S, P> {
     pub fn issue(
         schema: Schema,
         params: CreateParams<<P::Seal as RgbSeal>::Definiton>,
-        supply: S,
+        stock_conf: S::Conf,
         mut pile: P,
-    ) -> Result<Self, CallError> {
+    ) -> Result<Self, IssueError<S::Error>> {
         assert_eq!(params.codex_id, schema.codex.codex_id());
 
         let seals = SmallOrdMap::try_from_iter(params.owned.iter().enumerate().filter_map(
@@ -259,30 +259,30 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
         };
 
         let articles = schema.issue(params);
-        let stock = Stock::create(articles, supply)?;
+        let contract = Ledger::issue(articles, stock_conf)?;
 
         // Init seals
         pile.keep_mut()
-            .insert(stock.articles().contract.genesis_opid(), &seals);
+            .insert(contract.articles().issue.genesis_opid(), &seals);
 
-        Ok(Self { stock, pile })
+        Ok(Self { contract, pile })
     }
 
-    pub fn open(articles: Articles, supply: S, pile: P) -> Self {
-        let stock = Stock::open(articles, supply);
-        Self { stock, pile }
+    pub fn open(stock_conf: S::Conf, pile: P) -> Result<Self, LoadError<S::Error>> {
+        let contract = Ledger::load(stock_conf)?;
+        Ok(Self { contract, pile })
     }
 
-    pub fn contract_id(&self) -> ContractId { self.stock.contract_id() }
+    pub fn contract_id(&self) -> ContractId { self.contract.contract_id() }
 
     pub fn seal(&self, seal: &<P::Seal as RgbSeal>::Definiton) -> Option<CellAddr> {
         let auth = seal.auth_token();
-        self.stock.state().raw.auth.get(&auth).copied()
+        self.contract.state().raw.auth.get(&auth).copied()
     }
 
     pub fn state(&mut self) -> ContractState<P::Seal> {
         let mut cache = bmap! {};
-        let state = self.stock().state().main.clone();
+        let state = self.contract().state().main.clone();
         let mut owned = bmap! {};
         for (name, map) in state.owned {
             let mut state = bmap! {};
@@ -341,7 +341,7 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
         <P::Seal as RgbSeal>::Published: StrictDumb + StrictEncode,
         <P::Seal as RgbSeal>::WitnessId: StrictEncode,
     {
-        self.stock
+        self.contract
             .export_aux(terminals, writer, |opid, mut writer| {
                 // Write seal definitions
                 let seals = self.pile.keep().get_expect(opid);
@@ -381,15 +381,13 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
         self.pile_mut().mine_mut().commit_transaction();
 
         // We need to clone due to a borrow checker.
-        let genesis = self.stock.articles().contract.genesis.clone();
+        let genesis = self.contract.articles().issue.genesis.clone();
         let articles = Articles {
-            contract: Contract { version: codex_version, meta, codex, genesis },
+            issue: Issue { version: codex_version, meta, codex, genesis },
             contract_sigs,
             schema,
         };
-        self.stock.merge_articles(articles)?;
-        self.stock.complete_update();
-        // TODO: Save stock
+        self.contract.merge_articles(articles)?;
         Ok(())
     }
 
@@ -449,9 +447,9 @@ impl<S: Supply, P: Pile> Stockpile<S, P> {
     ) -> Result<(), AcceptError> {
         let opids = self.pile.stand().get(pubid);
         if status.is_mined() {
-            self.stock.forward(opids)?;
+            self.contract.forward(opids)?;
         } else {
-            self.stock.rollback(opids);
+            self.contract.rollback(opids)?;
         }
         self.pile_mut().mine_mut().update_only(pubid, status);
         Ok(())
@@ -530,16 +528,16 @@ impl<'r, SealDef: RgbSealDef, R: ReadRaw, F: FnMut(&Operation) -> BTreeMap<u16, 
     }
 }
 
-impl<S: Supply, P: Pile> ContractApi<P::Seal> for Stockpile<S, P> {
-    fn contract_id(&self) -> ContractId { self.stock.contract_id() }
+impl<S: Stock, P: Pile> ContractApi<P::Seal> for Stockpile<S, P> {
+    fn contract_id(&self) -> ContractId { self.contract.contract_id() }
 
-    fn codex(&self) -> &Codex { &self.stock.articles().schema.codex }
+    fn codex(&self) -> &Codex { &self.contract.articles().schema.codex }
 
-    fn repo(&self) -> &impl LibRepo { &self.stock.articles().schema }
+    fn repo(&self) -> &impl LibRepo { &self.contract.articles().schema }
 
-    fn memory(&self) -> &impl Memory { &self.stock.state().raw }
+    fn memory(&self) -> &impl Memory { &self.contract.state().raw }
 
-    fn is_known(&self, opid: Opid) -> bool { self.stock.has_operation(opid) }
+    fn is_known(&self, opid: Opid) -> bool { self.contract.has_operation(opid) }
 
     fn apply_operation(
         &mut self,
@@ -547,7 +545,7 @@ impl<S: Supply, P: Pile> ContractApi<P::Seal> for Stockpile<S, P> {
         seals: SmallOrdMap<u16, <P::Seal as RgbSeal>::Definiton>,
     ) {
         self.pile.keep_mut().insert(op.opid(), &seals);
-        self.stock.apply(op);
+        self.contract.apply(op).expect("unable to apply operation");
     }
 
     fn apply_witness(&mut self, opid: Opid, witness: SealWitness<P::Seal>) {
@@ -566,7 +564,7 @@ pub enum ConsumeError<Seal: RgbSealDef> {
     Decode(DecodeError),
 
     #[from]
-    Merge(MergeError),
+    Merge(StockError<MergeError>),
 
     #[from]
     Verify(VerificationError<Seal::Src>),
@@ -575,36 +573,37 @@ pub enum ConsumeError<Seal: RgbSealDef> {
 #[cfg(feature = "fs")]
 mod fs {
     use std::fs::File;
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
 
-    use hypersonic::FileSupply;
+    use hypersonic::persistance::StockFs;
+    use hypersonic::{IssueError, LoadError};
     use strict_encoding::{StreamWriter, StrictDecode, StrictDumb, StrictEncode};
 
     use super::*;
     use crate::FilePile;
 
-    impl<SealSrc: RgbSeal> Stockpile<FileSupply, FilePile<SealSrc>>
+    impl<SealSrc: RgbSeal> Stockpile<StockFs, FilePile<SealSrc>>
     where
         SealSrc::Client: StrictEncode + StrictDecode,
         SealSrc::Published: Eq + StrictEncode + StrictDecode,
         SealSrc::WitnessId: Ord + From<[u8; 32]> + Into<[u8; 32]>,
     {
-        pub fn load(path: impl AsRef<Path>) -> Self {
-            let path = path.as_ref();
-            let pile = FilePile::open(path);
-            let supply = FileSupply::open(path);
-            Self::open(supply.load_articles(), supply, pile)
+        // TODO: This method will be not needed after Pile refactoring
+        pub fn load_from_path(path: PathBuf) -> Result<Self, LoadError<io::Error>> {
+            let pile = FilePile::open(&path).map_err(LoadError::OtherPersistence)?;
+            Self::open(path, pile)
         }
 
+        // TODO: This method will be not needed after Pile refactoring
         pub fn issue_to_file(
             schema: Schema,
             params: CreateParams<SealSrc::Definiton>,
-            path: impl AsRef<Path>,
-        ) -> Result<Self, CallError> {
-            let path = path.as_ref();
-            let pile = FilePile::new(params.name.as_str(), path);
-            let supply = FileSupply::new(params.name.as_str(), path);
-            Self::issue(schema, params, supply, pile)
+            path: PathBuf,
+        ) -> Result<Self, IssueError<io::Error>> {
+            let pile = FilePile::create_new(params.name.as_str(), &path)
+                .map_err(IssueError::OtherPersistence)?;
+            let contract = Self::issue(schema, params, path, pile)?;
+            Ok(contract)
         }
 
         pub fn consign_to_file(

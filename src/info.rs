@@ -42,13 +42,13 @@ impl ContractInfo {
     pub fn new(id: ContractId, articles: &Articles) -> Self {
         Self {
             id,
-            name: articles.contract.meta.name.clone(),
-            issuer: articles.contract.meta.issuer.clone(),
-            timestamp: DateTime::from_timestamp(articles.contract.meta.timestamp, 0)
+            name: articles.issue.meta.name.clone(),
+            issuer: articles.issue.meta.issuer.clone(),
+            timestamp: DateTime::from_timestamp(articles.issue.meta.timestamp, 0)
                 .expect("Invalid timestamp"),
             codex: CodexInfo::new(&articles.schema.codex),
-            consensus: articles.contract.meta.consensus,
-            testnet: articles.contract.meta.testnet,
+            consensus: articles.issue.meta.consensus,
+            testnet: articles.issue.meta.testnet,
         }
     }
 }
