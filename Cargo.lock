@@ -138,15 +138,14 @@ checksum = "e16d2d3311acee920a9eb8d33b8cbc1787ce4a264e85f964c2404b969bdcd487"
 
 [[package]]
 name = "aora"
-version = "0.5.0"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f417b4ec737fc4fccd74537f2b55c4acd0f6e7209d14e96615a35170c32dfe4"
+checksum = "ae8bb4d06f16e0ac1265d8c342535221ffad05363511c46252c1c825080c50a6"
 dependencies = [
  "amplify",
  "binfile",
  "getrandom",
  "indexmap",
- "log",
  "strict_encoding",
  "wasm-bindgen",
 ]

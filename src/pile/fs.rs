@@ -183,7 +183,8 @@ where
     ) {
         self.index.push(opid, wid);
         self.stand.push(wid, opid);
-        // TODO: This will panic on the anchor update, which must not happen!
+        // TODO: For now there is no merge for Bitcoin or Prime anchors. However other systems
+        //       may be different. Add merge and update procedure here.
         self.hoard.insert(wid, anchor);
         self.cache.insert(wid, published);
         if !self.mine.contains_key(wid) {
