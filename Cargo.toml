@@ -112,7 +112,7 @@ aora = { git = "https://github.com/rust-amplify/aora", branch = "master" }
 aluvm = { git = "https://github.com/AluVM/aluvm", branch = "master" }
 zk-aluvm = { git = "https://github.com/AluVM/zk-aluvm", branch = "master" }
 ultrasonic = { git = "https://github.com/AluVM/ultrasonic", branch = "master" }
-sonic-api = { git = "https://github.com/AluVM/sonic", branch = "refactor" }
-sonic-callreq = { git = "https://github.com/AluVM/sonic", branch = "refactor" }
-hypersonic = { git = "https://github.com/AluVM/sonic", branch = "refactor" }
+sonic-api = { git = "https://github.com/AluVM/sonic", branch = "master" }
+sonic-callreq = { git = "https://github.com/AluVM/sonic", branch = "master" }
+hypersonic = { git = "https://github.com/AluVM/sonic", branch = "master" }
 rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "v0.12" }
