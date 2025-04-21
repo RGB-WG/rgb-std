@@ -22,43 +22,7 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
-#![cfg_attr(not(feature = "std"), no_std)]
-#![allow(clippy::type_complexity)]
+mod fs;
 
-extern crate alloc;
-
-#[macro_use]
-extern crate amplify;
-extern crate rgbcore as rgb;
-
-#[cfg(feature = "bitcoin")]
-#[macro_use]
-extern crate strict_encoding;
-#[cfg(all(feature = "serde", feature = "bitcoin"))]
-#[macro_use]
-extern crate serde;
-
-pub extern crate rgb_invoice as invoice;
-
-mod pile;
-mod contract;
-mod mound;
-mod info;
-pub mod popls;
-mod util;
-pub mod providers;
-
-#[cfg(feature = "bitcoin")]
-pub use bp::{Outpoint, Txid};
-pub use contract::{
-    Assignment, ConsumeError, Contract, CreateParams, EitherSeal, ImmutableState, OwnedState,
-};
-pub use hypersonic::*;
-pub use info::ContractInfo;
 #[cfg(feature = "fs")]
-pub use mound::file::{DirExcavator, DirMound};
-pub use mound::{Excavate, IssueError, Mound, MoundConsumeError, MAGIC_BYTES_CONSIGNMENT};
-pub use pile::{OpRels, Pile, Witness, WitnessStatus};
-pub use rgb::*;
-pub use util::{ContractRef, InvalidContractRef};
+pub use fs::PileFs;
