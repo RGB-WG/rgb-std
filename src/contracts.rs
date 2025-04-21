@@ -35,14 +35,15 @@ use hypersonic::{AcceptError, Articles, CallParams, StateName, Stock};
 use rgb::RgbSeal;
 use serde::de::StdError;
 use strict_encoding::{
-    ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter, WriteRaw,
+    ReadRaw, SerializeError, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter,
+    WriteRaw,
 };
 use strict_types::StrictVal;
 
 pub use self::inmem::ContractsInmem;
 use crate::{
     AuthToken, CallError, CellAddr, CodexId, ConsumeError, ContractId, ContractInfo, ContractRef,
-    ContractState, CreateParams, Operation, Opid, Pile, Schema,
+    ContractState, CreateParams, Operation, Opid, Pile, Schema, Witness, WitnessStatus,
 };
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -72,6 +73,8 @@ pub trait ContractsApi<S: Stock, P: Pile> {
     fn has_contract(&self, id: ContractId) -> bool;
     fn find_contract_id(&self, r: impl Into<ContractRef>) -> Option<ContractId>;
 
+    fn witnesses(&self, id: ContractId) -> impl Iterator<Item = Witness<P::Seal>>;
+
     fn issue(
         &mut self,
         params: CreateParams<<P::Seal as RgbSeal>::Definiton>,
@@ -87,6 +90,25 @@ pub trait ContractsApi<S: Stock, P: Pile> {
         call: CallParams,
         seals: SmallOrdMap<u16, <P::Seal as RgbSeal>::Definiton>,
     ) -> Result<Operation, AcceptError>;
+
+    fn update_witness_status(
+        &mut self,
+        contract_id: ContractId,
+        wid: <P::Seal as RgbSeal>::WitnessId,
+        status: WitnessStatus,
+    ) -> Result<(), AcceptError>;
+
+    fn rollback(
+        &mut self,
+        contract_id: ContractId,
+        opids: impl IntoIterator<Item = Opid>,
+    ) -> Result<(), SerializeError>;
+
+    fn forward(
+        &mut self,
+        contract_id: ContractId,
+        opids: impl IntoIterator<Item = Opid>,
+    ) -> Result<(), AcceptError>;
 
     fn include(
         &mut self,

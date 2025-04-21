@@ -46,8 +46,8 @@ use rgb::{
 };
 use single_use_seals::{ClientSideWitness, PublishedWitness, SealWitness};
 use strict_encoding::{
-    DecodeError, ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter,
-    TypeName, WriteRaw,
+    DecodeError, ReadRaw, SerializeError, StrictDecode, StrictDumb, StrictEncode, StrictReader,
+    StrictWriter, TypeName, WriteRaw,
 };
 use strict_types::StrictVal;
 
@@ -374,6 +374,17 @@ impl<S: Stock, P: Pile> Contract<S, P> {
     }
 
     pub fn state_all(&self) -> &EffectiveState { self.ledger.state() }
+
+    pub fn rollback(
+        &mut self,
+        opids: impl IntoIterator<Item = Opid>,
+    ) -> Result<(), SerializeError> {
+        self.ledger.rollback(opids)
+    }
+
+    pub fn forward(&mut self, opids: impl IntoIterator<Item = Opid>) -> Result<(), AcceptError> {
+        self.ledger.forward(opids)
+    }
 
     pub fn call(
         &mut self,

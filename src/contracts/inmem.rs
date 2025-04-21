@@ -32,12 +32,13 @@ use hypersonic::{
 };
 use rgb::{ContractApi, RgbSeal};
 use strict_encoding::{
-    ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter, WriteRaw,
+    ReadRaw, SerializeError, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter,
+    WriteRaw,
 };
 
 use crate::{
     Articles, Consensus, ConsumeError, Contract, ContractInfo, ContractRef, ContractState,
-    ContractsApi, CreateParams, IssueError, Operation, Pile,
+    ContractsApi, CreateParams, IssueError, Operation, Pile, Witness, WitnessStatus,
 };
 
 /// In-memory collection of RGB smart contracts and contract issuers.
@@ -147,6 +148,10 @@ impl<S: Stock, P: Pile> ContractsApi<S, P> for ContractsInmem<S, P> {
         }
     }
 
+    fn witnesses(&self, id: ContractId) -> impl Iterator<Item = Witness<P::Seal>> {
+        self.contracts[&id].witnesses()
+    }
+
     fn issue(
         &mut self,
         params: CreateParams<<P::Seal as RgbSeal>::Definiton>,
@@ -183,6 +188,32 @@ impl<S: Stock, P: Pile> ContractsApi<S, P> for ContractsInmem<S, P> {
     ) -> Result<Operation, AcceptError> {
         let contract = self.contract_mut(contract_id);
         contract.call(call, seals)
+    }
+
+    fn update_witness_status(
+        &mut self,
+        contract_id: ContractId,
+        wid: <P::Seal as RgbSeal>::WitnessId,
+        status: WitnessStatus,
+    ) -> Result<(), AcceptError> {
+        self.contract_mut(contract_id)
+            .update_witness_status(wid, status)
+    }
+
+    fn rollback(
+        &mut self,
+        contract_id: ContractId,
+        opids: impl IntoIterator<Item = Opid>,
+    ) -> Result<(), SerializeError> {
+        self.contract_mut(contract_id).rollback(opids)
+    }
+
+    fn forward(
+        &mut self,
+        contract_id: ContractId,
+        opids: impl IntoIterator<Item = Opid>,
+    ) -> Result<(), AcceptError> {
+        self.contract_mut(contract_id).forward(opids)
     }
 
     fn include(
