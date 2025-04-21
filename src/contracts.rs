@@ -28,12 +28,12 @@ pub mod dir;
 
 use alloc::collections::BTreeMap;
 use core::borrow::Borrow;
+use core::error::Error as StdError;
 use std::io;
 
 use amplify::confinement::SmallOrdMap;
 use hypersonic::{AcceptError, Articles, CallParams, StateName, Stock};
 use rgb::RgbSeal;
-use serde::de::StdError;
 use strict_encoding::{
     ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter, WriteRaw,
 };

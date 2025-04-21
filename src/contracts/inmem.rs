@@ -85,13 +85,11 @@ impl<S: Stock, P: Pile> ContractsInmem<S, P> {
                 panic!("contract {} network doesn't match", contract.contract_id());
             }
             let codex_id = contract.codex().codex_id();
-            if !self.schemata.contains_key(&codex_id) {
-                self.schemata.insert(codex_id, articles.schema.clone());
-            }
+            self.schemata
+                .entry(codex_id)
+                .or_insert_with(|| articles.schema.clone());
             let contract_id = contract.contract_id();
-            if !self.contracts.contains_key(&contract_id) {
-                self.contracts.insert(contract_id, contract);
-            }
+            self.contracts.entry(contract_id).or_insert(contract);
         }
     }
 
