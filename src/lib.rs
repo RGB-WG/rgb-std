@@ -48,7 +48,6 @@ mod mound;
 mod info;
 pub mod popls;
 mod util;
-pub mod providers;
 mod api;
 
 pub use api::{ContractsApi, OpOut};
@@ -62,6 +61,8 @@ pub use info::ContractInfo;
 #[cfg(feature = "fs")]
 pub use mound::file::{DirExcavator, DirMound};
 pub use mound::{Excavate, IssueError, Mound, MoundConsumeError, MAGIC_BYTES_CONSIGNMENT};
+#[cfg(feature = "fs")]
+pub use pile::fs::PileFs;
 pub use pile::{OpRels, Pile, Witness, WitnessStatus};
 pub use rgb::*;
 pub use util::{ContractRef, InvalidContractRef};

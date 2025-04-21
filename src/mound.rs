@@ -172,12 +172,7 @@ impl<S: Stock, P: Pile, X: Excavate<S, P>> ContractsApi<S, P> for Mound<S, P, X>
         seals: SmallOrdMap<u16, <P::Seal as RgbSeal>::Definiton>,
     ) -> Result<Operation, AcceptError> {
         let contract = self.contract_mut(contract_id);
-        let opid = contract.call(call)?;
-        let operation = contract.ledger().operation(opid);
-        debug_assert_eq!(operation.opid(), opid);
-        contract.pile_mut().add_seals(opid, seals);
-        debug_assert_eq!(operation.contract_id, contract_id);
-        Ok(operation)
+        contract.call(call, seals)
     }
 
     fn include(
@@ -286,7 +281,7 @@ pub mod file {
     use strict_encoding::{DeserializeError, StreamWriter, StrictDecode, StrictEncode};
 
     use super::*;
-    use crate::providers::PileFs;
+    use crate::pile::fs::PileFs;
 
     pub struct DirExcavator<Seal: RgbSeal> {
         dir: PathBuf,

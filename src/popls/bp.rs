@@ -840,7 +840,7 @@ pub mod file {
 
     use super::*;
     use crate::mound::file::DirExcavator;
-    use crate::providers::PileFs;
+    use crate::pile::fs::PileFs;
 
     pub type DirBarrow<W> =
         Barrow<W, Mound<StockFs, PileFs<TxoSeal>, DirExcavator<TxoSeal>>, StockFs, PileFs<TxoSeal>>;

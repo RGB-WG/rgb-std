@@ -35,21 +35,22 @@ use commit_verify::ReservedBytes;
 use hypersonic::sigs::ContentSigs;
 use hypersonic::{
     AcceptError, Articles, AuthToken, CallParams, CellAddr, Codex, CodexId, Consensus, ContractId,
-    CoreParams, DataCell, IssueError, IssueParams, Ledger, LibRepo, LoadError, Memory, MergeError,
-    MethodName, NamedState, Operation, Opid, Schema, StateAtom, StateName, Stock, StockError,
+    CoreParams, DataCell, EffectiveState, IssueError, IssueParams, Ledger, LibRepo, LoadError,
+    Memory, MergeError, MethodName, NamedState, Operation, Opid, Schema, StateAtom, StateName,
+    Stock, StockError, Transition,
 };
 use rgb::{
     ContractApi, ContractVerify, OperationSeals, ReadOperation, ReadWitness, RgbSeal, RgbSealDef,
     Step, VerificationError,
 };
-use single_use_seals::SealWitness;
+use single_use_seals::{ClientSideWitness, PublishedWitness, SealWitness};
 use strict_encoding::{
     DecodeError, ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter,
     TypeName, WriteRaw,
 };
 use strict_types::StrictVal;
 
-use crate::{ContractMeta, Issue, Pile, VerifiedOperation, WitnessStatus};
+use crate::{ContractMeta, Issue, OpRels, Pile, VerifiedOperation, Witness, WitnessStatus};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, From)]
 #[cfg_attr(
@@ -207,11 +208,8 @@ pub struct CreateParams<Seal: Clone> {
     pub owned: Vec<NamedState<Assignment<EitherSeal<Seal>>>>,
 }
 
-#[derive(Getters)]
 pub struct Contract<S: Stock, P: Pile> {
-    #[getter(as_mut)]
     ledger: Ledger<S>,
-    #[getter(as_mut)]
     pile: P,
 }
 
@@ -258,22 +256,61 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         };
 
         let articles = schema.issue(params);
-        let contract = Ledger::issue(articles, stock_conf)?;
+        let ledger = Ledger::issue(articles, stock_conf)?;
 
         // Init seals
-        pile.add_seals(contract.articles().issue.genesis_opid(), seals);
+        pile.add_seals(ledger.articles().issue.genesis_opid(), seals);
 
-        Ok(Self { ledger: contract, pile })
+        Ok(Self { ledger, pile })
     }
 
     pub fn open(stock_conf: S::Conf, pile: P) -> Result<Self, LoadError<S::Error>> {
-        let contract = Ledger::load(stock_conf)?;
-        Ok(Self { ledger: contract, pile })
+        let ledger = Ledger::load(stock_conf)?;
+        Ok(Self { ledger, pile })
+    }
+
+    /// Get mining status for a given operation.
+    fn witness_height(&self, opid: Opid) -> Option<u64> {
+        self.pile
+            .op_witness_ids(opid)
+            .flat_map(|wid| self.pile.witness_status(wid).height())
+            .max()
+    }
+
+    fn retrieve(
+        &self,
+        opid: Opid,
+    ) -> impl ExactSizeIterator<Item = SealWitness<P::Seal>> + use<'_, S, P> {
+        self.pile.op_witness_ids(opid).map(|wid| {
+            let client = self.pile.cli_witness(wid);
+            let published = self.pile.pub_witness(wid);
+            SealWitness::new(published, client)
+        })
     }
 
     pub fn contract_id(&self) -> ContractId { self.ledger.contract_id() }
 
     pub fn articles(&self) -> &Articles { self.ledger.articles() }
+
+    pub fn operations(
+        &self,
+    ) -> impl Iterator<Item = (Opid, Operation, OpRels<P::Seal>)> + use<'_, S, P> {
+        self.ledger
+            .operations()
+            .zip(self.pile.op_relations())
+            .map(|((opid, op), rels)| {
+                debug_assert_eq!(opid, rels.opid);
+                (opid, op, rels)
+            })
+    }
+
+    pub fn trace(&self) -> impl Iterator<Item = (Opid, Transition)> + use<'_, S, P> {
+        self.ledger.trace()
+    }
+
+    pub fn witnesses(&self) -> impl Iterator<Item = Witness<P::Seal>> + use<'_, S, P> {
+        self.pile.witnesses()
+    }
 
     pub fn seal(&self, seal: &<P::Seal as RgbSeal>::Definiton) -> Option<CellAddr> {
         let auth = seal.auth_token();
@@ -282,15 +319,15 @@ impl<S: Stock, P: Pile> Contract<S, P> {
 
     pub fn state(&self) -> ContractState<P::Seal> {
         let mut cache = bmap! {};
-        let state = self.ledger().state().main.clone();
+        let state = self.ledger.state().main.clone();
         let mut owned = bmap! {};
         for (name, map) in state.owned {
             let mut state = bmap! {};
             for (addr, data) in map {
                 let since = *cache
                     .entry(addr.opid)
-                    .or_insert_with(|| self.pile().witness_height(addr.opid));
-                let seals = self.pile().op_seals(addr.opid);
+                    .or_insert_with(|| self.witness_height(addr.opid));
+                let seals = self.pile.op_seals(addr.opid);
                 let Some(seal) = seals.get(&addr.pos) else {
                     continue;
                 };
@@ -298,7 +335,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
                     state.insert(addr, OwnedState { assignment: Assignment { seal, data }, since });
                 } else {
                     // We insert a copy of state for each of the witnesses created for the operation
-                    for wid in self.pile().op_witness_ids(addr.opid) {
+                    for wid in self.pile.op_witness_ids(addr.opid) {
                         state.insert(addr, OwnedState {
                             assignment: Assignment { seal: seal.resolve(wid), data: data.clone() },
                             since,
@@ -314,7 +351,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
             for (addr, data) in map {
                 let since = *cache
                     .entry(addr.opid)
-                    .or_insert_with(|| self.pile().witness_height(addr.opid));
+                    .or_insert_with(|| self.witness_height(addr.opid));
                 state.insert(addr, ImmutableState { data, since });
             }
             immutable.insert(name, state);
@@ -322,8 +359,19 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         ContractState { immutable, owned, computed: state.computed }
     }
 
-    pub fn call(&mut self, params: CallParams) -> Result<Opid, AcceptError> {
-        self.ledger.call(params)
+    pub fn state_all(&self) -> &EffectiveState { self.ledger.state() }
+
+    pub fn call(
+        &mut self,
+        call: CallParams,
+        seals: SmallOrdMap<u16, <P::Seal as RgbSeal>::Definiton>,
+    ) -> Result<Operation, AcceptError> {
+        let opid = self.ledger.call(call)?;
+        let operation = self.ledger.operation(opid);
+        debug_assert_eq!(operation.opid(), opid);
+        self.pile.add_seals(opid, seals);
+        debug_assert_eq!(operation.contract_id, self.contract_id());
+        Ok(operation)
     }
 
     pub fn include(
@@ -332,7 +380,20 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         anchor: <P::Seal as RgbSeal>::Client,
         published: &<P::Seal as RgbSeal>::Published,
     ) {
-        self.pile.append_witness(opid, anchor, published)
+        let wid = published.pub_id();
+        let anchor = if self.pile.has_witness(wid) {
+            let mut prev_anchor = self.pile.cli_witness(wid);
+            if prev_anchor != anchor {
+                prev_anchor.merge(anchor).expect(
+                    "existing anchor is not compatible with new one; this indicates either bug in \
+                     RGB standard library or a compromised storage",
+                );
+            }
+            prev_anchor
+        } else {
+            anchor
+        };
+        self.pile.add_witness(opid, wid, published, &anchor);
     }
 
     pub fn consign(
@@ -352,7 +413,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
                 writer = seals.strict_encode(writer)?;
 
                 // Write witnesses
-                let iter = self.pile.retrieve(opid);
+                let iter = self.retrieve(opid);
                 let len = iter.len();
                 writer = (len as u64).strict_encode(writer)?;
                 for witness in iter {
@@ -382,7 +443,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
 
         let op_reader = OpReader { stream, seal_resolver, _phantom: PhantomData };
         self.evaluate(op_reader)?;
-        self.pile_mut().commit_transaction();
+        self.pile.commit_transaction();
 
         // We need to clone due to a borrow checker.
         let genesis = self.ledger.articles().issue.genesis.clone();
@@ -406,7 +467,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         } else {
             self.ledger.rollback(opids)?;
         }
-        self.pile_mut().update_witness_status(wid, status);
+        self.pile.update_witness_status(wid, status);
         Ok(())
     }
 }
@@ -504,8 +565,7 @@ impl<S: Stock, P: Pile> ContractApi<P::Seal> for Contract<S, P> {
     }
 
     fn apply_witness(&mut self, opid: Opid, witness: SealWitness<P::Seal>) {
-        self.pile
-            .append_witness(opid, witness.client, &witness.published)
+        self.include(opid, witness.client, &witness.published)
     }
 }
 
@@ -536,7 +596,7 @@ mod fs {
     use strict_encoding::{StreamWriter, StrictDecode, StrictDumb, StrictEncode};
 
     use super::*;
-    use crate::providers::PileFs;
+    use crate::pile::fs::PileFs;
 
     impl<SealSrc: RgbSeal> Contract<StockFs, PileFs<SealSrc>>
     where
