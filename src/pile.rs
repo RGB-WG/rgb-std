@@ -22,15 +22,19 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
+#[cfg(feature = "fs")]
+pub mod fs;
+
+use alloc::collections::BTreeSet;
+use core::error::Error as StdError;
 use core::fmt::Debug;
-use std::collections::{BTreeSet, HashSet};
-use std::marker::PhantomData;
-use std::num::NonZeroU64;
+use core::marker::PhantomData;
+use core::num::NonZeroU64;
+use std::collections::HashSet;
 
 use amplify::confinement::SmallOrdMap;
 use hypersonic::Opid;
-use rgb::{ClientSideWitness, RgbSeal};
-use single_use_seals::{PublishedWitness, SealWitness};
+use rgb::RgbSeal;
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display, Default)]
 #[display(lowercase)]
@@ -126,9 +130,38 @@ pub struct OpRels<Seal: RgbSeal> {
     pub _phantom: PhantomData<Seal>,
 }
 
-// TODO: Move all methods with code to `Contract`
 pub trait Pile {
     type Seal: RgbSeal;
+
+    /// Persistence configuration type.
+    type Conf;
+
+    type Error: StdError;
+
+    /// Issues a new contract from the provided articles, creating its persistence using given
+    /// implementation-specific configuration.
+    ///
+    /// # Panics
+    ///
+    /// This call must not panic, and instead must return an error.
+    ///
+    /// # Blocking I/O
+    ///
+    /// This call MAY perform any I/O operations.
+    fn issue(conf: Self::Conf) -> Result<Self, Self::Error>
+    where Self: Sized;
+
+    /// Loads a contract from a persistence using the provided configuration.
+    ///
+    /// # Panics
+    ///
+    /// This call must not panic, and instead must return an error.
+    ///
+    /// # Blocking I/O
+    ///
+    /// This call MAY perform any I/O operations.
+    fn load(conf: Self::Conf) -> Result<Self, Self::Error>
+    where Self: Sized;
 
     fn pub_witness(
         &self,
@@ -144,19 +177,14 @@ pub trait Pile {
 
     fn witness_status(&self, wid: <Self::Seal as RgbSeal>::WitnessId) -> WitnessStatus;
 
+    fn witness_ids(&self) -> impl Iterator<Item = <Self::Seal as RgbSeal>::WitnessId>;
+
     fn witnesses(&self) -> impl Iterator<Item = Witness<Self::Seal>>;
 
     fn witnesses_since(
         &self,
         transaction_no: u64,
     ) -> impl Iterator<Item = <Self::Seal as RgbSeal>::WitnessId>;
-
-    /// Get mining status for a given operation.
-    fn witness_height(&self, opid: Opid) -> Option<u64> {
-        self.op_witness_ids(opid)
-            .flat_map(|wid| self.witness_status(wid).height())
-            .max()
-    }
 
     fn op_witness_ids(
         &self,
@@ -170,15 +198,7 @@ pub trait Pile {
 
     fn op_seals(&self, opid: Opid) -> SmallOrdMap<u16, <Self::Seal as RgbSeal>::Definiton>;
 
-    fn ops(&self) -> impl Iterator<Item = OpRels<Self::Seal>>;
-
-    fn retrieve(&self, opid: Opid) -> impl ExactSizeIterator<Item = SealWitness<Self::Seal>> {
-        self.op_witness_ids(opid).map(|wid| {
-            let client = self.cli_witness(wid);
-            let published = self.pub_witness(wid);
-            SealWitness::new(published, client)
-        })
-    }
+    fn op_relations(&self) -> impl Iterator<Item = OpRels<Self::Seal>>;
 
     /// Adds operation id and witness components, registers witness as `Archived`.
     ///
@@ -207,26 +227,4 @@ pub trait Pile {
     );
 
     fn commit_transaction(&mut self);
-
-    fn append_witness(
-        &mut self,
-        opid: Opid,
-        anchor: <Self::Seal as RgbSeal>::Client,
-        published: &<Self::Seal as RgbSeal>::Published,
-    ) {
-        let wid = published.pub_id();
-        let anchor = if self.has_witness(wid) {
-            let mut prev_anchor = self.cli_witness(wid);
-            if prev_anchor != anchor {
-                prev_anchor.merge(anchor).expect(
-                    "existing anchor is not compatible with new one; this indicates either bug in \
-                     RGB standard library or a compromised storage",
-                );
-            }
-            prev_anchor
-        } else {
-            anchor
-        };
-        self.add_witness(opid, wid, published, &anchor);
-    }
 }

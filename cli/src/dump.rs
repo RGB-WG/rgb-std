@@ -27,16 +27,9 @@ use std::path::Path;
 use std::{fs, io};
 
 use amplify::confinement::SmallOrdMap;
-use amplify::hex::ToHex;
-use amplify::Bytes16;
-use commit_verify::ReservedBytes;
 use hypersonic::persistance::StockFs;
-use hypersonic::{Articles, ContractId, Operation};
-use rgb::providers::PileFs;
-use rgb::{
-    Contract, MoundConsumeError, Pile, PublishedWitness, RgbSeal, RgbSealDef, SealWitness,
-    SingleUseSeal, MAGIC_BYTES_CONSIGNMENT,
-};
+use hypersonic::{Articles, Operation};
+use rgb::{Contract, PileFs, PublishedWitness, RgbSeal, RgbSealDef, SealWitness, SingleUseSeal};
 use serde::{Deserialize, Serialize};
 use strict_encoding::{DecodeError, StreamReader, StrictDecode, StrictEncode, StrictReader};
 
@@ -52,7 +45,8 @@ where
     fs::create_dir_all(dst)?;
 
     print!("Reading contract contract from '{}' ... ", src.display());
-    let contract = Contract::<StockFs, PileFs<Seal>>::load_from_path(src.to_path_buf())?;
+    let path = src.to_path_buf();
+    let contract = Contract::<StockFs, PileFs<Seal>>::load(path.clone(), path)?;
     println!("success reading {}", contract.contract_id());
 
     print!("Processing contract articles ... ");
@@ -61,15 +55,17 @@ where
     println!("success");
 
     print!("Processing operations ... none found");
-    for (no, (opid, op)) in contract.ledger().operations().enumerate() {
+    for (no, (opid, op, rels)) in contract.operations().enumerate() {
         let out = File::create_new(dst.join(format!("{:04}-{opid}.op.yaml", no + 1)))?;
         serde_yaml::to_writer(&out, &op)?;
+        let out = File::create_new(dst.join(format!("{no:04}-{}.pile.yaml", opid)))?;
+        serde_yaml::to_writer(&out, &rels)?;
         print!("\rProcessing operations ... {} processed", no + 1);
     }
     println!();
 
     print!("Processing trace ... none state transitions found");
-    for (no, (opid, st)) in contract.ledger().trace().enumerate() {
+    for (no, (opid, st)) in contract.trace().enumerate() {
         let out = File::create_new(dst.join(format!("{:04}-{opid}.st.yaml", no + 1)))?;
         serde_yaml::to_writer(&out, &st)?;
         print!("\rProcessing trace ... {} state transition processed", no + 1);
@@ -79,29 +75,23 @@ where
     print!("Processing state ... ");
     let out = File::create_new(dst.join("state.yaml"))?;
     serde_yaml::to_writer(&out, &contract.state())?;
+
+    let state = contract.state_all();
     let out = File::create_new(dst.join("state-raw.yaml"))?;
-    serde_yaml::to_writer(&out, &contract.ledger().state().raw)?;
+    serde_yaml::to_writer(&out, &state.raw)?;
     let out = File::create_new(dst.join("state-main.yaml"))?;
-    serde_yaml::to_writer(&out, &contract.ledger().state().main)?;
-    for (name, state) in &contract.ledger().state().aux {
+    serde_yaml::to_writer(&out, &state.main)?;
+    for (name, state) in &state.aux {
         let out = File::create_new(dst.join(format!("state-{name}.yaml")))?;
         serde_yaml::to_writer(&out, state)?;
     }
     println!("success");
 
     print!("Processing witnesses ... none found");
-    for (no, witness) in contract.pile().witnesses().enumerate() {
+    for (no, witness) in contract.witnesses().enumerate() {
         let out = File::create_new(dst.join(format!("witness-{}.yaml", witness.id)))?;
         serde_yaml::to_writer(&out, &witness)?;
         print!("\rProcessing witnesses ... {} processed", no + 1);
-    }
-    println!();
-
-    print!("Processing operation pile ... none found");
-    for (no, op) in contract.pile().ops().enumerate() {
-        let out = File::create_new(dst.join(format!("{no:04}-{}.pile.yaml", op.opid)))?;
-        serde_yaml::to_writer(&out, &op)?;
-        print!("\rProcessing operation pike ... {no} processed");
     }
     println!();
 
@@ -115,7 +105,7 @@ where
     <SealDef::Src as SingleUseSeal>::CliWitness:
         Serialize + for<'de> Deserialize<'de> + StrictEncode + StrictDecode,
     <SealDef::Src as SingleUseSeal>::PubWitness:
-        Serialize + for<'de> Deserialize<'de> + StrictEncode + StrictDecode,
+        Eq + Serialize + for<'de> Deserialize<'de> + StrictEncode + StrictDecode,
     <<SealDef::Src as SingleUseSeal>::PubWitness as PublishedWitness<SealDef::Src>>::PubId:
         Ord + From<[u8; 32]> + Into<[u8; 32]> + Serialize,
 {
@@ -125,16 +115,8 @@ where
     let file = File::open(src)?;
     let mut stream = StrictReader::with(StreamReader::new::<{ usize::MAX }>(file));
 
-    let magic_bytes = Bytes16::strict_decode(&mut stream)?;
-    if magic_bytes.to_byte_array() != MAGIC_BYTES_CONSIGNMENT {
-        return Err(anyhow!(
-            MoundConsumeError::<SealDef>::UnrecognizedMagic(magic_bytes.to_hex()).to_string()
-        ));
-    }
-    // Version
-    ReservedBytes::<2>::strict_decode(&mut stream)?;
-
-    let contract_id = ContractId::strict_decode(&mut stream)?;
+    let contract_id = Contract::<StockFs, PileFs<SealDef::Src>>::parse_consignment(&mut stream)
+        .map_err(|e| anyhow!(e.to_string()))?;
     println!("Dumping consignment for {} into '{}'", contract_id, dst.display());
 
     let mut op_count = 1;

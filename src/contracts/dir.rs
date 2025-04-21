@@ -22,7 +22,26 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
-mod fs;
+use std::collections::HashMap;
+use std::path::PathBuf;
 
-#[cfg(feature = "fs")]
-pub use fs::PileFs;
+use hypersonic::Stock;
+
+use crate::{CodexId, Consensus, Contract, ContractId, Pile, Schema};
+
+/// Directory-based memory-efficient collection of RGB smart contracts and contract issuers.
+///
+/// Unlike [`crate::ContractsInmem`], which can also be read from a directory, doesn't maintain all
+/// contracts in memory, and loads/unloads them from/to disk dynamically.
+#[derive(Getters)]
+pub struct ContractsDir<S: Stock, P: Pile> {
+    #[getter(as_copy)]
+    consensus: Consensus,
+    #[getter(as_copy)]
+    testnet: bool,
+    schemata: HashMap<CodexId, Schema>,
+    cache: HashMap<ContractId, Contract<S, P>>,
+    path: PathBuf,
+}
+
+// TODO: Implement

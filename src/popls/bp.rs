@@ -27,6 +27,7 @@
 
 use alloc::collections::{btree_set, BTreeMap, BTreeSet};
 use alloc::vec;
+use std::marker::PhantomData;
 
 use amplify::confinement::{Collection, NonEmptyVec, SmallOrdMap, SmallOrdSet, U8 as U8MAX};
 use amplify::{confinement, ByteArray, Bytes32, Wrapper};
@@ -45,9 +46,9 @@ use rgb::RgbSealDef;
 use strict_encoding::{ReadRaw, StrictDecode, StrictDeserialize, StrictReader, StrictSerialize};
 use strict_types::StrictVal;
 
-use crate::contract::{ContractState, EitherSeal};
 use crate::{
-    Assignment, Contract, CreateParams, Excavate, IssueError, Mound, MoundConsumeError, Pile,
+    Assignment, ConsumeError, Contract, ContractState, ContractsApi, CreateParams, EitherSeal,
+    IssueError, Pile,
 };
 
 /// Trait abstracting specific implementation of a bitcoin wallet.
@@ -289,41 +290,6 @@ impl OpRequest<Option<WoutAssignment>> {
     }
 }
 
-impl<S: Stock, P: Pile> Contract<S, P> {
-    pub fn check_request<T>(&self, request: &OpRequest<T>) -> Result<(), UnmatchedState> {
-        let state = self.state();
-        let api = &self.articles().schema.default_api;
-        let mut calcs = BTreeMap::new();
-        for inp in &request.using {
-            let state_name = state
-                .owned
-                .iter()
-                .find_map(|(state_name, map)| {
-                    map.keys()
-                        .find(|addr| **addr == inp.addr)
-                        .map(|_| state_name)
-                })
-                .expect("unknown state included in the contract stock");
-            let calc = calcs
-                .entry(state_name)
-                .or_insert_with(|| api.calculate(state_name.clone()));
-            calc.accumulate(&inp.val)?;
-        }
-        for out in &request.owned {
-            let calc = calcs
-                .entry(&out.name)
-                .or_insert_with(|| api.calculate(out.name.clone()));
-            calc.lessen(&out.state.data)?;
-        }
-        for (state_name, calc) in calcs {
-            if !calc.diff()?.is_empty() {
-                return Err(UnmatchedState::NotEnoughChange(state_name.clone()));
-            }
-        }
-        Ok(())
-    }
-}
-
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum UnmatchedState {
@@ -394,24 +360,32 @@ impl PrefabBundle {
 /// Barrow contains a bunch of RGB contracts, which are held by a single owner (a wallet); such that
 /// when a new operation under any of the contracts happen it may affect other contracts sharing the
 /// same UTXOs.
-pub struct Barrow<W: WalletProvider, S: Stock, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> {
+pub struct RgbWallet<W: WalletProvider, C: ContractsApi<S, P>, S: Stock, P: Pile<Seal = TxoSeal>> {
     pub wallet: W,
-    pub mound: Mound<S, P, X>,
+    pub contracts: C,
+    pub _phantom: PhantomData<(S, P)>,
 }
 
-impl<W: WalletProvider, S: Stock, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> Barrow<W, S, P, X> {
-    pub fn with(wallet: W, mound: Mound<S, P, X>) -> Self { Self { wallet, mound } }
+impl<W: WalletProvider, C: ContractsApi<S, P>, S: Stock, P: Pile<Seal = TxoSeal>>
+    RgbWallet<W, C, S, P>
+{
+    pub fn with(wallet: W, api: C) -> Self {
+        Self { wallet, contracts: api, _phantom: PhantomData }
+    }
 
-    pub fn unbind(self) -> (W, Mound<S, P, X>) { (self.wallet, self.mound) }
+    pub fn unbind(self) -> (W, C) { (self.wallet, self.contracts) }
 
     pub fn issue(
         &mut self,
         params: CreateParams<Outpoint>,
         stock_conf: S::Conf,
-        pile: P,
-    ) -> Result<ContractId, IssueError<S::Error>> {
-        self.mound
-            .issue(params.transform(self.noise_engine()), stock_conf, pile)
+        pile_conf: P::Conf,
+    ) -> Result<ContractId, IssueError<S::Error>>
+    where
+        S::Error: From<P::Error>,
+    {
+        self.contracts
+            .issue(params.transform(self.noise_engine()), stock_conf, pile_conf)
     }
 
     pub fn auth_token(&mut self, nonce: Option<u64>) -> Option<AuthToken> {
@@ -429,33 +403,23 @@ impl<W: WalletProvider, S: Stock, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> Ba
         WitnessOut::new(address.payload, nonce)
     }
 
-    pub fn state_own(
-        &self,
-        contract_id: Option<ContractId>,
-    ) -> impl Iterator<Item = (ContractId, ContractState<Outpoint>)> + use<'_, W, S, P, X> {
-        self.mound
-            .contracts()
-            .filter(move |(id, _)| contract_id.is_none() || Some(*id) == contract_id)
-            .map(|(id, contract)| {
-                let state = contract.state().filter_map(|seal| {
+    pub fn state_own(&self, contract_id: ContractId) -> ContractState<Outpoint> {
+        self.contracts
+            .contract_state(contract_id)
+            .clone()
+            .filter_map(
+                |seal| {
                     if self.wallet.has_utxo(seal.primary) {
                         Some(seal.primary)
                     } else {
                         None
                     }
-                });
-                (id, state)
-            })
+                },
+            )
     }
 
-    pub fn state_all(
-        &self,
-        contract_id: Option<ContractId>,
-    ) -> impl Iterator<Item = (ContractId, ContractState<Outpoint>)> + use<'_, W, S, P, X> {
-        self.mound
-            .contracts()
-            .filter(move |(id, _)| contract_id.is_none() || Some(*id) == contract_id)
-            .map(|(id, contract)| (id, contract.state().map(|seal| seal.primary)))
+    pub fn state_all(&self, contract_id: ContractId) -> ContractState<P::Seal> {
+        self.contracts.contract_state(contract_id)
     }
 
     fn noise_engine(&self) -> Sha256 {
@@ -475,8 +439,8 @@ impl<W: WalletProvider, S: Stock, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> Ba
         let contract_id = invoice.scope;
 
         // Determine method
-        let contract = self.mound.contract(contract_id);
-        let api = &contract.articles().schema.default_api;
+        let articles = self.contracts.contract_articles(contract_id);
+        let api = &articles.schema.default_api;
         let call = invoice
             .call
             .as_ref()
@@ -492,10 +456,7 @@ impl<W: WalletProvider, S: Stock, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> Ba
         let value = invoice.data.as_ref().ok_or(FulfillError::ValueMissed)?;
 
         // Do coinselection
-        let (_, state) = self
-            .state_own(Some(contract_id))
-            .next()
-            .ok_or(FulfillError::ContractUnavailable(contract_id))?;
+        let state = self.state_own(contract_id);
         let state = state
             .owned
             .get(&state_name)
@@ -558,9 +519,42 @@ impl<W: WalletProvider, S: Stock, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> Ba
 
     /// Check whether all state used in a request is properly re-distributed to new owners, and
     /// non-distributed state is used in the change.
-    pub fn check_request<T>(&mut self, request: &OpRequest<T>) -> Result<(), UnmatchedState> {
-        let contract = self.mound.contract_mut(request.contract_id);
-        contract.check_request(request)
+    pub fn check_request<T>(&self, request: &OpRequest<T>) -> Result<(), UnmatchedState> {
+        let contract_id = request.contract_id;
+        let state = self.contracts.contract_state(contract_id);
+        let api = &self
+            .contracts
+            .contract_articles(contract_id)
+            .schema
+            .default_api;
+        let mut calcs = BTreeMap::new();
+        for inp in &request.using {
+            let state_name = state
+                .owned
+                .iter()
+                .find_map(|(state_name, map)| {
+                    map.keys()
+                        .find(|addr| **addr == inp.addr)
+                        .map(|_| state_name)
+                })
+                .expect("unknown state included in the contract stock");
+            let calc = calcs
+                .entry(state_name)
+                .or_insert_with(|| api.calculate(state_name.clone()));
+            calc.accumulate(&inp.val)?;
+        }
+        for out in &request.owned {
+            let calc = calcs
+                .entry(&out.name)
+                .or_insert_with(|| api.calculate(out.name.clone()));
+            calc.lessen(&out.state.data)?;
+        }
+        for (state_name, calc) in calcs {
+            if !calc.diff()?.is_empty() {
+                return Err(UnmatchedState::NotEnoughChange(state_name.clone()));
+            }
+        }
+        Ok(())
     }
 
     /// Creates a single operation basing on the provided construction parameters.
@@ -608,12 +602,9 @@ impl<W: WalletProvider, S: Stock, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> Ba
             reading: request.reading,
         };
 
-        let contract = self.mound.contract_mut(request.contract_id);
-        let opid = contract.call(call)?;
-        let operation = contract.ledger().operation(opid);
-        debug_assert_eq!(operation.opid(), opid);
-        contract.pile_mut().add_seals(opid, seals);
-        debug_assert_eq!(operation.contract_id, request.contract_id);
+        let operation = self
+            .contracts
+            .contract_call(request.contract_id, call, seals)?;
 
         Ok(Prefab { closes, defines, operation })
     }
@@ -649,37 +640,19 @@ impl<W: WalletProvider, S: Stock, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> Ba
         // Constructing blank operation requests
         let mut blank_requests = Vec::new();
         let root_noise_engine = self.noise_engine();
-        for (contract_id, contract) in self
-            .mound
-            .contracts_mut()
-            .filter(|(id, _)| !contracts.contains(id))
-        {
+        for contract_id in contracts {
             // We need to clone here not to conflict with mutable calls below
-            let owned = contract.ledger().state().main.owned.clone();
+            let owned = self.contracts.contract_state(contract_id).owned.clone();
             let (using, prev): (Vec<_>, Vec<_>) = owned
                 .iter()
                 .flat_map(|(name, map)| map.iter().map(move |(addr, val)| (name, *addr, val)))
-                .filter_map(|(name, addr, val)| {
-                    let seals = contract.pile().op_seals(addr.opid);
-                    let seal = seals.get(&addr.pos)?;
-                    let outpoint = if let WOutpoint::Extern(outpoint) = seal.primary {
-                        if !outpoints.contains(&outpoint) {
-                            return None;
-                        }
-                        outpoint
-                    } else {
-                        let mut outpoint = None;
-                        for witness_id in contract.pile().op_witness_ids(addr.opid) {
-                            let o = seal.resolve(witness_id).primary;
-                            if outpoints.contains(&o) {
-                                outpoint = Some(o);
-                                break;
-                            }
-                        }
-                        outpoint?
-                    };
-                    let prevout = UsedState { addr, outpoint, val: val.clone() };
-                    Some((prevout, (name.clone(), val)))
+                .filter_map(|(name, addr, state)| {
+                    let outpoint = state.assignment.seal.primary;
+                    if !outpoints.contains(&outpoint) {
+                        return None;
+                    }
+                    let prevout = UsedState { addr, outpoint, val: state.assignment.data.clone() };
+                    Some((prevout, (name.clone(), state)))
                 })
                 .unzip();
 
@@ -687,13 +660,17 @@ impl<W: WalletProvider, S: Stock, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> Ba
                 continue;
             };
 
-            let api = &contract.articles().schema.default_api;
+            let api = &self
+                .contracts
+                .contract_articles(contract_id)
+                .schema
+                .default_api;
             let mut calcs = BTreeMap::<StateName, Box<dyn StateCalc>>::new();
-            for (name, val) in prev {
+            for (name, state) in prev {
                 let calc = calcs
                     .entry(name.clone())
                     .or_insert_with(|| api.calculate(name));
-                calc.accumulate(val)?;
+                calc.accumulate(&state.assignment.data)?;
             }
 
             let mut owned = Vec::new();
@@ -760,7 +737,7 @@ impl<W: WalletProvider, S: Stock, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> Ba
                 dbc_proof: dbc.clone(),
                 fallback_proof: default!(),
             };
-            self.mound
+            self.contracts
                 .include(prefab.operation.contract_id, opid, witness, anchor);
         }
         Ok(())
@@ -771,8 +748,13 @@ impl<W: WalletProvider, S: Stock, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> Ba
     pub fn consume(
         &mut self,
         reader: &mut StrictReader<impl ReadRaw>,
-    ) -> Result<(), MoundConsumeError<WTxoSeal>> {
-        self.mound.consume(reader, |op| {
+    ) -> Result<(), ConsumeError<WTxoSeal>> {
+        let contract_id = Contract::<S, P>::parse_consignment(reader)?;
+        if !self.contracts.has_contract(contract_id) {
+            return Err(ConsumeError::UnknownContract(contract_id));
+        };
+
+        self.contracts.consume(contract_id, reader, |op| {
             self.wallet
                 .resolve_seals(op.destructible.iter().map(|cell| cell.auth))
                 .map(|seal| {
@@ -833,9 +815,6 @@ pub enum BundleError {
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum FulfillError {
-    /// the wallet doesn't own any state for {0} to fulfill the invoice.
-    ContractUnavailable(ContractId),
-
     /// neither invoice nor contract API contains information about the transfer method.
     CallStateUnknown,
 
@@ -873,38 +852,35 @@ pub enum IncludeError {
 }
 
 #[cfg(feature = "fs")]
-pub mod file {
+mod fs {
     use std::fs::File;
     use std::io;
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
 
     use hypersonic::persistance::StockFs;
     use strict_encoding::StreamReader;
 
     use super::*;
-    use crate::mound::file::DirExcavator;
-    use crate::providers::PileFs;
+    use crate::PileFs;
 
-    pub type DirBarrow<W> = Barrow<W, StockFs, PileFs<TxoSeal>, DirExcavator<TxoSeal>>;
-
-    impl<W: WalletProvider> DirBarrow<W> {
-        pub fn issue_to_file(
+    impl<W: WalletProvider, C: ContractsApi<StockFs, PileFs<TxoSeal>>>
+        RgbWallet<W, C, StockFs, PileFs<TxoSeal>>
+    {
+        pub fn issue_to_dir(
             &mut self,
             params: CreateParams<Outpoint>,
+            path: PathBuf,
         ) -> Result<ContractId, IssueError<io::Error>> {
-            // TODO: check that if the issue belongs to the wallet add it to the unspents
-            self.mound
-                .issue_to_file(params.transform(self.noise_engine()))
+            self.issue(params, path.clone(), path)
         }
 
-        pub fn consume_from_file(&mut self, path: impl AsRef<Path>) -> io::Result<()> {
+        pub fn consume_from_file(
+            &mut self,
+            path: impl AsRef<Path>,
+        ) -> Result<(), ConsumeError<WTxoSeal>> {
             let file = File::open(path)?;
             let mut reader = StrictReader::with(StreamReader::new::<{ usize::MAX }>(file));
             self.consume(&mut reader)
-                .unwrap_or_else(|err| panic!("Unable to accept a consignment: {err}"));
-            Ok(())
         }
     }
-
-    pub type BpDirMound = Mound<StockFs, PileFs<TxoSeal>, DirExcavator<TxoSeal>>;
 }

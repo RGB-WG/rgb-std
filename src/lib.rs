@@ -39,26 +39,29 @@ extern crate strict_encoding;
 #[macro_use]
 extern crate serde;
 
+extern crate core;
 pub extern crate rgb_invoice as invoice;
 
 mod pile;
 mod contract;
-mod mound;
 mod info;
 pub mod popls;
 mod util;
-pub mod providers;
+mod contracts;
 
 #[cfg(feature = "bitcoin")]
 pub use bp::{Outpoint, Txid};
 pub use contract::{
-    Assignment, ConsumeError, Contract, CreateParams, EitherSeal, ImmutableState, OwnedState,
+    Assignment, ConsumeError, Contract, ContractState, CreateParams, EitherSeal, ImmutableState,
+    OwnedState, CONSIGNMENT_MAGIC_NUMBER, CONSIGNMENT_VERSION,
 };
+#[cfg(feature = "fs")]
+pub use contracts::dir::ContractsDir;
+pub use contracts::{ContractsApi, ContractsInmem, IssueError, OpOut};
 pub use hypersonic::*;
 pub use info::ContractInfo;
 #[cfg(feature = "fs")]
-pub use mound::file::{DirExcavator, DirMound};
-pub use mound::{Excavate, IssueError, Mound, MoundConsumeError, MAGIC_BYTES_CONSIGNMENT};
+pub use pile::fs::PileFs;
 pub use pile::{OpRels, Pile, Witness, WitnessStatus};
 pub use rgb::*;
 pub use util::{ContractRef, InvalidContractRef};
