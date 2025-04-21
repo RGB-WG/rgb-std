@@ -850,3 +850,37 @@ pub enum IncludeError {
     #[from]
     Mpc(mpc::LeafNotKnown),
 }
+
+#[cfg(feature = "fs")]
+mod fs {
+    use std::fs::File;
+    use std::io;
+    use std::path::{Path, PathBuf};
+
+    use hypersonic::persistance::StockFs;
+    use strict_encoding::StreamReader;
+
+    use super::*;
+    use crate::PileFs;
+
+    impl<W: WalletProvider, C: ContractsApi<StockFs, PileFs<TxoSeal>>>
+        RgbWallet<W, C, StockFs, PileFs<TxoSeal>>
+    {
+        pub fn issue_to_dir(
+            &mut self,
+            params: CreateParams<Outpoint>,
+            path: PathBuf,
+        ) -> Result<ContractId, IssueError<io::Error>> {
+            self.issue(params, path.clone(), path)
+        }
+
+        pub fn consume_from_file(
+            &mut self,
+            path: impl AsRef<Path>,
+        ) -> Result<(), ConsumeError<WTxoSeal>> {
+            let file = File::open(path)?;
+            let mut reader = StrictReader::with(StreamReader::new::<{ usize::MAX }>(file));
+            self.consume(&mut reader)
+        }
+    }
+}
