@@ -379,10 +379,13 @@ impl<W: WalletProvider, C: ContractsApi<S, P>, S: Stock, P: Pile<Seal = TxoSeal>
         &mut self,
         params: CreateParams<Outpoint>,
         stock_conf: S::Conf,
-        pile: P,
-    ) -> Result<ContractId, IssueError<S::Error>> {
+        pile_conf: P::Conf,
+    ) -> Result<ContractId, IssueError<S::Error>>
+    where
+        S::Error: From<P::Error>,
+    {
         self.contracts
-            .issue(params.transform(self.noise_engine()), stock_conf, pile)
+            .issue(params.transform(self.noise_engine()), stock_conf, pile_conf)
     }
 
     pub fn auth_token(&mut self, nonce: Option<u64>) -> Option<AuthToken> {

@@ -224,8 +224,11 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         schema: Schema,
         params: CreateParams<<P::Seal as RgbSeal>::Definiton>,
         stock_conf: S::Conf,
-        mut pile: P,
-    ) -> Result<Self, IssueError<S::Error>> {
+        pile_conf: P::Conf,
+    ) -> Result<Self, IssueError<S::Error>>
+    where
+        S::Error: From<P::Error>,
+    {
         assert_eq!(params.codex_id, schema.codex.codex_id());
 
         let seals = SmallOrdMap::try_from_iter(params.owned.iter().enumerate().filter_map(
@@ -266,14 +269,17 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         let contract_id = ledger.contract_id();
 
         // Init seals
+        let mut pile = P::issue(pile_conf).map_err(|e| IssueError::OtherPersistence(e.into()))?;
         pile.add_seals(ledger.articles().issue.genesis_opid(), seals);
 
         Ok(Self { ledger, pile, contract_id })
     }
 
-    pub fn open(stock_conf: S::Conf, pile: P) -> Result<Self, LoadError<S::Error>> {
+    pub fn load(stock_conf: S::Conf, pile_conf: P::Conf) -> Result<Self, LoadError<S::Error>>
+    where S::Error: From<P::Error> {
         let ledger = Ledger::load(stock_conf)?;
         let contract_id = ledger.contract_id();
+        let pile = P::load(pile_conf).map_err(|e| LoadError::OtherPersistence(e.into()))?;
         Ok(Self { ledger, pile, contract_id })
     }
 
@@ -626,10 +632,9 @@ pub enum ConsumeError<Seal: RgbSealDef> {
 #[cfg(feature = "fs")]
 mod fs {
     use std::fs::File;
-    use std::path::{Path, PathBuf};
+    use std::path::Path;
 
     use hypersonic::persistance::StockFs;
-    use hypersonic::{IssueError, LoadError};
     use strict_encoding::{StreamWriter, StrictDecode, StrictDumb, StrictEncode};
 
     use super::*;
@@ -641,24 +646,6 @@ mod fs {
         SealSrc::Published: Eq + StrictEncode + StrictDecode,
         SealSrc::WitnessId: Ord + From<[u8; 32]> + Into<[u8; 32]>,
     {
-        // TODO: This method will be not needed after Pile refactoring
-        pub fn load_from_path(path: PathBuf) -> Result<Self, LoadError<io::Error>> {
-            let pile = PileFs::open(&path).map_err(LoadError::OtherPersistence)?;
-            Self::open(path, pile)
-        }
-
-        // TODO: This method will be not needed after Pile refactoring
-        pub fn issue_to_file(
-            schema: Schema,
-            params: CreateParams<SealSrc::Definiton>,
-            path: PathBuf,
-        ) -> Result<Self, IssueError<io::Error>> {
-            let pile = PileFs::create_new(params.name.as_str(), &path)
-                .map_err(IssueError::OtherPersistence)?;
-            let contract = Self::issue(schema, params, path, pile)?;
-            Ok(contract)
-        }
-
         pub fn consign_to_file(
             &mut self,
             terminals: impl IntoIterator<Item = impl Borrow<AuthToken>>,

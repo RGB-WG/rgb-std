@@ -24,7 +24,7 @@
 
 use std::io;
 use std::marker::PhantomData;
-use std::path::Path;
+use std::path::PathBuf;
 
 use amplify::confinement::SmallOrdMap;
 use aora::file::{FileAoraIndex, FileAoraMap, FileAuraMap};
@@ -53,14 +53,18 @@ where Seal::WitnessId: From<[u8; 32]> + Into<[u8; 32]>
     _phantom: PhantomData<Seal>,
 }
 
-impl<Seal: RgbSeal> PileFs<Seal>
-where Seal::WitnessId: From<[u8; 32]> + Into<[u8; 32]>
+impl<Seal: RgbSeal> Pile for PileFs<Seal>
+where
+    Seal::Client: StrictEncode + StrictDecode,
+    Seal::Published: Eq + StrictEncode + StrictDecode,
+    Seal::WitnessId: From<[u8; 32]> + Into<[u8; 32]>,
 {
-    pub fn create_new(name: &str, path: impl AsRef<Path>) -> io::Result<Self> {
-        let mut path = path.as_ref().to_path_buf();
-        path.push(name);
-        path.set_extension("contract");
+    type Seal = Seal;
+    type Conf = PathBuf;
+    type Error = io::Error;
 
+    fn issue(path: Self::Conf) -> Result<Self, io::Error>
+    where Self: Sized {
         let hoard = FileAoraMap::create_new(&path, "hoard")?;
         let cache = FileAoraMap::create_new(&path, "cache")?;
         let keep = FileAoraMap::create_new(&path, "keep")?;
@@ -79,13 +83,9 @@ where Seal::WitnessId: From<[u8; 32]> + Into<[u8; 32]>
             _phantom: PhantomData,
         })
     }
-}
 
-impl<Seal: RgbSeal> PileFs<Seal>
-where Seal::WitnessId: From<[u8; 32]> + Into<[u8; 32]>
-{
-    pub fn open(path: impl AsRef<Path>) -> io::Result<Self> {
-        let path = path.as_ref().to_path_buf();
+    fn load(path: Self::Conf) -> Result<Self, io::Error>
+    where Self: Sized {
         let hoard = FileAoraMap::open(&path, "hoard")?;
         let cache = FileAoraMap::open(&path, "cache")?;
         let keep = FileAoraMap::open(&path, "keep")?;
@@ -104,15 +104,6 @@ where Seal::WitnessId: From<[u8; 32]> + Into<[u8; 32]>
             _phantom: PhantomData,
         })
     }
-}
-
-impl<Seal: RgbSeal> Pile for PileFs<Seal>
-where
-    Seal::Client: StrictEncode + StrictDecode,
-    Seal::Published: Eq + StrictEncode + StrictDecode,
-    Seal::WitnessId: From<[u8; 32]> + Into<[u8; 32]>,
-{
-    type Seal = Seal;
 
     fn has_witness(&self, wid: Seal::WitnessId) -> bool { self.hoard.contains_key(wid) }
 

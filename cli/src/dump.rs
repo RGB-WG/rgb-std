@@ -45,7 +45,8 @@ where
     fs::create_dir_all(dst)?;
 
     print!("Reading contract contract from '{}' ... ", src.display());
-    let contract = Contract::<StockFs, PileFs<Seal>>::load_from_path(src.to_path_buf())?;
+    let path = src.to_path_buf();
+    let contract = Contract::<StockFs, PileFs<Seal>>::load(path.clone(), path)?;
     println!("success reading {}", contract.contract_id());
 
     print!("Processing contract articles ... ");

@@ -151,8 +151,11 @@ impl<S: Stock, P: Pile> ContractsApi<S, P> for ContractsInmem<S, P> {
         &mut self,
         params: CreateParams<<P::Seal as RgbSeal>::Definiton>,
         stock_conf: S::Conf,
-        pile: P,
-    ) -> Result<ContractId, IssueError<S::Error>> {
+        pile_conf: P::Conf,
+    ) -> Result<ContractId, IssueError<S::Error>>
+    where
+        S::Error: From<P::Error>,
+    {
         if params.consensus != self.consensus {
             return Err(IssueError::ConsensusMismatch);
         }
@@ -166,7 +169,7 @@ impl<S: Stock, P: Pile> ContractsApi<S, P> for ContractsInmem<S, P> {
         let schema = self
             .schema(params.codex_id)
             .ok_or(IssueError::UnknownCodex(params.codex_id))?;
-        let contract = Contract::issue(schema.clone(), params, stock_conf, pile)?;
+        let contract = Contract::issue(schema.clone(), params, stock_conf, pile_conf)?;
         let id = contract.contract_id();
         self.contracts.insert(id, contract);
         Ok(id)
@@ -294,7 +297,7 @@ pub mod file {
         ) -> impl Iterator<Item = Contract<StockFs, PileFs<Seal>>> + use<'_, Seal> {
             self.contents(false).filter_map(|(ty, path)| {
                 if ty.is_dir() && path.extension().and_then(OsStr::to_str) == Some("contract") {
-                    let contract = Contract::load_from_path(path.clone())
+                    let contract = Contract::load(path.clone(), path.clone())
                         .inspect_err(|err| {
                             eprintln!("Unable to read contract in '{}': {err}", path.display());
                         })
@@ -329,12 +332,12 @@ pub mod file {
 
         pub fn issue_to_dir(
             &mut self,
-            path: PathBuf,
+            mut path: PathBuf,
             params: CreateParams<Seal::Definiton>,
         ) -> Result<ContractId, IssueError<io::Error>> {
-            let pile = PileFs::<Seal>::create_new(params.name.as_str(), &path)
-                .map_err(hypersonic::IssueError::OtherPersistence)?;
-            self.issue(params, path, pile)
+            path.push(params.name.as_str());
+            path.set_extension("contract");
+            self.issue(params, path.clone(), path)
         }
 
         pub fn consign_to_file(

@@ -26,6 +26,7 @@
 pub mod fs;
 
 use alloc::collections::BTreeSet;
+use core::error::Error as StdError;
 use core::fmt::Debug;
 use core::marker::PhantomData;
 use core::num::NonZeroU64;
@@ -130,8 +131,37 @@ pub struct OpRels<Seal: RgbSeal> {
 }
 
 pub trait Pile {
-    // TODO: Add initialization the same way as in Stock
     type Seal: RgbSeal;
+
+    /// Persistence configuration type.
+    type Conf;
+
+    type Error: StdError;
+
+    /// Issues a new contract from the provided articles, creating its persistence using given
+    /// implementation-specific configuration.
+    ///
+    /// # Panics
+    ///
+    /// This call must not panic, and instead must return an error.
+    ///
+    /// # Blocking I/O
+    ///
+    /// This call MAY perform any I/O operations.
+    fn issue(conf: Self::Conf) -> Result<Self, Self::Error>
+    where Self: Sized;
+
+    /// Loads a contract from a persistence using the provided configuration.
+    ///
+    /// # Panics
+    ///
+    /// This call must not panic, and instead must return an error.
+    ///
+    /// # Blocking I/O
+    ///
+    /// This call MAY perform any I/O operations.
+    fn load(conf: Self::Conf) -> Result<Self, Self::Error>
+    where Self: Sized;
 
     fn pub_witness(
         &self,
