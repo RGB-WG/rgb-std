@@ -49,7 +49,7 @@ pub trait Excavate<S: Stock, P: Pile> {
     fn contracts(&self) -> impl Iterator<Item = (ContractId, Contract<S, P>)>;
 }
 
-/// Mound is a collection of smart contracts which have homogenous capabilities.
+/// Mound is a collection of RGB smart contracts which have homogenous capabilities.
 pub struct Mound<S: Stock, P: Pile, X: Excavate<S, P>> {
     consensus: Consensus,
     testnet: bool,
@@ -204,6 +204,8 @@ impl<S: Stock, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
         <P::Seal as RgbSeal>::Published: StrictDumb + StrictEncode,
         <P::Seal as RgbSeal>::WitnessId: StrictEncode,
     {
+        // TODO: Use BinFile instead?
+        // TODO: Move header part to the contraract `consign` procedure
         writer = MAGIC_BYTES_CONSIGNMENT.strict_encode(writer)?;
         // Version
         writer = 0x00u16.strict_encode(writer)?;

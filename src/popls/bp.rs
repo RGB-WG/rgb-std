@@ -391,7 +391,7 @@ impl PrefabBundle {
     }
 }
 
-/// Barrow contains a bunch of RGB contract stockpiles, which are held by a single owner; such that
+/// Barrow contains a bunch of RGB contracts, which are held by a single owner (a wallet); such that
 /// when a new operation under any of the contracts happen it may affect other contracts sharing the
 /// same UTXOs.
 pub struct Barrow<W: WalletProvider, S: Stock, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> {
