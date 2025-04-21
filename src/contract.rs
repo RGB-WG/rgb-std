@@ -29,6 +29,7 @@ use core::marker::PhantomData;
 use std::io;
 
 use amplify::confinement::SmallOrdMap;
+use amplify::hex::ToHex;
 use amplify::IoError;
 use chrono::{DateTime, Utc};
 use commit_verify::ReservedBytes;
@@ -51,6 +52,9 @@ use strict_encoding::{
 use strict_types::StrictVal;
 
 use crate::{ContractMeta, Issue, OpRels, Pile, VerifiedOperation, Witness, WitnessStatus};
+
+pub const CONSIGNMENT_MAGIC_NUMBER: [u8; 8] = *b"RGBCNSGN";
+pub const CONSIGNMENT_VERSION: [u8; 2] = [0x00, 0x01];
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, From)]
 #[cfg_attr(
@@ -209,6 +213,8 @@ pub struct CreateParams<Seal: Clone> {
 }
 
 pub struct Contract<S: Stock, P: Pile> {
+    /// Cached contract id
+    contract_id: ContractId,
     ledger: Ledger<S>,
     pile: P,
 }
@@ -257,16 +263,18 @@ impl<S: Stock, P: Pile> Contract<S, P> {
 
         let articles = schema.issue(params);
         let ledger = Ledger::issue(articles, stock_conf)?;
+        let contract_id = ledger.contract_id();
 
         // Init seals
         pile.add_seals(ledger.articles().issue.genesis_opid(), seals);
 
-        Ok(Self { ledger, pile })
+        Ok(Self { ledger, pile, contract_id })
     }
 
     pub fn open(stock_conf: S::Conf, pile: P) -> Result<Self, LoadError<S::Error>> {
         let ledger = Ledger::load(stock_conf)?;
-        Ok(Self { ledger, pile })
+        let contract_id = ledger.contract_id();
+        Ok(Self { ledger, pile, contract_id })
     }
 
     /// Get mining status for a given operation.
@@ -288,7 +296,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         })
     }
 
-    pub fn contract_id(&self) -> ContractId { self.ledger.contract_id() }
+    pub fn contract_id(&self) -> ContractId { self.contract_id }
 
     pub fn articles(&self) -> &Articles { self.ledger.articles() }
 
@@ -399,13 +407,18 @@ impl<S: Stock, P: Pile> Contract<S, P> {
     pub fn consign(
         &mut self,
         terminals: impl IntoIterator<Item = impl Borrow<AuthToken>>,
-        writer: StrictWriter<impl WriteRaw>,
+        mut writer: StrictWriter<impl WriteRaw>,
     ) -> io::Result<()>
     where
         <P::Seal as RgbSeal>::Client: StrictDumb + StrictEncode,
         <P::Seal as RgbSeal>::Published: StrictDumb + StrictEncode,
         <P::Seal as RgbSeal>::WitnessId: StrictEncode,
     {
+        // This is compatible with BinFile
+        writer = CONSIGNMENT_MAGIC_NUMBER.strict_encode(writer)?;
+        // Version
+        writer = CONSIGNMENT_VERSION.strict_encode(writer)?;
+        writer = self.contract_id().strict_encode(writer)?;
         self.ledger
             .export_aux(terminals, writer, |opid, mut writer| {
                 // Write seal definitions
@@ -426,7 +439,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
 
     pub fn consume(
         &mut self,
-        stream: &mut StrictReader<impl ReadRaw>,
+        reader: &mut StrictReader<impl ReadRaw>,
         seal_resolver: impl FnMut(&Operation) -> BTreeMap<u16, <P::Seal as RgbSeal>::Definiton>,
     ) -> Result<(), ConsumeError<<P::Seal as RgbSeal>::Definiton>>
     where
@@ -435,13 +448,13 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         <P::Seal as RgbSeal>::WitnessId: StrictDecode,
     {
         // We need to read articles field by field since we have to evaluate genesis separately
-        let schema = Schema::strict_decode(stream)?;
-        let contract_sigs = ContentSigs::strict_decode(stream)?;
-        let codex_version = ReservedBytes::<2>::strict_decode(stream)?;
-        let meta = ContractMeta::strict_decode(stream)?;
-        let codex = Codex::strict_decode(stream)?;
+        let schema = Schema::strict_decode(reader)?;
+        let contract_sigs = ContentSigs::strict_decode(reader)?;
+        let codex_version = ReservedBytes::<2>::strict_decode(reader)?;
+        let meta = ContractMeta::strict_decode(reader)?;
+        let codex = Codex::strict_decode(reader)?;
 
-        let op_reader = OpReader { stream, seal_resolver, _phantom: PhantomData };
+        let op_reader = OpReader { stream: reader, seal_resolver, _phantom: PhantomData };
         self.evaluate(op_reader)?;
         self.pile.commit_transaction();
 
@@ -454,6 +467,20 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         };
         self.ledger.merge_articles(articles)?;
         Ok(())
+    }
+
+    pub fn parse_consignment(
+        reader: &mut StrictReader<impl ReadRaw>,
+    ) -> Result<ContractId, ConsumeError<<P::Seal as RgbSeal>::Definiton>> {
+        let magic_bytes = <[u8; 8]>::strict_decode(reader)?;
+        if magic_bytes != CONSIGNMENT_MAGIC_NUMBER {
+            return Err(ConsumeError::UnrecognizedMagic(magic_bytes.to_hex()));
+        }
+        let version = <[u8; 2]>::strict_decode(reader)?;
+        if version != CONSIGNMENT_VERSION {
+            return Err(ConsumeError::UnsupportedVersion(u16::from_be_bytes(version)));
+        }
+        Ok(ContractId::strict_decode(reader)?)
     }
 
     pub fn update_witness_status(
@@ -569,12 +596,22 @@ impl<S: Stock, P: Pile> ContractApi<P::Seal> for Contract<S, P> {
     }
 }
 
+// TODO: Add Error and Debug
 #[derive(Display, From)]
 #[display(inner)]
 pub enum ConsumeError<Seal: RgbSealDef> {
     #[from]
     #[from(io::Error)]
     Io(IoError),
+
+    /// unrecognized magic bytes {0} in the consignment stream
+    UnrecognizedMagic(String),
+
+    /// unsupported version {0} of the consignment stream
+    UnsupportedVersion(u16),
+
+    /// unknown {0} can't be consumed; please import contract articles first.
+    UnknownContract(ContractId),
 
     #[from]
     Decode(DecodeError),

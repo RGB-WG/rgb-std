@@ -22,78 +22,85 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
-use alloc::collections::BTreeMap;
 use core::borrow::Borrow;
-use core::error::Error as StdError;
+use std::collections::{BTreeMap, HashMap};
 use std::io;
 
 use amplify::confinement::SmallOrdMap;
-use amplify::hex::ToHex;
-use amplify::Bytes16;
-use commit_verify::ReservedBytes;
 use hypersonic::{
     AcceptError, AuthToken, CallParams, CodexId, ContractId, ContractName, Opid, Schema, Stock,
 };
-use rgb::{RgbSeal, RgbSealDef};
+use rgb::{ContractApi, RgbSeal};
 use strict_encoding::{
-    DecodeError, ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter,
-    WriteRaw,
+    ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter, WriteRaw,
 };
 
-use crate::contract::ContractState;
 use crate::{
-    Articles, CallError, Consensus, ConsumeError, Contract, ContractInfo, ContractRef,
-    ContractsApi, CreateParams, Operation, Pile,
+    Articles, Consensus, ConsumeError, Contract, ContractInfo, ContractRef, ContractState,
+    ContractsApi, CreateParams, IssueError, Operation, Pile,
 };
 
-pub const MAGIC_BYTES_CONSIGNMENT: [u8; 16] = *b"RGB CONSIGNMENT\0";
-
-pub trait Excavate<S: Stock, P: Pile> {
-    fn schemata(&self) -> impl Iterator<Item = (CodexId, Schema)>;
-    fn contracts(&self) -> impl Iterator<Item = (ContractId, Contract<S, P>)>;
-}
-
-/// Mound is a simplest  in-memory collection of RGB smart contracts and contract issuers.
-pub struct Mound<S: Stock, P: Pile, X: Excavate<S, P>> {
+/// In-memory collection of RGB smart contracts and contract issuers.
+#[derive(Getters)]
+pub struct ContractsInmem<S: Stock, P: Pile> {
+    #[getter(as_copy)]
     consensus: Consensus,
+    #[getter(as_copy)]
     testnet: bool,
-    schemata: BTreeMap<CodexId, Schema>,
-    contracts: BTreeMap<ContractId, Contract<S, P>>,
-    /// Persistence does loading of a stockpiles and their storage when a new contract is added.
-    persistence: X,
+    schemata: HashMap<CodexId, Schema>,
+    contracts: HashMap<ContractId, Contract<S, P>>,
 }
 
-impl<S: Stock, P: Pile, X: Excavate<S, P> + Default> Mound<S, P, X> {
-    pub fn bitcoin_testnet() -> Self {
+impl<S: Stock, P: Pile> ContractsInmem<S, P> {
+    pub fn new_bitcoin_testnet() -> Self {
         Self {
             testnet: true,
             consensus: Consensus::Bitcoin,
-            schemata: BTreeMap::new(),
-            contracts: BTreeMap::new(),
-            persistence: default!(),
-        }
-    }
-}
-
-impl<S: Stock, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
-    pub fn with_testnet(consensus: Consensus, persistence: X) -> Self {
-        Self {
-            testnet: true,
-            consensus,
-            schemata: BTreeMap::new(),
-            contracts: BTreeMap::new(),
-            persistence,
+            schemata: HashMap::new(),
+            contracts: HashMap::new(),
         }
     }
 
-    pub fn open_testnet(consensus: Consensus, persistance: X) -> Self {
+    pub fn new_testnet(consensus: Consensus) -> Self {
         Self {
             testnet: true,
             consensus,
-            schemata: persistance.schemata().collect(),
-            contracts: persistance.contracts().collect(),
-            persistence: persistance,
+            schemata: HashMap::new(),
+            contracts: HashMap::new(),
         }
+    }
+
+    /// Adds contracts and corresponding schemata from an iterator, ignoring known ones.
+    ///
+    /// # Panics
+    ///
+    /// If any of the added contracts network or consensus doesn't match the ones set for the
+    /// structure.
+    pub fn add_contracts(&mut self, contracts: impl IntoIterator<Item = Contract<S, P>>) {
+        for contract in contracts {
+            let articles = contract.articles();
+            if articles.issue.meta.testnet != self.testnet
+                || articles.issue.meta.consensus != self.consensus
+            {
+                panic!("contract {} network doesn't match", contract.contract_id());
+            }
+            let codex_id = contract.codex().codex_id();
+            if !self.schemata.contains_key(&codex_id) {
+                self.schemata.insert(codex_id, articles.schema.clone());
+            }
+            let contract_id = contract.contract_id();
+            if !self.contracts.contains_key(&contract_id) {
+                self.contracts.insert(contract_id, contract);
+            }
+        }
+    }
+
+    pub fn add_schemata(&mut self, schemata: impl IntoIterator<Item = Schema>) {
+        self.schemata.extend(
+            schemata
+                .into_iter()
+                .map(|schema| (schema.codex.codex_id(), schema)),
+        );
     }
 
     fn contract_mut(&mut self, id: ContractId) -> &mut Contract<S, P> {
@@ -101,7 +108,45 @@ impl<S: Stock, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
     }
 }
 
-impl<S: Stock, P: Pile, X: Excavate<S, P>> ContractsApi<S, P> for Mound<S, P, X> {
+impl<S: Stock, P: Pile> ContractsApi<S, P> for ContractsInmem<S, P> {
+    fn codex_ids(&self) -> impl Iterator<Item = CodexId> { self.schemata.keys().copied() }
+
+    fn schemata(&self) -> impl Iterator<Item = (CodexId, &Schema)> {
+        self.schemata.iter().map(|(id, schema)| (*id, schema))
+    }
+
+    fn schema(&self, codex_id: CodexId) -> Option<&Schema> { self.schemata.get(&codex_id) }
+
+    fn contract_ids(&self) -> impl Iterator<Item = ContractId> { self.contracts.keys().copied() }
+
+    fn contracts_info(&self) -> impl Iterator<Item = ContractInfo> {
+        self.contracts
+            .iter()
+            .map(|(id, contract)| ContractInfo::new(*id, contract.articles()))
+    }
+
+    fn contract_state(&self, id: ContractId) -> ContractState<P::Seal> {
+        self.contracts[&id].state()
+    }
+
+    fn contract_articles(&self, id: ContractId) -> &Articles { self.contracts[&id].articles() }
+
+    fn has_contract(&self, id: ContractId) -> bool { self.contracts.contains_key(&id) }
+
+    fn find_contract_id(&self, r: impl Into<ContractRef>) -> Option<ContractId> {
+        match r.into() {
+            ContractRef::Id(id) if self.has_contract(id) => Some(id),
+            ContractRef::Id(_) => None,
+            ContractRef::Name(name) => {
+                let name = ContractName::Named(name);
+                self.contracts
+                    .iter()
+                    .find(|(_, contract)| contract.articles().issue.meta.name == name)
+                    .map(|(id, _)| *id)
+            }
+        }
+    }
+
     fn issue(
         &mut self,
         params: CreateParams<<P::Seal as RgbSeal>::Definiton>,
@@ -126,44 +171,6 @@ impl<S: Stock, P: Pile, X: Excavate<S, P>> ContractsApi<S, P> for Mound<S, P, X>
         self.contracts.insert(id, contract);
         Ok(id)
     }
-
-    fn codex_ids(&self) -> impl Iterator<Item = CodexId> { self.schemata.keys().copied() }
-
-    fn schemata(&self) -> impl Iterator<Item = (CodexId, &Schema)> {
-        self.schemata.iter().map(|(id, schema)| (*id, schema))
-    }
-
-    fn schema(&self, codex_id: CodexId) -> Option<&Schema> { self.schemata.get(&codex_id) }
-
-    fn contract_ids(&self) -> impl Iterator<Item = ContractId> { self.contracts.keys().copied() }
-
-    fn contracts_info(&self) -> impl Iterator<Item = ContractInfo> {
-        self.contracts
-            .iter()
-            .map(|(id, contract)| ContractInfo::new(*id, contract.articles()))
-    }
-
-    fn has_contract(&self, id: ContractId) -> bool { self.contracts.contains_key(&id) }
-
-    fn find_contract_id(&self, r: impl Into<ContractRef>) -> Option<ContractId> {
-        match r.into() {
-            ContractRef::Id(id) if self.has_contract(id) => Some(id),
-            ContractRef::Id(_) => None,
-            ContractRef::Name(name) => {
-                let name = ContractName::Named(name);
-                self.contracts
-                    .iter()
-                    .find(|(_, contract)| contract.articles().issue.meta.name == name)
-                    .map(|(id, _)| *id)
-            }
-        }
-    }
-
-    fn contract_state(&self, id: ContractId) -> ContractState<P::Seal> {
-        self.contracts[&id].state()
-    }
-
-    fn contract_articles(&self, id: ContractId) -> &Articles { self.contracts[&id].articles() }
 
     fn contract_call(
         &mut self,
@@ -190,83 +197,30 @@ impl<S: Stock, P: Pile, X: Excavate<S, P>> ContractsApi<S, P> for Mound<S, P, X>
         &mut self,
         contract_id: ContractId,
         terminals: impl IntoIterator<Item = impl Borrow<AuthToken>>,
-        mut writer: StrictWriter<impl WriteRaw>,
+        writer: StrictWriter<impl WriteRaw>,
     ) -> io::Result<()>
     where
         <P::Seal as RgbSeal>::Client: StrictDumb + StrictEncode,
         <P::Seal as RgbSeal>::Published: StrictDumb + StrictEncode,
         <P::Seal as RgbSeal>::WitnessId: StrictEncode,
     {
-        // TODO: Use BinFile instead?
-        // TODO: Move header part to the contraract `consign` procedure
-        writer = MAGIC_BYTES_CONSIGNMENT.strict_encode(writer)?;
-        // Version
-        writer = 0x00u16.strict_encode(writer)?;
-        writer = contract_id.strict_encode(writer)?;
         self.contract_mut(contract_id).consign(terminals, writer)
     }
 
     fn consume(
         &mut self,
+        contract_id: ContractId,
         reader: &mut StrictReader<impl ReadRaw>,
         seal_resolver: impl FnMut(&Operation) -> BTreeMap<u16, <P::Seal as RgbSeal>::Definiton>,
-    ) -> Result<(), MoundConsumeError<<P::Seal as RgbSeal>::Definiton>>
+    ) -> Result<(), ConsumeError<<P::Seal as RgbSeal>::Definiton>>
     where
         <P::Seal as RgbSeal>::Client: StrictDecode,
         <P::Seal as RgbSeal>::Published: StrictDecode,
         <P::Seal as RgbSeal>::WitnessId: StrictDecode,
     {
-        let magic_bytes = Bytes16::strict_decode(reader)?;
-        if magic_bytes.to_byte_array() != MAGIC_BYTES_CONSIGNMENT {
-            return Err(MoundConsumeError::UnrecognizedMagic(magic_bytes.to_hex()));
-        }
-        // Version
-        ReservedBytes::<2>::strict_decode(reader)?;
-        let contract_id = ContractId::strict_decode(reader)?;
-        let contract = if self.has_contract(contract_id) {
-            self.contract_mut(contract_id)
-        } else {
-            return Err(MoundConsumeError::UnknownContract(contract_id));
-        };
-        contract
+        self.contract_mut(contract_id)
             .consume(reader, seal_resolver)
-            .map_err(MoundConsumeError::Inner)
     }
-}
-
-#[derive(Debug, Display, Error, From)]
-#[display(doc_comments)]
-pub enum IssueError<E: StdError> {
-    /// proof of publication layer mismatch.
-    ConsensusMismatch,
-    /// unable to consume a testnet contract for mainnet.
-    TestnetMismatch,
-    /// unable to consume a mainnet contract for testnet.
-    MainnetMismatch,
-    /// unknown codex for contract issue {0}.
-    UnknownCodex(CodexId),
-
-    /// invalid schema; {0}
-    #[from]
-    InvalidSchema(CallError),
-
-    #[from]
-    #[display(inner)]
-    Inner(hypersonic::IssueError<E>),
-}
-
-#[derive(Display, From)]
-#[display(doc_comments)]
-pub enum MoundConsumeError<Seal: RgbSealDef> {
-    /// unrecognized magic bytes in consignment stream ({0})
-    UnrecognizedMagic(String),
-
-    /// unknown {0} can't be consumed; please import contract articles first.
-    UnknownContract(ContractId),
-
-    #[display(inner)]
-    #[from(DecodeError)]
-    Inner(ConsumeError<Seal>),
 }
 
 #[cfg(feature = "fs")]
@@ -278,12 +232,12 @@ pub mod file {
     use std::path::{Path, PathBuf};
 
     use hypersonic::persistance::StockFs;
-    use strict_encoding::{DeserializeError, StreamWriter, StrictDecode, StrictEncode};
+    use strict_encoding::{StreamWriter, StrictDecode, StrictEncode};
 
     use super::*;
-    use crate::pile::fs::PileFs;
+    use crate::PileFs;
 
-    pub struct DirExcavator<Seal: RgbSeal> {
+    struct DirExcavator<Seal: RgbSeal> {
         dir: PathBuf,
         consensus: Consensus,
         testnet: bool,
@@ -319,25 +273,25 @@ pub mod file {
         }
     }
 
-    impl<Seal: RgbSeal> Excavate<StockFs, PileFs<Seal>> for DirExcavator<Seal>
+    impl<Seal: RgbSeal> DirExcavator<Seal>
     where
         Seal::Client: StrictEncode + StrictDecode,
         Seal::Published: Eq + StrictEncode + StrictDecode,
         Seal::WitnessId: Ord + From<[u8; 32]> + Into<[u8; 32]>,
     {
-        fn schemata(&self) -> impl Iterator<Item = (CodexId, Schema)> {
+        pub fn schemata(&self) -> impl Iterator<Item = Schema> {
             self.contents(true).filter_map(|(ty, path)| {
                 if ty.is_file() && path.extension().and_then(OsStr::to_str) == Some("issuer") {
-                    Schema::load(path)
-                        .ok()
-                        .map(|schema| (schema.codex.codex_id(), schema))
+                    Schema::load(path).ok()
                 } else {
                     None
                 }
             })
         }
 
-        fn contracts(&self) -> impl Iterator<Item = (ContractId, Contract<StockFs, PileFs<Seal>>)> {
+        pub fn contracts(
+            &self,
+        ) -> impl Iterator<Item = Contract<StockFs, PileFs<Seal>>> + use<'_, Seal> {
             self.contents(false).filter_map(|(ty, path)| {
                 if ty.is_dir() && path.extension().and_then(OsStr::to_str) == Some("contract") {
                     let contract = Contract::load_from_path(path.clone())
@@ -347,7 +301,7 @@ pub mod file {
                         .ok()?;
                     let meta = &contract.articles().issue.meta;
                     if meta.consensus == self.consensus && meta.testnet == self.testnet {
-                        return Some((contract.contract_id(), contract));
+                        return Some(contract);
                     }
                 }
                 None
@@ -355,41 +309,33 @@ pub mod file {
         }
     }
 
-    pub type DirMound<Seal> = Mound<StockFs, PileFs<Seal>, DirExcavator<Seal>>;
-
-    impl<Seal: RgbSeal> DirMound<Seal>
+    impl<Seal: RgbSeal> ContractsInmem<StockFs, PileFs<Seal>>
     where
         Seal::Client: StrictEncode + StrictDecode,
         Seal::Published: Eq + StrictEncode + StrictDecode,
         Seal::WitnessId: Ord + From<[u8; 32]> + Into<[u8; 32]>,
     {
-        pub fn load_testnet(consensus: Consensus, path: impl AsRef<Path>, no_prefix: bool) -> Self {
-            let path = path.as_ref();
-            let excavator = DirExcavator::new(consensus, true, path.to_owned(), no_prefix);
-            Self::open_testnet(consensus, excavator)
+        fn excavator(&self, path: PathBuf, no_prefix: bool) -> DirExcavator<Seal> {
+            DirExcavator::new(self.consensus, self.testnet, path, no_prefix)
         }
 
-        pub fn load_issuer(
-            &mut self,
-            issuer: impl AsRef<Path>,
-        ) -> Result<CodexId, DeserializeError> {
-            let schema = Schema::load(issuer)?;
-            let codex_id = schema.codex.codex_id();
-            self.schemata.insert(codex_id, schema);
-            Ok(codex_id)
+        pub fn with_testnet_dir(consensus: Consensus, path: PathBuf, no_prefix: bool) -> Self {
+            let mut me = Self::new_testnet(consensus);
+            let excavator = me.excavator(path, no_prefix);
+            me.add_contracts(excavator.contracts());
+            me.add_schemata(excavator.schemata());
+            me
         }
 
-        pub fn issue_to_file(
+        pub fn issue_to_dir(
             &mut self,
+            path: PathBuf,
             params: CreateParams<Seal::Definiton>,
         ) -> Result<ContractId, IssueError<io::Error>> {
-            let dir = self.persistence.consensus_dir();
-            let pile = PileFs::<Seal>::create_new(params.name.as_str(), &dir)
+            let pile = PileFs::<Seal>::create_new(params.name.as_str(), &path)
                 .map_err(hypersonic::IssueError::OtherPersistence)?;
-            self.issue(params, dir, pile)
+            self.issue(params, path, pile)
         }
-
-        pub fn path(&self) -> PathBuf { self.persistence.consensus_dir() }
 
         pub fn consign_to_file(
             &mut self,

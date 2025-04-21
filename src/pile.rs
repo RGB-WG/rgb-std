@@ -130,6 +130,7 @@ pub struct OpRels<Seal: RgbSeal> {
 }
 
 pub trait Pile {
+    // TODO: Add initialization the same way as in Stock
     type Seal: RgbSeal;
 
     fn pub_witness(

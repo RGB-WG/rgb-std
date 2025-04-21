@@ -46,8 +46,10 @@ use rgb::RgbSealDef;
 use strict_encoding::{ReadRaw, StrictDecode, StrictDeserialize, StrictReader, StrictSerialize};
 use strict_types::StrictVal;
 
-use crate::contract::{ContractState, EitherSeal};
-use crate::{Assignment, ContractsApi, CreateParams, IssueError, Mound, MoundConsumeError, Pile};
+use crate::{
+    Assignment, ConsumeError, Contract, ContractState, ContractsApi, CreateParams, EitherSeal,
+    IssueError, Pile,
+};
 
 /// Trait abstracting specific implementation of a bitcoin wallet.
 pub trait WalletProvider {
@@ -358,18 +360,20 @@ impl PrefabBundle {
 /// Barrow contains a bunch of RGB contracts, which are held by a single owner (a wallet); such that
 /// when a new operation under any of the contracts happen it may affect other contracts sharing the
 /// same UTXOs.
-pub struct Barrow<W: WalletProvider, A: ContractsApi<S, P>, S: Stock, P: Pile<Seal = TxoSeal>> {
+pub struct RgbWallet<W: WalletProvider, C: ContractsApi<S, P>, S: Stock, P: Pile<Seal = TxoSeal>> {
     pub wallet: W,
-    pub api: A,
+    pub contracts: C,
     pub _phantom: PhantomData<(S, P)>,
 }
 
-impl<W: WalletProvider, A: ContractsApi<S, P>, S: Stock, P: Pile<Seal = TxoSeal>>
-    Barrow<W, A, S, P>
+impl<W: WalletProvider, C: ContractsApi<S, P>, S: Stock, P: Pile<Seal = TxoSeal>>
+    RgbWallet<W, C, S, P>
 {
-    pub fn with(wallet: W, api: A) -> Self { Self { wallet, api, _phantom: PhantomData } }
+    pub fn with(wallet: W, api: C) -> Self {
+        Self { wallet, contracts: api, _phantom: PhantomData }
+    }
 
-    pub fn unbind(self) -> (W, A) { (self.wallet, self.api) }
+    pub fn unbind(self) -> (W, C) { (self.wallet, self.contracts) }
 
     pub fn issue(
         &mut self,
@@ -377,7 +381,7 @@ impl<W: WalletProvider, A: ContractsApi<S, P>, S: Stock, P: Pile<Seal = TxoSeal>
         stock_conf: S::Conf,
         pile: P,
     ) -> Result<ContractId, IssueError<S::Error>> {
-        self.api
+        self.contracts
             .issue(params.transform(self.noise_engine()), stock_conf, pile)
     }
 
@@ -397,7 +401,7 @@ impl<W: WalletProvider, A: ContractsApi<S, P>, S: Stock, P: Pile<Seal = TxoSeal>
     }
 
     pub fn state_own(&self, contract_id: ContractId) -> ContractState<Outpoint> {
-        self.api
+        self.contracts
             .contract_state(contract_id)
             .clone()
             .filter_map(
@@ -412,7 +416,7 @@ impl<W: WalletProvider, A: ContractsApi<S, P>, S: Stock, P: Pile<Seal = TxoSeal>
     }
 
     pub fn state_all(&self, contract_id: ContractId) -> ContractState<P::Seal> {
-        self.api.contract_state(contract_id)
+        self.contracts.contract_state(contract_id)
     }
 
     fn noise_engine(&self) -> Sha256 {
@@ -432,7 +436,7 @@ impl<W: WalletProvider, A: ContractsApi<S, P>, S: Stock, P: Pile<Seal = TxoSeal>
         let contract_id = invoice.scope;
 
         // Determine method
-        let articles = self.api.contract_articles(contract_id);
+        let articles = self.contracts.contract_articles(contract_id);
         let api = &articles.schema.default_api;
         let call = invoice
             .call
@@ -514,8 +518,12 @@ impl<W: WalletProvider, A: ContractsApi<S, P>, S: Stock, P: Pile<Seal = TxoSeal>
     /// non-distributed state is used in the change.
     pub fn check_request<T>(&self, request: &OpRequest<T>) -> Result<(), UnmatchedState> {
         let contract_id = request.contract_id;
-        let state = self.api.contract_state(contract_id);
-        let api = &self.api.contract_articles(contract_id).schema.default_api;
+        let state = self.contracts.contract_state(contract_id);
+        let api = &self
+            .contracts
+            .contract_articles(contract_id)
+            .schema
+            .default_api;
         let mut calcs = BTreeMap::new();
         for inp in &request.using {
             let state_name = state
@@ -591,7 +599,9 @@ impl<W: WalletProvider, A: ContractsApi<S, P>, S: Stock, P: Pile<Seal = TxoSeal>
             reading: request.reading,
         };
 
-        let operation = self.api.contract_call(request.contract_id, call, seals)?;
+        let operation = self
+            .contracts
+            .contract_call(request.contract_id, call, seals)?;
 
         Ok(Prefab { closes, defines, operation })
     }
@@ -629,7 +639,7 @@ impl<W: WalletProvider, A: ContractsApi<S, P>, S: Stock, P: Pile<Seal = TxoSeal>
         let root_noise_engine = self.noise_engine();
         for contract_id in contracts {
             // We need to clone here not to conflict with mutable calls below
-            let owned = self.api.contract_state(contract_id).owned.clone();
+            let owned = self.contracts.contract_state(contract_id).owned.clone();
             let (using, prev): (Vec<_>, Vec<_>) = owned
                 .iter()
                 .flat_map(|(name, map)| map.iter().map(move |(addr, val)| (name, *addr, val)))
@@ -647,7 +657,11 @@ impl<W: WalletProvider, A: ContractsApi<S, P>, S: Stock, P: Pile<Seal = TxoSeal>
                 continue;
             };
 
-            let api = &self.api.contract_articles(contract_id).schema.default_api;
+            let api = &self
+                .contracts
+                .contract_articles(contract_id)
+                .schema
+                .default_api;
             let mut calcs = BTreeMap::<StateName, Box<dyn StateCalc>>::new();
             for (name, state) in prev {
                 let calc = calcs
@@ -720,7 +734,7 @@ impl<W: WalletProvider, A: ContractsApi<S, P>, S: Stock, P: Pile<Seal = TxoSeal>
                 dbc_proof: dbc.clone(),
                 fallback_proof: default!(),
             };
-            self.api
+            self.contracts
                 .include(prefab.operation.contract_id, opid, witness, anchor);
         }
         Ok(())
@@ -731,8 +745,13 @@ impl<W: WalletProvider, A: ContractsApi<S, P>, S: Stock, P: Pile<Seal = TxoSeal>
     pub fn consume(
         &mut self,
         reader: &mut StrictReader<impl ReadRaw>,
-    ) -> Result<(), MoundConsumeError<WTxoSeal>> {
-        self.api.consume(reader, |op| {
+    ) -> Result<(), ConsumeError<WTxoSeal>> {
+        let contract_id = Contract::<S, P>::parse_consignment(reader)?;
+        if !self.contracts.has_contract(contract_id) {
+            return Err(ConsumeError::UnknownContract(contract_id));
+        };
+
+        self.contracts.consume(contract_id, reader, |op| {
             self.wallet
                 .resolve_seals(op.destructible.iter().map(|cell| cell.auth))
                 .map(|seal| {
@@ -827,42 +846,4 @@ pub enum IncludeError {
     /// multi-protocol commitment proof is invalid; {0}
     #[from]
     Mpc(mpc::LeafNotKnown),
-}
-
-#[cfg(feature = "fs")]
-pub mod file {
-    use std::fs::File;
-    use std::io;
-    use std::path::Path;
-
-    use hypersonic::persistance::StockFs;
-    use strict_encoding::StreamReader;
-
-    use super::*;
-    use crate::mound::file::DirExcavator;
-    use crate::pile::fs::PileFs;
-
-    pub type DirBarrow<W> =
-        Barrow<W, Mound<StockFs, PileFs<TxoSeal>, DirExcavator<TxoSeal>>, StockFs, PileFs<TxoSeal>>;
-
-    impl<W: WalletProvider> DirBarrow<W> {
-        pub fn issue_to_file(
-            &mut self,
-            params: CreateParams<Outpoint>,
-        ) -> Result<ContractId, IssueError<io::Error>> {
-            // TODO: check that if the issue belongs to the wallet add it to the unspents
-            self.api
-                .issue_to_file(params.transform(self.noise_engine()))
-        }
-
-        pub fn consume_from_file(&mut self, path: impl AsRef<Path>) -> io::Result<()> {
-            let file = File::open(path)?;
-            let mut reader = StrictReader::with(StreamReader::new::<{ usize::MAX }>(file));
-            self.consume(&mut reader)
-                .unwrap_or_else(|err| panic!("Unable to accept a consignment: {err}"));
-            Ok(())
-        }
-    }
-
-    pub type BpDirMound = Mound<StockFs, PileFs<TxoSeal>, DirExcavator<TxoSeal>>;
 }

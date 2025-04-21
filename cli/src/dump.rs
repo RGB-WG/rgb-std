@@ -27,15 +27,9 @@ use std::path::Path;
 use std::{fs, io};
 
 use amplify::confinement::SmallOrdMap;
-use amplify::hex::ToHex;
-use amplify::Bytes16;
-use commit_verify::ReservedBytes;
 use hypersonic::persistance::StockFs;
-use hypersonic::{Articles, ContractId, Operation};
-use rgb::{
-    Contract, MoundConsumeError, PileFs, PublishedWitness, RgbSeal, RgbSealDef, SealWitness,
-    SingleUseSeal, MAGIC_BYTES_CONSIGNMENT,
-};
+use hypersonic::{Articles, Operation};
+use rgb::{Contract, PileFs, PublishedWitness, RgbSeal, RgbSealDef, SealWitness, SingleUseSeal};
 use serde::{Deserialize, Serialize};
 use strict_encoding::{DecodeError, StreamReader, StrictDecode, StrictEncode, StrictReader};
 
@@ -110,7 +104,7 @@ where
     <SealDef::Src as SingleUseSeal>::CliWitness:
         Serialize + for<'de> Deserialize<'de> + StrictEncode + StrictDecode,
     <SealDef::Src as SingleUseSeal>::PubWitness:
-        Serialize + for<'de> Deserialize<'de> + StrictEncode + StrictDecode,
+        Eq + Serialize + for<'de> Deserialize<'de> + StrictEncode + StrictDecode,
     <<SealDef::Src as SingleUseSeal>::PubWitness as PublishedWitness<SealDef::Src>>::PubId:
         Ord + From<[u8; 32]> + Into<[u8; 32]> + Serialize,
 {
@@ -120,16 +114,8 @@ where
     let file = File::open(src)?;
     let mut stream = StrictReader::with(StreamReader::new::<{ usize::MAX }>(file));
 
-    let magic_bytes = Bytes16::strict_decode(&mut stream)?;
-    if magic_bytes.to_byte_array() != MAGIC_BYTES_CONSIGNMENT {
-        return Err(anyhow!(
-            MoundConsumeError::<SealDef>::UnrecognizedMagic(magic_bytes.to_hex()).to_string()
-        ));
-    }
-    // Version
-    ReservedBytes::<2>::strict_decode(&mut stream)?;
-
-    let contract_id = ContractId::strict_decode(&mut stream)?;
+    let contract_id = Contract::<StockFs, PileFs<SealDef::Src>>::parse_consignment(&mut stream)
+        .map_err(|e| anyhow!(e.to_string()))?;
     println!("Dumping consignment for {} into '{}'", contract_id, dst.display());
 
     let mut op_count = 1;

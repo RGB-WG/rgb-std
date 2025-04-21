@@ -22,46 +22,26 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
-#![cfg_attr(not(feature = "std"), no_std)]
-#![allow(clippy::type_complexity)]
+use std::collections::HashMap;
+use std::path::PathBuf;
 
-extern crate alloc;
+use hypersonic::Stock;
 
-#[macro_use]
-extern crate amplify;
-extern crate rgbcore as rgb;
+use crate::{CodexId, Consensus, Contract, ContractId, Pile, Schema};
 
-#[cfg(feature = "bitcoin")]
-#[macro_use]
-extern crate strict_encoding;
-#[cfg(all(feature = "serde", feature = "bitcoin"))]
-#[macro_use]
-extern crate serde;
+/// Directory-based memory-efficient collection of RGB smart contracts and contract issuers.
+///
+/// Unlike [`crate::ContractsInmem`], which can also be read from a directory, doesn't maintain all
+/// contracts in memory, and loads/unloads them from/to disk dynamically.
+#[derive(Getters)]
+pub struct ContractsDir<S: Stock, P: Pile> {
+    #[getter(as_copy)]
+    consensus: Consensus,
+    #[getter(as_copy)]
+    testnet: bool,
+    schemata: HashMap<CodexId, Schema>,
+    cache: HashMap<ContractId, Contract<S, P>>,
+    path: PathBuf,
+}
 
-extern crate core;
-pub extern crate rgb_invoice as invoice;
-
-mod pile;
-mod contract;
-mod info;
-pub mod popls;
-mod util;
-mod contracts;
-
-#[cfg(feature = "bitcoin")]
-pub use bp::{Outpoint, Txid};
-pub use contract::{
-    Assignment, ConsumeError, Contract, ContractState, CreateParams, EitherSeal, ImmutableState,
-    OwnedState, CONSIGNMENT_MAGIC_NUMBER, CONSIGNMENT_VERSION,
-};
-#[cfg(feature = "fs")]
-pub use contracts::dir::ContractsDir;
-pub use contracts::{ContractsApi, ContractsInmem, IssueError, OpOut};
-pub use hypersonic::*;
-pub use info::ContractInfo;
-#[cfg(feature = "fs")]
-pub use pile::fs::PileFs;
-pub use pile::{OpRels, Pile, Witness, WitnessStatus};
-pub use rgb::*;
-pub use util::{ContractRef, InvalidContractRef};
+// TODO: Implement

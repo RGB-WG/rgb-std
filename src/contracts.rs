@@ -22,6 +22,10 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
+mod inmem;
+#[cfg(feature = "fs")]
+pub mod dir;
+
 use alloc::collections::BTreeMap;
 use core::borrow::Borrow;
 use std::io;
@@ -29,15 +33,16 @@ use std::io;
 use amplify::confinement::SmallOrdMap;
 use hypersonic::{AcceptError, Articles, CallParams, StateName, Stock};
 use rgb::RgbSeal;
+use serde::de::StdError;
 use strict_encoding::{
     ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter, WriteRaw,
 };
 use strict_types::StrictVal;
 
-use crate::contract::ContractState;
+pub use self::inmem::ContractsInmem;
 use crate::{
-    AuthToken, CellAddr, CodexId, ContractId, ContractInfo, ContractRef, CreateParams, IssueError,
-    MoundConsumeError, Operation, Opid, Pile, Schema,
+    AuthToken, CallError, CellAddr, CodexId, ConsumeError, ContractId, ContractInfo, ContractRef,
+    ContractState, CreateParams, Operation, Opid, Pile, Schema,
 };
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -102,11 +107,33 @@ pub trait ContractsApi<S: Stock, P: Pile> {
 
     fn consume(
         &mut self,
+        contract_id: ContractId,
         reader: &mut StrictReader<impl ReadRaw>,
         seal_resolver: impl FnMut(&Operation) -> BTreeMap<u16, <P::Seal as RgbSeal>::Definiton>,
-    ) -> Result<(), MoundConsumeError<<P::Seal as RgbSeal>::Definiton>>
+    ) -> Result<(), ConsumeError<<P::Seal as RgbSeal>::Definiton>>
     where
         <P::Seal as RgbSeal>::Client: StrictDecode,
         <P::Seal as RgbSeal>::Published: StrictDecode,
         <P::Seal as RgbSeal>::WitnessId: StrictDecode;
+}
+
+#[derive(Debug, Display, Error, From)]
+#[display(doc_comments)]
+pub enum IssueError<E: StdError> {
+    /// proof of publication layer mismatch.
+    ConsensusMismatch,
+    /// unable to consume a testnet contract for mainnet.
+    TestnetMismatch,
+    /// unable to consume a mainnet contract for testnet.
+    MainnetMismatch,
+    /// unknown codex for contract issue {0}.
+    UnknownCodex(CodexId),
+
+    /// invalid schema; {0}
+    #[from]
+    InvalidSchema(CallError),
+
+    #[from]
+    #[display(inner)]
+    Inner(hypersonic::IssueError<E>),
 }
