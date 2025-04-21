@@ -58,6 +58,15 @@ pub struct Mound<S: Supply, P: Pile, X: Excavate<S, P>> {
     persistence: X,
 }
 
+#[derive(Debug, Display, Error)]
+#[display(doc_comments)]
+pub enum PurgeError {
+    /// unknown contract {0} can't be purged
+    UnknownContract(ContractId),
+    /// error removing contract data from storage: {0}
+    StorageError(io::Error),
+}
+
 impl<S: Supply, P: Pile, X: Excavate<S, P> + Default> Mound<S, P, X> {
     pub fn bitcoin_testnet() -> Self {
         Self {
@@ -236,6 +245,20 @@ impl<S: Supply, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
             .consume(reader, seal_resolver)
             .map_err(MoundConsumeError::Inner)
     }
+
+    /// Removes a contract from the mound without affecting any persistence layer.
+    ///
+    /// # Arguments
+    /// * `contract_id` - The ID of the contract to remove
+    ///
+    /// # Returns
+    /// * `Result<(), PurgeError>` - Ok if successful, or an error if contract is unknown
+    pub fn remove_contract(&mut self, contract_id: ContractId) -> Result<(), PurgeError> {
+        if self.contracts.remove(&contract_id).is_none() {
+            return Err(PurgeError::UnknownContract(contract_id));
+        }
+        Ok(())
+    }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error, From)]
@@ -402,6 +425,31 @@ pub mod file {
             let file = File::create_new(path)?;
             let writer = StrictWriter::with(StreamWriter::new::<{ usize::MAX }>(file));
             self.consign(contract_id, terminals, writer)
+        }
+
+        /// Purges a contract from the mound and filesystem.
+        ///
+        /// # Arguments
+        /// * `contract_id` - The ID of the contract to purge
+        ///
+        /// # Returns
+        /// * `Result<(), PurgeError>` - Ok if successful, or an error
+        pub fn purge_contract(&mut self, contract_id: ContractId) -> Result<(), PurgeError> {
+            // First remove from memory
+            self.remove_contract(contract_id)?;
+
+            // Then remove from filesystem
+            let contract = self.contract(contract_id); // This will panic if contract was not found, but we already checked in remove_contract
+            let contract_name = contract.stock().articles().contract.meta.name.to_string();
+
+            let mut contract_dir = self.path().join(&contract_name);
+            contract_dir.set_extension("contract");
+
+            if contract_dir.exists() {
+                fs::remove_dir_all(&contract_dir).map_err(PurgeError::StorageError)?;
+            }
+
+            Ok(())
         }
     }
 }
