@@ -127,12 +127,24 @@ pub enum ParseInvoiceError {
     Bp(bp::ParseWitnessOutError),
 }
 
-pub struct RgbInvoice<T: Display + FromStr>(CallRequest<T, RgbBeneficiary>);
+#[derive(Clone, Eq, PartialEq, Debug, From)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))] // note: need to update sonic-callreq to support serde
+#[cfg_attr(
+    feature = "serde",
+    serde(
+        transparent, 
+        bound(
+            serialize = "T: serde::Serialize, A: serde::Serialize",
+            deserialize = "T: serde::Deserialize<'de>, A: serde::Deserialize<'de>"
+        )
+    )
+)]
+pub struct RgbInvoice<T: Display + FromStr = CallScope<ContractQuery>, A = RgbBeneficiary>(CallRequest<T, A>);
 
-impl<T: Display + FromStr> RgbInvoice<T> {
+impl<T: Display + FromStr, A> RgbInvoice<T, A> {
     pub fn new(
         scope: T,
-        beneficiary: RgbBeneficiary,
+        beneficiary: A,
         // Core parameters
         value: Option<u64>,
         expiry_time: Option<DateTime<Utc>>,
@@ -140,7 +152,7 @@ impl<T: Display + FromStr> RgbInvoice<T> {
         api: Option<TypeName>,
         call: Option<CallState>,
         lock: Option<TinyBlob>,
-        endpoints: Option<impl Into<ConfinedVec<Endpoint, 0, 10>>>,
+        endpoints: impl IntoIterator<Item = Endpoint>,
     ) -> Self {
         Self(CallRequest {
             scope,
@@ -150,7 +162,7 @@ impl<T: Display + FromStr> RgbInvoice<T> {
             api,
             call,
             lock,
-            endpoints: endpoints.map(|e| e.into()).unwrap_or_default(),
+            endpoints: ConfinedVec::from_iter_checked(endpoints),
             unknown_query: Default::default(),
         })
     }
