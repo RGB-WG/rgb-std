@@ -32,13 +32,12 @@ use hypersonic::{
 };
 use rgb::{ContractApi, RgbSeal};
 use strict_encoding::{
-    ReadRaw, SerializeError, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter,
-    WriteRaw,
+    ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter, WriteRaw,
 };
 
 use crate::{
     Articles, Consensus, ConsumeError, Contract, ContractInfo, ContractRef, ContractState,
-    ContractsApi, CreateParams, IssueError, Operation, Pile, Witness, WitnessStatus,
+    ContractsApi, CreateParams, IssueError, Operation, Pile, WitnessStatus,
 };
 
 /// In-memory collection of RGB smart contracts and contract issuers.
@@ -148,8 +147,10 @@ impl<S: Stock, P: Pile> ContractsApi<S, P> for ContractsInmem<S, P> {
         }
     }
 
-    fn witnesses(&self, id: ContractId) -> impl Iterator<Item = Witness<P::Seal>> {
-        self.contracts[&id].witnesses()
+    fn witness_ids(&self) -> impl Iterator<Item = <P::Seal as RgbSeal>::WitnessId> {
+        self.contracts
+            .values()
+            .flat_map(|contract| contract.witness_ids())
     }
 
     fn issue(
@@ -190,30 +191,16 @@ impl<S: Stock, P: Pile> ContractsApi<S, P> for ContractsInmem<S, P> {
         contract.call(call, seals)
     }
 
-    fn update_witness_status(
+    fn sync(
         &mut self,
-        contract_id: ContractId,
-        wid: <P::Seal as RgbSeal>::WitnessId,
-        status: WitnessStatus,
+        changed: impl IntoIterator<Item = (<P::Seal as RgbSeal>::WitnessId, WitnessStatus)>,
     ) -> Result<(), AcceptError> {
-        self.contract_mut(contract_id)
-            .update_witness_status(wid, status)
-    }
-
-    fn rollback(
-        &mut self,
-        contract_id: ContractId,
-        opids: impl IntoIterator<Item = Opid>,
-    ) -> Result<(), SerializeError> {
-        self.contract_mut(contract_id).rollback(opids)
-    }
-
-    fn forward(
-        &mut self,
-        contract_id: ContractId,
-        opids: impl IntoIterator<Item = Opid>,
-    ) -> Result<(), AcceptError> {
-        self.contract_mut(contract_id).forward(opids)
+        for (id, status) in changed {
+            for contract in self.contracts.values_mut() {
+                contract.sync(id, status)?;
+            }
+        }
+        Ok(())
     }
 
     fn include(

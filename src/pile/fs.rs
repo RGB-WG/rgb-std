@@ -113,6 +113,10 @@ where
 
     fn witness_status(&self, wid: Seal::WitnessId) -> WitnessStatus { self.mine.get_expect(wid) }
 
+    fn witness_ids(&self) -> impl Iterator<Item = <Self::Seal as RgbSeal>::WitnessId> {
+        self.stand.keys()
+    }
+
     fn op_witness_ids(&self, opid: Opid) -> impl ExactSizeIterator<Item = Seal::WitnessId> {
         self.index.get(opid)
     }

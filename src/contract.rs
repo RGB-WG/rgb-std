@@ -46,8 +46,8 @@ use rgb::{
 };
 use single_use_seals::{ClientSideWitness, PublishedWitness, SealWitness};
 use strict_encoding::{
-    DecodeError, ReadRaw, SerializeError, StrictDecode, StrictDumb, StrictEncode, StrictReader,
-    StrictWriter, TypeName, WriteRaw,
+    DecodeError, ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter,
+    TypeName, WriteRaw,
 };
 use strict_types::StrictVal;
 
@@ -322,6 +322,12 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         self.ledger.trace()
     }
 
+    pub fn witness_ids(
+        &self,
+    ) -> impl Iterator<Item = <P::Seal as RgbSeal>::WitnessId> + use<'_, S, P> {
+        self.pile.witness_ids()
+    }
+
     pub fn witnesses(&self) -> impl Iterator<Item = Witness<P::Seal>> + use<'_, S, P> {
         self.pile.witnesses()
     }
@@ -375,15 +381,27 @@ impl<S: Stock, P: Pile> Contract<S, P> {
 
     pub fn state_all(&self) -> &EffectiveState { self.ledger.state() }
 
-    pub fn rollback(
+    pub fn sync(
         &mut self,
-        opids: impl IntoIterator<Item = Opid>,
-    ) -> Result<(), SerializeError> {
-        self.ledger.rollback(opids)
-    }
+        wid: <P::Seal as RgbSeal>::WitnessId,
+        status: WitnessStatus,
+    ) -> Result<(), AcceptError> {
+        let prev_status = self.pile.witness_status(wid);
+        if status == prev_status {
+            return Ok(());
+        }
 
-    pub fn forward(&mut self, opids: impl IntoIterator<Item = Opid>) -> Result<(), AcceptError> {
-        self.ledger.forward(opids)
+        self.pile.update_witness_status(wid, status);
+
+        let opids = self.pile.ops_by_witness_id(wid);
+        if status.is_valid() != prev_status.is_valid() {
+            if status.is_valid() {
+                self.ledger.forward(opids)?;
+            } else {
+                self.ledger.rollback(opids)?;
+            }
+        }
+        Ok(())
     }
 
     pub fn call(
@@ -498,21 +516,6 @@ impl<S: Stock, P: Pile> Contract<S, P> {
             return Err(ConsumeError::UnsupportedVersion(u16::from_be_bytes(version)));
         }
         Ok(ContractId::strict_decode(reader)?)
-    }
-
-    pub fn update_witness_status(
-        &mut self,
-        wid: <P::Seal as RgbSeal>::WitnessId,
-        status: WitnessStatus,
-    ) -> Result<(), AcceptError> {
-        let opids = self.pile.ops_by_witness_id(wid);
-        if status.is_mined() {
-            self.ledger.forward(opids)?;
-        } else {
-            self.ledger.rollback(opids)?;
-        }
-        self.pile.update_witness_status(wid, status);
-        Ok(())
     }
 }
 

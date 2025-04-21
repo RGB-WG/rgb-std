@@ -177,6 +177,8 @@ pub trait Pile {
 
     fn witness_status(&self, wid: <Self::Seal as RgbSeal>::WitnessId) -> WitnessStatus;
 
+    fn witness_ids(&self) -> impl Iterator<Item = <Self::Seal as RgbSeal>::WitnessId>;
+
     fn witnesses(&self) -> impl Iterator<Item = Witness<Self::Seal>>;
 
     fn witnesses_since(
