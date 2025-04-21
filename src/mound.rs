@@ -27,19 +27,23 @@ use core::borrow::Borrow;
 use core::error::Error as StdError;
 use std::io;
 
+use amplify::confinement::SmallOrdMap;
 use amplify::hex::ToHex;
 use amplify::Bytes16;
 use commit_verify::ReservedBytes;
-use hypersonic::{AuthToken, CellAddr, CodexId, ContractId, ContractName, Opid, Schema, Stock};
+use hypersonic::{
+    AcceptError, AuthToken, CallParams, CodexId, ContractId, ContractName, Opid, Schema, Stock,
+};
 use rgb::{RgbSeal, RgbSealDef};
 use strict_encoding::{
     DecodeError, ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter,
     WriteRaw,
 };
 
+use crate::contract::ContractState;
 use crate::{
-    CallError, Consensus, ConsumeError, Contract, ContractInfo, ContractRef, CreateParams,
-    Operation, Pile,
+    Articles, CallError, Consensus, ConsumeError, Contract, ContractInfo, ContractRef,
+    ContractsApi, CreateParams, Operation, Pile,
 };
 
 pub const MAGIC_BYTES_CONSIGNMENT: [u8; 16] = *b"RGB CONSIGNMENT\0";
@@ -49,7 +53,7 @@ pub trait Excavate<S: Stock, P: Pile> {
     fn contracts(&self) -> impl Iterator<Item = (ContractId, Contract<S, P>)>;
 }
 
-/// Mound is a collection of RGB smart contracts which have homogenous capabilities.
+/// Mound is a simplest  in-memory collection of RGB smart contracts and contract issuers.
 pub struct Mound<S: Stock, P: Pile, X: Excavate<S, P>> {
     consensus: Consensus,
     testnet: bool,
@@ -92,7 +96,13 @@ impl<S: Stock, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
         }
     }
 
-    pub fn issue(
+    fn contract_mut(&mut self, id: ContractId) -> &mut Contract<S, P> {
+        self.contracts.get_mut(&id).expect("contract not found")
+    }
+}
+
+impl<S: Stock, P: Pile, X: Excavate<S, P>> ContractsApi<S, P> for Mound<S, P, X> {
+    fn issue(
         &mut self,
         params: CreateParams<<P::Seal as RgbSeal>::Definiton>,
         stock_conf: S::Conf,
@@ -117,37 +127,25 @@ impl<S: Stock, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
         Ok(id)
     }
 
-    pub fn codex_ids(&self) -> impl Iterator<Item = CodexId> + use<'_, S, P, X> {
-        self.schemata.keys().copied()
-    }
+    fn codex_ids(&self) -> impl Iterator<Item = CodexId> { self.schemata.keys().copied() }
 
-    pub fn schemata(&self) -> impl Iterator<Item = (CodexId, &Schema)> {
+    fn schemata(&self) -> impl Iterator<Item = (CodexId, &Schema)> {
         self.schemata.iter().map(|(id, schema)| (*id, schema))
     }
 
-    pub fn schema(&self, codex_id: CodexId) -> Option<&Schema> { self.schemata.get(&codex_id) }
+    fn schema(&self, codex_id: CodexId) -> Option<&Schema> { self.schemata.get(&codex_id) }
 
-    pub fn contract_ids(&self) -> impl Iterator<Item = ContractId> + use<'_, S, P, X> {
-        self.contracts.keys().copied()
-    }
+    fn contract_ids(&self) -> impl Iterator<Item = ContractId> { self.contracts.keys().copied() }
 
-    pub fn contracts(&self) -> impl Iterator<Item = (ContractId, &Contract<S, P>)> {
-        self.contracts.iter().map(|(id, stock)| (*id, stock))
-    }
-
-    pub fn contracts_info(&self) -> impl Iterator<Item = ContractInfo> + use<'_, S, P, X> {
+    fn contracts_info(&self) -> impl Iterator<Item = ContractInfo> {
         self.contracts
             .iter()
             .map(|(id, contract)| ContractInfo::new(*id, contract.articles()))
     }
 
-    pub fn contracts_mut(&mut self) -> impl Iterator<Item = (ContractId, &mut Contract<S, P>)> {
-        self.contracts.iter_mut().map(|(id, ledger)| (*id, ledger))
-    }
+    fn has_contract(&self, id: ContractId) -> bool { self.contracts.contains_key(&id) }
 
-    pub fn has_contract(&self, id: ContractId) -> bool { self.contracts.contains_key(&id) }
-
-    pub fn find_contract_id(&self, r: impl Into<ContractRef>) -> Option<ContractId> {
+    fn find_contract_id(&self, r: impl Into<ContractRef>) -> Option<ContractId> {
         match r.into() {
             ContractRef::Id(id) if self.has_contract(id) => Some(id),
             ContractRef::Id(_) => None,
@@ -161,28 +159,28 @@ impl<S: Stock, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
         }
     }
 
-    pub fn contract(&self, id: ContractId) -> &Contract<S, P> {
-        self.contracts
-            .get(&id)
-            .unwrap_or_else(|| panic!("unknown contract {id}"))
+    fn contract_state(&self, id: ContractId) -> ContractState<P::Seal> {
+        self.contracts[&id].state()
     }
 
-    pub fn contract_mut(&mut self, id: ContractId) -> &mut Contract<S, P> {
-        self.contracts
-            .get_mut(&id)
-            .unwrap_or_else(|| panic!("unknown contract {id}"))
+    fn contract_articles(&self, id: ContractId) -> &Articles { self.contracts[&id].articles() }
+
+    fn contract_call(
+        &mut self,
+        contract_id: ContractId,
+        call: CallParams,
+        seals: SmallOrdMap<u16, <P::Seal as RgbSeal>::Definiton>,
+    ) -> Result<Operation, AcceptError> {
+        let contract = self.contract_mut(contract_id);
+        let opid = contract.call(call)?;
+        let operation = contract.ledger().operation(opid);
+        debug_assert_eq!(operation.opid(), opid);
+        contract.pile_mut().add_seals(opid, seals);
+        debug_assert_eq!(operation.contract_id, contract_id);
+        Ok(operation)
     }
 
-    pub fn select<'seal>(
-        &self,
-        seal: &'seal <P::Seal as RgbSeal>::Definiton,
-    ) -> impl Iterator<Item = (ContractId, CellAddr)> + use<'_, 'seal, S, P, X> {
-        self.contracts
-            .iter()
-            .filter_map(|(id, contract)| contract.seal(seal).map(|addr| (*id, addr)))
-    }
-
-    pub fn include(
+    fn include(
         &mut self,
         contract_id: ContractId,
         opid: Opid,
@@ -193,7 +191,7 @@ impl<S: Stock, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
             .include(opid, anchor, pub_witness)
     }
 
-    pub fn consign(
+    fn consign(
         &mut self,
         contract_id: ContractId,
         terminals: impl IntoIterator<Item = impl Borrow<AuthToken>>,
@@ -213,7 +211,7 @@ impl<S: Stock, P: Pile, X: Excavate<S, P>> Mound<S, P, X> {
         self.contract_mut(contract_id).consign(terminals, writer)
     }
 
-    pub fn consume(
+    fn consume(
         &mut self,
         reader: &mut StrictReader<impl ReadRaw>,
         seal_resolver: impl FnMut(&Operation) -> BTreeMap<u16, <P::Seal as RgbSeal>::Definiton>,

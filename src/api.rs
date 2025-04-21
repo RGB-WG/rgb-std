@@ -27,13 +27,14 @@ use core::borrow::Borrow;
 use std::io;
 
 use amplify::confinement::SmallOrdMap;
-use hypersonic::{AcceptError, AdaptedState, Articles, CallParams, StateName, Stock};
+use hypersonic::{AcceptError, Articles, CallParams, StateName, Stock};
 use rgb::RgbSeal;
 use strict_encoding::{
     ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter, WriteRaw,
 };
 use strict_types::StrictVal;
 
+use crate::contract::ContractState;
 use crate::{
     AuthToken, CellAddr, CodexId, ContractId, ContractInfo, ContractRef, CreateParams, IssueError,
     MoundConsumeError, Operation, Opid, Pile, Schema,
@@ -55,20 +56,16 @@ pub trait ContractsApi<S: Stock, P: Pile> {
 
     fn contract_ids(&self) -> impl Iterator<Item = ContractId>;
     fn contracts_info(&self) -> impl Iterator<Item = ContractInfo>;
-    fn contracts_state(&self) -> impl Iterator<Item = (ContractId, &AdaptedState)> {
+    fn contracts_state(&self) -> impl Iterator<Item = (ContractId, ContractState<P::Seal>)> {
         // Some implementations, for instance doing network requests, may provide a more efficient
         // method
         self.contract_ids().map(|id| (id, self.contract_state(id)))
     }
-    fn contract_state(&self, id: ContractId) -> &AdaptedState;
+    fn contract_state(&self, id: ContractId) -> ContractState<P::Seal>;
     fn contract_articles(&self, id: ContractId) -> &Articles;
 
     fn has_contract(&self, id: ContractId) -> bool;
     fn find_contract_id(&self, r: impl Into<ContractRef>) -> Option<ContractId>;
-    fn select(
-        &self,
-        seals: impl IntoIterator<Item = P::Seal>,
-    ) -> impl Iterator<Item = (ContractId, OpOut<P::Seal>)>;
 
     fn issue(
         &mut self,
@@ -76,6 +73,14 @@ pub trait ContractsApi<S: Stock, P: Pile> {
         stock_conf: S::Conf,
         pile: P,
     ) -> Result<ContractId, IssueError<S::Error>>;
+
+    fn contract_call(
+        &mut self,
+        contract_id: ContractId,
+        call: CallParams,
+        seals: SmallOrdMap<u16, <P::Seal as RgbSeal>::Definiton>,
+    ) -> Result<Operation, AcceptError>;
+
     fn include(
         &mut self,
         contract_id: ContractId,
@@ -83,6 +88,7 @@ pub trait ContractsApi<S: Stock, P: Pile> {
         pub_witness: &<P::Seal as RgbSeal>::Published,
         anchor: <P::Seal as RgbSeal>::Client,
     );
+
     fn consign(
         &mut self,
         contract_id: ContractId,
@@ -93,6 +99,7 @@ pub trait ContractsApi<S: Stock, P: Pile> {
         <P::Seal as RgbSeal>::Client: StrictDumb + StrictEncode,
         <P::Seal as RgbSeal>::Published: StrictDumb + StrictEncode,
         <P::Seal as RgbSeal>::WitnessId: StrictEncode;
+
     fn consume(
         &mut self,
         reader: &mut StrictReader<impl ReadRaw>,
@@ -102,11 +109,4 @@ pub trait ContractsApi<S: Stock, P: Pile> {
         <P::Seal as RgbSeal>::Client: StrictDecode,
         <P::Seal as RgbSeal>::Published: StrictDecode,
         <P::Seal as RgbSeal>::WitnessId: StrictDecode;
-
-    fn contract_call(
-        &mut self,
-        id: ContractId,
-        params: CallParams,
-        seals: SmallOrdMap<u16, <P::Seal as RgbSeal>::Definiton>,
-    ) -> Result<Operation, AcceptError>;
 }
