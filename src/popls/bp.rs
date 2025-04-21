@@ -558,8 +558,8 @@ impl<W: WalletProvider, S: Stock, P: Pile<Seal = TxoSeal>, X: Excavate<S, P>> Ba
 
     /// Check whether all state used in a request is properly re-distributed to new owners, and
     /// non-distributed state is used in the change.
-    pub fn check_request<T>(&mut self, request: &OpRequest<T>) -> Result<(), UnmatchedState> {
-        let contract = self.mound.contract_mut(request.contract_id);
+    pub fn check_request<T>(&self, request: &OpRequest<T>) -> Result<(), UnmatchedState> {
+        let contract = self.mound.contract(request.contract_id);
         contract.check_request(request)
     }
 

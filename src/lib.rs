@@ -39,6 +39,7 @@ extern crate strict_encoding;
 #[macro_use]
 extern crate serde;
 
+extern crate core;
 pub extern crate rgb_invoice as invoice;
 
 mod pile;
@@ -48,7 +49,9 @@ mod info;
 pub mod popls;
 mod util;
 pub mod providers;
+mod api;
 
+pub use api::{ContractsApi, OpOut};
 #[cfg(feature = "bitcoin")]
 pub use bp::{Outpoint, Txid};
 pub use contract::{
