@@ -378,14 +378,14 @@ impl<W: WalletProvider, C: ContractsApi<S, P>, S: Stock, P: Pile<Seal = TxoSeal>
     pub fn issue(
         &mut self,
         params: CreateParams<Outpoint>,
-        stock_conf: S::Conf,
-        pile_conf: P::Conf,
+        conf: S::Conf,
     ) -> Result<ContractId, IssueError<S::Error>>
     where
+        P::Conf: From<S::Conf>,
         S::Error: From<P::Error>,
     {
         self.contracts
-            .issue(params.transform(self.noise_engine()), stock_conf, pile_conf)
+            .issue(params.transform(self.noise_engine()), conf)
     }
 
     pub fn auth_token(&mut self, nonce: Option<u64>) -> Option<AuthToken> {
@@ -871,7 +871,7 @@ mod fs {
             params: CreateParams<Outpoint>,
             path: PathBuf,
         ) -> Result<ContractId, IssueError<io::Error>> {
-            self.issue(params, path.clone(), path)
+            self.issue(params, path)
         }
 
         pub fn consume_from_file(

@@ -158,10 +158,10 @@ impl<S: Stock, P: Pile> ContractsApi<S, P> for ContractsInmem<S, P> {
     fn issue(
         &mut self,
         params: CreateParams<<P::Seal as RgbSeal>::Definiton>,
-        stock_conf: S::Conf,
-        pile_conf: P::Conf,
+        conf: S::Conf,
     ) -> Result<ContractId, IssueError<S::Error>>
     where
+        P::Conf: From<S::Conf>,
         S::Error: From<P::Error>,
     {
         if params.consensus != self.consensus {
@@ -177,7 +177,7 @@ impl<S: Stock, P: Pile> ContractsApi<S, P> for ContractsInmem<S, P> {
         let schema = self
             .schema(params.codex_id)
             .ok_or(IssueError::UnknownCodex(params.codex_id))?;
-        let contract = Contract::issue(schema.clone(), params, stock_conf, pile_conf)?;
+        let contract = Contract::issue(schema.clone(), params, conf)?;
         let id = contract.contract_id();
         self.contracts.insert(id, contract);
         Ok(id)
@@ -352,12 +352,10 @@ pub mod file {
 
         pub fn issue_to_dir(
             &mut self,
-            mut path: PathBuf,
+            path: PathBuf,
             params: CreateParams<Seal::Definiton>,
         ) -> Result<ContractId, IssueError<io::Error>> {
-            path.push(params.name.as_str());
-            path.set_extension("contract");
-            self.issue(params, path.clone(), path)
+            self.issue(params, path)
         }
 
         pub fn consign_to_file(

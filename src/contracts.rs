@@ -84,10 +84,10 @@ pub trait ContractsApi<S: Stock, P: Pile> {
     fn issue(
         &mut self,
         params: CreateParams<<P::Seal as RgbSeal>::Definiton>,
-        stock_conf: S::Conf,
-        pile_conf: P::Conf,
+        conf: S::Conf,
     ) -> Result<ContractId, IssueError<S::Error>>
     where
+        P::Conf: From<S::Conf>,
         S::Error: From<P::Error>;
 
     fn contract_call(

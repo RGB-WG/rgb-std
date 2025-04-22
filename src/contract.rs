@@ -223,10 +223,10 @@ impl<S: Stock, P: Pile> Contract<S, P> {
     pub fn issue(
         schema: Schema,
         params: CreateParams<<P::Seal as RgbSeal>::Definiton>,
-        stock_conf: S::Conf,
-        pile_conf: P::Conf,
+        conf: S::Conf,
     ) -> Result<Self, IssueError<S::Error>>
     where
+        P::Conf: From<S::Conf>,
         S::Error: From<P::Error>,
     {
         assert_eq!(params.codex_id, schema.codex.codex_id());
@@ -265,11 +265,12 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         };
 
         let articles = schema.issue(params);
-        let ledger = Ledger::issue(articles, stock_conf)?;
+        let ledger = Ledger::issue(articles, conf)?;
+        let conf = ledger.config();
         let contract_id = ledger.contract_id();
 
         // Init seals
-        let mut pile = P::issue(pile_conf).map_err(|e| IssueError::OtherPersistence(e.into()))?;
+        let mut pile = P::issue(conf.into()).map_err(|e| IssueError::OtherPersistence(e.into()))?;
         pile.add_seals(ledger.articles().issue.genesis_opid(), seals);
 
         Ok(Self { ledger, pile, contract_id })
