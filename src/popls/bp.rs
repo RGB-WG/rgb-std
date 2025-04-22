@@ -27,7 +27,8 @@
 
 use alloc::collections::{btree_set, BTreeMap, BTreeSet};
 use alloc::vec;
-use std::marker::PhantomData;
+use core::error::Error as StdError;
+use core::marker::PhantomData;
 
 use amplify::confinement::{Collection, NonEmptyVec, SmallOrdMap, SmallOrdSet, U8 as U8MAX};
 use amplify::{confinement, ByteArray, Bytes32, Wrapper};
@@ -378,14 +379,8 @@ impl<W: WalletProvider, C: ContractsApi<S, P>, S: Stock, P: Pile<Seal = TxoSeal>
     pub fn issue(
         &mut self,
         params: CreateParams<Outpoint>,
-        conf: S::Conf,
-    ) -> Result<ContractId, IssueError<S::Error>>
-    where
-        P::Conf: From<S::Conf>,
-        S::Error: From<P::Error>,
-    {
-        self.contracts
-            .issue(params.transform(self.noise_engine()), conf)
+    ) -> Result<ContractId, IssueError<impl StdError + use<'_, W, C, S, P>>> {
+        self.contracts.issue(params.transform(self.noise_engine()))
     }
 
     pub fn auth_token(&mut self, nonce: Option<u64>) -> Option<AuthToken> {
@@ -854,8 +849,7 @@ pub enum IncludeError {
 #[cfg(feature = "fs")]
 mod fs {
     use std::fs::File;
-    use std::io;
-    use std::path::{Path, PathBuf};
+    use std::path::Path;
 
     use hypersonic::persistance::StockFs;
     use strict_encoding::StreamReader;
@@ -869,9 +863,8 @@ mod fs {
         pub fn issue_to_dir(
             &mut self,
             params: CreateParams<Outpoint>,
-            path: PathBuf,
-        ) -> Result<ContractId, IssueError<io::Error>> {
-            self.issue(params, path)
+        ) -> Result<ContractId, IssueError<impl StdError + use<'_, W, C>>> {
+            self.issue(params)
         }
 
         pub fn consume_from_file(

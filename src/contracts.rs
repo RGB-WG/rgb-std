@@ -23,8 +23,7 @@
 // the License.
 
 mod inmem;
-#[cfg(feature = "fs")]
-pub mod dir;
+mod cached;
 
 use alloc::collections::BTreeMap;
 use core::borrow::Borrow;
@@ -39,6 +38,7 @@ use strict_encoding::{
 };
 use strict_types::StrictVal;
 
+pub use self::cached::ContractsCache;
 pub use self::inmem::ContractsInmem;
 use crate::{
     AuthToken, CallError, CellAddr, CodexId, ConsumeError, ContractId, ContractInfo, ContractRef,
@@ -81,14 +81,12 @@ pub trait ContractsApi<S: Stock, P: Pile> {
     /// Iterator may repeat the same id multiple times.
     fn witness_ids(&self) -> impl Iterator<Item = <P::Seal as RgbSeal>::WitnessId>;
 
+    fn import(&mut self, schema: Schema) -> Result<CodexId, impl StdError>;
+
     fn issue(
         &mut self,
         params: CreateParams<<P::Seal as RgbSeal>::Definiton>,
-        conf: S::Conf,
-    ) -> Result<ContractId, IssueError<S::Error>>
-    where
-        P::Conf: From<S::Conf>,
-        S::Error: From<P::Error>;
+    ) -> Result<ContractId, IssueError<impl StdError>>;
 
     fn contract_call(
         &mut self,
@@ -120,6 +118,24 @@ pub trait ContractsApi<S: Stock, P: Pile> {
         <P::Seal as RgbSeal>::Client: StrictDumb + StrictEncode,
         <P::Seal as RgbSeal>::Published: StrictDumb + StrictEncode,
         <P::Seal as RgbSeal>::WitnessId: StrictEncode;
+
+    #[cfg(feature = "fs")]
+    fn consign_to_file(
+        &mut self,
+        contract_id: ContractId,
+        terminals: impl IntoIterator<Item = impl Borrow<AuthToken>>,
+        path: impl AsRef<std::path::Path>,
+    ) -> io::Result<()>
+    where
+        <P::Seal as RgbSeal>::Client: StrictDumb + StrictEncode,
+        <P::Seal as RgbSeal>::Published: StrictDumb + StrictEncode,
+        <P::Seal as RgbSeal>::WitnessId: StrictEncode,
+    {
+        use strict_encoding::StreamWriter;
+        let file = std::fs::File::create_new(path)?;
+        let writer = StrictWriter::with(StreamWriter::new::<{ usize::MAX }>(file));
+        self.consign(contract_id, terminals, writer)
+    }
 
     fn consume(
         &mut self,

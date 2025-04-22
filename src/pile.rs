@@ -138,7 +138,7 @@ pub trait Pile {
 
     type Error: StdError;
 
-    /// Issues a new contract from the provided articles, creating its persistence using given
+    /// Issues a new contract from the provided articles, creating its persistence using a given
     /// implementation-specific configuration.
     ///
     /// # Panics
@@ -151,7 +151,7 @@ pub trait Pile {
     fn issue(conf: Self::Conf) -> Result<Self, Self::Error>
     where Self: Sized;
 
-    /// Loads a contract from a persistence using the provided configuration.
+    /// Loads a contract from persistence using the provided configuration.
     ///
     /// # Panics
     ///
