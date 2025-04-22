@@ -109,11 +109,15 @@ impl<S: Stock, P: Pile> ContractsInmem<S, P> {
 impl<S: Stock, P: Pile> ContractsApi<S, P> for ContractsInmem<S, P> {
     fn codex_ids(&self) -> impl Iterator<Item = CodexId> { self.schemata.keys().copied() }
 
+    fn schemata_count(&self) -> usize { self.schemata.len() }
+
     fn schemata(&self) -> impl Iterator<Item = (CodexId, &Schema)> {
         self.schemata.iter().map(|(id, schema)| (*id, schema))
     }
 
     fn schema(&self, codex_id: CodexId) -> Option<&Schema> { self.schemata.get(&codex_id) }
+
+    fn contracts_count(&self) -> usize { self.contracts.len() }
 
     fn contract_ids(&self) -> impl Iterator<Item = ContractId> { self.contracts.keys().copied() }
 

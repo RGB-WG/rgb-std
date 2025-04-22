@@ -56,9 +56,11 @@ pub struct OpOut<Seal: RgbSeal> {
 
 pub trait ContractsApi<S: Stock, P: Pile> {
     fn codex_ids(&self) -> impl Iterator<Item = CodexId>;
+    fn schemata_count(&self) -> usize;
     fn schemata(&self) -> impl Iterator<Item = (CodexId, &Schema)>;
     fn schema(&self, codex_id: CodexId) -> Option<&Schema>;
 
+    fn contracts_count(&self) -> usize;
     fn contract_ids(&self) -> impl Iterator<Item = ContractId>;
     fn contracts_info(&self) -> impl Iterator<Item = ContractInfo>;
     fn contracts_state(&self) -> impl Iterator<Item = (ContractId, ContractState<P::Seal>)> {
