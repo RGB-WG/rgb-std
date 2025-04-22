@@ -266,7 +266,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
 
         let articles = schema.issue(params);
         let ledger = Ledger::issue(articles, conf)?;
-        let conf = ledger.config();
+        let conf: S::Conf = ledger.config();
         let contract_id = ledger.contract_id();
 
         // Init seals
