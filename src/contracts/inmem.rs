@@ -47,7 +47,9 @@ pub struct ContractsInmem<S: Stock, P: Pile> {
     consensus: Consensus,
     #[getter(as_copy)]
     testnet: bool,
+    #[getter(skip)]
     schemata: HashMap<CodexId, Schema>,
+    #[getter(skip)]
     contracts: HashMap<ContractId, Contract<S, P>>,
 }
 
