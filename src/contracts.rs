@@ -84,9 +84,12 @@ where
         f: impl FnOnce(&Contract<Sp::Stock, Sp::Pile>) -> R,
         or: Option<R>,
     ) -> R {
-        if let Some(contract) = self.contracts.borrow().get(&id) {
-            f(contract)
-        } else if let Some(contract) = self.persistence.contract(id) {
+        // We need this bullshit due to a failed rust `RefCell` implementation which panics if we do
+        // this block any other way.
+        if self.contracts.borrow().contains_key(&id) {
+            return f(self.contracts.borrow().get(&id).unwrap());
+        }
+        if let Some(contract) = self.persistence.contract(id) {
             let res = f(&contract);
             self.contracts.borrow_mut().insert(id, contract);
             res
@@ -102,9 +105,12 @@ where
         id: ContractId,
         f: impl FnOnce(&mut Contract<Sp::Stock, Sp::Pile>) -> R,
     ) -> R {
-        if let Some(contract) = self.contracts.borrow_mut().get_mut(&id) {
-            f(contract)
-        } else if let Some(mut contract) = self.persistence.contract(id) {
+        // We need this bullshit due to a failed rust `RefCell` implementation which panics if we do
+        // this block any other way.
+        if self.contracts.borrow().contains_key(&id) {
+            return f(self.contracts.borrow_mut().get_mut(&id).unwrap());
+        }
+        if let Some(mut contract) = self.persistence.contract(id) {
             let res = f(&mut contract);
             self.contracts.borrow_mut().insert(id, contract);
             res
