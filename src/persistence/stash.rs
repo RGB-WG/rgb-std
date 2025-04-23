@@ -25,7 +25,7 @@ use std::fmt::Debug;
 
 use aluvm::library::{Lib, LibId};
 use amplify::confinement::Confined;
-use amplify::{confinement, ByteArray};
+use amplify::ByteArray;
 use bp::dbc::tapret::TapretCommitment;
 use bp::seals::txout::CloseMethod;
 use commit_verify::mpc::{self, MerkleBlock};
@@ -39,8 +39,7 @@ use strict_types::typesys::UnknownType;
 use strict_types::{FieldName, TypeSystem};
 
 use crate::containers::{
-    Consignment, ConsignmentExt, ContentId, ContentSigs, Kit, SealWitness, SealWitnessMergeError,
-    SigBlob, TrustLevel, WitnessBundle,
+    Consignment, ConsignmentExt, Kit, SealWitness, SealWitnessMergeError, WitnessBundle,
 };
 use crate::contract::{ContractBuilder, TransitionBuilder};
 use crate::persistence::StoreTransaction;
@@ -192,15 +191,6 @@ impl<P: StashProvider> Stash<P> {
         Ok(self.provider.witness(witness_id)?)
     }
 
-    pub(super) fn sigs_for(
-        &self,
-        content_id: &ContentId,
-    ) -> Result<Option<&ContentSigs>, StashError<P>> {
-        self.provider
-            .sigs_for(content_id)
-            .map_err(StashError::ReadProvider)
-    }
-
     pub(super) fn extract(&self, schema: &Schema) -> Result<(TypeSystem, Scripts), StashError<P>> {
         let type_iter = schema.types();
         let types = self
@@ -272,19 +262,10 @@ impl<P: StashProvider> Stash<P> {
                 .map_err(StashError::WriteProvider)?;
         }
 
-        // TODO: filter most trusted signers
         for schema in kit.schemata {
             self.provider
                 .replace_schema(schema)
                 .map_err(StashError::WriteProvider)?;
-        }
-
-        // TODO: filter out non-trusted signers
-
-        for (content_id, sigs) in kit.signatures {
-            // TODO: Filter sigs by trust level
-            // Do not bother if we can't import all the sigs
-            self.provider.import_sigs(content_id, sigs).ok();
         }
 
         Ok(())
@@ -329,7 +310,6 @@ impl<P: StashProvider> Stash<P> {
             schemata: tiny_bset![consignment.schema],
             types: consignment.types,
             scripts: Confined::from_checked(consignment.scripts.release()),
-            signatures: consignment.signatures,
         })
     }
 
@@ -445,9 +425,6 @@ pub trait StashReadProvider {
         self.schema(genesis.schema_id)
     }
 
-    fn get_trust(&self, identity: &Identity) -> Result<TrustLevel, Self::Error>;
-
-    fn sigs_for(&self, content_id: &ContentId) -> Result<Option<&ContentSigs>, Self::Error>;
     fn witness_ids(&self) -> Result<impl Iterator<Item = Txid>, Self::Error>;
     fn bundle_ids(&self) -> Result<impl Iterator<Item = BundleId>, Self::Error>;
     fn bundle(&self, bundle_id: BundleId) -> Result<&TransitionBundle, ProviderError<Self::Error>>;
@@ -468,13 +445,6 @@ pub trait StashWriteProvider: StoreTransaction<TransactionErr = Self::Error> {
 
     fn replace_lib(&mut self, lib: Lib) -> Result<bool, Self::Error>;
     fn consume_types(&mut self, types: TypeSystem) -> Result<(), Self::Error>;
-    fn set_trust(
-        &mut self,
-        identity: Identity,
-        trust: TrustLevel,
-    ) -> Result<(), confinement::Error>;
-    fn import_sigs<I>(&mut self, content_id: ContentId, sigs: I) -> Result<(), Self::Error>
-    where I: IntoIterator<Item = (Identity, SigBlob)>;
 
     fn add_secret_seal(&mut self, seal: GraphSeal) -> Result<bool, Self::Error>;
 }

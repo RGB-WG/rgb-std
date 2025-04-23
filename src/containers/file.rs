@@ -282,7 +282,6 @@ mod test {
             },
             types: Default::default(),
             scripts: Default::default(),
-            signatures: Default::default(),
         }
     }
 
@@ -365,7 +364,6 @@ mod test {
             },
             types: Default::default(),
             scripts: Default::default(),
-            signatures: Default::default(),
         }
     }
 

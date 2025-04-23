@@ -47,7 +47,6 @@ pub trait IssuerWrapper {
             schemata: tiny_bset![Self::schema()],
             types: Self::types(),
             scripts: Confined::from_iter_checked(Self::scripts().release().into_values()),
-            signatures: none!(),
         };
         kit.validate().expect("invalid construction")
     }

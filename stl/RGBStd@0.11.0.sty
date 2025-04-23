@@ -1,5 +1,5 @@
 {-
-  Id: stl:$PGSDq96-8doK4xG-WBhNkrQ-0uvyxL8-sS9fEML-sJ15PCc#brush-ship-canal
+  Id: stl:symjDItA-ZRhBVHV-jPQmRxB-NsQWiTP-$oIR79Q-V18Se$g#lima-ballad-virtual
   Name: RGBStd
   Version: 0.11.0
   Description: RGB standard library
@@ -143,7 +143,7 @@ import Bitcoin#signal-color-cipher
   use XOnlyPk#clever-swim-carpet
 
 
-@mnemonic(gallop-artist-arena)
+@mnemonic(premium-madonna-cannon)
 data Consignmentfalse  : version ContainerVer
                        , transfer Std.Bool
                        , terminals {RGBCommit.BundleId -> BPCore.SecretSeal}
@@ -152,9 +152,8 @@ data Consignmentfalse  : version ContainerVer
                        , schema RGBCommit.Schema
                        , types StrictTypes.TypeSystem
                        , scripts {AluVM.Lib ^ ..0x400}
-                       , signatures {ContentId -> ^ ..0xff ContentSigs}
 
-@mnemonic(present-grid-corner)
+@mnemonic(doctor-kinetic-diagram)
 data Consignmenttrue   : version ContainerVer
                        , transfer Std.Bool
                        , terminals {RGBCommit.BundleId -> BPCore.SecretSeal}
@@ -163,32 +162,20 @@ data Consignmenttrue   : version ContainerVer
                        , schema RGBCommit.Schema
                        , types StrictTypes.TypeSystem
                        , scripts {AluVM.Lib ^ ..0x400}
-                       , signatures {ContentId -> ^ ..0xff ContentSigs}
 
-@mnemonic(giant-bravo-jacket)
-data ContainerVer      : v2#2 | (|)
+@mnemonic(option-crimson-joseph)
+data ContainerVer      : v0 | (|)
 
 
-@mnemonic(lunar-eagle-beyond)
-data ContentId         : schema RGBCommit.SchemaId
-                       | genesis RGBCommit.ContractId
-
-@mnemonic(apropos-horizon-couple)
-data ContentSigs       : {RGBCommit.Identity -> ^ 1..0xa SigBlob}
-
-@mnemonic(police-iceberg-appear)
+@mnemonic(freedom-garage-guest)
 data Kit               : version ContainerVer
                        , schemata {RGBCommit.Schema ^ ..0xff}
                        , types StrictTypes.TypeSystem
                        , scripts {AluVM.Lib}
-                       , signatures {ContentId -> ^ ..0xff ContentSigs}
 
 @mnemonic(paper-visa-storm)
 data PubWitness        : txid Bitcoin.Txid
                        | tx Bitcoin.Tx
-
-@mnemonic(insect-cello-avalon)
-data SigBlob           : [Byte ^ 1..0x1000]
 
 @mnemonic(side-user-neon)
 data WitnessBundle     : pubWitness PubWitness

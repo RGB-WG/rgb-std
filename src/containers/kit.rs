@@ -25,7 +25,7 @@ use std::ops::Deref;
 use std::str::FromStr;
 
 use aluvm::library::Lib;
-use amplify::confinement::{SmallOrdSet, TinyOrdMap, TinyOrdSet};
+use amplify::confinement::{SmallOrdSet, TinyOrdSet};
 use amplify::{ByteArray, Bytes32};
 use armor::{ArmorHeader, AsciiArmor, StrictArmor};
 use baid64::{Baid64ParseError, DisplayBaid64, FromBaid64Str};
@@ -35,7 +35,7 @@ use strict_encoding::{StrictDeserialize, StrictSerialize};
 use strict_types::TypeSystem;
 
 use super::{ASCII_ARMOR_SCHEMA, ASCII_ARMOR_SCRIPT, ASCII_ARMOR_TYPE_SYSTEM, ASCII_ARMOR_VERSION};
-use crate::containers::{ContainerVer, ContentId, ContentSigs};
+use crate::containers::ContainerVer;
 use crate::LIB_NAME_RGB_STD;
 
 /// Kit identifier.
@@ -126,9 +126,6 @@ pub struct Kit {
 
     /// Collection of scripts used across kit data.
     pub scripts: SmallOrdSet<Lib>,
-
-    /// Signatures on the pieces of content which are the part of the kit.
-    pub signatures: TinyOrdMap<ContentId, ContentSigs>,
 }
 
 impl StrictSerialize for Kit {}
@@ -146,8 +143,6 @@ impl CommitEncode for Kit {
 
         e.commit_to_serialized(&self.types.id());
         e.commit_to_set(&SmallOrdSet::from_iter_checked(self.scripts.iter().map(|lib| lib.id())));
-
-        e.commit_to_map(&self.signatures);
     }
 }
 
@@ -155,15 +150,8 @@ impl Kit {
     #[inline]
     pub fn kit_id(&self) -> KitId { self.commit_id() }
 
-    pub fn validate(
-        self,
-        // TODO: Add sig validator
-        //_: &impl SigValidator,
-    ) -> Result<ValidKit, (validation::Status, Kit)> {
+    pub fn validate(self) -> Result<ValidKit, (validation::Status, Kit)> {
         let status = validation::Status::new();
-        // TODO:
-        //  - Check schema integrity
-        //  - Validate content sigs and remove untrusted ones
         Ok(ValidKit {
             validation_status: status,
             kit: self,
@@ -220,12 +208,12 @@ mod test {
     fn error_kit_strs() {
         assert!(Kit::from_str(
             r#"-----BEGIN RGB KIT-----
-Id: rgb:kit:ij7UAXOl-MCrXzKt-L8fC6Vu-e$xPh5k-GEurStO-4RNfzsI
-Version: 2
+Id: rgb:kit:jXOeJYkD-NlOgJoP-!zT1Hvl-0fP71Zo-b2mAh2C-i5ISROo
+Version: 0
 Type-System: sts:8Vb$sM1F-5MsQc20-HEixf55-gJR37FM-0zRKfpY-SwIp35w#design-farmer-camel
-Check-SHA256: d86e8112f3c4c4442126f8e9f44f16867da487f29052bf91b810457db34209a4
+Check-SHA256: 837885c8f8091aeaeb9ec3c3f85a6ff470a415e610b8ba3e49f9b33c9cf9d619
 
-0ssI200000
+000000000
 
 -----END RGB KIT-----"#
         )
@@ -235,11 +223,11 @@ Check-SHA256: d86e8112f3c4c4442126f8e9f44f16867da487f29052bf91b810457db34209a4
         assert!(Kit::from_str(
             r#"-----BEGIN RGB KIT-----
 Id: rgb:kit:11111111-2222222-XmR8XRJ-v!q$Dzf-yImkPjD-t8EjfvI
-Version: 2
+Version: 0
 Type-System: sts:8Vb$sM1F-5MsQc20-HEixf55-gJR37FM-0zRKfpY-SwIp35w#design-farmer-camel
-Check-SHA256: d86e8112f3c4c4442126f8e9f44f16867da487f29052bf91b810457db34209a4
+Check-SHA256: 837885c8f8091aeaeb9ec3c3f85a6ff470a415e610b8ba3e49f9b33c9cf9d619
 
-0ssI200000
+000000000
 
 -----END RGB KIT-----"#
         )
@@ -248,12 +236,12 @@ Check-SHA256: d86e8112f3c4c4442126f8e9f44f16867da487f29052bf91b810457db34209a4
         // wrong checksum
         assert!(Kit::from_str(
             r#"-----BEGIN RGB KIT-----
-Id: rgb:kit:ij7UAXOl-MCrXzKt-L8fC6Vu-e$xPh5k-GEurStO-4RNfzsI
-Version: 2
+Id: rgb:kit:jXOeJYkD-NlOgJoP-!zT1Hvl-0fP71Zo-b2mAh2C-i5ISROo
+Version: 0
 Type-System: sts:8Vb$sM1F-5MsQc20-HEixf55-gJR37FM-0zRKfpY-SwIp35w#design-farmer-camel
 Check-SHA256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
-0ssI200000
+000000000
 
 -----END RGB KIT-----"#
         )

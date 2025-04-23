@@ -20,12 +20,9 @@ ConsignmentId commitment hasher=SHA256 tagged=urn:lnp-bp:rgb:consignment#2024-03
   TypeSysId serialized
   LibId set len=0..MAX16
     LibId element
-  ContentSigs map len=0..MAX8
-    ContentId mapKey
-    ContentSigs mapValue
 
 Consignmenttrue rec
-  version enum ContainerVer v2=2
+  version enum ContainerVer v0=0
   transfer enum Bool false=0 true=1
   terminals map len=0..MAX16
     value bytes len=32 aka=SecretSeal
@@ -293,11 +290,4 @@ Consignmenttrue rec
       data bytes len=0..MAX16
       libs set len=0..MAX8 aka=LibSeg
         element bytes len=32 aka=LibId
-  signatures map len=0..MAX8
-    key union ContentId
-      schema bytes len=32 wrapped aka=SchemaId tag=0
-      genesis bytes len=32 wrapped aka=ContractId tag=1
-    value map len=1..10 aka=ContentSigs
-      key ascii aka=Identity first=AsciiPrintable rest=AsciiPrintable len=1..4096
-      value bytes len=1..4096 aka=SigBlob
 

@@ -100,19 +100,19 @@ impl<Seal: ExposedSeal> MergeReveal for TypedAssigns<Seal> {
         match (self, other) {
             (TypedAssigns::Declarative(first_vec), TypedAssigns::Declarative(second_vec)) => {
                 for (first, second) in first_vec.iter_mut().zip(second_vec.as_ref()) {
-                    first.merge_reveal(&second)?;
+                    first.merge_reveal(second)?;
                 }
             }
 
             (TypedAssigns::Fungible(first_vec), TypedAssigns::Fungible(second_vec)) => {
                 for (first, second) in first_vec.iter_mut().zip(second_vec.as_ref()) {
-                    first.merge_reveal(&second)?;
+                    first.merge_reveal(second)?;
                 }
             }
 
             (TypedAssigns::Structured(first_vec), TypedAssigns::Structured(second_vec)) => {
                 for (first, second) in first_vec.iter_mut().zip(second_vec.as_ref()) {
-                    first.merge_reveal(&second)?;
+                    first.merge_reveal(second)?;
                 }
             }
 
@@ -130,7 +130,7 @@ impl<Seal: ExposedSeal> MergeReveal for Assignments<Seal> {
         for (ass_type, other_typed_assigns) in other.as_inner().iter() {
             let typed_assigns = self
                 .get_mut(ass_type)
-                .ok_or_else(|| MergeRevealError::AssignmentsDifferentKeys)?;
+                .ok_or(MergeRevealError::AssignmentsDifferentKeys)?;
             typed_assigns.merge_reveal(other_typed_assigns)?;
         }
         Ok(())

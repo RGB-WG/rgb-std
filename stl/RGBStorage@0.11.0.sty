@@ -1,5 +1,5 @@
 {-
-  Id: stl:Atkcd1$g-NQTR!c$-QFtfoZn-doe$16K-E9TzbY2-LJoliiI#effect-truck-balance
+  Id: stl:LopKhFfz-iIgqWeS-20arQS0-9AK8duG-g9irFO6-O8lS4kQ#future-michael-rapid
   Name: RGBStorage
   Version: 0.11.0
   Description: RGB storage library
@@ -59,6 +59,15 @@ import CommitVerify#miller-pancake-elastic
   use MerkleHash#horse-popcorn-bundle
   use MerkleBlock#pegasus-delta-eddie
   use TreeNode#kansas-scarlet-ricardo
+
+import RGBStd#lima-ballad-virtual
+  use PubWitness#paper-visa-storm
+  use OutputAssignmentRevealedData#burma-milk-baggage
+  use OpWitness#owner-water-pyramid
+  use OutputAssignmentVoidState#harbor-club-ritual
+  use GlobalOut#canada-politic-mary
+  use SealWitness#polite-visitor-laptop
+  use OutputAssignmentRevealedValue#signal-fractal-vista
 
 import RGBCommit#film-extreme-koala
   use BundleId#carmen-farmer-diesel
@@ -148,19 +157,6 @@ import Bitcoin#signal-color-cipher
   use Outpoint#logo-alamo-madam
   use XOnlyPk#clever-swim-carpet
 
-import RGBStd#brush-ship-canal
-  use PubWitness#paper-visa-storm
-  use OutputAssignmentRevealedData#burma-milk-baggage
-  use SigBlob#insect-cello-avalon
-  use OpWitness#owner-water-pyramid
-  use ContentSigs#oval-sister-triton
-  use TrustLevel#cobra-script-albino
-  use OutputAssignmentVoidState#harbor-club-ritual
-  use GlobalOut#canada-politic-mary
-  use SealWitness#polite-visitor-laptop
-  use OutputAssignmentRevealedValue#signal-fractal-vista
-  use ContentId#lunar-eagle-beyond
-
 
 @mnemonic(tribal-apollo-plasma)
 data ContractIndex     : publicOpouts {RGBCommit.Opout ^ ..0xffffff}, outpointOpouts {BPCore.ExplicitSealTxid -> ^ ..0xffffff {RGBCommit.Opout ^ ..0xffffff}}
@@ -184,16 +180,14 @@ data MemIndex          : opBundleChildrenIndex {RGBCommit.OpId -> ^ ..0xffffff {
                        , contractIndex {RGBCommit.ContractId -> ^ ..0xff ContractIndex}
                        , terminalIndex {BPCore.SecretSeal -> ^ ..0xffffff {RGBCommit.Opout ^ ..0xff}}
 
-@mnemonic(gorilla-harlem-toronto)
+@mnemonic(escort-reptile-unicorn)
 data MemStash          : schemata {RGBCommit.SchemaId -> ^ ..0xff RGBCommit.Schema}
                        , geneses {RGBCommit.ContractId -> ^ ..0xff RGBCommit.Genesis}
                        , bundles {RGBCommit.BundleId -> ^ ..0xffffffff RGBCommit.TransitionBundle}
                        , witnesses {Bitcoin.Txid -> ^ ..0xffffffff RGBStd.SealWitness}
                        , secretSeals {BPCore.BlindSealTxPtr ^ ..0xffffff}
                        , typeSystem StrictTypes.TypeSystem
-                       , identities {RGBCommit.Identity -> RGBStd.TrustLevel}
                        , libs {AluVM.LibId -> AluVM.Lib}
-                       , sigs {RGBStd.ContentId -> RGBStd.ContentSigs}
 
 @mnemonic(report-baron-boris)
 data MemState          : witnesses {Bitcoin.Txid -> ^ ..0xffffffff RGBLogic.WitnessOrd}

@@ -47,7 +47,7 @@ use super::{
     StoreTransaction,
 };
 use crate::containers::{
-    Consignment, ContainerVer, ContentId, Contract, Fascia, Kit, Transfer, TransitionInfoError,
+    Consignment, ContainerVer, Contract, Fascia, Kit, Transfer, TransitionInfoError,
     ValidConsignment, ValidContract, ValidKit, ValidTransfer, WitnessBundle,
 };
 use crate::contract::{
@@ -151,9 +151,6 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider, E: Error> From<IndexE
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum ConsignError {
-    /// unable to construct consignment: too many signatures provided.
-    TooManySignatures,
-
     /// unable to construct consignment: too many terminals provided.
     TooManyTerminals,
 
@@ -623,14 +620,6 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
     ) -> Result<Consignment<TRANSFER>, StockError<S, H, P, ConsignError>> {
         let outputs = outputs.as_ref();
 
-        // Initialize signatures with btree map
-        let mut signatures = bmap! {};
-        // Get genesis signature by contract id
-        self.stash
-            .sigs_for(&ContentId::Genesis(contract_id))?
-            .map(|genesis_sig| {
-                signatures.insert(ContentId::Genesis(contract_id), genesis_sig.clone())
-            });
         // 1. Collect initial set of anchored bundles
         // 1.1. Get all public outputs
         let mut opouts = self.index.public_opouts(contract_id)?;
@@ -701,12 +690,6 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         }
 
         let genesis = self.stash.genesis(contract_id)?.clone();
-        // Get schema signature by schema id
-        self.stash
-            .sigs_for(&ContentId::Schema(genesis.schema_id))?
-            .map(|schema_signature| {
-                signatures.insert(ContentId::Schema(genesis.schema_id), schema_signature.clone())
-            });
 
         let schema = self.stash.schema(genesis.schema_id)?.clone();
 
@@ -717,10 +700,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
         let (types, scripts) = self.stash.extract(&schema)?;
         let scripts = Confined::from_iter_checked(scripts.into_values());
-        let signatures =
-            Confined::try_from(signatures).map_err(|_| ConsignError::TooManySignatures)?;
         // TODO: Conceal everything we do not need
-        // TODO: Add known sigs to the consignment
 
         Ok(Consignment {
             version: ContainerVer::V0,
@@ -731,7 +711,6 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             terminals,
             bundles,
 
-            signatures,
             types,
             scripts,
         })

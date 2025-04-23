@@ -28,8 +28,7 @@ use std::{iter, mem};
 
 use aluvm::library::{Lib, LibId};
 use amplify::confinement::{
-    self, Confined, LargeOrdMap, LargeOrdSet, MediumOrdMap, MediumOrdSet, SmallOrdMap, TinyOrdMap,
-    TinyOrdSet,
+    self, LargeOrdMap, LargeOrdSet, MediumOrdMap, MediumOrdSet, SmallOrdMap, TinyOrdMap, TinyOrdSet,
 };
 use amplify::num::u24;
 use bp::dbc::tapret::TapretCommitment;
@@ -44,8 +43,8 @@ use rgb::vm::{
 use rgb::{
     Assign, AssignmentType, Assignments, AssignmentsRef, BundleId, ContractId, DataState,
     ExposedSeal, ExposedState, FungibleState, Genesis, GenesisSeal, GlobalStateType, GraphSeal,
-    Identity, OpId, Operation, Opout, OutputSeal, RevealedData, RevealedValue, Schema, SchemaId,
-    SecretSeal, Transition, TransitionBundle, TypedAssigns, VoidState,
+    OpId, Operation, Opout, OutputSeal, RevealedData, RevealedValue, Schema, SchemaId, SecretSeal,
+    Transition, TransitionBundle, TypedAssigns, VoidState,
 };
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 use strict_types::TypeSystem;
@@ -56,7 +55,7 @@ use super::{
     StashProviderError, StashReadProvider, StashWriteProvider, StateInconsistency, StateProvider,
     StateReadProvider, StateWriteProvider, StoreTransaction,
 };
-use crate::containers::{ContentId, ContentSigs, SealWitness, SigBlob, TrustLevel};
+use crate::containers::SealWitness;
 use crate::contract::{GlobalOut, KnownState, OpWitness, OutputAssignment};
 use crate::LIB_NAME_RGB_STORAGE;
 
@@ -90,9 +89,7 @@ pub struct MemStash {
     witnesses: LargeOrdMap<Txid, SealWitness>,
     secret_seals: MediumOrdSet<GraphSeal>,
     type_system: TypeSystem,
-    identities: SmallOrdMap<Identity, TrustLevel>,
     libs: SmallOrdMap<LibId, Lib>,
-    sigs: SmallOrdMap<ContentId, ContentSigs>,
 }
 
 impl StrictSerialize for MemStash {}
@@ -108,9 +105,7 @@ impl MemStash {
             witnesses: empty!(),
             secret_seals: empty!(),
             type_system: none!(),
-            identities: empty!(),
             libs: empty!(),
-            sigs: empty!(),
         }
     }
 }
@@ -125,9 +120,7 @@ impl CloneNoPersistence for MemStash {
             witnesses: self.witnesses.clone(),
             secret_seals: self.secret_seals.clone(),
             type_system: self.type_system.clone(),
-            identities: self.identities.clone(),
             libs: self.libs.clone(),
-            sigs: self.sigs.clone(),
         }
     }
 }
@@ -176,14 +169,6 @@ impl StashReadProvider for MemStash {
         self.schemata
             .get(&schema_id)
             .ok_or_else(|| StashInconsistency::SchemaAbsent(schema_id).into())
-    }
-
-    fn get_trust(&self, identity: &Identity) -> Result<TrustLevel, Self::Error> {
-        Ok(self.identities.get(identity).copied().unwrap_or_default())
-    }
-
-    fn sigs_for(&self, content_id: &ContentId) -> Result<Option<&ContentSigs>, Self::Error> {
-        Ok(self.sigs.get(content_id))
     }
 
     fn geneses(&self) -> Result<impl Iterator<Item = &Genesis>, Self::Error> {
@@ -260,15 +245,6 @@ impl StashWriteProvider for MemStash {
         Ok(false)
     }
 
-    fn set_trust(
-        &mut self,
-        identity: Identity,
-        trust: TrustLevel,
-    ) -> Result<(), confinement::Error> {
-        self.identities.insert(identity, trust)?;
-        Ok(())
-    }
-
     fn replace_genesis(&mut self, genesis: Genesis) -> Result<bool, Self::Error> {
         let contract_id = genesis.contract_id();
         let present = self.geneses.insert(contract_id, genesis)?.is_some();
@@ -294,29 +270,6 @@ impl StashWriteProvider for MemStash {
     fn replace_lib(&mut self, lib: Lib) -> Result<bool, Self::Error> {
         let present = self.libs.insert(lib.id(), lib)?.is_some();
         Ok(!present)
-    }
-
-    fn import_sigs<I>(&mut self, content_id: ContentId, sigs: I) -> Result<(), Self::Error>
-    where I: IntoIterator<Item = (Identity, SigBlob)> {
-        let sigs = sigs.into_iter().filter(|(id, _)| {
-            match self.identities.get(id) {
-                Some(level) => *level,
-                None => {
-                    let level = TrustLevel::default();
-                    // We ignore if the identities are full
-                    self.identities.insert(id.clone(), level).ok();
-                    level
-                }
-            }
-            .should_accept()
-        });
-        if let Some(prev_sigs) = self.sigs.get_mut(&content_id) {
-            prev_sigs.extend(sigs)?;
-        } else {
-            let sigs = Confined::try_from_iter(sigs)?;
-            self.sigs.insert(content_id, ContentSigs::from(sigs)).ok();
-        }
-        Ok(())
     }
 
     fn add_secret_seal(&mut self, seal: GraphSeal) -> Result<bool, Self::Error> {

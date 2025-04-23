@@ -27,7 +27,7 @@ use std::ops::Deref;
 use std::str::FromStr;
 
 use aluvm::library::Lib;
-use amplify::confinement::{Confined, LargeOrdSet, SmallOrdMap, SmallOrdSet, TinyOrdMap};
+use amplify::confinement::{Confined, LargeOrdSet, SmallOrdMap, SmallOrdSet};
 use amplify::{ByteArray, Bytes32};
 use armor::{ArmorHeader, AsciiArmor, StrictArmor, StrictArmorError};
 use baid64::{Baid64ParseError, DisplayBaid64, FromBaid64Str};
@@ -42,9 +42,8 @@ use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 use strict_types::TypeSystem;
 
 use super::{
-    ContainerVer, ContentId, ContentSigs, IndexedConsignment, WitnessBundle,
-    ASCII_ARMOR_CONSIGNMENT_TYPE, ASCII_ARMOR_CONTRACT, ASCII_ARMOR_SCHEMA, ASCII_ARMOR_TERMINAL,
-    ASCII_ARMOR_VERSION,
+    ContainerVer, IndexedConsignment, WitnessBundle, ASCII_ARMOR_CONSIGNMENT_TYPE,
+    ASCII_ARMOR_CONTRACT, ASCII_ARMOR_SCHEMA, ASCII_ARMOR_TERMINAL, ASCII_ARMOR_VERSION,
 };
 use crate::persistence::{MemContract, MemContractState};
 use crate::{SecretSeal, LIB_NAME_RGB_STD};
@@ -194,10 +193,6 @@ pub struct Consignment<const TRANSFER: bool> {
 
     /// Collection of scripts used across consignment.
     pub scripts: Confined<BTreeSet<Lib>, 0, CONSIGNMENT_MAX_LIBS>,
-
-    /// Signatures on the pieces of content which are the part of the
-    /// consignment.
-    pub signatures: TinyOrdMap<ContentId, ContentSigs>,
 }
 
 impl<const TRANSFER: bool> StrictSerialize for Consignment<TRANSFER> {}
@@ -220,8 +215,6 @@ impl<const TRANSFER: bool> CommitEncode for Consignment<TRANSFER> {
 
         e.commit_to_serialized(&self.types.id());
         e.commit_to_set(&SmallOrdSet::from_iter_checked(self.scripts.iter().map(|lib| lib.id())));
-
-        e.commit_to_map(&self.signatures);
     }
 }
 
@@ -276,7 +269,6 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
             genesis: self.genesis,
             terminals: self.terminals,
             bundles: self.bundles,
-            signatures: self.signatures,
             scripts: self.scripts,
         }
     }
@@ -284,8 +276,6 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
     pub fn validate(
         self,
         resolver: &impl ResolveWitness,
-        // TODO: Add sig validator
-        //_: &impl SigValidator,
         chain_net: ChainNet,
         safe_height: Option<NonZeroU32>,
     ) -> Result<ValidConsignment<TRANSFER>, (validation::Status, Consignment<TRANSFER>)> {
@@ -312,7 +302,6 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
                 )));
             }
         }
-        // TODO: validate sigs and remove untrusted
 
         if validity == Validity::Invalid {
             Err((status, self))
