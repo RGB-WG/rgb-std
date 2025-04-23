@@ -36,7 +36,7 @@ use strict_encoding::{DecodeError, StreamReader, StrictDecode, StrictEncode, Str
 pub fn dump_stockpile<Seal>(src: &Path, dst: impl AsRef<Path>) -> anyhow::Result<()>
 where
     Seal: RgbSeal + Serialize + for<'de> Deserialize<'de>,
-    Seal::Definiton: Serialize + for<'de> Deserialize<'de>,
+    Seal::Definition: Serialize + for<'de> Deserialize<'de>,
     Seal::Client: Serialize + StrictEncode + StrictDecode,
     Seal::Published: Eq + Serialize + StrictEncode + StrictDecode,
     Seal::WitnessId: Ord + From<[u8; 32]> + Into<[u8; 32]> + Serialize,

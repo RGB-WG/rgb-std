@@ -46,7 +46,7 @@ where Seal::WitnessId: From<[u8; 32]> + Into<[u8; 32]>
 {
     hoard: FileAoraMap<Seal::WitnessId, Seal::Client, HOARD_MAGIC, 1>,
     cache: FileAoraMap<Seal::WitnessId, Seal::Published, CACHE_MAGIC, 1>,
-    keep: FileAoraMap<Opid, SmallOrdMap<u16, Seal::Definiton>, KEEP_MAGIC, 1>,
+    keep: FileAoraMap<Opid, SmallOrdMap<u16, Seal::Definition>, KEEP_MAGIC, 1>,
     index: FileAoraIndex<Opid, Seal::WitnessId, INDEX_MAGIC, 1>,
     stand: FileAoraIndex<Seal::WitnessId, Opid, STAND_MAGIC, 1>,
     mine: FileAuraMap<Seal::WitnessId, WitnessStatus, MINE_MAGIC, 1, 32, 8>,
@@ -125,7 +125,7 @@ where
         self.stand.get(wid)
     }
 
-    fn op_seals(&self, opid: Opid) -> SmallOrdMap<u16, Seal::Definiton> {
+    fn op_seals(&self, opid: Opid) -> SmallOrdMap<u16, Seal::Definition> {
         self.keep.get_expect(opid)
     }
 
@@ -199,7 +199,7 @@ where
     fn add_seals(
         &mut self,
         opid: Opid,
-        seals: SmallOrdMap<u16, <Self::Seal as RgbSeal>::Definiton>,
+        seals: SmallOrdMap<u16, <Self::Seal as RgbSeal>::Definition>,
     ) {
         self.keep.insert(opid, &seals)
     }

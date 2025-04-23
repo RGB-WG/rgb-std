@@ -224,7 +224,7 @@ where
 
     pub fn issue(
         &mut self,
-        params: CreateParams<<<Sp::Pile as Pile>::Seal as RgbSeal>::Definiton>,
+        params: CreateParams<<<Sp::Pile as Pile>::Seal as RgbSeal>::Definition>,
     ) -> Result<ContractId, IssuerError<<Sp::Stock as Stock>::Error>> {
         if params.consensus != self.persistence.consensus() {
             return Err(IssuerError::ConsensusMismatch);
@@ -246,7 +246,7 @@ where
         &mut self,
         contract_id: ContractId,
         call: CallParams,
-        seals: SmallOrdMap<u16, <<Sp::Pile as Pile>::Seal as RgbSeal>::Definiton>,
+        seals: SmallOrdMap<u16, <<Sp::Pile as Pile>::Seal as RgbSeal>::Definition>,
     ) -> Result<Operation, AcceptError> {
         self.with_contract_mut(contract_id, |contract| contract.call(call, seals))
     }
@@ -296,8 +296,8 @@ where
         seal_resolver: impl FnMut(
             &Operation,
         )
-            -> BTreeMap<u16, <<Sp::Pile as Pile>::Seal as RgbSeal>::Definiton>,
-    ) -> Result<(), ConsumeError<<<Sp::Pile as Pile>::Seal as RgbSeal>::Definiton>>
+            -> BTreeMap<u16, <<Sp::Pile as Pile>::Seal as RgbSeal>::Definition>,
+    ) -> Result<(), ConsumeError<<<Sp::Pile as Pile>::Seal as RgbSeal>::Definition>>
     where
         <<Sp::Pile as Pile>::Seal as RgbSeal>::Client: StrictDecode,
         <<Sp::Pile as Pile>::Seal as RgbSeal>::Published: StrictDecode,
@@ -369,9 +369,11 @@ mod fs {
             path: impl AsRef<Path>,
             seal_resolver: impl FnMut(
                 &Operation,
-            )
-                -> BTreeMap<u16, <<Sp::Pile as Pile>::Seal as RgbSeal>::Definiton>,
-        ) -> Result<(), ConsumeError<<<Sp::Pile as Pile>::Seal as RgbSeal>::Definiton>>
+            ) -> BTreeMap<
+                u16,
+                <<Sp::Pile as Pile>::Seal as RgbSeal>::Definition,
+            >,
+        ) -> Result<(), ConsumeError<<<Sp::Pile as Pile>::Seal as RgbSeal>::Definition>>
         where
             <<Sp::Pile as Pile>::Seal as RgbSeal>::Client: StrictDecode,
             <<Sp::Pile as Pile>::Seal as RgbSeal>::Published: StrictDecode,

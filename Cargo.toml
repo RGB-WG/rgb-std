@@ -108,6 +108,7 @@ wasm-bindgen-test = "0.3"
 features = ["all"]
 
 [patch.crates-io]
+commit_verify = { git = "https://github.com/LNP-BP/client_side_validation", branch = "v0.12" }
 aluvm = { git = "https://github.com/AluVM/aluvm", branch = "master" }
 zk-aluvm = { git = "https://github.com/AluVM/zk-aluvm", branch = "master" }
 ultrasonic = { git = "https://github.com/AluVM/ultrasonic", branch = "master" }

@@ -75,6 +75,6 @@ pub trait Stockpile {
 
     fn issue(
         &mut self,
-        params: CreateParams<<<Self::Pile as Pile>::Seal as RgbSeal>::Definiton>,
+        params: CreateParams<<<Self::Pile as Pile>::Seal as RgbSeal>::Definition>,
     ) -> Result<Contract<Self::Stock, Self::Pile>, IssuerError<<Self::Stock as Stock>::Error>>;
 }

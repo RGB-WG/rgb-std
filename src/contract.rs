@@ -222,7 +222,7 @@ pub struct Contract<S: Stock, P: Pile> {
 impl<S: Stock, P: Pile> Contract<S, P> {
     pub fn issue(
         schema: Schema,
-        params: CreateParams<<P::Seal as RgbSeal>::Definiton>,
+        params: CreateParams<<P::Seal as RgbSeal>::Definition>,
         conf: impl FnOnce(&Articles) -> S::Conf,
     ) -> Result<Self, IssueError<S::Error>>
     where
@@ -334,7 +334,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         self.pile.witnesses()
     }
 
-    pub fn seal(&self, seal: &<P::Seal as RgbSeal>::Definiton) -> Option<CellAddr> {
+    pub fn seal(&self, seal: &<P::Seal as RgbSeal>::Definition) -> Option<CellAddr> {
         let auth = seal.auth_token();
         self.ledger.state().raw.auth.get(&auth).copied()
     }
@@ -409,7 +409,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
     pub fn call(
         &mut self,
         call: CallParams,
-        seals: SmallOrdMap<u16, <P::Seal as RgbSeal>::Definiton>,
+        seals: SmallOrdMap<u16, <P::Seal as RgbSeal>::Definition>,
     ) -> Result<Operation, AcceptError> {
         let opid = self.ledger.call(call)?;
         let operation = self.ledger.operation(opid);
@@ -477,8 +477,8 @@ impl<S: Stock, P: Pile> Contract<S, P> {
     pub fn consume(
         &mut self,
         reader: &mut StrictReader<impl ReadRaw>,
-        seal_resolver: impl FnMut(&Operation) -> BTreeMap<u16, <P::Seal as RgbSeal>::Definiton>,
-    ) -> Result<(), ConsumeError<<P::Seal as RgbSeal>::Definiton>>
+        seal_resolver: impl FnMut(&Operation) -> BTreeMap<u16, <P::Seal as RgbSeal>::Definition>,
+    ) -> Result<(), ConsumeError<<P::Seal as RgbSeal>::Definition>>
     where
         <P::Seal as RgbSeal>::Client: StrictDecode,
         <P::Seal as RgbSeal>::Published: StrictDecode,
@@ -508,7 +508,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
 
     pub fn parse_consignment(
         reader: &mut StrictReader<impl ReadRaw>,
-    ) -> Result<ContractId, ConsumeError<<P::Seal as RgbSeal>::Definiton>> {
+    ) -> Result<ContractId, ConsumeError<<P::Seal as RgbSeal>::Definition>> {
         let magic_bytes = <[u8; 8]>::strict_decode(reader)?;
         if magic_bytes != CONSIGNMENT_MAGIC_NUMBER {
             return Err(ConsumeError::UnrecognizedMagic(magic_bytes.to_hex()));
@@ -607,7 +607,7 @@ impl<S: Stock, P: Pile> ContractApi<P::Seal> for Contract<S, P> {
     fn apply_operation(
         &mut self,
         op: VerifiedOperation,
-        seals: SmallOrdMap<u16, <P::Seal as RgbSeal>::Definiton>,
+        seals: SmallOrdMap<u16, <P::Seal as RgbSeal>::Definition>,
     ) {
         self.pile.add_seals(op.opid(), seals);
         self.ledger.apply(op).expect("unable to apply operation");

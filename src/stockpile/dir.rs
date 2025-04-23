@@ -152,7 +152,7 @@ where
 
     fn issue(
         &mut self,
-        params: CreateParams<<<Self::Pile as Pile>::Seal as RgbSeal>::Definiton>,
+        params: CreateParams<<<Self::Pile as Pile>::Seal as RgbSeal>::Definition>,
     ) -> Result<Contract<Self::Stock, Self::Pile>, IssuerError<io::Error>> {
         let schema = self
             .issuer(params.codex_id)

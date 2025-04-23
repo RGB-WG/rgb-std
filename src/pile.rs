@@ -120,12 +120,12 @@ pub struct Witness<Seal: RgbSeal> {
 #[cfg_attr(
     feature = "serde",
     derive(Serialize),
-    serde(bound = "Seal::WitnessId: serde::Serialize, Seal::Definiton: serde::Serialize")
+    serde(bound = "Seal::WitnessId: serde::Serialize, Seal::Definition: serde::Serialize")
 )]
 pub struct OpRels<Seal: RgbSeal> {
     pub opid: Opid,
     pub witness_ids: BTreeSet<Seal::WitnessId>,
-    pub defines: SmallOrdMap<u16, Seal::Definiton>,
+    pub defines: SmallOrdMap<u16, Seal::Definition>,
     #[cfg_attr(feature = "serde", serde(skip))]
     pub _phantom: PhantomData<Seal>,
 }
@@ -198,7 +198,7 @@ pub trait Pile {
         wid: <Self::Seal as RgbSeal>::WitnessId,
     ) -> impl ExactSizeIterator<Item = Opid>;
 
-    fn op_seals(&self, opid: Opid) -> SmallOrdMap<u16, <Self::Seal as RgbSeal>::Definiton>;
+    fn op_seals(&self, opid: Opid) -> SmallOrdMap<u16, <Self::Seal as RgbSeal>::Definition>;
 
     fn op_relations(&self) -> impl Iterator<Item = OpRels<Self::Seal>>;
 
@@ -216,7 +216,7 @@ pub trait Pile {
     fn add_seals(
         &mut self,
         opid: Opid,
-        seals: SmallOrdMap<u16, <Self::Seal as RgbSeal>::Definiton>,
+        seals: SmallOrdMap<u16, <Self::Seal as RgbSeal>::Definition>,
     );
 
     /// # Panics
