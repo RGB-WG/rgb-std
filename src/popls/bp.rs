@@ -28,9 +28,11 @@
 use alloc::collections::{btree_set, BTreeMap, BTreeSet};
 use alloc::vec;
 use core::error::Error as StdError;
-use core::marker::PhantomData;
+use std::collections::HashMap;
 
-use amplify::confinement::{Collection, NonEmptyVec, SmallOrdMap, SmallOrdSet, U8 as U8MAX};
+use amplify::confinement::{
+    Collection, KeyedCollection, NonEmptyVec, SmallOrdMap, SmallOrdSet, U8 as U8MAX,
+};
 use amplify::{confinement, ByteArray, Bytes32, Wrapper};
 use bp::dbc::tapret::TapretProof;
 use bp::seals::{mmb, Anchor, Noise, TxoSeal, TxoSealExt, WOutpoint, WTxoSeal};
@@ -39,7 +41,7 @@ use commit_verify::mpc::ProtocolId;
 use commit_verify::{mpc, Digest, DigestExt, Sha256};
 use hypersonic::{
     AcceptError, AuthToken, CallParams, CellAddr, ContractId, CoreParams, DataCell, MethodName,
-    NamedState, Operation, StateAtom, StateCalc, StateCalcError, StateName, Stock,
+    NamedState, Operation, StateAtom, StateCalc, StateCalcError, StateName,
 };
 use invoice::bp::{Address, WitnessOut};
 use invoice::{RgbBeneficiary, RgbInvoice};
@@ -48,11 +50,11 @@ use strict_encoding::{ReadRaw, StrictDecode, StrictDeserialize, StrictReader, St
 use strict_types::StrictVal;
 
 use crate::{
-    Assignment, ConsumeError, Contract, ContractState, ContractsApi, CreateParams, EitherSeal,
-    IssueError, Pile,
+    Assignment, CodexId, ConsumeError, Contract, ContractState, Contracts, CreateParams,
+    EitherSeal, IssueError, Pile, Schema, Stockpile,
 };
 
-/// Trait abstracting specific implementation of a bitcoin wallet.
+/// Trait abstracting a specific implementation of a bitcoin wallet.
 pub trait WalletProvider {
     fn noise_seed(&self) -> Bytes32;
     fn has_utxo(&self, outpoint: Outpoint) -> bool;
@@ -359,27 +361,40 @@ impl PrefabBundle {
 }
 
 /// Barrow contains a bunch of RGB contracts, which are held by a single owner (a wallet); such that
-/// when a new operation under any of the contracts happen it may affect other contracts sharing the
-/// same UTXOs.
-pub struct RgbWallet<W: WalletProvider, C: ContractsApi<S, P>, S: Stock, P: Pile<Seal = TxoSeal>> {
+/// when a new operation under any of the contracts happens, it may affect other contracts sharing
+/// the same UTXOs.
+pub struct RgbWallet<
+    W,
+    Sp,
+    S = HashMap<CodexId, Schema>,
+    C = HashMap<ContractId, Contract<<Sp as Stockpile>::Stock, <Sp as Stockpile>::Pile>>,
+> where
+    W: WalletProvider,
+    Sp: Stockpile,
+    Sp::Pile: Pile<Seal = TxoSeal>,
+    S: KeyedCollection<Key = CodexId, Value = Schema>,
+    C: KeyedCollection<Key = ContractId, Value = Contract<Sp::Stock, Sp::Pile>>,
+{
     pub wallet: W,
-    pub contracts: C,
-    pub _phantom: PhantomData<(S, P)>,
+    pub contracts: Contracts<Sp, S, C>,
 }
 
-impl<W: WalletProvider, C: ContractsApi<S, P>, S: Stock, P: Pile<Seal = TxoSeal>>
-    RgbWallet<W, C, S, P>
+impl<W, Sp, S, C> RgbWallet<W, Sp, S, C>
+where
+    W: WalletProvider,
+    Sp: Stockpile,
+    Sp::Pile: Pile<Seal = TxoSeal>,
+    S: KeyedCollection<Key = CodexId, Value = Schema>,
+    C: KeyedCollection<Key = ContractId, Value = Contract<Sp::Stock, Sp::Pile>>,
 {
-    pub fn with(wallet: W, api: C) -> Self {
-        Self { wallet, contracts: api, _phantom: PhantomData }
-    }
+    pub fn with(wallet: W, contracts: Contracts<Sp, S, C>) -> Self { Self { wallet, contracts } }
 
-    pub fn unbind(self) -> (W, C) { (self.wallet, self.contracts) }
+    pub fn unbind(self) -> (W, Contracts<Sp, S, C>) { (self.wallet, self.contracts) }
 
     pub fn issue(
         &mut self,
         params: CreateParams<Outpoint>,
-    ) -> Result<ContractId, IssueError<impl StdError + use<'_, W, C, S, P>>> {
+    ) -> Result<ContractId, IssueError<impl StdError + use<'_, W, Sp, S, C>>> {
         self.contracts.issue(params.transform(self.noise_engine()))
     }
 
@@ -413,7 +428,7 @@ impl<W: WalletProvider, C: ContractsApi<S, P>, S: Stock, P: Pile<Seal = TxoSeal>
             )
     }
 
-    pub fn state_all(&self, contract_id: ContractId) -> ContractState<P::Seal> {
+    pub fn state_all(&self, contract_id: ContractId) -> ContractState<<Sp::Pile as Pile>::Seal> {
         self.contracts.contract_state(contract_id)
     }
 
@@ -744,7 +759,7 @@ impl<W: WalletProvider, C: ContractsApi<S, P>, S: Stock, P: Pile<Seal = TxoSeal>
         &mut self,
         reader: &mut StrictReader<impl ReadRaw>,
     ) -> Result<(), ConsumeError<WTxoSeal>> {
-        let contract_id = Contract::<S, P>::parse_consignment(reader)?;
+        let contract_id = Contract::<Sp::Stock, Sp::Pile>::parse_consignment(reader)?;
         if !self.contracts.has_contract(contract_id) {
             return Err(ConsumeError::UnknownContract(contract_id));
         };
@@ -855,15 +870,18 @@ mod fs {
     use strict_encoding::StreamReader;
 
     use super::*;
-    use crate::PileFs;
+    use crate::{PileFs, StockpileDir};
 
-    impl<W: WalletProvider, C: ContractsApi<StockFs, PileFs<TxoSeal>>>
-        RgbWallet<W, C, StockFs, PileFs<TxoSeal>>
+    impl<
+            W: WalletProvider,
+            S: KeyedCollection<Key = CodexId, Value = Schema>,
+            C: KeyedCollection<Key = ContractId, Value = Contract<StockFs, PileFs<TxoSeal>>>,
+        > RgbWallet<W, StockpileDir<TxoSeal>, S, C>
     {
         pub fn issue_to_dir(
             &mut self,
             params: CreateParams<Outpoint>,
-        ) -> Result<ContractId, IssueError<impl StdError + use<'_, W, C>>> {
+        ) -> Result<ContractId, IssueError<impl StdError + use<'_, W, S, C>>> {
             self.issue(params)
         }
 
