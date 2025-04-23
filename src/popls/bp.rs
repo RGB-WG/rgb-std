@@ -45,6 +45,7 @@ use hypersonic::{
 use invoice::bp::{Address, WitnessOut};
 use invoice::{RgbBeneficiary, RgbInvoice};
 use rgb::RgbSealDef;
+use rgbcore::LIB_NAME_RGB;
 use strict_encoding::{ReadRaw, StrictDecode, StrictDeserialize, StrictReader, StrictSerialize};
 use strict_types::StrictVal;
 
@@ -307,7 +308,7 @@ pub enum UnmatchedState {
 /// (previous outputs).
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = "RGB")]
+#[strict_type(lib = LIB_NAME_RGB)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct Prefab {
     pub closes: SmallOrdSet<Outpoint>,
@@ -323,7 +324,7 @@ pub struct Prefab {
 #[wrapper(Deref)]
 #[wrapper_mut(DerefMut)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = "RGB")]
+#[strict_type(lib = LIB_NAME_RGB)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 pub struct PrefabBundle(SmallOrdSet<Prefab>);
 
