@@ -292,7 +292,7 @@ impl ContractBuilder {
         let scripts = Confined::from_iter_checked(self.scripts.into_values());
 
         let contract = Contract {
-            version: ContainerVer::V2,
+            version: ContainerVer::V0,
             transfer: false,
             terminals: none!(),
             genesis,

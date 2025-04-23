@@ -723,7 +723,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         // TODO: Add known sigs to the consignment
 
         Ok(Consignment {
-            version: ContainerVer::V2,
+            version: ContainerVer::V0,
             transfer: TRANSFER,
 
             schema,

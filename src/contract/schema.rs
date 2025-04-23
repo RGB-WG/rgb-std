@@ -43,7 +43,7 @@ pub trait IssuerWrapper {
 
     fn kit() -> ValidKit {
         let kit = Kit {
-            version: ContainerVer::V2,
+            version: ContainerVer::V0,
             schemata: tiny_bset![Self::schema()],
             types: Self::types(),
             scripts: Confined::from_iter_checked(Self::scripts().release().into_values()),

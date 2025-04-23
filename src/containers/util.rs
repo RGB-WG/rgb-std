@@ -39,10 +39,9 @@ use crate::LIB_NAME_RGB_STD;
 #[non_exhaustive]
 #[repr(u8)]
 pub enum ContainerVer {
-    // V0 and V1 was a previous version before v0.11, currently not supported.
     #[default]
-    #[display("v2", alt = "2")]
-    V2 = 2,
+    #[display("v0", alt = "0")]
+    V0 = 0,
 }
 
 pub trait SigValidator {
