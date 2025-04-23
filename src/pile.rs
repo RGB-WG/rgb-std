@@ -130,7 +130,9 @@ pub struct OpRels<Seal: RgbSeal> {
     pub _phantom: PhantomData<Seal>,
 }
 
+/// Persistent storage for contract witness and single-use seal definition data.
 pub trait Pile {
+    /// Type of RGB seal used in the contract.
     type Seal: RgbSeal;
 
     /// Persistence configuration type.
@@ -138,7 +140,7 @@ pub trait Pile {
 
     type Error: StdError;
 
-    /// Issues a new contract from the provided articles, creating its persistence using a given
+    /// Instantiates a new pile (persistence for contract witness data) using a given
     /// implementation-specific configuration.
     ///
     /// # Panics
@@ -159,7 +161,7 @@ pub trait Pile {
     ///
     /// # Blocking I/O
     ///
-    /// This call MAY perform any I/O operations.
+    /// This call MAY perform I/O operations.
     fn load(conf: Self::Conf) -> Result<Self, Self::Error>
     where Self: Sized;
 
@@ -226,5 +228,13 @@ pub trait Pile {
         status: WitnessStatus,
     );
 
+    /// Commits information about all updated witness statuses ("mine" structure) to the
+    /// persistence as a new database transaction.
+    ///
+    /// # Nota bene
+    ///
+    /// It is required to call this method after each witness update or consignment consumption.
+    /// If the method was not called the data won't persist and on termination the program will
+    /// panic.
     fn commit_transaction(&mut self);
 }
