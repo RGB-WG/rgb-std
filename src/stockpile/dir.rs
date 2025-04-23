@@ -119,7 +119,7 @@ where
         self.contracts.contains_key(&contract_id)
     }
 
-    fn issuer_ids(&self) -> impl Iterator<Item = CodexId> { self.issuers.keys().copied() }
+    fn codex_ids(&self) -> impl Iterator<Item = CodexId> { self.issuers.keys().copied() }
 
     fn contract_ids(&self) -> impl Iterator<Item = ContractId> { self.contracts.keys().copied() }
 

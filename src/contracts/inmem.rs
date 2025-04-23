@@ -24,6 +24,7 @@
 
 use alloc::collections::BTreeMap;
 use core::borrow::Borrow;
+use core::cell::RefCell;
 use core::error::Error as StdError;
 use std::collections::HashMap;
 use std::io;
@@ -44,60 +45,97 @@ use crate::{
 
 /// Collection of RGB smart contracts and contract issuers, which keeps all of them in memory.
 pub struct ContractsInmem<Sp: Stockpile> {
-    schemata: HashMap<CodexId, Schema>,
-    contracts: HashMap<ContractId, Contract<Sp::Stock, Sp::Pile>>,
+    schemata: RefCell<HashMap<CodexId, Schema>>,
+    contracts: RefCell<HashMap<ContractId, Contract<Sp::Stock, Sp::Pile>>>,
     persistence: Sp,
 }
 
 impl<Sp: Stockpile> ContractsInmem<Sp> {
     pub fn load(persistence: Sp) -> Self {
-        // TODO: Do not pre-load everything but append lazily
-
-        let schemata = persistence
-            .issuer_ids()
-            .filter_map(|id| persistence.issuer(id).map(|schema| (id, schema)))
-            .collect();
-        let contracts = persistence
-            .contract_ids()
-            .filter_map(|id| persistence.contract(id).map(|contract| (id, contract)))
-            .collect();
-
-        Self { schemata, contracts, persistence }
+        Self { schemata: none!(), contracts: none!(), persistence }
     }
 
-    fn contract_mut(&mut self, id: ContractId) -> &mut Contract<Sp::Stock, Sp::Pile> {
-        self.contracts.get_mut(&id).expect("contract not found")
+    fn with_contract<R>(
+        &self,
+        id: ContractId,
+        f: impl FnOnce(&Contract<Sp::Stock, Sp::Pile>) -> R,
+        or: Option<R>,
+    ) -> R {
+        if let Some(contract) = self.contracts.borrow().get(&id) {
+            f(contract)
+        } else if let Some(contract) = self.persistence.contract(id) {
+            let res = f(&contract);
+            self.contracts.borrow_mut().insert(id, contract);
+            res
+        } else if let Some(or) = or {
+            or
+        } else {
+            panic!("Contract {} not found", id)
+        }
+    }
+
+    fn with_contract_mut<R>(
+        &mut self,
+        id: ContractId,
+        f: impl FnOnce(&mut Contract<Sp::Stock, Sp::Pile>) -> R,
+    ) -> R {
+        if let Some(contract) = self.contracts.borrow_mut().get_mut(&id) {
+            f(contract)
+        } else if let Some(mut contract) = self.persistence.contract(id) {
+            let res = f(&mut contract);
+            self.contracts.borrow_mut().insert(id, contract);
+            res
+        } else {
+            panic!("Contract {} not found", id)
+        }
     }
 }
 
 impl<Sp: Stockpile> ContractsApi<Sp::Stock, Sp::Pile> for ContractsInmem<Sp> {
-    fn codex_ids(&self) -> impl Iterator<Item = CodexId> { self.schemata.keys().copied() }
+    fn codex_ids(&self) -> impl Iterator<Item = CodexId> { self.persistence.codex_ids() }
 
-    fn schemata_count(&self) -> usize { self.schemata.len() }
+    fn issuers_count(&self) -> usize { self.persistence.issuers_count() }
 
-    fn schemata(&self) -> impl Iterator<Item = (CodexId, &Schema)> {
-        self.schemata.iter().map(|(id, schema)| (*id, schema))
+    fn issuers(&self) -> impl Iterator<Item = (CodexId, Schema)> {
+        self.persistence
+            .codex_ids()
+            .filter_map(|codex_id| self.issuer(codex_id).map(|schema| (codex_id, schema)))
     }
 
-    fn schema(&self, codex_id: CodexId) -> Option<&Schema> { self.schemata.get(&codex_id) }
+    fn issuer(&self, codex_id: CodexId) -> Option<Schema> {
+        if let Some(issuer) = self.schemata.borrow().get(&codex_id) {
+            return Some(issuer.clone());
+        };
+        let issuer = self.persistence.issuer(codex_id)?;
+        self.schemata.borrow_mut().insert(codex_id, issuer);
+        self.schemata.borrow().get(&codex_id).cloned()
+    }
 
-    fn contracts_count(&self) -> usize { self.contracts.len() }
+    fn contracts_count(&self) -> usize { self.persistence.contracts_count() }
 
-    fn contract_ids(&self) -> impl Iterator<Item = ContractId> { self.contracts.keys().copied() }
+    fn contract_ids(&self) -> impl Iterator<Item = ContractId> { self.persistence.contract_ids() }
 
     fn contracts_info(&self) -> impl Iterator<Item = ContractInfo> {
-        self.contracts
-            .iter()
-            .map(|(id, contract)| ContractInfo::new(*id, contract.articles()))
+        self.contract_ids().filter_map(|id| {
+            self.with_contract(
+                id,
+                |contract| Some(ContractInfo::new(id, contract.articles())),
+                Some(None),
+            )
+        })
     }
 
-    fn contract_state(&self, id: ContractId) -> ContractState<<Sp::Pile as Pile>::Seal> {
-        self.contracts[&id].state()
+    fn contract_state(&self, contract_id: ContractId) -> ContractState<<Sp::Pile as Pile>::Seal> {
+        self.with_contract(contract_id, |contract| contract.state(), None)
     }
 
-    fn contract_articles(&self, id: ContractId) -> &Articles { self.contracts[&id].articles() }
+    fn contract_articles(&self, contract_id: ContractId) -> Articles {
+        self.with_contract(contract_id, |contract| contract.articles().clone(), None)
+    }
 
-    fn has_contract(&self, id: ContractId) -> bool { self.contracts.contains_key(&id) }
+    fn has_contract(&self, contract_id: ContractId) -> bool {
+        self.persistence.has_contract(contract_id)
+    }
 
     fn find_contract_id(&self, r: impl Into<ContractRef>) -> Option<ContractId> {
         match r.into() {
@@ -105,10 +143,20 @@ impl<Sp: Stockpile> ContractsApi<Sp::Stock, Sp::Pile> for ContractsInmem<Sp> {
             ContractRef::Id(_) => None,
             ContractRef::Name(name) => {
                 let name = ContractName::Named(name);
-                self.contracts
+                if let Some(id) = self
+                    .contracts
+                    .borrow()
                     .iter()
                     .find(|(_, contract)| contract.articles().issue.meta.name == name)
                     .map(|(id, _)| *id)
+                {
+                    return Some(id);
+                }
+                self.persistence
+                    .contract_ids()
+                    .filter_map(|id| self.persistence.contract(id))
+                    .find(|contract| contract.articles().issue.meta.name == name)
+                    .map(|contract| contract.contract_id())
             }
         }
     }
@@ -116,9 +164,13 @@ impl<Sp: Stockpile> ContractsApi<Sp::Stock, Sp::Pile> for ContractsInmem<Sp> {
     fn witness_ids(
         &self,
     ) -> impl Iterator<Item = <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId> {
-        self.contracts
-            .values()
-            .flat_map(|contract| contract.witness_ids())
+        self.persistence.contract_ids().flat_map(move |id| {
+            self.with_contract(
+                id,
+                |contract| contract.witness_ids().collect::<Vec<_>>(),
+                Some(none!()),
+            )
+        })
     }
 
     fn import(&mut self, schema: Schema) -> Result<CodexId, impl StdError> {
@@ -127,7 +179,7 @@ impl<Sp: Stockpile> ContractsApi<Sp::Stock, Sp::Pile> for ContractsInmem<Sp> {
             Ok(schema) => schema,
             Err(err) => return Err(err),
         };
-        self.schemata.insert(codex_id, schema);
+        self.schemata.borrow_mut().insert(codex_id, schema);
         Ok(codex_id)
     }
 
@@ -137,7 +189,7 @@ impl<Sp: Stockpile> ContractsApi<Sp::Stock, Sp::Pile> for ContractsInmem<Sp> {
     ) -> Result<ContractId, IssueError<impl StdError>> {
         let contract = self.persistence.issue(params)?;
         let id = contract.contract_id();
-        self.contracts.insert(id, contract);
+        self.contracts.borrow_mut().insert(id, contract);
         Ok(id)
     }
 
@@ -147,8 +199,7 @@ impl<Sp: Stockpile> ContractsApi<Sp::Stock, Sp::Pile> for ContractsInmem<Sp> {
         call: CallParams,
         seals: SmallOrdMap<u16, <<Sp::Pile as Pile>::Seal as RgbSeal>::Definiton>,
     ) -> Result<Operation, AcceptError> {
-        let contract = self.contract_mut(contract_id);
-        contract.call(call, seals)
+        self.with_contract_mut(contract_id, |contract| contract.call(call, seals))
     }
 
     fn sync(
@@ -157,9 +208,10 @@ impl<Sp: Stockpile> ContractsApi<Sp::Stock, Sp::Pile> for ContractsInmem<Sp> {
             Item = (<<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId, WitnessStatus),
         >,
     ) -> Result<(), AcceptError> {
+        let contract_ids = self.persistence.contract_ids().collect::<Vec<_>>();
         for (id, status) in changed {
-            for contract in self.contracts.values_mut() {
-                contract.sync(id, status)?;
+            for contract_id in &contract_ids {
+                self.with_contract_mut(*contract_id, |contract| contract.sync(id, status))?;
             }
         }
         Ok(())
@@ -172,8 +224,7 @@ impl<Sp: Stockpile> ContractsApi<Sp::Stock, Sp::Pile> for ContractsInmem<Sp> {
         pub_witness: &<<Sp::Pile as Pile>::Seal as RgbSeal>::Published,
         anchor: <<Sp::Pile as Pile>::Seal as RgbSeal>::Client,
     ) {
-        self.contract_mut(contract_id)
-            .include(opid, anchor, pub_witness)
+        self.with_contract_mut(contract_id, |contract| contract.include(opid, anchor, pub_witness))
     }
 
     fn consign(
@@ -187,7 +238,7 @@ impl<Sp: Stockpile> ContractsApi<Sp::Stock, Sp::Pile> for ContractsInmem<Sp> {
         <<Sp::Pile as Pile>::Seal as RgbSeal>::Published: StrictDumb + StrictEncode,
         <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId: StrictEncode,
     {
-        self.contract_mut(contract_id).consign(terminals, writer)
+        self.with_contract_mut(contract_id, |contract| contract.consign(terminals, writer))
     }
 
     fn consume(
@@ -204,7 +255,6 @@ impl<Sp: Stockpile> ContractsApi<Sp::Stock, Sp::Pile> for ContractsInmem<Sp> {
         <<Sp::Pile as Pile>::Seal as RgbSeal>::Published: StrictDecode,
         <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId: StrictDecode,
     {
-        self.contract_mut(contract_id)
-            .consume(reader, seal_resolver)
+        self.with_contract_mut(contract_id, |contract| contract.consume(reader, seal_resolver))
     }
 }

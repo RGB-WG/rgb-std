@@ -56,22 +56,22 @@ pub struct OpOut<Seal: RgbSeal> {
 
 pub trait ContractsApi<S: Stock, P: Pile> {
     fn codex_ids(&self) -> impl Iterator<Item = CodexId>;
-    fn schemata_count(&self) -> usize;
-    fn schemata(&self) -> impl Iterator<Item = (CodexId, &Schema)>;
-    fn schema(&self, codex_id: CodexId) -> Option<&Schema>;
+    fn issuers_count(&self) -> usize;
+    fn issuers(&self) -> impl Iterator<Item = (CodexId, Schema)>;
+    fn issuer(&self, codex_id: CodexId) -> Option<Schema>;
 
     fn contracts_count(&self) -> usize;
     fn contract_ids(&self) -> impl Iterator<Item = ContractId>;
     fn contracts_info(&self) -> impl Iterator<Item = ContractInfo>;
     fn contracts_state(&self) -> impl Iterator<Item = (ContractId, ContractState<P::Seal>)> {
-        // Some implementations, for instance doing network requests, may provide a more efficient
+        // Some implementations, for instance, doing network requests, may provide a more efficient
         // method
         self.contract_ids().map(|id| (id, self.contract_state(id)))
     }
-    fn contract_state(&self, id: ContractId) -> ContractState<P::Seal>;
-    fn contract_articles(&self, id: ContractId) -> &Articles;
+    fn contract_state(&self, contract_id: ContractId) -> ContractState<P::Seal>;
+    fn contract_articles(&self, contract_id: ContractId) -> Articles;
 
-    fn has_contract(&self, id: ContractId) -> bool;
+    fn has_contract(&self, contract_id: ContractId) -> bool;
     fn find_contract_id(&self, r: impl Into<ContractRef>) -> Option<ContractId>;
 
     /// Iterates over all witness ids known to the set of contracts.

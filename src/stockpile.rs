@@ -59,7 +59,7 @@ pub trait Stockpile {
     fn has_issuer(&self, codex_id: CodexId) -> bool;
     fn has_contract(&self, contract_id: ContractId) -> bool;
 
-    fn issuer_ids(&self) -> impl Iterator<Item = CodexId>;
+    fn codex_ids(&self) -> impl Iterator<Item = CodexId>;
     fn contract_ids(&self) -> impl Iterator<Item = ContractId>;
 
     fn issuer(&self, codex_id: CodexId) -> Option<Schema>;
