@@ -125,6 +125,8 @@ where
 
     pub fn issuers_count(&self) -> usize { self.persistence.issuers_count() }
 
+    pub fn has_issuer(&self, codex_id: CodexId) -> bool { self.persistence.has_issuer(codex_id) }
+
     pub fn issuers(&self) -> impl Iterator<Item = (CodexId, Schema)> + use<'_, Sp, S, C> {
         self.persistence
             .codex_ids()
@@ -141,6 +143,10 @@ where
     }
 
     pub fn contracts_count(&self) -> usize { self.persistence.contracts_count() }
+
+    pub fn has_contract(&self, contract_id: ContractId) -> bool {
+        self.persistence.has_contract(contract_id)
+    }
 
     pub fn contract_ids(&self) -> impl Iterator<Item = ContractId> + use<'_, Sp, S, C> {
         self.persistence.contract_ids()
@@ -165,10 +171,6 @@ where
 
     pub fn contract_articles(&self, contract_id: ContractId) -> Articles {
         self.with_contract(contract_id, |contract| contract.articles().clone(), None)
-    }
-
-    pub fn has_contract(&self, contract_id: ContractId) -> bool {
-        self.persistence.has_contract(contract_id)
     }
 
     pub fn find_contract_id(&self, r: impl Into<ContractRef>) -> Option<ContractId> {
@@ -215,6 +217,8 @@ where
 
     pub fn import(&mut self, schema: Schema) -> Result<CodexId, impl StdError + use<'_, Sp, S, C>> {
         let codex_id = schema.codex.codex_id();
+        // This can't be replaced with a question mark due to `impl StdError` return type
+        #[allow(clippy::question_mark)]
         let schema = match self.persistence.import(schema) {
             Ok(schema) => schema,
             Err(err) => return Err(err),
