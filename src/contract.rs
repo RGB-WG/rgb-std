@@ -224,7 +224,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
     pub fn issue(
         schema: Schema,
         params: CreateParams<<P::Seal as RgbSeal>::Definition>,
-        conf: impl FnOnce(&Articles) -> S::Conf,
+        conf: impl FnOnce(&Articles) -> Result<S::Conf, IssueError<S::Error>>,
     ) -> Result<Self, IssueError<S::Error>>
     where
         P::Conf: From<S::Conf>,
@@ -266,7 +266,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         };
 
         let articles = schema.issue(params);
-        let conf = conf(&articles);
+        let conf = conf(&articles)?;
         let ledger = Ledger::new(articles, conf)?;
         let conf: S::Conf = ledger.config();
         let contract_id = ledger.contract_id();

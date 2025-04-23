@@ -30,6 +30,7 @@ use std::str::FromStr;
 use std::{fs, io};
 
 use hypersonic::persistance::StockFs;
+use hypersonic::IssueError;
 use rgb::RgbSeal;
 use strict_encoding::{StrictDecode, StrictEncode};
 
@@ -159,6 +160,15 @@ where
         let schema = self
             .issuer(params.codex_id)
             .ok_or(IssuerError::UnknownCodex(params.codex_id))?;
-        Ok(Contract::issue(schema, params, |articles| self.contract_dir(articles))?)
+        Ok(Contract::issue(schema, params, |articles| {
+            let dir = self.contract_dir(articles);
+            if fs::exists(&dir).map_err(|e| IssueError::OtherPersistence(e))? {
+                return Err(IssueError::OtherPersistence(io::Error::other(
+                    "Contract already exists",
+                )));
+            }
+            fs::create_dir_all(&dir).map_err(|e| IssueError::OtherPersistence(e))?;
+            Ok(dir)
+        })?)
     }
 }
