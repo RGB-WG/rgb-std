@@ -537,7 +537,6 @@ impl TransitionBuilder {
 
 #[derive(Clone, Debug)]
 pub struct OperationBuilder<Seal: ExposedSeal> {
-    // TODO: use references instead of owned values
     schema: Schema,
     deterministic: bool,
 

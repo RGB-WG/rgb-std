@@ -75,13 +75,13 @@ impl SealWitness {
     pub fn witness_id(&self) -> Txid { self.public.to_witness_id() }
 
     /// Merges two [`SealWitness`]es keeping revealed data.
-    pub fn merge_reveal(mut self, other: Self) -> Result<Self, SealWitnessMergeError> {
+    pub fn merge_reveal(&mut self, other: &Self) -> Result<(), SealWitnessMergeError> {
         if self.dbc_proof != other.dbc_proof {
             return Err(SealWitnessMergeError::DbcMismatch);
         }
-        self.public = self.public.clone().merge_reveal(other.public)?;
-        self.merkle_block.merge_reveal(other.merkle_block)?;
-        Ok(self)
+        self.public.merge_reveal(&other.public)?;
+        self.merkle_block.merge_reveal(&other.merkle_block)?;
+        Ok(())
     }
 
     pub fn known_bundle_ids(&self) -> impl Iterator<Item = BundleId> {
@@ -100,8 +100,35 @@ impl ToWitnessId for PubWitness {
 }
 
 impl MergeReveal for PubWitness {
-    fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {
-        self.merge_reveal(other)
+    fn merge_reveal(&mut self, other: &Self) -> Result<(), MergeRevealError> {
+        if self == other {
+            return Ok(());
+        }
+        if self.txid() != other.txid() {
+            return Err(MergeRevealError::TxidMismatch(self.txid(), other.txid()));
+        }
+        if let Self::Tx(tx2) = other {
+            if let Self::Tx(tx1) = self {
+                // Replace each input in tx1 with the one from tx2 if it has more witness or
+                // sig_script data
+                for (input1, input2) in tx1.inputs.iter_mut().zip(tx2.inputs.iter()) {
+                    let input1_witness_len: usize = input1.witness.iter().map(|w| w.len()).sum();
+                    let input2_witness_len: usize = input2.witness.iter().map(|w| w.len()).sum();
+                    match input1_witness_len.cmp(&input2_witness_len) {
+                        std::cmp::Ordering::Less => *input1 = input2.clone(),
+                        std::cmp::Ordering::Equal => {
+                            if input2.sig_script.len() > input1.sig_script.len() {
+                                *input1 = input2.clone();
+                            }
+                        }
+                        std::cmp::Ordering::Greater => {}
+                    }
+                }
+            } else {
+                *self = other.clone();
+            }
+        }
+        Ok(())
     }
 }
 
@@ -117,8 +144,7 @@ pub enum PubWitness {
     #[strict_type(tag = 0x00)]
     Txid(Txid),
     #[strict_type(tag = 0x01)]
-    Tx(Tx), /* TODO: Consider using `UnsignedTx` here
-             * TODO: Add SPV as an option here */
+    Tx(Tx),
 }
 
 impl PartialEq for PubWitness {
@@ -149,21 +175,6 @@ impl PubWitness {
         match self {
             PubWitness::Txid(_) => None,
             PubWitness::Tx(tx) => Some(tx),
-        }
-    }
-
-    pub fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {
-        match (self, other) {
-            (Self::Txid(txid1), Self::Txid(txid2)) if txid1 == txid2 => Ok(Self::Txid(txid1)),
-            (Self::Txid(txid), Self::Tx(tx)) | (Self::Txid(txid), Self::Tx(tx))
-                if txid == tx.txid() =>
-            {
-                Ok(Self::Tx(tx))
-            }
-            // TODO: tx1 and tx2 may differ on their witness data; take the one having most of the
-            // witness
-            (Self::Tx(tx1), Self::Tx(tx2)) if tx1.txid() == tx2.txid() => Ok(Self::Tx(tx1)),
-            (a, b) => Err(MergeRevealError::TxidMismatch(a.txid(), b.txid())),
         }
     }
 }

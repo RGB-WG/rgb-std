@@ -19,18 +19,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! RGB containers are data packages which can be transferred between smart
-//! contract users. There are two main types of containers:
-//! 1. [`Consignment`]s, containing information about partial state of a *single contract*,
-//!    extending from its genesis up to certain contract endpoints.
-//! 2. [`Disclosure`]s, containing extracts from (possibly) independent state transitions under
-//!    multiple contracts. Useful for disclosing the concealed state for some other parties, and
-//!    also for performing "change" operations on inventory during state transfers.
+//! RGB containers are data packages which can be transferred between smart contract users.
+//! The main type of container is the [`Consignment`], containing information about partial state
+//! of a *single contract*, extending from its genesis up to certain contract endpoints.
 
 mod seal;
 mod anchors;
 mod consignment;
-mod disclosure;
 mod util;
 mod partials;
 mod indexed;
@@ -42,7 +37,6 @@ pub use consignment::{
     Consignment, ConsignmentExt, ConsignmentId, ConsignmentParseError, Contract, Transfer,
     ValidConsignment, ValidContract, ValidTransfer,
 };
-pub use disclosure::Disclosure;
 pub use file::{FileContent, LoadError, UniversalFile};
 pub use indexed::IndexedConsignment;
 pub use kit::{Kit, KitId, ValidKit};

@@ -113,9 +113,6 @@ impl FileContent for Transfer {
     const MAGIC: [u8; MAGIC_LEN] = *b"TFR";
 }
 
-// TODO: Add disclosure
-// TODO: Add batch and fascia
-
 #[derive(Clone, Debug, From)]
 #[cfg_attr(
     feature = "serde",
@@ -131,8 +128,6 @@ pub enum UniversalFile {
 
     #[from]
     Transfer(Transfer),
-    // TODO: Add disclosure
-    // TODO: Add batch and fascia
 }
 
 impl UniversalFile {

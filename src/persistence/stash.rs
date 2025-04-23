@@ -309,7 +309,11 @@ impl<P: StashProvider> Stash<P> {
         let contract_id = consignment.contract_id();
 
         let genesis = match self.genesis(contract_id) {
-            Ok(g) => g.clone().merge_reveal(consignment.genesis)?,
+            Ok(g) => {
+                let mut g = g.clone();
+                g.merge_reveal(&consignment.genesis)?;
+                g
+            }
             Err(_) => consignment.genesis,
         };
         self.provider
@@ -334,7 +338,6 @@ impl<P: StashProvider> Stash<P> {
         contract_id: ContractId,
         witness_bundle: WitnessBundle,
     ) -> Result<(), StashError<P>> {
-        // TODO: Save pub witness transaction SPVs
         let bundle = witness_bundle.bundle();
         let eanchor = witness_bundle.eanchor();
 
@@ -357,7 +360,11 @@ impl<P: StashProvider> Stash<P> {
 
     pub(crate) fn consume_witness(&mut self, witness: &SealWitness) -> Result<bool, StashError<P>> {
         let witness = match self.provider.witness(witness.witness_id()).cloned() {
-            Ok(w) => w.merge_reveal(witness.clone())?,
+            Ok(w) => {
+                let mut w = w.clone();
+                w.merge_reveal(witness)?;
+                w
+            }
             Err(_) => witness.clone(),
         };
 
@@ -371,7 +378,11 @@ impl<P: StashProvider> Stash<P> {
         bundle: TransitionBundle,
     ) -> Result<bool, StashError<P>> {
         let bundle = match self.provider.bundle(bundle.bundle_id()).cloned() {
-            Ok(b) => b.merge_reveal(bundle)?,
+            Ok(b) => {
+                let mut b = b.clone();
+                b.merge_reveal(&bundle)?;
+                b
+            }
             Err(_) => bundle,
         };
         self.provider
