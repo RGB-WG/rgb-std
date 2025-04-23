@@ -46,6 +46,10 @@ edition.workspace = true
 license.workspace = true
 readme = "README.md"
 
+[[bin]]
+name = "rgb-stl"
+required-features = ["stl"]
+
 [lib]
 name = "rgb"
 crate-type = ["cdylib", "rlib"] # We need this for WASM
@@ -68,7 +72,7 @@ serde_with = { workspace = true, optional = true }
 
 [features]
 default = ["std", "bitcoin"]
-all = ["std", "bitcoin", "liquid", "prime", "fs", "serde"]
+all = ["std", "bitcoin", "liquid", "prime", "fs", "stl", "serde"]
 std = ["rgb-invoice/std"]
 
 bitcoin = ["bp-core", "bp-invoice", "rgb-core/bitcoin", "rgb-invoice/bitcoin"]
@@ -77,6 +81,9 @@ prime = ["rgb-core/prime", "rgb-invoice/prime"]
 
 uri = ["rgb-invoice/uri"]
 fs = ["std", "hypersonic/persist-file", "aora/file-strict"]
+
+stl = ["commit_verify/stl", "hypersonic/stl", "strict_types/armor", "bitcoin", "bp-core/stl"]
+
 serde = [
     "std",
     "dep:serde",
@@ -90,10 +97,6 @@ serde = [
     "rgb-core/serde",
     "rgb-invoice/serde",
     "chrono/serde"
-]
-
-stl = [
-    "bp-core/stl", "commit_verify/stl"
 ]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

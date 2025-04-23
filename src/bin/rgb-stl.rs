@@ -22,50 +22,26 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
-#![cfg_attr(not(feature = "std"), no_std)]
-#![allow(clippy::type_complexity)]
+use rgb::stl::rgb_stl;
+use strict_types::parse_args;
 
-extern crate alloc;
+fn main() {
+    let (format, dir) = parse_args();
 
-#[macro_use]
-extern crate amplify;
-extern crate rgbcore as rgb;
-
-#[cfg(feature = "bitcoin")]
-#[macro_use]
-extern crate strict_encoding;
-#[cfg(all(feature = "serde", feature = "bitcoin"))]
-#[macro_use]
-extern crate serde;
-
-extern crate core;
-pub extern crate rgb_invoice as invoice;
-
-mod pile;
-mod contract;
-mod info;
-pub mod popls;
-mod util;
-mod contracts;
-mod stockpile;
-#[cfg(feature = "stl")]
-pub mod stl;
-
-#[cfg(feature = "bitcoin")]
-pub use bp::{Outpoint, Txid};
-pub use contract::{
-    Assignment, ConsumeError, Contract, ContractState, CreateParams, EitherSeal, ImmutableState,
-    OwnedState, CONSIGNMENT_MAGIC_NUMBER, CONSIGNMENT_VERSION,
-};
-pub use contracts::{Contracts, IssuerError};
-pub use hypersonic::*;
-pub use info::ContractInfo;
-#[cfg(feature = "fs")]
-pub use pile::fs::PileFs;
-pub use pile::{OpRels, Pile, Witness, WitnessStatus};
-pub use rgb::*;
-#[cfg(feature = "fs")]
-pub use stockpile::dir::StockpileDir;
-pub use stockpile::Stockpile;
-pub use util::{ContractRef, InvalidContractRef};
+    let lib = rgb_stl();
+    lib.serialize(
+        format,
+        dir.as_ref(),
+        "0.12.0",
+        Some(
+            "
+  Description: RGB smart contracts library
+  Author: Dr Maxim Orlovsky <orlovsky@ubideco.org>
+  Copyright (C) 2024-2025 LNP/BP Labs, Institute for Distributed and Cognitive Systems, \
+             Switzerland.
+                All rights reserved.
+  License: Apache-2.0",
+        ),
+    )
+    .expect("unable to write to the file");
+}

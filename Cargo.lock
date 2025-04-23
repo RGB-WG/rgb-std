@@ -8,12 +8,14 @@ version = "0.12.0-beta.5"
 source = "git+https://github.com/AluVM/aluvm?branch=master#c730486abdd8031d5131b2d4b962f8b478969076"
 dependencies = [
  "amplify",
+ "ascii-armor",
  "baid64",
  "commit_verify",
  "getrandom",
  "paste",
  "serde",
  "strict_encoding",
+ "strict_types",
  "wasm-bindgen",
 ]
 
@@ -586,7 +588,7 @@ dependencies = [
 [[package]]
 name = "hypersonic"
 version = "0.12.0-beta.5"
-source = "git+https://github.com/AluVM/sonic?branch=master#427f3937748b03849345c02d5eeca7766f81b74e"
+source = "git+https://github.com/AluVM/sonic?branch=master#fb4cd3be64f55f6c32ab7966a6b1f2f546e5096e"
 dependencies = [
  "aluvm",
  "amplify",
@@ -1044,7 +1046,7 @@ dependencies = [
 [[package]]
 name = "sonic-api"
 version = "0.12.0-beta.5"
-source = "git+https://github.com/AluVM/sonic?branch=master#427f3937748b03849345c02d5eeca7766f81b74e"
+source = "git+https://github.com/AluVM/sonic?branch=master#fb4cd3be64f55f6c32ab7966a6b1f2f546e5096e"
 dependencies = [
  "aluvm",
  "amplify",
@@ -1063,7 +1065,7 @@ dependencies = [
 [[package]]
 name = "sonic-callreq"
 version = "0.12.0-beta.5"
-source = "git+https://github.com/AluVM/sonic?branch=master#427f3937748b03849345c02d5eeca7766f81b74e"
+source = "git+https://github.com/AluVM/sonic?branch=master#fb4cd3be64f55f6c32ab7966a6b1f2f546e5096e"
 dependencies = [
  "amplify",
  "baid64",
@@ -1237,6 +1239,7 @@ dependencies = [
  "getrandom",
  "serde",
  "strict_encoding",
+ "strict_types",
  "wasm-bindgen",
  "zk-aluvm",
 ]
@@ -1576,5 +1579,6 @@ dependencies = [
  "getrandom",
  "serde",
  "strict_encoding",
+ "strict_types",
  "wasm-bindgen",
 ]
