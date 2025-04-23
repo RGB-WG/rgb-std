@@ -212,6 +212,7 @@ pub struct CreateParams<Seal: Clone> {
     pub owned: Vec<NamedState<Assignment<EitherSeal<Seal>>>>,
 }
 
+#[derive(Clone, Debug)]
 pub struct Contract<S: Stock, P: Pile> {
     /// Cached contract id
     contract_id: ContractId,

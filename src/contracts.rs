@@ -49,6 +49,7 @@ use crate::{
 ///
 /// - `S` provides a specific cache implementation for an in-mem copy of issuers,
 /// - `C` provides a specific cache implementation for an in-mem copy of contracts.
+#[derive(Clone, Debug)]
 pub struct Contracts<
     Sp,
     S = HashMap<CodexId, Schema>,

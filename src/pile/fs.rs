@@ -41,6 +41,7 @@ const INDEX_MAGIC: u64 = u64::from_be_bytes(*b"RGBINDEX");
 const STAND_MAGIC: u64 = u64::from_be_bytes(*b"RGBSTAND");
 const MINE_MAGIC: u64 = u64::from_be_bytes(*b"RGBMINES");
 
+#[derive(Debug)]
 pub struct PileFs<Seal: RgbSeal>
 where Seal::WitnessId: From<[u8; 32]> + Into<[u8; 32]>
 {
