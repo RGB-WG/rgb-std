@@ -127,13 +127,14 @@ where
     fn contract_ids(&self) -> impl Iterator<Item = ContractId> { self.contracts.keys().copied() }
 
     fn issuer(&self, codex_id: CodexId) -> Option<Schema> {
-        let subdir = self.issuers.get(&codex_id)?;
-        Schema::load(self.dir.join(subdir)).ok()
+        let name = self.issuers.get(&codex_id)?;
+        let path = self.dir.join(format!("{name}.{codex_id:#}.issuer"));
+        Schema::load(path).ok()
     }
 
     fn contract(&self, contract_id: ContractId) -> Option<Contract<Self::Stock, Self::Pile>> {
         let subdir = self.contracts.get(&contract_id)?;
-        let path = self.dir.join(subdir);
+        let path = self.dir.join(format!("{subdir}.{contract_id:-}.contract"));
         let contract = Contract::load(path.clone(), path).ok()?;
         let meta = &contract.articles().issue.meta;
         if meta.consensus == self.consensus && meta.testnet == self.testnet {
