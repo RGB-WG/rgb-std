@@ -1081,9 +1081,9 @@ dependencies = [
 
 [[package]]
 name = "strict_encoding"
-version = "2.8.1"
+version = "2.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fd36b71bb44ca146be0b2185ed6c6deb3684cc0d5c3a94284e97fe7fa6a642f"
+checksum = "8553c0321466c11aa1e33f082c9190194f380efd8824bf5ce4fa56b64b875be9"
 dependencies = [
  "amplify",
  "serde",
@@ -1106,9 +1106,9 @@ dependencies = [
 
 [[package]]
 name = "strict_types"
-version = "2.8.2"
+version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0930ae36d58638b14dc7d5491c1a269b13f6cebb16a55ef6d753d3325c395ca8"
+checksum = "07dd1bdf4bfce0a1ff3eec041e7d4d20b06d22ca2aaf71338726dd9609e57a5e"
 dependencies = [
  "amplify",
  "ascii-armor",
