@@ -622,8 +622,8 @@ where
     /// Complete creation of a prefabricated operation bundle from operation requests, adding blank
     /// operations if necessary. Operation requests can be multiple.
     ///
-    /// A set of operations is either a collection of them, or a [`OpRequestSet`] - any structure
-    /// which implements `IntoIterator` trait.
+    /// A set of operations is either a collection of them or an [`OpRequestSet`] - any structure
+    /// that implements the [`IntoIterator`] trait.
     ///
     /// # Arguments
     ///
@@ -720,7 +720,7 @@ where
         Ok(PrefabBundle(SmallOrdSet::try_from(prefabs).map_err(|_| BundleError::TooManyBlanks)?))
     }
 
-    /// Include prefab bundle into the mound, creating necessary anchors on the fly.
+    /// Include a prefab bundle, creating the necessary anchors on the fly.
     pub fn include(
         &mut self,
         bundle: &PrefabBundle,
@@ -759,12 +759,7 @@ where
         &mut self,
         reader: &mut StrictReader<impl ReadRaw>,
     ) -> Result<(), ConsumeError<WTxoSeal>> {
-        let contract_id = Contract::<Sp::Stock, Sp::Pile>::parse_consignment(reader)?;
-        if !self.contracts.has_contract(contract_id) {
-            return Err(ConsumeError::UnknownContract(contract_id));
-        };
-
-        self.contracts.consume(contract_id, reader, |op| {
+        self.contracts.consume(reader, |op| {
             self.wallet
                 .resolve_seals(op.destructible.iter().map(|cell| cell.auth))
                 .map(|seal| {
@@ -831,10 +826,10 @@ pub enum FulfillError {
     /// neither invoice nor contract API contains information about the state name.
     StateNameUnknown,
 
-    /// the wallet doesn't own any state in order to fulfill the invoice.
+    /// the wallet doesn't own any state to fulfill the invoice.
     StateUnavailable,
 
-    /// the state owned by the wallet is insufficient to fulfill the invoice.
+    /// the state owned by the wallet is not enough to fulfill the invoice.
     StateInsufficient,
 
     #[from]
@@ -842,7 +837,7 @@ pub enum FulfillError {
     StateCalc(StateCalcError),
 
     /// the invoice asks to create an UTXO for the receiver, but method call doesn't provide
-    /// information on how much sats can be put there (`giveaway` argument in `Barrow::fulfill`
+    /// information on how many sats can be put there (`giveaway` argument in `Barrow::fulfill`
     /// call must not be set to None).
     WoutRequiresGiveaway,
 
@@ -878,13 +873,6 @@ mod fs {
             C: KeyedCollection<Key = ContractId, Value = Contract<StockFs, PileFs<TxoSeal>>>,
         > RgbWallet<W, StockpileDir<TxoSeal>, S, C>
     {
-        pub fn issue_to_dir(
-            &mut self,
-            params: CreateParams<Outpoint>,
-        ) -> Result<ContractId, IssueError<impl StdError + use<'_, W, S, C>>> {
-            self.issue(params)
-        }
-
         pub fn consume_from_file(
             &mut self,
             path: impl AsRef<Path>,

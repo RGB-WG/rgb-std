@@ -195,6 +195,11 @@ where
         }
     }
 
+    /// Iterates over all witness ids known to the set of contracts.
+    ///
+    /// # Nota bene
+    ///
+    /// Iterator may repeat the same id multiple times.
     pub fn witness_ids(
         &self,
     ) -> impl Iterator<Item = <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId> + use<'_, Sp, S, C>
@@ -278,7 +283,6 @@ where
 
     pub fn consume(
         &mut self,
-        contract_id: ContractId,
         reader: &mut StrictReader<impl ReadRaw>,
         seal_resolver: impl FnMut(
             &Operation,
@@ -290,6 +294,11 @@ where
         <<Sp::Pile as Pile>::Seal as RgbSeal>::Published: StrictDecode,
         <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId: StrictDecode,
     {
+        let contract_id = Contract::<Sp::Stock, Sp::Pile>::parse_consignment(reader)?;
+        if !self.has_contract(contract_id) {
+            return Err(ConsumeError::UnknownContract(contract_id));
+        };
+
         self.with_contract_mut(contract_id, |contract| contract.consume(reader, seal_resolver))
     }
 }
@@ -313,4 +322,55 @@ pub enum IssueError<E: StdError> {
     #[from]
     #[display(inner)]
     Inner(hypersonic::IssueError<E>),
+}
+
+#[cfg(feature = "fs")]
+mod fs {
+    use std::fs::File;
+    use std::path::Path;
+
+    use strict_encoding::{StreamReader, StreamWriter};
+
+    use super::*;
+
+    impl<Sp, S, C> Contracts<Sp, S, C>
+    where
+        Sp: Stockpile,
+        S: KeyedCollection<Key = CodexId, Value = Schema>,
+        C: KeyedCollection<Key = ContractId, Value = Contract<Sp::Stock, Sp::Pile>>,
+    {
+        pub fn consign_to_file(
+            &mut self,
+            path: impl AsRef<Path>,
+            contract_id: ContractId,
+            terminals: impl IntoIterator<Item = impl Borrow<AuthToken>>,
+        ) -> io::Result<()>
+        where
+            <<Sp::Pile as Pile>::Seal as RgbSeal>::Client: StrictDumb + StrictEncode,
+            <<Sp::Pile as Pile>::Seal as RgbSeal>::Published: StrictDumb + StrictEncode,
+            <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId: StrictEncode,
+        {
+            let file = File::create_new(path)?;
+            let writer = StrictWriter::with(StreamWriter::new::<{ usize::MAX }>(file));
+            self.consign(contract_id, terminals, writer)
+        }
+
+        pub fn consume_from_file(
+            &mut self,
+            path: impl AsRef<Path>,
+            seal_resolver: impl FnMut(
+                &Operation,
+            )
+                -> BTreeMap<u16, <<Sp::Pile as Pile>::Seal as RgbSeal>::Definiton>,
+        ) -> Result<(), ConsumeError<<<Sp::Pile as Pile>::Seal as RgbSeal>::Definiton>>
+        where
+            <<Sp::Pile as Pile>::Seal as RgbSeal>::Client: StrictDecode,
+            <<Sp::Pile as Pile>::Seal as RgbSeal>::Published: StrictDecode,
+            <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId: StrictDecode,
+        {
+            let file = File::open(path)?;
+            let mut reader = StrictReader::with(StreamReader::new::<{ usize::MAX }>(file));
+            self.consume(&mut reader, seal_resolver)
+        }
+    }
 }

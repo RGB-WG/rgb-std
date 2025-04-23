@@ -664,8 +664,8 @@ mod fs {
     {
         pub fn consign_to_file(
             &mut self,
-            terminals: impl IntoIterator<Item = impl Borrow<AuthToken>>,
             path: impl AsRef<Path>,
+            terminals: impl IntoIterator<Item = impl Borrow<AuthToken>>,
         ) -> io::Result<()>
         where
             SealSrc::Client: StrictDumb,
