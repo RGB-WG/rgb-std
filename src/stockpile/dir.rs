@@ -38,6 +38,7 @@ use crate::{
     Schema, Stockpile,
 };
 
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct StockpileDir<Seal: RgbSeal> {
     consensus: Consensus,
     testnet: bool,
@@ -60,7 +61,7 @@ impl<Seal: RgbSeal> StockpileDir<Seal> {
             let Some(extension) = path.extension().and_then(OsStr::to_str) else {
                 continue;
             };
-            let Some(name) = path.file_name().and_then(OsStr::to_str) else {
+            let Some(name) = path.file_stem().and_then(OsStr::to_str) else {
                 continue;
             };
             let Some((name, id_str)) = name.split_once('.') else {
@@ -144,7 +145,7 @@ where
     fn import(&mut self, issuer: Schema) -> Result<Schema, Self::Error> {
         let codex_id = issuer.codex.codex_id();
         let name = issuer.codex.name.to_string();
-        let path = self.dir.join(format!("{name}.{codex_id}.issuer"));
+        let path = self.dir.join(format!("{name}.{codex_id:#}.issuer"));
         issuer.save(path)?;
         self.issuers.insert(codex_id, name);
         Ok(issuer)
