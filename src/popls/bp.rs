@@ -27,7 +27,6 @@
 
 use alloc::collections::{btree_set, BTreeMap, BTreeSet};
 use alloc::vec;
-use core::error::Error as StdError;
 use std::collections::HashMap;
 
 use amplify::confinement::{
@@ -41,7 +40,7 @@ use commit_verify::mpc::ProtocolId;
 use commit_verify::{mpc, Digest, DigestExt, Sha256};
 use hypersonic::{
     AcceptError, AuthToken, CallParams, CellAddr, ContractId, CoreParams, DataCell, MethodName,
-    NamedState, Operation, StateAtom, StateCalc, StateCalcError, StateName,
+    NamedState, Operation, StateAtom, StateCalc, StateCalcError, StateName, Stock,
 };
 use invoice::bp::{Address, WitnessOut};
 use invoice::{RgbBeneficiary, RgbInvoice};
@@ -51,7 +50,7 @@ use strict_types::StrictVal;
 
 use crate::{
     Assignment, CodexId, ConsumeError, Contract, ContractState, Contracts, CreateParams,
-    EitherSeal, IssueError, Pile, Schema, Stockpile,
+    EitherSeal, IssuerError, Pile, Schema, Stockpile,
 };
 
 /// Trait abstracting a specific implementation of a bitcoin wallet.
@@ -394,7 +393,7 @@ where
     pub fn issue(
         &mut self,
         params: CreateParams<Outpoint>,
-    ) -> Result<ContractId, IssueError<impl StdError + use<'_, W, Sp, S, C>>> {
+    ) -> Result<ContractId, IssuerError<<Sp::Stock as Stock>::Error>> {
         self.contracts.issue(params.transform(self.noise_engine()))
     }
 

@@ -23,7 +23,6 @@
 // the License.
 
 use std::collections::HashMap;
-use std::error::Error as StdError;
 use std::ffi::OsStr;
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
@@ -35,7 +34,7 @@ use rgb::RgbSeal;
 use strict_encoding::{StrictDecode, StrictEncode};
 
 use crate::{
-    Articles, CodexId, Consensus, Contract, ContractId, CreateParams, IssueError, Pile, PileFs,
+    Articles, CodexId, Consensus, Contract, ContractId, CreateParams, IssuerError, Pile, PileFs,
     Schema, Stockpile,
 };
 
@@ -90,8 +89,6 @@ impl<Seal: RgbSeal> StockpileDir<Seal> {
         })
     }
 
-    pub fn consensus(&self) -> Consensus { self.consensus }
-    pub fn is_testnet(&self) -> bool { self.testnet }
     pub fn dir(&self) -> &Path { self.dir.as_path() }
 
     fn contract_dir(&self, articles: &Articles) -> PathBuf {
@@ -108,6 +105,11 @@ where
 {
     type Stock = StockFs;
     type Pile = PileFs<Seal>;
+    type Error = io::Error;
+
+    fn consensus(&self) -> Consensus { self.consensus }
+
+    fn is_testnet(&self) -> bool { self.testnet }
 
     fn issuers_count(&self) -> usize { self.issuers.len() }
 
@@ -139,29 +141,22 @@ where
         Some(contract)
     }
 
-    fn import(&mut self, schema: Schema) -> Result<Schema, impl StdError> {
-        schema
-            .save(self.dir.join(format!("{}.issuer", schema.codex.name)))
-            .map(|_| schema)
+    fn import(&mut self, issuer: Schema) -> Result<Schema, Self::Error> {
+        let codex_id = issuer.codex.codex_id();
+        let name = issuer.codex.name.to_string();
+        let path = self.dir.join(format!("{name}.{codex_id}.issuer"));
+        issuer.save(path)?;
+        self.issuers.insert(codex_id, name);
+        Ok(issuer)
     }
 
     fn issue(
         &mut self,
         params: CreateParams<<<Self::Pile as Pile>::Seal as RgbSeal>::Definiton>,
-    ) -> Result<Contract<Self::Stock, Self::Pile>, IssueError<io::Error>> {
-        if params.consensus != self.consensus {
-            return Err(IssueError::ConsensusMismatch);
-        }
-        if params.testnet != self.testnet {
-            return Err(if params.testnet {
-                IssueError::TestnetMismatch
-            } else {
-                IssueError::MainnetMismatch
-            });
-        }
+    ) -> Result<Contract<Self::Stock, Self::Pile>, IssuerError<io::Error>> {
         let schema = self
             .issuer(params.codex_id)
-            .ok_or(IssueError::UnknownCodex(params.codex_id))?;
+            .ok_or(IssuerError::UnknownCodex(params.codex_id))?;
         Ok(Contract::issue(schema, params, |articles| self.contract_dir(articles))?)
     }
 }

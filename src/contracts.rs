@@ -31,7 +31,7 @@ use std::io;
 
 use amplify::confinement::{KeyedCollection, SmallOrdMap};
 use hypersonic::{
-    AcceptError, AuthToken, CallParams, CodexId, ContractId, ContractName, Opid, Schema,
+    AcceptError, AuthToken, CallParams, CodexId, ContractId, ContractName, Opid, Schema, Stock,
 };
 use rgb::RgbSeal;
 use strict_encoding::{
@@ -215,14 +215,9 @@ where
         })
     }
 
-    pub fn import(&mut self, schema: Schema) -> Result<CodexId, impl StdError + use<'_, Sp, S, C>> {
-        let codex_id = schema.codex.codex_id();
-        // This can't be replaced with a question mark due to `impl StdError` return type
-        #[allow(clippy::question_mark)]
-        let schema = match self.persistence.import(schema) {
-            Ok(schema) => schema,
-            Err(err) => return Err(err),
-        };
+    pub fn import(&mut self, issuer: Schema) -> Result<CodexId, Sp::Error> {
+        let codex_id = issuer.codex.codex_id();
+        let schema = self.persistence.import(issuer)?;
         self.schemata.borrow_mut().insert(codex_id, schema);
         Ok(codex_id)
     }
@@ -230,7 +225,17 @@ where
     pub fn issue(
         &mut self,
         params: CreateParams<<<Sp::Pile as Pile>::Seal as RgbSeal>::Definiton>,
-    ) -> Result<ContractId, IssueError<impl StdError>> {
+    ) -> Result<ContractId, IssuerError<<Sp::Stock as Stock>::Error>> {
+        if params.consensus != self.persistence.consensus() {
+            return Err(IssuerError::ConsensusMismatch);
+        }
+        if params.testnet != self.persistence.is_testnet() {
+            return Err(if params.testnet {
+                IssuerError::TestnetMismatch
+            } else {
+                IssuerError::MainnetMismatch
+            });
+        }
         let contract = self.persistence.issue(params)?;
         let id = contract.contract_id();
         self.contracts.borrow_mut().insert(id, contract);
@@ -309,7 +314,7 @@ where
 
 #[derive(Debug, Display, Error, From)]
 #[display(doc_comments)]
-pub enum IssueError<E: StdError> {
+pub enum IssuerError<E: StdError> {
     /// proof of publication layer mismatch.
     ConsensusMismatch,
     /// unable to consume a testnet contract for mainnet.

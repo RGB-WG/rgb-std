@@ -30,7 +30,7 @@ use core::error::Error as StdError;
 use hypersonic::{CodexId, ContractId, Schema, Stock};
 use rgb::RgbSeal;
 
-use crate::{Contract, CreateParams, IssueError, Pile};
+use crate::{Consensus, Contract, CreateParams, IssuerError, Pile};
 
 /// Stockpile provides a specific persistence implementation for the use in [`crate::Contracts`].
 /// It allows for it to abstract from a specific storage media, whether it is a file system,
@@ -41,18 +41,23 @@ use crate::{Contract, CreateParams, IssueError, Pile};
 /// # Reading contracts
 ///
 /// Since there might be many thousands of contracts, loading all of them at once may not make a
-/// sense performance-one. So the contracts are instantiated one-by-one, using [`Self::contract`]
-/// method.
+/// sense performance-one. So the contracts are instantiated one-by-one, using the
+/// [`Self::contract`] method.
 ///
 /// To iterate over all known contracts, a specific [`crate::Contracts`] implementation should
 /// iterate over contract ids, present in the system, and instantiate them one by one. This allows
-/// the full use of Rust iterators, including instantiating contracts in "pages" of certain size (by
-/// using [`Iterator::skip`] and [`Iterator::take`]) etc.
+/// the full use of Rust iterators, including instantiating contracts in "pages" of a certain size
+/// (by using [`Iterator::skip`] and [`Iterator::take`]) etc.
 pub trait Stockpile {
     /// Specific stock runtime used by [`Contract`]s instantiated by this stockpile.
     type Stock: Stock;
     /// Specific pile runtime used by [`Contract`]s instantiated by this stockpile.
     type Pile: Pile;
+    /// Errors happening during storage procedures.
+    type Error: StdError;
+
+    fn consensus(&self) -> Consensus;
+    fn is_testnet(&self) -> bool;
 
     fn issuers_count(&self) -> usize;
     fn contracts_count(&self) -> usize;
@@ -66,10 +71,10 @@ pub trait Stockpile {
     fn issuer(&self, codex_id: CodexId) -> Option<Schema>;
     fn contract(&self, contract_id: ContractId) -> Option<Contract<Self::Stock, Self::Pile>>;
 
-    fn import(&mut self, schema: Schema) -> Result<Schema, impl StdError>;
+    fn import(&mut self, issuer: Schema) -> Result<Schema, Self::Error>;
 
     fn issue(
         &mut self,
         params: CreateParams<<<Self::Pile as Pile>::Seal as RgbSeal>::Definiton>,
-    ) -> Result<Contract<Self::Stock, Self::Pile>, IssueError<<Self::Stock as Stock>::Error>>;
+    ) -> Result<Contract<Self::Stock, Self::Pile>, IssuerError<<Self::Stock as Stock>::Error>>;
 }

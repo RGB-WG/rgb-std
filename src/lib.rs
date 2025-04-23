@@ -56,7 +56,7 @@ pub use contract::{
     Assignment, ConsumeError, Contract, ContractState, CreateParams, EitherSeal, ImmutableState,
     OwnedState, CONSIGNMENT_MAGIC_NUMBER, CONSIGNMENT_VERSION,
 };
-pub use contracts::{Contracts, IssueError};
+pub use contracts::{Contracts, IssuerError};
 pub use hypersonic::*;
 pub use info::ContractInfo;
 #[cfg(feature = "fs")]
