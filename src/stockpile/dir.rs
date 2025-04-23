@@ -138,7 +138,7 @@ where
         let path = self.dir.join(format!("{subdir}.{contract_id:-}.contract"));
         let contract = Contract::load(path.clone(), path).ok()?;
         let meta = &contract.articles().issue.meta;
-        if meta.consensus == self.consensus && meta.testnet == self.testnet {
+        if meta.consensus != self.consensus || meta.testnet != self.testnet {
             return None;
         }
         Some(contract)
