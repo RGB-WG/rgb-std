@@ -22,26 +22,26 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
-use std::collections::HashMap;
-use std::path::PathBuf;
+use rgb::stl::rgb_stl;
+use strict_types::parse_args;
 
-use hypersonic::Stock;
+fn main() {
+    let (format, dir) = parse_args();
 
-use crate::{CodexId, Consensus, Contract, ContractId, Pile, Schema};
-
-/// Directory-based memory-efficient collection of RGB smart contracts and contract issuers.
-///
-/// Unlike [`crate::ContractsInmem`], which can also be read from a directory, doesn't maintain all
-/// contracts in memory, and loads/unloads them from/to disk dynamically.
-#[derive(Getters)]
-pub struct ContractsDir<S: Stock, P: Pile> {
-    #[getter(as_copy)]
-    consensus: Consensus,
-    #[getter(as_copy)]
-    testnet: bool,
-    schemata: HashMap<CodexId, Schema>,
-    cache: HashMap<ContractId, Contract<S, P>>,
-    path: PathBuf,
+    let lib = rgb_stl();
+    lib.serialize(
+        format,
+        dir.as_ref(),
+        "0.12.0",
+        Some(
+            "
+  Description: RGB smart contracts library
+  Author: Dr Maxim Orlovsky <orlovsky@ubideco.org>
+  Copyright (C) 2024-2025 LNP/BP Labs, Institute for Distributed and Cognitive Systems, \
+             Switzerland.
+                All rights reserved.
+  License: Apache-2.0",
+        ),
+    )
+    .expect("unable to write to the file");
 }
-
-// TODO: Implement

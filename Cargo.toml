@@ -14,9 +14,9 @@ edition = "2021"
 license = "Apache-2.0"
 
 [workspace.dependencies]
-amplify = "4.8.0"
-strict_encoding = "2.8.1"
-strict_types = "2.8.2"
+amplify = "4.8.1"
+strict_encoding = "2.8.2"
+strict_types = "2.8.3"
 commit_verify = "=0.12.0-beta.5"
 single_use_seals = "=0.12.0-beta.5"
 aora = ">=0.6.1"
@@ -46,6 +46,10 @@ edition.workspace = true
 license.workspace = true
 readme = "README.md"
 
+[[bin]]
+name = "rgb-stl"
+required-features = ["stl"]
+
 [lib]
 name = "rgb"
 crate-type = ["cdylib", "rlib"] # We need this for WASM
@@ -68,7 +72,7 @@ serde_with = { workspace = true, optional = true }
 
 [features]
 default = ["std", "bitcoin"]
-all = ["std", "bitcoin", "liquid", "prime", "fs", "serde"]
+all = ["std", "bitcoin", "liquid", "prime", "fs", "stl", "serde"]
 std = ["rgb-invoice/std"]
 
 bitcoin = ["bp-core", "bp-invoice", "rgb-core/bitcoin", "rgb-invoice/bitcoin"]
@@ -77,6 +81,9 @@ prime = ["rgb-core/prime", "rgb-invoice/prime"]
 
 uri = ["rgb-invoice/uri"]
 fs = ["std", "hypersonic/persist-file", "aora/file-strict"]
+
+stl = ["commit_verify/stl", "hypersonic/stl", "strict_types/armor", "bitcoin", "bp-core/stl"]
+
 serde = [
     "std",
     "dep:serde",
@@ -92,10 +99,6 @@ serde = [
     "chrono/serde"
 ]
 
-stl = [
-    "bp-core/stl", "commit_verify/stl"
-]
-
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2"
 rand = { version = "0.8.4", optional = true }
@@ -108,6 +111,7 @@ wasm-bindgen-test = "0.3"
 features = ["all"]
 
 [patch.crates-io]
+commit_verify = { git = "https://github.com/LNP-BP/client_side_validation", branch = "v0.12" }
 aluvm = { git = "https://github.com/AluVM/aluvm", branch = "master" }
 zk-aluvm = { git = "https://github.com/AluVM/zk-aluvm", branch = "master" }
 ultrasonic = { git = "https://github.com/AluVM/ultrasonic", branch = "master" }

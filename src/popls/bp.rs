@@ -27,9 +27,11 @@
 
 use alloc::collections::{btree_set, BTreeMap, BTreeSet};
 use alloc::vec;
-use std::marker::PhantomData;
+use std::collections::HashMap;
 
-use amplify::confinement::{Collection, NonEmptyVec, SmallOrdMap, SmallOrdSet, U8 as U8MAX};
+use amplify::confinement::{
+    Collection, KeyedCollection, NonEmptyVec, SmallOrdMap, SmallOrdSet, U8 as U8MAX,
+};
 use amplify::{confinement, ByteArray, Bytes32, Wrapper};
 use bp::dbc::tapret::TapretProof;
 use bp::seals::{mmb, Anchor, Noise, TxoSeal, TxoSealExt, WOutpoint, WTxoSeal};
@@ -43,15 +45,16 @@ use hypersonic::{
 use invoice::bp::{Address, WitnessOut};
 use invoice::{RgbBeneficiary, RgbInvoice};
 use rgb::RgbSealDef;
+use rgbcore::LIB_NAME_RGB;
 use strict_encoding::{ReadRaw, StrictDecode, StrictDeserialize, StrictReader, StrictSerialize};
 use strict_types::StrictVal;
 
 use crate::{
-    Assignment, ConsumeError, Contract, ContractState, ContractsApi, CreateParams, EitherSeal,
-    IssueError, Pile,
+    Assignment, CodexId, ConsumeError, Contract, ContractState, Contracts, CreateParams,
+    EitherSeal, IssuerError, Pile, Schema, Stockpile,
 };
 
-/// Trait abstracting specific implementation of a bitcoin wallet.
+/// Trait abstracting a specific implementation of a bitcoin wallet.
 pub trait WalletProvider {
     fn noise_seed(&self) -> Bytes32;
     fn has_utxo(&self, outpoint: Outpoint) -> bool;
@@ -305,7 +308,7 @@ pub enum UnmatchedState {
 /// (previous outputs).
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = "RGB")]
+#[strict_type(lib = LIB_NAME_RGB)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct Prefab {
     pub closes: SmallOrdSet<Outpoint>,
@@ -321,7 +324,7 @@ pub struct Prefab {
 #[wrapper(Deref)]
 #[wrapper_mut(DerefMut)]
 #[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = "RGB")]
+#[strict_type(lib = LIB_NAME_RGB)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 pub struct PrefabBundle(SmallOrdSet<Prefab>);
 
@@ -358,34 +361,41 @@ impl PrefabBundle {
 }
 
 /// Barrow contains a bunch of RGB contracts, which are held by a single owner (a wallet); such that
-/// when a new operation under any of the contracts happen it may affect other contracts sharing the
-/// same UTXOs.
-pub struct RgbWallet<W: WalletProvider, C: ContractsApi<S, P>, S: Stock, P: Pile<Seal = TxoSeal>> {
+/// when a new operation under any of the contracts happens, it may affect other contracts sharing
+/// the same UTXOs.
+pub struct RgbWallet<
+    W,
+    Sp,
+    S = HashMap<CodexId, Schema>,
+    C = HashMap<ContractId, Contract<<Sp as Stockpile>::Stock, <Sp as Stockpile>::Pile>>,
+> where
+    W: WalletProvider,
+    Sp: Stockpile,
+    Sp::Pile: Pile<Seal = TxoSeal>,
+    S: KeyedCollection<Key = CodexId, Value = Schema>,
+    C: KeyedCollection<Key = ContractId, Value = Contract<Sp::Stock, Sp::Pile>>,
+{
     pub wallet: W,
-    pub contracts: C,
-    pub _phantom: PhantomData<(S, P)>,
+    pub contracts: Contracts<Sp, S, C>,
 }
 
-impl<W: WalletProvider, C: ContractsApi<S, P>, S: Stock, P: Pile<Seal = TxoSeal>>
-    RgbWallet<W, C, S, P>
+impl<W, Sp, S, C> RgbWallet<W, Sp, S, C>
+where
+    W: WalletProvider,
+    Sp: Stockpile,
+    Sp::Pile: Pile<Seal = TxoSeal>,
+    S: KeyedCollection<Key = CodexId, Value = Schema>,
+    C: KeyedCollection<Key = ContractId, Value = Contract<Sp::Stock, Sp::Pile>>,
 {
-    pub fn with(wallet: W, api: C) -> Self {
-        Self { wallet, contracts: api, _phantom: PhantomData }
-    }
+    pub fn with(wallet: W, contracts: Contracts<Sp, S, C>) -> Self { Self { wallet, contracts } }
 
-    pub fn unbind(self) -> (W, C) { (self.wallet, self.contracts) }
+    pub fn unbind(self) -> (W, Contracts<Sp, S, C>) { (self.wallet, self.contracts) }
 
     pub fn issue(
         &mut self,
         params: CreateParams<Outpoint>,
-        conf: S::Conf,
-    ) -> Result<ContractId, IssueError<S::Error>>
-    where
-        P::Conf: From<S::Conf>,
-        S::Error: From<P::Error>,
-    {
-        self.contracts
-            .issue(params.transform(self.noise_engine()), conf)
+    ) -> Result<ContractId, IssuerError<<Sp::Stock as Stock>::Error>> {
+        self.contracts.issue(params.transform(self.noise_engine()))
     }
 
     pub fn auth_token(&mut self, nonce: Option<u64>) -> Option<AuthToken> {
@@ -418,7 +428,7 @@ impl<W: WalletProvider, C: ContractsApi<S, P>, S: Stock, P: Pile<Seal = TxoSeal>
             )
     }
 
-    pub fn state_all(&self, contract_id: ContractId) -> ContractState<P::Seal> {
+    pub fn state_all(&self, contract_id: ContractId) -> ContractState<<Sp::Pile as Pile>::Seal> {
         self.contracts.contract_state(contract_id)
     }
 
@@ -612,8 +622,8 @@ impl<W: WalletProvider, C: ContractsApi<S, P>, S: Stock, P: Pile<Seal = TxoSeal>
     /// Complete creation of a prefabricated operation bundle from operation requests, adding blank
     /// operations if necessary. Operation requests can be multiple.
     ///
-    /// A set of operations is either a collection of them, or a [`OpRequestSet`] - any structure
-    /// which implements `IntoIterator` trait.
+    /// A set of operations is either a collection of them or an [`OpRequestSet`] - any structure
+    /// that implements the [`IntoIterator`] trait.
     ///
     /// # Arguments
     ///
@@ -710,7 +720,7 @@ impl<W: WalletProvider, C: ContractsApi<S, P>, S: Stock, P: Pile<Seal = TxoSeal>
         Ok(PrefabBundle(SmallOrdSet::try_from(prefabs).map_err(|_| BundleError::TooManyBlanks)?))
     }
 
-    /// Include prefab bundle into the mound, creating necessary anchors on the fly.
+    /// Include a prefab bundle, creating the necessary anchors on the fly.
     pub fn include(
         &mut self,
         bundle: &PrefabBundle,
@@ -749,12 +759,7 @@ impl<W: WalletProvider, C: ContractsApi<S, P>, S: Stock, P: Pile<Seal = TxoSeal>
         &mut self,
         reader: &mut StrictReader<impl ReadRaw>,
     ) -> Result<(), ConsumeError<WTxoSeal>> {
-        let contract_id = Contract::<S, P>::parse_consignment(reader)?;
-        if !self.contracts.has_contract(contract_id) {
-            return Err(ConsumeError::UnknownContract(contract_id));
-        };
-
-        self.contracts.consume(contract_id, reader, |op| {
+        self.contracts.consume(reader, |op| {
             self.wallet
                 .resolve_seals(op.destructible.iter().map(|cell| cell.auth))
                 .map(|seal| {
@@ -821,10 +826,10 @@ pub enum FulfillError {
     /// neither invoice nor contract API contains information about the state name.
     StateNameUnknown,
 
-    /// the wallet doesn't own any state in order to fulfill the invoice.
+    /// the wallet doesn't own any state to fulfill the invoice.
     StateUnavailable,
 
-    /// the state owned by the wallet is insufficient to fulfill the invoice.
+    /// the state owned by the wallet is not enough to fulfill the invoice.
     StateInsufficient,
 
     #[from]
@@ -832,7 +837,7 @@ pub enum FulfillError {
     StateCalc(StateCalcError),
 
     /// the invoice asks to create an UTXO for the receiver, but method call doesn't provide
-    /// information on how much sats can be put there (`giveaway` argument in `Barrow::fulfill`
+    /// information on how many sats can be put there (`giveaway` argument in `Barrow::fulfill`
     /// call must not be set to None).
     WoutRequiresGiveaway,
 
@@ -854,26 +859,20 @@ pub enum IncludeError {
 #[cfg(feature = "fs")]
 mod fs {
     use std::fs::File;
-    use std::io;
-    use std::path::{Path, PathBuf};
+    use std::path::Path;
 
     use hypersonic::persistance::StockFs;
     use strict_encoding::StreamReader;
 
     use super::*;
-    use crate::PileFs;
+    use crate::{PileFs, StockpileDir};
 
-    impl<W: WalletProvider, C: ContractsApi<StockFs, PileFs<TxoSeal>>>
-        RgbWallet<W, C, StockFs, PileFs<TxoSeal>>
+    impl<
+            W: WalletProvider,
+            S: KeyedCollection<Key = CodexId, Value = Schema>,
+            C: KeyedCollection<Key = ContractId, Value = Contract<StockFs, PileFs<TxoSeal>>>,
+        > RgbWallet<W, StockpileDir<TxoSeal>, S, C>
     {
-        pub fn issue_to_dir(
-            &mut self,
-            params: CreateParams<Outpoint>,
-            path: PathBuf,
-        ) -> Result<ContractId, IssueError<io::Error>> {
-            self.issue(params, path)
-        }
-
         pub fn consume_from_file(
             &mut self,
             path: impl AsRef<Path>,

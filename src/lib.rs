@@ -48,6 +48,9 @@ mod info;
 pub mod popls;
 mod util;
 mod contracts;
+mod stockpile;
+#[cfg(feature = "stl")]
+pub mod stl;
 
 #[cfg(feature = "bitcoin")]
 pub use bp::{Outpoint, Txid};
@@ -55,13 +58,14 @@ pub use contract::{
     Assignment, ConsumeError, Contract, ContractState, CreateParams, EitherSeal, ImmutableState,
     OwnedState, CONSIGNMENT_MAGIC_NUMBER, CONSIGNMENT_VERSION,
 };
-#[cfg(feature = "fs")]
-pub use contracts::dir::ContractsDir;
-pub use contracts::{ContractsApi, ContractsInmem, IssueError, OpOut};
+pub use contracts::{Contracts, IssuerError};
 pub use hypersonic::*;
 pub use info::ContractInfo;
 #[cfg(feature = "fs")]
 pub use pile::fs::PileFs;
 pub use pile::{OpRels, Pile, Witness, WitnessStatus};
 pub use rgb::*;
+#[cfg(feature = "fs")]
+pub use stockpile::dir::StockpileDir;
+pub use stockpile::Stockpile;
 pub use util::{ContractRef, InvalidContractRef};

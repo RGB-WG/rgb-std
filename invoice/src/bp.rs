@@ -41,7 +41,9 @@ pub const WITNESS_OUT_HRI: &str = "wout";
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
-#[strict_type(lib = "RGB")]
+// Strict type here is used only for Display serialization, so we do not include the type into any
+// library
+#[strict_type(lib = "_")]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct WitnessOut {
     #[strict_type(skip)]

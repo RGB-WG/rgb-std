@@ -120,17 +120,19 @@ pub struct Witness<Seal: RgbSeal> {
 #[cfg_attr(
     feature = "serde",
     derive(Serialize),
-    serde(bound = "Seal::WitnessId: serde::Serialize, Seal::Definiton: serde::Serialize")
+    serde(bound = "Seal::WitnessId: serde::Serialize, Seal::Definition: serde::Serialize")
 )]
 pub struct OpRels<Seal: RgbSeal> {
     pub opid: Opid,
     pub witness_ids: BTreeSet<Seal::WitnessId>,
-    pub defines: SmallOrdMap<u16, Seal::Definiton>,
+    pub defines: SmallOrdMap<u16, Seal::Definition>,
     #[cfg_attr(feature = "serde", serde(skip))]
     pub _phantom: PhantomData<Seal>,
 }
 
+/// Persistent storage for contract witness and single-use seal definition data.
 pub trait Pile {
+    /// Type of RGB seal used in the contract.
     type Seal: RgbSeal;
 
     /// Persistence configuration type.
@@ -138,7 +140,7 @@ pub trait Pile {
 
     type Error: StdError;
 
-    /// Issues a new contract from the provided articles, creating its persistence using given
+    /// Instantiates a new pile (persistence for contract witness data) using a given
     /// implementation-specific configuration.
     ///
     /// # Panics
@@ -147,11 +149,11 @@ pub trait Pile {
     ///
     /// # Blocking I/O
     ///
-    /// This call MAY perform any I/O operations.
-    fn issue(conf: Self::Conf) -> Result<Self, Self::Error>
+    /// This call MAY perform I/O operations.
+    fn new(conf: Self::Conf) -> Result<Self, Self::Error>
     where Self: Sized;
 
-    /// Loads a contract from a persistence using the provided configuration.
+    /// Loads a contract from persistence using the provided configuration.
     ///
     /// # Panics
     ///
@@ -159,7 +161,7 @@ pub trait Pile {
     ///
     /// # Blocking I/O
     ///
-    /// This call MAY perform any I/O operations.
+    /// This call MAY perform I/O operations.
     fn load(conf: Self::Conf) -> Result<Self, Self::Error>
     where Self: Sized;
 
@@ -196,7 +198,7 @@ pub trait Pile {
         wid: <Self::Seal as RgbSeal>::WitnessId,
     ) -> impl ExactSizeIterator<Item = Opid>;
 
-    fn op_seals(&self, opid: Opid) -> SmallOrdMap<u16, <Self::Seal as RgbSeal>::Definiton>;
+    fn op_seals(&self, opid: Opid) -> SmallOrdMap<u16, <Self::Seal as RgbSeal>::Definition>;
 
     fn op_relations(&self) -> impl Iterator<Item = OpRels<Self::Seal>>;
 
@@ -214,7 +216,7 @@ pub trait Pile {
     fn add_seals(
         &mut self,
         opid: Opid,
-        seals: SmallOrdMap<u16, <Self::Seal as RgbSeal>::Definiton>,
+        seals: SmallOrdMap<u16, <Self::Seal as RgbSeal>::Definition>,
     );
 
     /// # Panics
@@ -226,5 +228,13 @@ pub trait Pile {
         status: WitnessStatus,
     );
 
+    /// Commits information about all updated witness statuses ("mine" structure) to the
+    /// persistence as a new database transaction.
+    ///
+    /// # Nota bene
+    ///
+    /// It is required to call this method after each witness update or consignment consumption.
+    /// If the method was not called the data won't persist and on termination the program will
+    /// panic.
     fn commit_transaction(&mut self);
 }
