@@ -63,7 +63,7 @@ where
     type Conf = PathBuf;
     type Error = io::Error;
 
-    fn issue(path: Self::Conf) -> Result<Self, io::Error>
+    fn new(path: Self::Conf) -> Result<Self, io::Error>
     where Self: Sized {
         let hoard = FileAoraMap::create_new(&path, "hoard")?;
         let cache = FileAoraMap::create_new(&path, "cache")?;

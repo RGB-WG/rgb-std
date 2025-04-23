@@ -147,8 +147,8 @@ pub trait Pile {
     ///
     /// # Blocking I/O
     ///
-    /// This call MAY perform any I/O operations.
-    fn issue(conf: Self::Conf) -> Result<Self, Self::Error>
+    /// This call MAY perform I/O operations.
+    fn new(conf: Self::Conf) -> Result<Self, Self::Error>
     where Self: Sized;
 
     /// Loads a contract from persistence using the provided configuration.

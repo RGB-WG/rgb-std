@@ -266,12 +266,12 @@ impl<S: Stock, P: Pile> Contract<S, P> {
 
         let articles = schema.issue(params);
         let conf = conf(&articles);
-        let ledger = Ledger::issue(articles, conf)?;
+        let ledger = Ledger::new(articles, conf)?;
         let conf: S::Conf = ledger.config();
         let contract_id = ledger.contract_id();
 
         // Init seals
-        let mut pile = P::issue(conf.into()).map_err(|e| IssueError::OtherPersistence(e.into()))?;
+        let mut pile = P::new(conf.into()).map_err(|e| IssueError::OtherPersistence(e.into()))?;
         pile.add_seals(ledger.articles().issue.genesis_opid(), seals);
 
         Ok(Self { ledger, pile, contract_id })
