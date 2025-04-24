@@ -440,6 +440,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
             anchor
         };
         self.pile.add_witness(opid, wid, published, &anchor);
+        self.pile.commit_transaction();
     }
 
     pub fn consign(
