@@ -244,6 +244,7 @@ rec Consignmenttrue
               bytes lib, len 32, aka LibId
               is pos, U16
         ascii name, aka FieldName, first AlphaSmallLodash, rest AlphaNumLodash, len 1..100
+      is some, U16, option, wrapped, aka AssignmentType, tag 1
   map types, len 0..MAX24, aka TypeSystem
     bytes key, len 32, aka SemId
     union value, TySemId
