@@ -221,7 +221,7 @@ pub struct RgbInvoice {
     pub contract: Option<ContractId>,
     pub schema: Option<SchemaId>,
     pub assignment_name: Option<FieldName>,
-    pub assignment_state: InvoiceState,
+    pub assignment_state: Option<InvoiceState>,
     pub beneficiary: XChainNet<Beneficiary>,
     /// UTC unix timestamp
     pub expiry: Option<i64>,

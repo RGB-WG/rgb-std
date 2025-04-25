@@ -38,7 +38,7 @@ impl RgbInvoiceBuilder {
             contract: None,
             schema: None,
             assignment_name: None,
-            assignment_state: InvoiceState::Void,
+            assignment_state: None,
             beneficiary: beneficiary.into(),
             expiry: None,
             unknown_query: none!(),
@@ -65,7 +65,7 @@ impl RgbInvoiceBuilder {
     }
 
     pub fn set_amount_raw(mut self, amount: impl Into<Amount>) -> Self {
-        self.0.assignment_state = InvoiceState::Amount(amount.into());
+        self.0.assignment_state = Some(InvoiceState::Amount(amount.into()));
         self
     }
 
@@ -80,13 +80,13 @@ impl RgbInvoiceBuilder {
             Err(_) => return Err(self),
         }
         .to_amount_unchecked();
-        self.0.assignment_state = InvoiceState::Amount(amount);
+        self.0.assignment_state = Some(InvoiceState::Amount(amount));
         Ok(self)
     }
 
     pub fn set_allocation_raw(mut self, allocation: impl Into<Allocation>) -> Self {
         self.0.assignment_state =
-            InvoiceState::Data(NonFungible::FractionedToken(allocation.into()));
+            Some(InvoiceState::Data(NonFungible::FractionedToken(allocation.into())));
         self
     }
 
