@@ -1,5 +1,5 @@
 {-
-  Id: stl:moUnqJro-ctnP1Vy-PoHJfja-dsVzPrS-PDS3oZt-HbHfnRg#mystery-letter-quebec
+  Id: stl:FMcspTzU-jVBoYAk-yKSsM7J-P9qBvIF-SCA2W1c-urKd1CE#crimson-singer-salad
   Name: RGBStorage
   Version: 0.11.0
   Description: RGB storage library
@@ -23,37 +23,7 @@ import BPCore#juliet-super-dominic
   use BlindSealTxPtr#content-paradox-dominic
   use TxPtr#italian-july-eddie
 
-import CommitVerify#violet-panther-herbert
-  use ProtocolId#shadow-eclipse-program
-  use Message#druid-blitz-rover
-  use MerkleHash#horse-popcorn-bundle
-  use MerkleBlock#pegasus-delta-eddie
-  use TreeNode#kansas-scarlet-ricardo
-
-import Std#delete-roman-hair
-  use AlphaCaps#picnic-soprano-aurora
-  use AsciiPrintable#ultra-sunset-format
-  use U5#orbit-graph-sonic
-  use AlphaCapsNum#aladdin-zebra-marble
-  use AlphaNumLodash#percent-bingo-caesar
-  use AlphaCapsLodash#duet-hammer-labor
-  use AlphaSmallLodash#pioneer-eagle-spell
-
-import AluVM#jargon-gorilla-poetic
-  use Lib#gate-biology-optimal
-  use LibSite#ultra-grace-message
-  use IsaName#taboo-olympic-cloud
-  use LibId#germany-culture-olivia
-  use IsaSeg#size-shake-olga
-  use LibSeg#lemon-philips-horse
-
-import RGBLogic#south-license-prepare
-  use DbcProof#needle-change-forest
-  use WitnessPos#cliff-enrico-nominal
-  use Layer1#camilla-basket-justin
-  use WitnessOrd#condor-george-actor
-
-import RGBCommit#patron-melody-jazz
+import RGBCommit#music-cool-tahiti
   use BundleId#carmen-farmer-diesel
   use GlobalValues#pilot-boris-alice
   use GlobalDetails#milk-machine-amigo
@@ -75,7 +45,6 @@ import RGBCommit#patron-melody-jazz
   use AssignVoidStateBlindSealTxid#penguin-drink-diego
   use AssignmentsBlindSealTxPtr#dispute-marble-horse
   use TypedAssignsBlindSealTxPtr#apple-doctor-cobra
-  use Genesis#alibi-nirvana-brigade
   use InputMap#press-elegant-guru
   use MetaType#quebec-mission-quota
   use GlobalStateSchema#zipper-pioneer-visa
@@ -88,6 +57,8 @@ import RGBCommit#patron-melody-jazz
   use OpId#picnic-single-gloria
   use AssignVecAssignVoidStateBlindSealTxPtr#geneva-neutral-mercury
   use AssignRevealedDataBlindSealTxid#season-brown-cable
+  use SealClosingStrategy#exile-target-catalog
+  use Genesis#ingrid-machine-screen
   use ContractId#uniform-welcome-papa
   use AssignVecAssignRevealedDataBlindSealTxPtr#trade-report-actor
   use FungibleState#guide-poker-coconut
@@ -109,6 +80,45 @@ import RGBCommit#patron-melody-jazz
   use AssignVecAssignRevealedDataBlindSealTxid#scarlet-totem-mother
   use RevealedData#olivia-copper-stamp
 
+import CommitVerify#violet-panther-herbert
+  use ProtocolId#shadow-eclipse-program
+  use Message#druid-blitz-rover
+  use MerkleHash#horse-popcorn-bundle
+  use MerkleBlock#pegasus-delta-eddie
+  use TreeNode#kansas-scarlet-ricardo
+
+import RGBStd#loyal-crystal-energy
+  use PubWitness#paper-visa-storm
+  use OutputAssignmentRevealedData#burma-milk-baggage
+  use OpWitness#owner-water-pyramid
+  use OutputAssignmentVoidState#harbor-club-ritual
+  use GlobalOut#canada-politic-mary
+  use SealWitness#polite-visitor-laptop
+  use OutputAssignmentRevealedValue#signal-fractal-vista
+
+import RGBLogic#pump-modular-unit
+  use DbcProof#needle-change-forest
+  use WitnessPos#cliff-enrico-nominal
+  use Layer1#camilla-basket-justin
+  use WitnessOrd#condor-george-actor
+
+import Std#delete-roman-hair
+  use AlphaCaps#picnic-soprano-aurora
+  use AsciiPrintable#ultra-sunset-format
+  use U5#orbit-graph-sonic
+  use AlphaCapsNum#aladdin-zebra-marble
+  use AlphaNumLodash#percent-bingo-caesar
+  use AlphaCapsLodash#duet-hammer-labor
+  use AlphaSmallLodash#pioneer-eagle-spell
+
+import AluVM#jargon-gorilla-poetic
+  use Lib#gate-biology-optimal
+  use LibSite#ultra-grace-message
+  use IsaName#taboo-olympic-cloud
+  use LibId#germany-culture-olivia
+  use IsaSeg#size-shake-olga
+  use LibSeg#lemon-philips-horse
+
 import StrictTypes#henry-heart-survive
   use VariantName#theory-austin-before
   use FieldName#present-flute-herman
@@ -125,15 +135,6 @@ import StrictTypes#henry-heart-survive
   use VariantInfoSemId#museum-edward-mirror
   use UnionVariantsSemId#santana-address-pepper
   use TypeSystem#adrian-boris-sponsor
-
-import RGBStd#sushi-raja-prism
-  use PubWitness#paper-visa-storm
-  use OutputAssignmentRevealedData#burma-milk-baggage
-  use OpWitness#owner-water-pyramid
-  use OutputAssignmentVoidState#harbor-club-ritual
-  use GlobalOut#canada-politic-mary
-  use SealWitness#polite-visitor-laptop
-  use OutputAssignmentRevealedValue#signal-fractal-vista
 
 import Bitcoin#signal-color-cipher
   use SeqNo#copper-verbal-ingrid
@@ -180,7 +181,7 @@ data MemIndex          : opBundleChildrenIndex {RGBCommit.OpId -> ^ ..0xffffff {
                        , contractIndex {RGBCommit.ContractId -> ^ ..0xff ContractIndex}
                        , terminalIndex {BPCore.SecretSeal -> ^ ..0xffffff {RGBCommit.Opout ^ ..0xff}}
 
-@mnemonic(weekend-contact-eagle)
+@mnemonic(race-baker-place)
 data MemStash          : schemata {RGBCommit.SchemaId -> ^ ..0xff RGBCommit.Schema}
                        , geneses {RGBCommit.ContractId -> ^ ..0xff RGBCommit.Genesis}
                        , bundles {RGBCommit.BundleId -> ^ ..0xffffffff RGBCommit.TransitionBundle}

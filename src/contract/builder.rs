@@ -283,6 +283,7 @@ impl ContractBuilder {
             schema_id: schema.schema_id(),
             timestamp,
             chain_net: self.chain_net,
+            seal_closing_strategy: Default::default(),
             metadata: empty!(),
             globals: global,
             assignments,

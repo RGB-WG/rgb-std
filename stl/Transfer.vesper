@@ -33,6 +33,7 @@ rec Consignmenttrue
     is timestamp, I64
     ascii issuer, aka Identity, first AsciiPrintable, rest AsciiPrintable, len 1..4096
     enum chainNet, ChainNet, bitcoinMainnet 0, bitcoinTestnet3 1, bitcoinTestnet4 2, bitcoinSignet 3, bitcoinRegtest 4, liquidMainnet 5, liquidTestnet 6
+    enum sealClosingStrategy, SealClosingStrategy, firstOpretOrTapret 0
     map metadata, len 0..MAX8, aka Metadata
       is key, U16, aka MetaType
       bytes value, len 0..MAX16, aka MetaValue
