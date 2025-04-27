@@ -935,7 +935,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
                     Ok(bundle_ids) => bundle_ids,
                     Err(IndexError::Inconsistency(IndexInconsistency::BundleAbsent(_))) => {
                         // this transition has no children yet
-                        tiny_bset![]
+                        small_bset![]
                     }
                     Err(e) => return Err(e.into()),
                 };

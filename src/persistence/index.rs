@@ -23,7 +23,7 @@ use std::collections::BTreeSet;
 use std::error::Error;
 use std::fmt::Debug;
 
-use amplify::confinement::{self, TinyOrdSet};
+use amplify::confinement::{self, SmallOrdSet};
 use bp::{Outpoint, Txid};
 use nonasync::persistence::{CloneNoPersistence, Persisting};
 use rgb::{
@@ -292,7 +292,7 @@ impl<P: IndexProvider> Index<P> {
     pub(super) fn bundle_ids_children_of_op(
         &self,
         opid: OpId,
-    ) -> Result<TinyOrdSet<BundleId>, IndexError<P>> {
+    ) -> Result<SmallOrdSet<BundleId>, IndexError<P>> {
         Ok(self.provider.bundle_ids_children_of_op(opid)?)
     }
 
@@ -356,7 +356,7 @@ pub trait IndexReadProvider {
     fn bundle_ids_children_of_op(
         &self,
         opid: OpId,
-    ) -> Result<TinyOrdSet<BundleId>, IndexReadError<Self::Error>>;
+    ) -> Result<SmallOrdSet<BundleId>, IndexReadError<Self::Error>>;
 
     fn bundle_info(
         &self,

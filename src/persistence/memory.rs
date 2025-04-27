@@ -28,7 +28,7 @@ use std::{iter, mem};
 
 use aluvm::library::{Lib, LibId};
 use amplify::confinement::{
-    self, LargeOrdMap, LargeOrdSet, MediumOrdMap, MediumOrdSet, SmallOrdMap, TinyOrdMap, TinyOrdSet,
+    self, LargeOrdMap, LargeOrdSet, MediumOrdSet, SmallOrdMap, SmallOrdSet, TinyOrdMap,
 };
 use amplify::num::u24;
 use bp::dbc::tapret::TapretCommitment;
@@ -84,10 +84,10 @@ pub struct MemStash {
     persistence: Option<Persistence<Self>>,
 
     schemata: TinyOrdMap<SchemaId, Schema>,
-    geneses: TinyOrdMap<ContractId, Genesis>,
+    geneses: SmallOrdMap<ContractId, Genesis>,
     bundles: LargeOrdMap<BundleId, TransitionBundle>,
     witnesses: LargeOrdMap<Txid, SealWitness>,
-    secret_seals: MediumOrdSet<GraphSeal>,
+    secret_seals: LargeOrdSet<GraphSeal>,
     type_system: TypeSystem,
     libs: SmallOrdMap<LibId, Lib>,
 }
@@ -294,7 +294,7 @@ pub struct MemState {
 
     witnesses: LargeOrdMap<Txid, WitnessOrd>,
     invalid_bundles: LargeOrdSet<BundleId>,
-    contracts: TinyOrdMap<ContractId, MemContractState>,
+    contracts: SmallOrdMap<ContractId, MemContractState>,
 }
 
 impl StrictSerialize for MemState {}
@@ -904,8 +904,8 @@ impl From<confinement::Error> for IndexWriteError<confinement::Error> {
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct ContractIndex {
-    public_opouts: MediumOrdSet<Opout>,
-    outpoint_opouts: MediumOrdMap<OutputSeal, MediumOrdSet<Opout>>,
+    public_opouts: LargeOrdSet<Opout>,
+    outpoint_opouts: LargeOrdMap<OutputSeal, MediumOrdSet<Opout>>,
 }
 
 #[derive(Getters, Debug)]
@@ -917,12 +917,12 @@ pub struct MemIndex {
     #[strict_type(skip)]
     persistence: Option<Persistence<Self>>,
 
-    op_bundle_children_index: MediumOrdMap<OpId, TinyOrdSet<BundleId>>,
-    op_bundle_index: MediumOrdMap<OpId, BundleId>,
-    bundle_contract_index: MediumOrdMap<BundleId, ContractId>,
-    bundle_witness_index: MediumOrdMap<BundleId, TinyOrdSet<Txid>>,
-    contract_index: TinyOrdMap<ContractId, ContractIndex>,
-    terminal_index: MediumOrdMap<SecretSeal, TinyOrdSet<Opout>>,
+    op_bundle_children_index: LargeOrdMap<OpId, SmallOrdSet<BundleId>>,
+    op_bundle_index: LargeOrdMap<OpId, BundleId>,
+    bundle_contract_index: LargeOrdMap<BundleId, ContractId>,
+    bundle_witness_index: LargeOrdMap<BundleId, LargeOrdSet<Txid>>,
+    contract_index: SmallOrdMap<ContractId, ContractIndex>,
+    terminal_index: LargeOrdMap<SecretSeal, MediumOrdSet<Opout>>,
 }
 
 impl StrictSerialize for MemIndex {}
@@ -1062,7 +1062,7 @@ impl IndexReadProvider for MemIndex {
     fn bundle_ids_children_of_op(
         &self,
         opid: OpId,
-    ) -> Result<TinyOrdSet<BundleId>, IndexReadError<Self::Error>> {
+    ) -> Result<SmallOrdSet<BundleId>, IndexReadError<Self::Error>> {
         self.op_bundle_children_index
             .get(&opid)
             .ok_or(IndexInconsistency::BundleAbsent(opid).into())
@@ -1160,7 +1160,7 @@ impl IndexWriteProvider for MemIndex {
             }
             None => {
                 self.op_bundle_children_index
-                    .insert(opid, tiny_bset!(bundle_id))?;
+                    .insert(opid, small_bset!(bundle_id))?;
             }
         }
         Ok(present)
@@ -1263,7 +1263,7 @@ impl MemIndex {
                 let _ = self.terminal_index.insert(seal, existing_opouts);
             }
             None => {
-                self.terminal_index.insert(seal, tiny_bset![opout])?;
+                self.terminal_index.insert(seal, medium_bset![opout])?;
             }
         }
         Ok(())

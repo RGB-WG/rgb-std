@@ -41,7 +41,7 @@ rec Consignmenttrue
       is key, U16, aka GlobalStateType
       list value, len 1..MAX16, aka GlobalValues
         bytes element, len 0..MAX16, aka DataState
-    map assignments, len 0..MAX8, aka AssignmentsBlindSealTxid
+    map assignments, len 0..MAX16, aka AssignmentsBlindSealTxid
       is key, U16, aka AssignmentType
       union value, TypedAssignsBlindSealTxid
         list declarative, len 1..MAX16, wrapped, aka AssignVecAssignVoidStateBlindSealTxid, tag 0
@@ -106,9 +106,9 @@ rec Consignmenttrue
               bytes scriptPubkey, len 0..MAX32, aka ScriptPubkey, aka ScriptBytes
           is lockTime, U32, aka LockTime
       rec bundle, TransitionBundle
-        map inputMap, len 1..MAX16, aka InputMap
+        map inputMap, len 1..MAX16
           is key, U32, aka Vout
-          set value, len 0..MAX16
+          set value, len 1..MAX16, aka InputOpids
             bytes element, len 32, aka OpId
         map knownTransitions, len 1..MAX16
           bytes key, len 32, aka OpId
@@ -129,7 +129,7 @@ rec Consignmenttrue
                 bytes op, len 32, aka OpId
                 is ty, U16, aka AssignmentType
                 is no, U16
-            map assignments, len 0..MAX8, aka AssignmentsBlindSealTxPtr
+            map assignments, len 0..MAX16, aka AssignmentsBlindSealTxPtr
               is key, U16, aka AssignmentType
               union value, TypedAssignsBlindSealTxPtr
                 list declarative, len 1..MAX16, wrapped, aka AssignVecAssignVoidStateBlindSealTxPtr, tag 0
