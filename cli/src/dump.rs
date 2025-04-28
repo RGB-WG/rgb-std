@@ -58,7 +58,7 @@ where
     for (no, (opid, op, rels)) in contract.operations().enumerate() {
         let out = File::create_new(dst.join(format!("{:04}-{opid}.op.yaml", no + 1)))?;
         serde_yaml::to_writer(&out, &op)?;
-        let out = File::create_new(dst.join(format!("{no:04}-{}.pile.yaml", opid)))?;
+        let out = File::create_new(dst.join(format!("{:04}-{}.pile.yaml", no + 1, opid)))?;
         serde_yaml::to_writer(&out, &rels)?;
         print!("\rProcessing operations ... {} processed", no + 1);
     }
