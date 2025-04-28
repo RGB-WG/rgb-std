@@ -312,13 +312,10 @@ impl<S: Stock, P: Pile> Contract<S, P> {
     pub fn operations(
         &self,
     ) -> impl Iterator<Item = (Opid, Operation, OpRels<P::Seal>)> + use<'_, S, P> {
-        self.ledger
-            .operations()
-            .zip(self.pile.op_relations())
-            .map(|((opid, op), rels)| {
-                debug_assert_eq!(opid, rels.opid);
-                (opid, op, rels)
-            })
+        self.ledger.operations().map(|(opid, op)| {
+            let rels = self.pile.op_relations(opid);
+            (opid, op, rels)
+        })
     }
 
     pub fn trace(&self) -> impl Iterator<Item = (Opid, Transition)> + use<'_, S, P> {

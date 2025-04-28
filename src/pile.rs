@@ -200,7 +200,7 @@ pub trait Pile {
 
     fn op_seals(&self, opid: Opid) -> SmallOrdMap<u16, <Self::Seal as RgbSeal>::Definition>;
 
-    fn op_relations(&self) -> impl Iterator<Item = OpRels<Self::Seal>>;
+    fn op_relations(&self, opid: Opid) -> OpRels<Self::Seal>;
 
     /// Adds operation id and witness components, registers witness as `Archived`.
     ///

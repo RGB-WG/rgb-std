@@ -224,10 +224,9 @@ where
         })
     }
 
-    fn op_relations(&self) -> impl Iterator<Item = OpRels<Self::Seal>> {
-        self.keep.iter().map(|(opid, seals)| {
-            let witness_ids = self.index.get(opid).collect();
-            OpRels { opid, witness_ids, defines: seals, _phantom: PhantomData }
-        })
+    fn op_relations(&self, opid: Opid) -> OpRels<Self::Seal> {
+        let seals = self.keep.get_expect(opid);
+        let witness_ids = self.index.get(opid).collect();
+        OpRels { opid, witness_ids, defines: seals, _phantom: PhantomData }
     }
 }
