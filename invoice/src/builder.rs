@@ -59,8 +59,13 @@ impl RgbInvoiceBuilder {
         self
     }
 
-    pub fn set_assignment_name(mut self, assignment_name: FieldName) -> Self {
-        self.0.assignment_name = Some(assignment_name);
+    pub fn set_assignment_name(mut self, assignment_name: impl Into<FieldName>) -> Self {
+        self.0.assignment_name = Some(assignment_name.into());
+        self
+    }
+
+    pub fn set_void(mut self) -> Self {
+        self.0.assignment_state = Some(InvoiceState::Void);
         self
     }
 
