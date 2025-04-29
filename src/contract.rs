@@ -386,9 +386,12 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         changed: impl Iterator<Item = (<P::Seal as RgbSeal>::WitnessId, WitnessStatus)>,
     ) -> Result<(), AcceptError> {
         for (wid, status) in changed {
+            if !self.pile.has_witness(wid) {
+                continue;
+            }
             let prev_status = self.pile.witness_status(wid);
             if status == prev_status {
-                return Ok(());
+                continue;
             }
 
             self.pile.update_witness_status(wid, status);

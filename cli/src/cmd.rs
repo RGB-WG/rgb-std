@@ -63,7 +63,7 @@ pub enum Cmd {
 
         /// Destination directory to put dump files
         ///
-        /// If skipped, adds `dump` subdirectory to the `src` path.
+        /// If skipped, adds the `dump` subdirectory to the `src` path.
         #[clap(value_hint = ValueHint::FilePath)]
         dst: Option<PathBuf>,
     },
