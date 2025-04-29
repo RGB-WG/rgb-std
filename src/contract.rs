@@ -402,6 +402,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
                 }
             }
         }
+        self.ledger.commit_transaction();
         self.pile.commit_transaction();
         Ok(())
     }
@@ -430,8 +431,8 @@ impl<S: Stock, P: Pile> Contract<S, P> {
             let mut prev_anchor = self.pile.cli_witness(wid);
             if prev_anchor != anchor {
                 prev_anchor.merge(anchor).expect(
-                    "existing anchor is not compatible with new one; this indicates either bug in \
-                     RGB standard library or a compromised storage",
+                    "the existing anchor is not compatible with the new one; this indicates \
+                     either a bug in the RGB standard library or a compromised storage",
                 );
             }
             prev_anchor
@@ -494,6 +495,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
 
         let op_reader = OpReader { stream: reader, seal_resolver, _phantom: PhantomData };
         self.evaluate(op_reader)?;
+        self.ledger.commit_transaction();
         self.pile.commit_transaction();
 
         // We need to clone due to a borrow checker.
