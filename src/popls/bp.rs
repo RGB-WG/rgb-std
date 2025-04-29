@@ -651,7 +651,10 @@ where
         // Constructing blank operation requests
         let mut blank_requests = Vec::new();
         let root_noise_engine = self.noise_engine();
-        for contract_id in contracts {
+        for contract_id in self.contracts.contract_ids() {
+            if contracts.contains(&contract_id) {
+                continue;
+            }
             // We need to clone here not to conflict with mutable calls below
             let owned = self.contracts.contract_state(contract_id).owned.clone();
             let (using, prev): (Vec<_>, Vec<_>) = owned
