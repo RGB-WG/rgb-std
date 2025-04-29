@@ -160,7 +160,7 @@ where
         let schema = self
             .issuer(params.codex_id)
             .ok_or(IssuerError::UnknownCodex(params.codex_id))?;
-        Ok(Contract::issue(schema, params, |articles| {
+        let contract = Contract::issue(schema, params, |articles| {
             let dir = self.contract_dir(articles);
             if fs::exists(&dir).map_err(|e| IssueError::OtherPersistence(e))? {
                 return Err(IssueError::OtherPersistence(io::Error::other(
@@ -169,6 +169,9 @@ where
             }
             fs::create_dir_all(&dir).map_err(|e| IssueError::OtherPersistence(e))?;
             Ok(dir)
-        })?)
+        })?;
+        self.contracts
+            .insert(contract.contract_id(), contract.articles().issue.meta.name.to_string());
+        Ok(contract)
     }
 }
