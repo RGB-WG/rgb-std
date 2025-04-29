@@ -383,24 +383,26 @@ impl<S: Stock, P: Pile> Contract<S, P> {
 
     pub fn sync(
         &mut self,
-        wid: <P::Seal as RgbSeal>::WitnessId,
-        status: WitnessStatus,
+        changed: impl Iterator<Item = (<P::Seal as RgbSeal>::WitnessId, WitnessStatus)>,
     ) -> Result<(), AcceptError> {
-        let prev_status = self.pile.witness_status(wid);
-        if status == prev_status {
-            return Ok(());
-        }
+        for (wid, status) in changed {
+            let prev_status = self.pile.witness_status(wid);
+            if status == prev_status {
+                return Ok(());
+            }
 
-        self.pile.update_witness_status(wid, status);
+            self.pile.update_witness_status(wid, status);
 
-        let opids = self.pile.ops_by_witness_id(wid);
-        if status.is_valid() != prev_status.is_valid() {
-            if status.is_valid() {
-                self.ledger.forward(opids)?;
-            } else {
-                self.ledger.rollback(opids)?;
+            let opids = self.pile.ops_by_witness_id(wid);
+            if status.is_valid() != prev_status.is_valid() {
+                if status.is_valid() {
+                    self.ledger.forward(opids)?;
+                } else {
+                    self.ledger.rollback(opids)?;
+                }
             }
         }
+        self.pile.commit_transaction();
         Ok(())
     }
 

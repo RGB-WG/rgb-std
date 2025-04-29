@@ -258,17 +258,18 @@ where
         self.with_contract_mut(contract_id, |contract| contract.call(call, seals))
     }
 
-    pub fn sync(
-        &mut self,
-        changed: impl IntoIterator<
-            Item = (<<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId, WitnessStatus),
-        >,
-    ) -> Result<(), AcceptError> {
+    pub fn sync<'a, I>(&mut self, changed: I) -> Result<(), AcceptError>
+    where
+        I: IntoIterator<
+                Item = (&'a <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId, &'a WitnessStatus),
+            > + Copy,
+        <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId: 'a,
+    {
         let contract_ids = self.persistence.contract_ids().collect::<Vec<_>>();
-        for (id, status) in changed {
-            for contract_id in &contract_ids {
-                self.with_contract_mut(*contract_id, |contract| contract.sync(id, status))?;
-            }
+        for contract_id in &contract_ids {
+            self.with_contract_mut(*contract_id, |contract| {
+                contract.sync(changed.into_iter().map(|(id, status)| (*id, *status)))
+            })?;
         }
         Ok(())
     }

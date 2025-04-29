@@ -234,7 +234,7 @@ pub trait Pile {
     /// # Nota bene
     ///
     /// It is required to call this method after each witness update or consignment consumption.
-    /// If the method was not called the data won't persist and on termination the program will
+    /// If the method was not called, the data won't persist, and on termination the program will
     /// panic.
     fn commit_transaction(&mut self);
 }
