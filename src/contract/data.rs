@@ -25,8 +25,8 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use bp::Outpoint;
 use invoice::{Allocation, Amount};
 use rgb::{
-    AssignmentType, ContractId, DataState, GlobalStateType, OpId, OutputSeal, RevealedData,
-    RevealedValue, Schema, Txid, VoidState,
+    AssignmentType, ContractId, GlobalStateType, OpId, OutputSeal, RevealedData, RevealedValue,
+    Schema, Txid, VoidState,
 };
 use strict_encoding::{FieldName, StrictDecode, StrictDumb, StrictEncode};
 use strict_types::{StrictVal, TypeSystem};
@@ -60,15 +60,14 @@ pub enum AllocatedState {
     Void,
 
     #[from]
-    #[from(RevealedValue)]
+    #[from(Amount)]
     #[strict_type(tag = 1)]
-    Amount(Amount),
+    Amount(RevealedValue),
 
     #[from]
-    #[from(RevealedData)]
     #[from(Allocation)]
     #[strict_type(tag = 2)]
-    Data(DataState),
+    Data(RevealedData),
 }
 
 impl KnownState for AllocatedState {
@@ -78,7 +77,7 @@ impl KnownState for AllocatedState {
 impl AllocatedState {
     fn unwrap_fungible(&self) -> Amount {
         match self {
-            AllocatedState::Amount(amount) => *amount,
+            AllocatedState::Amount(revealed_value) => (*revealed_value).into(),
             _ => panic!("unwrapping non-fungible state"),
         }
     }
@@ -87,7 +86,7 @@ impl AllocatedState {
 pub type OwnedAllocation = OutputAssignment<AllocatedState>;
 pub type RightsAllocation = OutputAssignment<VoidState>;
 pub type FungibleAllocation = OutputAssignment<Amount>;
-pub type DataAllocation = OutputAssignment<DataState>;
+pub type DataAllocation = OutputAssignment<RevealedData>;
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display)]
 #[cfg_attr(
@@ -173,7 +172,7 @@ impl ContractOp {
     fn fungible_genesis(our_allocations: HashSet<OwnedAllocation>) -> Self {
         let to = our_allocations.iter().map(|a| a.seal).collect();
         let opids = our_allocations.iter().map(|a| a.opout.op).collect();
-        let issued = our_allocations
+        let issued: Amount = our_allocations
             .iter()
             .map(|a| a.state.unwrap_fungible())
             .sum();
@@ -181,7 +180,7 @@ impl ContractOp {
             direction: OpDirection::Issued,
             ty: reduce_to_ty(our_allocations),
             opids,
-            state: AllocatedState::Amount(issued),
+            state: AllocatedState::Amount(issued.into()),
             to,
             witness: None,
         }
@@ -190,7 +189,7 @@ impl ContractOp {
     fn fungible_sent(witness: WitnessInfo, ext_allocations: HashSet<OwnedAllocation>) -> Self {
         let opids = ext_allocations.iter().map(|a| a.opout.op).collect();
         let to = ext_allocations.iter().map(|a| a.seal).collect();
-        let amount = ext_allocations
+        let amount: Amount = ext_allocations
             .iter()
             .map(|a| a.state.unwrap_fungible())
             .sum();
@@ -198,7 +197,7 @@ impl ContractOp {
             direction: OpDirection::Sent,
             ty: reduce_to_ty(ext_allocations),
             opids,
-            state: AllocatedState::Amount(amount),
+            state: AllocatedState::Amount(amount.into()),
             to,
             witness: Some(witness),
         }
@@ -207,7 +206,7 @@ impl ContractOp {
     fn fungible_received(witness: WitnessInfo, our_allocations: HashSet<OwnedAllocation>) -> Self {
         let opids = our_allocations.iter().map(|a| a.opout.op).collect();
         let to = our_allocations.iter().map(|a| a.seal).collect();
-        let amount = our_allocations
+        let amount: Amount = our_allocations
             .iter()
             .map(|a| a.state.unwrap_fungible())
             .sum();
@@ -215,7 +214,7 @@ impl ContractOp {
             direction: OpDirection::Received,
             ty: reduce_to_ty(our_allocations),
             opids,
-            state: AllocatedState::Amount(amount),
+            state: AllocatedState::Amount(amount.into()),
             to,
             witness: Some(witness),
         }

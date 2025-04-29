@@ -41,10 +41,10 @@ use rgb::vm::{
     OrdOpRef, UnknownGlobalStateType, WitnessOrd,
 };
 use rgb::{
-    Assign, AssignmentType, Assignments, AssignmentsRef, BundleId, ContractId, DataState,
-    ExposedSeal, ExposedState, FungibleState, Genesis, GenesisSeal, GlobalStateType, GraphSeal,
-    OpId, Operation, Opout, OutputSeal, RevealedData, RevealedValue, Schema, SchemaId, SecretSeal,
-    Transition, TransitionBundle, TypedAssigns, VoidState,
+    Assign, AssignmentType, Assignments, AssignmentsRef, BundleId, ContractId, ExposedSeal,
+    ExposedState, FungibleState, Genesis, GenesisSeal, GlobalStateType, GraphSeal, OpId, Operation,
+    Opout, OutputSeal, RevealedData, RevealedValue, Schema, SchemaId, SecretSeal, Transition,
+    TransitionBundle, TypedAssigns, VoidState,
 };
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 use strict_types::TypeSystem;
@@ -472,7 +472,7 @@ impl StateWriteProvider for MemState {
 #[strict_type(lib = LIB_NAME_RGB_STORAGE)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
 pub struct MemGlobalState {
-    known: LargeOrdMap<GlobalOut, DataState>,
+    known: LargeOrdMap<GlobalOut, RevealedData>,
     limit: u24,
 }
 
@@ -632,12 +632,12 @@ impl<M: Borrow<MemContractState>> ContractStateAccess for MemContract<M> {
         &self,
         ty: GlobalStateType,
     ) -> Result<GlobalContractState<impl GlobalStateIter>, UnknownGlobalStateType> {
-        type Src<'a> = &'a BTreeMap<GlobalOut, DataState>;
-        type FilteredIter<'a> = Box<dyn Iterator<Item = (GlobalOrd, &'a DataState)> + 'a>;
+        type Src<'a> = &'a BTreeMap<GlobalOut, RevealedData>;
+        type FilteredIter<'a> = Box<dyn Iterator<Item = (GlobalOrd, &'a RevealedData)> + 'a>;
         struct Iter<'a> {
             src: Src<'a>,
             iter: FilteredIter<'a>,
-            last: Option<(GlobalOrd, &'a DataState)>,
+            last: Option<(GlobalOrd, &'a RevealedData)>,
             depth: u24,
             constructor: Box<dyn Fn(Src<'a>) -> FilteredIter<'a> + 'a>,
         }
@@ -649,7 +649,7 @@ impl<M: Borrow<MemContractState>> ContractStateAccess for MemContract<M> {
             }
         }
         impl<'a> GlobalStateIter for Iter<'a> {
-            type Data = &'a DataState;
+            type Data = &'a RevealedData;
             fn size(&mut self) -> u24 {
                 let iter = self.swap();
                 // TODO: Consuming iterator just to count items is highly inefficient, but I do
@@ -743,14 +743,14 @@ impl<M: Borrow<MemContractState>> ContractStateAccess for MemContract<M> {
             })
             .filter(|assignment| assignment.check_witness(&self.filter))
             .filter(|assignment| assignment.check_bundle(&self.invalid_bundles))
-            .map(|assignment| assignment.state.value)
+            .map(|assignment| assignment.state.into())
     }
 
     fn data(
         &self,
         outpoint: Outpoint,
         ty: AssignmentType,
-    ) -> impl DoubleEndedIterator<Item = impl Borrow<DataState>> {
+    ) -> impl DoubleEndedIterator<Item = impl Borrow<RevealedData>> {
         self.unfiltered
             .borrow()
             .data
@@ -760,7 +760,7 @@ impl<M: Borrow<MemContractState>> ContractStateAccess for MemContract<M> {
             })
             .filter(|assignment| assignment.check_witness(&self.filter))
             .filter(|assignment| assignment.check_bundle(&self.invalid_bundles))
-            .map(|assignment| &assignment.state.value)
+            .map(|assignment| &assignment.state)
     }
 }
 

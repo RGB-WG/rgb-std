@@ -63,7 +63,7 @@ impl StrictSerialize for Amount {}
 impl StrictDeserialize for Amount {}
 
 impl From<RevealedValue> for Amount {
-    fn from(value: RevealedValue) -> Self { Amount(value.value.as_u64()) }
+    fn from(value: RevealedValue) -> Self { Amount(value.as_u64()) }
 }
 
 impl From<FungibleState> for Amount {
@@ -72,6 +72,10 @@ impl From<FungibleState> for Amount {
 
 impl From<Amount> for FungibleState {
     fn from(amount: Amount) -> Self { FungibleState::Bits64(amount.0) }
+}
+
+impl From<Amount> for RevealedValue {
+    fn from(amount: Amount) -> Self { RevealedValue::from(FungibleState::Bits64(amount.0)) }
 }
 
 impl Amount {

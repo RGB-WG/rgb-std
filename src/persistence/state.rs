@@ -24,13 +24,12 @@ use std::error::Error;
 use std::fmt::Debug;
 
 use amplify::confinement::{LargeOrdMap, LargeOrdSet};
-use invoice::Amount;
 use nonasync::persistence::{CloneNoPersistence, Persisting};
 use rgb::validation::{ResolveWitness, WitnessResolverError};
 use rgb::vm::{ContractStateAccess, WitnessOrd};
 use rgb::{
-    BundleId, ContractId, DataState, Genesis, RevealedData, RevealedValue, Schema, SchemaId,
-    Transition, TransitionBundle, Txid, VoidState,
+    BundleId, ContractId, Genesis, RevealedData, RevealedValue, Schema, SchemaId, Transition,
+    TransitionBundle, Txid, VoidState,
 };
 
 use crate::containers::{ConsignmentExt, ToWitnessId};
@@ -70,14 +69,6 @@ pub enum StateInconsistency {
     UnknownContract(ContractId),
     /// a witness {0} is absent from the state data.
     AbsentWitness(Txid),
-}
-
-#[derive(Clone, Eq, PartialEq, Debug, Hash)]
-pub enum PersistedState {
-    Void,
-    Amount(Amount),
-    // TODO: Use RevealedData
-    Data(DataState, u128),
 }
 
 #[derive(Debug)]

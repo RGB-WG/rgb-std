@@ -27,8 +27,8 @@ use std::hash::Hash;
 use invoice::Amount;
 use rgb::vm::WitnessOrd;
 use rgb::{
-    AssignmentType, BundleId, DataState, ExposedSeal, OpId, Opout, OutputSeal, RevealedData,
-    RevealedValue, Txid, VoidState,
+    AssignmentType, BundleId, ExposedSeal, OpId, Opout, OutputSeal, RevealedData, RevealedValue,
+    Txid, VoidState,
 };
 use strict_encoding::{StrictDecode, StrictDumb, StrictEncode};
 
@@ -45,9 +45,6 @@ impl KnownState for () {
     const IS_FUNGIBLE: bool = false;
 }
 impl KnownState for VoidState {
-    const IS_FUNGIBLE: bool = false;
-}
-impl KnownState for DataState {
     const IS_FUNGIBLE: bool = false;
 }
 impl KnownState for Amount {

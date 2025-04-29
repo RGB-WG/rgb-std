@@ -21,7 +21,7 @@
 
 use std::str::FromStr;
 
-use rgb::{DataState, RevealedData};
+use rgb::RevealedData;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use strict_encoding::{StrictDeserialize, StrictSerialize};
@@ -158,19 +158,13 @@ impl StrictDeserialize for Allocation {}
 
 impl From<RevealedData> for Allocation {
     fn from(data: RevealedData) -> Self {
-        Allocation::from_strict_serialized(data.value.into()).expect("invalid allocation data")
+        Allocation::from_strict_serialized(data.into()).expect("invalid allocation data")
     }
 }
 
-impl From<DataState> for Allocation {
-    fn from(state: DataState) -> Self {
-        Allocation::from_strict_serialized(state.into()).expect("invalid allocation data")
-    }
-}
-
-impl From<Allocation> for DataState {
+impl From<Allocation> for RevealedData {
     fn from(allocation: Allocation) -> Self {
-        DataState::from(
+        RevealedData::from(
             allocation
                 .to_strict_serialized()
                 .expect("invalid allocation data"),

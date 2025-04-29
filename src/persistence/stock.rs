@@ -41,22 +41,22 @@ use strict_types::FieldName;
 
 use super::{
     ContractStateRead, Index, IndexError, IndexInconsistency, IndexProvider, IndexReadProvider,
-    IndexWriteProvider, MemIndex, MemStash, MemState, PersistedState, Stash, StashDataError,
-    StashError, StashInconsistency, StashProvider, StashReadProvider, StashWriteProvider, State,
-    StateError, StateInconsistency, StateProvider, StateReadProvider, StateWriteProvider,
-    StoreTransaction,
+    IndexWriteProvider, MemIndex, MemStash, MemState, Stash, StashDataError, StashError,
+    StashInconsistency, StashProvider, StashReadProvider, StashWriteProvider, State, StateError,
+    StateInconsistency, StateProvider, StateReadProvider, StateWriteProvider, StoreTransaction,
 };
 use crate::containers::{
     Consignment, ContainerVer, Contract, Fascia, Kit, Transfer, TransitionInfoError,
     ValidConsignment, ValidContract, ValidKit, ValidTransfer, WitnessBundle,
 };
 use crate::contract::{
-    BuilderError, ContractBuilder, ContractData, IssuerWrapper, SchemaWrapper, TransitionBuilder,
+    AllocatedState, BuilderError, ContractBuilder, ContractData, IssuerWrapper, SchemaWrapper,
+    TransitionBuilder,
 };
 use crate::info::{ContractInfo, SchemaInfo};
 use crate::MergeRevealError;
 
-pub type ContractAssignments = HashMap<OutputSeal, HashMap<Opout, PersistedState>>;
+pub type ContractAssignments = HashMap<OutputSeal, HashMap<Opout, AllocatedState>>;
 
 #[derive(Debug, Display, Error, From)]
 #[display(inner)]
@@ -516,24 +516,23 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         let state = self.contract_state(contract_id)?;
 
         let mut res =
-            HashMap::<OutputSeal, HashMap<Opout, PersistedState>>::with_capacity(outputs.len());
+            HashMap::<OutputSeal, HashMap<Opout, AllocatedState>>::with_capacity(outputs.len());
 
         for item in state.fungible_all() {
             let outpoint = item.seal.into();
             if outputs.contains::<Outpoint>(&outpoint) {
                 res.entry(item.seal)
                     .or_default()
-                    .insert(item.opout, PersistedState::Amount(item.state.value.into()));
+                    .insert(item.opout, AllocatedState::Amount(item.state));
             }
         }
 
         for item in state.data_all() {
             let outpoint = item.seal.into();
             if outputs.contains::<Outpoint>(&outpoint) {
-                res.entry(item.seal).or_default().insert(
-                    item.opout,
-                    PersistedState::Data(item.state.value.clone(), item.state.salt),
-                );
+                res.entry(item.seal)
+                    .or_default()
+                    .insert(item.opout, AllocatedState::Data(item.state.clone()));
             }
         }
 
@@ -542,7 +541,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             if outputs.contains::<Outpoint>(&outpoint) {
                 res.entry(item.seal)
                     .or_default()
-                    .insert(item.opout, PersistedState::Void);
+                    .insert(item.opout, AllocatedState::Void);
             }
         }
 
@@ -680,7 +679,6 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             }
             let transition = self.transition(id)?;
             ids.extend(transition.inputs().iter().map(|input| input.op));
-            transitions.insert(id, transition.clone());
             let bundle_id = self.index.bundle_id_for_op(transition.id())?;
             bundles
                 .entry(bundle_id)
