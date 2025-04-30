@@ -90,15 +90,9 @@ impl Args {
                             src.display()
                         ))?;
                     if *force {
-                        fs::remove_dir_all(&dst).or_else(|e| {
-                            if e.kind() == std::io::ErrorKind::NotFound {
-                                Ok(())
-                            } else {
-                                Err(e)
-                            }
-                        })?;
+                        let _ = fs::remove_dir_all(&dst);
                     }
-                    dump_consignment::<WTxoSeal>(src, dst)?;
+                    dump_consignment::<WTxoSeal>(src, dst).inspect_err(|_| println!())?;
                 }
                 Some(ext) if ext == "contract" => {
                     let dst = dst
@@ -106,13 +100,7 @@ impl Args {
                         .map(|p| p.to_owned())
                         .unwrap_or_else(|| src.join("dump"));
                     if *force {
-                        fs::remove_dir_all(&dst).or_else(|e| {
-                            if e.kind() == std::io::ErrorKind::NotFound {
-                                Ok(())
-                            } else {
-                                Err(e)
-                            }
-                        })?;
+                        let _ = fs::remove_dir_all(&dst);
                     }
                     dump_stockpile::<TxoSeal>(src, dst).inspect_err(|_| println!())?;
                 }

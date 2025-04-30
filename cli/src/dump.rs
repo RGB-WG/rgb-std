@@ -138,7 +138,7 @@ where
 
     let out = File::create_new(dst.join("0000-seals.yml"))?;
     let defined_seals = SmallOrdMap::<u16, SealDef>::strict_decode(&mut stream)
-        .expect("Failed to read consignment stream");
+        .expect("Failed to read the consignment stream");
     serde_yaml::to_writer(&out, &defined_seals)?;
     seal_count += defined_seals.len();
 
@@ -160,16 +160,18 @@ where
 
                 let out = File::create_new(dst.join(format!("{op_count:04}-seals.yml")))?;
                 let defined_seals = SmallOrdMap::<u16, SealDef>::strict_decode(&mut stream)
-                    .expect("Failed to read consignment stream");
+                    .expect("Failed to read the consignment stream");
                 serde_yaml::to_writer(&out, &defined_seals)?;
                 seal_count += defined_seals.len();
 
                 let len = u64::strict_decode(&mut stream)?;
                 for no in 0..len {
-                    let out = File::create_new(
-                        dst.join(format!("{op_count:04}-witness-{:02}.yaml", no + 1)),
-                    )?;
                     let witness = SealWitness::<SealDef::Src>::strict_decode(&mut stream)?;
+                    let out = File::create_new(dst.join(format!(
+                        "{op_count:04}-witness-{:02}-{}.yaml",
+                        no + 1,
+                        witness.published.pub_id()
+                    )))?;
                     serde_yaml::to_writer(&out, &witness)?;
                 }
 
@@ -177,7 +179,7 @@ where
                 op_count += 1;
             }
             Err(DecodeError::Io(e)) if e.kind() == io::ErrorKind::UnexpectedEof => break,
-            Err(e) => bail!("Failed to read consignment stream: {}", e),
+            Err(e) => bail!("Failed to read the consignment stream: {}", e),
         }
         print!(
             "\rParsing stream ... {op_count} operations, {seal_count} seals, {witness_count} \
