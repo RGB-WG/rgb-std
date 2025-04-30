@@ -141,7 +141,7 @@ checksum = "e16d2d3311acee920a9eb8d33b8cbc1787ce4a264e85f964c2404b969bdcd487"
 [[package]]
 name = "aora"
 version = "0.6.2"
-source = "git+https://github.com/rust-amplify/aora#cb0019facbcf1bd1ddfd8a234386b80118d81a45"
+source = "git+https://github.com/rust-amplify/aora#25e547c218dc0ce2f689e5abcb1d58439e807f45"
 dependencies = [
  "amplify",
  "binfile",
@@ -807,7 +807,7 @@ dependencies = [
 [[package]]
 name = "rgb-core"
 version = "0.12.0-beta.5"
-source = "git+https://github.com/RGB-WG/rgb-core?branch=v0.12#57a1800032ce126e6fd05779f08d7792a4b42a19"
+source = "git+https://github.com/RGB-WG/rgb-core?branch=v0.12#2725b0b72bebe24a53ecd29aa71b42a4ece6915a"
 dependencies = [
  "amplify",
  "bp-core",
@@ -1018,9 +1018,9 @@ dependencies = [
 
 [[package]]
 name = "sha2"
-version = "0.10.8"
+version = "0.10.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "793db75ad2bcafc3ffa7c68b215fee268f537982cd901d132f89c6343f3a3dc8"
+checksum = "a7507d819769d01a365ab707794a4084392c824f54a7a6a7862f8c3d0892b283"
 dependencies = [
  "cfg-if",
  "cpufeatures",

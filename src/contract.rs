@@ -43,7 +43,7 @@ use hypersonic::{
 use indexmap::IndexMap;
 use rgb::{
     ContractApi, ContractVerify, OperationSeals, ReadOperation, ReadWitness, RgbSeal, RgbSealDef,
-    Step, VerificationError,
+    VerificationError,
 };
 use single_use_seals::{ClientSideWitness, PublishedWitness, SealWitness};
 use strict_encoding::{
@@ -296,15 +296,14 @@ impl<S: Stock, P: Pile> Contract<S, P> {
             .unwrap_or(WitnessStatus::Genesis)
     }
 
-    fn retrieve(
-        &self,
-        opid: Opid,
-    ) -> impl ExactSizeIterator<Item = SealWitness<P::Seal>> + use<'_, S, P> {
-        self.pile.op_witness_ids(opid).map(|wid| {
-            let client = self.pile.cli_witness(wid);
-            let published = self.pile.pub_witness(wid);
-            SealWitness::new(published, client)
-        })
+    fn retrieve(&self, opid: Opid) -> Option<SealWitness<P::Seal>> {
+        let wid = self
+            .pile
+            .op_witness_ids(opid)
+            .find(|wid| self.pile.witness_status(*wid).is_valid())?;
+        let client = self.pile.cli_witness(wid);
+        let published = self.pile.pub_witness(wid);
+        Some(SealWitness::new(published, client))
     }
 
     pub fn contract_id(&self) -> ContractId { self.contract_id }
@@ -491,10 +490,9 @@ impl<S: Stock, P: Pile> Contract<S, P> {
                 writer = seals.strict_encode(writer)?;
 
                 // Write witnesses
-                let iter = self.retrieve(opid);
-                let len = iter.len();
-                writer = (len as u64).strict_encode(writer)?;
-                for witness in iter {
+                let witness = self.retrieve(opid);
+                writer = witness.is_some().strict_encode(writer)?;
+                if let Some(witness) = witness {
                     writer = witness.strict_encode(writer)?;
                 }
 
@@ -520,7 +518,8 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         let codex = Codex::strict_decode(reader)?;
 
         let op_reader = OpReader { stream: reader, seal_resolver, _phantom: PhantomData };
-        self.evaluate(op_reader)?;
+        self.evaluate(op_reader)
+            .unwrap_or_else(|err| panic!("Error: {err}"));
         self.ledger.commit_transaction();
         self.pile.commit_transaction();
 
@@ -576,9 +575,9 @@ impl<'r, SealDef: RgbSealDef, R: ReadRaw, F: FnMut(&Operation) -> BTreeMap<u16, 
                     .extend((self.seal_resolver)(&operation))
                     .expect("Too many seals defined in the operation");
                 let op_seals = OperationSeals { operation, defined_seals };
-                let count =
-                    u64::strict_decode(self.stream).expect("Failed to read the consignment stream");
-                Some((op_seals, WitnessReader { parent: self, left: count }))
+                let has_witness = bool::strict_decode(self.stream)
+                    .expect("Failed to read the consignment stream");
+                Some((op_seals, WitnessReader { parent: self, present: has_witness }))
             }
             Err(DecodeError::Io(e)) if e.kind() == io::ErrorKind::UnexpectedEof => None,
             Err(e) => {
@@ -595,7 +594,7 @@ pub struct WitnessReader<
     R: ReadRaw,
     F: FnMut(&Operation) -> BTreeMap<u16, SealDef>,
 > {
-    left: u64,
+    present: bool,
     parent: OpReader<'r, SealDef, R, F>,
 }
 
@@ -606,19 +605,18 @@ impl<'r, SealDef: RgbSealDef, R: ReadRaw, F: FnMut(&Operation) -> BTreeMap<u16, 
     type OperationReader = OpReader<'r, SealDef, R, F>;
 
     fn read_witness(
-        mut self,
-    ) -> Step<(SealWitness<<Self::SealDef as RgbSealDef>::Src>, Self), Self::OperationReader> {
-        if self.left == 0 {
-            return Step::Complete(self.parent);
+        self,
+    ) -> (Option<SealWitness<<Self::SealDef as RgbSealDef>::Src>>, Self::OperationReader) {
+        let mut witness = None;
+        if self.present {
+            witness = SealWitness::strict_decode(self.parent.stream)
+                .inspect_err(|e| {
+                    // TODO: Report error via a side-channel
+                    eprint!("Failed to read consignment stream: {}", e);
+                })
+                .ok();
         }
-        self.left -= 1;
-        match SealWitness::strict_decode(self.parent.stream) {
-            Ok(witness) => Step::Next((witness, self)),
-            Err(e) => {
-                // TODO: Report error via a side-channel
-                panic!("Failed to read consignment stream: {}", e);
-            }
-        }
+        (witness, self.parent)
     }
 }
 
