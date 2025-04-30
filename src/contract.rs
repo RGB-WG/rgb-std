@@ -40,6 +40,7 @@ use hypersonic::{
     Memory, MergeError, MethodName, NamedState, Operation, Opid, Schema, StateAtom, StateName,
     Stock, StockError, Transition,
 };
+use indexmap::IndexMap;
 use rgb::{
     ContractApi, ContractVerify, OperationSeals, ReadOperation, ReadWitness, RgbSeal, RgbSealDef,
     Step, VerificationError,
@@ -107,7 +108,7 @@ pub struct Assignment<Seal> {
 pub struct OwnedState<Seal> {
     #[cfg_attr(feature = "serde", serde(flatten))]
     pub assignment: Assignment<Seal>,
-    pub since: Option<u64>,
+    pub status: WitnessStatus,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -115,7 +116,7 @@ pub struct OwnedState<Seal> {
 pub struct ImmutableState {
     #[cfg_attr(feature = "serde", serde(flatten))]
     pub data: StateAtom,
-    pub since: Option<u64>,
+    pub status: WitnessStatus,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Default)]
@@ -150,7 +151,7 @@ impl<Seal> ContractState<Seal> {
                                     seal: f(data.assignment.seal),
                                     data: data.assignment.data,
                                 },
-                                since: data.since,
+                                status: data.status,
                             })
                         })
                         .collect();
@@ -176,7 +177,7 @@ impl<Seal> ContractState<Seal> {
                                     seal: f(data.assignment.seal)?,
                                     data: data.assignment.data,
                                 },
-                                since: data.since,
+                                status: data.status,
                             }))
                         })
                         .collect();
@@ -287,11 +288,12 @@ impl<S: Stock, P: Pile> Contract<S, P> {
     }
 
     /// Get mining status for a given operation.
-    fn witness_height(&self, opid: Opid) -> Option<u64> {
+    fn witness_status(&self, opid: Opid) -> WitnessStatus {
         self.pile
             .op_witness_ids(opid)
-            .flat_map(|wid| self.pile.witness_status(wid).height())
+            .map(|wid| self.pile.witness_status(wid))
             .max()
+            .unwrap_or(WitnessStatus::Genesis)
     }
 
     fn retrieve(
@@ -346,19 +348,22 @@ impl<S: Stock, P: Pile> Contract<S, P> {
             for (addr, data) in map {
                 let since = *cache
                     .entry(addr.opid)
-                    .or_insert_with(|| self.witness_height(addr.opid));
+                    .or_insert_with(|| self.witness_status(addr.opid));
                 let seals = self.pile.op_seals(addr.opid);
                 let Some(seal) = seals.get(&addr.pos) else {
                     continue;
                 };
                 if let Some(seal) = seal.to_src() {
-                    state.insert(addr, OwnedState { assignment: Assignment { seal, data }, since });
+                    state.insert(addr, OwnedState {
+                        assignment: Assignment { seal, data },
+                        status: since,
+                    });
                 } else {
                     // We insert a copy of state for each of the witnesses created for the operation
                     for wid in self.pile.op_witness_ids(addr.opid) {
                         state.insert(addr, OwnedState {
                             assignment: Assignment { seal: seal.resolve(wid), data: data.clone() },
-                            since,
+                            status: since,
                         });
                     }
                 }
@@ -369,10 +374,10 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         for (name, map) in state.immutable {
             let mut state = bmap! {};
             for (addr, data) in map {
-                let since = *cache
+                let status = *cache
                     .entry(addr.opid)
-                    .or_insert_with(|| self.witness_height(addr.opid));
-                state.insert(addr, ImmutableState { data, since });
+                    .or_insert_with(|| self.witness_status(addr.opid));
+                state.insert(addr, ImmutableState { data, status });
             }
             immutable.insert(name, state);
         }
@@ -385,6 +390,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         &mut self,
         changed: impl Iterator<Item = (<P::Seal as RgbSeal>::WitnessId, WitnessStatus)>,
     ) -> Result<(), AcceptError> {
+        let mut updates = IndexMap::new();
         for (wid, status) in changed {
             if !self.pile.has_witness(wid) {
                 continue;
@@ -399,14 +405,30 @@ impl<S: Stock, P: Pile> Contract<S, P> {
             let opids = self.pile.ops_by_witness_id(wid);
             if status.is_valid() != prev_status.is_valid() {
                 if status.is_valid() {
-                    self.ledger.forward(opids)?;
+                    updates.extend(opids.map(|opid| (opid, true)));
                 } else {
-                    self.ledger.rollback(opids)?;
+                    updates.extend(opids.map(|opid| (opid, false)));
                 }
             }
         }
-        self.ledger.commit_transaction();
+
+        updates.retain(|opid, forward| {
+            let status = self.witness_status(*opid);
+            // keep only if it is:
+            // - a forward and the status is valid
+            // - a rollback and the status is invalid
+            *forward == status.is_valid()
+        });
+        for (opid, forward) in updates {
+            if forward {
+                self.ledger.forward([opid]).unwrap();
+            } else {
+                self.ledger.rollback([opid]).unwrap();
+            }
+        }
+
         self.pile.commit_transaction();
+        self.ledger.commit_transaction();
         Ok(())
     }
 
@@ -442,7 +464,8 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         } else {
             anchor
         };
-        self.pile.add_witness(opid, wid, published, &anchor);
+        self.pile
+            .add_witness(opid, wid, published, &anchor, WitnessStatus::Tentative);
         self.pile.commit_transaction();
     }
 
@@ -548,13 +571,13 @@ impl<'r, SealDef: RgbSealDef, R: ReadRaw, F: FnMut(&Operation) -> BTreeMap<u16, 
         match Operation::strict_decode(self.stream) {
             Ok(operation) => {
                 let mut defined_seals = SmallOrdMap::strict_decode(self.stream)
-                    .expect("Failed to read consignment stream");
+                    .expect("Failed to read the consignment stream");
                 defined_seals
                     .extend((self.seal_resolver)(&operation))
                     .expect("Too many seals defined in the operation");
                 let op_seals = OperationSeals { operation, defined_seals };
                 let count =
-                    u64::strict_decode(self.stream).expect("Failed to read consignment stream");
+                    u64::strict_decode(self.stream).expect("Failed to read the consignment stream");
                 Some((op_seals, WitnessReader { parent: self, left: count }))
             }
             Err(DecodeError::Io(e)) if e.kind() == io::ErrorKind::UnexpectedEof => None,

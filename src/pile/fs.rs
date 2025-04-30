@@ -185,6 +185,7 @@ where
         wid: <Self::Seal as RgbSeal>::WitnessId,
         published: &<Self::Seal as RgbSeal>::Published,
         anchor: &<Self::Seal as RgbSeal>::Client,
+        status: WitnessStatus,
     ) {
         self.index.push(opid, wid);
         self.stand.push(wid, opid);
@@ -193,7 +194,7 @@ where
         self.hoard.insert(wid, anchor);
         self.cache.insert(wid, published);
         if !self.mine.contains_key(wid) {
-            self.mine.insert_only(wid, WitnessStatus::Archived);
+            self.mine.insert_only(wid, status);
         }
     }
 

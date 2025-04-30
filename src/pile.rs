@@ -30,61 +30,76 @@ use core::error::Error as StdError;
 use core::fmt::Debug;
 use core::marker::PhantomData;
 use core::num::NonZeroU64;
+use std::cmp::Ordering;
 use std::collections::HashSet;
 
 use amplify::confinement::SmallOrdMap;
 use hypersonic::Opid;
 use rgb::RgbSeal;
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display, Default)]
+/// The status of the witness transaction.
+///
+/// Note on comparison:
+/// the ordering is done in a way that more trustfull status is always greater than less trustfull.
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display, Default)]
 #[display(lowercase)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub enum WitnessStatus {
-    /// Indicates past public witness which is no more valid - it is not included in the
-    /// blockchain, not present in the mempool or belongs to the past Lightning channel state.
-    #[default]
-    Archived,
+    /// No witness, which is the case for genesis operations.
+    Genesis,
 
-    /// Valid public witness included into the current consensus at specific height, which,
+    /// Valid public witness included in the current consensus at a specific height, which,
     /// however, may be eventually re-orged.
+    ///
+    /// A zero height (used by Bitcoin genesis which can't contain any RGB operation) is used for
+    /// the operations which do not have witness (genesis operation) - see [`Self::Genesis`].
     #[display(inner)]
     Mined(NonZeroU64),
-
-    /// Indicates known public witness which can be replaced or RBF'ed without the control of the
-    /// receiving side.
-    Tentative,
 
     /// Indicates offchain status where the used is in a full control over transaction execution
     /// and the transaction can't be replaced (RBFed) without the receiver participation - for
     /// instance, like in lightning channel transactions (but only for the current channel
     /// state).
     Offchain,
+
+    /// Indicates known public witness which can be replaced or RBF'ed without the control of the
+    /// receiving side.
+    Tentative,
+
+    /// Indicates past public witness which is no more valid - it is not included in the
+    /// blockchain, not present in the mempool or belongs to the past Lightning channel state.
+    #[default]
+    Archived,
+}
+
+impl PartialOrd for WitnessStatus {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
+}
+
+impl Ord for WitnessStatus {
+    fn cmp(&self, other: &Self) -> Ordering {
+        <[u8; 8] as Ord>::cmp(&(*self).into(), &(*other).into())
+    }
 }
 
 impl WitnessStatus {
-    const ARCHIVED: u64 = 0;
-    const TENTATIVE: u64 = u64::MAX.wrapping_sub(1);
-    const OFFCHAIN: u64 = u64::MAX;
+    const GENESIS: u64 = 0;
+    const TENTATIVE: u64 = u64::MAX ^ 0x01;
+    const OFFCHAIN: u64 = u64::MAX ^ 0x02;
+    const ARCHIVED: u64 = u64::MAX;
 
     pub fn is_mined(&self) -> bool { matches!(self, Self::Mined(_)) }
     pub fn is_valid(&self) -> bool { !matches!(self, Self::Archived) }
     pub fn is_tentative(&self) -> bool { matches!(self, Self::Tentative) }
     pub fn is_archived(&self) -> bool { matches!(self, Self::Archived) }
     pub fn is_offchain(&self) -> bool { matches!(self, Self::Offchain) }
-    pub fn height(&self) -> Option<u64> {
-        match self {
-            Self::Archived => None,
-            Self::Mined(height) => Some(height.get()),
-            Self::Tentative => Some(0),
-            Self::Offchain => Some(u64::MAX),
-        }
-    }
 }
 
-// We use big-endian encoding in order to allow lexicographic sorting
+// We use big-endian encoding of the inverted numbers to allow lexicographic sorting
 impl From<[u8; 8]> for WitnessStatus {
     fn from(value: [u8; 8]) -> Self {
-        match u64::from_be_bytes(value) {
+        match u64::MAX - u64::from_be_bytes(value) {
+            Self::GENESIS => Self::Genesis,
             Self::ARCHIVED => Self::Archived,
             Self::TENTATIVE => Self::Tentative,
             Self::OFFCHAIN => Self::Offchain,
@@ -93,15 +108,17 @@ impl From<[u8; 8]> for WitnessStatus {
     }
 }
 
-// We use big-endian encoding in order to allow lexicographic sorting
+// We use big-endian encoding of the inverted numbers to allow lexicographic sorting
 impl From<WitnessStatus> for [u8; 8] {
     fn from(value: WitnessStatus) -> Self {
-        let fake_height = match value {
-            WitnessStatus::Archived => WitnessStatus::ARCHIVED,
-            WitnessStatus::Mined(info) => info.get(),
-            WitnessStatus::Tentative => WitnessStatus::TENTATIVE,
-            WitnessStatus::Offchain => WitnessStatus::OFFCHAIN,
-        };
+        let fake_height = u64::MAX
+            - match value {
+                WitnessStatus::Genesis => WitnessStatus::GENESIS,
+                WitnessStatus::Archived => WitnessStatus::ARCHIVED,
+                WitnessStatus::Tentative => WitnessStatus::TENTATIVE,
+                WitnessStatus::Offchain => WitnessStatus::OFFCHAIN,
+                WitnessStatus::Mined(info) => info.get(),
+            };
         fake_height.to_be_bytes()
     }
 }
@@ -211,6 +228,7 @@ pub trait Pile {
         wid: <Self::Seal as RgbSeal>::WitnessId,
         published: &<Self::Seal as RgbSeal>::Published,
         anchor: &<Self::Seal as RgbSeal>::Client,
+        status: WitnessStatus,
     );
 
     fn add_seals(
@@ -237,4 +255,29 @@ pub trait Pile {
     /// If the method was not called, the data won't persist, and on termination the program will
     /// panic.
     fn commit_transaction(&mut self);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn witness_status_bytes() {
+        assert_eq!(
+            WitnessStatus::Genesis,
+            [0xFFu8, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF].into()
+        );
+        assert_eq!(<[u8; 8]>::from(WitnessStatus::Genesis), [
+            0xFFu8, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
+        ]);
+    }
+
+    #[test]
+    fn witness_status_ordering() {
+        assert!(WitnessStatus::Genesis > WitnessStatus::Mined(NonZeroU64::new(1).unwrap()));
+        assert!(WitnessStatus::Mined(NonZeroU64::new(1).unwrap()) > WitnessStatus::Tentative);
+        assert!(WitnessStatus::Tentative < WitnessStatus::Offchain);
+        assert!(WitnessStatus::Offchain > WitnessStatus::Archived);
+        assert!(WitnessStatus::Archived < WitnessStatus::Genesis);
+    }
 }

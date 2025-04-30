@@ -28,6 +28,7 @@ bp-invoice = "=0.12.0-beta.5"
 rgb-core = "=0.12.0-beta.5"
 rgb-std = { version = "=0.12.0-beta.5", path = "." }
 rgb-invoice = { version = "=0.12.0-beta.5", path = "./invoice" }
+indexmap = "2.9.0"
 chrono = "0.4.39"
 serde = "1.0.215"
 serde_with = "1.14.0"
@@ -66,6 +67,7 @@ bp-core = { workspace = true, optional = true }
 bp-invoice = { workspace = true, optional = true }
 rgb-core.workspace = true
 rgb-invoice.workspace = true
+indexmap.workspace = true
 chrono.workspace = true
 serde = { workspace = true, optional = true }
 serde_with = { workspace = true, optional = true }
@@ -73,7 +75,7 @@ serde_with = { workspace = true, optional = true }
 [features]
 default = ["std", "bitcoin"]
 all = ["std", "bitcoin", "liquid", "prime", "fs", "stl", "serde"]
-std = ["rgb-invoice/std"]
+std = ["rgb-invoice/std", "indexmap/std"]
 
 bitcoin = ["bp-core", "bp-invoice", "rgb-core/bitcoin", "rgb-invoice/bitcoin"]
 liquid = ["rgb-core/liquid", "rgb-invoice/liquid"]
@@ -111,6 +113,7 @@ wasm-bindgen-test = "0.3"
 features = ["all"]
 
 [patch.crates-io]
+aora = { git = "https://github.com/rust-amplify/aora" }
 commit_verify = { git = "https://github.com/LNP-BP/client_side_validation", branch = "v0.12" }
 aluvm = { git = "https://github.com/AluVM/aluvm", branch = "master" }
 zk-aluvm = { git = "https://github.com/AluVM/zk-aluvm", branch = "master" }
