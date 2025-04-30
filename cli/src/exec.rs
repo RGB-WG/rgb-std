@@ -85,7 +85,10 @@ impl Args {
                         .as_ref()
                         .map(|p| p.to_owned())
                         .or_else(|| src.parent().map(|path| path.join("dump")))
-                        .ok_or(anyhow!("Can't detect destination path for '{}'", src.display()))?;
+                        .ok_or(anyhow!(
+                            "Can't detect a destination path for '{}'",
+                            src.display()
+                        ))?;
                     if *force {
                         fs::remove_dir_all(&dst).or_else(|e| {
                             if e.kind() == std::io::ErrorKind::NotFound {
@@ -111,17 +114,17 @@ impl Args {
                             }
                         })?;
                     }
-                    dump_stockpile::<TxoSeal>(src, dst)?;
+                    dump_stockpile::<TxoSeal>(src, dst).inspect_err(|_| println!())?;
                 }
                 Some(_) => {
                     return Err(anyhow!(
-                        "Can't detect type for '{}': the extension is not recognized",
+                        "Can't detect the type for '{}': the extension is not recognized",
                         src.display()
                     ))
                 }
                 None => {
                     return Err(anyhow!(
-                        "The path '{}' can't be recognized as a known data",
+                        "The path '{}' can't be recognized as known data",
                         src.display()
                     ))
                 }

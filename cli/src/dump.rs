@@ -27,6 +27,7 @@ use std::path::Path;
 use std::{fs, io};
 
 use amplify::confinement::SmallOrdMap;
+use anyhow::Context;
 use hypersonic::persistance::StockFs;
 use hypersonic::{Articles, Operation};
 use rgb::{Contract, PileFs, PublishedWitness, RgbSeal, RgbSealDef, SealWitness, SingleUseSeal};
@@ -50,7 +51,8 @@ where
     println!("success reading {}", contract.contract_id());
 
     print!("Processing contract articles ... ");
-    let out = File::create_new(dst.join("articles.yaml"))?;
+    let out = File::create_new(dst.join("articles.yaml"))
+        .context("can't create contract articles file; try to use the `--force` flag")?;
     serde_yaml::to_writer(&out, contract.articles())?;
     println!("success");
 
