@@ -144,13 +144,31 @@ where
         Some(contract)
     }
 
-    fn import(&mut self, issuer: Schema) -> Result<Schema, Self::Error> {
+    fn import_issuer(&mut self, issuer: Schema) -> Result<Schema, Self::Error> {
         let codex_id = issuer.codex.codex_id();
         let name = issuer.codex.name.to_string();
         let path = self.dir.join(format!("{name}.{codex_id:#}.issuer"));
         issuer.save(path)?;
         self.issuers.insert(codex_id, name);
         Ok(issuer)
+    }
+
+    fn import_articles(
+        &mut self,
+        articles: Articles,
+    ) -> Result<Contract<Self::Stock, Self::Pile>, IssuerError<io::Error>> {
+        let contract_id = articles.contract_id();
+        let name = articles.issue.meta.name.to_string();
+        let dir = self.contract_dir(&articles);
+        if fs::exists(&dir).map_err(|e| IssueError::OtherPersistence(e))? {
+            return Err(
+                IssueError::OtherPersistence(io::Error::other("Contract already exists")).into()
+            );
+        }
+        fs::create_dir_all(&dir).map_err(|e| IssueError::OtherPersistence(e))?;
+        let contract = Contract::with_articles(articles, dir)?;
+        self.contracts.insert(contract_id, name);
+        Ok(contract)
     }
 
     fn issue(

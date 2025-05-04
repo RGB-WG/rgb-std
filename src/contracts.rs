@@ -222,11 +222,31 @@ where
         })
     }
 
-    pub fn import(&mut self, issuer: Schema) -> Result<CodexId, Sp::Error> {
+    pub fn import_issuer(&mut self, issuer: Schema) -> Result<CodexId, Sp::Error> {
         let codex_id = issuer.codex.codex_id();
-        let schema = self.persistence.import(issuer)?;
+        let schema = self.persistence.import_issuer(issuer)?;
         self.schemata.borrow_mut().insert(codex_id, schema);
         Ok(codex_id)
+    }
+
+    pub fn import_articles(
+        &mut self,
+        articles: Articles,
+    ) -> Result<ContractId, IssuerError<<Sp::Stock as Stock>::Error>> {
+        if articles.issue.meta.consensus != self.persistence.consensus() {
+            return Err(IssuerError::ConsensusMismatch);
+        }
+        if articles.issue.meta.testnet != self.persistence.is_testnet() {
+            return Err(if articles.issue.meta.testnet {
+                IssuerError::TestnetMismatch
+            } else {
+                IssuerError::MainnetMismatch
+            });
+        }
+        let contract = self.persistence.import_articles(articles)?;
+        let contract_id = contract.contract_id();
+        self.contracts.borrow_mut().insert(contract_id, contract);
+        Ok(contract_id)
     }
 
     pub fn issue(

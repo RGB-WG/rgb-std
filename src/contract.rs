@@ -222,6 +222,19 @@ pub struct Contract<S: Stock, P: Pile> {
 }
 
 impl<S: Stock, P: Pile> Contract<S, P> {
+    /// Initializes contract from contract articles, with a given persistence configuration.
+    pub fn with_articles(articles: Articles, conf: S::Conf) -> Result<Self, IssueError<S::Error>>
+    where
+        P::Conf: From<S::Conf>,
+        S::Error: From<P::Error>,
+    {
+        let contract_id = articles.issue.contract_id();
+        let ledger = Ledger::new(articles, conf)?;
+        let conf: S::Conf = ledger.config();
+        let pile = P::new(conf.into()).map_err(|e| IssueError::OtherPersistence(e.into()))?;
+        Ok(Self { ledger, pile, contract_id })
+    }
+
     pub fn issue(
         schema: Schema,
         params: CreateParams<<P::Seal as RgbSeal>::Definition>,
@@ -654,12 +667,15 @@ pub enum ConsumeError<Seal: RgbSealDef> {
     Io(IoError),
 
     /// unrecognized magic bytes {0} in the consignment stream
+    #[display(doc_comments)]
     UnrecognizedMagic(String),
 
     /// unsupported version {0} of the consignment stream
+    #[display(doc_comments)]
     UnsupportedVersion(u16),
 
     /// unknown {0} can't be consumed; please import contract articles first.
+    #[display(doc_comments)]
     UnknownContract(ContractId),
 
     #[from]

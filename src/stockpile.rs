@@ -30,12 +30,12 @@ use core::error::Error as StdError;
 use hypersonic::{CodexId, ContractId, Schema, Stock};
 use rgb::RgbSeal;
 
-use crate::{Consensus, Contract, CreateParams, IssuerError, Pile};
+use crate::{Articles, Consensus, Contract, CreateParams, IssuerError, Pile};
 
 /// Stockpile provides a specific persistence implementation for the use in [`crate::Contracts`].
 /// It allows for it to abstract from a specific storage media, whether it is a file system,
 /// database or a network service. Its main task is to load already known contract issuers and
-/// contract runtimes ([`Contract`]); or to add new ones via the [`Self::import`] and
+/// contract runtimes ([`Contract`]); or to add new ones via the [`Self::import_issuer`] and
 /// [`Self::issue`] procedures.
 ///
 /// # Reading contracts
@@ -71,7 +71,11 @@ pub trait Stockpile {
     fn issuer(&self, codex_id: CodexId) -> Option<Schema>;
     fn contract(&self, contract_id: ContractId) -> Option<Contract<Self::Stock, Self::Pile>>;
 
-    fn import(&mut self, issuer: Schema) -> Result<Schema, Self::Error>;
+    fn import_issuer(&mut self, issuer: Schema) -> Result<Schema, Self::Error>;
+    fn import_articles(
+        &mut self,
+        articles: Articles,
+    ) -> Result<Contract<Self::Stock, Self::Pile>, IssuerError<<Self::Stock as Stock>::Error>>;
 
     fn issue(
         &mut self,
