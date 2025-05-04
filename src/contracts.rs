@@ -222,6 +222,10 @@ where
         })
     }
 
+    pub fn export_articles(&self, contract_id: ContractId) -> Articles {
+        self.with_contract(contract_id, |contract| contract.articles().clone(), None)
+    }
+
     pub fn import_issuer(&mut self, issuer: Schema) -> Result<CodexId, Sp::Error> {
         let codex_id = issuer.codex.codex_id();
         let schema = self.persistence.import_issuer(issuer)?;
