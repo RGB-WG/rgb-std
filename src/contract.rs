@@ -229,9 +229,11 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         S::Error: From<P::Error>,
     {
         let contract_id = articles.issue.contract_id();
+        let genesis_opid = articles.issue.genesis_opid();
         let ledger = Ledger::new(articles, conf)?;
         let conf: S::Conf = ledger.config();
-        let pile = P::new(conf.into()).map_err(|e| IssueError::OtherPersistence(e.into()))?;
+        let mut pile = P::new(conf.into()).map_err(|e| IssueError::OtherPersistence(e.into()))?;
+        pile.add_seals(genesis_opid, none!());
         Ok(Self { ledger, pile, contract_id })
     }
 
