@@ -332,7 +332,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         &self,
     ) -> impl Iterator<Item = (Opid, Operation, OpRels<P::Seal>)> + use<'_, S, P> {
         self.ledger.operations().map(|(opid, op)| {
-            let rels = self.pile.op_relations(opid);
+            let rels = self.pile.op_relations(opid, op.destructible.len_u16());
             (opid, op, rels)
         })
     }
@@ -351,7 +351,9 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         self.pile.witnesses()
     }
 
-    pub fn op_seals(&self, opid: Opid) -> OpRels<P::Seal> { self.pile.op_relations(opid) }
+    pub fn op_seals(&self, opid: Opid, up_to: u16) -> OpRels<P::Seal> {
+        self.pile.op_relations(opid, up_to)
+    }
 
     pub fn seal(&self, seal: &<P::Seal as RgbSeal>::Definition) -> Option<CellAddr> {
         let auth = seal.auth_token();
@@ -368,8 +370,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
                 let since = *cache
                     .entry(addr.opid)
                     .or_insert_with(|| self.witness_status(addr.opid));
-                let seals = self.pile.op_seals(addr.opid);
-                let Some(seal) = seals.get(&addr.pos) else {
+                let Some(seal) = self.pile.seal(addr) else {
                     continue;
                 };
                 if let Some(seal) = seal.to_src() {
@@ -504,9 +505,9 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         writer = CONSIGNMENT_VERSION.strict_encode(writer)?;
         writer = self.contract_id().strict_encode(writer)?;
         self.ledger
-            .export_aux(terminals, writer, |opid, mut writer| {
+            .export_aux(terminals, writer, |opid, op, mut writer| {
                 // Write seal definitions
-                let seals = self.pile.op_seals(opid);
+                let seals = self.pile.seals(opid, op.destructible.len_u16());
                 writer = seals.strict_encode(writer)?;
 
                 // Write witnesses

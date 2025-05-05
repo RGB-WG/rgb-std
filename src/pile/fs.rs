@@ -32,7 +32,7 @@ use aora::{AoraIndex, AoraMap, AuraMap, TransactionalMap};
 use rgb::RgbSeal;
 use strict_encoding::{StrictDecode, StrictEncode};
 
-use crate::{OpRels, Opid, Pile, Witness, WitnessStatus};
+use crate::{CellAddr, OpRels, Opid, Pile, Witness, WitnessStatus};
 
 const HOARD_MAGIC: u64 = u64::from_be_bytes(*b"RGBHOARD");
 const CACHE_MAGIC: u64 = u64::from_be_bytes(*b"RGBCACHE");
@@ -47,7 +47,7 @@ where Seal::WitnessId: From<[u8; 32]> + Into<[u8; 32]>
 {
     hoard: FileAoraMap<Seal::WitnessId, Seal::Client, HOARD_MAGIC, 1>,
     cache: FileAoraMap<Seal::WitnessId, Seal::Published, CACHE_MAGIC, 1>,
-    keep: FileAoraMap<Opid, SmallOrdMap<u16, Seal::Definition>, KEEP_MAGIC, 1>,
+    keep: FileAoraMap<CellAddr, Seal::Definition, KEEP_MAGIC, 1, 34>,
     index: FileAoraIndex<Opid, Seal::WitnessId, INDEX_MAGIC, 1>,
     stand: FileAoraIndex<Seal::WitnessId, Opid, STAND_MAGIC, 1>,
     mine: FileAuraMap<Seal::WitnessId, WitnessStatus, MINE_MAGIC, 1, 32, 8>,
@@ -126,8 +126,21 @@ where
         self.stand.get(wid)
     }
 
-    fn op_seals(&self, opid: Opid) -> SmallOrdMap<u16, Seal::Definition> {
-        self.keep.get_expect(opid)
+    fn seal(&self, addr: CellAddr) -> Option<Seal::Definition> { self.keep.get(addr) }
+
+    fn seals(
+        &self,
+        opid: Opid,
+        up_to: u16,
+    ) -> SmallOrdMap<u16, <Self::Seal as RgbSeal>::Definition> {
+        let mut seals = SmallOrdMap::new();
+        for no in 0..up_to {
+            let addr = CellAddr::new(opid, no);
+            if let Some(seal) = self.keep.get(addr) {
+                let _ = seals.insert(no, seal);
+            }
+        }
+        seals
     }
 
     fn witnesses_since(
@@ -203,7 +216,9 @@ where
         opid: Opid,
         seals: SmallOrdMap<u16, <Self::Seal as RgbSeal>::Definition>,
     ) {
-        self.keep.insert(opid, &seals)
+        for (no, seal) in seals {
+            self.keep.insert(CellAddr::new(opid, no), &seal)
+        }
     }
 
     fn update_witness_status(
@@ -225,8 +240,8 @@ where
         })
     }
 
-    fn op_relations(&self, opid: Opid) -> OpRels<Self::Seal> {
-        let seals = self.keep.get_expect(opid);
+    fn op_relations(&self, opid: Opid, up_to: u16) -> OpRels<Self::Seal> {
+        let seals = self.seals(opid, up_to);
         let witness_ids = self.index.get(opid).collect();
         OpRels { opid, witness_ids, defines: seals, _phantom: PhantomData }
     }

@@ -82,9 +82,13 @@ where
     println!("success reading {}", contract.contract_id());
 
     print!("Processing contract articles ... ");
-    let genesis_opid = dump_articles(&contract.articles(), dst)?;
+    let articles = contract.articles();
+    let genesis_opid = dump_articles(articles, dst)?;
     let out = File::create_new(dst.join(format!("0000-seals-{genesis_opid}.yaml")))?;
-    serde_yaml::to_writer(&out, &contract.op_seals(genesis_opid))?;
+    serde_yaml::to_writer(
+        &out,
+        &contract.op_seals(genesis_opid, articles.issue.genesis.destructible.len_u16()),
+    )?;
     println!("success");
 
     print!("Processing operations ... none found");

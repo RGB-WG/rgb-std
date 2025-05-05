@@ -37,6 +37,8 @@ use amplify::confinement::SmallOrdMap;
 use hypersonic::Opid;
 use rgb::RgbSeal;
 
+use crate::CellAddr;
+
 /// The status of the witness transaction.
 ///
 /// Note on comparison:
@@ -215,13 +217,19 @@ pub trait Pile {
         wid: <Self::Seal as RgbSeal>::WitnessId,
     ) -> impl ExactSizeIterator<Item = Opid>;
 
-    fn op_seals(&self, opid: Opid) -> SmallOrdMap<u16, <Self::Seal as RgbSeal>::Definition>;
+    fn seal(&self, addr: CellAddr) -> Option<<Self::Seal as RgbSeal>::Definition>;
 
-    fn op_relations(&self, opid: Opid) -> OpRels<Self::Seal>;
+    fn seals(
+        &self,
+        opid: Opid,
+        up_to: u16,
+    ) -> SmallOrdMap<u16, <Self::Seal as RgbSeal>::Definition>;
+
+    fn op_relations(&self, opid: Opid, up_to: u16) -> OpRels<Self::Seal>;
 
     /// Adds operation id and witness components, registers witness as `Archived`.
     ///
-    /// If the anchor (client-side witness) already present, MUST update the anchor.
+    /// If the anchor (client-side witness) is already present, MUST update the anchor.
     fn add_witness(
         &mut self,
         opid: Opid,
