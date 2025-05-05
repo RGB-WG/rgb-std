@@ -325,6 +325,9 @@ impl<S: Stock, P: Pile> Contract<S, P> {
 
     pub fn articles(&self) -> &Articles { self.ledger.articles() }
 
+    /// # Nota bene
+    ///
+    /// Does not include genesis
     pub fn operations(
         &self,
     ) -> impl Iterator<Item = (Opid, Operation, OpRels<P::Seal>)> + use<'_, S, P> {
@@ -347,6 +350,8 @@ impl<S: Stock, P: Pile> Contract<S, P> {
     pub fn witnesses(&self) -> impl Iterator<Item = Witness<P::Seal>> + use<'_, S, P> {
         self.pile.witnesses()
     }
+
+    pub fn op_seals(&self, opid: Opid) -> OpRels<P::Seal> { self.pile.op_relations(opid) }
 
     pub fn seal(&self, seal: &<P::Seal as RgbSeal>::Definition) -> Option<CellAddr> {
         let auth = seal.auth_token();
