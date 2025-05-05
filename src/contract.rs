@@ -649,15 +649,18 @@ impl<S: Stock, P: Pile> ContractApi<P::Seal> for Contract<S, P> {
 
     fn memory(&self) -> &impl Memory { &self.ledger.state().raw }
 
-    fn is_known(&self, opid: Opid) -> bool { self.ledger.has_operation(opid) }
+    fn is_known(&self, opid: Opid) -> bool { self.ledger.is_valid(opid) }
 
-    fn apply_operation(
+    fn apply_operation(&mut self, op: VerifiedOperation) {
+        self.ledger.apply(op).expect("unable to apply operation");
+    }
+
+    fn apply_seals(
         &mut self,
-        op: VerifiedOperation,
+        opid: Opid,
         seals: SmallOrdMap<u16, <P::Seal as RgbSeal>::Definition>,
     ) {
-        self.pile.add_seals(op.opid(), seals);
-        self.ledger.apply(op).expect("unable to apply operation");
+        self.pile.add_seals(opid, seals);
     }
 
     fn apply_witness(&mut self, opid: Opid, witness: SealWitness<P::Seal>) {

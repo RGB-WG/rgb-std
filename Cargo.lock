@@ -609,8 +609,7 @@ dependencies = [
 [[package]]
 name = "hypersonic"
 version = "0.12.0-beta.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "993d42e91b8802a1696abd3d764bce6b343b9e9f2eff821025ea1b40a8939747"
+source = "git+https://github.com/AluVM/sonic#9638283bfe184f73df17b66deb8b8e6bdb1a6852"
 dependencies = [
  "aluvm",
  "amplify",
@@ -865,8 +864,7 @@ dependencies = [
 [[package]]
 name = "rgb-core"
 version = "0.12.0-beta.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1fd80e36023ed84b8f245aa76ab522ddd984e908292623ed74938b9916918a6c"
+source = "git+https://github.com/RGB-WG/rgb-core?branch=v0.12#c8a07ff2e8b2bb0c98f0cc963f9c1b061b6ea83a"
 dependencies = [
  "amplify",
  "bp-core",
@@ -1105,8 +1103,7 @@ dependencies = [
 [[package]]
 name = "sonic-api"
 version = "0.12.0-beta.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64e41a6a62a6cdf2f1de145f000785f8da880d543a6d4419b6a713e149ca1c46"
+source = "git+https://github.com/AluVM/sonic#9638283bfe184f73df17b66deb8b8e6bdb1a6852"
 dependencies = [
  "aluvm",
  "amplify",
@@ -1125,8 +1122,7 @@ dependencies = [
 [[package]]
 name = "sonic-callreq"
 version = "0.12.0-beta.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a55699a1ac790099d4a4488cb910f50c672f559f5710b299c5d47b0cebda1e4"
+source = "git+https://github.com/AluVM/sonic#9638283bfe184f73df17b66deb8b8e6bdb1a6852"
 dependencies = [
  "amplify",
  "baid64",

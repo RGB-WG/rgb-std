@@ -111,3 +111,9 @@ wasm-bindgen-test = "0.3"
 
 [package.metadata.docs.rs]
 features = ["all"]
+
+[patch.crates-io]
+sonic-callreq = { git = "https://github.com/AluVM/sonic" }
+sonic-api = { git = "https://github.com/AluVM/sonic" }
+hypersonic = { git = "https://github.com/AluVM/sonic" }
+rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "v0.12" }
