@@ -30,9 +30,40 @@ use amplify::confinement::SmallOrdMap;
 use anyhow::Context;
 use hypersonic::persistance::StockFs;
 use hypersonic::{Articles, Operation};
-use rgb::{Contract, PileFs, PublishedWitness, RgbSeal, RgbSealDef, SealWitness, SingleUseSeal};
+use rgb::{
+    Contract, Opid, PileFs, PublishedWitness, RgbSeal, RgbSealDef, SealWitness, SingleUseSeal,
+};
 use serde::{Deserialize, Serialize};
 use strict_encoding::{DecodeError, StreamReader, StrictDecode, StrictEncode, StrictReader};
+
+fn dump_articles(articles: &Articles, dst: &Path) -> anyhow::Result<Opid> {
+    let genesis_opid = articles.issue.genesis_opid();
+    let out = File::create_new(dst.join(format!("0000-genesis-{genesis_opid}.yaml")))
+        .context("can't create dump files; try to use the `--force` flag")?;
+    serde_yaml::to_writer(&out, &articles.issue.genesis)?;
+
+    let out = File::create_new(dst.join("meta.yaml"))?;
+    serde_yaml::to_writer(&out, &articles.issue.meta)?;
+
+    let out =
+        File::create_new(dst.join(format!("codex-{:#}.yaml", articles.issue.codex.codex_id())))?;
+    serde_yaml::to_writer(&out, &articles.issue.codex)?;
+
+    let out = File::create_new(dst.join("api.default.yaml"))?;
+    serde_yaml::to_writer(&out, &articles.schema.default_api)?;
+
+    for (api, _) in &articles.schema.custom_apis {
+        let out =
+            File::create_new(dst.join(format!("api.{}.yaml", api.name().expect("invalid api"))))?;
+        serde_yaml::to_writer(&out, &api)?;
+    }
+
+    // TODO: Process all content sigs
+    // TODO: Process type system
+    // TODO: Process AluVM libraries
+
+    Ok(genesis_opid)
+}
 
 pub fn dump_stockpile<Seal>(src: &Path, dst: impl AsRef<Path>) -> anyhow::Result<()>
 where
@@ -51,16 +82,16 @@ where
     println!("success reading {}", contract.contract_id());
 
     print!("Processing contract articles ... ");
-    let out = File::create_new(dst.join("articles.yaml"))
-        .context("can't create contract articles file; try to use the `--force` flag")?;
-    serde_yaml::to_writer(&out, contract.articles())?;
+    let genesis_opid = dump_articles(&contract.articles(), dst)?;
+    let out = File::create_new(dst.join(format!("0000-seals-{genesis_opid}.yaml")))?;
+    serde_yaml::to_writer(&out, &contract.op_seals(genesis_opid))?;
     println!("success");
 
     print!("Processing operations ... none found");
     for (no, (opid, op, rels)) in contract.operations().enumerate() {
-        let out = File::create_new(dst.join(format!("{:04}-{opid}.op.yaml", no + 1)))?;
+        let out = File::create_new(dst.join(format!("{:04}-op-{opid}.yaml", no + 1)))?;
         serde_yaml::to_writer(&out, &op)?;
-        let out = File::create_new(dst.join(format!("{:04}-{}.pile.yaml", no + 1, opid)))?;
+        let out = File::create_new(dst.join(format!("{:04}-seals-{opid}.yaml", no + 1)))?;
         serde_yaml::to_writer(&out, &rels)?;
         print!("\rProcessing operations ... {} processed", no + 1);
     }
@@ -68,7 +99,7 @@ where
 
     print!("Processing trace ... none state transitions found");
     for (no, (opid, st)) in contract.trace().enumerate() {
-        let out = File::create_new(dst.join(format!("{:04}-{opid}.st.yaml", no + 1)))?;
+        let out = File::create_new(dst.join(format!("{:04}-trace-{opid}.yaml", no + 1)))?;
         serde_yaml::to_writer(&out, &st)?;
         print!("\rProcessing trace ... {} state transition processed", no + 1);
     }
@@ -127,16 +158,8 @@ where
 
     print!("Processing contract articles ... ");
     let articles = Articles::strict_decode(&mut stream)?;
-    let out =
-        File::create_new(dst.join(format!("0000-genesis.{}.yaml", articles.issue.genesis_opid())))?;
-    serde_yaml::to_writer(&out, &articles.issue.genesis)?;
-    let out =
-        File::create_new(dst.join(format!("codex.{}.yaml", articles.schema.codex.codex_id())))?;
-    serde_yaml::to_writer(&out, &articles.schema.codex)?;
-    let out = File::create_new(dst.join("schema.yaml"))?;
-    serde_yaml::to_writer(&out, &articles.schema)?;
-
-    let out = File::create_new(dst.join("0000-seals.yml"))?;
+    let genesis_opid = dump_articles(&articles, dst)?;
+    let out = File::create_new(dst.join(format!("0000-seals-{genesis_opid}.yml")))?;
     let defined_seals = SmallOrdMap::<u16, SealDef>::strict_decode(&mut stream)
         .expect("Failed to read the consignment stream");
     serde_yaml::to_writer(&out, &defined_seals)?;
@@ -157,10 +180,10 @@ where
             Ok(operation) => {
                 let opid = operation.opid();
 
-                let out = File::create_new(dst.join(format!("{op_count:04}-op.{opid}.yaml")))?;
+                let out = File::create_new(dst.join(format!("{op_count:04}-op-{opid}.yaml")))?;
                 serde_yaml::to_writer(&out, &operation)?;
 
-                let out = File::create_new(dst.join(format!("{op_count:04}-seals.yml")))?;
+                let out = File::create_new(dst.join(format!("{op_count:04}-seals-{opid}.yml")))?;
                 let defined_seals = SmallOrdMap::<u16, SealDef>::strict_decode(&mut stream)
                     .expect("Failed to read the consignment stream");
                 serde_yaml::to_writer(&out, &defined_seals)?;
