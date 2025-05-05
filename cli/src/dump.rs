@@ -142,10 +142,12 @@ where
     serde_yaml::to_writer(&out, &defined_seals)?;
     seal_count += defined_seals.len();
 
-    let count = u64::strict_decode(&mut stream)?;
-    if count != 0 {
+    let count = bool::strict_decode(&mut stream)?;
+    if count {
         println!("error");
-        bail!("Consignment stream has {count} witnesses, but 0 witnesses are expected",);
+        bail!(
+            "Consignment stream has {count} witnesses for genesis, but zero witnesses are expected",
+        );
     }
     println!("success");
 
@@ -164,18 +166,17 @@ where
                 serde_yaml::to_writer(&out, &defined_seals)?;
                 seal_count += defined_seals.len();
 
-                let len = u64::strict_decode(&mut stream)?;
-                for no in 0..len {
+                let witness = bool::strict_decode(&mut stream)?;
+                if witness {
                     let witness = SealWitness::<SealDef::Src>::strict_decode(&mut stream)?;
                     let out = File::create_new(dst.join(format!(
-                        "{op_count:04}-witness-{:02}-{}.yaml",
-                        no + 1,
+                        "{op_count:04}-witness-{}.yaml",
                         witness.published.pub_id()
                     )))?;
                     serde_yaml::to_writer(&out, &witness)?;
+                    witness_count += 1;
                 }
 
-                witness_count += len as usize;
                 op_count += 1;
             }
             Err(DecodeError::Io(e)) if e.kind() == io::ErrorKind::UnexpectedEof => break,
