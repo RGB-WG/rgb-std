@@ -160,12 +160,12 @@ where
         let contract_id = articles.contract_id();
         let name = articles.issue.meta.name.to_string();
         let dir = self.contract_dir(&articles);
-        if fs::exists(&dir).map_err(|e| IssueError::OtherPersistence(e))? {
+        if fs::exists(&dir).map_err(IssueError::OtherPersistence)? {
             return Err(
                 IssueError::OtherPersistence(io::Error::other("Contract already exists")).into()
             );
         }
-        fs::create_dir_all(&dir).map_err(|e| IssueError::OtherPersistence(e))?;
+        fs::create_dir_all(&dir).map_err(IssueError::OtherPersistence)?;
         let contract = Contract::with_articles(articles, dir)?;
         self.contracts.insert(contract_id, name);
         Ok(contract)
@@ -180,12 +180,12 @@ where
             .ok_or(IssuerError::UnknownCodex(params.codex_id))?;
         let contract = Contract::issue(schema, params, |articles| {
             let dir = self.contract_dir(articles);
-            if fs::exists(&dir).map_err(|e| IssueError::OtherPersistence(e))? {
+            if fs::exists(&dir).map_err(IssueError::OtherPersistence)? {
                 return Err(IssueError::OtherPersistence(io::Error::other(
                     "Contract already exists",
                 )));
             }
-            fs::create_dir_all(&dir).map_err(|e| IssueError::OtherPersistence(e))?;
+            fs::create_dir_all(&dir).map_err(IssueError::OtherPersistence)?;
             Ok(dir)
         })?;
         self.contracts
