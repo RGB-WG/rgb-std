@@ -40,7 +40,7 @@ use hypersonic::{
     Memory, MergeError, MethodName, NamedState, Operation, Opid, Schema, StateAtom, StateName,
     Stock, StockError, Transition,
 };
-use indexmap::IndexMap;
+use indexmap::IndexSet;
 use rgb::{
     ContractApi, ContractVerify, OperationSeals, ReadOperation, ReadWitness, RgbSeal, RgbSealDef,
     VerificationError,
@@ -414,7 +414,9 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         &mut self,
         changed: impl Iterator<Item = (<P::Seal as RgbSeal>::WitnessId, WitnessStatus)>,
     ) -> Result<(), AcceptError> {
-        let mut updates = IndexMap::new();
+        let mut forwarded_wids = IndexSet::new();
+        let mut rolled_back_ops = IndexSet::new();
+        let mut forwarded_ops = IndexSet::new();
         for (wid, status) in changed {
             if !self.pile.has_witness(wid) {
                 continue;
@@ -425,31 +427,64 @@ impl<S: Stock, P: Pile> Contract<S, P> {
             }
 
             self.pile.update_witness_status(wid, status);
+            if status.is_valid() {
+                forwarded_wids.insert(wid);
+            }
 
-            let opids = self.pile.ops_by_witness_id(wid);
-            if status.is_valid() != prev_status.is_valid() {
+            // We do not need to do anything if the status hasn't actually changed.
+            // NB: This is different from the `status == prev_status` check above since we still had
+            // to update the witness status even if it changes from valid status to a different
+            // valid status - but now we do not need to proceed with any rollbacks and forwards.
+            if status.is_valid() == prev_status.is_valid() {
+                continue;
+            }
+            for opid in self.pile.ops_by_witness_id(wid) {
+                // We need this since the operation might have multiple witnesses, and invalidating
+                // one doesn't necessarily mean the whole operation becomes invalid.
+                let op_status = self.witness_status(opid);
+                // We leave only ops whose validity has changed.
+                if op_status.is_valid() == status.is_valid() {
+                    continue;
+                }
                 if status.is_valid() {
-                    updates.extend(opids.map(|opid| (opid, true)));
+                    forwarded_ops.insert(opid);
                 } else {
-                    updates.extend(opids.map(|opid| (opid, false)));
+                    rolled_back_ops.insert(opid);
                 }
             }
         }
 
-        updates.retain(|opid, forward| {
-            let status = self.witness_status(*opid);
-            // keep only if it is:
-            // - a forward and the status is valid
-            // - a rollback and the status is invalid
-            *forward == status.is_valid()
-        });
-        for (opid, forward) in updates {
-            if forward {
-                self.ledger.forward([opid]).unwrap();
-            } else {
-                self.ledger.rollback([opid]).unwrap();
+        // TODO: Extend forward set with all spending ops
+
+        // Here we extend the forward operations with all valid ops that spend other forward
+        // operations outputs.
+        let mut index = 0usize;
+        while let Some(opid) = forwarded_ops.get_index(index).copied() {
+            let op = self.ledger.operation(opid);
+            for vout in 0..op.destructible.len_u16() {
+                let Some(spending_opid) = self.ledger.spent_by(CellAddr::new(opid, vout)) else {
+                    continue;
+                };
+                if self.ledger.ancestors([spending_opid]).all(|opid| {
+                    self.pile
+                        .op_witness_ids(opid)
+                        .any(|wid| forwarded_wids.contains(&wid))
+                }) {
+                    forwarded_ops.insert(spending_opid);
+                }
             }
+            index += 1;
         }
+
+        debug_assert_eq!(
+            forwarded_ops.intersection(&rolled_back_ops).count(),
+            0,
+            "forwarded operations contain at least same of the same items as rolled back \
+             operations"
+        );
+
+        self.ledger.rollback(rolled_back_ops)?;
+        self.ledger.forward(forwarded_ops)?;
 
         self.pile.commit_transaction();
         self.ledger.commit_transaction();
