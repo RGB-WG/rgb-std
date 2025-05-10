@@ -38,7 +38,7 @@ use crate::popls::bp::PrefabBundle;
 
 /// Strict types id for the library providing data types for RGB types.
 pub const LIB_ID_RGB: &str =
-    "stl:vZphjhYk-E~SUx5a-0pXWwZ7-lYzSHYC-~WY4FCS-g72LlTo#macro-cockpit-nirvana";
+    "stl:aAwQVXsP-iTgCThm-8gQAXF5-A8c47_D-pABre7n-mw2KeW0#wizard-farmer-mirage";
 
 fn _rgb_stl() -> Result<TypeLib, CompileError> {
     LibBuilder::with(libname!(LIB_NAME_RGB), [
