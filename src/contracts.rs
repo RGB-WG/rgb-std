@@ -39,8 +39,8 @@ use strict_encoding::{
 };
 
 use crate::{
-    Articles, CallError, ConsumeError, Contract, ContractInfo, ContractRef, ContractState,
-    CreateParams, Operation, Pile, Stockpile, WitnessStatus,
+    Articles, CallError, ConsumeError, Contract, ContractRef, ContractState, CreateParams,
+    Operation, Pile, Stockpile, WitnessStatus,
 };
 
 /// Collection of RGB smart contracts and contract issuers, which can be cached in memory.
@@ -157,16 +157,6 @@ where
 
     pub fn contract_ids(&self) -> impl Iterator<Item = ContractId> + use<'_, Sp, S, C> {
         self.persistence.contract_ids()
-    }
-
-    pub fn contracts_info(&self) -> impl Iterator<Item = ContractInfo> + use<'_, Sp, S, C> {
-        self.contract_ids().filter_map(|id| {
-            self.with_contract(
-                id,
-                |contract| Some(ContractInfo::new(id, contract.articles())),
-                Some(None),
-            )
-        })
     }
 
     pub fn contract_state(

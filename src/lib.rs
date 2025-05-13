@@ -44,7 +44,6 @@ pub extern crate rgb_invoice as invoice;
 
 mod pile;
 mod contract;
-mod info;
 pub mod popls;
 mod util;
 mod contracts;
@@ -60,7 +59,6 @@ pub use contract::{
 };
 pub use contracts::{Contracts, IssuerError};
 pub use hypersonic::*;
-pub use info::ContractInfo;
 #[cfg(feature = "fs")]
 pub use pile::fs::PileFs;
 pub use pile::{OpRels, Pile, Witness, WitnessStatus};
