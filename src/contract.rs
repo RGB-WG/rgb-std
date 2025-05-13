@@ -312,10 +312,14 @@ impl<S: Stock, P: Pile> Contract<S, P> {
     }
 
     fn retrieve(&self, opid: Opid) -> Option<SealWitness<P::Seal>> {
-        let wid = self
+        let (status, wid) = self
             .pile
             .op_witness_ids(opid)
-            .find(|wid| self.pile.witness_status(*wid).is_valid())?;
+            .map(|wid| (self.pile.witness_status(wid), wid))
+            .max()?;
+        if !status.is_valid() {
+            return None;
+        }
         let client = self.pile.cli_witness(wid);
         let published = self.pile.pub_witness(wid);
         Some(SealWitness::new(published, client))
