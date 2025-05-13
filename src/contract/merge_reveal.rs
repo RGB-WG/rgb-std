@@ -55,9 +55,6 @@ pub enum MergeRevealError {
     /// assignments have different keys.
     AssignmentsDifferentKeys,
 
-    /// the merged bundles contain more transitions than inputs.
-    InsufficientInputs,
-
     /// contract id provided for the merge-reveal operation doesn't match
     /// multiprotocol commitment.
     #[from(mpc::InvalidProof)]
@@ -148,10 +145,6 @@ impl MergeReveal for TransitionBundle {
             }
         }
         self.known_transitions = Confined::from_checked(self_transitions);
-
-        if self.input_map.len() < self.known_transitions.len() {
-            return Err(MergeRevealError::InsufficientInputs);
-        }
         Ok(())
     }
 }
