@@ -454,28 +454,6 @@ impl<S: Stock, P: Pile> Contract<S, P> {
             }
         }
 
-        // TODO: Extend forward set with all spending ops
-
-        // Here we extend the forward operations with all valid ops that spend other forward
-        // operations outputs.
-        let mut index = 0usize;
-        while let Some(opid) = forwarded_ops.get_index(index).copied() {
-            let op = self.ledger.operation(opid);
-            for vout in 0..op.destructible.len_u16() {
-                let Some(spending_opid) = self.ledger.spent_by(CellAddr::new(opid, vout)) else {
-                    continue;
-                };
-                if self.ledger.ancestors([spending_opid]).all(|opid| {
-                    self.pile
-                        .op_witness_ids(opid)
-                        .any(|wid| forwarded_wids.contains(&wid))
-                }) {
-                    forwarded_ops.insert(spending_opid);
-                }
-            }
-            index += 1;
-        }
-
         debug_assert_eq!(
             forwarded_ops.intersection(&rolled_back_ops).count(),
             0,
@@ -484,10 +462,13 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         );
 
         self.ledger.rollback(rolled_back_ops)?;
-        self.ledger.forward(forwarded_ops)?;
-
+        // Ledger has already committed as a part of `rollback`
         self.pile.commit_transaction();
-        self.ledger.commit_transaction();
+
+        self.ledger.forward(forwarded_ops)?;
+        // Ledger has already committed as a part of `forward`
+        self.pile.commit_transaction();
+
         Ok(())
     }
 
