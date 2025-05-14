@@ -106,7 +106,7 @@ where
     let src = src.as_ref();
     let dst = dst.as_ref();
     if force {
-        let _ = fs::remove_dir_all(&dst);
+        let _ = fs::remove_dir_all(dst);
     }
     fs::create_dir_all(dst)?;
 
