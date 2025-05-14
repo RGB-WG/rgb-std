@@ -22,7 +22,6 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
-use std::fs;
 use std::io::stdout;
 
 use bp::seals::{TxoSeal, WTxoSeal};
@@ -89,20 +88,14 @@ impl Args {
                             "Can't detect a destination path for '{}'",
                             src.display()
                         ))?;
-                    if *force {
-                        let _ = fs::remove_dir_all(&dst);
-                    }
-                    dump_consignment::<WTxoSeal>(src, dst).inspect_err(|_| println!())?;
+                    dump_consignment::<WTxoSeal>(src, dst, *force).inspect_err(|_| println!())?;
                 }
                 Some(ext) if ext == "contract" => {
                     let dst = dst
                         .as_ref()
                         .map(|p| p.to_owned())
                         .unwrap_or_else(|| src.join("dump"));
-                    if *force {
-                        let _ = fs::remove_dir_all(&dst);
-                    }
-                    dump_stockpile::<TxoSeal>(src, dst).inspect_err(|_| println!())?;
+                    dump_stockpile::<TxoSeal>(src, dst, *force).inspect_err(|_| println!())?;
                 }
                 Some(_) => {
                     return Err(anyhow!(

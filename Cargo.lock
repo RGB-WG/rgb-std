@@ -354,9 +354,9 @@ checksum = "1628fb46dfa0b37568d12e5edd512553eccf6a22a78e8bde00bb4aed84d5bdbf"
 
 [[package]]
 name = "cc"
-version = "1.2.20"
+version = "1.2.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04da6a0d40b948dfc4fa8f5bbf402b0fc1a64a28dbf7d12ffd683550f2c1b63a"
+checksum = "32db95edf998450acc7881c932f94cd9b05c87b4b2599e8bab064753da4acfd1"
 dependencies = [
  "shlex",
 ]
@@ -384,9 +384,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.5.37"
+version = "4.5.38"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eccb054f56cbd38340b380d4a8e69ef1f02f1af43db2f0cc817a4774d80ae071"
+checksum = "ed93b9805f8ba930df42c2590f05453d5ec36cbb85d018868a5b24d31f6ac000"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -394,9 +394,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.5.37"
+version = "4.5.38"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "efd9466fac8543255d3b1fcad4762c5e116ffe808c8a3043d4263cd4fd4862a2"
+checksum = "379026ff283facf611b0ea629334361c4211d1b12ee01024eec1591133b04120"
 dependencies = [
  "anstream",
  "anstyle",
@@ -575,9 +575,9 @@ dependencies = [
 
 [[package]]
 name = "getrandom"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73fea8450eea4bac3940448fb7ae50d91f034f941199fcd9d909a5a07aa455f0"
+checksum = "26145e563e54f2cadc477553f1ec5ee650b00862f0a58bcd12cbdc5f0ea2d2f4"
 dependencies = [
  "cfg-if",
  "libc",
@@ -609,7 +609,7 @@ dependencies = [
 [[package]]
 name = "hypersonic"
 version = "0.12.0-beta.6"
-source = "git+https://github.com/AluVM/sonic#a8d418f260b7ed36d8099d25dd48f58bbd75f546"
+source = "git+https://github.com/AluVM/sonic#be56efc85e575149c97c43e74c311de1cfa1e1f8"
 dependencies = [
  "aluvm",
  "amplify",
@@ -838,7 +838,7 @@ version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "99d9a13982dcf210057a8a78572b2217b667c3beacbf3a0d8b454f6f82837d38"
 dependencies = [
- "getrandom 0.3.2",
+ "getrandom 0.3.3",
 ]
 
 [[package]]
@@ -864,7 +864,7 @@ dependencies = [
 [[package]]
 name = "rgb-core"
 version = "0.12.0-beta.6"
-source = "git+https://github.com/RGB-WG/rgb-core?branch=v0.12#c8a07ff2e8b2bb0c98f0cc963f9c1b061b6ea83a"
+source = "git+https://github.com/RGB-WG/rgb-core?branch=v0.12#6719b9147f55a4e3ce5dac05164da820aa6e9720"
 dependencies = [
  "amplify",
  "bp-core",
@@ -924,16 +924,14 @@ version = "0.12.0-beta.6"
 dependencies = [
  "amplify",
  "anyhow",
- "aora",
  "bp-core",
  "clap",
- "commit_verify",
  "hypersonic",
  "rgb-std",
  "serde",
  "serde_yaml",
+ "sonix",
  "strict_encoding",
- "toml",
 ]
 
 [[package]]
@@ -1103,7 +1101,7 @@ dependencies = [
 [[package]]
 name = "sonic-api"
 version = "0.12.0-beta.6"
-source = "git+https://github.com/AluVM/sonic#a8d418f260b7ed36d8099d25dd48f58bbd75f546"
+source = "git+https://github.com/AluVM/sonic#be56efc85e575149c97c43e74c311de1cfa1e1f8"
 dependencies = [
  "aluvm",
  "amplify",
@@ -1122,7 +1120,7 @@ dependencies = [
 [[package]]
 name = "sonic-callreq"
 version = "0.12.0-beta.6"
-source = "git+https://github.com/AluVM/sonic#a8d418f260b7ed36d8099d25dd48f58bbd75f546"
+source = "git+https://github.com/AluVM/sonic#be56efc85e575149c97c43e74c311de1cfa1e1f8"
 dependencies = [
  "amplify",
  "baid64",
@@ -1134,6 +1132,20 @@ dependencies = [
  "strict_encoding",
  "strict_types",
  "ultrasonic",
+]
+
+[[package]]
+name = "sonix"
+version = "0.12.0-beta.6"
+source = "git+https://github.com/AluVM/sonic#be56efc85e575149c97c43e74c311de1cfa1e1f8"
+dependencies = [
+ "amplify",
+ "anyhow",
+ "clap",
+ "hypersonic",
+ "serde",
+ "serde_yaml",
+ "strict_encoding",
 ]
 
 [[package]]
@@ -1616,9 +1628,9 @@ checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
 
 [[package]]
 name = "winnow"
-version = "0.7.8"
+version = "0.7.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e27d6ad3dac991091e4d35de9ba2d2d00647c5d0fc26c5496dee55984ae111b"
+checksum = "c06928c8748d81b05c9be96aad92e1b6ff01833332f281e8cfca3be4b35fc9ec"
 dependencies = [
  "memchr",
 ]

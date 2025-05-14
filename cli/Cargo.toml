@@ -15,14 +15,12 @@ readme = "../README.md"
 [dependencies]
 amplify.workspace = true
 strict_encoding.workspace = true
-commit_verify.workspace = true
-aora = { workspace = true, features = ["file-strict"] }
 hypersonic.workspace = true
+sonix.workspace = true
 bp-core.workspace = true
 rgb-std = { workspace = true, features = ["fs", "serde"] }
 serde.workspace = true
 serde_yaml = "0.9.34"
-toml = "0.8.19"
 anyhow = "1.0.93"
 clap = { version = "4.5.21", features = ["derive", "env"] }
 

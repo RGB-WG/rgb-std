@@ -27,45 +27,18 @@ use std::path::Path;
 use std::{fs, io};
 
 use amplify::confinement::SmallOrdMap;
-use anyhow::Context;
 use hypersonic::persistance::StockFs;
 use hypersonic::{Articles, Operation};
-use rgb::{
-    Contract, Opid, PileFs, PublishedWitness, RgbSeal, RgbSealDef, SealWitness, SingleUseSeal,
-};
+use rgb::{Contract, PileFs, PublishedWitness, RgbSeal, RgbSealDef, SealWitness, SingleUseSeal};
 use serde::{Deserialize, Serialize};
+use sonix::{dump_articles, dump_ledger};
 use strict_encoding::{DecodeError, StreamReader, StrictDecode, StrictEncode, StrictReader};
 
-fn dump_articles(articles: &Articles, dst: &Path) -> anyhow::Result<Opid> {
-    let genesis_opid = articles.issue.genesis_opid();
-    let out = File::create_new(dst.join(format!("0000-genesis-{genesis_opid}.yaml")))
-        .context("can't create dump files; try to use the `--force` flag")?;
-    serde_yaml::to_writer(&out, &articles.issue.genesis)?;
-
-    let out = File::create_new(dst.join("meta.yaml"))?;
-    serde_yaml::to_writer(&out, &articles.issue.meta)?;
-
-    let out =
-        File::create_new(dst.join(format!("codex-{:#}.yaml", articles.issue.codex.codex_id())))?;
-    serde_yaml::to_writer(&out, &articles.issue.codex)?;
-
-    let out = File::create_new(dst.join("api.default.yaml"))?;
-    serde_yaml::to_writer(&out, &articles.schema.default_api)?;
-
-    for (api, _) in &articles.schema.custom_apis {
-        let out =
-            File::create_new(dst.join(format!("api.{}.yaml", api.name().expect("invalid api"))))?;
-        serde_yaml::to_writer(&out, &api)?;
-    }
-
-    // TODO: Process all content sigs
-    // TODO: Process type system
-    // TODO: Process AluVM libraries
-
-    Ok(genesis_opid)
-}
-
-pub fn dump_stockpile<Seal>(src: &Path, dst: impl AsRef<Path>) -> anyhow::Result<()>
+pub fn dump_stockpile<Seal>(
+    src: impl AsRef<Path>,
+    dst: impl AsRef<Path>,
+    force: bool,
+) -> anyhow::Result<()>
 where
     Seal: RgbSeal + Serialize + for<'de> Deserialize<'de>,
     Seal::Definition: Serialize + for<'de> Deserialize<'de>,
@@ -73,17 +46,18 @@ where
     Seal::Published: Eq + Serialize + StrictEncode + StrictDecode,
     Seal::WitnessId: Ord + From<[u8; 32]> + Into<[u8; 32]> + Serialize,
 {
+    let src = src.as_ref();
     let dst = dst.as_ref();
-    fs::create_dir_all(dst)?;
+    dump_ledger(src, dst, force)?;
 
-    print!("Reading contract contract from '{}' ... ", src.display());
+    print!("Reading contract pile from '{}' ... ", src.display());
     let path = src.to_path_buf();
     let contract = Contract::<StockFs, PileFs<Seal>>::load(path.clone(), path)?;
     println!("success reading {}", contract.contract_id());
 
-    print!("Processing contract articles ... ");
+    print!("Processing genesis seals ... ");
     let articles = contract.articles();
-    let genesis_opid = dump_articles(articles, dst)?;
+    let genesis_opid = articles.issue.genesis_opid();
     let out = File::create_new(dst.join(format!("0000-seals-{genesis_opid}.yaml")))?;
     serde_yaml::to_writer(
         &out,
@@ -92,37 +66,16 @@ where
     println!("success");
 
     print!("Processing operations ... none found");
-    for (no, (opid, op, rels)) in contract.operations().enumerate() {
-        let out = File::create_new(dst.join(format!("{:04}-op-{opid}.yaml", no + 1)))?;
-        serde_yaml::to_writer(&out, &op)?;
+    for (no, (opid, _, rels)) in contract.operations().enumerate() {
         let out = File::create_new(dst.join(format!("{:04}-seals-{opid}.yaml", no + 1)))?;
         serde_yaml::to_writer(&out, &rels)?;
         print!("\rProcessing operations ... {} processed", no + 1);
     }
     println!();
 
-    print!("Processing trace ... none state transitions found");
-    for (no, (opid, st)) in contract.trace().enumerate() {
-        let out = File::create_new(dst.join(format!("{:04}-trace-{opid}.yaml", no + 1)))?;
-        serde_yaml::to_writer(&out, &st)?;
-        print!("\rProcessing trace ... {} state transition processed", no + 1);
-    }
-    println!();
-
     print!("Processing state ... ");
     let out = File::create_new(dst.join("state.yaml"))?;
     serde_yaml::to_writer(&out, &contract.state())?;
-
-    let state = contract.state_all();
-    let out = File::create_new(dst.join("state-raw.yaml"))?;
-    serde_yaml::to_writer(&out, &state.raw)?;
-    let out = File::create_new(dst.join("state-main.yaml"))?;
-    serde_yaml::to_writer(&out, &state.main)?;
-    for (name, state) in &state.aux {
-        let out = File::create_new(dst.join(format!("state-{name}.yaml")))?;
-        serde_yaml::to_writer(&out, state)?;
-    }
-    println!("success");
 
     print!("Processing witnesses ... none found");
     for (no, witness) in contract.witnesses().enumerate() {
@@ -135,7 +88,11 @@ where
     Ok(())
 }
 
-pub fn dump_consignment<SealDef>(src: &Path, dst: impl AsRef<Path>) -> anyhow::Result<()>
+pub fn dump_consignment<SealDef>(
+    src: impl AsRef<Path>,
+    dst: impl AsRef<Path>,
+    force: bool,
+) -> anyhow::Result<()>
 where
     SealDef: RgbSealDef + Serialize,
     SealDef::Src: Serialize,
@@ -146,7 +103,11 @@ where
     <<SealDef::Src as SingleUseSeal>::PubWitness as PublishedWitness<SealDef::Src>>::PubId:
         Ord + From<[u8; 32]> + Into<[u8; 32]> + Serialize,
 {
+    let src = src.as_ref();
     let dst = dst.as_ref();
+    if force {
+        let _ = fs::remove_dir_all(&dst);
+    }
     fs::create_dir_all(dst)?;
 
     let file = File::open(src)?;

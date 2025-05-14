@@ -23,6 +23,7 @@ aora = ">=0.6.3"
 baid64 = "0.4.1"
 hypersonic = "=0.12.0-beta.6"
 sonic-callreq = "=0.12.0-beta.6"
+sonix = "=0.12.0-beta.6"
 bp-core = "=0.12.0-beta.6"
 bp-invoice = "=0.12.0-beta.6"
 rgb-core = "=0.12.0-beta.6"
@@ -116,4 +117,5 @@ features = ["all"]
 sonic-callreq = { git = "https://github.com/AluVM/sonic" }
 sonic-api = { git = "https://github.com/AluVM/sonic" }
 hypersonic = { git = "https://github.com/AluVM/sonic" }
+sonix = { git = "https://github.com/AluVM/sonic" }
 rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "v0.12" }
