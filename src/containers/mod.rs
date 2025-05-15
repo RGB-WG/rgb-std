@@ -42,7 +42,7 @@ pub use indexed::IndexedConsignment;
 pub use kit::{Kit, KitId, ValidKit};
 pub use partials::{Batch, Fascia, TransitionInfo, TransitionInfoError};
 pub use seal::{BuilderSeal, VoutSeal};
-pub use util::ContainerVer;
+pub use util::{ContainerVer, SecretSeals};
 
 pub const ASCII_ARMOR_NAME: &str = "Name";
 pub const ASCII_ARMOR_SCHEMA: &str = "Schema";
