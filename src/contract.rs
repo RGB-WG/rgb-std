@@ -99,6 +99,19 @@ pub struct Assignment<Seal> {
     pub data: StrictVal,
 }
 
+impl<Seal> Assignment<Seal> {
+    pub fn new(seal: Seal, data: impl Into<StrictVal>) -> Self { Self { seal, data: data.into() } }
+}
+
+impl<Seal> Assignment<EitherSeal<Seal>> {
+    pub fn new_external(auth: AuthToken, data: impl Into<StrictVal>) -> Self {
+        Self { seal: EitherSeal::Token(auth), data: data.into() }
+    }
+    pub fn new_internal(seal: Seal, data: impl Into<StrictVal>) -> Self {
+        Self { seal: EitherSeal::Alt(seal), data: data.into() }
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Debug)]
 #[cfg_attr(
     feature = "serde",
@@ -211,6 +224,40 @@ pub struct CreateParams<Seal: Clone> {
     pub timestamp: Option<DateTime<Utc>>,
     pub global: Vec<NamedState<StateAtom>>,
     pub owned: Vec<NamedState<Assignment<EitherSeal<Seal>>>>,
+}
+
+impl<Seal: Clone> CreateParams<Seal> {
+    pub fn new_testnet(codex_id: CodexId, consensus: Consensus, name: impl Into<TypeName>) -> Self {
+        Self {
+            codex_id,
+            consensus,
+            testnet: true,
+            method: vname!("issue"),
+            name: name.into(),
+            timestamp: None,
+            global: none![],
+            owned: none![],
+        }
+    }
+
+    pub fn with_global_verified(
+        mut self,
+        name: impl Into<StateName>,
+        data: impl Into<StrictVal>,
+    ) -> Self {
+        self.global
+            .push(NamedState { name: name.into(), state: StateAtom::new_verified(data) });
+        self
+    }
+
+    pub fn push_owned_unlocked(
+        &mut self,
+        name: impl Into<StateName>,
+        assignment: Assignment<EitherSeal<Seal>>,
+    ) {
+        self.owned
+            .push(NamedState { name: name.into(), state: assignment });
+    }
 }
 
 #[derive(Clone, Debug)]

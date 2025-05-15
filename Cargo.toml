@@ -73,6 +73,9 @@ chrono.workspace = true
 serde = { workspace = true, optional = true }
 serde_with = { workspace = true, optional = true }
 
+[dev-dependencies]
+rand = "0.8.4"
+
 [features]
 default = ["std", "bitcoin"]
 all = ["std", "bitcoin", "liquid", "prime", "fs", "stl", "serde"]
