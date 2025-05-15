@@ -426,32 +426,34 @@ impl<S: Stock, P: Pile> Contract<S, P> {
                 continue;
             }
 
-            self.pile.update_witness_status(wid, status);
             if status.is_valid() {
                 forwarded_wids.insert(wid);
             }
 
-            // We do not need to do anything if the status hasn't actually changed.
+            // We do not need to do anything if the status validity has not actually changed.
             // NB: This is different from the `status == prev_status` check above since we still had
             // to update the witness status even if it changes from valid status to a different
             // valid status - but now we do not need to proceed with any rollbacks and forwards.
-            if status.is_valid() == prev_status.is_valid() {
-                continue;
-            }
-            for opid in self.pile.ops_by_witness_id(wid) {
-                // We need this since the operation might have multiple witnesses, and invalidating
-                // one doesn't necessarily mean the whole operation becomes invalid.
-                let op_status = self.witness_status(opid);
-                // We leave only ops whose validity has changed.
-                if op_status.is_valid() == status.is_valid() {
-                    continue;
+            if status.is_valid() != prev_status.is_valid() {
+                for opid in self.pile.ops_by_witness_id(wid) {
+                    // We need this since the operation might have multiple witnesses, and
+                    // invalidating one doesn't necessarily mean the whole
+                    // operation becomes invalid.
+                    let op_status = self.witness_status(opid);
+                    // We leave only ops whose validity has changed.
+                    if op_status.is_valid() == status.is_valid() {
+                        continue;
+                    }
+                    if status.is_valid() {
+                        forwarded_ops.insert(opid);
+                    } else {
+                        rolled_back_ops.insert(opid);
+                    }
                 }
-                if status.is_valid() {
-                    forwarded_ops.insert(opid);
-                } else {
-                    rolled_back_ops.insert(opid);
-                }
             }
+            // We still update the status even if its validity has not changed, since the mining
+            // depth may have changed.
+            self.pile.update_witness_status(wid, status);
         }
 
         debug_assert_eq!(
