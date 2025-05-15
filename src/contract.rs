@@ -402,6 +402,13 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         self.pile.witnesses()
     }
 
+    pub fn ops_by_witness_id(
+        &self,
+        wid: <P::Seal as RgbSeal>::WitnessId,
+    ) -> impl Iterator<Item = Opid> + use<'_, S, P> {
+        self.pile.ops_by_witness_id(wid)
+    }
+
     pub fn op_seals(&self, opid: Opid, up_to: u16) -> OpRels<P::Seal> {
         self.pile.op_relations(opid, up_to)
     }
@@ -507,7 +514,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         let mut forward = IndexSet::new();
         for (opid, old_status) in affected_ops {
             let new_status = self.witness_status(opid);
-            if old_status.is_valid() != new_status.is_valid() {
+            if old_status.is_valid() == new_status.is_valid() {
                 continue;
             }
             if new_status.is_valid() {

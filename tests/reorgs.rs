@@ -5,10 +5,12 @@ extern crate strict_types;
 
 use std::collections::BTreeSet;
 use std::fs;
+use std::num::NonZeroU64;
 use std::path::PathBuf;
 
 use amplify::none;
-use bp::seals::{TxoSeal, WTxoSeal};
+use bp::seals::{Anchor, TxoSeal, WTxoSeal};
+use bp::{LockTime, Tx};
 use commit_verify::{Digest, DigestExt, Sha256};
 use hypersonic::persistance::StockFs;
 use hypersonic::CallParams;
@@ -16,8 +18,10 @@ use rand::prelude::SliceRandom;
 use rand::thread_rng;
 use rgb::{
     Assignment, CellAddr, Contract, CoreParams, CreateParams, NamedState, Outpoint, PileFs, Schema,
+    WitnessStatus,
 };
-use rgbcore::RgbSealDef;
+use rgbcore::{ContractApi, RgbSealDef};
+use single_use_seals::SealWitness;
 use strict_encoding::{vname, StrictDumb};
 
 fn setup(name: &str) -> Contract<StockFs, PileFs<TxoSeal>> {
@@ -67,6 +71,8 @@ fn setup(name: &str) -> Contract<StockFs, PileFs<TxoSeal>> {
         using: none!(),
         reading: none!(),
     };
+    let mut tx = Tx::strict_dumb();
+    let anchor = Anchor::strict_dumb();
     for round in 0u16..10 {
         // shuffle outputs to create twisted DAG
         prev.shuffle(&mut thread_rng());
@@ -92,6 +98,9 @@ fn setup(name: &str) -> Contract<StockFs, PileFs<TxoSeal>> {
             let opid = op.opid();
             new_prev.push(CellAddr::new(opid, 0));
             new_prev.push(CellAddr::new(opid, 1));
+
+            tx.lock_time = LockTime::from_consensus_u32(tx.lock_time.into_consensus_u32() + 1);
+            contract.apply_witness(opid, SealWitness::new(tx.clone(), anchor.clone()));
         }
         prev = new_prev;
     }
@@ -111,3 +120,53 @@ fn setup(name: &str) -> Contract<StockFs, PileFs<TxoSeal>> {
 
 #[test]
 fn no_reorgs() { setup("NoReorgs"); }
+
+#[test]
+fn single_rollback() {
+    let mut contract = setup("SingleRollback");
+    let wid = contract.witness_ids().nth(50).unwrap();
+    contract.sync([(wid, WitnessStatus::Archived)]).unwrap();
+    // Idempotence
+    contract.sync([(wid, WitnessStatus::Archived)]).unwrap();
+}
+
+#[test]
+fn double_rollback() {
+    let mut contract = setup("DoubleRollback");
+    let wid1 = contract.witness_ids().nth(50).unwrap();
+    let wid2 = contract.witness_ids().nth(60).unwrap();
+    contract
+        .sync([(wid1, WitnessStatus::Archived), (wid2, WitnessStatus::Archived)])
+        .unwrap();
+}
+
+#[test]
+fn rollback_forward() {
+    let mut contract = setup("RollbackForward");
+    let wid = contract.witness_ids().nth(50).unwrap();
+    contract.sync([(wid, WitnessStatus::Archived)]).unwrap();
+    contract.sync([(wid, WitnessStatus::Offchain)]).unwrap();
+    // Idempotence
+    contract
+        .sync([(wid, WitnessStatus::Archived), (wid, WitnessStatus::Offchain)])
+        .unwrap();
+}
+
+#[test]
+fn rbf() {
+    let mut contract = setup("Rbf");
+
+    let old_txid = contract.witness_ids().nth(50).unwrap();
+    let opid = contract.ops_by_witness_id(old_txid).next().unwrap();
+
+    let tx = Tx::strict_dumb();
+    let rbf_txid = tx.txid();
+    contract.apply_witness(opid, SealWitness::new(tx, strict_dumb!()));
+
+    contract
+        .sync([
+            (old_txid, WitnessStatus::Archived),
+            (rbf_txid, WitnessStatus::Mined(NonZeroU64::new(100).unwrap())),
+        ])
+        .unwrap();
+}
