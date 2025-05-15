@@ -414,7 +414,6 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         &mut self,
         changed: impl Iterator<Item = (<P::Seal as RgbSeal>::WitnessId, WitnessStatus)>,
     ) -> Result<(), AcceptError> {
-        let mut forwarded_wids = IndexSet::new();
         let mut rolled_back_ops = IndexSet::new();
         let mut forwarded_ops = IndexSet::new();
         for (wid, status) in changed {
@@ -426,48 +425,36 @@ impl<S: Stock, P: Pile> Contract<S, P> {
                 continue;
             }
 
-            if status.is_valid() {
-                forwarded_wids.insert(wid);
-            }
+            let opids = self.pile.ops_by_witness_id(wid).collect::<IndexSet<_>>();
+            for opid in opids {
+                // We need this since the operation might have multiple witnesses, and
+                // invalidating one does not necessarily mean the whole
+                // operation becomes invalid.
+                let op_status_before = self.witness_status(opid);
+                self.pile.update_witness_status(wid, status);
+                let op_status_after = self.witness_status(opid);
 
-            // We do not need to do anything if the status validity has not actually changed.
-            // NB: This is different from the `status == prev_status` check above since we still had
-            // to update the witness status even if it changes from valid status to a different
-            // valid status - but now we do not need to proceed with any rollbacks and forwards.
-            if status.is_valid() != prev_status.is_valid() {
-                for opid in self.pile.ops_by_witness_id(wid) {
-                    // We need this since the operation might have multiple witnesses, and
-                    // invalidating one doesn't necessarily mean the whole
-                    // operation becomes invalid.
-                    let op_status = self.witness_status(opid);
-                    // We leave only ops whose validity has changed.
-                    if op_status.is_valid() == status.is_valid() {
-                        continue;
-                    }
-                    if status.is_valid() {
-                        forwarded_ops.insert(opid);
-                    } else {
-                        rolled_back_ops.insert(opid);
-                    }
+                // We leave only ops whose validity has changed.
+                if op_status_after == op_status_before {
+                    continue;
+                }
+
+                if op_status_after.is_valid() {
+                    forwarded_ops.insert(opid);
+                } else {
+                    rolled_back_ops.insert(opid);
                 }
             }
-            // We still update the status even if its validity has not changed, since the mining
-            // depth may have changed.
-            self.pile.update_witness_status(wid, status);
         }
 
-        debug_assert_eq!(
-            forwarded_ops.intersection(&rolled_back_ops).count(),
-            0,
-            "forwarded operations contain at least same of the same items as rolled back \
-             operations"
-        );
+        let forward = forwarded_ops.difference(&rolled_back_ops);
+        let roll_back = rolled_back_ops.difference(&forwarded_ops);
 
-        self.ledger.rollback(rolled_back_ops)?;
+        self.ledger.rollback(roll_back.copied())?;
         // Ledger has already committed as a part of `rollback`
         self.pile.commit_transaction();
 
-        self.ledger.forward(forwarded_ops)?;
+        self.ledger.forward(forward.copied())?;
         // Ledger has already committed as a part of `forward`
         self.pile.commit_transaction();
 
