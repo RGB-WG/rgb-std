@@ -40,7 +40,7 @@ use hypersonic::{
     Memory, MergeError, MethodName, NamedState, Operation, Opid, Schema, StateAtom, StateName,
     Stock, StockError, Transition,
 };
-use indexmap::IndexSet;
+use indexmap::{IndexMap, IndexSet};
 use rgb::{
     ContractApi, ContractVerify, OperationSeals, ReadOperation, ReadWitness, RgbSeal, RgbSealDef,
     VerificationError,
@@ -412,10 +412,10 @@ impl<S: Stock, P: Pile> Contract<S, P> {
 
     pub fn sync(
         &mut self,
-        changed: impl Iterator<Item = (<P::Seal as RgbSeal>::WitnessId, WitnessStatus)>,
+        changed: impl IntoIterator<Item = (<P::Seal as RgbSeal>::WitnessId, WitnessStatus)>,
     ) -> Result<(), AcceptError> {
-        let mut rolled_back_ops = IndexSet::new();
-        let mut forwarded_ops = IndexSet::new();
+        // Step 1: Sanitize the list of changed wids
+        let mut affected_wids = IndexMap::new();
         for (wid, status) in changed {
             if !self.pile.has_witness(wid) {
                 continue;
@@ -425,36 +425,58 @@ impl<S: Stock, P: Pile> Contract<S, P> {
                 continue;
             }
 
-            let opids = self.pile.ops_by_witness_id(wid).collect::<IndexSet<_>>();
-            for opid in opids {
-                // We need this since the operation might have multiple witnesses, and
-                // invalidating one does not necessarily mean the whole
-                // operation becomes invalid.
-                let op_status_before = self.witness_status(opid);
-                self.pile.update_witness_status(wid, status);
-                let op_status_after = self.witness_status(opid);
+            if status.is_valid() == prev_status.is_valid() {
+                continue;
+            }
 
-                // We leave only ops whose validity has changed.
-                if op_status_after == op_status_before {
-                    continue;
-                }
+            let old_status = affected_wids.insert(wid, status);
+            debug_assert!(
+                old_status.is_none() || old_status == Some(status),
+                "the same transaction with different status passed to a sync operation"
+            );
+        }
 
-                if op_status_after.is_valid() {
-                    forwarded_ops.insert(opid);
-                } else {
-                    rolled_back_ops.insert(opid);
-                }
+        // Step 2: Select opdis which may be affected by the changed witnesses and their pre-sync
+        // operation status
+        let mut affected_ops = IndexMap::new();
+        for wid in affected_wids.keys() {
+            for opid in self.pile.ops_by_witness_id(*wid) {
+                let op_status = self.witness_status(opid);
+                let old = affected_ops.insert(opid, op_status);
+                debug_assert!(old.is_none() || old == Some(op_status));
             }
         }
 
-        let forward = forwarded_ops.difference(&rolled_back_ops);
-        let roll_back = rolled_back_ops.difference(&forwarded_ops);
+        // Step 3: Update witness status.
+        // NB: This can't be done at the same time as step 2 due to many-to-meny relation between
+        // witnesses and operations, such that one witness change may affect other operation witness
+        // status.
+        for (wid, status) in affected_wids {
+            self.pile.update_witness_status(wid, status);
+        }
 
-        self.ledger.rollback(roll_back.copied())?;
+        // Step 4: Filter opids and leave only those which status has changed after witness update
+        let mut roll_back = IndexSet::new();
+        let mut forward = IndexSet::new();
+        for (opid, old_status) in affected_ops {
+            let new_status = self.witness_status(opid);
+            if old_status.is_valid() != new_status.is_valid() {
+                continue;
+            }
+            if new_status.is_valid() {
+                forward.insert(opid);
+            } else {
+                roll_back.insert(opid);
+            }
+        }
+        debug_assert_eq!(forward.intersection(&roll_back).count(), 0);
+
+        // Step 5: Perform rollback and forward operations
+        self.ledger.rollback(roll_back)?;
         // Ledger has already committed as a part of `rollback`
         self.pile.commit_transaction();
 
-        self.ledger.forward(forward.copied())?;
+        self.ledger.forward(forward)?;
         // Ledger has already committed as a part of `forward`
         self.pile.commit_transaction();
 
