@@ -479,10 +479,6 @@ impl<S: Stock, P: Pile> Contract<S, P> {
                 continue;
             }
 
-            if status.is_valid() == prev_status.is_valid() {
-                continue;
-            }
-
             let old_status = affected_wids.insert(wid, status);
             debug_assert!(
                 old_status.is_none() || old_status == Some(status),
