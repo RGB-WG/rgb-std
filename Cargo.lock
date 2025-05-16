@@ -348,9 +348,9 @@ checksum = "1628fb46dfa0b37568d12e5edd512553eccf6a22a78e8bde00bb4aed84d5bdbf"
 
 [[package]]
 name = "cc"
-version = "1.2.22"
+version = "1.2.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32db95edf998450acc7881c932f94cd9b05c87b4b2599e8bab064753da4acfd1"
+checksum = "5f4ac86a9e5bc1e2b3449ab9d7d3a6a405e3d1bb28d7b9be8614f55846ae3766"
 dependencies = [
  "shlex",
 ]
@@ -591,7 +591,7 @@ dependencies = [
 [[package]]
 name = "hypersonic"
 version = "0.12.0-beta.6"
-source = "git+https://github.com/AluVM/sonic?branch=develop#c931af975429bf2583bc6e81a35884e2711c1598"
+source = "git+https://github.com/AluVM/sonic?branch=v0.12#fda08609334968967483b43d242c2620c11be67c"
 dependencies = [
  "aluvm",
  "amplify",
@@ -812,7 +812,7 @@ dependencies = [
 [[package]]
 name = "rgb-core"
 version = "0.12.0-beta.6"
-source = "git+https://github.com/RGB-WG/rgb-core?branch=v0.12#6719b9147f55a4e3ce5dac05164da820aa6e9720"
+source = "git+https://github.com/RGB-WG/rgb-core?branch=v0.12#9591089d717dfbf01a24d33b11f8e3a44574c9c5"
 dependencies = [
  "amplify",
  "bp-core",
@@ -1048,7 +1048,7 @@ dependencies = [
 [[package]]
 name = "sonic-api"
 version = "0.12.0-beta.6"
-source = "git+https://github.com/AluVM/sonic?branch=develop#c931af975429bf2583bc6e81a35884e2711c1598"
+source = "git+https://github.com/AluVM/sonic?branch=v0.12#fda08609334968967483b43d242c2620c11be67c"
 dependencies = [
  "aluvm",
  "amplify",
@@ -1067,7 +1067,7 @@ dependencies = [
 [[package]]
 name = "sonic-callreq"
 version = "0.12.0-beta.6"
-source = "git+https://github.com/AluVM/sonic?branch=develop#c931af975429bf2583bc6e81a35884e2711c1598"
+source = "git+https://github.com/AluVM/sonic?branch=v0.12#fda08609334968967483b43d242c2620c11be67c"
 dependencies = [
  "amplify",
  "baid64",
@@ -1084,7 +1084,7 @@ dependencies = [
 [[package]]
 name = "sonix"
 version = "0.12.0-beta.6"
-source = "git+https://github.com/AluVM/sonic?branch=develop#c931af975429bf2583bc6e81a35884e2711c1598"
+source = "git+https://github.com/AluVM/sonic?branch=v0.12#fda08609334968967483b43d242c2620c11be67c"
 dependencies = [
  "amplify",
  "anyhow",
@@ -1434,9 +1434,9 @@ dependencies = [
 
 [[package]]
 name = "windows-core"
-version = "0.61.0"
+version = "0.61.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4763c1de310c86d75a878046489e2e5ba02c649d185f21c67d4cf8a56d098980"
+checksum = "46ec44dc15085cea82cf9c78f85a9114c463a369786585ad2882d1ff0b0acf40"
 dependencies = [
  "windows-implement",
  "windows-interface",
@@ -1475,18 +1475,18 @@ checksum = "76840935b766e1b0a05c0066835fb9ec80071d4c09a16f6bd5f7e655e3c14c38"
 
 [[package]]
 name = "windows-result"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c64fd11a4fd95df68efcfee5f44a294fe71b8bc6a91993e2791938abcc712252"
+checksum = "4b895b5356fc36103d0f64dd1e94dfa7ac5633f1c9dd6e80fe9ec4adef69e09d"
 dependencies = [
  "windows-link",
 ]
 
 [[package]]
 name = "windows-strings"
-version = "0.4.0"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a2ba9642430ee452d5a7aa78d72907ebe8cfda358e8cb7918a2050581322f97"
+checksum = "2a7ab927b2637c19b3dbe0965e75d8f2d30bdd697a1516191cad2ec4df8fb28a"
 dependencies = [
  "windows-link",
 ]

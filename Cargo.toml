@@ -119,8 +119,8 @@ features = ["all"]
 [patch.crates-io]
 commit_verify = { git = "https://github.com/LNP-BP/client_side_validation", branch = "v0.12" }
 single_use_seals = { git = "https://github.com/LNP-BP/client_side_validation", branch = "v0.12" }
-sonic-callreq = { git = "https://github.com/AluVM/sonic", branch = "develop" }
-sonic-api = { git = "https://github.com/AluVM/sonic", branch = "develop" }
-hypersonic = { git = "https://github.com/AluVM/sonic", branch = "develop" }
-sonix = { git = "https://github.com/AluVM/sonic", branch = "develop" }
+sonic-callreq = { git = "https://github.com/AluVM/sonic", branch = "v0.12" }
+sonic-api = { git = "https://github.com/AluVM/sonic", branch = "v0.12" }
+hypersonic = { git = "https://github.com/AluVM/sonic", branch = "v0.12" }
+sonix = { git = "https://github.com/AluVM/sonic", branch = "v0.12" }
 rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "v0.12" }
