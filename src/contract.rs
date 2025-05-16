@@ -40,7 +40,7 @@ use hypersonic::{
     Memory, MergeError, MethodName, NamedState, Operation, Opid, Schema, StateAtom, StateName,
     Stock, StockError, Transition,
 };
-use indexmap::IndexMap;
+use indexmap::{IndexMap, IndexSet};
 use rgb::{
     ContractApi, ContractVerify, OperationSeals, ReadOperation, ReadWitness, RgbSeal, RgbSealDef,
     VerificationError,
@@ -97,6 +97,19 @@ impl<Seal> EitherSeal<Seal> {
 pub struct Assignment<Seal> {
     pub seal: Seal,
     pub data: StrictVal,
+}
+
+impl<Seal> Assignment<Seal> {
+    pub fn new(seal: Seal, data: impl Into<StrictVal>) -> Self { Self { seal, data: data.into() } }
+}
+
+impl<Seal> Assignment<EitherSeal<Seal>> {
+    pub fn new_external(auth: AuthToken, data: impl Into<StrictVal>) -> Self {
+        Self { seal: EitherSeal::Token(auth), data: data.into() }
+    }
+    pub fn new_internal(seal: Seal, data: impl Into<StrictVal>) -> Self {
+        Self { seal: EitherSeal::Alt(seal), data: data.into() }
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -211,6 +224,40 @@ pub struct CreateParams<Seal: Clone> {
     pub timestamp: Option<DateTime<Utc>>,
     pub global: Vec<NamedState<StateAtom>>,
     pub owned: Vec<NamedState<Assignment<EitherSeal<Seal>>>>,
+}
+
+impl<Seal: Clone> CreateParams<Seal> {
+    pub fn new_testnet(codex_id: CodexId, consensus: Consensus, name: impl Into<TypeName>) -> Self {
+        Self {
+            codex_id,
+            consensus,
+            testnet: true,
+            method: vname!("issue"),
+            name: name.into(),
+            timestamp: None,
+            global: none![],
+            owned: none![],
+        }
+    }
+
+    pub fn with_global_verified(
+        mut self,
+        name: impl Into<StateName>,
+        data: impl Into<StrictVal>,
+    ) -> Self {
+        self.global
+            .push(NamedState { name: name.into(), state: StateAtom::new_verified(data) });
+        self
+    }
+
+    pub fn push_owned_unlocked(
+        &mut self,
+        name: impl Into<StateName>,
+        assignment: Assignment<EitherSeal<Seal>>,
+    ) {
+        self.owned
+            .push(NamedState { name: name.into(), state: assignment });
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -355,6 +402,13 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         self.pile.witnesses()
     }
 
+    pub fn ops_by_witness_id(
+        &self,
+        wid: <P::Seal as RgbSeal>::WitnessId,
+    ) -> impl Iterator<Item = Opid> + use<'_, S, P> {
+        self.pile.ops_by_witness_id(wid)
+    }
+
     pub fn op_seals(&self, opid: Opid, up_to: u16) -> OpRels<P::Seal> {
         self.pile.op_relations(opid, up_to)
     }
@@ -412,9 +466,10 @@ impl<S: Stock, P: Pile> Contract<S, P> {
 
     pub fn sync(
         &mut self,
-        changed: impl Iterator<Item = (<P::Seal as RgbSeal>::WitnessId, WitnessStatus)>,
+        changed: impl IntoIterator<Item = (<P::Seal as RgbSeal>::WitnessId, WitnessStatus)>,
     ) -> Result<(), AcceptError> {
-        let mut updates = IndexMap::new();
+        // Step 1: Sanitize the list of changed wids
+        let mut affected_wids = IndexMap::new();
         for (wid, status) in changed {
             if !self.pile.has_witness(wid) {
                 continue;
@@ -424,35 +479,57 @@ impl<S: Stock, P: Pile> Contract<S, P> {
                 continue;
             }
 
+            let old_status = affected_wids.insert(wid, status);
+            debug_assert!(
+                old_status.is_none() || old_status == Some(status),
+                "the same transaction with different status passed to a sync operation"
+            );
+        }
+
+        // Step 2: Select opdis which may be affected by the changed witnesses and their pre-sync
+        // operation status
+        let mut affected_ops = IndexMap::new();
+        for wid in affected_wids.keys() {
+            for opid in self.pile.ops_by_witness_id(*wid) {
+                let op_status = self.witness_status(opid);
+                let old = affected_ops.insert(opid, op_status);
+                debug_assert!(old.is_none() || old == Some(op_status));
+            }
+        }
+
+        // Step 3: Update witness status.
+        // NB: This can't be done at the same time as step 2 due to many-to-meny relation between
+        // witnesses and operations, such that one witness change may affect other operation witness
+        // status.
+        for (wid, status) in affected_wids {
             self.pile.update_witness_status(wid, status);
-
-            let opids = self.pile.ops_by_witness_id(wid);
-            if status.is_valid() != prev_status.is_valid() {
-                if status.is_valid() {
-                    updates.extend(opids.map(|opid| (opid, true)));
-                } else {
-                    updates.extend(opids.map(|opid| (opid, false)));
-                }
-            }
         }
 
-        updates.retain(|opid, forward| {
-            let status = self.witness_status(*opid);
-            // keep only if it is:
-            // - a forward and the status is valid
-            // - a rollback and the status is invalid
-            *forward == status.is_valid()
-        });
-        for (opid, forward) in updates {
-            if forward {
-                self.ledger.forward([opid]).unwrap();
+        // Step 4: Filter opids and leave only those which status has changed after witness update
+        let mut roll_back = IndexSet::new();
+        let mut forward = IndexSet::new();
+        for (opid, old_status) in affected_ops {
+            let new_status = self.witness_status(opid);
+            if old_status.is_valid() == new_status.is_valid() {
+                continue;
+            }
+            if new_status.is_valid() {
+                forward.insert(opid);
             } else {
-                self.ledger.rollback([opid]).unwrap();
+                roll_back.insert(opid);
             }
         }
+        debug_assert_eq!(forward.intersection(&roll_back).count(), 0);
 
+        // Step 5: Perform rollback and forward operations
+        self.ledger.rollback(roll_back)?;
+        // Ledger has already committed as a part of `rollback`
         self.pile.commit_transaction();
-        self.ledger.commit_transaction();
+
+        self.ledger.forward(forward)?;
+        // Ledger has already committed as a part of `forward`
+        self.pile.commit_transaction();
+
         Ok(())
     }
 

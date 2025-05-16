@@ -73,6 +73,9 @@ chrono.workspace = true
 serde = { workspace = true, optional = true }
 serde_with = { workspace = true, optional = true }
 
+[dev-dependencies]
+rand = "0.8.4"
+
 [features]
 default = ["std", "bitcoin"]
 all = ["std", "bitcoin", "liquid", "prime", "fs", "stl", "serde"]
@@ -114,8 +117,10 @@ wasm-bindgen-test = "0.3"
 features = ["all"]
 
 [patch.crates-io]
-sonic-callreq = { git = "https://github.com/AluVM/sonic" }
-sonic-api = { git = "https://github.com/AluVM/sonic" }
-hypersonic = { git = "https://github.com/AluVM/sonic" }
-sonix = { git = "https://github.com/AluVM/sonic" }
+commit_verify = { git = "https://github.com/LNP-BP/client_side_validation", branch = "v0.12" }
+single_use_seals = { git = "https://github.com/LNP-BP/client_side_validation", branch = "v0.12" }
+sonic-callreq = { git = "https://github.com/AluVM/sonic", branch = "v0.12" }
+sonic-api = { git = "https://github.com/AluVM/sonic", branch = "v0.12" }
+hypersonic = { git = "https://github.com/AluVM/sonic", branch = "v0.12" }
+sonix = { git = "https://github.com/AluVM/sonic", branch = "v0.12" }
 rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "v0.12" }

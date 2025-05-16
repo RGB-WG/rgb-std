@@ -47,11 +47,13 @@ use invoice::bp::{Address, WitnessOut};
 use invoice::{RgbBeneficiary, RgbInvoice};
 use rgb::RgbSealDef;
 use rgbcore::LIB_NAME_RGB;
-use strict_encoding::{ReadRaw, StrictDecode, StrictDeserialize, StrictReader, StrictSerialize};
+use strict_encoding::{
+    ReadRaw, StrictDecode, StrictDeserialize, StrictReader, StrictSerialize, TypeName,
+};
 use strict_types::StrictVal;
 
 use crate::{
-    Assignment, CodexId, ConsumeError, Contract, ContractState, Contracts, CreateParams,
+    Assignment, CodexId, Consensus, ConsumeError, Contract, ContractState, Contracts, CreateParams,
     EitherSeal, IssuerError, Pile, Schema, Stockpile,
 };
 
@@ -780,6 +782,12 @@ where
     }
 }
 
+impl CreateParams<Outpoint> {
+    pub fn new_bitcoin_testnet(codex_id: CodexId, name: impl Into<TypeName>) -> Self {
+        Self::new_testnet(codex_id, Consensus::Bitcoin, name)
+    }
+}
+
 #[derive(Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum PrefabError {
@@ -877,6 +885,7 @@ mod fs {
             C: KeyedCollection<Key = ContractId, Value = Contract<StockFs, PileFs<TxoSeal>>>,
         > RgbWallet<W, StockpileDir<TxoSeal>, S, C>
     {
+        #[allow(clippy::result_large_err)]
         pub fn consume_from_file(
             &mut self,
             path: impl AsRef<Path>,

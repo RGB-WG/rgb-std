@@ -40,6 +40,7 @@ use crate::popls::bp::PrefabBundle;
 pub const LIB_ID_RGB: &str =
     "stl:aAwQVXsP-iTgCThm-8gQAXF5-A8c47_D-pABre7n-mw2KeW0#wizard-farmer-mirage";
 
+#[allow(clippy::result_large_err)]
 fn _rgb_stl() -> Result<TypeLib, CompileError> {
     LibBuilder::with(libname!(LIB_NAME_RGB), [
         std_stl().to_dependency_types(),

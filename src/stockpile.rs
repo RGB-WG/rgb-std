@@ -34,7 +34,7 @@ use crate::{Articles, Consensus, Contract, CreateParams, IssuerError, Pile};
 
 /// Stockpile provides a specific persistence implementation for the use in [`crate::Contracts`].
 /// It allows for it to abstract from a specific storage media, whether it is a file system,
-/// database or a network service. Its main task is to load already known contract issuers and
+/// database, or a network service. Its main task is to load already known contract issuers and
 /// contract runtimes ([`Contract`]); or to add new ones via the [`Self::import_issuer`] and
 /// [`Self::issue`] procedures.
 ///
