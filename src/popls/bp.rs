@@ -885,6 +885,7 @@ mod fs {
             C: KeyedCollection<Key = ContractId, Value = Contract<StockFs, PileFs<TxoSeal>>>,
         > RgbWallet<W, StockpileDir<TxoSeal>, S, C>
     {
+        #[allow(clippy::result_large_err)]
         pub fn consume_from_file(
             &mut self,
             path: impl AsRef<Path>,
