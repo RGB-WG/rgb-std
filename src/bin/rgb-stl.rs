@@ -22,6 +22,8 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
+#![cfg_attr(coverage_nightly, feature(coverage_attribute), coverage(off))]
+
 use rgb::stl::rgb_stl;
 use strict_types::parse_args;
 

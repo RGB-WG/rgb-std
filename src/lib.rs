@@ -22,10 +22,22 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
-// TODO: Activate no_std once StrictEncoding will support it
+// TODO: Activate once StrictEncoding will be no_std
 // #![cfg_attr(not(feature = "std"), no_std)]
+#![deny(
+    unsafe_code,
+    dead_code,
+    // TODO: Complete documentation
+    // missing_docs,
+    unused_variables,
+    unused_mut,
+    unused_imports,
+    non_upper_case_globals,
+    non_camel_case_types,
+    non_snake_case
+)]
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
-#![cfg_attr(not(feature = "std"), no_std)]
 #![allow(clippy::type_complexity)]
 
 extern crate alloc;

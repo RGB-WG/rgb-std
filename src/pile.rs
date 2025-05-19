@@ -69,7 +69,7 @@ pub enum WitnessStatus {
     Tentative,
 
     /// Indicates past public witness which is no more valid - it is not included in the
-    /// blockchain, not present in the mempool or belongs to the past Lightning channel state.
+    /// blockchain, not present in the mempool, or belongs to the past Lightning channel state.
     #[default]
     Archived,
 }
@@ -105,7 +105,7 @@ impl From<[u8; 8]> for WitnessStatus {
             Self::ARCHIVED => Self::Archived,
             Self::TENTATIVE => Self::Tentative,
             Self::OFFCHAIN => Self::Offchain,
-            height => Self::Mined(unsafe { NonZeroU64::new_unchecked(height) }),
+            height => Self::Mined(NonZeroU64::new(height).expect("GENESIS=0 is already checked")),
         }
     }
 }
@@ -267,6 +267,8 @@ pub trait Pile {
 
 #[cfg(test)]
 mod tests {
+    #![cfg_attr(coverage_nightly, coverage(off))]
+
     use super::*;
 
     #[test]

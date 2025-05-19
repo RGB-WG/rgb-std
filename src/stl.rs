@@ -80,6 +80,8 @@ pub fn rgb_stl() -> TypeLib { _rgb_seals().expect("invalid strict type RGB libra
 
 #[cfg(test)]
 mod test {
+    #![cfg_attr(coverage_nightly, coverage(off))]
+
     use super::*;
 
     #[test]

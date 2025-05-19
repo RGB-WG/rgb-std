@@ -33,3 +33,9 @@ prime = ["rgb-core/prime"]
 std = ["amplify/std", "sonic-callreq/std"]
 uri = ["sonic-callreq/uri"]
 serde = ["dep:serde", "sonic-callreq/serde", "bp-core/serde", "rgb-core/serde", "bp-invoice/serde"]
+
+[package.metadata.docs.rs]
+features = ["all"]
+
+[lints.rust]
+unexpected_cfgs = { level = "allow", check-cfg = ['cfg(coverage_nightly)'] }

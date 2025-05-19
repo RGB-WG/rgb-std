@@ -32,3 +32,6 @@ all = ["bitcoin", "liquid", "prime"]
 bitcoin = ["rgb-std/bitcoin"]
 liquid = ["rgb-std/liquid"]
 prime = ["rgb-std/prime"]
+
+[lints.rust]
+unexpected_cfgs = { level = "allow", check-cfg = ['cfg(coverage_nightly)'] }
