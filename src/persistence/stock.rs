@@ -106,6 +106,9 @@ pub enum StockError<
     /// state transition bundle.
     AbsentValidWitness,
 
+    /// Unable to sort bundles because of data inconsistency.
+    BundlesInconsistency,
+
     /// witness {0} can't be resolved: {1}
     WitnessUnresolved(Txid, WitnessResolverError),
 }
@@ -278,6 +281,7 @@ macro_rules! stock_err_conv {
                     StockError::StateRead(e) => StockError::StateRead(e),
                     StockError::StateWrite(e) => StockError::StateWrite(e),
                     StockError::AbsentValidWitness => StockError::AbsentValidWitness,
+                    StockError::BundlesInconsistency => StockError::BundlesInconsistency,
                     StockError::StashData(e) => StockError::StashData(e),
                     StockError::StashInconsistency(e) => StockError::StashInconsistency(e),
                     StockError::StateInconsistency(e) => StockError::StateInconsistency(e),
@@ -609,6 +613,101 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         Ok(consignment)
     }
 
+    fn sort_bundles(
+        &self,
+        bundles: BTreeMap<BundleId, (WitnessBundle, u32)>,
+        contract_id: ContractId,
+    ) -> Result<Vec<WitnessBundle>, StockError<S, H, P, ConsignError>> {
+        let bundles_len = bundles.len();
+        if bundles_len <= 1 {
+            return Ok(bundles.into_values().map(|(b, _)| b).collect());
+        }
+
+        // Pre-sort by witness height for efficiency
+        let mut bundles_with_height = bundles.into_iter().collect::<Vec<_>>();
+        bundles_with_height.sort_by_key(|(_, (_, num))| *num);
+
+        // Dependency violation detection
+        let mut needs_reordering = false;
+        let bundle_positions = bundles_with_height
+            .iter()
+            .enumerate()
+            .map(|(i, (bundle_id, (_, _)))| (*bundle_id, i))
+            .collect::<HashMap<_, _>>();
+        'outer: for (i, (_, (witness_bundle, _))) in bundles_with_height.iter().enumerate() {
+            for transition in witness_bundle.bundle.known_transitions.values() {
+                for input in &transition.inputs {
+                    if input.op != contract_id {
+                        let input_bundle_id = self.index.bundle_id_for_op(input.op)?;
+                        // ignore missing input bundles (e.g. can happen in case of replace)
+                        if let Some(&input_pos) = bundle_positions.get(&input_bundle_id) {
+                            if input_pos > i {
+                                needs_reordering = true;
+                                break 'outer;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if !needs_reordering {
+            return Ok(bundles_with_height
+                .into_iter()
+                .map(|(_, (wb, _))| wb)
+                .collect());
+        }
+
+        // Topological sort
+        let mut known_bundle_dependencies: HashMap<BundleId, HashSet<BundleId>> =
+            HashMap::with_capacity(bundles_len);
+        for (bundle_id, (witness_bundle, _)) in &bundles_with_height {
+            for transition in witness_bundle.bundle.known_transitions.values() {
+                for input in &transition.inputs {
+                    if input.op != contract_id {
+                        let input_bundle_id = self.index.bundle_id_for_op(input.op)?;
+                        if bundle_positions.contains_key(&input_bundle_id) {
+                            known_bundle_dependencies
+                                .entry(*bundle_id)
+                                .or_default()
+                                .insert(input_bundle_id);
+                        }
+                    }
+                }
+            }
+        }
+        let mut sorted_bundles: Vec<WitnessBundle> = Vec::with_capacity(bundles_len);
+        let mut remaining = bundles_with_height
+            .into_iter()
+            .map(|(id, (wb, _))| (id, wb))
+            .collect::<Vec<_>>();
+        while !remaining.is_empty() {
+            let processed_ids = sorted_bundles
+                .iter()
+                .map(|wb| wb.bundle.bundle_id())
+                .collect::<HashSet<_>>();
+            let mut found = false;
+            let mut i = 0;
+            while i < remaining.len() {
+                let (bundle_id, _) = &remaining[i];
+                let dependencies = known_bundle_dependencies
+                    .get(bundle_id)
+                    .cloned()
+                    .unwrap_or_default();
+                if dependencies.is_subset(&processed_ids) {
+                    let (_, witness_bundle) = remaining.remove(i);
+                    sorted_bundles.push(witness_bundle);
+                    found = true;
+                    break;
+                }
+                i += 1;
+            }
+            if !found {
+                return Err(StockError::BundlesInconsistency);
+            }
+        }
+        Ok(sorted_bundles)
+    }
+
     fn consign<const TRANSFER: bool>(
         &self,
         contract_id: ContractId,
@@ -634,7 +733,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         );
 
         // 1.3. Collect all state transitions assigning state to the provided outpoints
-        let mut bundles = BTreeMap::<BundleId, WitnessBundle>::new();
+        let mut bundles = BTreeMap::<BundleId, (WitnessBundle, u32)>::new();
         let mut transitions = BTreeMap::<OpId, Transition>::new();
         let mut bundle_sec_seals: BTreeMap<BundleId, BTreeSet<SecretSeal>> = BTreeMap::new();
         for opout in opouts {
@@ -695,6 +794,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             bundles
                 .entry(bundle_id)
                 .or_insert(self.witness_bundle(bundle_id)?.clone())
+                .0
                 .bundle
                 .reveal_transition(transition.clone())?;
         }
@@ -703,8 +803,10 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
         let schema = self.stash.schema(genesis.schema_id)?.clone();
 
-        let bundles = Confined::try_from_iter(bundles.into_values())
-            .map_err(|_| ConsignError::TooManyBundles)?;
+        let sorted_bundles = self.sort_bundles(bundles, contract_id)?;
+
+        let bundles =
+            Confined::try_from_iter(sorted_bundles).map_err(|_| ConsignError::TooManyBundles)?;
         let terminals = Confined::try_from(
             bundle_sec_seals
                 .into_iter()
@@ -845,10 +947,13 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             .ok_or(ConsignError::Concealed(bundle_id, opid).into())
     }
 
-    fn witness_bundle(&self, bundle_id: BundleId) -> Result<WitnessBundle, StockError<S, H, P>> {
+    fn witness_bundle(
+        &self,
+        bundle_id: BundleId,
+    ) -> Result<(WitnessBundle, u32), StockError<S, H, P>> {
         let (witness_ids, contract_id) = self.index.bundle_info(bundle_id)?;
         let bundle = self.stash.bundle(bundle_id)?.clone();
-        let (witness_id, _) = self.state.select_valid_witness(witness_ids)?;
+        let (witness_id, witness_ord) = self.state.select_valid_witness(witness_ids)?;
         let witness = self.stash.witness(witness_id)?;
         let pub_witness = witness.public.clone();
         let Ok(mpc_proof) = witness.merkle_block.to_merkle_proof(contract_id.into()) else {
@@ -864,7 +969,14 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
         // TODO: Conceal all transitions except the one we need
 
-        Ok(WitnessBundle::with(pub_witness, anchor, bundle))
+        let height = match witness_ord {
+            WitnessOrd::Mined(pos) => pos.height().into(),
+            WitnessOrd::Tentative => u32::MAX - 1,
+            WitnessOrd::Ignored => u32::MAX,
+            WitnessOrd::Archived => unreachable!("select_valid_witness prevents this"),
+        };
+
+        Ok((WitnessBundle::with(pub_witness, anchor, bundle), height))
     }
 
     pub fn store_secret_seal(&mut self, seal: GraphSeal) -> Result<bool, StockError<S, H, P>> {

@@ -113,6 +113,14 @@ impl<const TRANSFER: bool> ConsignmentApi for IndexedConsignment<'_, TRANSFER> {
 
     fn genesis(&self) -> &Genesis { &self.genesis }
 
+    fn bundles<'iter>(&self) -> impl Iterator<Item = TransitionBundle> + 'iter {
+        self.consignment
+            .bundles
+            .clone()
+            .into_iter()
+            .map(|wb| wb.bundle)
+    }
+
     fn bundle_ids<'iter>(&self) -> impl Iterator<Item = BundleId> + 'iter {
         self.bundle_idx
             .keys()
