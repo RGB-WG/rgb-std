@@ -455,7 +455,7 @@ where
         &mut self,
         invoice: &RgbInvoice<ContractId>,
         mut coinselect: impl Coinselect,
-        // TODO: Consider adding requested amount of sats to the `RgbInvoice`
+        // TODO: Consider adding requested amount of sats to the `RgbInvoice`?
         giveaway: Option<Sats>,
     ) -> Result<OpRequest<Option<WoutAssignment>>, FulfillError> {
         let contract_id = invoice.scope;

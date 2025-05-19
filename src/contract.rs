@@ -24,8 +24,8 @@
 
 use alloc::collections::BTreeMap;
 use core::borrow::Borrow;
+use core::error::Error;
 use core::marker::PhantomData;
-// TODO: Used in strict encoding; once solved there, remove here
 use std::io;
 
 use amplify::confinement::SmallOrdMap;
@@ -147,7 +147,6 @@ pub struct ContractState<Seal> {
     pub immutable: BTreeMap<StateName, BTreeMap<CellAddr, ImmutableState>>,
     pub owned: BTreeMap<StateName, BTreeMap<CellAddr, OwnedState<Seal>>>,
     pub aggregated: BTreeMap<StateName, StrictVal>,
-    // TODO: Add "computed pending"
 }
 
 impl<Seal> ContractState<Seal> {
@@ -679,36 +678,43 @@ impl<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&Operation) -> BTreeMap<u16, Seal::
 {
     type Seal = Seal;
 
-    fn read_operation(&mut self) -> Option<OperationSeals<Self::Seal>> {
-        match Operation::strict_decode(self.stream) {
-            Ok(operation) => {
-                let mut defined_seals = SmallOrdMap::strict_decode(self.stream)
-                    .expect("Failed to read the consignment stream");
-                defined_seals
-                    .extend((self.seal_resolver)(&operation))
-                    .expect("Too many seals defined in the operation");
-                let has_witness = bool::strict_decode(self.stream)
-                    .expect("Failed to read the consignment stream");
+    fn read_operation(
+        &mut self,
+    ) -> Result<Option<OperationSeals<Self::Seal>>, impl Error + 'static> {
+        let Some(operation) =
+            Operation::strict_decode(self.stream)
+                .map(Some)
+                .or_else(|e| match e {
+                    DecodeError::Io(e) if e.kind() == io::ErrorKind::UnexpectedEof => Ok(None),
+                    e => Err(e),
+                })?
+        else {
+            return Result::<_, DecodeError>::Ok(None);
+        };
 
-                let witness = if has_witness {
-                    SealWitness::strict_decode(self.stream)
-                        .inspect_err(|e| {
-                            // TODO: Report error via a side-channel
-                            eprint!("Failed to read consignment stream: {}", e);
-                        })
-                        .ok()
-                } else {
-                    None
-                };
+        let mut defined_seals = SmallOrdMap::strict_decode(self.stream)?;
+        defined_seals
+            .extend((self.seal_resolver)(&operation))
+            .map_err(|_| {
+                DecodeError::DataIntegrityError(format!(
+                    "too many seals defined for the operation {}",
+                    operation.opid()
+                ))
+            })?;
+        let has_witness = bool::strict_decode(self.stream)?;
 
-                Some(OperationSeals { operation, defined_seals, witness })
-            }
-            Err(DecodeError::Io(e)) if e.kind() == io::ErrorKind::UnexpectedEof => None,
-            Err(e) => {
-                // TODO: Report error via a side-channel
-                panic!("Failed to read consignment stream: {}", e);
-            }
-        }
+        let witness = if has_witness {
+            SealWitness::strict_decode(self.stream)
+                .map(Some)
+                .or_else(|e| match e {
+                    DecodeError::Io(e) if e.kind() == io::ErrorKind::UnexpectedEof => Ok(None),
+                    e => Err(e),
+                })?
+        } else {
+            None
+        };
+
+        Ok(Some(OperationSeals { operation, defined_seals, witness }))
     }
 }
 
