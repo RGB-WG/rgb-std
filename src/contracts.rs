@@ -25,13 +25,13 @@
 use alloc::collections::BTreeMap;
 use core::borrow::Borrow;
 use core::cell::RefCell;
-use core::error::Error as StdError;
 use std::collections::HashMap;
 use std::io;
 
 use amplify::confinement::{KeyedCollection, SmallOrdMap};
 use hypersonic::{
-    AcceptError, AuthToken, CallParams, CodexId, ContractId, ContractName, Opid, Schema, Stock,
+    AcceptError, AuthToken, CallParams, CodexId, ContractId, ContractName, EitherError, Opid,
+    SigValidator, Stock,
 };
 use rgb::RgbSeal;
 use strict_encoding::{
@@ -39,8 +39,8 @@ use strict_encoding::{
 };
 
 use crate::{
-    Articles, CallError, ConsumeError, Contract, ContractRef, ContractState, CreateParams,
-    Operation, Pile, Stockpile, WitnessStatus,
+    Articles, CallError, Consensus, ConsumeError, Contract, ContractRef, ContractState,
+    CreateParams, Issuer, Operation, Pile, Stockpile, TripleError, WitnessStatus,
 };
 
 /// Collection of RGB smart contracts and contract issuers, which can be cached in memory.
@@ -52,14 +52,14 @@ use crate::{
 #[derive(Clone, Debug)]
 pub struct Contracts<
     Sp,
-    S = HashMap<CodexId, Schema>,
+    S = HashMap<CodexId, Issuer>,
     C = HashMap<ContractId, Contract<<Sp as Stockpile>::Stock, <Sp as Stockpile>::Pile>>,
 > where
     Sp: Stockpile,
-    S: KeyedCollection<Key = CodexId, Value = Schema>,
+    S: KeyedCollection<Key = CodexId, Value = Issuer>,
     C: KeyedCollection<Key = ContractId, Value = Contract<Sp::Stock, Sp::Pile>>,
 {
-    schemata: RefCell<S>,
+    issuers: RefCell<S>,
     contracts: RefCell<C>,
     persistence: Sp,
 }
@@ -67,7 +67,7 @@ pub struct Contracts<
 impl<Sp, S, C> Contracts<Sp, S, C>
 where
     Sp: Stockpile,
-    S: KeyedCollection<Key = CodexId, Value = Schema>,
+    S: KeyedCollection<Key = CodexId, Value = Issuer>,
     C: KeyedCollection<Key = ContractId, Value = Contract<Sp::Stock, Sp::Pile>>,
 {
     pub fn load(persistence: Sp) -> Self
@@ -75,7 +75,7 @@ where
         S: Default,
         C: Default,
     {
-        Self { schemata: none!(), contracts: none!(), persistence }
+        Self { issuers: none!(), contracts: none!(), persistence }
     }
 
     fn with_contract<R>(
@@ -123,7 +123,7 @@ where
 impl<Sp, S, C> Contracts<Sp, S, C>
 where
     Sp: Stockpile,
-    S: KeyedCollection<Key = CodexId, Value = Schema>,
+    S: KeyedCollection<Key = CodexId, Value = Issuer>,
     C: KeyedCollection<Key = ContractId, Value = Contract<Sp::Stock, Sp::Pile>>,
 {
     pub fn codex_ids(&self) -> impl Iterator<Item = CodexId> + use<'_, Sp, S, C> {
@@ -134,19 +134,19 @@ where
 
     pub fn has_issuer(&self, codex_id: CodexId) -> bool { self.persistence.has_issuer(codex_id) }
 
-    pub fn issuers(&self) -> impl Iterator<Item = (CodexId, Schema)> + use<'_, Sp, S, C> {
+    pub fn issuers(&self) -> impl Iterator<Item = (CodexId, Issuer)> + use<'_, Sp, S, C> {
         self.persistence
             .codex_ids()
             .filter_map(|codex_id| self.issuer(codex_id).map(|schema| (codex_id, schema)))
     }
 
-    pub fn issuer(&self, codex_id: CodexId) -> Option<Schema> {
-        if let Some(issuer) = self.schemata.borrow().get(&codex_id) {
+    pub fn issuer(&self, codex_id: CodexId) -> Option<Issuer> {
+        if let Some(issuer) = self.issuers.borrow().get(&codex_id) {
             return Some(issuer.clone());
         };
         let issuer = self.persistence.issuer(codex_id)?;
-        self.schemata.borrow_mut().insert(codex_id, issuer);
-        self.schemata.borrow().get(&codex_id).cloned()
+        self.issuers.borrow_mut().insert(codex_id, issuer);
+        self.issuers.borrow().get(&codex_id).cloned()
     }
 
     pub fn contracts_count(&self) -> usize { self.persistence.contracts_count() }
@@ -180,7 +180,7 @@ where
                     .contracts
                     .borrow()
                     .iter()
-                    .find(|(_, contract)| contract.articles().issue.meta.name == name)
+                    .find(|(_, contract)| contract.articles().issue().meta.name == name)
                     .map(|(id, _)| *id)
                 {
                     return Some(id);
@@ -188,7 +188,7 @@ where
                 self.persistence
                     .contract_ids()
                     .filter_map(|id| self.persistence.contract(id))
-                    .find(|contract| contract.articles().issue.meta.name == name)
+                    .find(|contract| contract.articles().issue().meta.name == name)
                     .map(|contract| contract.contract_id())
             }
         }
@@ -216,28 +216,46 @@ where
         self.with_contract(contract_id, |contract| contract.articles().clone(), None)
     }
 
-    pub fn import_issuer(&mut self, issuer: Schema) -> Result<CodexId, Sp::Error> {
+    pub fn import_issuer(&mut self, issuer: Issuer) -> Result<CodexId, Sp::Error> {
         let codex_id = issuer.codex.codex_id();
         let schema = self.persistence.import_issuer(issuer)?;
-        self.schemata.borrow_mut().insert(codex_id, schema);
+        self.issuers.borrow_mut().insert(codex_id, schema);
         Ok(codex_id)
+    }
+
+    fn check_layer1(
+        &self,
+        consensus: Consensus,
+        testnet: bool,
+    ) -> Result<(), TripleError<IssuerError, <Sp::Stock as Stock>::Error, <Sp::Pile as Pile>::Error>>
+    {
+        if consensus != self.persistence.consensus() {
+            return Err(TripleError::A(IssuerError::ConsensusMismatch));
+        }
+        if testnet != self.persistence.is_testnet() {
+            Err(if testnet {
+                TripleError::A(IssuerError::TestnetMismatch)
+            } else {
+                TripleError::A(IssuerError::MainnetMismatch)
+            })
+        } else {
+            Ok(())
+        }
     }
 
     pub fn import_articles(
         &mut self,
         articles: Articles,
-    ) -> Result<ContractId, IssuerError<<Sp::Stock as Stock>::Error>> {
-        if articles.issue.meta.consensus != self.persistence.consensus() {
-            return Err(IssuerError::ConsensusMismatch);
-        }
-        if articles.issue.meta.testnet != self.persistence.is_testnet() {
-            return Err(if articles.issue.meta.testnet {
-                IssuerError::TestnetMismatch
-            } else {
-                IssuerError::MainnetMismatch
-            });
-        }
-        let contract = self.persistence.import_articles(articles)?;
+    ) -> Result<
+        ContractId,
+        TripleError<IssuerError, <Sp::Stock as Stock>::Error, <Sp::Pile as Pile>::Error>,
+    > {
+        let meta = &articles.issue().meta;
+        self.check_layer1(meta.consensus, meta.testnet)?;
+        let contract = self
+            .persistence
+            .import_articles(articles)
+            .map_err(TripleError::from_other_a)?;
         let contract_id = contract.contract_id();
         self.contracts.borrow_mut().insert(contract_id, contract);
         Ok(contract_id)
@@ -246,17 +264,11 @@ where
     pub fn issue(
         &mut self,
         params: CreateParams<<<Sp::Pile as Pile>::Seal as RgbSeal>::Definition>,
-    ) -> Result<ContractId, IssuerError<<Sp::Stock as Stock>::Error>> {
-        if params.consensus != self.persistence.consensus() {
-            return Err(IssuerError::ConsensusMismatch);
-        }
-        if params.testnet != self.persistence.is_testnet() {
-            return Err(if params.testnet {
-                IssuerError::TestnetMismatch
-            } else {
-                IssuerError::MainnetMismatch
-            });
-        }
+    ) -> Result<
+        ContractId,
+        TripleError<IssuerError, <Sp::Stock as Stock>::Error, <Sp::Pile as Pile>::Error>,
+    > {
+        self.check_layer1(params.consensus, params.testnet)?;
         let contract = self.persistence.issue(params)?;
         let id = contract.contract_id();
         self.contracts.borrow_mut().insert(id, contract);
@@ -268,11 +280,14 @@ where
         contract_id: ContractId,
         call: CallParams,
         seals: SmallOrdMap<u16, <<Sp::Pile as Pile>::Seal as RgbSeal>::Definition>,
-    ) -> Result<Operation, AcceptError> {
+    ) -> Result<Operation, EitherError<AcceptError, <Sp::Stock as Stock>::Error>> {
         self.with_contract_mut(contract_id, |contract| contract.call(call, seals))
     }
 
-    pub fn sync<'a, I>(&mut self, changed: I) -> Result<(), AcceptError>
+    pub fn sync<'a, I>(
+        &mut self,
+        changed: I,
+    ) -> Result<(), EitherError<AcceptError, <Sp::Stock as Stock>::Error>>
     where
         I: IntoIterator<
                 Item = (&'a <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId, &'a WitnessStatus),
@@ -319,24 +334,34 @@ where
             &Operation,
         )
             -> BTreeMap<u16, <<Sp::Pile as Pile>::Seal as RgbSeal>::Definition>,
-    ) -> Result<(), ConsumeError<<<Sp::Pile as Pile>::Seal as RgbSeal>::Definition>>
+        sig_validator: impl SigValidator,
+    ) -> Result<
+        (),
+        EitherError<
+            ConsumeError<<<Sp::Pile as Pile>::Seal as RgbSeal>::Definition>,
+            <Sp::Stock as Stock>::Error,
+        >,
+    >
     where
         <<Sp::Pile as Pile>::Seal as RgbSeal>::Client: StrictDecode,
         <<Sp::Pile as Pile>::Seal as RgbSeal>::Published: StrictDecode,
         <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId: StrictDecode,
     {
-        let contract_id = Contract::<Sp::Stock, Sp::Pile>::parse_consignment(reader)?;
+        let contract_id =
+            Contract::<Sp::Stock, Sp::Pile>::parse_consignment(reader).map_err(EitherError::A)?;
         if !self.has_contract(contract_id) {
-            return Err(ConsumeError::UnknownContract(contract_id));
+            return Err(EitherError::A(ConsumeError::UnknownContract(contract_id)));
         };
 
-        self.with_contract_mut(contract_id, |contract| contract.consume(reader, seal_resolver))
+        self.with_contract_mut(contract_id, |contract| {
+            contract.consume(reader, seal_resolver, sig_validator)
+        })
     }
 }
 
-#[derive(Debug, Display, Error, From)]
+#[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(doc_comments)]
-pub enum IssuerError<E: StdError> {
+pub enum IssuerError {
     /// proof of publication layer mismatch.
     ConsensusMismatch,
     /// unable to consume a testnet contract for mainnet.
@@ -352,7 +377,7 @@ pub enum IssuerError<E: StdError> {
 
     #[from]
     #[display(inner)]
-    Inner(hypersonic::IssueError<E>),
+    Inner(hypersonic::IssueError),
 }
 
 #[cfg(feature = "fs")]
@@ -367,7 +392,7 @@ mod fs {
     impl<Sp, S, C> Contracts<Sp, S, C>
     where
         Sp: Stockpile,
-        S: KeyedCollection<Key = CodexId, Value = Schema>,
+        S: KeyedCollection<Key = CodexId, Value = Issuer>,
         C: KeyedCollection<Key = ContractId, Value = Contract<Sp::Stock, Sp::Pile>>,
     {
         pub fn consign_to_file(
@@ -395,15 +420,22 @@ mod fs {
                 u16,
                 <<Sp::Pile as Pile>::Seal as RgbSeal>::Definition,
             >,
-        ) -> Result<(), ConsumeError<<<Sp::Pile as Pile>::Seal as RgbSeal>::Definition>>
+            sig_validator: impl SigValidator,
+        ) -> Result<
+            (),
+            EitherError<
+                ConsumeError<<<Sp::Pile as Pile>::Seal as RgbSeal>::Definition>,
+                <Sp::Stock as Stock>::Error,
+            >,
+        >
         where
             <<Sp::Pile as Pile>::Seal as RgbSeal>::Client: StrictDecode,
             <<Sp::Pile as Pile>::Seal as RgbSeal>::Published: StrictDecode,
             <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId: StrictDecode,
         {
-            let file = File::open(path)?;
+            let file = File::open(path).map_err(EitherError::from_a)?;
             let mut reader = StrictReader::with(StreamReader::new::<{ usize::MAX }>(file));
-            self.consume(&mut reader, seal_resolver)
+            self.consume(&mut reader, seal_resolver, sig_validator)
         }
     }
 }

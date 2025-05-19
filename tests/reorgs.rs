@@ -14,23 +14,23 @@ use amplify::none;
 use bp::seals::{Anchor, TxoSeal, WTxoSeal};
 use bp::{LockTime, Tx};
 use commit_verify::{Digest, DigestExt, Sha256};
-use hypersonic::persistance::StockFs;
 use hypersonic::CallParams;
 use rand::prelude::SliceRandom;
-use rand::thread_rng;
+use rand::rng;
 use rgb::{
-    Assignment, CellAddr, Contract, CoreParams, CreateParams, NamedState, Outpoint, PileFs, Schema,
+    Assignment, CellAddr, Contract, CoreParams, CreateParams, Issuer, NamedState, Outpoint, PileFs,
     WitnessStatus,
 };
 use rgbcore::{ContractApi, RgbSealDef};
 use single_use_seals::SealWitness;
+use sonic_persist_fs::StockFs;
 use strict_encoding::{vname, StrictDumb};
 
 fn setup(name: &str) -> Contract<StockFs, PileFs<TxoSeal>> {
     let mut noise_engine = Sha256::new();
     noise_engine.input_raw(b"test");
 
-    let issuer = Schema::load("tests/data/Test.issuer").unwrap();
+    let issuer = Issuer::load("tests/data/Test.issuer").unwrap();
 
     let mut params = CreateParams::new_bitcoin_testnet(issuer.codex.codex_id(), "Test");
     for _ in 0..20 {
@@ -48,9 +48,9 @@ fn setup(name: &str) -> Contract<StockFs, PileFs<TxoSeal>> {
     let mut contract =
         Contract::issue(issuer, params.transform(noise_engine.clone()), |_| Ok(contract_path))
             .unwrap();
-    let opid = contract.articles().issue.genesis_opid();
+    let opid = contract.articles().genesis_opid();
 
-    let owned = &contract.state_all().main.owned;
+    let owned = &contract.state_all().main.destructible;
     assert_eq!(owned.len(), 1);
     let owned = owned.get("amount").unwrap();
     assert_eq!(owned.len(), 20);
@@ -77,13 +77,13 @@ fn setup(name: &str) -> Contract<StockFs, PileFs<TxoSeal>> {
     let anchor = Anchor::strict_dumb();
     for round in 0u16..10 {
         // shuffle outputs to create twisted DAG
-        prev.shuffle(&mut thread_rng());
+        prev.shuffle(&mut rng());
         let mut iter = prev.into_iter();
         let mut new_prev = vec![];
         while let Some((first, second)) = iter.next().zip(iter.next()) {
             let mut params = params.clone();
-            params.using.insert(first, svnum!(0u64));
-            params.using.insert(second, svnum!(0u64));
+            params.using.insert(first, None);
+            params.using.insert(second, None);
             let seals = small_bmap![0 => next_seal(), 1 => next_seal()];
             let amount = 100u64 - round as u64;
             params.core.owned.push(NamedState::new_unlocked(
@@ -107,7 +107,7 @@ fn setup(name: &str) -> Contract<StockFs, PileFs<TxoSeal>> {
         prev = new_prev;
     }
 
-    let owned = &contract.state_all().main.owned;
+    let owned = &contract.state_all().main.destructible;
     assert_eq!(owned.len(), 1);
     assert_eq!(prev.len(), 20);
     let owned = owned.get("amount").unwrap();

@@ -27,10 +27,13 @@ use std::path::Path;
 use std::{fs, io};
 
 use amplify::confinement::SmallOrdMap;
-use hypersonic::persistance::StockFs;
-use hypersonic::{Articles, Operation};
-use rgb::{Contract, PileFs, PublishedWitness, RgbSeal, RgbSealDef, SealWitness, SingleUseSeal};
+use hypersonic::Operation;
+use rgb::{
+    ApiDescriptor, Articles, Contract, Issue, PileFs, PublishedWitness, RgbSeal, RgbSealDef,
+    SealWitness, SingleUseSeal,
+};
 use serde::{Deserialize, Serialize};
+use sonic_persist_fs::StockFs;
 use sonix::{dump_articles, dump_ledger};
 use strict_encoding::{DecodeError, StreamReader, StrictDecode, StrictEncode, StrictReader};
 
@@ -57,11 +60,11 @@ where
 
     print!("Processing genesis seals ... ");
     let articles = contract.articles();
-    let genesis_opid = articles.issue.genesis_opid();
+    let genesis_opid = articles.genesis_opid();
     let out = File::create_new(dst.join(format!("0000-seals-{genesis_opid}.yaml")))?;
     serde_yaml::to_writer(
         &out,
-        &contract.op_seals(genesis_opid, articles.issue.genesis.destructible.len_u16()),
+        &contract.op_seals(genesis_opid, articles.genesis().destructible_out.len_u16()),
     )?;
     println!("success");
 
@@ -122,7 +125,11 @@ where
     let mut witness_count = 0;
 
     print!("Processing contract articles ... ");
-    let articles = Articles::strict_decode(&mut stream)?;
+
+    let apis = ApiDescriptor::strict_decode(&mut stream)?;
+    let issue = Issue::strict_decode(&mut stream)?;
+    let articles = Articles::with(apis, issue)?;
+
     let genesis_opid = dump_articles(&articles, dst)?;
     let out = File::create_new(dst.join(format!("0000-seals-{genesis_opid}.yml")))?;
     let defined_seals = SmallOrdMap::<u16, SealDef>::strict_decode(&mut stream)

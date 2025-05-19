@@ -23,13 +23,14 @@
 // the License.
 
 use bp::bc::stl::bp_consensus_stl;
-use bp::seals::WTxoSeal;
+use bp::seals::TxoSeal;
 use bp::stl::bp_core_stl;
 use commit_verify::stl::commit_verify_stl;
 use hypersonic::aluvm::alu::stl::aluvm_stl;
 use hypersonic::aluvm::zkstl::finite_field_stl;
 use hypersonic::stl::{sonic_stl, usonic_stl};
 use rgb::{OperationSeals, LIB_NAME_RGB};
+use single_use_seals::SealWitness;
 use strict_types::stl::{std_stl, strict_types_stl};
 use strict_types::typelib::LibBuilder;
 use strict_types::{CompileError, TypeLib};
@@ -38,7 +39,18 @@ use crate::popls::bp::PrefabBundle;
 
 /// Strict types id for the library providing data types for RGB types.
 pub const LIB_ID_RGB: &str =
-    "stl:aAwQVXsP-iTgCThm-8gQAXF5-A8c47_D-pABre7n-mw2KeW0#wizard-farmer-mirage";
+    "stl:I4OxU3jz-mrnbd0H-nI2xCgd-jPhWOKE-E5uuKAt-xpTTNo0#miracle-model-invest";
+
+fn _rgb_seals() -> Result<TypeLib, CompileError> {
+    LibBuilder::with(libname!("SingleUseSeals"), [
+        std_stl().to_dependency_types(),
+        commit_verify_stl().to_dependency_types(),
+        bp_consensus_stl().to_dependency_types(),
+        bp_core_stl().to_dependency_types(),
+    ])
+    .transpile::<SealWitness<TxoSeal>>()
+    .compile()
+}
 
 #[allow(clippy::result_large_err)]
 fn _rgb_stl() -> Result<TypeLib, CompileError> {
@@ -52,14 +64,18 @@ fn _rgb_stl() -> Result<TypeLib, CompileError> {
         sonic_stl().to_dependency_types(),
         bp_consensus_stl().to_dependency_types(),
         bp_core_stl().to_dependency_types(),
+        rgb_seals().to_dependency_types(),
     ])
-    .transpile::<OperationSeals<WTxoSeal>>()
+    .transpile::<OperationSeals<TxoSeal>>()
     .transpile::<PrefabBundle>()
     .compile()
 }
 
+/// Generates a version of SingleUseSeal strict type library specific for RGB.
+pub fn rgb_seals() -> TypeLib { _rgb_stl().expect("invalid strict type SingleUseSeals library") }
+
 /// Generates a strict type library providing data types for RGB types.
-pub fn rgb_stl() -> TypeLib { _rgb_stl().expect("invalid strict type RGB library") }
+pub fn rgb_stl() -> TypeLib { _rgb_seals().expect("invalid strict type RGB library") }
 
 #[cfg(test)]
 mod test {
