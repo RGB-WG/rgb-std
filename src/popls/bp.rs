@@ -465,7 +465,7 @@ where
         let call = invoice
             .call
             .as_ref()
-            .or_else(|| api.default_call.as_ref())
+            .or(api.default_call.as_ref())
             .ok_or(FulfillError::CallStateUnknown)?;
         let method = call.method.clone();
         let state_name = call

@@ -721,7 +721,7 @@ impl<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&Operation) -> BTreeMap<u16, Seal::
 impl<S: Stock, P: Pile> ContractApi<P::Seal> for Contract<S, P> {
     fn contract_id(&self) -> ContractId { self.ledger.contract_id() }
 
-    fn codex(&self) -> &Codex { &self.ledger.articles().codex() }
+    fn codex(&self) -> &Codex { self.ledger.articles().codex() }
 
     fn repo(&self) -> &impl LibRepo { self.ledger.articles() }
 

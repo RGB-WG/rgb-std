@@ -41,6 +41,7 @@ use crate::popls::bp::PrefabBundle;
 pub const LIB_ID_RGB: &str =
     "stl:I4OxU3jz-mrnbd0H-nI2xCgd-jPhWOKE-E5uuKAt-xpTTNo0#miracle-model-invest";
 
+#[allow(clippy::result_large_err)]
 fn _rgb_seals() -> Result<TypeLib, CompileError> {
     LibBuilder::with(libname!("SingleUseSeals"), [
         std_stl().to_dependency_types(),

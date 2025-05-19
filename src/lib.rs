@@ -22,6 +22,8 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
+// TODO: Activate no_std once StrictEncoding will support it
+// #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![allow(clippy::type_complexity)]
