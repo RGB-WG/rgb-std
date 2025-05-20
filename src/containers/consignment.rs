@@ -291,7 +291,7 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
         resolver: &impl ResolveWitness,
         chain_net: ChainNet,
         safe_height: Option<NonZeroU32>,
-    ) -> Result<ValidConsignment<TRANSFER>, (validation::Status, Consignment<TRANSFER>)> {
+    ) -> Result<ValidConsignment<TRANSFER>, validation::Status> {
         self.validate_with_opids(resolver, chain_net, safe_height, bset![])
     }
 
@@ -301,7 +301,7 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
         chain_net: ChainNet,
         safe_height: Option<NonZeroU32>,
         trusted_op_seals: BTreeSet<OpId>,
-    ) -> Result<ValidConsignment<TRANSFER>, (validation::Status, Consignment<TRANSFER>)> {
+    ) -> Result<ValidConsignment<TRANSFER>, validation::Status> {
         let index = IndexedConsignment::new(&self);
         let mut status = Validator::<MemContract<MemContractState>, _, _>::validate(
             &index,
@@ -328,7 +328,7 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
         }
 
         if validity == Validity::Invalid {
-            Err((status, self))
+            Err(status)
         } else {
             Ok(ValidConsignment {
                 validation_status: status,

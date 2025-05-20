@@ -53,10 +53,10 @@ pub const LIB_ID_RGB_CONTRACT: &str =
 pub const LIB_ID_RGB_STD: &str =
     "stl:LxiMjmBl-MRIFHb1-pitHq43-IPC2~cM-SHQA3hl-mGfDECY#studio-cycle-analyze";
 
-fn _rgb_std_stl() -> Result<TypeLib, CompileError> {
+fn _rgb_std_stl() -> Result<TypeLib, Box<CompileError>> {
     // TODO: wait for fix in strict_types to use LibBuilder::with
     #[allow(deprecated)]
-    LibBuilder::new(libname!(LIB_NAME_RGB_STD), [
+    Ok(LibBuilder::new(libname!(LIB_NAME_RGB_STD), [
         std_stl().to_dependency(),
         strict_types_stl().to_dependency(),
         commit_verify_stl().to_dependency(),
@@ -69,11 +69,11 @@ fn _rgb_std_stl() -> Result<TypeLib, CompileError> {
     .transpile::<Transfer>()
     .transpile::<Contract>()
     .transpile::<Kit>()
-    .compile()
+    .compile()?)
 }
 
-fn _rgb_contract_stl() -> Result<TypeLib, CompileError> {
-    LibBuilder::with(libname!(LIB_NAME_RGB_CONTRACT), [
+fn _rgb_contract_stl() -> Result<TypeLib, Box<CompileError>> {
+    Ok(LibBuilder::with(libname!(LIB_NAME_RGB_CONTRACT), [
         std_stl().to_dependency_types(),
         bp_consensus_stl().to_dependency_types(),
     ])
@@ -90,13 +90,13 @@ fn _rgb_contract_stl() -> Result<TypeLib, CompileError> {
     .transpile::<TokenData>()
     .transpile::<EmbeddedMedia>()
     .transpile::<OpidRejectUrl>()
-    .compile()
+    .compile()?)
 }
 
-fn _rgb_storage_stl() -> Result<TypeLib, CompileError> {
+fn _rgb_storage_stl() -> Result<TypeLib, Box<CompileError>> {
     // TODO: wait for fix in strict_types to use LibBuilder::with
     #[allow(deprecated)]
-    LibBuilder::new(libname!(LIB_NAME_RGB_STORAGE), [
+    Ok(LibBuilder::new(libname!(LIB_NAME_RGB_STORAGE), [
         std_stl().to_dependency(),
         strict_types_stl().to_dependency(),
         commit_verify_stl().to_dependency(),
@@ -110,7 +110,7 @@ fn _rgb_storage_stl() -> Result<TypeLib, CompileError> {
     .transpile::<MemIndex>()
     .transpile::<MemState>()
     .transpile::<MemStash>()
-    .compile()
+    .compile()?)
 }
 
 /// Generates strict type library representation of RGB StdLib data types.
