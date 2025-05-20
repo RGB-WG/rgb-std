@@ -20,24 +20,21 @@
 // limitations under the License.
 
 use std::borrow::Borrow;
-use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt::Debug;
-use std::iter;
 
-use invoice::Amount;
+use amplify::confinement::{LargeOrdMap, LargeOrdSet};
 use nonasync::persistence::{CloneNoPersistence, Persisting};
 use rgb::validation::{ResolveWitness, WitnessResolverError};
 use rgb::vm::{ContractStateAccess, WitnessOrd};
 use rgb::{
-    AssetTag, AttachState, BlindingFactor, ContractId, DataState, Extension, Genesis, Operation,
-    RevealedAttach, RevealedData, RevealedValue, Schema, SchemaId, Transition, TransitionBundle,
-    VoidState, XWitnessId,
+    BundleId, ContractId, Genesis, RevealedData, RevealedValue, Schema, SchemaId, Transition,
+    TransitionBundle, Txid, VoidState,
 };
 
 use crate::containers::{ConsignmentExt, ToWitnessId};
 use crate::contract::OutputAssignment;
-use crate::persistence::{StoreTransaction, UpdateRes};
+use crate::persistence::StoreTransaction;
 
 #[derive(Debug, Display, Error, From)]
 #[display(inner)]
@@ -50,7 +47,11 @@ pub enum StateError<P: StateProvider> {
 
     /// witness {0} can't be resolved: {1}
     #[display(doc_comments)]
-    Resolver(XWitnessId, WitnessResolverError),
+    Resolver(Txid, WitnessResolverError),
+
+    /// valid (non-archived) witness is absent in the list of witnesses for a
+    /// state transition bundle.
+    AbsentValidWitness,
 
     /// {0}
     ///
@@ -66,30 +67,8 @@ pub enum StateError<P: StateProvider> {
 pub enum StateInconsistency {
     /// contract state {0} is not known.
     UnknownContract(ContractId),
-    /// valid (non-archived) witness is absent in the list of witnesses for a
-    /// state transition bundle.
-    AbsentValidWitness,
-}
-
-#[derive(Clone, Eq, PartialEq, Debug, Hash)]
-pub enum PersistedState {
-    Void,
-    Amount(Amount, BlindingFactor, AssetTag),
-    // TODO: Use RevealedData
-    Data(DataState, u128),
-    // TODO: Use RevealedAttach
-    Attachment(AttachState, u64),
-}
-
-impl PersistedState {
-    pub(crate) fn update_blinding(&mut self, blinding: BlindingFactor) {
-        match self {
-            PersistedState::Void => {}
-            PersistedState::Amount(_, b, _) => *b = blinding,
-            PersistedState::Data(_, _) => {}
-            PersistedState::Attachment(_, _) => {}
-        }
-    }
+    /// a witness {0} is absent from the state data.
+    AbsentWitness(Txid),
 }
 
 #[derive(Debug)]
@@ -136,26 +115,35 @@ impl<P: StateProvider> State<P> {
 
     pub fn select_valid_witness(
         &self,
-        witness_ids: impl IntoIterator<Item = impl Borrow<XWitnessId>>,
-    ) -> Result<XWitnessId, StateError<P>> {
-        for witness_id in witness_ids {
-            let witness_id = *witness_id.borrow();
-            if self
-                .provider
-                .is_valid_witness(witness_id)
-                .map_err(StateError::ReadProvider)?
-            {
-                return Ok(witness_id);
-            }
+        witness_ids: impl IntoIterator<Item = impl Borrow<Txid>>,
+    ) -> Result<(Txid, WitnessOrd), StateError<P>> {
+        let witnesses = self.as_provider().witnesses();
+        let mut best_candidate = None;
+        for id in witness_ids {
+            let id = *id.borrow();
+            let Some(&ord) = witnesses.get(&id) else {
+                return Err(StateError::Inconsistency(StateInconsistency::AbsentWitness(id)));
+            };
+            best_candidate = match best_candidate {
+                Some((_, curr_ord)) if ord < curr_ord => Some((id, ord)),
+                None => Some((id, ord)),
+                _ => best_candidate,
+            };
         }
-        Err(StateError::Inconsistency(StateInconsistency::AbsentValidWitness))
+
+        let (best_id, best_ord) = best_candidate.expect("one witness ID should always be there");
+        if best_ord == WitnessOrd::Archived {
+            Err(StateError::AbsentValidWitness)
+        } else {
+            Ok((best_id, best_ord))
+        }
     }
 
     pub fn update_from_bundle<R: ResolveWitness>(
         &mut self,
         contract_id: ContractId,
         bundle: &TransitionBundle,
-        witness_id: XWitnessId,
+        witness_id: Txid,
         resolver: R,
     ) -> Result<(), StateError<P>> {
         let mut updater = self
@@ -163,12 +151,13 @@ impl<P: StateProvider> State<P> {
             .update_contract(contract_id)
             .map_err(StateError::WriteProvider)?
             .ok_or(StateInconsistency::UnknownContract(contract_id))?;
+        let bundle_id = bundle.bundle_id();
         for transition in bundle.known_transitions.values() {
             let ord = resolver
                 .resolve_pub_witness_ord(witness_id)
                 .map_err(|e| StateError::Resolver(witness_id, e))?;
             updater
-                .add_transition(transition, witness_id, ord)
+                .add_transition(transition, witness_id, ord, bundle_id)
                 .map_err(StateError::WriteProvider)?;
         }
         Ok(())
@@ -183,62 +172,37 @@ impl<P: StateProvider> State<P> {
             .as_provider_mut()
             .register_contract(consignment.schema(), consignment.genesis())
             .map_err(StateError::WriteProvider)?;
-        let mut extension_idx = consignment
-            .extensions()
-            .map(Extension::id)
-            .zip(iter::repeat(false))
-            .collect::<BTreeMap<_, _>>();
-        let mut ordered_extensions = BTreeMap::new();
         for witness_bundle in consignment.bundled_witnesses() {
-            for transition in witness_bundle.bundle.known_transitions.values() {
+            let bundle = witness_bundle.bundle();
+            let bundle_id = bundle.bundle_id();
+            for (_, transition) in &bundle.known_transitions {
                 let witness_id = witness_bundle.pub_witness.to_witness_id();
                 let witness_ord = resolver
                     .resolve_pub_witness_ord(witness_id)
                     .map_err(|e| StateError::Resolver(witness_id, e))?;
 
                 state
-                    .add_transition(transition, witness_id, witness_ord)
-                    .map_err(StateError::WriteProvider)?;
-                for (id, used) in &mut extension_idx {
-                    if *used {
-                        continue;
-                    }
-                    for input in &transition.inputs {
-                        if input.prev_out.op == *id {
-                            *used = true;
-                            if let Some((_, witness_ord2)) = ordered_extensions.get_mut(id) {
-                                if *witness_ord2 < witness_ord {
-                                    *witness_ord2 = witness_ord;
-                                }
-                            } else {
-                                ordered_extensions.insert(*id, (witness_id, witness_ord));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        for extension in consignment.extensions() {
-            if let Some((witness_id, witness_ord)) = ordered_extensions.get(&extension.id()) {
-                state
-                    .add_extension(extension, *witness_id, *witness_ord)
+                    .add_transition(transition, witness_id, witness_ord, bundle_id)
                     .map_err(StateError::WriteProvider)?;
             }
-            // Otherwise consignment includes state extensions which are not
-            // used in transaction graph. This must not be the case for the
-            // validated consignments.
         }
 
         Ok(())
     }
 
-    pub fn update_witnesses(
+    pub fn upsert_witness(
         &mut self,
-        resolver: impl ResolveWitness,
-        after_height: u32,
-    ) -> Result<UpdateRes, StateError<P>> {
+        witness_id: Txid,
+        witness_ord: WitnessOrd,
+    ) -> Result<(), StateError<P>> {
         self.provider
-            .update_witnesses(resolver, after_height)
+            .upsert_witness(witness_id, witness_ord)
+            .map_err(StateError::WriteProvider)
+    }
+
+    pub fn update_bundle(&mut self, bundle_id: BundleId, valid: bool) -> Result<(), StateError<P>> {
+        self.provider
+            .update_bundle(bundle_id, valid)
             .map_err(StateError::WriteProvider)
     }
 }
@@ -276,7 +240,9 @@ pub trait StateReadProvider {
         contract_id: ContractId,
     ) -> Result<Self::ContractRead<'_>, Self::Error>;
 
-    fn is_valid_witness(&self, witness_id: XWitnessId) -> Result<bool, Self::Error>;
+    fn witnesses(&self) -> LargeOrdMap<Txid, WitnessOrd>;
+
+    fn invalid_bundles(&self) -> LargeOrdSet<BundleId>;
 }
 
 pub trait StateWriteProvider: StoreTransaction<TransactionErr = Self::Error> {
@@ -295,20 +261,22 @@ pub trait StateWriteProvider: StoreTransaction<TransactionErr = Self::Error> {
         contract_id: ContractId,
     ) -> Result<Option<Self::ContractWrite<'_>>, Self::Error>;
 
-    fn update_witnesses(
+    fn upsert_witness(
         &mut self,
-        resolver: impl ResolveWitness,
-        after_height: u32,
-    ) -> Result<UpdateRes, Self::Error>;
+        witness_id: Txid,
+        witness_ord: WitnessOrd,
+    ) -> Result<(), Self::Error>;
+
+    fn update_bundle(&mut self, bundle_id: BundleId, valid: bool) -> Result<(), Self::Error>;
 }
 
 pub trait ContractStateRead: ContractStateAccess {
     fn contract_id(&self) -> ContractId;
     fn schema_id(&self) -> SchemaId;
+    fn witness_ord(&self, witness_id: Txid) -> Option<WitnessOrd>;
     fn rights_all(&self) -> impl Iterator<Item = &OutputAssignment<VoidState>>;
     fn fungible_all(&self) -> impl Iterator<Item = &OutputAssignment<RevealedValue>>;
     fn data_all(&self) -> impl Iterator<Item = &OutputAssignment<RevealedData>>;
-    fn attach_all(&self) -> impl Iterator<Item = &OutputAssignment<RevealedAttach>>;
 }
 
 pub trait ContractStateWrite {
@@ -319,14 +287,8 @@ pub trait ContractStateWrite {
     fn add_transition(
         &mut self,
         transition: &Transition,
-        witness_id: XWitnessId,
+        witness_id: Txid,
         witness_ord: WitnessOrd,
-    ) -> Result<(), Self::Error>;
-
-    fn add_extension(
-        &mut self,
-        extension: &Extension,
-        witness_id: XWitnessId,
-        witness_ord: WitnessOrd,
+        bundle_id: BundleId,
     ) -> Result<(), Self::Error>;
 }

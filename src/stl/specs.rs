@@ -21,17 +21,21 @@
 
 #![allow(unused_braces)] // caused by rustc unable to understand strict_dumb
 
+use std::collections::BTreeMap;
 use std::fmt::{self, Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 
-use amplify::confinement::{Confined, NonEmptyString, SmallOrdSet, SmallString, U8};
+use amplify::ascii::AsciiString;
+use amplify::confinement::{
+    Confined, NonEmptyString, NonEmptyVec, SmallBlob, SmallOrdSet, SmallString, U8,
+};
 use amplify::Bytes32;
-use invoice::Precision;
+use invoice::{Precision, TokenIndex};
 use strict_encoding::stl::{Alpha, AlphaNum, AsciiPrintable};
 use strict_encoding::{
     InvalidRString, RString, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize,
-    StrictType,
+    StrictType, TypedWrite,
 };
 use strict_types::StrictVal;
 
@@ -406,5 +410,211 @@ impl ContractTerms {
             .unwrap_option()
             .map(Attachment::from_strict_val_unchecked);
         Self { text, media }
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_CONTRACT)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct EmbeddedMedia {
+    #[strict_type(rename = "type")]
+    #[cfg_attr(feature = "serde", serde(rename = "type"))]
+    pub ty: MediaType,
+    pub data: SmallBlob,
+}
+
+impl EmbeddedMedia {
+    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
+        let ty = MediaType::from_strict_val_unchecked(value.unwrap_struct("type"));
+        let data = SmallBlob::from_iter_checked(
+            value.unwrap_struct("data").unwrap_bytes().iter().copied(),
+        );
+
+        Self { ty, data }
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_CONTRACT, dumb = { AttachmentType::with(0, "dumb") })]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct AttachmentType {
+    pub id: u8,
+    pub name: AttachmentName,
+}
+
+impl AttachmentType {
+    pub fn with(id: u8, name: &'static str) -> AttachmentType {
+        AttachmentType {
+            id,
+            name: AttachmentName::from(name),
+        }
+    }
+}
+
+#[derive(Wrapper, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, From)]
+#[wrapper(Deref, Display)]
+#[derive(StrictType, StrictDumb, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_CONTRACT, dumb = { AttachmentName::from("dumb") })]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", transparent)
+)]
+pub struct AttachmentName(Confined<AsciiString, 1, 20>);
+impl StrictEncode for AttachmentName {
+    fn strict_encode<W: TypedWrite>(&self, writer: W) -> std::io::Result<W> {
+        let iter = self
+            .0
+            .as_bytes()
+            .iter()
+            .map(|c| AsciiPrintable::try_from(*c).unwrap());
+        writer
+            .write_newtype::<Self>(&NonEmptyVec::<AsciiPrintable, 20>::try_from_iter(iter).unwrap())
+    }
+}
+
+// TODO: Ensure all constructors filter invalid characters
+impl FromStr for AttachmentName {
+    type Err = InvalidRString;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = AsciiString::from_ascii(s.as_bytes())?;
+        let s = Confined::try_from_iter(s.chars())?;
+        Ok(Self(s))
+    }
+}
+
+impl From<&'static str> for AttachmentName {
+    fn from(s: &'static str) -> Self { Self::from_str(s).expect("invalid attachment name") }
+}
+
+impl TryFrom<String> for AttachmentName {
+    type Error = InvalidRString;
+
+    fn try_from(name: String) -> Result<Self, InvalidRString> {
+        let name = AsciiString::from_ascii(name.as_bytes())?;
+        let s = Confined::try_from(name)?;
+        Ok(Self(s))
+    }
+}
+
+impl Debug for AttachmentName {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("AttachmentName")
+            .field(&self.as_str())
+            .finish()
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug, Default)]
+#[derive(StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_CONTRACT)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct TokenData {
+    pub index: TokenIndex,
+    pub ticker: Option<Ticker>,
+    pub name: Option<Name>,
+    pub details: Option<Details>,
+    pub preview: Option<EmbeddedMedia>,
+    pub media: Option<Attachment>,
+    pub attachments: Confined<BTreeMap<u8, Attachment>, 0, 20>,
+    pub reserves: Option<ProofOfReserves>,
+}
+
+impl StrictSerialize for TokenData {}
+impl StrictDeserialize for TokenData {}
+
+impl TokenData {
+    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
+        let index = TokenIndex::from(
+            value
+                .unwrap_struct("index")
+                .unwrap_num()
+                .unwrap_uint::<u32>(),
+        );
+        let ticker = value
+            .unwrap_struct("ticker")
+            .unwrap_option()
+            .map(|x| Ticker::from_str(&x.unwrap_string()).expect("invalid uda ticker"));
+
+        let name = value
+            .unwrap_struct("name")
+            .unwrap_option()
+            .map(|x| Name::from_str(&x.unwrap_string()).expect("invalid uda name"));
+
+        let details = value
+            .unwrap_struct("details")
+            .unwrap_option()
+            .map(|x| Details::from_str(&x.unwrap_string()).expect("invalid uda details"));
+
+        let preview = value
+            .unwrap_struct("preview")
+            .unwrap_option()
+            .map(EmbeddedMedia::from_strict_val_unchecked);
+        let media = value
+            .unwrap_struct("media")
+            .unwrap_option()
+            .map(Attachment::from_strict_val_unchecked);
+
+        let attachments = if let StrictVal::Map(list) = value.unwrap_struct("attachments") {
+            Confined::from_iter_checked(
+                list.iter()
+                    .map(|(k, v)| (k.unwrap_uint(), Attachment::from_strict_val_unchecked(v))),
+            )
+        } else {
+            Confined::default()
+        };
+
+        let reserves = value
+            .unwrap_struct("reserves")
+            .unwrap_option()
+            .map(ProofOfReserves::from_strict_val_unchecked);
+        Self {
+            index,
+            ticker,
+            name,
+            details,
+            preview,
+            media,
+            attachments,
+            reserves,
+        }
+    }
+}
+
+#[derive(Wrapper, Clone, Eq, PartialEq, Hash, From)]
+#[wrapper(Deref, Display, FromStr)]
+#[derive(StrictDumb, StrictType, StrictEncode, StrictDecode)]
+#[strict_type(lib = LIB_NAME_RGB_CONTRACT)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", transparent)
+)]
+pub struct OpidRejectUrl(RString<AsciiPrintable, AsciiPrintable, 1, 8000>);
+
+impl StrictSerialize for OpidRejectUrl {}
+impl StrictDeserialize for OpidRejectUrl {}
+
+impl_ident_type!(OpidRejectUrl);
+impl_ident_subtype!(OpidRejectUrl);
+
+impl OpidRejectUrl {
+    pub fn from_strict_val_unchecked(value: &StrictVal) -> Self {
+        OpidRejectUrl::from_str(&value.unwrap_string()).unwrap()
     }
 }

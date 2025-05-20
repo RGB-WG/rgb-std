@@ -2,10 +2,10 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-// Written in 2019-2024 by
+// Written in 2019-2023 by
 //     Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
 //
-// Copyright (C) 2019-2024 LNP/BP Standards Association. All rights reserved.
+// Copyright (C) 2019-2023 LNP/BP Standards Association. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,20 +19,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use rgb::validation::{ResolveWitness, WitnessResolverError};
-use rgb::vm::{WitnessOrd, XWitnessTx};
-use strict_encoding::StrictDumb;
+mod any;
+#[cfg(feature = "esplora_blocking")]
+pub mod esplora_blocking;
+#[cfg(feature = "electrum_blocking")]
+pub mod electrum_blocking;
 
-use crate::XWitnessId;
+#[cfg(feature = "mempool_blocking")]
+pub mod mempool_blocking;
 
-pub(crate) struct DumbResolver;
-
-impl ResolveWitness for DumbResolver {
-    fn resolve_pub_witness(&self, _: XWitnessId) -> Result<XWitnessTx, WitnessResolverError> {
-        Ok(XWitnessTx::strict_dumb())
-    }
-
-    fn resolve_pub_witness_ord(&self, _: XWitnessId) -> Result<WitnessOrd, WitnessResolverError> {
-        Ok(WitnessOrd::strict_dumb())
-    }
-}
+pub use any::{AnyResolver, RgbResolver};

@@ -22,16 +22,32 @@
 use std::cmp::Ordering;
 
 use amplify::ByteArray;
-use bp::dbc::opret::OpretProof;
-use bp::dbc::tapret::TapretProof;
-use bp::dbc::{anchor, Anchor};
-use bp::{Tx, Txid};
+use bp::dbc::Anchor;
+use bp::{dbc, Tx, Txid};
 use commit_verify::mpc;
-use rgb::validation::DbcProof;
-use rgb::{BundleId, DiscloseHash, TransitionBundle, XChain, XWitnessId};
+use rgb::validation::{DbcProof, EAnchor};
+use rgb::{BundleId, DiscloseHash, TransitionBundle};
 use strict_encoding::StrictDumb;
 
 use crate::{MergeReveal, MergeRevealError, LIB_NAME_RGB_STD};
+
+/// Error merging two [`SealWitness`]es.
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error, From)]
+#[display(doc_comments)]
+pub enum SealWitnessMergeError {
+    /// Error merging two MPC proofs, which are unrelated.
+    #[display(inner)]
+    #[from]
+    MpcMismatch(mpc::MergeError),
+
+    /// Error merging two witness proofs, which are unrelated.
+    #[display(inner)]
+    #[from]
+    WitnessMergeError(MergeRevealError),
+
+    /// seal witnesses can't be merged since they have different DBC proofs.
+    DbcMismatch,
+}
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
@@ -42,47 +58,77 @@ use crate::{MergeReveal, MergeRevealError, LIB_NAME_RGB_STD};
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct SealWitness {
-    pub public: XPubWitness,
-    pub anchors: AnchorSet,
+    pub public: PubWitness,
+    pub merkle_block: mpc::MerkleBlock,
+    pub dbc_proof: DbcProof,
 }
 
 impl SealWitness {
-    pub fn new(witness: XPubWitness, anchors: AnchorSet) -> Self {
+    pub fn new(witness: PubWitness, merkle_block: mpc::MerkleBlock, dbc_proof: DbcProof) -> Self {
         SealWitness {
             public: witness,
-            anchors,
+            merkle_block,
+            dbc_proof,
         }
     }
 
-    pub fn witness_id(&self) -> XWitnessId { self.public.to_witness_id() }
-}
+    pub fn witness_id(&self) -> Txid { self.public.to_witness_id() }
 
-pub type XPubWitness = XChain<PubWitness>;
+    /// Merges two [`SealWitness`]es keeping revealed data.
+    pub fn merge_reveal(&mut self, other: &Self) -> Result<(), SealWitnessMergeError> {
+        if self.dbc_proof != other.dbc_proof {
+            return Err(SealWitnessMergeError::DbcMismatch);
+        }
+        self.public.merge_reveal(&other.public)?;
+        self.merkle_block.merge_reveal(&other.merkle_block)?;
+        Ok(())
+    }
+
+    pub fn known_bundle_ids(&self) -> impl Iterator<Item = BundleId> {
+        let map = self.merkle_block.to_known_message_map().release();
+        map.into_values()
+            .map(|msg| BundleId::from_byte_array(msg.to_byte_array()))
+    }
+}
 
 pub trait ToWitnessId {
-    fn to_witness_id(&self) -> XWitnessId;
+    fn to_witness_id(&self) -> Txid;
 }
 
-impl ToWitnessId for XPubWitness {
-    fn to_witness_id(&self) -> XWitnessId { self.map_ref(|w| w.txid()) }
+impl ToWitnessId for PubWitness {
+    fn to_witness_id(&self) -> Txid { self.txid() }
 }
 
-impl MergeReveal for XPubWitness {
-    fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {
-        match (self, other) {
-            (XChain::Bitcoin(one), XChain::Bitcoin(two)) => {
-                one.merge_reveal(two).map(XChain::Bitcoin)
-            }
-            (XChain::Liquid(one), XChain::Liquid(two)) => one.merge_reveal(two).map(XChain::Liquid),
-            (XChain::Bitcoin(bitcoin), XChain::Liquid(liquid))
-            | (XChain::Liquid(liquid), XChain::Bitcoin(bitcoin)) => {
-                Err(MergeRevealError::ChainMismatch {
-                    bitcoin: bitcoin.txid(),
-                    liquid: liquid.txid(),
-                })
-            }
-            _ => unreachable!(),
+impl MergeReveal for PubWitness {
+    fn merge_reveal(&mut self, other: &Self) -> Result<(), MergeRevealError> {
+        if self == other {
+            return Ok(());
         }
+        if self.txid() != other.txid() {
+            return Err(MergeRevealError::TxidMismatch(self.txid(), other.txid()));
+        }
+        if let Self::Tx(tx2) = other {
+            if let Self::Tx(tx1) = self {
+                // Replace each input in tx1 with the one from tx2 if it has more witness or
+                // sig_script data
+                for (input1, input2) in tx1.inputs.iter_mut().zip(tx2.inputs.iter()) {
+                    let input1_witness_len: usize = input1.witness.iter().map(|w| w.len()).sum();
+                    let input2_witness_len: usize = input2.witness.iter().map(|w| w.len()).sum();
+                    match input1_witness_len.cmp(&input2_witness_len) {
+                        std::cmp::Ordering::Less => *input1 = input2.clone(),
+                        std::cmp::Ordering::Equal => {
+                            if input2.sig_script.len() > input1.sig_script.len() {
+                                *input1 = input2.clone();
+                            }
+                        }
+                        std::cmp::Ordering::Greater => {}
+                    }
+                }
+            } else {
+                *self = other.clone();
+            }
+        }
+        Ok(())
     }
 }
 
@@ -98,8 +144,7 @@ pub enum PubWitness {
     #[strict_type(tag = 0x00)]
     Txid(Txid),
     #[strict_type(tag = 0x01)]
-    Tx(Tx), /* TODO: Consider using `UnsignedTx` here
-             * TODO: Add SPV as an option here */
+    Tx(Tx),
 }
 
 impl PartialEq for PubWitness {
@@ -132,21 +177,6 @@ impl PubWitness {
             PubWitness::Tx(tx) => Some(tx),
         }
     }
-
-    pub fn merge_reveal(self, other: Self) -> Result<Self, MergeRevealError> {
-        match (self, other) {
-            (Self::Txid(txid1), Self::Txid(txid2)) if txid1 == txid2 => Ok(Self::Txid(txid1)),
-            (Self::Txid(txid), Self::Tx(tx)) | (Self::Txid(txid), Self::Tx(tx))
-                if txid == tx.txid() =>
-            {
-                Ok(Self::Tx(tx))
-            }
-            // TODO: tx1 and tx2 may differ on their witness data; take the one having most of the
-            // witness
-            (Self::Tx(tx1), Self::Tx(tx2)) if tx1.txid() == tx2.txid() => Ok(Self::Tx(tx1)),
-            (a, b) => Err(MergeRevealError::TxidMismatch(a.txid(), b.txid())),
-        }
-    }
 }
 
 #[derive(Clone, Eq, Debug)]
@@ -159,110 +189,43 @@ impl PubWitness {
 )]
 #[derive(CommitEncode)]
 #[commit_encode(strategy = strict, id = DiscloseHash)]
-pub struct WitnessBundle<P: mpc::Proof + StrictDumb = mpc::MerkleProof> {
-    pub pub_witness: XPubWitness,
-    pub anchor: Anchor<P, DbcProof>,
+pub struct WitnessBundle<D: dbc::Proof = DbcProof> {
+    pub pub_witness: PubWitness,
+    pub anchor: Anchor<D>,
     pub bundle: TransitionBundle,
 }
 
-impl<P: mpc::Proof + StrictDumb> PartialEq for WitnessBundle<P> {
+impl<D: dbc::Proof> PartialEq for WitnessBundle<D> {
     fn eq(&self, other: &Self) -> bool { self.pub_witness == other.pub_witness }
 }
 
-impl<P: mpc::Proof + StrictDumb> Ord for WitnessBundle<P> {
+impl<D: dbc::Proof> Ord for WitnessBundle<D> {
     fn cmp(&self, other: &Self) -> Ordering { self.pub_witness.cmp(&other.pub_witness) }
 }
 
-impl<P: mpc::Proof + StrictDumb> PartialOrd for WitnessBundle<P> {
+impl<D: dbc::Proof> PartialOrd for WitnessBundle<D> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
 }
 
-impl WitnessBundle<mpc::MerkleProof> {
-    pub fn witness_id(&self) -> XWitnessId { self.pub_witness.to_witness_id() }
-}
-
-impl WitnessBundle {
-    pub fn merge_reveal(mut self, other: Self) -> Result<Self, MergeRevealError> {
-        self.pub_witness = self.pub_witness.merge_reveal(other.pub_witness)?;
-        if self.anchor != other.anchor {
-            return Err(MergeRevealError::AnchorsNonEqual(self.bundle.bundle_id()));
+impl<D: dbc::Proof> WitnessBundle<D>
+where DbcProof: From<D>
+{
+    #[inline]
+    pub fn with(pub_witness: PubWitness, anchor: Anchor<D>, bundle: TransitionBundle) -> Self {
+        Self {
+            pub_witness,
+            anchor,
+            bundle,
         }
-        self.bundle = self.bundle.merge_reveal(other.bundle)?;
-        Ok(self)
-    }
-}
-
-#[derive(Clone, PartialEq, Eq, Debug)]
-#[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD, tags = custom)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-pub enum AnchorSet {
-    #[strict_type(tag = 0x01)]
-    Tapret(Anchor<mpc::MerkleBlock, TapretProof>),
-    #[strict_type(tag = 0x02)]
-    Opret(Anchor<mpc::MerkleBlock, OpretProof>),
-    #[strict_type(tag = 0x03)]
-    Double {
-        tapret: Anchor<mpc::MerkleBlock, TapretProof>,
-        opret: Anchor<mpc::MerkleBlock, OpretProof>,
-    },
-}
-
-impl StrictDumb for AnchorSet {
-    fn strict_dumb() -> Self { Self::Opret(strict_dumb!()) }
-}
-
-impl AnchorSet {
-    pub fn known_bundle_ids(&self) -> impl Iterator<Item = BundleId> {
-        let map = match self {
-            AnchorSet::Tapret(tapret) => tapret.mpc_proof.to_known_message_map().release(),
-            AnchorSet::Opret(opret) => opret.mpc_proof.to_known_message_map().release(),
-            AnchorSet::Double { tapret, opret } => {
-                let mut map = tapret.mpc_proof.to_known_message_map().release();
-                map.extend(opret.mpc_proof.to_known_message_map().release());
-                map
-            }
-        };
-        map.into_values()
-            .map(|msg| BundleId::from_byte_array(msg.to_byte_array()))
     }
 
-    pub fn has_tapret(&self) -> bool { matches!(self, Self::Tapret(_) | Self::Double { .. }) }
+    pub fn witness_id(&self) -> Txid { self.pub_witness.to_witness_id() }
 
-    pub fn has_opret(&self) -> bool { matches!(self, Self::Opret(_) | Self::Double { .. }) }
+    pub fn bundle(&self) -> &TransitionBundle { &self.bundle }
 
-    pub fn merge_reveal(self, other: Self) -> Result<Self, anchor::MergeError> {
-        match (self, other) {
-            (Self::Tapret(anchor), Self::Tapret(a)) => Ok(Self::Tapret(anchor.merge_reveal(a)?)),
-            (Self::Opret(anchor), Self::Opret(a)) => Ok(Self::Opret(anchor.merge_reveal(a)?)),
-            (Self::Tapret(tapret), Self::Opret(opret))
-            | (Self::Opret(opret), Self::Tapret(tapret)) => Ok(Self::Double { tapret, opret }),
+    pub fn bundle_mut(&mut self) -> &mut TransitionBundle { &mut self.bundle }
 
-            (Self::Double { tapret, opret }, Self::Tapret(t))
-            | (Self::Tapret(t), Self::Double { tapret, opret }) => Ok(Self::Double {
-                tapret: tapret.merge_reveal(t)?,
-                opret,
-            }),
-
-            (Self::Double { tapret, opret }, Self::Opret(o))
-            | (Self::Opret(o), Self::Double { tapret, opret }) => Ok(Self::Double {
-                tapret,
-                opret: opret.merge_reveal(o)?,
-            }),
-            (
-                Self::Double { tapret, opret },
-                Self::Double {
-                    tapret: t,
-                    opret: o,
-                },
-            ) => Ok(Self::Double {
-                tapret: tapret.merge_reveal(t)?,
-                opret: opret.merge_reveal(o)?,
-            }),
-        }
+    pub fn eanchor(&self) -> EAnchor {
+        EAnchor::new(self.anchor.mpc_proof.clone(), self.anchor.dbc_proof.clone().into())
     }
 }

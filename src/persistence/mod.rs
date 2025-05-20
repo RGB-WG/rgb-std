@@ -47,16 +47,16 @@ pub use memory::{
     MemContract, MemContractState, MemError, MemGlobalState, MemIndex, MemStash, MemState,
 };
 pub use stash::{
-    ProviderError as StashProviderError, SchemaIfaces, Stash, StashDataError, StashError,
-    StashInconsistency, StashProvider, StashReadProvider, StashWriteProvider,
+    ProviderError as StashProviderError, Stash, StashDataError, StashError, StashInconsistency,
+    StashProvider, StashReadProvider, StashWriteProvider,
 };
 pub use state::{
-    ContractStateRead, ContractStateWrite, PersistedState, State, StateError, StateInconsistency,
-    StateProvider, StateReadProvider, StateWriteProvider,
+    ContractStateRead, ContractStateWrite, State, StateError, StateInconsistency, StateProvider,
+    StateReadProvider, StateWriteProvider,
 };
 pub use stock::{
-    ComposeError, ConsignError, ContractIfaceError, FasciaError, InputError as StockInputError,
-    Stock, StockError, StockErrorAll, StockErrorMem, UpdateRes,
+    ComposeError, ConsignError, FasciaError, InputError as StockInputError, Stock, StockError,
+    StockErrorAll, StockErrorMem, UpdateRes,
 };
 
 pub trait StoreTransaction {

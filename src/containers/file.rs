@@ -113,9 +113,6 @@ impl FileContent for Transfer {
     const MAGIC: [u8; MAGIC_LEN] = *b"TFR";
 }
 
-// TODO: Add disclosure
-// TODO: Add batch and fascia
-
 #[derive(Clone, Debug, From)]
 #[cfg_attr(
     feature = "serde",
@@ -131,8 +128,6 @@ pub enum UniversalFile {
 
     #[from]
     Transfer(Transfer),
-    // TODO: Add disclosure
-    // TODO: Add batch and fascia
 }
 
 impl UniversalFile {
@@ -268,41 +263,27 @@ mod test {
                     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA#distant-history-exotic",
                 )
                 .unwrap(),
-                flags: Default::default(),
                 timestamp: Default::default(),
                 issuer: Default::default(),
-                testnet: Default::default(),
-                alt_layers1: Default::default(),
-                asset_tags: Default::default(),
+                chain_net: Default::default(),
+                seal_closing_strategy: Default::default(),
                 metadata: Default::default(),
                 globals: Default::default(),
                 assignments: Default::default(),
-                valencies: Default::default(),
-                validator: Default::default(),
             },
-            extensions: Default::default(),
             bundles: Default::default(),
             schema: rgb::Schema {
                 ffv: Default::default(),
-                flags: Default::default(),
                 name: strict_encoding::TypeName::from_str("Name").unwrap(),
-                timestamp: Default::default(),
-                developer: Default::default(),
                 meta_types: Default::default(),
                 global_types: Default::default(),
                 owned_types: Default::default(),
-                valency_types: Default::default(),
                 genesis: Default::default(),
-                extensions: Default::default(),
                 transitions: Default::default(),
-                reserved: Default::default(),
+                default_assignment: Default::default(),
             },
-            ifaces: Default::default(),
-            supplements: Default::default(),
             types: Default::default(),
             scripts: Default::default(),
-            attachments: Default::default(),
-            signatures: Default::default(),
         }
     }
 
@@ -366,41 +347,27 @@ mod test {
                     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA#distant-history-exotic",
                 )
                 .unwrap(),
-                flags: Default::default(),
                 timestamp: Default::default(),
                 issuer: Default::default(),
-                testnet: Default::default(),
-                alt_layers1: Default::default(),
-                asset_tags: Default::default(),
+                chain_net: Default::default(),
+                seal_closing_strategy: Default::default(),
                 metadata: Default::default(),
                 globals: Default::default(),
                 assignments: Default::default(),
-                valencies: Default::default(),
-                validator: Default::default(),
             },
-            extensions: Default::default(),
             bundles: Default::default(),
             schema: rgb::Schema {
                 ffv: Default::default(),
-                flags: Default::default(),
                 name: strict_encoding::TypeName::from_str("Name").unwrap(),
-                timestamp: Default::default(),
-                developer: Default::default(),
                 meta_types: Default::default(),
                 global_types: Default::default(),
                 owned_types: Default::default(),
-                valency_types: Default::default(),
                 genesis: Default::default(),
-                extensions: Default::default(),
                 transitions: Default::default(),
-                reserved: Default::default(),
+                default_assignment: Default::default(),
             },
-            ifaces: Default::default(),
-            supplements: Default::default(),
             types: Default::default(),
             scripts: Default::default(),
-            attachments: Default::default(),
-            signatures: Default::default(),
         }
     }
 

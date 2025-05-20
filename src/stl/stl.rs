@@ -19,19 +19,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub use bp::bc::stl::bp_tx_stl;
+pub use bp::bc::stl::{bp_consensus_stl, bp_tx_stl};
 pub use bp::stl::bp_core_stl;
 #[allow(unused_imports)]
 pub use commit_verify::stl::{commit_verify_stl, LIB_ID_COMMIT_VERIFY};
 use invoice::{Allocation, Amount};
 pub use rgb::stl::{aluvm_stl, rgb_commit_stl, rgb_logic_stl, LIB_ID_RGB_COMMIT, LIB_ID_RGB_LOGIC};
+use rgb::Schema;
 use strict_types::stl::{std_stl, strict_types_stl};
 use strict_types::typesys::SystemBuilder;
 use strict_types::{CompileError, LibBuilder, SemId, SymbolicSys, TypeLib, TypeSystem};
 
 use super::{
-    AssetSpec, BurnMeta, ContractSpec, ContractTerms, Error, IssueMeta, MediaType,
-    LIB_NAME_RGB_CONTRACT, LIB_NAME_RGB_STORAGE,
+    AssetSpec, AttachmentType, BurnMeta, ContractSpec, ContractTerms, EmbeddedMedia, Error,
+    IssueMeta, MediaType, OpidRejectUrl, TokenData, LIB_NAME_RGB_CONTRACT, LIB_NAME_RGB_STORAGE,
 };
 use crate::containers::{Contract, Kit, Transfer};
 use crate::persistence::{MemIndex, MemStash, MemState};
@@ -41,28 +42,30 @@ use crate::LIB_NAME_RGB_STD;
 /// Strict types id for the library providing standard data types which may be
 /// used in RGB smart contracts.
 pub const LIB_ID_RGB_STORAGE: &str =
-    "stl:YBgLtVmT-FuzNBPe-1fxIqay-JW4Evd5-Za7fm9w-GLF6JAg#transit-xray-giraffe";
+    "stl:HWQT7tdF-Lqa1hg5-irH6cgG-Ot7VIra-ZFcTzDK-NPRnpDc#chess-open-nepal";
 
 /// Strict types id for the library providing standard data types which may be
 /// used in RGB smart contracts.
 pub const LIB_ID_RGB_CONTRACT: &str =
-    "stl:!r5yXt4a-v3XXv0M-E9Z6eoh-BFZweik-fxS6CB4-8AaO!MM#rover-annual-disney";
+    "stl:1uyMC~lT-xPK57Lr-IgIhB0r-WxYd9io-2wZav_s-6TbR4LY#nuclear-liquid-sonic";
 
 /// Strict types id for the library representing of RGB StdLib data types.
 pub const LIB_ID_RGB_STD: &str =
-    "stl:H1HLPfyC-5YLlAk!-KWhcUo1-0vtex!9-ODxSmIA-zj1J$qc#western-craft-bogart";
+    "stl:LxiMjmBl-MRIFHb1-pitHq43-IPC2~cM-SHQA3hl-mGfDECY#studio-cycle-analyze";
 
 fn _rgb_std_stl() -> Result<TypeLib, CompileError> {
-    LibBuilder::new(libname!(LIB_NAME_RGB_STD), tiny_bset! {
+    // TODO: wait for fix in strict_types to use LibBuilder::with
+    #[allow(deprecated)]
+    LibBuilder::new(libname!(LIB_NAME_RGB_STD), [
         std_stl().to_dependency(),
         strict_types_stl().to_dependency(),
         commit_verify_stl().to_dependency(),
-        bp_tx_stl().to_dependency(),
+        bp_consensus_stl().to_dependency(),
         bp_core_stl().to_dependency(),
         aluvm_stl().to_dependency(),
         rgb_commit_stl().to_dependency(),
         rgb_logic_stl().to_dependency(),
-    })
+    ])
     .transpile::<Transfer>()
     .transpile::<Contract>()
     .transpile::<Kit>()
@@ -70,10 +73,10 @@ fn _rgb_std_stl() -> Result<TypeLib, CompileError> {
 }
 
 fn _rgb_contract_stl() -> Result<TypeLib, CompileError> {
-    LibBuilder::new(libname!(LIB_NAME_RGB_CONTRACT), tiny_bset! {
-        std_stl().to_dependency(),
-        bp_tx_stl().to_dependency()
-    })
+    LibBuilder::with(libname!(LIB_NAME_RGB_CONTRACT), [
+        std_stl().to_dependency_types(),
+        bp_consensus_stl().to_dependency_types(),
+    ])
     .transpile::<Amount>()
     .transpile::<Allocation>()
     .transpile::<ContractSpec>()
@@ -83,11 +86,17 @@ fn _rgb_contract_stl() -> Result<TypeLib, CompileError> {
     .transpile::<ProofOfReserves>()
     .transpile::<BurnMeta>()
     .transpile::<IssueMeta>()
+    .transpile::<AttachmentType>()
+    .transpile::<TokenData>()
+    .transpile::<EmbeddedMedia>()
+    .transpile::<OpidRejectUrl>()
     .compile()
 }
 
 fn _rgb_storage_stl() -> Result<TypeLib, CompileError> {
-    LibBuilder::new(libname!(LIB_NAME_RGB_STORAGE), tiny_bset! {
+    // TODO: wait for fix in strict_types to use LibBuilder::with
+    #[allow(deprecated)]
+    LibBuilder::new(libname!(LIB_NAME_RGB_STORAGE), [
         std_stl().to_dependency(),
         strict_types_stl().to_dependency(),
         commit_verify_stl().to_dependency(),
@@ -96,8 +105,8 @@ fn _rgb_storage_stl() -> Result<TypeLib, CompileError> {
         aluvm_stl().to_dependency(),
         rgb_commit_stl().to_dependency(),
         rgb_logic_stl().to_dependency(),
-        rgb_std_stl().to_dependency()
-    })
+        rgb_std_stl().to_dependency(),
+    ])
     .transpile::<MemIndex>()
     .transpile::<MemState>()
     .transpile::<MemStash>()
@@ -122,18 +131,9 @@ pub fn rgb_storage_stl() -> TypeLib {
 #[derive(Debug)]
 pub struct StandardTypes(SymbolicSys);
 
-impl Default for StandardTypes {
-    fn default() -> Self { StandardTypes::new() }
-}
-
 impl StandardTypes {
-    pub fn new() -> Self {
-        Self::try_with([std_stl(), bp_tx_stl(), rgb_contract_stl()])
-            .expect("error in standard RGBContract type system")
-    }
-
     pub fn with(lib: TypeLib) -> Self {
-        Self::try_with([std_stl(), bp_tx_stl(), rgb_contract_stl(), lib])
+        Self::try_with([std_stl(), bp_consensus_stl(), rgb_contract_stl(), lib])
             .expect("error in standard RGBContract type system")
     }
 
@@ -147,7 +147,9 @@ impl StandardTypes {
         Ok(Self(sys))
     }
 
-    pub fn type_system(&self) -> TypeSystem { self.0.as_types().clone() }
+    pub fn type_system(&self, schema: Schema) -> TypeSystem {
+        self.0.as_types().extract(schema.types()).unwrap()
+    }
 
     pub fn get(&self, name: &'static str) -> SemId {
         *self.0.resolve(name).unwrap_or_else(|| {

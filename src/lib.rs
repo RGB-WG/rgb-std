@@ -38,18 +38,14 @@ extern crate serde_crate as serde;
 pub extern crate rgbinvoice as invoice;
 
 pub mod stl;
-pub mod interface;
 pub mod containers;
 pub mod persistence;
-pub mod resolvers;
-mod contract;
+pub mod contract;
+pub mod indexers;
 pub mod info;
 
 pub use bp::{Outpoint, Txid};
-pub use contract::{
-    BundleExt, KnownState, MergeReveal, MergeRevealError, OutputAssignment, RevealError,
-    TypedAssignsExt,
-};
+pub use contract::{KnownState, MergeReveal, MergeRevealError, OutputAssignment, WitnessInfo};
 pub use invoice::{Allocation, Amount, CoinAmount, OwnedFraction, Precision, TokenIndex};
 pub use rgb::prelude::*;
 pub use rgb::rgbasm;

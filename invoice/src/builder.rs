@@ -21,8 +21,8 @@
 
 use std::str::FromStr;
 
-use rgb::ContractId;
-use strict_encoding::{FieldName, TypeName};
+use rgb::{ContractId, SchemaId};
+use strict_types::FieldName;
 
 use crate::invoice::{Beneficiary, InvoiceState, RgbInvoice, RgbTransport, XChainNet};
 use crate::{Allocation, Amount, CoinAmount, NonFungible, Precision, TransportParseError};
@@ -36,11 +36,10 @@ impl RgbInvoiceBuilder {
         Self(RgbInvoice {
             transports: vec![RgbTransport::UnspecifiedMeans],
             contract: None,
-            iface: None,
-            operation: None,
-            assignment: None,
+            schema: None,
+            assignment_name: None,
+            assignment_state: None,
             beneficiary: beneficiary.into(),
-            owned_state: InvoiceState::Void,
             expiry: None,
             unknown_query: none!(),
         })
@@ -50,36 +49,28 @@ impl RgbInvoiceBuilder {
         Self::new(beneficiary).set_contract(contract_id)
     }
 
-    pub fn rgb20(contract_id: ContractId, beneficiary: impl Into<XChainNet<Beneficiary>>) -> Self {
-        Self::with(contract_id, beneficiary).set_interface("RGB20")
-    }
-
-    pub fn rgb20_anything(beneficiary: impl Into<XChainNet<Beneficiary>>) -> Self {
-        Self::new(beneficiary).set_interface("RGB20")
-    }
-
     pub fn set_contract(mut self, contract_id: ContractId) -> Self {
         self.0.contract = Some(contract_id);
         self
     }
 
-    pub fn set_interface(mut self, name: impl Into<TypeName>) -> Self {
-        self.0.iface = Some(name.into());
+    pub fn set_schema(mut self, schema_id: SchemaId) -> Self {
+        self.0.schema = Some(schema_id);
         self
     }
 
-    pub fn set_operation(mut self, name: impl Into<FieldName>) -> Self {
-        self.0.operation = Some(name.into());
+    pub fn set_assignment_name(mut self, assignment_name: impl Into<FieldName>) -> Self {
+        self.0.assignment_name = Some(assignment_name.into());
         self
     }
 
-    pub fn set_assignment(mut self, name: impl Into<FieldName>) -> Self {
-        self.0.assignment = Some(name.into());
+    pub fn set_void(mut self) -> Self {
+        self.0.assignment_state = Some(InvoiceState::Void);
         self
     }
 
     pub fn set_amount_raw(mut self, amount: impl Into<Amount>) -> Self {
-        self.0.owned_state = InvoiceState::Amount(amount.into());
+        self.0.assignment_state = Some(InvoiceState::Amount(amount.into()));
         self
     }
 
@@ -94,12 +85,13 @@ impl RgbInvoiceBuilder {
             Err(_) => return Err(self),
         }
         .to_amount_unchecked();
-        self.0.owned_state = InvoiceState::Amount(amount);
+        self.0.assignment_state = Some(InvoiceState::Amount(amount));
         Ok(self)
     }
 
     pub fn set_allocation_raw(mut self, allocation: impl Into<Allocation>) -> Self {
-        self.0.owned_state = InvoiceState::Data(NonFungible::RGB21(allocation.into()));
+        self.0.assignment_state =
+            Some(InvoiceState::Data(NonFungible::FractionedToken(allocation.into())));
         self
     }
 

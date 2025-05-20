@@ -31,13 +31,14 @@ use error::Error;
 pub use invoice::LIB_NAME_RGB_CONTRACT;
 pub use mime::{MediaRegName, MediaType};
 pub use specs::{
-    Article, AssetSpec, Attachment, BurnMeta, ContractSpec, ContractTerms, Details, IssueMeta,
-    Name, RicardianContract, Ticker,
+    Article, AssetSpec, Attachment, AttachmentName, AttachmentType, BurnMeta, ContractSpec,
+    ContractTerms, Details, EmbeddedMedia, IssueMeta, Name, OpidRejectUrl, RicardianContract,
+    Ticker, TokenData,
 };
 pub use stl::{
-    aluvm_stl, bp_core_stl, bp_tx_stl, commit_verify_stl, rgb_commit_stl, rgb_contract_stl,
-    rgb_logic_stl, rgb_std_stl, rgb_storage_stl, StandardTypes, LIB_ID_RGB_COMMIT,
-    LIB_ID_RGB_CONTRACT, LIB_ID_RGB_LOGIC, LIB_ID_RGB_STD, LIB_ID_RGB_STORAGE,
+    aluvm_stl, bp_consensus_stl, bp_core_stl, bp_tx_stl, commit_verify_stl, rgb_commit_stl,
+    rgb_contract_stl, rgb_logic_stl, rgb_std_stl, rgb_storage_stl, StandardTypes,
+    LIB_ID_RGB_COMMIT, LIB_ID_RGB_CONTRACT, LIB_ID_RGB_LOGIC, LIB_ID_RGB_STD, LIB_ID_RGB_STORAGE,
 };
 
 pub const LIB_NAME_RGB_STD: &str = "RGBStd";

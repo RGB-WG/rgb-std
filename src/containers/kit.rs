@@ -25,7 +25,7 @@ use std::ops::Deref;
 use std::str::FromStr;
 
 use aluvm::library::Lib;
-use amplify::confinement::{SmallOrdSet, TinyOrdMap, TinyOrdSet};
+use amplify::confinement::{SmallOrdSet, TinyOrdSet};
 use amplify::{ByteArray, Bytes32};
 use armor::{ArmorHeader, AsciiArmor, StrictArmor};
 use baid64::{Baid64ParseError, DisplayBaid64, FromBaid64Str};
@@ -34,12 +34,8 @@ use rgb::{validation, Schema};
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 use strict_types::TypeSystem;
 
-use super::{
-    ContentRef, Supplement, ASCII_ARMOR_IFACE, ASCII_ARMOR_IIMPL, ASCII_ARMOR_SCHEMA,
-    ASCII_ARMOR_SCRIPT, ASCII_ARMOR_TYPE_SYSTEM, ASCII_ARMOR_VERSION,
-};
-use crate::containers::{ContainerVer, ContentId, ContentSigs};
-use crate::interface::{Iface, IfaceImpl};
+use super::{ASCII_ARMOR_SCHEMA, ASCII_ARMOR_SCRIPT, ASCII_ARMOR_TYPE_SYSTEM, ASCII_ARMOR_VERSION};
+use crate::containers::ContainerVer;
 use crate::LIB_NAME_RGB_STD;
 
 /// Kit identifier.
@@ -123,23 +119,13 @@ pub struct Kit {
     /// Version.
     pub version: ContainerVer,
 
-    pub ifaces: TinyOrdSet<Iface>,
-
     pub schemata: TinyOrdSet<Schema>,
 
-    pub iimpls: TinyOrdSet<IfaceImpl>,
-
-    pub supplements: TinyOrdSet<Supplement>,
-
-    /// Type system covering all types used in schema, interfaces and
-    /// implementations.
+    /// Type system covering all types used in schema.
     pub types: TypeSystem,
 
     /// Collection of scripts used across kit data.
     pub scripts: SmallOrdSet<Lib>,
-
-    /// Signatures on the pieces of content which are the part of the kit.
-    pub signatures: TinyOrdMap<ContentId, ContentSigs>,
 }
 
 impl StrictSerialize for Kit {}
@@ -152,22 +138,11 @@ impl CommitEncode for Kit {
         e.commit_to_serialized(&self.version);
 
         e.commit_to_set(&TinyOrdSet::from_iter_checked(
-            self.ifaces.iter().map(|iface| iface.iface_id()),
-        ));
-        e.commit_to_set(&TinyOrdSet::from_iter_checked(
             self.schemata.iter().map(|schema| schema.schema_id()),
-        ));
-        e.commit_to_set(&TinyOrdSet::from_iter_checked(
-            self.iimpls.iter().map(|iimpl| iimpl.impl_id()),
-        ));
-        e.commit_to_set(&TinyOrdSet::from_iter_checked(
-            self.supplements.iter().map(|suppl| suppl.suppl_id()),
         ));
 
         e.commit_to_serialized(&self.types.id());
         e.commit_to_set(&SmallOrdSet::from_iter_checked(self.scripts.iter().map(|lib| lib.id())));
-
-        e.commit_to_map(&self.signatures);
     }
 }
 
@@ -175,17 +150,8 @@ impl Kit {
     #[inline]
     pub fn kit_id(&self) -> KitId { self.commit_id() }
 
-    pub fn validate(
-        self,
-        // TODO: Add sig validator
-        //_: &impl SigValidator,
-    ) -> Result<ValidKit, (validation::Status, Kit)> {
+    pub fn validate(self) -> Result<ValidKit, (validation::Status, Kit)> {
         let status = validation::Status::new();
-        // TODO:
-        //  - Verify integrity for each interface
-        //  - Verify implementations against interfaces
-        //  - Check schema integrity
-        //  - Validate content sigs and remove untrusted ones
         Ok(ValidKit {
             validation_status: status,
             kit: self,
@@ -205,55 +171,6 @@ impl StrictArmor for Kit {
             let mut header = ArmorHeader::new(ASCII_ARMOR_SCHEMA, schema.name.to_string());
             let id = schema.schema_id();
             header.params.push((s!("id"), format!("{id:-}")));
-            header
-                .params
-                .push((s!("dev"), schema.developer.to_string()));
-            if let Some(suppl) = self
-                .supplements
-                .iter()
-                .find(|s| s.content_id == ContentRef::Schema(id))
-            {
-                header
-                    .params
-                    .push((s!("suppl"), format!("{:-}", suppl.suppl_id())));
-            }
-            headers.push(header);
-        }
-        for iface in &self.ifaces {
-            let mut header = ArmorHeader::new(ASCII_ARMOR_IFACE, iface.name.to_string());
-            let id = iface.iface_id();
-            header.params.push((s!("id"), format!("{id:-}")));
-            header.params.push((s!("dev"), iface.developer.to_string()));
-            if let Some(suppl) = self
-                .supplements
-                .iter()
-                .find(|s| s.content_id == ContentRef::Iface(id))
-            {
-                header
-                    .params
-                    .push((s!("suppl"), format!("{:-}", suppl.suppl_id())));
-            }
-            headers.push(header);
-        }
-        for iimpl in &self.iimpls {
-            let id = iimpl.impl_id();
-            let mut header = ArmorHeader::new(ASCII_ARMOR_IIMPL, format!("{id:-}"));
-            header
-                .params
-                .push((s!("interface"), format!("{:-}", iimpl.iface_id)));
-            header
-                .params
-                .push((s!("schema"), format!("{:-}", iimpl.schema_id)));
-            header.params.push((s!("dev"), iimpl.developer.to_string()));
-            if let Some(suppl) = self
-                .supplements
-                .iter()
-                .find(|s| s.content_id == ContentRef::IfaceImpl(id))
-            {
-                header
-                    .params
-                    .push((s!("suppl"), format!("{:-}", suppl.suppl_id())));
-            }
             headers.push(header);
         }
         headers.push(ArmorHeader::new(ASCII_ARMOR_TYPE_SYSTEM, self.types.id().to_string()));
@@ -289,51 +206,45 @@ mod test {
 
     #[test]
     fn error_kit_strs() {
-        assert!(
-            Kit::from_str(
-                r#"-----BEGIN RGB KIT-----
-Id: rgb:kit:e1jW6Rgc-2$JzXDg-XmR8XRJ-v!q$Dzf-yImkPjD-t8EjfvI
-Version: 2
-Type-System: sts:8Vb$sM1F-5MsQc20-HEixf55-gJR37FM-0zRKfpY-SwIp35w#design-farmer-camel
-Check-SHA256: 5563cc1568e244183804e0db3cec6ff9bf577f4a403924096177bf4a586160da
+        assert!(Kit::from_str(
+            r#"-----BEGIN RGB KIT-----
+Id: rgb:kit:jXOeJYkD-NlOgJoP-_zT1Hvl-0fP71Zo-b2mAh2C-i5ISROo
+Version: 0
+Type-System: sts:8Vb~sM1F-5MsQc20-HEixf55-gJR37FM-0zRKfpY-SwIp35w#design-farmer-camel
+Check-SHA256: 837885c8f8091aeaeb9ec3c3f85a6ff470a415e610b8ba3e49f9b33c9cf9d619
 
-0ssI2000000000
+000000000
 
 -----END RGB KIT-----"#
-            )
-            .is_ok()
-        );
+        )
+        .is_ok());
 
         // Wrong Id
-        assert!(
-            Kit::from_str(
-                r#"-----BEGIN RGB KIT-----
+        assert!(Kit::from_str(
+            r#"-----BEGIN RGB KIT-----
 Id: rgb:kit:11111111-2222222-XmR8XRJ-v!q$Dzf-yImkPjD-t8EjfvI
-Version: 2
-Type-System: sts:8Vb$sM1F-5MsQc20-HEixf55-gJR37FM-0zRKfpY-SwIp35w#design-farmer-camel
-Check-SHA256: 5563cc1568e244183804e0db3cec6ff9bf577f4a403924096177bf4a586160da
+Version: 0
+Type-System: sts:8Vb~sM1F-5MsQc20-HEixf55-gJR37FM-0zRKfpY-SwIp35w#design-farmer-camel
+Check-SHA256: 837885c8f8091aeaeb9ec3c3f85a6ff470a415e610b8ba3e49f9b33c9cf9d619
 
-0ssI2000000000
+000000000
 
 -----END RGB KIT-----"#
-            )
-            .is_err()
-        );
+        )
+        .is_err());
 
         // wrong checksum
-        assert!(
-            Kit::from_str(
-                r#"-----BEGIN RGB KIT-----
-Id: rgb:kit:e1jW6Rgc-2$JzXDg-XmR8XRJ-v!q$Dzf-yImkPjD-t8EjfvI
-Version: 2
-Type-System: sts:8Vb$sM1F-5MsQc20-HEixf55-gJR37FM-0zRKfpY-SwIp35w#design-farmer-camel
+        assert!(Kit::from_str(
+            r#"-----BEGIN RGB KIT-----
+Id: rgb:kit:jXOeJYkD-NlOgJoP-_zT1Hvl-0fP71Zo-b2mAh2C-i5ISROo
+Version: 0
+Type-System: sts:8Vb~sM1F-5MsQc20-HEixf55-gJR37FM-0zRKfpY-SwIp35w#design-farmer-camel
 Check-SHA256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
-0ssI2000000000
+000000000
 
 -----END RGB KIT-----"#
-            )
-            .is_err()
-        );
+        )
+        .is_err());
     }
 }

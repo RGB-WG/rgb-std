@@ -20,14 +20,24 @@
 // limitations under the License.
 
 mod assignments;
-mod bundle;
+mod builder;
+mod data;
+mod filter;
 mod merge_reveal;
+mod schema;
+pub(crate) mod resolver;
 
-pub use assignments::{KnownState, OutputAssignment, TypedAssignsExt};
-pub use bundle::{BundleExt, RevealError};
+pub use assignments::{KnownState, OutputAssignment, WitnessInfo};
+pub use builder::{BuilderError, ContractBuilder, TransitionBuilder};
+pub use data::{
+    AllocatedState, ContractData, ContractError, ContractOp, DataAllocation, FungibleAllocation,
+    OpDirection, OwnedAllocation, RightsAllocation,
+};
+pub use filter::{AssignmentsFilter, FilterExclude, FilterIncludeAll};
 pub use merge_reveal::{MergeReveal, MergeRevealError};
 use rgb::vm::OrdOpRef;
-use rgb::{ExtensionType, OpId, TransitionType, XWitnessId};
+use rgb::{OpId, TransitionType, Txid};
+pub use schema::{IssuerWrapper, SchemaWrapper};
 
 use crate::LIB_NAME_RGB_STD;
 
@@ -42,8 +52,7 @@ use crate::LIB_NAME_RGB_STD;
 pub enum OpWitness {
     #[strict_type(dumb)]
     Genesis,
-    Transition(XWitnessId, TransitionType),
-    Extension(XWitnessId, ExtensionType),
+    Transition(Txid, TransitionType),
 }
 
 impl From<OrdOpRef<'_>> for OpWitness {
@@ -53,21 +62,16 @@ impl From<OrdOpRef<'_>> for OpWitness {
             OrdOpRef::Transition(op, witness_id, ..) => {
                 OpWitness::Transition(witness_id, op.transition_type)
             }
-            OrdOpRef::Extension(op, witness_id, ..) => {
-                OpWitness::Extension(witness_id, op.extension_type)
-            }
         }
     }
 }
 
 impl OpWitness {
     #[inline]
-    pub fn witness_id(&self) -> Option<XWitnessId> {
+    pub fn witness_id(&self) -> Option<Txid> {
         match self {
             OpWitness::Genesis => None,
-            OpWitness::Transition(witness_id, _) | OpWitness::Extension(witness_id, _) => {
-                Some(*witness_id)
-            }
+            OpWitness::Transition(witness_id, _) => Some(*witness_id),
         }
     }
 }
@@ -81,13 +85,13 @@ impl OpWitness {
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct GlobalOut {
-    pub opid: OpId,
-    pub nonce: u64,
     pub index: u16,
     pub op_witness: OpWitness,
+    pub nonce: u64,
+    pub opid: OpId,
 }
 
 impl GlobalOut {
     #[inline]
-    pub fn witness_id(&self) -> Option<XWitnessId> { self.op_witness.witness_id() }
+    pub fn witness_id(&self) -> Option<Txid> { self.op_witness.witness_id() }
 }
