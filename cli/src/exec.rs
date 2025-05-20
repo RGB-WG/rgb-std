@@ -26,7 +26,7 @@ use std::io::stdout;
 
 use bp::seals::{TxoSeal, WTxoSeal};
 use rgb::popls::bp::PrefabBundle;
-use rgb::Schema;
+use rgb::Issuer;
 use strict_encoding::StrictDeserialize;
 
 use crate::cmd::{Args, Cmd};
@@ -37,10 +37,10 @@ impl Args {
         match &self.command {
             Cmd::Info { file } => match file.extension() {
                 Some(ext) if ext == "issuer" => {
-                    let issuer = Schema::load(file)?;
+                    let issuer = Issuer::load(file)?;
                     eprintln!("File type: Issuer (contract schema)");
                     eprintln!("Codex Id: {}", issuer.codex.codex_id());
-                    eprintln!("Default API Id: {}", issuer.default_api.api_id());
+                    eprintln!("Default API Id: {}", issuer.api.api_id());
                 }
                 Some(_) => {
                     return Err(anyhow!(
@@ -62,7 +62,7 @@ impl Args {
                     serde_yaml::to_writer(stdout(), &pfab)?;
                 }
                 Some(ext) if ext == "issuer" => {
-                    let issuer = Schema::load(file)?;
+                    let issuer = Issuer::load(file)?;
                     serde_yaml::to_writer(stdout(), &issuer)?;
                 }
                 Some(_) => {

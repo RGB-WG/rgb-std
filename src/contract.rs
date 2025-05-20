@@ -24,8 +24,8 @@
 
 use alloc::collections::BTreeMap;
 use core::borrow::Borrow;
+use core::error::Error;
 use core::marker::PhantomData;
-// TODO: Used in strict encoding; once solved there, remove here
 use std::io;
 
 use amplify::confinement::SmallOrdMap;
@@ -33,16 +33,15 @@ use amplify::hex::ToHex;
 use amplify::IoError;
 use chrono::{DateTime, Utc};
 use commit_verify::ReservedBytes;
-use hypersonic::sigs::ContentSigs;
 use hypersonic::{
-    AcceptError, Articles, AuthToken, CallParams, CellAddr, Codex, CodexId, Consensus, ContractId,
-    CoreParams, DataCell, EffectiveState, IssueError, IssueParams, Ledger, LibRepo, LoadError,
-    Memory, MergeError, MethodName, NamedState, Operation, Opid, Schema, StateAtom, StateName,
-    Stock, StockError, Transition,
+    AcceptError, Articles, ArticlesError, AuthToken, CallParams, CellAddr, Codex, CodexId,
+    Consensus, ContractId, CoreParams, DataCell, EffectiveState, EitherError, IssueError,
+    IssueParams, Ledger, LibRepo, Memory, MethodName, NamedState, Operation, Opid, SigValidator,
+    StateAtom, StateName, Stock, Transition,
 };
 use indexmap::{IndexMap, IndexSet};
 use rgb::{
-    ContractApi, ContractVerify, OperationSeals, ReadOperation, ReadWitness, RgbSeal, RgbSealDef,
+    ContractApi, ContractVerify, OperationSeals, ReadOperation, RgbSeal, RgbSealDef,
     VerificationError,
 };
 use single_use_seals::{ClientSideWitness, PublishedWitness, SealWitness};
@@ -52,7 +51,10 @@ use strict_encoding::{
 };
 use strict_types::StrictVal;
 
-use crate::{ContractMeta, Issue, OpRels, Pile, VerifiedOperation, Witness, WitnessStatus};
+use crate::{
+    ApiDescriptor, ContractMeta, Issue, Issuer, OpRels, Pile, TripleError, VerifiedOperation,
+    Witness, WitnessStatus,
+};
 
 pub const CONSIGNMENT_MAGIC_NUMBER: [u8; 8] = *b"RGBCNSGN";
 pub const CONSIGNMENT_VERSION: [u8; 2] = [0x00, 0x01];
@@ -144,8 +146,7 @@ pub struct ImmutableState {
 pub struct ContractState<Seal> {
     pub immutable: BTreeMap<StateName, BTreeMap<CellAddr, ImmutableState>>,
     pub owned: BTreeMap<StateName, BTreeMap<CellAddr, OwnedState<Seal>>>,
-    pub computed: BTreeMap<StateName, StrictVal>,
-    // TODO: Add "computed pending"
+    pub aggregated: BTreeMap<StateName, StrictVal>,
 }
 
 impl<Seal> ContractState<Seal> {
@@ -171,7 +172,7 @@ impl<Seal> ContractState<Seal> {
                     (name, map)
                 })
                 .collect(),
-            computed: self.computed,
+            aggregated: self.aggregated,
         }
     }
 
@@ -197,7 +198,7 @@ impl<Seal> ContractState<Seal> {
                     (name, map)
                 })
                 .collect(),
-            computed: self.computed,
+            aggregated: self.aggregated,
         }
     }
 }
@@ -270,30 +271,31 @@ pub struct Contract<S: Stock, P: Pile> {
 
 impl<S: Stock, P: Pile> Contract<S, P> {
     /// Initializes contract from contract articles, with a given persistence configuration.
-    pub fn with_articles(articles: Articles, conf: S::Conf) -> Result<Self, IssueError<S::Error>>
+    pub fn with_articles(
+        articles: Articles,
+        conf: S::Conf,
+    ) -> Result<Self, TripleError<IssueError, S::Error, P::Error>>
     where
         P::Conf: From<S::Conf>,
-        S::Error: From<P::Error>,
     {
-        let contract_id = articles.issue.contract_id();
-        let genesis_opid = articles.issue.genesis_opid();
-        let ledger = Ledger::new(articles, conf)?;
+        let contract_id = articles.contract_id();
+        let genesis_opid = articles.genesis_opid();
+        let ledger = Ledger::new(articles, conf).map_err(TripleError::from)?;
         let conf: S::Conf = ledger.config();
-        let mut pile = P::new(conf.into()).map_err(|e| IssueError::OtherPersistence(e.into()))?;
+        let mut pile = P::new(conf.into()).map_err(TripleError::C)?;
         pile.add_seals(genesis_opid, none!());
         Ok(Self { ledger, pile, contract_id })
     }
 
     pub fn issue(
-        schema: Schema,
+        issuer: Issuer,
         params: CreateParams<<P::Seal as RgbSeal>::Definition>,
-        conf: impl FnOnce(&Articles) -> Result<S::Conf, IssueError<S::Error>>,
-    ) -> Result<Self, IssueError<S::Error>>
+        conf: impl FnOnce(&Articles) -> Result<S::Conf, S::Error>,
+    ) -> Result<Self, TripleError<IssueError, S::Error, P::Error>>
     where
         P::Conf: From<S::Conf>,
-        S::Error: From<P::Error>,
     {
-        assert_eq!(params.codex_id, schema.codex.codex_id());
+        assert_eq!(params.codex_id, issuer.codex.codex_id());
 
         let seals = SmallOrdMap::try_from_iter(params.owned.iter().enumerate().filter_map(
             |(pos, assignment)| {
@@ -328,24 +330,26 @@ impl<S: Stock, P: Pile> Contract<S, P> {
             },
         };
 
-        let articles = schema.issue(params);
-        let conf = conf(&articles)?;
+        let articles = issuer.issue(params);
+        let conf = conf(&articles).map_err(TripleError::B)?;
         let ledger = Ledger::new(articles, conf)?;
         let conf: S::Conf = ledger.config();
         let contract_id = ledger.contract_id();
 
         // Init seals
-        let mut pile = P::new(conf.into()).map_err(|e| IssueError::OtherPersistence(e.into()))?;
-        pile.add_seals(ledger.articles().issue.genesis_opid(), seals);
+        let mut pile = P::new(conf.into()).map_err(TripleError::C)?;
+        pile.add_seals(ledger.articles().genesis_opid(), seals);
 
         Ok(Self { ledger, pile, contract_id })
     }
 
-    pub fn load(stock_conf: S::Conf, pile_conf: P::Conf) -> Result<Self, LoadError<S::Error>>
-    where S::Error: From<P::Error> {
-        let ledger = Ledger::load(stock_conf)?;
+    pub fn load(
+        stock_conf: S::Conf,
+        pile_conf: P::Conf,
+    ) -> Result<Self, EitherError<S::Error, P::Error>> {
+        let ledger = Ledger::load(stock_conf).map_err(EitherError::A)?;
         let contract_id = ledger.contract_id();
-        let pile = P::load(pile_conf).map_err(|e| LoadError::OtherPersistence(e.into()))?;
+        let pile = P::load(pile_conf).map_err(EitherError::B)?;
         Ok(Self { ledger, pile, contract_id })
     }
 
@@ -383,7 +387,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         &self,
     ) -> impl Iterator<Item = (Opid, Operation, OpRels<P::Seal>)> + use<'_, S, P> {
         self.ledger.operations().map(|(opid, op)| {
-            let rels = self.pile.op_relations(opid, op.destructible.len_u16());
+            let rels = self.pile.op_relations(opid, op.destructible_out.len_u16());
             (opid, op, rels)
         })
     }
@@ -422,7 +426,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         let mut cache = bmap! {};
         let state = self.ledger.state().main.clone();
         let mut owned = bmap! {};
-        for (name, map) in state.owned {
+        for (name, map) in state.destructible {
             let mut state = bmap! {};
             for (addr, data) in map {
                 let since = *cache
@@ -459,7 +463,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
             }
             immutable.insert(name, state);
         }
-        ContractState { immutable, owned, computed: state.computed }
+        ContractState { immutable, owned, aggregated: state.aggregated }
     }
 
     pub fn state_all(&self) -> &EffectiveState { self.ledger.state() }
@@ -467,7 +471,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
     pub fn sync(
         &mut self,
         changed: impl IntoIterator<Item = (<P::Seal as RgbSeal>::WitnessId, WitnessStatus)>,
-    ) -> Result<(), AcceptError> {
+    ) -> Result<(), EitherError<AcceptError, S::Error>> {
         // Step 1: Sanitize the list of changed wids
         let mut affected_wids = IndexMap::new();
         for (wid, status) in changed {
@@ -498,14 +502,15 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         }
 
         // Step 3: Update witness status.
-        // NB: This can't be done at the same time as step 2 due to many-to-meny relation between
+        // NB: This cannot be done at the same time as step 2 due to many-to-many relation between
         // witnesses and operations, such that one witness change may affect other operation witness
         // status.
         for (wid, status) in affected_wids {
             self.pile.update_witness_status(wid, status);
         }
 
-        // Step 4: Filter opids and leave only those which status has changed after witness update
+        // Step 4: Filter opids and leave only those whose status has changed after the witness
+        // update
         let mut roll_back = IndexSet::new();
         let mut forward = IndexSet::new();
         for (opid, old_status) in affected_ops {
@@ -522,7 +527,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         debug_assert_eq!(forward.intersection(&roll_back).count(), 0);
 
         // Step 5: Perform rollback and forward operations
-        self.ledger.rollback(roll_back)?;
+        self.ledger.rollback(roll_back).map_err(EitherError::B)?;
         // Ledger has already committed as a part of `rollback`
         self.pile.commit_transaction();
 
@@ -537,7 +542,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         &mut self,
         call: CallParams,
         seals: SmallOrdMap<u16, <P::Seal as RgbSeal>::Definition>,
-    ) -> Result<Operation, AcceptError> {
+    ) -> Result<Operation, EitherError<AcceptError, S::Error>> {
         let opid = self.ledger.call(call)?;
         let operation = self.ledger.operation(opid);
         debug_assert_eq!(operation.opid(), opid);
@@ -588,7 +593,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         self.ledger
             .export_aux(terminals, writer, |opid, op, mut writer| {
                 // Write seal definitions
-                let seals = self.pile.seals(opid, op.destructible.len_u16());
+                let seals = self.pile.seals(opid, op.destructible_out.len_u16());
                 writer = seals.strict_encode(writer)?;
 
                 // Write witnesses
@@ -606,33 +611,39 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         &mut self,
         reader: &mut StrictReader<impl ReadRaw>,
         seal_resolver: impl FnMut(&Operation) -> BTreeMap<u16, <P::Seal as RgbSeal>::Definition>,
-    ) -> Result<(), ConsumeError<<P::Seal as RgbSeal>::Definition>>
+        sig_validator: impl SigValidator,
+    ) -> Result<(), EitherError<ConsumeError<<P::Seal as RgbSeal>::Definition>, S::Error>>
     where
         <P::Seal as RgbSeal>::Client: StrictDecode,
         <P::Seal as RgbSeal>::Published: StrictDecode,
         <P::Seal as RgbSeal>::WitnessId: StrictDecode,
     {
-        // We need to read articles field by field since we have to evaluate genesis separately
-        let schema = Schema::strict_decode(reader)?;
-        let contract_sigs = ContentSigs::strict_decode(reader)?;
-        let codex_version = ReservedBytes::<2>::strict_decode(reader)?;
-        let meta = ContractMeta::strict_decode(reader)?;
-        let codex = Codex::strict_decode(reader)?;
+        let articles = (|| -> Result<Articles, ConsumeError<_>> {
+            // We need to read articles field by field since we have to evaluate genesis separately
+            let apis = ApiDescriptor::strict_decode(reader)?;
 
-        let op_reader = OpReader { stream: reader, seal_resolver, _phantom: PhantomData };
-        self.evaluate(op_reader)
-            .unwrap_or_else(|err| panic!("Error: {err}"));
-        self.ledger.commit_transaction();
-        self.pile.commit_transaction();
+            let issue_version = ReservedBytes::<1>::strict_decode(reader)?;
+            let meta = ContractMeta::strict_decode(reader)?;
+            let codex = Codex::strict_decode(reader)?;
 
-        // We need to clone due to a borrow checker.
-        let genesis = self.ledger.articles().issue.genesis.clone();
-        let articles = Articles {
-            issue: Issue { version: codex_version, meta, codex, genesis },
-            contract_sigs,
-            schema,
-        };
-        self.ledger.merge_articles(articles)?;
+            let op_reader = OpReader { stream: reader, seal_resolver, _phantom: PhantomData };
+            self.evaluate(op_reader)
+                .unwrap_or_else(|err| panic!("Error: {err}"));
+            self.ledger.commit_transaction();
+            self.pile.commit_transaction();
+
+            // We need to clone due to a borrow checker.
+            let genesis = self.ledger.articles().genesis().clone();
+            let issue = Issue { version: issue_version, meta, codex, genesis };
+            let articles = Articles::with(apis, issue)?;
+
+            Ok(articles)
+        })()
+        .map_err(EitherError::A)?;
+
+        self.ledger
+            .merge_articles(articles, sig_validator)
+            .map_err(EitherError::from_other_a)?;
         Ok(())
     }
 
@@ -653,81 +664,66 @@ impl<S: Stock, P: Pile> Contract<S, P> {
 
 pub struct OpReader<
     'r,
-    SealDef: RgbSealDef,
+    Seal: RgbSeal,
     R: ReadRaw,
-    F: FnMut(&Operation) -> BTreeMap<u16, SealDef>,
+    F: FnMut(&Operation) -> BTreeMap<u16, Seal::Definition>,
 > {
     stream: &'r mut StrictReader<R>,
     seal_resolver: F,
-    _phantom: PhantomData<SealDef>,
+    _phantom: PhantomData<Seal>,
 }
 
-impl<'r, SealDef: RgbSealDef, R: ReadRaw, F: FnMut(&Operation) -> BTreeMap<u16, SealDef>>
-    ReadOperation for OpReader<'r, SealDef, R, F>
+impl<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&Operation) -> BTreeMap<u16, Seal::Definition>>
+    ReadOperation for OpReader<'r, Seal, R, F>
 {
-    type SealDef = SealDef;
-    type WitnessReader = WitnessReader<'r, SealDef, R, F>;
+    type Seal = Seal;
 
-    fn read_operation(mut self) -> Option<(OperationSeals<Self::SealDef>, Self::WitnessReader)> {
-        match Operation::strict_decode(self.stream) {
-            Ok(operation) => {
-                let mut defined_seals = SmallOrdMap::strict_decode(self.stream)
-                    .expect("Failed to read the consignment stream");
-                defined_seals
-                    .extend((self.seal_resolver)(&operation))
-                    .expect("Too many seals defined in the operation");
-                let op_seals = OperationSeals { operation, defined_seals };
-                let has_witness = bool::strict_decode(self.stream)
-                    .expect("Failed to read the consignment stream");
-                Some((op_seals, WitnessReader { parent: self, present: has_witness }))
-            }
-            Err(DecodeError::Io(e)) if e.kind() == io::ErrorKind::UnexpectedEof => None,
-            Err(e) => {
-                // TODO: Report error via a side-channel
-                panic!("Failed to read consignment stream: {}", e);
-            }
-        }
-    }
-}
+    fn read_operation(
+        &mut self,
+    ) -> Result<Option<OperationSeals<Self::Seal>>, impl Error + 'static> {
+        let Some(operation) =
+            Operation::strict_decode(self.stream)
+                .map(Some)
+                .or_else(|e| match e {
+                    DecodeError::Io(e) if e.kind() == io::ErrorKind::UnexpectedEof => Ok(None),
+                    e => Err(e),
+                })?
+        else {
+            return Result::<_, DecodeError>::Ok(None);
+        };
 
-pub struct WitnessReader<
-    'r,
-    SealDef: RgbSealDef,
-    R: ReadRaw,
-    F: FnMut(&Operation) -> BTreeMap<u16, SealDef>,
-> {
-    present: bool,
-    parent: OpReader<'r, SealDef, R, F>,
-}
+        let mut defined_seals = SmallOrdMap::strict_decode(self.stream)?;
+        defined_seals
+            .extend((self.seal_resolver)(&operation))
+            .map_err(|_| {
+                DecodeError::DataIntegrityError(format!(
+                    "too many seals defined for the operation {}",
+                    operation.opid()
+                ))
+            })?;
+        let has_witness = bool::strict_decode(self.stream)?;
 
-impl<'r, SealDef: RgbSealDef, R: ReadRaw, F: FnMut(&Operation) -> BTreeMap<u16, SealDef>>
-    ReadWitness for WitnessReader<'r, SealDef, R, F>
-{
-    type SealDef = SealDef;
-    type OperationReader = OpReader<'r, SealDef, R, F>;
+        let witness = if has_witness {
+            SealWitness::strict_decode(self.stream)
+                .map(Some)
+                .or_else(|e| match e {
+                    DecodeError::Io(e) if e.kind() == io::ErrorKind::UnexpectedEof => Ok(None),
+                    e => Err(e),
+                })?
+        } else {
+            None
+        };
 
-    fn read_witness(
-        self,
-    ) -> (Option<SealWitness<<Self::SealDef as RgbSealDef>::Src>>, Self::OperationReader) {
-        let mut witness = None;
-        if self.present {
-            witness = SealWitness::strict_decode(self.parent.stream)
-                .inspect_err(|e| {
-                    // TODO: Report error via a side-channel
-                    eprint!("Failed to read consignment stream: {}", e);
-                })
-                .ok();
-        }
-        (witness, self.parent)
+        Ok(Some(OperationSeals { operation, defined_seals, witness }))
     }
 }
 
 impl<S: Stock, P: Pile> ContractApi<P::Seal> for Contract<S, P> {
     fn contract_id(&self) -> ContractId { self.ledger.contract_id() }
 
-    fn codex(&self) -> &Codex { &self.ledger.articles().schema.codex }
+    fn codex(&self) -> &Codex { self.ledger.articles().codex() }
 
-    fn repo(&self) -> &impl LibRepo { &self.ledger.articles().schema }
+    fn repo(&self) -> &impl LibRepo { self.ledger.articles() }
 
     fn memory(&self) -> &impl Memory { &self.ledger.state().raw }
 
@@ -750,8 +746,7 @@ impl<S: Stock, P: Pile> ContractApi<P::Seal> for Contract<S, P> {
     }
 }
 
-// TODO: Add Error and Debug
-#[derive(Display, From)]
+#[derive(Debug, Display, Error, From)]
 #[display(inner)]
 pub enum ConsumeError<Seal: RgbSealDef> {
     #[from]
@@ -771,10 +766,10 @@ pub enum ConsumeError<Seal: RgbSealDef> {
     UnknownContract(ContractId),
 
     #[from]
-    Decode(DecodeError),
+    Articles(ArticlesError),
 
     #[from]
-    Merge(StockError<MergeError>),
+    Decode(DecodeError),
 
     #[from]
     Verify(VerificationError<Seal::Src>),
@@ -785,7 +780,7 @@ mod fs {
     use std::fs::File;
     use std::path::Path;
 
-    use hypersonic::persistance::StockFs;
+    use sonic_persist_fs::StockFs;
     use strict_encoding::{StreamWriter, StrictDecode, StrictDumb, StrictEncode};
 
     use super::*;

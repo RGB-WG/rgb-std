@@ -16,6 +16,7 @@ readme = "../README.md"
 amplify.workspace = true
 strict_encoding.workspace = true
 hypersonic.workspace = true
+sonic-persist-fs.workspace = true
 sonix.workspace = true
 bp-core.workspace = true
 rgb-std = { workspace = true, features = ["fs", "serde"] }
@@ -31,3 +32,6 @@ all = ["bitcoin", "liquid", "prime"]
 bitcoin = ["rgb-std/bitcoin"]
 liquid = ["rgb-std/liquid"]
 prime = ["rgb-std/prime"]
+
+[lints.rust]
+unexpected_cfgs = { level = "allow", check-cfg = ['cfg(coverage_nightly)'] }

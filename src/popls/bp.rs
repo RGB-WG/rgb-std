@@ -25,6 +25,7 @@
 //! Implementation of RGB standard library types for Bitcoin protocol, covering Bitcoin and Liquid
 //! proof of publication layer 1.
 
+use alloc::collections::btree_map::Entry;
 use alloc::collections::{btree_set, BTreeMap, BTreeSet};
 use alloc::vec;
 use std::collections::HashMap;
@@ -40,8 +41,9 @@ use bp::{Outpoint, Sats, ScriptPubkey, Tx, Vout};
 use commit_verify::mpc::ProtocolId;
 use commit_verify::{mpc, Digest, DigestExt, Sha256};
 use hypersonic::{
-    AcceptError, AuthToken, CallParams, CellAddr, ContractId, CoreParams, DataCell, MethodName,
-    NamedState, Operation, StateAtom, StateCalc, StateCalcError, StateName, Stock,
+    AcceptError, AuthToken, CallParams, CellAddr, ContractId, CoreParams, DataCell, EitherError,
+    MethodName, NamedState, Operation, Satisfaction, StateAtom, StateCalc, StateCalcError,
+    StateName, StateUnknown, Stock,
 };
 use invoice::bp::{Address, WitnessOut};
 use invoice::{RgbBeneficiary, RgbInvoice};
@@ -54,7 +56,7 @@ use strict_types::StrictVal;
 
 use crate::{
     Assignment, CodexId, Consensus, ConsumeError, Contract, ContractState, Contracts, CreateParams,
-    EitherSeal, IssuerError, Pile, Schema, Stockpile,
+    EitherSeal, Issuer, IssuerError, Pile, SigValidator, Stockpile, TripleError,
 };
 
 /// Trait abstracting a specific implementation of a bitcoin wallet.
@@ -75,7 +77,7 @@ pub trait Coinselect {
     fn coinselect(
         &mut self,
         invoiced_state: &StrictVal,
-        calc: &mut (impl StateCalc + ?Sized),
+        calc: &mut StateCalc,
         // Sorted vector by values
         owned_state: Vec<(CellAddr, &StrictVal)>,
     ) -> Option<Vec<CellAddr>>;
@@ -161,18 +163,18 @@ impl CreateParams<Outpoint> {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct UsedState {
     pub addr: CellAddr,
     pub outpoint: Outpoint,
-    pub val: StrictVal,
+    pub satisfaction: Option<Satisfaction>,
 }
 
 pub type PaymentScript = OpRequestSet<Option<WoutAssignment>>;
 
 /// A set of multiple operation requests (see [`OpRequests`]) under a single or multiple contracts.
-#[derive(Wrapper, WrapperMut, Clone, PartialEq, Eq, Debug, From)]
+#[derive(Wrapper, WrapperMut, Clone, Debug, From)]
 #[wrapper(Deref)]
 #[wrapper_mut(DerefMut)]
 #[cfg_attr(
@@ -257,7 +259,7 @@ pub enum UnresolvedSeal {
 ///
 /// Differs from [`CallParams`] in the fact that it uses [`EitherSeal`]s instead of
 /// [`hypersonic::AuthTokens`] for output definitions.
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, Debug)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
@@ -299,6 +301,10 @@ impl OpRequest<Option<WoutAssignment>> {
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum UnmatchedState {
+    /// neither invoice nor contract API contains information about the state name.
+    #[from(StateUnknown)]
+    StateNameUnknown,
+
     #[from]
     #[display(inner)]
     StateCalc(StateCalcError),
@@ -369,13 +375,13 @@ impl PrefabBundle {
 pub struct RgbWallet<
     W,
     Sp,
-    S = HashMap<CodexId, Schema>,
+    S = HashMap<CodexId, Issuer>,
     C = HashMap<ContractId, Contract<<Sp as Stockpile>::Stock, <Sp as Stockpile>::Pile>>,
 > where
     W: WalletProvider,
     Sp: Stockpile,
     Sp::Pile: Pile<Seal = TxoSeal>,
-    S: KeyedCollection<Key = CodexId, Value = Schema>,
+    S: KeyedCollection<Key = CodexId, Value = Issuer>,
     C: KeyedCollection<Key = ContractId, Value = Contract<Sp::Stock, Sp::Pile>>,
 {
     pub wallet: W,
@@ -387,7 +393,7 @@ where
     W: WalletProvider,
     Sp: Stockpile,
     Sp::Pile: Pile<Seal = TxoSeal>,
-    S: KeyedCollection<Key = CodexId, Value = Schema>,
+    S: KeyedCollection<Key = CodexId, Value = Issuer>,
     C: KeyedCollection<Key = ContractId, Value = Contract<Sp::Stock, Sp::Pile>>,
 {
     pub fn with(wallet: W, contracts: Contracts<Sp, S, C>) -> Self { Self { wallet, contracts } }
@@ -397,7 +403,10 @@ where
     pub fn issue(
         &mut self,
         params: CreateParams<Outpoint>,
-    ) -> Result<ContractId, IssuerError<<Sp::Stock as Stock>::Error>> {
+    ) -> Result<
+        ContractId,
+        TripleError<IssuerError, <Sp::Stock as Stock>::Error, <Sp::Pile as Pile>::Error>,
+    > {
         self.contracts.issue(params.transform(self.noise_engine()))
     }
 
@@ -446,25 +455,24 @@ where
         &mut self,
         invoice: &RgbInvoice<ContractId>,
         mut coinselect: impl Coinselect,
-        // TODO: Consider adding requested amount of sats to the `RgbInvoice`
         giveaway: Option<Sats>,
     ) -> Result<OpRequest<Option<WoutAssignment>>, FulfillError> {
         let contract_id = invoice.scope;
 
         // Determine method
         let articles = self.contracts.contract_articles(contract_id);
-        let api = &articles.schema.default_api;
+        let api = &articles.apis().default;
         let call = invoice
             .call
             .as_ref()
-            .or_else(|| api.default_call())
+            .or(api.default_call.as_ref())
             .ok_or(FulfillError::CallStateUnknown)?;
         let method = call.method.clone();
         let state_name = call
             .destructible
             .clone()
             .ok_or(FulfillError::StateNameUnknown)?;
-        let mut calc = api.calculate(state_name.clone());
+        let mut calc = api.calculate(state_name.clone())?;
 
         let value = invoice.data.as_ref().ok_or(FulfillError::ValueMissed)?;
 
@@ -480,17 +488,13 @@ where
             .collect::<Vec<_>>();
         // NB: we do state accumulation with `calc` inside coinselect
         let using = coinselect
-            .coinselect(value, calc.as_mut(), src)
+            .coinselect(value, &mut calc, src)
             .ok_or(FulfillError::StateInsufficient)?;
         let using = using
             .into_iter()
             .map(|addr| {
                 let owned = state.get(&addr).expect("just selected");
-                UsedState {
-                    addr,
-                    outpoint: owned.assignment.seal,
-                    val: owned.assignment.data.clone(),
-                }
+                UsedState { addr, outpoint: owned.assignment.seal, satisfaction: None }
             })
             .collect();
 
@@ -535,31 +539,37 @@ where
     pub fn check_request<T>(&self, request: &OpRequest<T>) -> Result<(), UnmatchedState> {
         let contract_id = request.contract_id;
         let state = self.contracts.contract_state(contract_id);
-        let api = &self
-            .contracts
-            .contract_articles(contract_id)
-            .schema
-            .default_api;
+        let articles = self.contracts.contract_articles(contract_id);
+        let api = &articles.apis().default;
         let mut calcs = BTreeMap::new();
+
         for inp in &request.using {
-            let state_name = state
+            let (state_name, val) = state
                 .owned
                 .iter()
                 .find_map(|(state_name, map)| {
-                    map.keys()
-                        .find(|addr| **addr == inp.addr)
-                        .map(|_| state_name)
+                    map.iter()
+                        .find(|(addr, _)| **addr == inp.addr)
+                        .map(|(_, value)| (state_name, value))
                 })
                 .expect("unknown state included in the contract stock");
-            let calc = calcs
-                .entry(state_name)
-                .or_insert_with(|| api.calculate(state_name.clone()));
-            calc.accumulate(&inp.val)?;
+            let calc = match calcs.entry(state_name.clone()) {
+                Entry::Vacant(entry) => {
+                    let calc = api.calculate(state_name.clone())?;
+                    entry.insert(calc)
+                }
+                Entry::Occupied(entry) => entry.into_mut(),
+            };
+            calc.accumulate(&val.assignment.data)?;
         }
         for out in &request.owned {
-            let calc = calcs
-                .entry(&out.name)
-                .or_insert_with(|| api.calculate(out.name.clone()));
+            let calc = match calcs.entry(out.name.clone()) {
+                Entry::Vacant(entry) => {
+                    let calc = api.calculate(out.name.clone())?;
+                    entry.insert(calc)
+                }
+                Entry::Occupied(entry) => entry.into_mut(),
+            };
             calc.lessen(&out.state.data)?;
         }
         for (state_name, calc) in calcs {
@@ -571,16 +581,20 @@ where
     }
 
     /// Creates a single operation basing on the provided construction parameters.
-    pub fn prefab(&mut self, request: OpRequest<PrefabSeal>) -> Result<Prefab, PrefabError> {
-        self.check_request(&request)?;
+    pub fn prefab(
+        &mut self,
+        request: OpRequest<PrefabSeal>,
+    ) -> Result<Prefab, EitherError<PrefabError, <Sp::Stock as Stock>::Error>> {
+        self.check_request(&request).map_err(EitherError::from_a)?;
 
         // convert ConstructParams into CallParams
         let (closes, using) = request
             .using
             .into_iter()
-            .map(|used| (used.outpoint, (used.addr, used.val)))
+            .map(|used| (used.outpoint, (used.addr, used.satisfaction)))
             .unzip();
-        let closes = SmallOrdSet::try_from(closes).map_err(|_| PrefabError::TooManyInputs)?;
+        let closes = SmallOrdSet::try_from(closes)
+            .map_err(|_| EitherError::A(PrefabError::TooManyInputs))?;
         let mut defines = SmallOrdSet::new();
 
         let mut seals = SmallOrdMap::new();
@@ -593,7 +607,7 @@ where
                 EitherSeal::Alt(seal) => {
                     defines
                         .push(seal.vout)
-                        .map_err(|_| PrefabError::TooManyOutputs)?;
+                        .map_err(|_| EitherError::A(PrefabError::TooManyOutputs))?;
                     let primary = WOutpoint::Wout(seal.vout);
                     let noise = seal.noise.unwrap_or_else(|| {
                         Noise::with(primary, noise_engine.clone(), opout_no as u64)
@@ -617,7 +631,8 @@ where
 
         let operation = self
             .contracts
-            .contract_call(request.contract_id, call, seals)?;
+            .contract_call(request.contract_id, call, seals)
+            .map_err(EitherError::from_other_a)?;
 
         Ok(Prefab { closes, defines, operation })
     }
@@ -637,14 +652,14 @@ where
         &mut self,
         requests: impl IntoIterator<Item = OpRequest<PrefabSeal>>,
         change: Option<Vout>,
-    ) -> Result<PrefabBundle, BundleError> {
+    ) -> Result<PrefabBundle, EitherError<BundleError, <Sp::Stock as Stock>::Error>> {
         let ops = requests.into_iter().map(|params| self.prefab(params));
 
         let mut outpoints = BTreeSet::<Outpoint>::new();
         let mut contracts = BTreeSet::new();
         let mut prefabs = BTreeSet::new();
         for prefab in ops {
-            let prefab = prefab?;
+            let prefab = prefab.map_err(EitherError::from_other_a)?;
             contracts.insert(prefab.operation.contract_id);
             outpoints.extend(&prefab.closes);
             prefabs.insert(prefab);
@@ -667,7 +682,7 @@ where
                     if !outpoints.contains(&outpoint) {
                         return None;
                     }
-                    let prevout = UsedState { addr, outpoint, val: state.assignment.data.clone() };
+                    let prevout = UsedState { addr, outpoint, satisfaction: None };
                     Some((prevout, (name.clone(), state)))
                 })
                 .unzip();
@@ -676,17 +691,19 @@ where
                 continue;
             };
 
-            let api = &self
-                .contracts
-                .contract_articles(contract_id)
-                .schema
-                .default_api;
-            let mut calcs = BTreeMap::<StateName, Box<dyn StateCalc>>::new();
+            let articles = self.contracts.contract_articles(contract_id);
+            let api = &articles.apis().default;
+            let mut calcs = BTreeMap::<StateName, StateCalc>::new();
             for (name, state) in prev {
-                let calc = calcs
-                    .entry(name.clone())
-                    .or_insert_with(|| api.calculate(name));
-                calc.accumulate(&state.assignment.data)?;
+                let calc = match calcs.entry(name.clone()) {
+                    Entry::Vacant(entry) => {
+                        let calc = api.calculate(name).map_err(EitherError::from_a)?;
+                        entry.insert(calc)
+                    }
+                    Entry::Occupied(entry) => entry.into_mut(),
+                };
+                calc.accumulate(&state.assignment.data)
+                    .map_err(EitherError::from_a)?;
             }
 
             let mut owned = Vec::new();
@@ -694,8 +711,8 @@ where
             let mut noise_engine = root_noise_engine.clone();
             noise_engine.input_raw(contract_id.as_slice());
             for (name, calc) in calcs {
-                for data in calc.diff()? {
-                    let vout = change.ok_or(BundleError::ChangeRequired)?;
+                for data in calc.diff().map_err(EitherError::from_a)? {
+                    let vout = change.ok_or(EitherError::A(BundleError::ChangeRequired))?;
                     let noise =
                         Some(Noise::with(WOutpoint::Wout(vout), noise_engine.clone(), nonce));
                     let change = PrefabSeal { vout, noise };
@@ -720,10 +737,17 @@ where
         }
 
         for request in blank_requests {
-            prefabs.push(self.prefab(request).map_err(BundleError::Blank)?);
+            let prefab = self.prefab(request).map_err(|err| match err {
+                EitherError::A(e) => EitherError::A(BundleError::Blank(e)),
+                EitherError::B(e) => EitherError::B(e),
+            })?;
+            prefabs.push(prefab);
         }
 
-        Ok(PrefabBundle(SmallOrdSet::try_from(prefabs).map_err(|_| BundleError::TooManyBlanks)?))
+        Ok(PrefabBundle(
+            SmallOrdSet::try_from(prefabs)
+                .map_err(|_| EitherError::A(BundleError::TooManyBlanks))?,
+        ))
     }
 
     /// Include a prefab bundle, creating the necessary anchors on the fly.
@@ -764,21 +788,23 @@ where
     pub fn consume(
         &mut self,
         reader: &mut StrictReader<impl ReadRaw>,
-    ) -> Result<(), ConsumeError<WTxoSeal>> {
-        self.contracts.consume(reader, |op| {
+        sig_validator: impl SigValidator,
+    ) -> Result<(), EitherError<ConsumeError<WTxoSeal>, <Sp::Stock as Stock>::Error>> {
+        let seal_resolver = |op: &Operation| {
             self.wallet
-                .resolve_seals(op.destructible.iter().map(|cell| cell.auth))
+                .resolve_seals(op.destructible_out.iter().map(|cell| cell.auth))
                 .map(|seal| {
                     let auth = seal.auth_token();
                     let op_out =
-                        op.destructible
+                        op.destructible_out
                             .iter()
                             .position(|cell| cell.auth == auth)
                             .expect("invalid wallet implementation") as u16;
                     (op_out, seal)
                 })
                 .collect()
-        })
+        };
+        self.contracts.consume(reader, seal_resolver, sig_validator)
     }
 }
 
@@ -820,6 +846,10 @@ pub enum BundleError {
     /// which in turn require transaction to contain a change output.
     ChangeRequired,
 
+    /// neither invoice nor contract API contains information about the state name.
+    #[from(StateUnknown)]
+    StateNameUnknown,
+
     #[from]
     #[display(inner)]
     StateCalc(StateCalcError),
@@ -836,6 +866,7 @@ pub enum FulfillError {
     CallStateUnknown,
 
     /// neither invoice nor contract API contains information about the state name.
+    #[from(StateUnknown)]
     StateNameUnknown,
 
     /// the wallet doesn't own any state to fulfill the invoice.
@@ -853,7 +884,7 @@ pub enum FulfillError {
     /// call must not be set to None).
     WoutRequiresGiveaway,
 
-    /// invoice misses the value, and the method call also doesn't provide one
+    /// the invoice misses the value, and the method call also doesn't provide one
     ValueMissed,
 }
 
@@ -873,7 +904,7 @@ mod fs {
     use std::fs::File;
     use std::path::Path;
 
-    use hypersonic::persistance::StockFs;
+    use sonic_persist_fs::{FsError, StockFs};
     use strict_encoding::StreamReader;
 
     use super::*;
@@ -881,7 +912,7 @@ mod fs {
 
     impl<
             W: WalletProvider,
-            S: KeyedCollection<Key = CodexId, Value = Schema>,
+            S: KeyedCollection<Key = CodexId, Value = Issuer>,
             C: KeyedCollection<Key = ContractId, Value = Contract<StockFs, PileFs<TxoSeal>>>,
         > RgbWallet<W, StockpileDir<TxoSeal>, S, C>
     {
@@ -889,10 +920,11 @@ mod fs {
         pub fn consume_from_file(
             &mut self,
             path: impl AsRef<Path>,
-        ) -> Result<(), ConsumeError<WTxoSeal>> {
-            let file = File::open(path)?;
+            sig_validator: impl SigValidator,
+        ) -> Result<(), EitherError<ConsumeError<WTxoSeal>, FsError>> {
+            let file = File::open(path).map_err(EitherError::from_a)?;
             let mut reader = StrictReader::with(StreamReader::new::<{ usize::MAX }>(file));
-            self.consume(&mut reader)
+            self.consume(&mut reader, sig_validator)
         }
     }
 }

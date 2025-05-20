@@ -27,10 +27,10 @@ pub mod dir;
 
 use core::error::Error as StdError;
 
-use hypersonic::{CodexId, ContractId, Schema, Stock};
+use hypersonic::{CodexId, ContractId, IssueError, Stock};
 use rgb::RgbSeal;
 
-use crate::{Articles, Consensus, Contract, CreateParams, IssuerError, Pile};
+use crate::{Articles, Consensus, Contract, CreateParams, Issuer, IssuerError, Pile, TripleError};
 
 /// Stockpile provides a specific persistence implementation for the use in [`crate::Contracts`].
 /// It allows for it to abstract from a specific storage media, whether it is a file system,
@@ -68,17 +68,23 @@ pub trait Stockpile {
     fn codex_ids(&self) -> impl Iterator<Item = CodexId>;
     fn contract_ids(&self) -> impl Iterator<Item = ContractId>;
 
-    fn issuer(&self, codex_id: CodexId) -> Option<Schema>;
+    fn issuer(&self, codex_id: CodexId) -> Option<Issuer>;
     fn contract(&self, contract_id: ContractId) -> Option<Contract<Self::Stock, Self::Pile>>;
 
-    fn import_issuer(&mut self, issuer: Schema) -> Result<Schema, Self::Error>;
+    fn import_issuer(&mut self, issuer: Issuer) -> Result<Issuer, Self::Error>;
     fn import_articles(
         &mut self,
         articles: Articles,
-    ) -> Result<Contract<Self::Stock, Self::Pile>, IssuerError<<Self::Stock as Stock>::Error>>;
+    ) -> Result<
+        Contract<Self::Stock, Self::Pile>,
+        TripleError<IssueError, <Self::Stock as Stock>::Error, <Self::Pile as Pile>::Error>,
+    >;
 
     fn issue(
         &mut self,
         params: CreateParams<<<Self::Pile as Pile>::Seal as RgbSeal>::Definition>,
-    ) -> Result<Contract<Self::Stock, Self::Pile>, IssuerError<<Self::Stock as Stock>::Error>>;
+    ) -> Result<
+        Contract<Self::Stock, Self::Pile>,
+        TripleError<IssuerError, <Self::Stock as Stock>::Error, <Self::Pile as Pile>::Error>,
+    >;
 }

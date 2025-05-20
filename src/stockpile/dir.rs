@@ -29,14 +29,14 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::{fs, io};
 
-use hypersonic::persistance::StockFs;
 use hypersonic::IssueError;
 use rgb::RgbSeal;
+use sonic_persist_fs::{FsError, StockFs};
 use strict_encoding::{StrictDecode, StrictEncode};
 
 use crate::{
-    Articles, CodexId, Consensus, Contract, ContractId, CreateParams, IssuerError, Pile, PileFs,
-    Schema, Stockpile,
+    Articles, CodexId, Consensus, Contract, ContractId, CreateParams, Issuer, IssuerError, Pile,
+    PileFs, Stockpile, TripleError,
 };
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -94,8 +94,11 @@ impl<Seal: RgbSeal> StockpileDir<Seal> {
     pub fn dir(&self) -> &Path { self.dir.as_path() }
 
     fn contract_dir(&self, articles: &Articles) -> PathBuf {
-        self.dir
-            .join(format!("{}.{:-}.contract", articles.issue.meta.name, articles.contract_id()))
+        self.dir.join(format!(
+            "{}.{:-}.contract",
+            articles.issue().meta.name,
+            articles.contract_id()
+        ))
     }
 }
 
@@ -127,24 +130,24 @@ where
 
     fn contract_ids(&self) -> impl Iterator<Item = ContractId> { self.contracts.keys().copied() }
 
-    fn issuer(&self, codex_id: CodexId) -> Option<Schema> {
+    fn issuer(&self, codex_id: CodexId) -> Option<Issuer> {
         let name = self.issuers.get(&codex_id)?;
         let path = self.dir.join(format!("{name}.{codex_id:#}.issuer"));
-        Schema::load(path).ok()
+        Issuer::load(path).ok()
     }
 
     fn contract(&self, contract_id: ContractId) -> Option<Contract<Self::Stock, Self::Pile>> {
         let subdir = self.contracts.get(&contract_id)?;
         let path = self.dir.join(format!("{subdir}.{contract_id:-}.contract"));
         let contract = Contract::load(path.clone(), path).ok()?;
-        let meta = &contract.articles().issue.meta;
+        let meta = &contract.articles().issue().meta;
         if meta.consensus != self.consensus || meta.testnet != self.testnet {
             return None;
         }
         Some(contract)
     }
 
-    fn import_issuer(&mut self, issuer: Schema) -> Result<Schema, Self::Error> {
+    fn import_issuer(&mut self, issuer: Issuer) -> Result<Issuer, Self::Error> {
         let codex_id = issuer.codex.codex_id();
         let name = issuer.codex.name.to_string();
         let path = self.dir.join(format!("{name}.{codex_id:#}.issuer"));
@@ -156,16 +159,15 @@ where
     fn import_articles(
         &mut self,
         articles: Articles,
-    ) -> Result<Contract<Self::Stock, Self::Pile>, IssuerError<io::Error>> {
+    ) -> Result<Contract<Self::Stock, Self::Pile>, TripleError<IssueError, FsError, io::Error>>
+    {
         let contract_id = articles.contract_id();
-        let name = articles.issue.meta.name.to_string();
+        let name = articles.issue().meta.name.to_string();
         let dir = self.contract_dir(&articles);
-        if fs::exists(&dir).map_err(IssueError::OtherPersistence)? {
-            return Err(
-                IssueError::OtherPersistence(io::Error::other("Contract already exists")).into()
-            );
+        if fs::exists(&dir).map_err(TripleError::C)? {
+            return Err(TripleError::C(io::Error::other("Contract already exists")));
         }
-        fs::create_dir_all(&dir).map_err(IssueError::OtherPersistence)?;
+        fs::create_dir_all(&dir).map_err(TripleError::C)?;
         let contract = Contract::with_articles(articles, dir)?;
         self.contracts.insert(contract_id, name);
         Ok(contract)
@@ -174,22 +176,22 @@ where
     fn issue(
         &mut self,
         params: CreateParams<<<Self::Pile as Pile>::Seal as RgbSeal>::Definition>,
-    ) -> Result<Contract<Self::Stock, Self::Pile>, IssuerError<io::Error>> {
+    ) -> Result<Contract<Self::Stock, Self::Pile>, TripleError<IssuerError, FsError, io::Error>>
+    {
         let schema = self
             .issuer(params.codex_id)
-            .ok_or(IssuerError::UnknownCodex(params.codex_id))?;
+            .ok_or(TripleError::A(IssuerError::UnknownCodex(params.codex_id)))?;
         let contract = Contract::issue(schema, params, |articles| {
             let dir = self.contract_dir(articles);
-            if fs::exists(&dir).map_err(IssueError::OtherPersistence)? {
-                return Err(IssueError::OtherPersistence(io::Error::other(
-                    "Contract already exists",
-                )));
+            if fs::exists(&dir)? {
+                return Err(io::Error::other("Contract already exists").into());
             }
-            fs::create_dir_all(&dir).map_err(IssueError::OtherPersistence)?;
+            fs::create_dir_all(&dir)?;
             Ok(dir)
-        })?;
+        })
+        .map_err(TripleError::from_other_a)?;
         self.contracts
-            .insert(contract.contract_id(), contract.articles().issue.meta.name.to_string());
+            .insert(contract.contract_id(), contract.articles().issue().meta.name.to_string());
         Ok(contract)
     }
 }

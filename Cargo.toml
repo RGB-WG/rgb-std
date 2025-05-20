@@ -23,6 +23,7 @@ aora = ">=0.6.3"
 baid64 = "0.4.1"
 hypersonic = "=0.12.0-beta.6"
 sonic-callreq = "=0.12.0-beta.6"
+sonic-persist-fs = "=0.12.0-beta.6"
 sonix = "=0.12.0-beta.6"
 bp-core = "=0.12.0-beta.6"
 bp-invoice = "=0.12.0-beta.6"
@@ -64,6 +65,7 @@ commit_verify.workspace = true
 single_use_seals.workspace = true
 aora.workspace = true
 hypersonic.workspace = true
+sonic-persist-fs.workspace = true
 bp-core = { workspace = true, optional = true }
 bp-invoice = { workspace = true, optional = true }
 rgb-core.workspace = true
@@ -74,7 +76,7 @@ serde = { workspace = true, optional = true }
 serde_with = { workspace = true, optional = true }
 
 [dev-dependencies]
-rand = "0.8.4"
+rand = "0.9.1"
 
 [features]
 default = ["std", "bitcoin"]
@@ -86,7 +88,7 @@ liquid = ["rgb-core/liquid", "rgb-invoice/liquid"]
 prime = ["rgb-core/prime", "rgb-invoice/prime"]
 
 uri = ["rgb-invoice/uri"]
-fs = ["std", "hypersonic/persist-file", "aora/file-strict"]
+fs = ["std", "aora/file-strict"]
 
 stl = ["commit_verify/stl", "hypersonic/stl", "strict_types/armor", "bitcoin", "bp-core/stl"]
 
@@ -107,8 +109,9 @@ serde = [
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2"
-rand = { version = "0.8.4", optional = true }
-getrandom = { version = "0.2", features = ["js"] }
+rand = { version = "0.9.1", optional = true }
+getrandom = { version = "0.3", features = ["wasm_js"] }
+getrandom2 = { package = "getrandom", version = "0.2", features = ["js"] }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-test = "0.3"
@@ -116,11 +119,18 @@ wasm-bindgen-test = "0.3"
 [package.metadata.docs.rs]
 features = ["all"]
 
+[lints.rust]
+unexpected_cfgs = { level = "allow", check-cfg = ['cfg(coverage_nightly)'] }
+
 [patch.crates-io]
-commit_verify = { git = "https://github.com/LNP-BP/client_side_validation", branch = "v0.12" }
-single_use_seals = { git = "https://github.com/LNP-BP/client_side_validation", branch = "v0.12" }
-sonic-callreq = { git = "https://github.com/AluVM/sonic", branch = "v0.12" }
-sonic-api = { git = "https://github.com/AluVM/sonic", branch = "v0.12" }
-hypersonic = { git = "https://github.com/AluVM/sonic", branch = "v0.12" }
-sonix = { git = "https://github.com/AluVM/sonic", branch = "v0.12" }
-rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "v0.12" }
+single_use_seals = { git = "https://github.com/LNP-BP/client_side_validation", branch = "revision" }
+commit_verify = { git = "https://github.com/LNP-BP/client_side_validation", branch = "revision" }
+aluvm = { git = "https://github.com/AluVM/aluvm", branch = "revision" }
+zk-aluvm = { git = "https://github.com/AluVM/zk-aluvm", branch = "revision" }
+ultrasonic = { git = "https://github.com/AluVM/ultrasonic", branch = "revision" }
+sonic-callreq = { git = "https://github.com/AluVM/sonic", branch = "revision" }
+sonic-api = { git = "https://github.com/AluVM/sonic", branch = "revision" }
+sonic-persist-fs = { git = "https://github.com/AluVM/sonic", branch = "revision" }
+hypersonic = { git = "https://github.com/AluVM/sonic", branch = "revision" }
+sonix = { git = "https://github.com/AluVM/sonic", branch = "revision" }
+rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "revision" }

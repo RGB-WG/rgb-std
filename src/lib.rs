@@ -22,8 +22,22 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
+// TODO: Activate once StrictEncoding will be no_std
+// #![cfg_attr(not(feature = "std"), no_std)]
+#![deny(
+    unsafe_code,
+    dead_code,
+    // TODO: Complete documentation
+    // missing_docs,
+    unused_variables,
+    unused_mut,
+    unused_imports,
+    non_upper_case_globals,
+    non_camel_case_types,
+    non_snake_case
+)]
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
-#![cfg_attr(not(feature = "std"), no_std)]
 #![allow(clippy::type_complexity)]
 
 extern crate alloc;
@@ -67,3 +81,53 @@ pub use rgb::*;
 pub use stockpile::dir::StockpileDir;
 pub use stockpile::Stockpile;
 pub use util::{ContractRef, InvalidContractRef};
+
+// TODO: Move to amplify crate
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Display, Error)]
+#[display(inner)]
+pub enum TripleError<A: core::error::Error, B: core::error::Error, C: core::error::Error> {
+    A(A),
+    B(B),
+    C(C),
+}
+
+impl<A: core::error::Error, B: core::error::Error, C: core::error::Error> TripleError<A, B, C> {
+    pub fn from_a(a: impl Into<A>) -> Self { Self::A(a.into()) }
+    pub fn from_b(a: impl Into<B>) -> Self { Self::B(a.into()) }
+    pub fn from_c(c: impl Into<C>) -> Self { Self::C(c.into()) }
+
+    pub fn from_other_a<A2: core::error::Error + Into<A>>(e: TripleError<A2, B, C>) -> Self {
+        match e {
+            TripleError::A(a) => Self::A(a.into()),
+            TripleError::B(b) => Self::B(b),
+            TripleError::C(c) => Self::C(c),
+        }
+    }
+
+    pub fn from_other_b<B2: core::error::Error + Into<B>>(e: TripleError<A, B2, C>) -> Self {
+        match e {
+            TripleError::A(a) => Self::A(a),
+            TripleError::B(b) => Self::B(b.into()),
+            TripleError::C(c) => Self::C(c),
+        }
+    }
+
+    pub fn from_other_c<C2: core::error::Error + Into<C>>(e: TripleError<A, B, C2>) -> Self {
+        match e {
+            TripleError::A(a) => Self::A(a),
+            TripleError::B(b) => Self::B(b),
+            TripleError::C(c) => Self::C(c.into()),
+        }
+    }
+}
+
+impl<A: core::error::Error, B: core::error::Error, C: core::error::Error> From<EitherError<A, B>>
+    for TripleError<A, B, C>
+{
+    fn from(e: EitherError<A, B>) -> Self {
+        match e {
+            EitherError::A(a) => Self::A(a),
+            EitherError::B(b) => Self::B(b),
+        }
+    }
+}
