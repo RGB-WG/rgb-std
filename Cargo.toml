@@ -3,7 +3,7 @@ members = [".", "cli", "invoice"]
 default-members = [".", "invoice"]
 
 [workspace.package]
-version = "0.12.0-beta.6"
+version = "0.12.0-rc.1"
 keywords = ["bitcoin", "lightning", "rgb", "smart-contracts", "lnp-bp"]
 categories = ["cryptography::cryptocurrencies"]
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
@@ -14,22 +14,22 @@ edition = "2021"
 license = "Apache-2.0"
 
 [workspace.dependencies]
-amplify = "4.8.1"
-strict_encoding = "2.8.2"
-strict_types = "2.8.3"
-commit_verify = "=0.12.0-beta.6"
-single_use_seals = "=0.12.0-beta.6"
+amplify = "4.9.0"
+strict_encoding = "2.9.1"
+strict_types = "2.9.0"
+commit_verify = "0.12.0-rc.1"
+single_use_seals = "0.12.0-rc.1"
 aora = ">=0.6.3"
 baid64 = "0.4.1"
-hypersonic = "=0.12.0-beta.6"
-sonic-callreq = "=0.12.0-beta.6"
-sonic-persist-fs = "=0.12.0-beta.6"
-sonix = "=0.12.0-beta.6"
-bp-core = "=0.12.0-beta.6"
-bp-invoice = "=0.12.0-beta.6"
-rgb-core = "=0.12.0-beta.6"
-rgb-std = { version = "=0.12.0-beta.6", path = "." }
-rgb-invoice = { version = "=0.12.0-beta.6", path = "./invoice" }
+hypersonic = "0.12.0-rc.1"
+sonic-callreq = "0.12.0-rc.1"
+sonic-persist-fs = "0.12.0-rc.1"
+sonix = "0.12.0-rc.1"
+bp-core = "0.12.0-rc.1"
+bp-invoice = "0.12.0-rc.1"
+rgb-core = "0.12.0-rc.1"
+rgb-std = { version = "0.12.0-rc.1", path = "." }
+rgb-invoice = { version = "0.12.0-rc.1", path = "./invoice" }
 indexmap = "2.9.0"
 chrono = "0.4.39"
 serde = "1.0.215"
@@ -80,7 +80,7 @@ rand = "0.9.1"
 
 [features]
 default = ["std", "bitcoin"]
-all = ["std", "bitcoin", "liquid", "prime", "fs", "stl", "serde"]
+all = ["std", "bitcoin", "liquid", "prime", "fs", "uri", "stl", "serde"]
 std = ["rgb-invoice/std", "indexmap/std"]
 
 bitcoin = ["bp-core", "bp-invoice", "rgb-core/bitcoin", "rgb-invoice/bitcoin"]
@@ -121,16 +121,3 @@ features = ["all"]
 
 [lints.rust]
 unexpected_cfgs = { level = "allow", check-cfg = ['cfg(coverage_nightly)'] }
-
-[patch.crates-io]
-single_use_seals = { git = "https://github.com/LNP-BP/client_side_validation", branch = "revision" }
-commit_verify = { git = "https://github.com/LNP-BP/client_side_validation", branch = "revision" }
-aluvm = { git = "https://github.com/AluVM/aluvm", branch = "revision" }
-zk-aluvm = { git = "https://github.com/AluVM/zk-aluvm", branch = "revision" }
-ultrasonic = { git = "https://github.com/AluVM/ultrasonic", branch = "revision" }
-sonic-callreq = { git = "https://github.com/AluVM/sonic", branch = "revision" }
-sonic-api = { git = "https://github.com/AluVM/sonic", branch = "revision" }
-sonic-persist-fs = { git = "https://github.com/AluVM/sonic", branch = "revision" }
-hypersonic = { git = "https://github.com/AluVM/sonic", branch = "revision" }
-sonix = { git = "https://github.com/AluVM/sonic", branch = "revision" }
-rgb-core = { git = "https://github.com/RGB-WG/rgb-core", branch = "revision" }

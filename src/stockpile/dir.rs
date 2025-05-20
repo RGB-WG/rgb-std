@@ -29,6 +29,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::{fs, io};
 
+use amplify::MultiError;
 use hypersonic::IssueError;
 use rgb::RgbSeal;
 use sonic_persist_fs::{FsError, StockFs};
@@ -36,7 +37,7 @@ use strict_encoding::{StrictDecode, StrictEncode};
 
 use crate::{
     Articles, CodexId, Consensus, Contract, ContractId, CreateParams, Issuer, IssuerError, Pile,
-    PileFs, Stockpile, TripleError,
+    PileFs, Stockpile,
 };
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -159,15 +160,14 @@ where
     fn import_articles(
         &mut self,
         articles: Articles,
-    ) -> Result<Contract<Self::Stock, Self::Pile>, TripleError<IssueError, FsError, io::Error>>
-    {
+    ) -> Result<Contract<Self::Stock, Self::Pile>, MultiError<IssueError, FsError, io::Error>> {
         let contract_id = articles.contract_id();
         let name = articles.issue().meta.name.to_string();
         let dir = self.contract_dir(&articles);
-        if fs::exists(&dir).map_err(TripleError::C)? {
-            return Err(TripleError::C(io::Error::other("Contract already exists")));
+        if fs::exists(&dir).map_err(MultiError::C)? {
+            return Err(MultiError::C(io::Error::other("Contract already exists")));
         }
-        fs::create_dir_all(&dir).map_err(TripleError::C)?;
+        fs::create_dir_all(&dir).map_err(MultiError::C)?;
         let contract = Contract::with_articles(articles, dir)?;
         self.contracts.insert(contract_id, name);
         Ok(contract)
@@ -176,11 +176,11 @@ where
     fn issue(
         &mut self,
         params: CreateParams<<<Self::Pile as Pile>::Seal as RgbSeal>::Definition>,
-    ) -> Result<Contract<Self::Stock, Self::Pile>, TripleError<IssuerError, FsError, io::Error>>
+    ) -> Result<Contract<Self::Stock, Self::Pile>, MultiError<IssuerError, FsError, io::Error>>
     {
         let schema = self
             .issuer(params.codex_id)
-            .ok_or(TripleError::A(IssuerError::UnknownCodex(params.codex_id)))?;
+            .ok_or(MultiError::A(IssuerError::UnknownCodex(params.codex_id)))?;
         let contract = Contract::issue(schema, params, |articles| {
             let dir = self.contract_dir(articles);
             if fs::exists(&dir)? {
@@ -189,7 +189,7 @@ where
             fs::create_dir_all(&dir)?;
             Ok(dir)
         })
-        .map_err(TripleError::from_other_a)?;
+        .map_err(MultiError::from_other_a)?;
         self.contracts
             .insert(contract.contract_id(), contract.articles().issue().meta.name.to_string());
         Ok(contract)

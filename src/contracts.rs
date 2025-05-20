@@ -29,9 +29,10 @@ use std::collections::HashMap;
 use std::io;
 
 use amplify::confinement::{KeyedCollection, SmallOrdMap};
+use amplify::MultiError;
 use hypersonic::{
-    AcceptError, AuthToken, CallParams, CodexId, ContractId, ContractName, EitherError, Opid,
-    SigValidator, Stock,
+    AcceptError, AuthToken, CallParams, CodexId, ContractId, ContractName, Opid, SigValidator,
+    Stock,
 };
 use rgb::RgbSeal;
 use strict_encoding::{
@@ -40,7 +41,7 @@ use strict_encoding::{
 
 use crate::{
     Articles, CallError, Consensus, ConsumeError, Contract, ContractRef, ContractState,
-    CreateParams, Issuer, Operation, Pile, Stockpile, TripleError, WitnessStatus,
+    CreateParams, Issuer, Operation, Pile, Stockpile, WitnessStatus,
 };
 
 /// Collection of RGB smart contracts and contract issuers, which can be cached in memory.
@@ -227,16 +228,16 @@ where
         &self,
         consensus: Consensus,
         testnet: bool,
-    ) -> Result<(), TripleError<IssuerError, <Sp::Stock as Stock>::Error, <Sp::Pile as Pile>::Error>>
+    ) -> Result<(), MultiError<IssuerError, <Sp::Stock as Stock>::Error, <Sp::Pile as Pile>::Error>>
     {
         if consensus != self.persistence.consensus() {
-            return Err(TripleError::A(IssuerError::ConsensusMismatch));
+            return Err(MultiError::A(IssuerError::ConsensusMismatch));
         }
         if testnet != self.persistence.is_testnet() {
             Err(if testnet {
-                TripleError::A(IssuerError::TestnetMismatch)
+                MultiError::A(IssuerError::TestnetMismatch)
             } else {
-                TripleError::A(IssuerError::MainnetMismatch)
+                MultiError::A(IssuerError::MainnetMismatch)
             })
         } else {
             Ok(())
@@ -248,14 +249,14 @@ where
         articles: Articles,
     ) -> Result<
         ContractId,
-        TripleError<IssuerError, <Sp::Stock as Stock>::Error, <Sp::Pile as Pile>::Error>,
+        MultiError<IssuerError, <Sp::Stock as Stock>::Error, <Sp::Pile as Pile>::Error>,
     > {
         let meta = &articles.issue().meta;
         self.check_layer1(meta.consensus, meta.testnet)?;
         let contract = self
             .persistence
             .import_articles(articles)
-            .map_err(TripleError::from_other_a)?;
+            .map_err(MultiError::from_other_a)?;
         let contract_id = contract.contract_id();
         self.contracts.borrow_mut().insert(contract_id, contract);
         Ok(contract_id)
@@ -266,7 +267,7 @@ where
         params: CreateParams<<<Sp::Pile as Pile>::Seal as RgbSeal>::Definition>,
     ) -> Result<
         ContractId,
-        TripleError<IssuerError, <Sp::Stock as Stock>::Error, <Sp::Pile as Pile>::Error>,
+        MultiError<IssuerError, <Sp::Stock as Stock>::Error, <Sp::Pile as Pile>::Error>,
     > {
         self.check_layer1(params.consensus, params.testnet)?;
         let contract = self.persistence.issue(params)?;
@@ -280,14 +281,14 @@ where
         contract_id: ContractId,
         call: CallParams,
         seals: SmallOrdMap<u16, <<Sp::Pile as Pile>::Seal as RgbSeal>::Definition>,
-    ) -> Result<Operation, EitherError<AcceptError, <Sp::Stock as Stock>::Error>> {
+    ) -> Result<Operation, MultiError<AcceptError, <Sp::Stock as Stock>::Error>> {
         self.with_contract_mut(contract_id, |contract| contract.call(call, seals))
     }
 
     pub fn sync<'a, I>(
         &mut self,
         changed: I,
-    ) -> Result<(), EitherError<AcceptError, <Sp::Stock as Stock>::Error>>
+    ) -> Result<(), MultiError<AcceptError, <Sp::Stock as Stock>::Error>>
     where
         I: IntoIterator<
                 Item = (&'a <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId, &'a WitnessStatus),
@@ -337,7 +338,7 @@ where
         sig_validator: impl SigValidator,
     ) -> Result<
         (),
-        EitherError<
+        MultiError<
             ConsumeError<<<Sp::Pile as Pile>::Seal as RgbSeal>::Definition>,
             <Sp::Stock as Stock>::Error,
         >,
@@ -348,9 +349,9 @@ where
         <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId: StrictDecode,
     {
         let contract_id =
-            Contract::<Sp::Stock, Sp::Pile>::parse_consignment(reader).map_err(EitherError::A)?;
+            Contract::<Sp::Stock, Sp::Pile>::parse_consignment(reader).map_err(MultiError::A)?;
         if !self.has_contract(contract_id) {
-            return Err(EitherError::A(ConsumeError::UnknownContract(contract_id)));
+            return Err(MultiError::A(ConsumeError::UnknownContract(contract_id)));
         };
 
         self.with_contract_mut(contract_id, |contract| {
@@ -423,7 +424,7 @@ mod fs {
             sig_validator: impl SigValidator,
         ) -> Result<
             (),
-            EitherError<
+            MultiError<
                 ConsumeError<<<Sp::Pile as Pile>::Seal as RgbSeal>::Definition>,
                 <Sp::Stock as Stock>::Error,
             >,
@@ -433,7 +434,7 @@ mod fs {
             <<Sp::Pile as Pile>::Seal as RgbSeal>::Published: StrictDecode,
             <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId: StrictDecode,
         {
-            let file = File::open(path).map_err(EitherError::from_a)?;
+            let file = File::open(path).map_err(MultiError::from_a)?;
             let mut reader = StrictReader::with(StreamReader::new::<{ usize::MAX }>(file));
             self.consume(&mut reader, seal_resolver, sig_validator)
         }

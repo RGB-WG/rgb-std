@@ -33,7 +33,7 @@ use std::collections::HashMap;
 use amplify::confinement::{
     Collection, KeyedCollection, NonEmptyVec, SmallOrdMap, SmallOrdSet, U8 as U8MAX,
 };
-use amplify::{confinement, ByteArray, Bytes32, Wrapper};
+use amplify::{confinement, ByteArray, Bytes32, MultiError, Wrapper};
 use bp::dbc::tapret::TapretProof;
 pub use bp::seals;
 use bp::seals::{mmb, Anchor, Noise, TxoSeal, TxoSealExt, WOutpoint, WTxoSeal};
@@ -41,9 +41,9 @@ use bp::{Outpoint, Sats, ScriptPubkey, Tx, Vout};
 use commit_verify::mpc::ProtocolId;
 use commit_verify::{mpc, Digest, DigestExt, Sha256};
 use hypersonic::{
-    AcceptError, AuthToken, CallParams, CellAddr, ContractId, CoreParams, DataCell, EitherError,
-    MethodName, NamedState, Operation, Satisfaction, StateAtom, StateCalc, StateCalcError,
-    StateName, StateUnknown, Stock,
+    AcceptError, AuthToken, CallParams, CellAddr, ContractId, CoreParams, DataCell, MethodName,
+    NamedState, Operation, Satisfaction, StateAtom, StateCalc, StateCalcError, StateName,
+    StateUnknown, Stock,
 };
 use invoice::bp::{Address, WitnessOut};
 use invoice::{RgbBeneficiary, RgbInvoice};
@@ -56,7 +56,7 @@ use strict_types::StrictVal;
 
 use crate::{
     Assignment, CodexId, Consensus, ConsumeError, Contract, ContractState, Contracts, CreateParams,
-    EitherSeal, Issuer, IssuerError, Pile, SigValidator, Stockpile, TripleError,
+    EitherSeal, Issuer, IssuerError, Pile, SigValidator, Stockpile,
 };
 
 /// Trait abstracting a specific implementation of a bitcoin wallet.
@@ -405,7 +405,7 @@ where
         params: CreateParams<Outpoint>,
     ) -> Result<
         ContractId,
-        TripleError<IssuerError, <Sp::Stock as Stock>::Error, <Sp::Pile as Pile>::Error>,
+        MultiError<IssuerError, <Sp::Stock as Stock>::Error, <Sp::Pile as Pile>::Error>,
     > {
         self.contracts.issue(params.transform(self.noise_engine()))
     }
@@ -584,8 +584,8 @@ where
     pub fn prefab(
         &mut self,
         request: OpRequest<PrefabSeal>,
-    ) -> Result<Prefab, EitherError<PrefabError, <Sp::Stock as Stock>::Error>> {
-        self.check_request(&request).map_err(EitherError::from_a)?;
+    ) -> Result<Prefab, MultiError<PrefabError, <Sp::Stock as Stock>::Error>> {
+        self.check_request(&request).map_err(MultiError::from_a)?;
 
         // convert ConstructParams into CallParams
         let (closes, using) = request
@@ -593,8 +593,8 @@ where
             .into_iter()
             .map(|used| (used.outpoint, (used.addr, used.satisfaction)))
             .unzip();
-        let closes = SmallOrdSet::try_from(closes)
-            .map_err(|_| EitherError::A(PrefabError::TooManyInputs))?;
+        let closes =
+            SmallOrdSet::try_from(closes).map_err(|_| MultiError::A(PrefabError::TooManyInputs))?;
         let mut defines = SmallOrdSet::new();
 
         let mut seals = SmallOrdMap::new();
@@ -607,7 +607,7 @@ where
                 EitherSeal::Alt(seal) => {
                     defines
                         .push(seal.vout)
-                        .map_err(|_| EitherError::A(PrefabError::TooManyOutputs))?;
+                        .map_err(|_| MultiError::A(PrefabError::TooManyOutputs))?;
                     let primary = WOutpoint::Wout(seal.vout);
                     let noise = seal.noise.unwrap_or_else(|| {
                         Noise::with(primary, noise_engine.clone(), opout_no as u64)
@@ -632,7 +632,7 @@ where
         let operation = self
             .contracts
             .contract_call(request.contract_id, call, seals)
-            .map_err(EitherError::from_other_a)?;
+            .map_err(MultiError::from_other_a)?;
 
         Ok(Prefab { closes, defines, operation })
     }
@@ -652,14 +652,14 @@ where
         &mut self,
         requests: impl IntoIterator<Item = OpRequest<PrefabSeal>>,
         change: Option<Vout>,
-    ) -> Result<PrefabBundle, EitherError<BundleError, <Sp::Stock as Stock>::Error>> {
+    ) -> Result<PrefabBundle, MultiError<BundleError, <Sp::Stock as Stock>::Error>> {
         let ops = requests.into_iter().map(|params| self.prefab(params));
 
         let mut outpoints = BTreeSet::<Outpoint>::new();
         let mut contracts = BTreeSet::new();
         let mut prefabs = BTreeSet::new();
         for prefab in ops {
-            let prefab = prefab.map_err(EitherError::from_other_a)?;
+            let prefab = prefab.map_err(MultiError::from_other_a)?;
             contracts.insert(prefab.operation.contract_id);
             outpoints.extend(&prefab.closes);
             prefabs.insert(prefab);
@@ -697,13 +697,13 @@ where
             for (name, state) in prev {
                 let calc = match calcs.entry(name.clone()) {
                     Entry::Vacant(entry) => {
-                        let calc = api.calculate(name).map_err(EitherError::from_a)?;
+                        let calc = api.calculate(name).map_err(MultiError::from_a)?;
                         entry.insert(calc)
                     }
                     Entry::Occupied(entry) => entry.into_mut(),
                 };
                 calc.accumulate(&state.assignment.data)
-                    .map_err(EitherError::from_a)?;
+                    .map_err(MultiError::from_a)?;
             }
 
             let mut owned = Vec::new();
@@ -711,8 +711,8 @@ where
             let mut noise_engine = root_noise_engine.clone();
             noise_engine.input_raw(contract_id.as_slice());
             for (name, calc) in calcs {
-                for data in calc.diff().map_err(EitherError::from_a)? {
-                    let vout = change.ok_or(EitherError::A(BundleError::ChangeRequired))?;
+                for data in calc.diff().map_err(MultiError::from_a)? {
+                    let vout = change.ok_or(MultiError::A(BundleError::ChangeRequired))?;
                     let noise =
                         Some(Noise::with(WOutpoint::Wout(vout), noise_engine.clone(), nonce));
                     let change = PrefabSeal { vout, noise };
@@ -738,15 +738,15 @@ where
 
         for request in blank_requests {
             let prefab = self.prefab(request).map_err(|err| match err {
-                EitherError::A(e) => EitherError::A(BundleError::Blank(e)),
-                EitherError::B(e) => EitherError::B(e),
+                MultiError::A(e) => MultiError::A(BundleError::Blank(e)),
+                MultiError::B(e) => MultiError::B(e),
             })?;
             prefabs.push(prefab);
         }
 
         Ok(PrefabBundle(
             SmallOrdSet::try_from(prefabs)
-                .map_err(|_| EitherError::A(BundleError::TooManyBlanks))?,
+                .map_err(|_| MultiError::A(BundleError::TooManyBlanks))?,
         ))
     }
 
@@ -789,7 +789,7 @@ where
         &mut self,
         reader: &mut StrictReader<impl ReadRaw>,
         sig_validator: impl SigValidator,
-    ) -> Result<(), EitherError<ConsumeError<WTxoSeal>, <Sp::Stock as Stock>::Error>> {
+    ) -> Result<(), MultiError<ConsumeError<WTxoSeal>, <Sp::Stock as Stock>::Error>> {
         let seal_resolver = |op: &Operation| {
             self.wallet
                 .resolve_seals(op.destructible_out.iter().map(|cell| cell.auth))
@@ -921,8 +921,8 @@ mod fs {
             &mut self,
             path: impl AsRef<Path>,
             sig_validator: impl SigValidator,
-        ) -> Result<(), EitherError<ConsumeError<WTxoSeal>, FsError>> {
-            let file = File::open(path).map_err(EitherError::from_a)?;
+        ) -> Result<(), MultiError<ConsumeError<WTxoSeal>, FsError>> {
+            let file = File::open(path).map_err(MultiError::from_a)?;
             let mut reader = StrictReader::with(StreamReader::new::<{ usize::MAX }>(file));
             self.consume(&mut reader, sig_validator)
         }

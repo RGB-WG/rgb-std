@@ -30,14 +30,14 @@ use std::io;
 
 use amplify::confinement::SmallOrdMap;
 use amplify::hex::ToHex;
-use amplify::IoError;
+use amplify::{IoError, MultiError};
 use chrono::{DateTime, Utc};
 use commit_verify::ReservedBytes;
 use hypersonic::{
     AcceptError, Articles, ArticlesError, AuthToken, CallParams, CellAddr, Codex, CodexId,
-    Consensus, ContractId, CoreParams, DataCell, EffectiveState, EitherError, IssueError,
-    IssueParams, Ledger, LibRepo, Memory, MethodName, NamedState, Operation, Opid, SigValidator,
-    StateAtom, StateName, Stock, Transition,
+    Consensus, ContractId, CoreParams, DataCell, EffectiveState, IssueError, IssueParams, Ledger,
+    LibRepo, Memory, MethodName, NamedState, Operation, Opid, SigValidator, StateAtom, StateName,
+    Stock, Transition,
 };
 use indexmap::{IndexMap, IndexSet};
 use rgb::{
@@ -52,8 +52,8 @@ use strict_encoding::{
 use strict_types::StrictVal;
 
 use crate::{
-    ApiDescriptor, ContractMeta, Issue, Issuer, OpRels, Pile, TripleError, VerifiedOperation,
-    Witness, WitnessStatus,
+    ApiDescriptor, ContractMeta, Issue, Issuer, OpRels, Pile, VerifiedOperation, Witness,
+    WitnessStatus,
 };
 
 pub const CONSIGNMENT_MAGIC_NUMBER: [u8; 8] = *b"RGBCNSGN";
@@ -274,15 +274,15 @@ impl<S: Stock, P: Pile> Contract<S, P> {
     pub fn with_articles(
         articles: Articles,
         conf: S::Conf,
-    ) -> Result<Self, TripleError<IssueError, S::Error, P::Error>>
+    ) -> Result<Self, MultiError<IssueError, S::Error, P::Error>>
     where
         P::Conf: From<S::Conf>,
     {
         let contract_id = articles.contract_id();
         let genesis_opid = articles.genesis_opid();
-        let ledger = Ledger::new(articles, conf).map_err(TripleError::from)?;
+        let ledger = Ledger::new(articles, conf).map_err(MultiError::with_third)?;
         let conf: S::Conf = ledger.config();
-        let mut pile = P::new(conf.into()).map_err(TripleError::C)?;
+        let mut pile = P::new(conf.into()).map_err(MultiError::C)?;
         pile.add_seals(genesis_opid, none!());
         Ok(Self { ledger, pile, contract_id })
     }
@@ -291,7 +291,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         issuer: Issuer,
         params: CreateParams<<P::Seal as RgbSeal>::Definition>,
         conf: impl FnOnce(&Articles) -> Result<S::Conf, S::Error>,
-    ) -> Result<Self, TripleError<IssueError, S::Error, P::Error>>
+    ) -> Result<Self, MultiError<IssueError, S::Error, P::Error>>
     where
         P::Conf: From<S::Conf>,
     {
@@ -331,13 +331,13 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         };
 
         let articles = issuer.issue(params);
-        let conf = conf(&articles).map_err(TripleError::B)?;
-        let ledger = Ledger::new(articles, conf)?;
+        let conf = conf(&articles).map_err(MultiError::B)?;
+        let ledger = Ledger::new(articles, conf).map_err(MultiError::with_third)?;
         let conf: S::Conf = ledger.config();
         let contract_id = ledger.contract_id();
 
         // Init seals
-        let mut pile = P::new(conf.into()).map_err(TripleError::C)?;
+        let mut pile = P::new(conf.into()).map_err(MultiError::C)?;
         pile.add_seals(ledger.articles().genesis_opid(), seals);
 
         Ok(Self { ledger, pile, contract_id })
@@ -346,10 +346,10 @@ impl<S: Stock, P: Pile> Contract<S, P> {
     pub fn load(
         stock_conf: S::Conf,
         pile_conf: P::Conf,
-    ) -> Result<Self, EitherError<S::Error, P::Error>> {
-        let ledger = Ledger::load(stock_conf).map_err(EitherError::A)?;
+    ) -> Result<Self, MultiError<S::Error, P::Error>> {
+        let ledger = Ledger::load(stock_conf).map_err(MultiError::A)?;
         let contract_id = ledger.contract_id();
-        let pile = P::load(pile_conf).map_err(EitherError::B)?;
+        let pile = P::load(pile_conf).map_err(MultiError::B)?;
         Ok(Self { ledger, pile, contract_id })
     }
 
@@ -471,7 +471,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
     pub fn sync(
         &mut self,
         changed: impl IntoIterator<Item = (<P::Seal as RgbSeal>::WitnessId, WitnessStatus)>,
-    ) -> Result<(), EitherError<AcceptError, S::Error>> {
+    ) -> Result<(), MultiError<AcceptError, S::Error>> {
         // Step 1: Sanitize the list of changed wids
         let mut affected_wids = IndexMap::new();
         for (wid, status) in changed {
@@ -527,7 +527,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         debug_assert_eq!(forward.intersection(&roll_back).count(), 0);
 
         // Step 5: Perform rollback and forward operations
-        self.ledger.rollback(roll_back).map_err(EitherError::B)?;
+        self.ledger.rollback(roll_back).map_err(MultiError::B)?;
         // Ledger has already committed as a part of `rollback`
         self.pile.commit_transaction();
 
@@ -542,7 +542,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         &mut self,
         call: CallParams,
         seals: SmallOrdMap<u16, <P::Seal as RgbSeal>::Definition>,
-    ) -> Result<Operation, EitherError<AcceptError, S::Error>> {
+    ) -> Result<Operation, MultiError<AcceptError, S::Error>> {
         let opid = self.ledger.call(call)?;
         let operation = self.ledger.operation(opid);
         debug_assert_eq!(operation.opid(), opid);
@@ -612,7 +612,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         reader: &mut StrictReader<impl ReadRaw>,
         seal_resolver: impl FnMut(&Operation) -> BTreeMap<u16, <P::Seal as RgbSeal>::Definition>,
         sig_validator: impl SigValidator,
-    ) -> Result<(), EitherError<ConsumeError<<P::Seal as RgbSeal>::Definition>, S::Error>>
+    ) -> Result<(), MultiError<ConsumeError<<P::Seal as RgbSeal>::Definition>, S::Error>>
     where
         <P::Seal as RgbSeal>::Client: StrictDecode,
         <P::Seal as RgbSeal>::Published: StrictDecode,
@@ -639,11 +639,11 @@ impl<S: Stock, P: Pile> Contract<S, P> {
 
             Ok(articles)
         })()
-        .map_err(EitherError::A)?;
+        .map_err(MultiError::A)?;
 
         self.ledger
             .merge_articles(articles, sig_validator)
-            .map_err(EitherError::from_other_a)?;
+            .map_err(MultiError::from_other_a)?;
         Ok(())
     }
 

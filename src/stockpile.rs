@@ -27,10 +27,11 @@ pub mod dir;
 
 use core::error::Error as StdError;
 
+use amplify::MultiError;
 use hypersonic::{CodexId, ContractId, IssueError, Stock};
 use rgb::RgbSeal;
 
-use crate::{Articles, Consensus, Contract, CreateParams, Issuer, IssuerError, Pile, TripleError};
+use crate::{Articles, Consensus, Contract, CreateParams, Issuer, IssuerError, Pile};
 
 /// Stockpile provides a specific persistence implementation for the use in [`crate::Contracts`].
 /// It allows for it to abstract from a specific storage media, whether it is a file system,
@@ -77,7 +78,7 @@ pub trait Stockpile {
         articles: Articles,
     ) -> Result<
         Contract<Self::Stock, Self::Pile>,
-        TripleError<IssueError, <Self::Stock as Stock>::Error, <Self::Pile as Pile>::Error>,
+        MultiError<IssueError, <Self::Stock as Stock>::Error, <Self::Pile as Pile>::Error>,
     >;
 
     fn issue(
@@ -85,6 +86,6 @@ pub trait Stockpile {
         params: CreateParams<<<Self::Pile as Pile>::Seal as RgbSeal>::Definition>,
     ) -> Result<
         Contract<Self::Stock, Self::Pile>,
-        TripleError<IssuerError, <Self::Stock as Stock>::Error, <Self::Pile as Pile>::Error>,
+        MultiError<IssuerError, <Self::Stock as Stock>::Error, <Self::Pile as Pile>::Error>,
     >;
 }
