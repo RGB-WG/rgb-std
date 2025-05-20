@@ -576,7 +576,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
     }
 
     pub fn consign(
-        &mut self,
+        &self,
         terminals: impl IntoIterator<Item = impl Borrow<AuthToken>>,
         mut writer: StrictWriter<impl WriteRaw>,
     ) -> io::Result<()>
@@ -793,7 +793,7 @@ mod fs {
         SealSrc::WitnessId: Ord + From<[u8; 32]> + Into<[u8; 32]>,
     {
         pub fn consign_to_file(
-            &mut self,
+            &self,
             path: impl AsRef<Path>,
             terminals: impl IntoIterator<Item = impl Borrow<AuthToken>>,
         ) -> io::Result<()>
