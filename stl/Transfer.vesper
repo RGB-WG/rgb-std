@@ -14,9 +14,9 @@ commitment ConsignmentId, hasher SHA256, tagged urn:lnp-bp:rgb:consignment#2024-
   serialized DiscloseHash
   set DiscloseHash, len 0..MAX32
     element DiscloseHash
-  map SecretSeal, len 0..MAX16
+  map SecretSeals, len 0..MAX16
     mapKey BundleId
-    mapValue SecretSeal
+    mapValue SecretSeals
   serialized TypeSysId
   set LibId, len 0..MAX16
     element LibId
@@ -26,7 +26,8 @@ rec Consignmenttrue
   enum transfer, Bool, false 0, true 1
   map terminals, len 0..MAX16
     bytes key, len 32, aka BundleId
-    bytes value, len 32, aka SecretSeal
+    set value, len 1..MAX16, aka SecretSeals
+      bytes element, len 32, aka SecretSeal
   rec genesis, Genesis
     is ffv, U16, aka Ffv
     bytes schemaId, len 32, aka SchemaId

@@ -46,7 +46,7 @@ use super::{
     StateInconsistency, StateProvider, StateReadProvider, StateWriteProvider, StoreTransaction,
 };
 use crate::containers::{
-    Consignment, ContainerVer, Contract, Fascia, Kit, Transfer, TransitionInfoError,
+    Consignment, ContainerVer, Contract, Fascia, Kit, SecretSeals, Transfer, TransitionInfoError,
     ValidConsignment, ValidContract, ValidKit, ValidTransfer, WitnessBundle,
 };
 use crate::contract::{
@@ -153,6 +153,9 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider, E: Error> From<IndexE
 pub enum ConsignError {
     /// unable to construct consignment: too many terminals provided.
     TooManyTerminals,
+
+    /// unable to construct consignment: invalid number of secret seals.
+    InvalidSecretSealsNumber,
 
     /// unable to construct consignment: history size too large, resulting in
     /// too many transitions.
@@ -595,7 +598,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         &self,
         contract_id: ContractId,
     ) -> Result<Contract, StockError<S, H, P, ConsignError>> {
-        let consignment = self.consign::<false>(contract_id, [], None, None)?;
+        let consignment = self.consign::<false>(contract_id, [], vec![], None)?;
         Ok(consignment)
     }
 
@@ -603,10 +606,10 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         &self,
         contract_id: ContractId,
         outputs: impl AsRef<[OutputSeal]>,
-        secret_seal: Option<SecretSeal>,
+        secret_seals: impl AsRef<[SecretSeal]>,
         witness_id: Option<Txid>,
     ) -> Result<Transfer, StockError<S, H, P, ConsignError>> {
-        let consignment = self.consign(contract_id, outputs, secret_seal, witness_id)?;
+        let consignment = self.consign(contract_id, outputs, secret_seals, witness_id)?;
         Ok(consignment)
     }
 
@@ -614,10 +617,11 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         &self,
         contract_id: ContractId,
         outputs: impl AsRef<[OutputSeal]>,
-        secret_seal: Option<SecretSeal>,
+        secret_seals: impl AsRef<[SecretSeal]>,
         witness_id: Option<Txid>,
     ) -> Result<Consignment<TRANSFER>, StockError<S, H, P, ConsignError>> {
         let outputs = outputs.as_ref();
+        let secret_seals = secret_seals.as_ref();
 
         // 1. Collect initial set of anchored bundles
         // 1.1. Get all public outputs
@@ -628,12 +632,15 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             self.index
                 .opouts_by_outputs(contract_id, outputs.iter().copied())?,
         );
-        opouts.extend(self.index.opouts_by_terminals(secret_seal.into_iter())?);
+        opouts.extend(
+            self.index
+                .opouts_by_terminals(secret_seals.iter().copied())?,
+        );
 
         // 1.3. Collect all state transitions assigning state to the provided outpoints
         let mut bundles = BTreeMap::<BundleId, WitnessBundle>::new();
         let mut transitions = BTreeMap::<OpId, Transition>::new();
-        let mut terminals = BTreeMap::<BundleId, SecretSeal>::new();
+        let mut bundle_sec_seals: BTreeMap<BundleId, BTreeSet<SecretSeal>> = BTreeMap::new();
         for opout in opouts {
             if opout.op == contract_id {
                 continue; // we skip genesis since it will be present anywhere
@@ -652,13 +659,13 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             }
 
             transitions.insert(opout.op, transition.clone());
-            // 2. Collect secret seals from terminal transitions to add to the consignment terminals
+
+            // 1.4. Collect secret seals for this bundle to add to the consignment terminals
             for typed_assignments in transition.assignments.values() {
                 for index in 0..typed_assignments.len_u16() {
                     let seal = typed_assignments.to_confidential_seals()[index as usize];
-                    if secret_seal == Some(seal) {
-                        let res = terminals.insert(bundle_id, seal);
-                        assert_eq!(res, None);
+                    if secret_seals.contains(&seal) {
+                        bundle_sec_seals.entry(bundle_id).or_default().insert(seal);
                     }
                 }
             }
@@ -702,8 +709,17 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
         let bundles = Confined::try_from_iter(bundles.into_values())
             .map_err(|_| ConsignError::TooManyBundles)?;
-        let terminals =
-            Confined::try_from(terminals).map_err(|_| ConsignError::TooManyTerminals)?;
+        let terminals = Confined::try_from(
+            bundle_sec_seals
+                .into_iter()
+                .map(|(bundle_id, seals)| {
+                    Confined::try_from(seals)
+                        .map(|confined| (bundle_id, SecretSeals::from(confined)))
+                        .map_err(|_| ConsignError::InvalidSecretSealsNumber)
+                })
+                .collect::<Result<BTreeMap<_, _>, _>>()?,
+        )
+        .map_err(|_| ConsignError::TooManyTerminals)?;
 
         let (types, scripts) = self.stash.extract(&schema)?;
         let scripts = Confined::from_iter_checked(scripts.into_values());
@@ -1171,7 +1187,7 @@ mod test {
         let contract_id =
             ContractId::from_baid64_str("rgb:qFuT6DN8-9AuO95M-7R8R8Mc-AZvs7zG-obum1Va-BRnweKk")
                 .unwrap();
-        if let Ok(transfer) = stock.consign::<true>(contract_id, [], Some(secret_seal), None) {
+        if let Ok(transfer) = stock.consign::<true>(contract_id, [], vec![secret_seal], None) {
             println!("{:?}", transfer)
         }
     }
