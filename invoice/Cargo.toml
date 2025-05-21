@@ -1,36 +1,41 @@
 [package]
 name = "rgb-invoice"
-version = { workspace = true }
-description = "Invoicing library for RGB smart contracts"
-keywords = { workspace = true }
-categories = { workspace = true }
-readme = "../README.md"
-authors = { workspace = true }
-repository = { workspace = true }
-homepage = { workspace = true }
-rust-version = { workspace = true }
-edition = { workspace = true }
-license = { workspace = true }
-
-[lib]
-name = "rgbinvoice"
+description = "Invoice Library for RGB smart contracts"
+version.workspace = true
+keywords.workspace = true
+categories.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
-amplify = { workspace = true }
-baid64 = { workspace = true }
-fast32 = "1.0.2"
-strict_encoding = { workspace = true }
-strict_types = { workspace = true }
-bp-core = { workspace = true }
-bp-invoice = { workspace = true }
-rgb-core = { workspace = true }
-indexmap = { workspace = true }
-fluent-uri = "0.1.4"
-percent-encoding = "2.3.1"
-serde_crate = { workspace = true, optional = true }
-rand = "0.8.5"
+amplify.workspace = true
+commit_verify.workspace = true
+strict_encoding.workspace = true
+baid64.workspace = true
+hypersonic.workspace = true
+sonic-callreq.workspace = true
+bp-core = { workspace = true, optional = true }
+bp-invoice = { workspace = true, optional = true, features = ["strict_encoding"] }
+rgb-core.workspace = true
+serde = { workspace = true, optional = true }
 
 [features]
-default = []
-serde = ["serde_crate"]
-# TODO: Separate URL with a feature gate
+default = ["std", "bitcoin"]
+all = ["std", "uri", "bitcoin", "liquid", "prime", "serde"]
+
+bitcoin = ["bp-core", "rgb-core/bitcoin", "bp-invoice"]
+liquid = ["bp-core", "rgb-core/liquid", "bp-invoice"]
+prime = ["rgb-core/prime"]
+std = ["amplify/std", "sonic-callreq/std"]
+uri = ["sonic-callreq/uri"]
+serde = ["dep:serde", "sonic-callreq/serde", "bp-core/serde", "rgb-core/serde", "bp-invoice/serde"]
+
+[package.metadata.docs.rs]
+features = ["all"]
+
+[lints.rust]
+unexpected_cfgs = { level = "allow", check-cfg = ['cfg(coverage_nightly)'] }

@@ -1,3 +1,5 @@
 #!/usr/bin/env bash
 
-cargo run -p rgb-stl --bin rgb-stl
+cargo run --features stl --package rgb-std --bin rgb-stl -- --stl
+cargo run --features stl --package rgb-std --bin rgb-stl -- --sty
+cargo run --features stl --package rgb-std --bin rgb-stl -- --sta

@@ -1,50 +1,143 @@
-// RGB wallet library for smart contracts on Bitcoin & Lightning network
+// Invoice Library for RGB smart contracts
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-// Written in 2019-2024 by
-//     Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
+// Designed in 2019-2025 by Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
+// Written in 2024-2025 by Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
 //
-// Copyright (C) 2019-2024 LNP/BP Standards Association. All rights reserved.
+// Copyright (C) 2019-2024 LNP/BP Standards Association, Switzerland.
+// Copyright (C) 2024-2025 LNP/BP Laboratories,
+//                         Institute for Distributed and Cognitive Systems (InDCS), Switzerland.
+// Copyright (C) 2025 RGB Consortium, Switzerland.
+// Copyright (C) 2019-2025 Dr Maxim Orlovsky.
+// All rights under the above copyrights are reserved.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License. You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//        http://www.apache.org/licenses/LICENSE-2.0
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// Unless required by applicable law or agreed to in writing, software distributed under the License
+// is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+// or implied. See the License for the specific language governing permissions and limitations under
+// the License.
+
+// TODO: Activate once StrictEncoding will be no_std
+// #![cfg_attr(not(feature = "std"), no_std)]
+#![deny(
+    unsafe_code,
+    dead_code,
+    // TODO: Complete documentation
+    // missing_docs,
+    unused_variables,
+    unused_mut,
+    unused_imports,
+    non_upper_case_globals,
+    non_camel_case_types,
+    non_snake_case
+)]
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 #[macro_use]
 extern crate amplify;
+#[cfg(any(feature = "bitcoin", feature = "liquid"))]
 #[macro_use]
 extern crate strict_encoding;
-extern crate rgbcore as rgb;
 #[cfg(feature = "serde")]
-extern crate serde_crate as serde;
+#[macro_use]
+extern crate serde;
 
-/// Re-exporting BP invoice data types.
-pub use ::invoice::*;
+#[cfg(any(feature = "bitcoin", feature = "liquid"))]
+pub mod bp;
 
-#[allow(clippy::module_inception)]
-mod invoice;
-mod parse;
-mod builder;
-mod amount;
-mod data;
+use core::fmt::{self, Display, Formatter};
+use core::str::FromStr;
 
-pub use amount::{Amount, AmountParseError, CoinAmount, Precision, PrecisionError};
-pub use builder::RgbInvoiceBuilder;
-pub use data::{Allocation, NonFungible, OwnedFraction, TokenIndex};
-pub use parse::{InvoiceParseError, TransportParseError};
+use baid64::Baid64ParseError;
+use hypersonic::{AuthToken, Consensus};
+use sonic_callreq::{CallRequest, CallScope};
 
-pub use crate::invoice::{
-    Beneficiary, ChainNet, InvoiceState, Pay2Vout, Pay2VoutError, RgbInvoice, RgbTransport,
-    XChainNet,
-};
+pub type RgbInvoice<T = CallScope<ContractQuery>> = CallRequest<T, RgbBeneficiary>;
 
-pub const LIB_NAME_RGB_CONTRACT: &str = "RGBContract";
+#[derive(Clone, Eq, PartialEq, Debug, Display)]
+#[display(inner)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(rename_all = "camelCase", untagged)
+)]
+pub enum RgbBeneficiary {
+    Token(AuthToken),
+
+    #[cfg(any(feature = "bitcoin", feature = "liquid"))]
+    WitnessOut(bp::WitnessOut),
+}
+
+impl FromStr for RgbBeneficiary {
+    type Err = ParseInvoiceError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match AuthToken::from_str(s) {
+            Ok(auth) => Ok(Self::Token(auth)),
+
+            #[cfg(any(feature = "bitcoin", feature = "liquid"))]
+            Err(_) => {
+                let wout = bp::WitnessOut::from_str(s)?;
+                Ok(Self::WitnessOut(wout))
+            }
+            #[cfg(not(any(feature = "bitcoin", feature = "liquid")))]
+            Err(err) => Err(err),
+        }
+    }
+}
+
+#[cfg(any(feature = "bitcoin", feature = "liquid"))]
+impl RgbBeneficiary {
+    pub fn witness_out(&self) -> Option<&bp::WitnessOut> {
+        match self {
+            Self::WitnessOut(wout) => Some(wout),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub struct ContractQuery {
+    pub consensus: Consensus,
+    pub testnet: bool,
+}
+
+impl Display for ContractQuery {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        if self.testnet {
+            f.write_str("testnet@")?;
+        }
+        Display::fmt(&self.consensus, f)
+    }
+}
+
+impl FromStr for ContractQuery {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let testnet = s.starts_with("testnet@");
+        let s = s.trim_start_matches("testnet@");
+        Consensus::from_str(s).map(|consensus| Self { consensus, testnet })
+    }
+}
+
+#[derive(Debug, Display, Error, From)]
+#[display(doc_comments)]
+pub enum ParseInvoiceError {
+    /// RGB invoice misses URI scheme prefix `contract:`.
+    NoScheme,
+
+    /// RGB invoice contains unrecognizable URI authority, which is neither contract id nor a
+    /// contract query.
+    Unrecognizable(Baid64ParseError),
+
+    #[cfg(any(feature = "bitcoin", feature = "liquid"))]
+    #[from]
+    Bp(bp::ParseWitnessOutError),
+}

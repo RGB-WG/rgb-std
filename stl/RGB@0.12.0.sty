@@ -1,0 +1,60 @@
+{-
+  Id: stl:aAwQVXsP-iTgCThm-8gQAXF5-A8c47_D-pABre7n-mw2KeW0#wizard-farmer-mirage
+  Name: RGB
+  Version: 0.12.0
+  Description: RGB smart contracts library
+  Author: Dr Maxim Orlovsky <orlovsky@ubideco.org>
+  Copyright (C) 2024-2025 LNP/BP Labs, Institute for Distributed and Cognitive Systems, Switzerland.
+                All rights reserved.
+  License: Apache-2.0
+-}
+
+@context
+typelib RGB
+
+import BPCore#critic-bermuda-aurora
+  use WOutpoint#clock-absorb-side
+  use WTxoSeal#nadia-rent-sofia
+  use TxoSealExt#beach-subject-abraham
+  use Noise#bruce-gravity-titanic
+
+import FiniteField#report-canal-convert
+  use Fe256#palace-mixer-visual
+
+import UltraSONIC#viva-armor-diagram
+  use Input#andrea-binary-list
+  use StateData#amigo-igor-panel
+  use Opid#storm-dragon-brain
+  use ContractId#uniform-welcome-papa
+  use Operation#potato-pedro-puzzle
+  use StateValue#bamboo-morgan-edition
+  use AuthToken#western-america-patrol
+  use StateCell#storm-martin-jump
+  use CellAddr#lecture-vincent-carbon
+  use RawData#lima-anvil-karate
+
+import Bitcoin#costume-ohio-sharp
+  use Vout#brush-gloria-heroic
+  use Txid#shallow-light-reverse
+  use Outpoint#logo-alamo-madam
+
+import AluVM#reward-accent-swim
+  use LibId#germany-culture-olivia
+  use LibSite#polo-macro-elite
+
+import CommitVerify#biology-news-adam
+  use ReservedBytes8#rudolf-tape-adrian
+
+
+@mnemonic(signal-master-paris)
+data OperationSealsWTxoSeal : operation UltraSONIC.Operation, definedSeals {U16 -> BPCore.WTxoSeal}
+
+@mnemonic(retro-teacher-village)
+data Prefab            : closes {Bitcoin.Outpoint}
+                       , defines {Bitcoin.Vout}
+                       , operation UltraSONIC.Operation
+
+@mnemonic(civil-triton-outside)
+data PrefabBundle      : {Prefab}
+
+

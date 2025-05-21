@@ -1,62 +1,83 @@
-// RGB standard library for working with smart contracts on Bitcoin & Lightning
+// Standard Library for RGB smart contracts
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-// Written in 2019-2024 by
-//     Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
+// Designed in 2019-2025 by Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
+// Written in 2024-2025 by Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
 //
-// Copyright (C) 2019-2024 LNP/BP Standards Association. All rights reserved.
+// Copyright (C) 2019-2024 LNP/BP Standards Association, Switzerland.
+// Copyright (C) 2024-2025 LNP/BP Laboratories,
+//                         Institute for Distributed and Cognitive Systems (InDCS), Switzerland.
+// Copyright (C) 2025 RGB Consortium, Switzerland.
+// Copyright (C) 2019-2025 Dr Maxim Orlovsky.
+// All rights under the above copyrights are reserved.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License. You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//        http://www.apache.org/licenses/LICENSE-2.0
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// Unless required by applicable law or agreed to in writing, software distributed under the License
+// is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+// or implied. See the License for the specific language governing permissions and limitations under
+// the License.
 
+// TODO: Activate once StrictEncoding will be no_std
+// #![cfg_attr(not(feature = "std"), no_std)]
+#![deny(
+    unsafe_code,
+    dead_code,
+    // TODO: Complete documentation
+    // missing_docs,
+    unused_variables,
+    unused_mut,
+    unused_imports,
+    non_upper_case_globals,
+    non_camel_case_types,
+    non_snake_case
+)]
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![allow(clippy::type_complexity)]
 
-extern crate core;
+extern crate alloc;
+
 #[macro_use]
 extern crate amplify;
+extern crate rgbcore as rgb;
+
+#[cfg(feature = "bitcoin")]
 #[macro_use]
 extern crate strict_encoding;
+#[cfg(all(feature = "serde", feature = "bitcoin"))]
 #[macro_use]
-extern crate commit_verify;
-#[macro_use]
-extern crate rgbcore as rgb;
-#[cfg(feature = "serde")]
-#[macro_use]
-extern crate serde_crate as serde;
+extern crate serde;
 
-/// Re-exporting all invoice data types (RGB and BP).
-pub extern crate rgbinvoice as invoice;
+extern crate core;
+pub extern crate rgb_invoice as invoice;
 
-pub mod stl;
-pub mod interface;
-pub mod containers;
-pub mod persistence;
-pub mod resolvers;
+mod pile;
 mod contract;
-pub mod info;
+pub mod popls;
+mod util;
+mod contracts;
+mod stockpile;
+#[cfg(feature = "stl")]
+pub mod stl;
 
+#[cfg(feature = "bitcoin")]
 pub use bp::{Outpoint, Txid};
 pub use contract::{
-    BundleExt, KnownState, MergeReveal, MergeRevealError, OutputAssignment, RevealError,
-    TypedAssignsExt,
+    Assignment, ConsumeError, Contract, ContractState, CreateParams, EitherSeal, ImmutableState,
+    OwnedState, CONSIGNMENT_MAGIC_NUMBER, CONSIGNMENT_VERSION,
 };
-pub use invoice::{Allocation, Amount, CoinAmount, OwnedFraction, Precision, TokenIndex};
-pub use rgb::prelude::*;
-pub use rgb::rgbasm;
-pub use stl::{LIB_NAME_RGB_CONTRACT, LIB_NAME_RGB_STD, LIB_NAME_RGB_STORAGE};
-
-/// BIP32 derivation index for outputs which may contain assigned RGB state.
-pub const RGB_NATIVE_DERIVATION_INDEX: u32 = 9;
-/// BIP32 derivation index for outputs which are tweaked with Tapret commitment
-/// and may also optionally contain assigned RGB state.
-pub const RGB_TAPRET_DERIVATION_INDEX: u32 = 10;
+pub use contracts::{Contracts, IssuerError};
+pub use hypersonic::*;
+#[cfg(feature = "fs")]
+pub use pile::fs::PileFs;
+pub use pile::{OpRels, Pile, Witness, WitnessStatus};
+pub use rgb::*;
+#[cfg(feature = "fs")]
+pub use stockpile::dir::StockpileDir;
+pub use stockpile::Stockpile;
+pub use util::{ContractRef, InvalidContractRef};
