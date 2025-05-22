@@ -454,7 +454,7 @@ where
     pub fn fulfill(
         &mut self,
         invoice: &RgbInvoice<ContractId>,
-        mut coinselect: impl Coinselect,
+        coinselect: &mut dyn Coinselect,
         giveaway: Option<Sats>,
     ) -> Result<OpRequest<Option<WoutAssignment>>, FulfillError> {
         let contract_id = invoice.scope;
