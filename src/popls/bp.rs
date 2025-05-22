@@ -79,8 +79,8 @@ pub trait Coinselect {
         invoiced_state: &StrictVal,
         calc: &mut StateCalc,
         // Sorted vector by values
-        owned_state: Vec<(CellAddr, &StrictVal)>,
-    ) -> Option<Vec<CellAddr>>;
+        owned_state: Vec<(CellAddr, &Assignment<Outpoint>)>,
+    ) -> Option<Vec<(CellAddr, Outpoint)>>;
 }
 
 pub const BP_BLANK_METHOD: &str = "_";
@@ -484,7 +484,7 @@ where
             .ok_or(FulfillError::StateUnavailable)?;
         let src = state
             .iter()
-            .map(|(addr, owned)| (*addr, &owned.assignment.data))
+            .map(|(addr, owned)| (*addr, &owned.assignment))
             .collect::<Vec<_>>();
         // NB: we do state accumulation with `calc` inside coinselect
         let using = coinselect
@@ -492,10 +492,7 @@ where
             .ok_or(FulfillError::StateInsufficient)?;
         let using = using
             .into_iter()
-            .map(|addr| {
-                let owned = state.get(&addr).expect("just selected");
-                UsedState { addr, outpoint: owned.assignment.seal, satisfaction: None }
-            })
+            .map(|(addr, outpoint)| UsedState { addr, outpoint, satisfaction: None })
             .collect();
 
         // Add beneficiaries
