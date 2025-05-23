@@ -53,12 +53,14 @@ pub mod bp;
 
 use core::fmt::{self, Display, Formatter};
 use core::str::FromStr;
+use std::ops::{Deref, DerefMut};
 
+use amplify::confinement::{ConfinedVec, TinyBlob};
 use baid64::Baid64ParseError;
-use hypersonic::{AuthToken, Consensus};
+use chrono::{DateTime, Utc};
+use hypersonic::{AuthToken, CallState, Consensus, ContractId, Endpoint};
 use sonic_callreq::{CallRequest, CallScope};
-
-pub type RgbInvoice<T = CallScope<ContractQuery>> = CallRequest<T, RgbBeneficiary>;
+use strict_types::{StrictVal, TypeName};
 
 #[derive(Clone, Eq, PartialEq, Debug, Display)]
 #[display(inner)]
@@ -140,4 +142,59 @@ pub enum ParseInvoiceError {
     #[cfg(any(feature = "bitcoin", feature = "liquid"))]
     #[from]
     Bp(bp::ParseWitnessOutError),
+}
+
+#[derive(Clone, Eq, PartialEq, Debug, From)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))] // note: need to update sonic-callreq to support serde
+#[cfg_attr(
+    feature = "serde",
+    serde(
+        transparent, 
+        bound(
+            serialize = "T: serde::Serialize, A: serde::Serialize",
+            deserialize = "T: serde::Deserialize<'de>, A: serde::Deserialize<'de>"
+        )
+    )
+)]
+pub struct RgbInvoice<T: Display + FromStr = CallScope<ContractQuery>, A = RgbBeneficiary>(CallRequest<T, A>);
+
+impl<T: Display + FromStr, A> RgbInvoice<T, A> {
+    pub fn new(
+        scope: T,
+        beneficiary: A,
+        // Core parameters
+        value: Option<u64>,
+        expiry_time: Option<DateTime<Utc>>,
+        // Additional fields
+        api: Option<TypeName>,
+        call: Option<CallState>,
+        lock: Option<TinyBlob>,
+        endpoints: impl IntoIterator<Item = Endpoint>,
+    ) -> Self {
+        Self(CallRequest {
+            scope,
+            auth: beneficiary,
+            data: value.map(StrictVal::num),
+            expiry: expiry_time,
+            api,
+            call,
+            lock,
+            endpoints: ConfinedVec::from_iter_checked(endpoints),
+            unknown_query: Default::default(),
+        })
+    }
+}
+
+impl<T: Display + FromStr> From<RgbInvoice<T>> for CallRequest<T, RgbBeneficiary> {
+    fn from(val: RgbInvoice<T>) -> Self { val.0 }
+}
+
+impl<T: Display + FromStr> Deref for RgbInvoice<T> {
+    type Target = CallRequest<T, RgbBeneficiary>;
+
+    fn deref(&self) -> &Self::Target { &self.0 }
+}
+
+impl<T: Display + FromStr> DerefMut for RgbInvoice<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
 }
