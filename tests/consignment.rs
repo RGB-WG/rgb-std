@@ -8,13 +8,14 @@ extern crate strict_types;
 mod utils;
 
 use std::collections::{BTreeMap, HashMap};
+use std::convert::Infallible;
 use std::fs;
 use std::path::PathBuf;
 
 use bp::seals::TxoSeal;
 use rgb::{Consensus, Contracts, Operation, Stockpile, StockpileDir};
 
-use crate::utils::{setup, DumbValidator};
+use crate::utils::setup;
 
 #[test]
 #[should_panic(expected = "single-use seals are not closed properly with witness")]
@@ -40,6 +41,8 @@ fn export_import_contract() {
     let resolver = |_: &Operation| -> BTreeMap<_, _> { bmap![] };
 
     contracts
-        .consume_from_file(filename, resolver, DumbValidator)
+        .consume_from_file(filename, resolver, |_, _, _| -> Result<_, Infallible> {
+            unreachable!()
+        })
         .unwrap();
 }

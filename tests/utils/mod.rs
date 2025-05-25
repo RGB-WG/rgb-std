@@ -1,6 +1,5 @@
 use std::collections::BTreeSet;
 use std::convert::Infallible;
-use std::error::Error;
 use std::fs;
 use std::path::PathBuf;
 
@@ -13,33 +12,23 @@ use hypersonic::CallParams;
 use rand::prelude::SliceRandom;
 use rand::rng;
 use rgb::{
-    Assignment, CellAddr, Contract, CoreParams, CreateParams, Identity, Issuer, NamedState,
-    Outpoint, PileFs, SigBlob, SigValidator,
+    Assignment, CellAddr, Contract, CoreParams, CreateParams, Issuer, NamedState, Outpoint, PileFs,
 };
 use rgbcore::{ContractApi, RgbSealDef};
 use single_use_seals::SealWitness;
 use sonic_persist_fs::StockFs;
 use strict_encoding::{vname, StrictDumb};
 
-pub struct DumbValidator;
-impl SigValidator for DumbValidator {
-    fn validate_sig(
-        &self,
-        _: impl Into<[u8; 32]>,
-        _: &Identity,
-        _: &SigBlob,
-    ) -> Result<u64, impl Error> {
-        Result::<_, Infallible>::Ok(0)
-    }
-}
-
 pub fn setup(name: &str) -> Contract<StockFs, PileFs<TxoSeal>> {
     let mut noise_engine = Sha256::new();
     noise_engine.input_raw(b"test");
 
-    let issuer = Issuer::load("tests/data/Test.issuer").unwrap();
+    let issuer = Issuer::load("tests/data/Test.issuer", |_, _, _| -> Result<_, Infallible> {
+        unreachable!()
+    })
+    .unwrap();
 
-    let mut params = CreateParams::new_bitcoin_testnet(issuer.codex.codex_id(), "Test");
+    let mut params = CreateParams::new_bitcoin_testnet(issuer.codex_id(), "Test");
     for _ in 0..20 {
         params.push_owned_unlocked(
             "amount",

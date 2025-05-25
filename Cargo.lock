@@ -127,12 +127,12 @@ dependencies = [
 
 [[package]]
 name = "anstyle-wincon"
-version = "3.0.7"
+version = "3.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca3534e77181a9cc07539ad51f2141fe32f6c3ffd4df76db8ad92346b003ae4e"
+checksum = "6680de5231bd6ee4c6191b8a1325daa282b415391ec9d3a37bd34f2060dc73fa"
 dependencies = [
  "anstyle",
- "once_cell",
+ "once_cell_polyfill",
  "windows-sys",
 ]
 
@@ -363,9 +363,9 @@ checksum = "1628fb46dfa0b37568d12e5edd512553eccf6a22a78e8bde00bb4aed84d5bdbf"
 
 [[package]]
 name = "cc"
-version = "1.2.23"
+version = "1.2.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f4ac86a9e5bc1e2b3449ab9d7d3a6a405e3d1bb28d7b9be8614f55846ae3766"
+checksum = "16595d3be041c03b09d08d0858631facccee9221e579704070e6e9e4915d3bc7"
 dependencies = [
  "shlex",
 ]
@@ -623,11 +623,11 @@ dependencies = [
 [[package]]
 name = "hypersonic"
 version = "0.12.0-rc.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3bad29e159a2bd2a7dab5b5664addb41a479e5b393a42dee8408c9552cc9db55"
+source = "git+https://github.com/AluVM/sonic?branch=v0.12#1f26c8dff73ecb8feefad07abda4ae7e4b87026c"
 dependencies = [
  "aluvm",
  "amplify",
+ "binfile",
  "commit_verify",
  "getrandom 0.2.16",
  "getrandom 0.3.3",
@@ -752,6 +752,12 @@ name = "once_cell"
 version = "1.21.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d"
+
+[[package]]
+name = "once_cell_polyfill"
+version = "1.70.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4895175b425cb1f87721b59f0f286c2092bd4af812243672510e1ac53e2e0ad"
 
 [[package]]
 name = "paste"
@@ -966,9 +972,9 @@ dependencies = [
 
 [[package]]
 name = "rustversion"
-version = "1.0.20"
+version = "1.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eded382c5f5f786b989652c49544c4877d9f015cc22e145a5ea8ea66c2921cd2"
+checksum = "8a0d197bd2c9dc6e53b84da9556a69ba4cdfab8619eb41a8bd1cc2027a0f6b1d"
 
 [[package]]
 name = "ryu"
@@ -1122,8 +1128,7 @@ dependencies = [
 [[package]]
 name = "sonic-api"
 version = "0.12.0-rc.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "332e96abda583b6bf785b6cc51f9b30dc3f4ab3ca9ca6a9d9e0f16d22592e833"
+source = "git+https://github.com/AluVM/sonic?branch=v0.12#1f26c8dff73ecb8feefad07abda4ae7e4b87026c"
 dependencies = [
  "aluvm",
  "amplify",
@@ -1144,8 +1149,7 @@ dependencies = [
 [[package]]
 name = "sonic-callreq"
 version = "0.12.0-rc.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d371d8ffd8869110777f57873407145e58ba384a8ea5d84f1e812c3fc04ca9c"
+source = "git+https://github.com/AluVM/sonic?branch=v0.12#1f26c8dff73ecb8feefad07abda4ae7e4b87026c"
 dependencies = [
  "amplify",
  "baid64",
@@ -1165,12 +1169,12 @@ dependencies = [
 [[package]]
 name = "sonic-persist-fs"
 version = "0.12.0-rc.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "907b624e59417dd2fefbc61614b23795fee8c4ef68a5c3f1cff8b0e651e526c2"
+source = "git+https://github.com/AluVM/sonic?branch=v0.12#1f26c8dff73ecb8feefad07abda4ae7e4b87026c"
 dependencies = [
  "amplify",
  "aora",
  "binfile",
+ "commit_verify",
  "hypersonic",
  "serde_yaml",
  "strict_encoding",
@@ -1180,8 +1184,7 @@ dependencies = [
 [[package]]
 name = "sonix"
 version = "0.12.0-rc.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4c38851a3af960292ccd5fe4f82de8ddd9ead6a94acd79f2cc9c5883636dccd"
+source = "git+https://github.com/AluVM/sonic?branch=v0.12#1f26c8dff73ecb8feefad07abda4ae7e4b87026c"
 dependencies = [
  "amplify",
  "anyhow",

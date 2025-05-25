@@ -32,12 +32,12 @@ use amplify::confinement::SmallOrdMap;
 use amplify::hex::ToHex;
 use amplify::{IoError, MultiError};
 use chrono::{DateTime, Utc};
-use commit_verify::ReservedBytes;
+use commit_verify::{ReservedBytes, StrictHash};
 use hypersonic::{
-    AcceptError, Articles, ArticlesError, AuthToken, CallParams, CellAddr, Codex, CodexId,
-    Consensus, ContractId, CoreParams, DataCell, EffectiveState, IssueError, IssueParams, Ledger,
-    LibRepo, Memory, MethodName, NamedState, Operation, Opid, SigValidator, StateAtom, StateName,
-    Stock, Transition,
+    AcceptError, Articles, AuthToken, CallParams, CellAddr, Codex, CodexId, Consensus, ContractId,
+    CoreParams, DataCell, EffectiveState, IssueError, IssueParams, Ledger, LibRepo, Memory,
+    MethodName, NamedState, Operation, Opid, SemanticError, Semantics, SigBlob, StateAtom,
+    StateName, Stock, Transition,
 };
 use indexmap::{IndexMap, IndexSet};
 use rgb::{
@@ -52,8 +52,7 @@ use strict_encoding::{
 use strict_types::StrictVal;
 
 use crate::{
-    ApiDescriptor, ContractMeta, Issue, Issuer, OpRels, Pile, VerifiedOperation, Witness,
-    WitnessStatus,
+    ContractMeta, Identity, Issue, Issuer, OpRels, Pile, VerifiedOperation, Witness, WitnessStatus,
 };
 
 pub const CONSIGNMENT_MAGIC_NUMBER: [u8; 8] = *b"RGBCNSGN";
@@ -295,7 +294,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
     where
         P::Conf: From<S::Conf>,
     {
-        assert_eq!(params.codex_id, issuer.codex.codex_id());
+        assert_eq!(params.codex_id, issuer.codex_id());
 
         let seals = SmallOrdMap::try_from_iter(params.owned.iter().enumerate().filter_map(
             |(pos, assignment)| {
@@ -607,11 +606,11 @@ impl<S: Stock, P: Pile> Contract<S, P> {
             })
     }
 
-    pub fn consume(
+    pub fn consume<E>(
         &mut self,
         reader: &mut StrictReader<impl ReadRaw>,
         seal_resolver: impl FnMut(&Operation) -> BTreeMap<u16, <P::Seal as RgbSeal>::Definition>,
-        sig_validator: impl SigValidator,
+        sig_validator: impl FnOnce(StrictHash, &Identity, &SigBlob) -> Result<(), E>,
     ) -> Result<(), MultiError<ConsumeError<<P::Seal as RgbSeal>::Definition>, S::Error>>
     where
         <P::Seal as RgbSeal>::Client: StrictDecode,
@@ -620,7 +619,8 @@ impl<S: Stock, P: Pile> Contract<S, P> {
     {
         let articles = (|| -> Result<Articles, ConsumeError<_>> {
             // We need to read articles field by field since we have to evaluate genesis separately
-            let apis = ApiDescriptor::strict_decode(reader)?;
+            let semantics = Semantics::strict_decode(reader)?;
+            let sig = Option::<SigBlob>::strict_decode(reader)?;
 
             let issue_version = ReservedBytes::<1>::strict_decode(reader)?;
             let meta = ContractMeta::strict_decode(reader)?;
@@ -635,14 +635,14 @@ impl<S: Stock, P: Pile> Contract<S, P> {
             // We need to clone due to a borrow checker.
             let genesis = self.ledger.articles().genesis().clone();
             let issue = Issue { version: issue_version, meta, codex, genesis };
-            let articles = Articles::with(apis, issue)?;
+            let articles = Articles::with(semantics, issue, sig, sig_validator)?;
 
             Ok(articles)
         })()
         .map_err(MultiError::A)?;
 
         self.ledger
-            .merge_articles(articles, sig_validator)
+            .upgrade_apis(articles)
             .map_err(MultiError::from_other_a)?;
         Ok(())
     }
@@ -650,6 +650,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
     pub fn parse_consignment(
         reader: &mut StrictReader<impl ReadRaw>,
     ) -> Result<ContractId, ConsumeError<<P::Seal as RgbSeal>::Definition>> {
+        // TODO: Use Binfile
         let magic_bytes = <[u8; 8]>::strict_decode(reader)?;
         if magic_bytes != CONSIGNMENT_MAGIC_NUMBER {
             return Err(ConsumeError::UnrecognizedMagic(magic_bytes.to_hex()));
@@ -766,7 +767,7 @@ pub enum ConsumeError<Seal: RgbSealDef> {
     UnknownContract(ContractId),
 
     #[from]
-    Articles(ArticlesError),
+    Semantics(SemanticError),
 
     #[from]
     Decode(DecodeError),

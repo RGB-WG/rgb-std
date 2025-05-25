@@ -30,9 +30,9 @@ use std::io;
 
 use amplify::confinement::{KeyedCollection, SmallOrdMap};
 use amplify::MultiError;
+use commit_verify::StrictHash;
 use hypersonic::{
-    AcceptError, AuthToken, CallParams, CodexId, ContractId, ContractName, Opid, SigValidator,
-    Stock,
+    AcceptError, AuthToken, CallParams, CodexId, ContractId, ContractName, Opid, Stock,
 };
 use rgb::RgbSeal;
 use strict_encoding::{
@@ -41,7 +41,7 @@ use strict_encoding::{
 
 use crate::{
     Articles, CallError, Consensus, ConsumeError, Contract, ContractRef, ContractState,
-    CreateParams, Issuer, Operation, Pile, Stockpile, WitnessStatus,
+    CreateParams, Identity, Issuer, Operation, Pile, SigBlob, Stockpile, WitnessStatus,
 };
 
 /// Collection of RGB smart contracts and contract issuers, which can be cached in memory.
@@ -218,7 +218,7 @@ where
     }
 
     pub fn import_issuer(&mut self, issuer: Issuer) -> Result<CodexId, Sp::Error> {
-        let codex_id = issuer.codex.codex_id();
+        let codex_id = issuer.codex_id();
         let schema = self.persistence.import_issuer(issuer)?;
         self.issuers.borrow_mut().insert(codex_id, schema);
         Ok(codex_id)
@@ -328,14 +328,14 @@ where
         self.with_contract_mut(contract_id, |contract| contract.consign(terminals, writer))
     }
 
-    pub fn consume(
+    pub fn consume<E>(
         &mut self,
         reader: &mut StrictReader<impl ReadRaw>,
         seal_resolver: impl FnMut(
             &Operation,
         )
             -> BTreeMap<u16, <<Sp::Pile as Pile>::Seal as RgbSeal>::Definition>,
-        sig_validator: impl SigValidator,
+        sig_validator: impl FnOnce(StrictHash, &Identity, &SigBlob) -> Result<(), E>,
     ) -> Result<
         (),
         MultiError<
@@ -412,7 +412,7 @@ mod fs {
             self.consign(contract_id, terminals, writer)
         }
 
-        pub fn consume_from_file(
+        pub fn consume_from_file<E>(
             &mut self,
             path: impl AsRef<Path>,
             seal_resolver: impl FnMut(
@@ -421,7 +421,7 @@ mod fs {
                 u16,
                 <<Sp::Pile as Pile>::Seal as RgbSeal>::Definition,
             >,
-            sig_validator: impl SigValidator,
+            sig_validator: impl FnOnce(StrictHash, &Identity, &SigBlob) -> Result<(), E>,
         ) -> Result<
             (),
             MultiError<

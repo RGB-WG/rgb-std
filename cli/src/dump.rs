@@ -22,6 +22,7 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
+use std::convert::Infallible;
 use std::fs::File;
 use std::path::Path;
 use std::{fs, io};
@@ -29,8 +30,8 @@ use std::{fs, io};
 use amplify::confinement::SmallOrdMap;
 use hypersonic::Operation;
 use rgb::{
-    ApiDescriptor, Articles, Contract, Issue, PileFs, PublishedWitness, RgbSeal, RgbSealDef,
-    SealWitness, SingleUseSeal,
+    Articles, Contract, Issue, PileFs, PublishedWitness, RgbSeal, RgbSealDef, SealWitness,
+    Semantics, SigBlob, SingleUseSeal,
 };
 use serde::{Deserialize, Serialize};
 use sonic_persist_fs::StockFs;
@@ -126,9 +127,11 @@ where
 
     print!("Processing contract articles ... ");
 
-    let apis = ApiDescriptor::strict_decode(&mut stream)?;
+    let semantics = Semantics::strict_decode(&mut stream)?;
+    let sig = Option::<SigBlob>::strict_decode(&mut stream)?;
     let issue = Issue::strict_decode(&mut stream)?;
-    let articles = Articles::with(apis, issue)?;
+    let articles =
+        Articles::with(semantics, issue, sig, |_, _, _| Result::<_, Infallible>::Ok(()))?;
 
     let genesis_opid = dump_articles(&articles, dst)?;
     let out = File::create_new(dst.join(format!("0000-seals-{genesis_opid}.yml")))?;

@@ -23,6 +23,7 @@
 // the License.
 
 use std::collections::HashMap;
+use std::convert::Infallible;
 use std::ffi::OsStr;
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
@@ -134,7 +135,8 @@ where
     fn issuer(&self, codex_id: CodexId) -> Option<Issuer> {
         let name = self.issuers.get(&codex_id)?;
         let path = self.dir.join(format!("{name}.{codex_id:#}.issuer"));
-        Issuer::load(path).ok()
+        // We trust the storage
+        Issuer::load(path, |_, _, _| -> Result<_, Infallible> { Ok(()) }).ok()
     }
 
     fn contract(&self, contract_id: ContractId) -> Option<Contract<Self::Stock, Self::Pile>> {
@@ -149,8 +151,8 @@ where
     }
 
     fn import_issuer(&mut self, issuer: Issuer) -> Result<Issuer, Self::Error> {
-        let codex_id = issuer.codex.codex_id();
-        let name = issuer.codex.name.to_string();
+        let codex_id = issuer.codex_id();
+        let name = issuer.codex().name.to_string();
         let path = self.dir.join(format!("{name}.{codex_id:#}.issuer"));
         issuer.save(path)?;
         self.issuers.insert(codex_id, name);

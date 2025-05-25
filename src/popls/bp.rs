@@ -39,7 +39,7 @@ pub use bp::seals;
 use bp::seals::{mmb, Anchor, Noise, TxoSeal, TxoSealExt, WOutpoint, WTxoSeal};
 use bp::{Outpoint, Sats, ScriptPubkey, Tx, Vout};
 use commit_verify::mpc::ProtocolId;
-use commit_verify::{mpc, Digest, DigestExt, Sha256};
+use commit_verify::{mpc, Digest, DigestExt, Sha256, StrictHash};
 use hypersonic::{
     AcceptError, AuthToken, CallParams, CellAddr, ContractId, CoreParams, DataCell, MethodName,
     NamedState, Operation, Satisfaction, StateAtom, StateCalc, StateCalcError, StateName,
@@ -56,7 +56,7 @@ use strict_types::StrictVal;
 
 use crate::{
     Assignment, CodexId, Consensus, ConsumeError, Contract, ContractState, Contracts, CreateParams,
-    EitherSeal, Issuer, IssuerError, Pile, SigValidator, Stockpile,
+    EitherSeal, Identity, Issuer, IssuerError, Pile, SigBlob, Stockpile,
 };
 
 /// Trait abstracting a specific implementation of a bitcoin wallet.
@@ -337,6 +337,7 @@ pub struct Prefab {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 pub struct PrefabBundle(SmallOrdSet<Prefab>);
 
+// TODO: Use BinFile instead
 impl StrictSerialize for PrefabBundle {}
 impl StrictDeserialize for PrefabBundle {}
 
@@ -461,7 +462,7 @@ where
 
         // Determine method
         let articles = self.contracts.contract_articles(contract_id);
-        let api = &articles.apis().default;
+        let api = articles.default_api();
         let call = invoice
             .call
             .as_ref()
@@ -537,7 +538,7 @@ where
         let contract_id = request.contract_id;
         let state = self.contracts.contract_state(contract_id);
         let articles = self.contracts.contract_articles(contract_id);
-        let api = &articles.apis().default;
+        let api = articles.default_api();
         let mut calcs = BTreeMap::new();
 
         for inp in &request.using {
@@ -689,7 +690,7 @@ where
             };
 
             let articles = self.contracts.contract_articles(contract_id);
-            let api = &articles.apis().default;
+            let api = articles.default_api();
             let mut calcs = BTreeMap::<StateName, StateCalc>::new();
             for (name, state) in prev {
                 let calc = match calcs.entry(name.clone()) {
@@ -737,6 +738,7 @@ where
             let prefab = self.prefab(request).map_err(|err| match err {
                 MultiError::A(e) => MultiError::A(BundleError::Blank(e)),
                 MultiError::B(e) => MultiError::B(e),
+                MultiError::C(_) => unreachable!(),
             })?;
             prefabs.push(prefab);
         }
@@ -782,10 +784,10 @@ where
 
     /// Consume consignment.
     #[allow(clippy::result_large_err)]
-    pub fn consume(
+    pub fn consume<E>(
         &mut self,
         reader: &mut StrictReader<impl ReadRaw>,
-        sig_validator: impl SigValidator,
+        sig_validator: impl FnOnce(StrictHash, &Identity, &SigBlob) -> Result<(), E>,
     ) -> Result<(), MultiError<ConsumeError<WTxoSeal>, <Sp::Stock as Stock>::Error>> {
         let seal_resolver = |op: &Operation| {
             self.wallet
@@ -901,11 +903,12 @@ mod fs {
     use std::fs::File;
     use std::path::Path;
 
+    use commit_verify::StrictHash;
     use sonic_persist_fs::{FsError, StockFs};
     use strict_encoding::StreamReader;
 
     use super::*;
-    use crate::{PileFs, StockpileDir};
+    use crate::{Identity, PileFs, SigBlob, StockpileDir};
 
     impl<
             W: WalletProvider,
@@ -914,10 +917,10 @@ mod fs {
         > RgbWallet<W, StockpileDir<TxoSeal>, S, C>
     {
         #[allow(clippy::result_large_err)]
-        pub fn consume_from_file(
+        pub fn consume_from_file<E>(
             &mut self,
             path: impl AsRef<Path>,
-            sig_validator: impl SigValidator,
+            sig_validator: impl FnOnce(StrictHash, &Identity, &SigBlob) -> Result<(), E>,
         ) -> Result<(), MultiError<ConsumeError<WTxoSeal>, FsError>> {
             let file = File::open(path).map_err(MultiError::from_a)?;
             let mut reader = StrictReader::with(StreamReader::new::<{ usize::MAX }>(file));

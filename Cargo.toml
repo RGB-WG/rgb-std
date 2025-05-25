@@ -121,3 +121,10 @@ features = ["all"]
 
 [lints.rust]
 unexpected_cfgs = { level = "allow", check-cfg = ['cfg(coverage_nightly)'] }
+
+[patch.crates-io]
+sonic-api = { git = "https://github.com/AluVM/sonic", branch = "v0.12" }
+sonic-callreq = { git = "https://github.com/AluVM/sonic", branch = "v0.12" }
+sonic-persist-fs = { git = "https://github.com/AluVM/sonic", branch = "v0.12" }
+hypersonic = { git = "https://github.com/AluVM/sonic", branch = "v0.12" }
+sonix = { git = "https://github.com/AluVM/sonic", branch = "v0.12" }
