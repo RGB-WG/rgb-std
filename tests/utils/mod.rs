@@ -46,7 +46,7 @@ pub fn setup(name: &str) -> Contract<StockFs, PileFs<TxoSeal>> {
             .unwrap();
     let opid = contract.articles().genesis_opid();
 
-    let owned = &contract.state_all().main.destructible;
+    let owned = &contract.full_state().main.destructible;
     assert_eq!(owned.len(), 1);
     let owned = owned.get("amount").unwrap();
     assert_eq!(owned.len(), 20);
@@ -108,7 +108,7 @@ pub fn setup(name: &str) -> Contract<StockFs, PileFs<TxoSeal>> {
         prev = new_prev;
     }
 
-    let owned = &contract.state_all().main.destructible;
+    let owned = &contract.full_state().main.destructible;
     assert_eq!(owned.len(), 1);
     assert_eq!(prev.len(), 20);
     let owned = owned.get("amount").unwrap();

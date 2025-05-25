@@ -465,7 +465,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         ContractState { immutable, owned, aggregated: state.aggregated }
     }
 
-    pub fn state_all(&self) -> &EffectiveState { self.ledger.state() }
+    pub fn full_state(&self) -> &EffectiveState { self.ledger.state() }
 
     pub fn sync(
         &mut self,
