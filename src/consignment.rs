@@ -26,7 +26,7 @@ use std::convert::Infallible;
 use std::error::Error;
 use std::vec;
 
-use amplify::confinement::{LargeVec, SmallOrdMap};
+use amplify::confinement::{LargeVec, SmallBlob, SmallOrdMap, TinyVec};
 use amplify::ByteArray;
 use commit_verify::{ReservedBytes, StrictHash};
 use hypersonic::Articles;
@@ -47,6 +47,7 @@ pub struct Consignment<Seal: RgbSeal> {
 #[derive(StrictType, StrictDumb, StrictEncode, StrictDecode)]
 #[strict_type(lib = LIB_NAME_RGB)]
 struct ConsignmentHeader<Seal: RgbSeal> {
+    extensions: TinyVec<SmallBlob>,
     semantics: Semantics,
     sig: Option<SigBlob>,
     issue: Issue,

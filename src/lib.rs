@@ -25,7 +25,8 @@
 // TODO: Activate once StrictEncoding will be no_std
 // #![cfg_attr(not(feature = "std"), no_std)]
 #![deny(
-    unsafe_code,
+    // TODO: Activate once StrictEncoding removes invalid unsafe fn modifiers from the raw reader
+    // unsafe_code,
     dead_code,
     // TODO: Complete documentation
     // missing_docs,

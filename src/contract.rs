@@ -46,13 +46,13 @@ use rgb::{
 use single_use_seals::{ClientSideWitness, PublishedWitness, SealWitness};
 use strict_encoding::{
     DecodeError, ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter,
-    TypeName, WriteRaw,
+    TypeName, TypedRead, WriteRaw,
 };
 use strict_types::StrictVal;
 
 use crate::{
     ContractMeta, Identity, Issue, Issuer, IssuerError, OpRels, Pile, VerifiedOperation, Witness,
-    WitnessStatus,
+    WitnessStatus, CONSIGN_VERSION,
 };
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, From)]
@@ -611,8 +611,16 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         <P::Seal as RgbSeal>::WitnessId: StrictDecode,
     {
         let articles = (|| -> Result<Articles, ConsumeError<_>> {
-            // We add 1 to account for the genesis operation.
-            let count = u64::strict_decode(reader)? + 1;
+            // Check version number
+            let _ = ReservedBytes::<1, { CONSIGN_VERSION as u8 }>::strict_decode(reader)?;
+            // Read and ignore the extension block
+            let ext_blocks = u8::strict_decode(reader)?;
+            for _ in 0..ext_blocks {
+                let len = u16::strict_decode(reader)?;
+                let r = unsafe { reader.raw_reader() };
+                let _ = r.read_raw::<{ u16::MAX as usize }>(len as usize)?;
+            }
+
             // We need to read articles field by field since we have to evaluate genesis separately
             let semantics = Semantics::strict_decode(reader)?;
             let sig = Option::<SigBlob>::strict_decode(reader)?;
@@ -621,8 +629,12 @@ impl<S: Stock, P: Pile> Contract<S, P> {
             let meta = ContractMeta::strict_decode(reader)?;
             let codex = Codex::strict_decode(reader)?;
 
-            let op_reader =
-                OpReader { stream: reader, seal_resolver, count, _phantom: PhantomData };
+            let op_reader = OpReader {
+                stream: reader,
+                seal_resolver,
+                count: u32::MAX,
+                _phantom: PhantomData,
+            };
             self.evaluate_commit(op_reader)?;
 
             // We need to clone due to a borrow checker.
@@ -658,6 +670,13 @@ impl<S: Stock, P: Pile> Contract<S, P> {
     pub fn parse_consignment(
         reader: &mut StrictReader<impl ReadRaw>,
     ) -> Result<ContractId, ConsumeError<<P::Seal as RgbSeal>::Definition>> {
+        ReservedBytes::<1, { CONSIGN_VERSION as u8 }>::strict_decode(reader).map_err(|e| {
+            if matches!(e, DecodeError::DataIntegrityError(_)) {
+                DecodeError::DataIntegrityError(s!("unsupported future consignment version"))
+            } else {
+                e
+            }
+        })?;
         Ok(ContractId::strict_decode(reader)?)
     }
 }
@@ -669,7 +688,7 @@ pub struct OpReader<
     F: FnMut(&Operation) -> BTreeMap<u16, Seal::Definition>,
 > {
     stream: &'r mut StrictReader<R>,
-    count: u64,
+    count: u32,
     seal_resolver: F,
     _phantom: PhantomData<Seal>,
 }
@@ -685,7 +704,6 @@ impl<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&Operation) -> BTreeMap<u16, Seal::
         if self.count == 0 {
             return Ok(None);
         }
-        self.count -= 1;
         let Some(operation) =
             Operation::strict_decode(self.stream)
                 .map(Some)
@@ -718,6 +736,11 @@ impl<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&Operation) -> BTreeMap<u16, Seal::
         } else {
             None
         };
+
+        if self.count == u32::MAX {
+            self.count = u32::strict_decode(self.stream)?;
+        }
+        self.count -= 1;
 
         Ok(Some(OperationSeals { operation, defined_seals, witness }))
     }
