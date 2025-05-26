@@ -40,9 +40,9 @@ use strict_encoding::{
 };
 
 use crate::{
-    Articles, CallError, Consensus, Consignment, ConsumeError, Contract, ContractRef,
-    ContractState, CreateParams, Identity, Issuer, Operation, Pile, SigBlob, Stockpile,
-    WitnessStatus,
+    parse_consignment, Articles, CallError, Consensus, Consignment, ConsumeError, Contract,
+    ContractRef, ContractState, CreateParams, Identity, Issuer, Operation, Pile, SigBlob,
+    Stockpile, WitnessStatus,
 };
 
 pub const CONSIGN_VERSION: u16 = 0;
@@ -347,8 +347,8 @@ where
         <<Sp::Pile as Pile>::Seal as RgbSeal>::Published: StrictDecode,
         <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId: StrictDecode,
     {
-        let contract_id =
-            Contract::<Sp::Stock, Sp::Pile>::parse_consignment(reader).map_err(MultiError::A)?;
+        // Checking version
+        let contract_id = parse_consignment(reader).map_err(MultiError::from_a)?;
         if !self.has_contract(contract_id) {
             if allow_unknown {
                 let consignment = Consignment::strict_decode(reader).map_err(MultiError::from_a)?;
@@ -377,7 +377,7 @@ where
             }
         } else {
             self.with_contract_mut(contract_id, |contract| {
-                contract.consume(reader, seal_resolver, sig_validator)
+                contract.consume_internal(reader, seal_resolver, sig_validator)
             })
             .map_err(|err| match err {
                 MultiError::A(a) => MultiError::A(a),

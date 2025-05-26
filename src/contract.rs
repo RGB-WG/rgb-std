@@ -51,8 +51,8 @@ use strict_encoding::{
 use strict_types::StrictVal;
 
 use crate::{
-    ContractMeta, Identity, Issue, Issuer, IssuerError, OpRels, Pile, VerifiedOperation, Witness,
-    WitnessStatus, CONSIGN_VERSION,
+    parse_consignment, ContractMeta, Identity, Issue, Issuer, IssuerError, OpRels, Pile,
+    VerifiedOperation, Witness, WitnessStatus,
 };
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, From)]
@@ -610,9 +610,25 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         <P::Seal as RgbSeal>::Published: StrictDecode,
         <P::Seal as RgbSeal>::WitnessId: StrictDecode,
     {
+        let contract_id = parse_consignment(reader).map_err(MultiError::from_a)?;
+        if contract_id != self.contract_id() {
+            return Err(MultiError::A(ConsumeError::UnknownContract(contract_id)));
+        }
+        self.consume(reader, seal_resolver, sig_validator)
+    }
+
+    pub(crate) fn consume_internal<E>(
+        &mut self,
+        reader: &mut StrictReader<impl ReadRaw>,
+        seal_resolver: impl FnMut(&Operation) -> BTreeMap<u16, <P::Seal as RgbSeal>::Definition>,
+        sig_validator: impl FnOnce(StrictHash, &Identity, &SigBlob) -> Result<(), E>,
+    ) -> Result<(), MultiError<ConsumeError<<P::Seal as RgbSeal>::Definition>, S::Error>>
+    where
+        <P::Seal as RgbSeal>::Client: StrictDecode,
+        <P::Seal as RgbSeal>::Published: StrictDecode,
+        <P::Seal as RgbSeal>::WitnessId: StrictDecode,
+    {
         let articles = (|| -> Result<Articles, ConsumeError<_>> {
-            // Check version number
-            let _ = ReservedBytes::<1, { CONSIGN_VERSION as u8 }>::strict_decode(reader)?;
             // Read and ignore the extension block
             let ext_blocks = u8::strict_decode(reader)?;
             for _ in 0..ext_blocks {
@@ -671,19 +687,6 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         self.ledger.commit_transaction();
         self.pile.commit_transaction();
         Ok(())
-    }
-
-    pub fn parse_consignment(
-        reader: &mut StrictReader<impl ReadRaw>,
-    ) -> Result<ContractId, ConsumeError<<P::Seal as RgbSeal>::Definition>> {
-        ReservedBytes::<1, { CONSIGN_VERSION as u8 }>::strict_decode(reader).map_err(|e| {
-            if matches!(e, DecodeError::DataIntegrityError(_)) {
-                DecodeError::DataIntegrityError(s!("unsupported future consignment version"))
-            } else {
-                e
-            }
-        })?;
-        Ok(ContractId::strict_decode(reader)?)
     }
 }
 

@@ -31,9 +31,9 @@ use amplify::ByteArray;
 use commit_verify::{ReservedBytes, StrictHash};
 use hypersonic::Articles;
 use rgb::{OperationSeals, ReadOperation, RgbSeal, LIB_NAME_RGB};
-use strict_encoding::{DecodeError, StrictDecode, TypedRead};
+use strict_encoding::{DecodeError, ReadRaw, StrictDecode, StrictReader, TypedRead};
 
-use crate::{ContractId, Identity, Issue, SemanticError, Semantics, SigBlob};
+use crate::{ContractId, Identity, Issue, SemanticError, Semantics, SigBlob, CONSIGN_VERSION};
 
 pub const MAX_CONSIGNMENT_OPS: u32 = u16::MAX as u32;
 
@@ -119,4 +119,17 @@ impl<Seal: RgbSeal> ReadOperation for InMemOps<Seal> {
     ) -> Result<Option<OperationSeals<Self::Seal>>, impl Error + 'static> {
         Result::<_, Infallible>::Ok(self.0.take().or_else(|| self.1.next()))
     }
+}
+
+pub fn parse_consignment(
+    reader: &mut StrictReader<impl ReadRaw>,
+) -> Result<ContractId, DecodeError> {
+    ReservedBytes::<1, { CONSIGN_VERSION as u8 }>::strict_decode(reader).map_err(|e| {
+        if matches!(e, DecodeError::DataIntegrityError(_)) {
+            DecodeError::DataIntegrityError(s!("unsupported future consignment version"))
+        } else {
+            e
+        }
+    })?;
+    ContractId::strict_decode(reader)
 }

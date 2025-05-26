@@ -30,8 +30,8 @@ use std::{fs, io};
 use amplify::confinement::SmallOrdMap;
 use hypersonic::Operation;
 use rgb::{
-    Articles, Contract, Issue, PileFs, PublishedWitness, RgbSeal, RgbSealDef, SealWitness,
-    Semantics, SigBlob, SingleUseSeal,
+    parse_consignment, Articles, Contract, Issue, PileFs, PublishedWitness, RgbSeal, RgbSealDef,
+    SealWitness, Semantics, SigBlob, SingleUseSeal,
 };
 use serde::{Deserialize, Serialize};
 use sonic_persist_fs::StockFs;
@@ -117,8 +117,7 @@ where
     let file = File::open(src)?;
     let mut stream = StrictReader::with(StreamReader::new::<{ usize::MAX }>(file));
 
-    let contract_id = Contract::<StockFs, PileFs<SealDef::Src>>::parse_consignment(&mut stream)
-        .map_err(|e| anyhow!(e.to_string()))?;
+    let contract_id = parse_consignment(&mut stream).map_err(|e| anyhow!(e.to_string()))?;
     println!("Dumping consignment for {} into '{}'", contract_id, dst.display());
 
     let mut op_count = 1;

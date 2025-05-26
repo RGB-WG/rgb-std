@@ -69,7 +69,7 @@ pub mod stl;
 
 #[cfg(feature = "bitcoin")]
 pub use bp::{Outpoint, Txid};
-pub use consignment::{Consignment, MAX_CONSIGNMENT_OPS};
+pub use consignment::{parse_consignment, Consignment, MAX_CONSIGNMENT_OPS};
 pub use contract::{
     Assignment, ConsumeError, Contract, ContractState, CreateParams, EitherSeal, ImmutableState,
     OwnedState,
