@@ -917,16 +917,16 @@ pub enum IncludeError {
 
 #[cfg(feature = "fs")]
 mod fs {
-    use std::fs::File;
     use std::io;
     use std::path::Path;
 
+    use binfile::BinFile;
     use commit_verify::StrictHash;
     use sonic_persist_fs::{FsError, StockFs};
     use strict_encoding::StreamReader;
 
     use super::*;
-    use crate::{Identity, PileFs, SigBlob, StockpileDir};
+    use crate::{Identity, PileFs, SigBlob, StockpileDir, CONSIGN_MAGIC_NUMBER, CONSIGN_VERSION};
 
     impl<
             W: WalletProvider,
@@ -941,7 +941,8 @@ mod fs {
             path: impl AsRef<Path>,
             sig_validator: impl FnOnce(StrictHash, &Identity, &SigBlob) -> Result<(), E>,
         ) -> Result<(), MultiError<ConsumeError<WTxoSeal>, FsError, io::Error>> {
-            let file = File::open(path).map_err(MultiError::from_a)?;
+            let file = BinFile::<CONSIGN_MAGIC_NUMBER, CONSIGN_VERSION>::open(path)
+                .map_err(MultiError::from_a)?;
             let mut reader = StrictReader::with(StreamReader::new::<{ usize::MAX }>(file));
             self.consume(allow_unknown, &mut reader, sig_validator)
         }
