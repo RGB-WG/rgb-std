@@ -31,7 +31,7 @@ use std::str::FromStr;
 use std::{fs, io};
 
 use amplify::MultiError;
-use hypersonic::IssueError;
+use hypersonic::Stock;
 use rgb::RgbSeal;
 use sonic_persist_fs::{FsError, StockFs};
 use strict_encoding::{StrictDecode, StrictEncode};
@@ -114,6 +114,8 @@ where
     type Pile = PileFs<Seal>;
     type Error = io::Error;
 
+    fn stock_conf(&self) -> <Self::Stock as Stock>::Conf { self.dir.clone() }
+
     fn consensus(&self) -> Consensus { self.consensus }
 
     fn is_testnet(&self) -> bool { self.testnet }
@@ -157,22 +159,6 @@ where
         issuer.save(path)?;
         self.issuers.insert(codex_id, name);
         Ok(issuer)
-    }
-
-    fn import_articles(
-        &mut self,
-        articles: Articles,
-    ) -> Result<Contract<Self::Stock, Self::Pile>, MultiError<IssueError, FsError, io::Error>> {
-        let contract_id = articles.contract_id();
-        let name = articles.issue().meta.name.to_string();
-        let dir = self.contract_dir(&articles);
-        if fs::exists(&dir).map_err(MultiError::C)? {
-            return Err(MultiError::C(io::Error::other("Contract already exists")));
-        }
-        fs::create_dir_all(&dir).map_err(MultiError::C)?;
-        let contract = Contract::with_articles(articles, dir)?;
-        self.contracts.insert(contract_id, name);
-        Ok(contract)
     }
 
     fn issue(

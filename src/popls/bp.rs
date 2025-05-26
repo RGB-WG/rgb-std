@@ -780,12 +780,31 @@ where
     }
 
     /// Consume consignment.
+    ///
+    /// The method:
+    /// - validates the consignment;
+    /// - resolves auth tokens into seal definitions known to the current wallet (i.e., coming from
+    ///   the invoices produced by the wallet);
+    /// - checks the signature of the issuer over the contract articles;
+    ///
+    /// # Arguments
+    ///
+    /// - `allow_unknown`: allows importing a contract which was not known to the system;
+    /// - `reader`: the input stream;
+    /// - `sig_validator`: a validator for the signature of the issuer over the contract articles.
     #[allow(clippy::result_large_err)]
     pub fn consume<E>(
         &mut self,
+        allow_unknown: bool,
         reader: &mut StrictReader<impl ReadRaw>,
         sig_validator: impl FnOnce(StrictHash, &Identity, &SigBlob) -> Result<(), E>,
-    ) -> Result<(), MultiError<ConsumeError<WTxoSeal>, <Sp::Stock as Stock>::Error>> {
+    ) -> Result<
+        (),
+        MultiError<ConsumeError<WTxoSeal>, <Sp::Stock as Stock>::Error, <Sp::Pile as Pile>::Error>,
+    >
+    where
+        <Sp::Pile as Pile>::Conf: From<<Sp::Stock as Stock>::Conf>,
+    {
         let seal_resolver = |op: &Operation| {
             self.wallet
                 .resolve_seals(op.destructible_out.iter().map(|cell| cell.auth))
@@ -800,7 +819,8 @@ where
                 })
                 .collect()
         };
-        self.contracts.consume(reader, seal_resolver, sig_validator)
+        self.contracts
+            .consume(allow_unknown, reader, seal_resolver, sig_validator)
     }
 }
 
@@ -898,6 +918,7 @@ pub enum IncludeError {
 #[cfg(feature = "fs")]
 mod fs {
     use std::fs::File;
+    use std::io;
     use std::path::Path;
 
     use commit_verify::StrictHash;
@@ -916,12 +937,13 @@ mod fs {
         #[allow(clippy::result_large_err)]
         pub fn consume_from_file<E>(
             &mut self,
+            allow_unknown: bool,
             path: impl AsRef<Path>,
             sig_validator: impl FnOnce(StrictHash, &Identity, &SigBlob) -> Result<(), E>,
-        ) -> Result<(), MultiError<ConsumeError<WTxoSeal>, FsError>> {
+        ) -> Result<(), MultiError<ConsumeError<WTxoSeal>, FsError, io::Error>> {
             let file = File::open(path).map_err(MultiError::from_a)?;
             let mut reader = StrictReader::with(StreamReader::new::<{ usize::MAX }>(file));
-            self.consume(&mut reader, sig_validator)
+            self.consume(allow_unknown, &mut reader, sig_validator)
         }
     }
 }

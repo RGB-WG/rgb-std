@@ -13,7 +13,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use bp::seals::TxoSeal;
-use rgb::{Consensus, Contracts, Operation, Stockpile, StockpileDir};
+use rgb::{Consensus, Contracts, Operation, StockpileDir};
 
 use crate::utils::setup;
 
@@ -30,18 +30,27 @@ fn export_import_contract() {
     contract.consign_to_file(filename, terminals).unwrap();
 
     let dir = PathBuf::from("tests/data/storage");
-    fs::create_dir_all(dir.clone()).ok();
-    let mut stockpile = StockpileDir::<TxoSeal>::load(dir, Consensus::Bitcoin, true).unwrap();
-    stockpile
-        .import_articles(contract.articles().clone())
-        .unwrap();
-
+    fs::remove_dir_all(&dir).ok();
+    fs::create_dir_all(&dir).ok();
+    let stockpile = StockpileDir::<TxoSeal>::load(dir, Consensus::Bitcoin, true).unwrap();
     let mut contracts = Contracts::<_, HashMap<_, _>, HashMap<_, _>>::load(stockpile);
 
     let resolver = |_: &Operation| -> BTreeMap<_, _> { bmap![] };
 
     contracts
-        .consume_from_file(filename, resolver, |_, _, _| -> Result<_, Infallible> {
+        .consume_from_file(false, filename, resolver, |_, _, _| -> Result<_, Infallible> {
+            unreachable!()
+        })
+        .unwrap_err();
+
+    contracts
+        .consume_from_file(true, filename, resolver, |_, _, _| -> Result<_, Infallible> {
+            unreachable!()
+        })
+        .unwrap();
+
+    contracts
+        .consume_from_file(false, filename, resolver, |_, _, _| -> Result<_, Infallible> {
             unreachable!()
         })
         .unwrap();

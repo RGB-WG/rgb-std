@@ -40,8 +40,9 @@ use strict_encoding::{
 };
 
 use crate::{
-    Articles, CallError, Consensus, ConsumeError, Contract, ContractRef, ContractState,
-    CreateParams, Identity, Issuer, Operation, Pile, SigBlob, Stockpile, WitnessStatus,
+    Articles, CallError, Consensus, Consignment, ConsumeError, Contract, ContractRef,
+    ContractState, CreateParams, Identity, Issuer, Operation, Pile, SigBlob, Stockpile,
+    WitnessStatus,
 };
 
 /// Collection of RGB smart contracts and contract issuers, which can be cached in memory.
@@ -213,10 +214,6 @@ where
         })
     }
 
-    pub fn export_articles(&self, contract_id: ContractId) -> Articles {
-        self.with_contract(contract_id, |contract| contract.articles().clone(), None)
-    }
-
     pub fn import_issuer(&mut self, issuer: Issuer) -> Result<CodexId, Sp::Error> {
         let codex_id = issuer.codex_id();
         let schema = self.persistence.import_issuer(issuer)?;
@@ -242,24 +239,6 @@ where
         } else {
             Ok(())
         }
-    }
-
-    pub fn import_articles(
-        &mut self,
-        articles: Articles,
-    ) -> Result<
-        ContractId,
-        MultiError<IssuerError, <Sp::Stock as Stock>::Error, <Sp::Pile as Pile>::Error>,
-    > {
-        let meta = &articles.issue().meta;
-        self.check_layer1(meta.consensus, meta.testnet)?;
-        let contract = self
-            .persistence
-            .import_articles(articles)
-            .map_err(MultiError::from_other_a)?;
-        let contract_id = contract.contract_id();
-        self.contracts.borrow_mut().insert(contract_id, contract);
-        Ok(contract_id)
     }
 
     pub fn issue(
@@ -328,8 +307,24 @@ where
         self.with_contract_mut(contract_id, |contract| contract.consign(terminals, writer))
     }
 
+    /// Consume a consignment stream.
+    ///
+    /// The method:
+    /// - validates the consignment;
+    /// - resolves auth tokens into seal definitions known to the current wallet (i.e., coming from
+    ///   the invoices produced by the wallet);
+    /// - checks the signature of the issuer over the contract articles;
+    ///
+    /// # Arguments
+    ///
+    /// - `allow_unknown`: allows importing a contract which was not known to the system;
+    /// - `reader`: the input stream;
+    /// - `seal_resolver`: lambda which knows about the seal definitions from the wallet-generated
+    ///   invoices;
+    /// - `sig_validator`: a validator for the signature of the issuer over the contract articles.
     pub fn consume<E>(
         &mut self,
+        allow_unknown: bool,
         reader: &mut StrictReader<impl ReadRaw>,
         seal_resolver: impl FnMut(
             &Operation,
@@ -341,9 +336,11 @@ where
         MultiError<
             ConsumeError<<<Sp::Pile as Pile>::Seal as RgbSeal>::Definition>,
             <Sp::Stock as Stock>::Error,
+            <Sp::Pile as Pile>::Error,
         >,
     >
     where
+        <Sp::Pile as Pile>::Conf: From<<Sp::Stock as Stock>::Conf>,
         <<Sp::Pile as Pile>::Seal as RgbSeal>::Client: StrictDecode,
         <<Sp::Pile as Pile>::Seal as RgbSeal>::Published: StrictDecode,
         <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId: StrictDecode,
@@ -351,12 +348,36 @@ where
         let contract_id =
             Contract::<Sp::Stock, Sp::Pile>::parse_consignment(reader).map_err(MultiError::A)?;
         if !self.has_contract(contract_id) {
-            return Err(MultiError::A(ConsumeError::UnknownContract(contract_id)));
-        };
-
-        self.with_contract_mut(contract_id, |contract| {
-            contract.consume(reader, seal_resolver, sig_validator)
-        })
+            if allow_unknown {
+                let consignment = Consignment::strict_decode(reader).map_err(MultiError::from_a)?;
+                let articles = consignment
+                    .articles(sig_validator)
+                    .map_err(MultiError::from_a)?;
+                self.check_layer1(
+                    articles.contract_meta().consensus,
+                    articles.contract_meta().testnet,
+                )
+                .map_err(MultiError::from_other_a)?;
+                let mut contract = Contract::with_articles(articles, self.persistence.stock_conf())
+                    .map_err(MultiError::from_other_a)?;
+                contract
+                    .evaluate_commit(consignment.into_operations())
+                    .map_err(MultiError::from_a)?;
+                self.contracts.borrow_mut().insert(contract_id, contract);
+                Ok(())
+            } else {
+                Err(MultiError::A(ConsumeError::UnknownContract(contract_id)))
+            }
+        } else {
+            self.with_contract_mut(contract_id, |contract| {
+                contract.consume(reader, seal_resolver, sig_validator)
+            })
+            .map_err(|err| match err {
+                MultiError::A(a) => MultiError::A(a),
+                MultiError::B(b) => MultiError::B(b),
+                MultiError::C(_) => unreachable!(),
+            })
+        }
     }
 }
 
@@ -374,6 +395,7 @@ pub enum IssuerError {
 
     /// invalid schema; {0}
     #[from]
+    // TODO: Rename
     InvalidSchema(CallError),
 
     #[from]
@@ -417,6 +439,7 @@ mod _fs {
 
         pub fn consume_from_file<E>(
             &mut self,
+            allow_unknown: bool,
             path: impl AsRef<Path>,
             seal_resolver: impl FnMut(
                 &Operation,
@@ -430,9 +453,11 @@ mod _fs {
             MultiError<
                 ConsumeError<<<Sp::Pile as Pile>::Seal as RgbSeal>::Definition>,
                 <Sp::Stock as Stock>::Error,
+                <Sp::Pile as Pile>::Error,
             >,
         >
         where
+            <Sp::Pile as Pile>::Conf: From<<Sp::Stock as Stock>::Conf>,
             <<Sp::Pile as Pile>::Seal as RgbSeal>::Client: StrictDecode,
             <<Sp::Pile as Pile>::Seal as RgbSeal>::Published: StrictDecode,
             <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId: StrictDecode,
@@ -440,7 +465,7 @@ mod _fs {
             let file = BinFile::<CONSIGN_MAGIC_NUMBER, CONSIGN_VERSION>::open(path)
                 .map_err(MultiError::from_a)?;
             let mut reader = StrictReader::with(StreamReader::new::<{ usize::MAX }>(file));
-            self.consume(&mut reader, seal_resolver, sig_validator)
+            self.consume(allow_unknown, &mut reader, seal_resolver, sig_validator)
         }
     }
 }

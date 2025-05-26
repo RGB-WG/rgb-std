@@ -57,16 +57,18 @@ extern crate core;
 pub extern crate rgb_invoice as invoice;
 
 mod pile;
+mod stockpile;
 mod contract;
+mod consignment;
+mod contracts;
 pub mod popls;
 mod util;
-mod contracts;
-mod stockpile;
 #[cfg(feature = "stl")]
 pub mod stl;
 
 #[cfg(feature = "bitcoin")]
 pub use bp::{Outpoint, Txid};
+pub use consignment::{Consignment, MAX_CONSIGNMENT_OPS};
 pub use contract::{
     Assignment, ConsumeError, Contract, ContractState, CreateParams, EitherSeal, ImmutableState,
     OwnedState,

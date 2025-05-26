@@ -51,7 +51,8 @@ use strict_encoding::{
 use strict_types::StrictVal;
 
 use crate::{
-    ContractMeta, Identity, Issue, Issuer, OpRels, Pile, VerifiedOperation, Witness, WitnessStatus,
+    ContractMeta, Identity, Issue, Issuer, IssuerError, OpRels, Pile, VerifiedOperation, Witness,
+    WitnessStatus,
 };
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, From)]
@@ -202,7 +203,7 @@ impl<Seal> ContractState<Seal> {
 ///
 /// Differs from [`IssueParams`] in the fact that it uses full seal data instead of
 /// [`hypersonic::AuthTokens`] for output definitions.
-#[derive(Clone, Debug, From)]
+#[derive(Clone, Debug)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
@@ -265,6 +266,7 @@ pub struct Contract<S: Stock, P: Pile> {
 }
 
 impl<S: Stock, P: Pile> Contract<S, P> {
+    // TODO: Remove
     /// Initializes contract from contract articles, with a given persistence configuration.
     pub fn with_articles(
         articles: Articles,
@@ -621,10 +623,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
 
             let op_reader =
                 OpReader { stream: reader, seal_resolver, count, _phantom: PhantomData };
-            self.evaluate(op_reader)
-                .unwrap_or_else(|err| panic!("Error: {err}"));
-            self.ledger.commit_transaction();
-            self.pile.commit_transaction();
+            self.evaluate_commit(op_reader)?;
 
             // We need to clone due to a borrow checker.
             let genesis = self.ledger.articles().genesis().clone();
@@ -638,6 +637,21 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         self.ledger
             .upgrade_apis(articles)
             .map_err(MultiError::from_other_a)?;
+        Ok(())
+    }
+
+    pub(crate) fn evaluate_commit<R: ReadOperation<Seal = P::Seal>>(
+        &mut self,
+        reader: R,
+    ) -> Result<(), VerificationError<P::Seal>>
+    where
+        <P::Seal as RgbSeal>::Client: StrictDecode,
+        <P::Seal as RgbSeal>::Published: StrictDecode,
+        <P::Seal as RgbSeal>::WitnessId: StrictDecode,
+    {
+        self.evaluate(reader)?;
+        self.ledger.commit_transaction();
+        self.pile.commit_transaction();
         Ok(())
     }
 
@@ -756,6 +770,11 @@ pub enum ConsumeError<Seal: RgbSealDef> {
 
     #[from]
     Verify(VerificationError<Seal::Src>),
+
+    #[from]
+    #[from(IssueError)]
+    // FIXME
+    Issue(IssuerError),
 }
 
 #[cfg(feature = "fs")]
