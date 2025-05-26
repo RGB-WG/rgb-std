@@ -23,20 +23,21 @@
 // the License.
 
 use std::convert::Infallible;
+use std::fs;
 use std::fs::File;
 use std::path::Path;
-use std::{fs, io};
 
-use amplify::confinement::SmallOrdMap;
+use amplify::confinement::{SmallBlob, SmallOrdMap, TinyVec};
+use binfile::BinFile;
 use hypersonic::Operation;
 use rgb::{
     parse_consignment, Articles, Contract, Issue, PileFs, PublishedWitness, RgbSeal, RgbSealDef,
-    SealWitness, Semantics, SigBlob, SingleUseSeal,
+    SealWitness, Semantics, SigBlob, SingleUseSeal, CONSIGN_MAGIC_NUMBER, CONSIGN_VERSION,
 };
 use serde::{Deserialize, Serialize};
 use sonic_persist_fs::StockFs;
 use sonix::{dump_articles, dump_ledger};
-use strict_encoding::{DecodeError, StreamReader, StrictDecode, StrictEncode, StrictReader};
+use strict_encoding::{StreamReader, StrictDecode, StrictEncode, StrictReader};
 
 pub fn dump_stockpile<Seal>(
     src: impl AsRef<Path>,
@@ -114,15 +115,17 @@ where
     }
     fs::create_dir_all(dst)?;
 
-    let file = File::open(src)?;
+    let file = BinFile::<CONSIGN_MAGIC_NUMBER, CONSIGN_VERSION>::open(src)?;
     let mut stream = StrictReader::with(StreamReader::new::<{ usize::MAX }>(file));
 
     let contract_id = parse_consignment(&mut stream).map_err(|e| anyhow!(e.to_string()))?;
     println!("Dumping consignment for {} into '{}'", contract_id, dst.display());
 
-    let mut op_count = 1;
     let mut seal_count = 0;
     let mut witness_count = 0;
+
+    println!("Skipping extension blocks ... ");
+    let _ = TinyVec::<SmallBlob>::strict_decode(&mut stream)?;
 
     print!("Processing contract articles ... ");
 
@@ -148,37 +151,32 @@ where
     }
     println!("success");
 
+    let count = u32::strict_decode(&mut stream)?;
     println!();
-    loop {
-        match Operation::strict_decode(&mut stream) {
-            Ok(operation) => {
-                let opid = operation.opid();
+    for i in 0..count {
+        let op_count = i + 1;
+        let operation = Operation::strict_decode(&mut stream)?;
+        let opid = operation.opid();
 
-                let out = File::create_new(dst.join(format!("{op_count:04}-op-{opid}.yaml")))?;
-                serde_yaml::to_writer(&out, &operation)?;
+        let out = File::create_new(dst.join(format!("{op_count:04}-op-{opid}.yaml")))?;
+        serde_yaml::to_writer(&out, &operation)?;
 
-                let out = File::create_new(dst.join(format!("{op_count:04}-seals-{opid}.yml")))?;
-                let defined_seals = SmallOrdMap::<u16, SealDef>::strict_decode(&mut stream)
-                    .expect("Failed to read the consignment stream");
-                serde_yaml::to_writer(&out, &defined_seals)?;
-                seal_count += defined_seals.len();
+        let out = File::create_new(dst.join(format!("{op_count:04}-seals-{opid}.yml")))?;
+        let defined_seals = SmallOrdMap::<u16, SealDef>::strict_decode(&mut stream)
+            .expect("Failed to read the consignment stream");
+        serde_yaml::to_writer(&out, &defined_seals)?;
+        seal_count += defined_seals.len();
 
-                let witness = bool::strict_decode(&mut stream)?;
-                if witness {
-                    let witness = SealWitness::<SealDef::Src>::strict_decode(&mut stream)?;
-                    let out = File::create_new(dst.join(format!(
-                        "{op_count:04}-witness-{}.yaml",
-                        witness.published.pub_id()
-                    )))?;
-                    serde_yaml::to_writer(&out, &witness)?;
-                    witness_count += 1;
-                }
-
-                op_count += 1;
-            }
-            Err(DecodeError::Io(e)) if e.kind() == io::ErrorKind::UnexpectedEof => break,
-            Err(e) => bail!("Failed to read the consignment stream: {}", e),
+        let witness = bool::strict_decode(&mut stream)?;
+        if witness {
+            let witness = SealWitness::<SealDef::Src>::strict_decode(&mut stream)?;
+            let out = File::create_new(
+                dst.join(format!("{op_count:04}-witness-{}.yaml", witness.published.pub_id())),
+            )?;
+            serde_yaml::to_writer(&out, &witness)?;
+            witness_count += 1;
         }
+
         print!(
             "\rParsing stream ... {op_count} operations, {seal_count} seals, {witness_count} \
              witnesses processed",
