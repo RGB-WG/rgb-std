@@ -45,6 +45,8 @@ use crate::{
     WitnessStatus,
 };
 
+pub const CONSIGN_VERSION: u16 = 0;
+
 /// Collection of RGB smart contracts and contract issuers, which can be cached in memory.
 ///
 /// # Generics
@@ -418,7 +420,6 @@ mod _fs {
     use super::*;
 
     pub const CONSIGN_MAGIC_NUMBER: u64 = u64::from_be_bytes(*b"RGBCNSGN");
-    pub const CONSIGN_VERSION: u16 = 0;
 
     impl<Sp, S, C> Contracts<Sp, S, C>
     where
