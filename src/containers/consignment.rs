@@ -42,7 +42,7 @@ use strict_encoding::{StrictDeserialize, StrictDumb, StrictSerialize};
 use strict_types::TypeSystem;
 
 use super::{
-    ContainerVer, IndexedConsignment, WitnessBundle, ASCII_ARMOR_CONSIGNMENT_TYPE,
+    ContainerVer, IndexedConsignment, SecretSeals, WitnessBundle, ASCII_ARMOR_CONSIGNMENT_TYPE,
     ASCII_ARMOR_CONTRACT, ASCII_ARMOR_SCHEMA, ASCII_ARMOR_TERMINAL, ASCII_ARMOR_VERSION,
 };
 use crate::persistence::{MemContract, MemContractState};
@@ -178,7 +178,7 @@ pub struct Consignment<const TRANSFER: bool> {
     pub transfer: bool,
 
     /// Set of secret seals which are history terminals.
-    pub terminals: SmallOrdMap<BundleId, SecretSeal>,
+    pub terminals: SmallOrdMap<BundleId, SecretSeals>,
 
     /// Genesis data.
     pub genesis: Genesis,
@@ -251,9 +251,11 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
         // We need to clone since ordered set does not allow us to mutate members.
         let mut bundles = LargeOrdSet::with_capacity(self.bundles.len());
         for mut witness_bundle in self.bundles {
-            for (bundle_id, secret) in &self.terminals {
-                if let Some(seal) = f(*secret)? {
-                    witness_bundle.bundle.reveal_seal(*bundle_id, seal);
+            for (bundle_id, secrets) in &self.terminals {
+                for secret in secrets {
+                    if let Some(seal) = f(secret)? {
+                        witness_bundle.bundle.reveal_seal(*bundle_id, seal);
+                    }
                 }
             }
             bundles.push(witness_bundle).ok();
@@ -291,7 +293,7 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
         resolver: &impl ResolveWitness,
         chain_net: ChainNet,
         safe_height: Option<NonZeroU32>,
-    ) -> Result<ValidConsignment<TRANSFER>, (validation::Status, Consignment<TRANSFER>)> {
+    ) -> Result<ValidConsignment<TRANSFER>, validation::Status> {
         self.validate_with_opids(resolver, chain_net, safe_height, bset![])
     }
 
@@ -301,7 +303,7 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
         chain_net: ChainNet,
         safe_height: Option<NonZeroU32>,
         trusted_op_seals: BTreeSet<OpId>,
-    ) -> Result<ValidConsignment<TRANSFER>, (validation::Status, Consignment<TRANSFER>)> {
+    ) -> Result<ValidConsignment<TRANSFER>, validation::Status> {
         let index = IndexedConsignment::new(&self);
         let mut status = Validator::<MemContract<MemContractState>, _, _>::validate(
             &index,
@@ -328,7 +330,7 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
         }
 
         if validity == Validity::Invalid {
-            Err((status, self))
+            Err(status)
         } else {
             Ok(ValidConsignment {
                 validation_status: status,

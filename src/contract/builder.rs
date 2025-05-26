@@ -255,9 +255,7 @@ impl ContractBuilder {
             scripts,
         };
 
-        let valid_contract = contract
-            .validate(&DumbResolver, self.chain_net, None)
-            .map_err(|(status, _)| status)?;
+        let valid_contract = contract.validate(&DumbResolver, self.chain_net, None)?;
 
         Ok(valid_contract)
     }

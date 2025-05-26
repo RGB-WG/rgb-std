@@ -150,7 +150,7 @@ impl Kit {
     #[inline]
     pub fn kit_id(&self) -> KitId { self.commit_id() }
 
-    pub fn validate(self) -> Result<ValidKit, (validation::Status, Kit)> {
+    pub fn validate(self) -> Result<ValidKit, validation::Status> {
         let status = validation::Status::new();
         Ok(ValidKit {
             validation_status: status,
