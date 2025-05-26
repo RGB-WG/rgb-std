@@ -731,8 +731,9 @@ impl<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&Operation) -> BTreeMap<u16, Seal::
         // count right after the genesis (first operation).
         if self.count == u32::MAX {
             self.count = u32::strict_decode(self.stream)?;
+        } else {
+            self.count -= 1;
         }
-        self.count -= 1;
 
         Ok(Some(OperationSeals { operation, defined_seals, witness }))
     }
