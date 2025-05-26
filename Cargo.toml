@@ -19,8 +19,6 @@ strict_encoding = "2.9.1"
 strict_types = "2.9.0"
 commit_verify = "0.12.0-rc.1"
 single_use_seals = "0.12.0-rc.1"
-aora = ">=0.6.3"
-baid64 = "0.4.1"
 hypersonic = "0.12.0-rc.1"
 sonic-callreq = "0.12.0-rc.1"
 sonic-persist-fs = "0.12.0-rc.1"
@@ -30,6 +28,9 @@ bp-invoice = "0.12.0-rc.1"
 rgb-core = "0.12.0-rc.1"
 rgb-std = { version = "0.12.0-rc.1", path = "." }
 rgb-invoice = { version = "0.12.0-rc.1", path = "./invoice" }
+aora = ">=0.6.3"
+baid64 = "0.4.1"
+binfile = "0.2.0"
 indexmap = "2.9.0"
 chrono = "0.4.39"
 serde = "1.0.215"
@@ -64,6 +65,7 @@ strict_types.workspace = true
 commit_verify.workspace = true
 single_use_seals.workspace = true
 aora.workspace = true
+binfile.workspace = true
 hypersonic.workspace = true
 sonic-persist-fs.workspace = true
 bp-core = { workspace = true, optional = true }

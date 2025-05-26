@@ -469,10 +469,7 @@ where
             .or(api.default_call.as_ref())
             .ok_or(FulfillError::CallStateUnknown)?;
         let method = call.method.clone();
-        let state_name = call
-            .destructible
-            .clone()
-            .ok_or(FulfillError::StateNameUnknown)?;
+        let state_name = call.owned.clone().ok_or(FulfillError::StateNameUnknown)?;
         let mut calc = api.calculate(state_name.clone())?;
 
         let value = invoice.data.as_ref().ok_or(FulfillError::ValueMissed)?;

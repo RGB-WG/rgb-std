@@ -382,13 +382,16 @@ pub enum IssuerError {
 }
 
 #[cfg(feature = "fs")]
-mod fs {
-    use std::fs::File;
+mod _fs {
     use std::path::Path;
 
-    use strict_encoding::{StreamReader, StreamWriter};
+    use binfile::BinFile;
+    use strict_encoding::StreamReader;
 
     use super::*;
+
+    pub const CONSIGN_MAGIC_NUMBER: u64 = u64::from_be_bytes(*b"RGBCNSGN");
+    pub const CONSIGN_VERSION: u16 = 0;
 
     impl<Sp, S, C> Contracts<Sp, S, C>
     where
@@ -407,9 +410,9 @@ mod fs {
             <<Sp::Pile as Pile>::Seal as RgbSeal>::Published: StrictDumb + StrictEncode,
             <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId: StrictEncode,
         {
-            let file = File::create_new(path)?;
-            let writer = StrictWriter::with(StreamWriter::new::<{ usize::MAX }>(file));
-            self.consign(contract_id, terminals, writer)
+            self.with_contract_mut(contract_id, |contract| {
+                contract.consign_to_file(path, terminals)
+            })
         }
 
         pub fn consume_from_file<E>(
@@ -434,9 +437,12 @@ mod fs {
             <<Sp::Pile as Pile>::Seal as RgbSeal>::Published: StrictDecode,
             <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId: StrictDecode,
         {
-            let file = File::open(path).map_err(MultiError::from_a)?;
+            let file = BinFile::<CONSIGN_MAGIC_NUMBER, CONSIGN_VERSION>::open(path)
+                .map_err(MultiError::from_a)?;
             let mut reader = StrictReader::with(StreamReader::new::<{ usize::MAX }>(file));
             self.consume(&mut reader, seal_resolver, sig_validator)
         }
     }
 }
+#[cfg(feature = "fs")]
+pub use _fs::*;

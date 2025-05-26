@@ -29,7 +29,6 @@ use core::marker::PhantomData;
 use std::io;
 
 use amplify::confinement::SmallOrdMap;
-use amplify::hex::ToHex;
 use amplify::{IoError, MultiError};
 use chrono::{DateTime, Utc};
 use commit_verify::{ReservedBytes, StrictHash};
@@ -54,9 +53,6 @@ use strict_types::StrictVal;
 use crate::{
     ContractMeta, Identity, Issue, Issuer, OpRels, Pile, VerifiedOperation, Witness, WitnessStatus,
 };
-
-pub const CONSIGNMENT_MAGIC_NUMBER: [u8; 8] = *b"RGBCNSGN";
-pub const CONSIGNMENT_VERSION: [u8; 2] = [0x00, 0x01];
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, From)]
 #[cfg_attr(
@@ -425,7 +421,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         let mut cache = bmap! {};
         let state = self.ledger.state().main.clone();
         let mut owned = bmap! {};
-        for (name, map) in state.destructible {
+        for (name, map) in state.owned {
             let mut state = bmap! {};
             for (addr, data) in map {
                 let since = *cache
@@ -452,7 +448,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
             owned.insert(name, state);
         }
         let mut immutable = bmap! {};
-        for (name, map) in state.immutable {
+        for (name, map) in state.global {
             let mut state = bmap! {};
             for (addr, data) in map {
                 let status = *cache
@@ -577,18 +573,13 @@ impl<S: Stock, P: Pile> Contract<S, P> {
     pub fn consign(
         &self,
         terminals: impl IntoIterator<Item = impl Borrow<AuthToken>>,
-        mut writer: StrictWriter<impl WriteRaw>,
+        writer: StrictWriter<impl WriteRaw>,
     ) -> io::Result<()>
     where
         <P::Seal as RgbSeal>::Client: StrictDumb + StrictEncode,
         <P::Seal as RgbSeal>::Published: StrictDumb + StrictEncode,
         <P::Seal as RgbSeal>::WitnessId: StrictEncode,
     {
-        // This is compatible with BinFile
-        writer = CONSIGNMENT_MAGIC_NUMBER.strict_encode(writer)?;
-        // Version
-        writer = CONSIGNMENT_VERSION.strict_encode(writer)?;
-        writer = self.contract_id().strict_encode(writer)?;
         self.ledger
             .export_aux(terminals, writer, |opid, op, mut writer| {
                 // Write seal definitions
@@ -618,6 +609,8 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         <P::Seal as RgbSeal>::WitnessId: StrictDecode,
     {
         let articles = (|| -> Result<Articles, ConsumeError<_>> {
+            // We add 1 to account for the genesis operation.
+            let count = u64::strict_decode(reader)? + 1;
             // We need to read articles field by field since we have to evaluate genesis separately
             let semantics = Semantics::strict_decode(reader)?;
             let sig = Option::<SigBlob>::strict_decode(reader)?;
@@ -626,7 +619,8 @@ impl<S: Stock, P: Pile> Contract<S, P> {
             let meta = ContractMeta::strict_decode(reader)?;
             let codex = Codex::strict_decode(reader)?;
 
-            let op_reader = OpReader { stream: reader, seal_resolver, _phantom: PhantomData };
+            let op_reader =
+                OpReader { stream: reader, seal_resolver, count, _phantom: PhantomData };
             self.evaluate(op_reader)
                 .unwrap_or_else(|err| panic!("Error: {err}"));
             self.ledger.commit_transaction();
@@ -650,15 +644,6 @@ impl<S: Stock, P: Pile> Contract<S, P> {
     pub fn parse_consignment(
         reader: &mut StrictReader<impl ReadRaw>,
     ) -> Result<ContractId, ConsumeError<<P::Seal as RgbSeal>::Definition>> {
-        // TODO: Use Binfile
-        let magic_bytes = <[u8; 8]>::strict_decode(reader)?;
-        if magic_bytes != CONSIGNMENT_MAGIC_NUMBER {
-            return Err(ConsumeError::UnrecognizedMagic(magic_bytes.to_hex()));
-        }
-        let version = <[u8; 2]>::strict_decode(reader)?;
-        if version != CONSIGNMENT_VERSION {
-            return Err(ConsumeError::UnsupportedVersion(u16::from_be_bytes(version)));
-        }
         Ok(ContractId::strict_decode(reader)?)
     }
 }
@@ -670,6 +655,7 @@ pub struct OpReader<
     F: FnMut(&Operation) -> BTreeMap<u16, Seal::Definition>,
 > {
     stream: &'r mut StrictReader<R>,
+    count: u64,
     seal_resolver: F,
     _phantom: PhantomData<Seal>,
 }
@@ -682,6 +668,10 @@ impl<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&Operation) -> BTreeMap<u16, Seal::
     fn read_operation(
         &mut self,
     ) -> Result<Option<OperationSeals<Self::Seal>>, impl Error + 'static> {
+        if self.count == 0 {
+            return Ok(None);
+        }
+        self.count -= 1;
         let Some(operation) =
             Operation::strict_decode(self.stream)
                 .map(Some)
@@ -754,14 +744,6 @@ pub enum ConsumeError<Seal: RgbSealDef> {
     #[from(io::Error)]
     Io(IoError),
 
-    /// unrecognized magic bytes {0} in the consignment stream
-    #[display(doc_comments)]
-    UnrecognizedMagic(String),
-
-    /// unsupported version {0} of the consignment stream
-    #[display(doc_comments)]
-    UnsupportedVersion(u16),
-
     /// unknown {0} can't be consumed; please import contract articles first.
     #[display(doc_comments)]
     UnknownContract(ContractId),
@@ -778,32 +760,26 @@ pub enum ConsumeError<Seal: RgbSealDef> {
 
 #[cfg(feature = "fs")]
 mod fs {
-    use std::fs::File;
     use std::path::Path;
 
-    use sonic_persist_fs::StockFs;
-    use strict_encoding::{StreamWriter, StrictDecode, StrictDumb, StrictEncode};
+    use binfile::BinFile;
+    use strict_encoding::{StreamWriter, StrictDumb, StrictEncode};
 
     use super::*;
-    use crate::pile::fs::PileFs;
+    use crate::{CONSIGN_MAGIC_NUMBER, CONSIGN_VERSION};
 
-    impl<SealSrc: RgbSeal> Contract<StockFs, PileFs<SealSrc>>
-    where
-        SealSrc::Client: StrictEncode + StrictDecode,
-        SealSrc::Published: Eq + StrictEncode + StrictDecode,
-        SealSrc::WitnessId: Ord + From<[u8; 32]> + Into<[u8; 32]>,
-    {
+    impl<S: Stock, P: Pile> Contract<S, P> {
         pub fn consign_to_file(
             &self,
             path: impl AsRef<Path>,
             terminals: impl IntoIterator<Item = impl Borrow<AuthToken>>,
         ) -> io::Result<()>
         where
-            SealSrc::Client: StrictDumb,
-            SealSrc::Published: StrictDumb,
-            SealSrc::WitnessId: StrictEncode,
+            <P::Seal as RgbSeal>::Client: StrictDumb + StrictEncode,
+            <P::Seal as RgbSeal>::Published: StrictDumb + StrictEncode,
+            <P::Seal as RgbSeal>::WitnessId: StrictEncode,
         {
-            let file = File::create_new(path)?;
+            let file = BinFile::<CONSIGN_MAGIC_NUMBER, CONSIGN_VERSION>::create_new(path)?;
             let writer = StrictWriter::with(StreamWriter::new::<{ usize::MAX }>(file));
             self.consign(terminals, writer)
         }

@@ -144,9 +144,9 @@ checksum = "e16d2d3311acee920a9eb8d33b8cbc1787ce4a264e85f964c2404b969bdcd487"
 
 [[package]]
 name = "aora"
-version = "0.6.3"
+version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0da0aa3a98a56f9002e0d30d642b62ba55b39821075951a764121bfe098ee98"
+checksum = "fa0b56f69d2c47f8ee387f40849742d552e8b94596d997c19095809ac5c6b377"
 dependencies = [
  "amplify",
  "binfile",
@@ -623,7 +623,7 @@ dependencies = [
 [[package]]
 name = "hypersonic"
 version = "0.12.0-rc.1"
-source = "git+https://github.com/AluVM/sonic?branch=v0.12#1f26c8dff73ecb8feefad07abda4ae7e4b87026c"
+source = "git+https://github.com/AluVM/sonic?branch=v0.12#072ee4484bf77925c38257d037f5a9387734e3e8"
 dependencies = [
  "aluvm",
  "amplify",
@@ -923,6 +923,7 @@ version = "0.12.0-rc.1"
 dependencies = [
  "amplify",
  "aora",
+ "binfile",
  "bp-core",
  "bp-invoice",
  "chrono",
@@ -1128,7 +1129,7 @@ dependencies = [
 [[package]]
 name = "sonic-api"
 version = "0.12.0-rc.1"
-source = "git+https://github.com/AluVM/sonic?branch=v0.12#1f26c8dff73ecb8feefad07abda4ae7e4b87026c"
+source = "git+https://github.com/AluVM/sonic?branch=v0.12#072ee4484bf77925c38257d037f5a9387734e3e8"
 dependencies = [
  "aluvm",
  "amplify",
@@ -1149,7 +1150,7 @@ dependencies = [
 [[package]]
 name = "sonic-callreq"
 version = "0.12.0-rc.1"
-source = "git+https://github.com/AluVM/sonic?branch=v0.12#1f26c8dff73ecb8feefad07abda4ae7e4b87026c"
+source = "git+https://github.com/AluVM/sonic?branch=v0.12#072ee4484bf77925c38257d037f5a9387734e3e8"
 dependencies = [
  "amplify",
  "baid64",
@@ -1169,7 +1170,7 @@ dependencies = [
 [[package]]
 name = "sonic-persist-fs"
 version = "0.12.0-rc.1"
-source = "git+https://github.com/AluVM/sonic?branch=v0.12#1f26c8dff73ecb8feefad07abda4ae7e4b87026c"
+source = "git+https://github.com/AluVM/sonic?branch=v0.12#072ee4484bf77925c38257d037f5a9387734e3e8"
 dependencies = [
  "amplify",
  "aora",
@@ -1184,7 +1185,7 @@ dependencies = [
 [[package]]
 name = "sonix"
 version = "0.12.0-rc.1"
-source = "git+https://github.com/AluVM/sonic?branch=v0.12#1f26c8dff73ecb8feefad07abda4ae7e4b87026c"
+source = "git+https://github.com/AluVM/sonic?branch=v0.12#072ee4484bf77925c38257d037f5a9387734e3e8"
 dependencies = [
  "amplify",
  "anyhow",

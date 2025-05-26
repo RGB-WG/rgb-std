@@ -69,9 +69,11 @@ pub mod stl;
 pub use bp::{Outpoint, Txid};
 pub use contract::{
     Assignment, ConsumeError, Contract, ContractState, CreateParams, EitherSeal, ImmutableState,
-    OwnedState, CONSIGNMENT_MAGIC_NUMBER, CONSIGNMENT_VERSION,
+    OwnedState,
 };
 pub use contracts::{Contracts, IssuerError};
+#[cfg(feature = "fs")]
+pub use contracts::{CONSIGN_MAGIC_NUMBER, CONSIGN_VERSION};
 pub use hypersonic::*;
 #[cfg(feature = "fs")]
 pub use pile::fs::PileFs;
