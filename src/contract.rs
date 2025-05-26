@@ -632,6 +632,8 @@ impl<S: Stock, P: Pile> Contract<S, P> {
             let op_reader = OpReader {
                 stream: reader,
                 seal_resolver,
+                // We start with this hardcoded value to signal that we need to read the actual
+                // count right after the genesis (first operation).
                 count: u32::MAX,
                 _phantom: PhantomData,
             };
@@ -645,6 +647,10 @@ impl<S: Stock, P: Pile> Contract<S, P> {
             Ok(articles)
         })()
         .map_err(MultiError::A)?;
+
+        // Here we do not check for the end of the stream,
+        // so in the future we can have arbitrary extensions
+        // put here with no backward compatibility issues.
 
         self.ledger
             .upgrade_apis(articles)
@@ -702,18 +708,9 @@ impl<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&Operation) -> BTreeMap<u16, Seal::
         &mut self,
     ) -> Result<Option<OperationSeals<Self::Seal>>, impl Error + 'static> {
         if self.count == 0 {
-            return Ok(None);
-        }
-        let Some(operation) =
-            Operation::strict_decode(self.stream)
-                .map(Some)
-                .or_else(|e| match e {
-                    DecodeError::Io(e) if e.kind() == io::ErrorKind::UnexpectedEof => Ok(None),
-                    e => Err(e),
-                })?
-        else {
             return Result::<_, DecodeError>::Ok(None);
-        };
+        }
+        let operation = Operation::strict_decode(self.stream)?;
 
         let mut defined_seals = SmallOrdMap::strict_decode(self.stream)?;
         defined_seals
@@ -724,19 +721,11 @@ impl<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&Operation) -> BTreeMap<u16, Seal::
                     operation.opid()
                 ))
             })?;
-        let has_witness = bool::strict_decode(self.stream)?;
 
-        let witness = if has_witness {
-            SealWitness::strict_decode(self.stream)
-                .map(Some)
-                .or_else(|e| match e {
-                    DecodeError::Io(e) if e.kind() == io::ErrorKind::UnexpectedEof => Ok(None),
-                    e => Err(e),
-                })?
-        } else {
-            None
-        };
+        let witness = Option::<SealWitness<Seal>>::strict_decode(self.stream)?;
 
+        // We start with this hardcoded value to signal that we need to read the actual
+        // count right after the genesis (first operation).
         if self.count == u32::MAX {
             self.count = u32::strict_decode(self.stream)?;
         }

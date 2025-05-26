@@ -363,6 +363,11 @@ where
                 contract
                     .evaluate_commit(consignment.into_operations())
                     .map_err(MultiError::from_a)?;
+
+                // Here we do not check for the end of the stream,
+                // so in the future we can have arbitrary extensions
+                // put here with no backward compatibility issues.
+
                 self.contracts.borrow_mut().insert(contract_id, contract);
                 Ok(())
             } else {
