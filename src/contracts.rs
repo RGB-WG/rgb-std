@@ -495,6 +495,29 @@ mod _fs {
         S: KeyedCollection<Key = CodexId, Value = Issuer>,
         C: KeyedCollection<Key = ContractId, Value = Contract<Sp::Stock, Sp::Pile>>,
     {
+        /// Export a contract to a file at `path`.
+        ///
+        /// # Panics
+        ///
+        /// If the contract id is not known.
+        ///
+        /// # Errors
+        ///
+        /// If writing to the file failures, like when the file already exists, there is no write
+        /// access to it, or no sufficient disk space.
+        pub fn export_to_file(
+            &self,
+            path: impl AsRef<Path>,
+            contract_id: ContractId,
+        ) -> io::Result<()>
+        where
+            <<Sp::Pile as Pile>::Seal as RgbSeal>::Client: StrictDumb + StrictEncode,
+            <<Sp::Pile as Pile>::Seal as RgbSeal>::Published: StrictDumb + StrictEncode,
+            <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId: StrictEncode,
+        {
+            self.with_contract(contract_id, |contract| contract.export_to_file(path), None)
+        }
+
         /// Create a consignment with a history from the genesis to each of the `terminals`, and
         /// serialize it to a `file`.
         ///
@@ -507,7 +530,7 @@ mod _fs {
         /// If writing to the file failures, like when the file already exists, there is no write
         /// access to it, or no sufficient disk space.
         pub fn consign_to_file(
-            &mut self,
+            &self,
             path: impl AsRef<Path>,
             contract_id: ContractId,
             terminals: impl IntoIterator<Item = impl Borrow<AuthToken>>,
@@ -517,9 +540,11 @@ mod _fs {
             <<Sp::Pile as Pile>::Seal as RgbSeal>::Published: StrictDumb + StrictEncode,
             <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId: StrictEncode,
         {
-            self.with_contract_mut(contract_id, |contract| {
-                contract.consign_to_file(path, terminals)
-            })
+            self.with_contract(
+                contract_id,
+                |contract| contract.consign_to_file(path, terminals),
+                None,
+            )
         }
 
         /// Consume a consignment from a `file`.

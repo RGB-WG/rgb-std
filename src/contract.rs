@@ -875,6 +875,22 @@ mod fs {
     use crate::{CONSIGN_MAGIC_NUMBER, CONSIGN_VERSION};
 
     impl<S: Stock, P: Pile> Contract<S, P> {
+        /// Export a contract to a file at `path`.
+        ///
+        /// # Errors
+        ///
+        /// If writing to the file failures, like when the file already exists, there is no write
+        /// access to it, or no sufficient disk space.
+        pub fn export_to_file(&self, path: impl AsRef<Path>) -> io::Result<()>
+        where
+            <P::Seal as RgbSeal>::Client: StrictDumb + StrictEncode,
+            <P::Seal as RgbSeal>::Published: StrictDumb + StrictEncode,
+            <P::Seal as RgbSeal>::WitnessId: StrictEncode,
+        {
+            let file = BinFile::<CONSIGN_MAGIC_NUMBER, CONSIGN_VERSION>::create_new(path)?;
+            let writer = StrictWriter::with(StreamWriter::new::<{ usize::MAX }>(file));
+            self.export(writer)
+        }
 
         /// Create a consignment with a history from the genesis to each of the `terminals`, and
         /// serialize it to a `file`.
