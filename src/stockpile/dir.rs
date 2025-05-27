@@ -95,7 +95,7 @@ impl<Seal: RgbSeal> StockpileDir<Seal> {
 
     pub fn dir(&self) -> &Path { self.dir.as_path() }
 
-    fn contract_dir(&self, articles: &Articles) -> io::Result<PathBuf> {
+    fn create_contract_dir(&self, articles: &Articles) -> io::Result<PathBuf> {
         let dir = self.dir.join(format!(
             "{}.{:-}.contract",
             articles.issue().meta.name,
@@ -183,7 +183,7 @@ where
         Seal::Published: StrictDecode,
         Seal::WitnessId: StrictDecode,
     {
-        let dir = self.contract_dir(&articles).map_err(MultiError::C)?;
+        let dir = self.create_contract_dir(&articles).map_err(MultiError::C)?;
         let contract = Contract::with(articles, consignment, dir)?;
         Ok(contract)
     }
@@ -196,8 +196,9 @@ where
         let schema = self
             .issuer(params.codex_id)
             .ok_or(MultiError::A(IssuerError::UnknownCodex(params.codex_id)))?;
-        let contract = Contract::issue(schema, params, |articles| Ok(self.contract_dir(articles)?))
-            .map_err(MultiError::from_other_a)?;
+        let contract =
+            Contract::issue(schema, params, |articles| Ok(self.create_contract_dir(articles)?))
+                .map_err(MultiError::from_other_a)?;
         self.contracts
             .insert(contract.contract_id(), contract.articles().issue().meta.name.to_string());
         Ok(contract)

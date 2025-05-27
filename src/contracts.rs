@@ -297,6 +297,19 @@ where
         self.with_contract_mut(contract_id, |contract| contract.include(opid, anchor, pub_witness))
     }
 
+    pub fn export(
+        &mut self,
+        contract_id: ContractId,
+        writer: StrictWriter<impl WriteRaw>,
+    ) -> io::Result<()>
+    where
+        <<Sp::Pile as Pile>::Seal as RgbSeal>::Client: StrictDumb + StrictEncode,
+        <<Sp::Pile as Pile>::Seal as RgbSeal>::Published: StrictDumb + StrictEncode,
+        <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId: StrictEncode,
+    {
+        self.with_contract_mut(contract_id, |contract| contract.export(writer))
+    }
+
     pub fn consign(
         &mut self,
         contract_id: ContractId,

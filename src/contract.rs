@@ -581,6 +581,36 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         self.pile.commit_transaction();
     }
 
+    fn aux<W: WriteRaw>(
+        &self,
+        opid: Opid,
+        op: &Operation,
+        mut writer: StrictWriter<W>,
+    ) -> io::Result<StrictWriter<W>> {
+        // Write seal definitions
+        let seals = self.pile.seals(opid, op.destructible_out.len_u16());
+        writer = seals.strict_encode(writer)?;
+
+        // Write witnesses
+        let witness = self.retrieve(opid);
+        writer = witness.is_some().strict_encode(writer)?;
+        if let Some(witness) = witness {
+            writer = witness.strict_encode(writer)?;
+        }
+
+        Ok(writer)
+    }
+
+    pub fn export(&self, writer: StrictWriter<impl WriteRaw>) -> io::Result<()>
+    where
+        <P::Seal as RgbSeal>::Client: StrictDumb + StrictEncode,
+        <P::Seal as RgbSeal>::Published: StrictDumb + StrictEncode,
+        <P::Seal as RgbSeal>::WitnessId: StrictEncode,
+    {
+        self.ledger
+            .export_all_aux(writer, |opid, op, writer| self.aux(opid, op, writer))
+    }
+
     pub fn consign(
         &self,
         terminals: impl IntoIterator<Item = impl Borrow<AuthToken>>,
@@ -592,20 +622,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         <P::Seal as RgbSeal>::WitnessId: StrictEncode,
     {
         self.ledger
-            .export_aux(terminals, writer, |opid, op, mut writer| {
-                // Write seal definitions
-                let seals = self.pile.seals(opid, op.destructible_out.len_u16());
-                writer = seals.strict_encode(writer)?;
-
-                // Write witnesses
-                let witness = self.retrieve(opid);
-                writer = witness.is_some().strict_encode(writer)?;
-                if let Some(witness) = witness {
-                    writer = witness.strict_encode(writer)?;
-                }
-
-                Ok(writer)
-            })
+            .export_aux(terminals, writer, |opid, op, writer| self.aux(opid, op, writer))
     }
 
     pub fn consume<E>(
