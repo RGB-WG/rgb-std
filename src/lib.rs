@@ -25,7 +25,8 @@
 // TODO: Activate once StrictEncoding will be no_std
 // #![cfg_attr(not(feature = "std"), no_std)]
 #![deny(
-    unsafe_code,
+    // TODO: Activate once StrictEncoding removes invalid unsafe fn modifiers from the raw reader
+    // unsafe_code,
     dead_code,
     // TODO: Complete documentation
     // missing_docs,
@@ -57,27 +58,27 @@ extern crate core;
 pub extern crate rgb_invoice as invoice;
 
 mod pile;
+mod stockpile;
 mod contract;
+mod consignment;
+mod contracts;
 pub mod popls;
 mod util;
-mod contracts;
-mod stockpile;
 #[cfg(feature = "stl")]
 pub mod stl;
 
 #[cfg(feature = "bitcoin")]
 pub use bp::{Outpoint, Txid};
+pub use consignment::{parse_consignment, Consignment, MAX_CONSIGNMENT_OPS};
 pub use contract::{
     Assignment, ConsumeError, Contract, ContractState, CreateParams, EitherSeal, ImmutableState,
-    OwnedState, CONSIGNMENT_MAGIC_NUMBER, CONSIGNMENT_VERSION,
+    OwnedState,
 };
-pub use contracts::{Contracts, IssuerError};
+#[cfg(feature = "binfile")]
+pub use contracts::CONSIGN_MAGIC_NUMBER;
+pub use contracts::{Contracts, IssuerError, CONSIGN_VERSION};
 pub use hypersonic::*;
-#[cfg(feature = "fs")]
-pub use pile::fs::PileFs;
 pub use pile::{OpRels, Pile, Witness, WitnessStatus};
 pub use rgb::*;
-#[cfg(feature = "fs")]
-pub use stockpile::dir::StockpileDir;
 pub use stockpile::Stockpile;
 pub use util::{ContractRef, InvalidContractRef};

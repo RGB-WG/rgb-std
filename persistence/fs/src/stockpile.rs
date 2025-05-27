@@ -23,6 +23,7 @@
 // the License.
 
 use std::collections::HashMap;
+use std::convert::Infallible;
 use std::ffi::OsStr;
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
@@ -30,15 +31,14 @@ use std::str::FromStr;
 use std::{fs, io};
 
 use amplify::MultiError;
-use hypersonic::IssueError;
-use rgb::RgbSeal;
+use rgb::{
+    Articles, CodexId, Consensus, Consignment, ConsumeError, Contract, ContractId, CreateParams,
+    Issuer, IssuerError, Pile, RgbSeal, Stock, Stockpile,
+};
 use sonic_persist_fs::{FsError, StockFs};
 use strict_encoding::{StrictDecode, StrictEncode};
 
-use crate::{
-    Articles, CodexId, Consensus, Contract, ContractId, CreateParams, Issuer, IssuerError, Pile,
-    PileFs, Stockpile,
-};
+use crate::PileFs;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct StockpileDir<Seal: RgbSeal> {
@@ -94,12 +94,25 @@ impl<Seal: RgbSeal> StockpileDir<Seal> {
 
     pub fn dir(&self) -> &Path { self.dir.as_path() }
 
-    fn contract_dir(&self, articles: &Articles) -> PathBuf {
-        self.dir.join(format!(
+    fn get_contract_dir(&self, contract_id: ContractId) -> Option<PathBuf> {
+        let subdir = self.contracts.get(&contract_id)?;
+        let path = self.dir.join(format!("{subdir}.{contract_id:-}.contract"));
+        Some(path)
+    }
+
+    fn create_contract_dir(&self, articles: &Articles) -> io::Result<PathBuf> {
+        let dir = self.dir.join(format!(
             "{}.{:-}.contract",
             articles.issue().meta.name,
             articles.contract_id()
-        ))
+        ));
+
+        if fs::exists(&dir)? {
+            return Err(io::Error::new(io::ErrorKind::AlreadyExists, "Contract already exists"));
+        }
+        fs::create_dir_all(&dir)?;
+
+        Ok(dir)
     }
 }
 
@@ -134,12 +147,12 @@ where
     fn issuer(&self, codex_id: CodexId) -> Option<Issuer> {
         let name = self.issuers.get(&codex_id)?;
         let path = self.dir.join(format!("{name}.{codex_id:#}.issuer"));
-        Issuer::load(path).ok()
+        // We trust the storage
+        Issuer::load(path, |_, _, _| -> Result<_, Infallible> { Ok(()) }).ok()
     }
 
     fn contract(&self, contract_id: ContractId) -> Option<Contract<Self::Stock, Self::Pile>> {
-        let subdir = self.contracts.get(&contract_id)?;
-        let path = self.dir.join(format!("{subdir}.{contract_id:-}.contract"));
+        let path = self.get_contract_dir(contract_id)?;
         let contract = Contract::load(path.clone(), path).ok()?;
         let meta = &contract.articles().issue().meta;
         if meta.consensus != self.consensus || meta.testnet != self.testnet {
@@ -149,27 +162,33 @@ where
     }
 
     fn import_issuer(&mut self, issuer: Issuer) -> Result<Issuer, Self::Error> {
-        let codex_id = issuer.codex.codex_id();
-        let name = issuer.codex.name.to_string();
+        let codex_id = issuer.codex_id();
+        let name = issuer.codex().name.to_string();
         let path = self.dir.join(format!("{name}.{codex_id:#}.issuer"));
         issuer.save(path)?;
         self.issuers.insert(codex_id, name);
         Ok(issuer)
     }
 
-    fn import_articles(
+    fn import_contract(
         &mut self,
         articles: Articles,
-    ) -> Result<Contract<Self::Stock, Self::Pile>, MultiError<IssueError, FsError, io::Error>> {
-        let contract_id = articles.contract_id();
-        let name = articles.issue().meta.name.to_string();
-        let dir = self.contract_dir(&articles);
-        if fs::exists(&dir).map_err(MultiError::C)? {
-            return Err(MultiError::C(io::Error::other("Contract already exists")));
-        }
-        fs::create_dir_all(&dir).map_err(MultiError::C)?;
-        let contract = Contract::with_articles(articles, dir)?;
-        self.contracts.insert(contract_id, name);
+        consignment: Consignment<Seal>,
+    ) -> Result<
+        Contract<Self::Stock, Self::Pile>,
+        MultiError<
+            ConsumeError<Seal::Definition>,
+            <Self::Stock as Stock>::Error,
+            <Self::Pile as Pile>::Error,
+        >,
+    >
+    where
+        Seal::Client: StrictDecode,
+        Seal::Published: StrictDecode,
+        Seal::WitnessId: StrictDecode,
+    {
+        let dir = self.create_contract_dir(&articles).map_err(MultiError::C)?;
+        let contract = Contract::with(articles, consignment, dir)?;
         Ok(contract)
     }
 
@@ -179,19 +198,20 @@ where
     ) -> Result<Contract<Self::Stock, Self::Pile>, MultiError<IssuerError, FsError, io::Error>>
     {
         let schema = self
-            .issuer(params.codex_id)
-            .ok_or(MultiError::A(IssuerError::UnknownCodex(params.codex_id)))?;
-        let contract = Contract::issue(schema, params, |articles| {
-            let dir = self.contract_dir(articles);
-            if fs::exists(&dir)? {
-                return Err(io::Error::other("Contract already exists").into());
-            }
-            fs::create_dir_all(&dir)?;
-            Ok(dir)
-        })
-        .map_err(MultiError::from_other_a)?;
+            .issuer(params.issuer.codex_id())
+            .ok_or(MultiError::A(IssuerError::UnknownCodex(params.issuer.codex_id())))?;
+        let contract =
+            Contract::issue(schema, params, |articles| Ok(self.create_contract_dir(articles)?))
+                .map_err(MultiError::from_other_a)?;
         self.contracts
             .insert(contract.contract_id(), contract.articles().issue().meta.name.to_string());
         Ok(contract)
+    }
+
+    fn purge(&mut self, contract_id: ContractId) -> Result<(), Self::Error> {
+        let path = self
+            .get_contract_dir(contract_id)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "Contract not found"))?;
+        fs::remove_dir_all(&path)
     }
 }

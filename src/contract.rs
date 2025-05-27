@@ -29,15 +29,14 @@ use core::marker::PhantomData;
 use std::io;
 
 use amplify::confinement::SmallOrdMap;
-use amplify::hex::ToHex;
 use amplify::{IoError, MultiError};
 use chrono::{DateTime, Utc};
-use commit_verify::ReservedBytes;
+use commit_verify::{ReservedBytes, StrictHash};
 use hypersonic::{
-    AcceptError, Articles, ArticlesError, AuthToken, CallParams, CellAddr, Codex, CodexId,
-    Consensus, ContractId, CoreParams, DataCell, EffectiveState, IssueError, IssueParams, Ledger,
-    LibRepo, Memory, MethodName, NamedState, Operation, Opid, SigValidator, StateAtom, StateName,
-    Stock, Transition,
+    AcceptError, Articles, AuthToken, CallParams, CellAddr, Codex, Consensus, ContractId,
+    CoreParams, DataCell, EffectiveState, IssueError, IssueParams, Ledger, LibRepo, Memory,
+    MethodName, NamedState, Operation, Opid, SemanticError, Semantics, SigBlob, StateAtom,
+    StateName, Stock, Transition,
 };
 use indexmap::{IndexMap, IndexSet};
 use rgb::{
@@ -47,17 +46,14 @@ use rgb::{
 use single_use_seals::{ClientSideWitness, PublishedWitness, SealWitness};
 use strict_encoding::{
     DecodeError, ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter,
-    TypeName, WriteRaw,
+    TypeName, TypedRead, WriteRaw,
 };
 use strict_types::StrictVal;
 
 use crate::{
-    ApiDescriptor, ContractMeta, Issue, Issuer, OpRels, Pile, VerifiedOperation, Witness,
-    WitnessStatus,
+    parse_consignment, Consignment, ContractMeta, Identity, Issue, Issuer, IssuerError, IssuerSpec,
+    OpRels, Pile, VerifiedOperation, Witness, WitnessStatus,
 };
-
-pub const CONSIGNMENT_MAGIC_NUMBER: [u8; 8] = *b"RGBCNSGN";
-pub const CONSIGNMENT_VERSION: [u8; 2] = [0x00, 0x01];
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, From)]
 #[cfg_attr(
@@ -121,6 +117,7 @@ impl<Seal> Assignment<EitherSeal<Seal>> {
     serde(bound = "Seal: serde::Serialize + for<'d> serde::Deserialize<'d>")
 )]
 pub struct OwnedState<Seal> {
+    pub addr: CellAddr,
     #[cfg_attr(feature = "serde", serde(flatten))]
     pub assignment: Assignment<Seal>,
     pub status: WitnessStatus,
@@ -129,6 +126,7 @@ pub struct OwnedState<Seal> {
 #[derive(Clone, PartialEq, Eq, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ImmutableState {
+    pub addr: CellAddr,
     #[cfg_attr(feature = "serde", serde(flatten))]
     pub data: StateAtom,
     pub status: WitnessStatus,
@@ -144,8 +142,8 @@ pub struct ImmutableState {
     )
 )]
 pub struct ContractState<Seal> {
-    pub immutable: BTreeMap<StateName, BTreeMap<CellAddr, ImmutableState>>,
-    pub owned: BTreeMap<StateName, BTreeMap<CellAddr, OwnedState<Seal>>>,
+    pub immutable: BTreeMap<StateName, Vec<ImmutableState>>,
+    pub owned: BTreeMap<StateName, Vec<OwnedState<Seal>>>,
     pub aggregated: BTreeMap<StateName, StrictVal>,
 }
 
@@ -159,14 +157,13 @@ impl<Seal> ContractState<Seal> {
                 .map(|(name, map)| {
                     let map = map
                         .into_iter()
-                        .map(|(addr, data)| {
-                            (addr, OwnedState {
-                                assignment: Assignment {
-                                    seal: f(data.assignment.seal),
-                                    data: data.assignment.data,
-                                },
-                                status: data.status,
-                            })
+                        .map(|owned| OwnedState {
+                            addr: owned.addr,
+                            assignment: Assignment {
+                                seal: f(owned.assignment.seal),
+                                data: owned.assignment.data,
+                            },
+                            status: owned.status,
                         })
                         .collect();
                     (name, map)
@@ -185,14 +182,15 @@ impl<Seal> ContractState<Seal> {
                 .map(|(name, map)| {
                     let map = map
                         .into_iter()
-                        .filter_map(|(addr, data)| {
-                            Some((addr, OwnedState {
+                        .filter_map(|owned| {
+                            Some(OwnedState {
+                                addr: owned.addr,
                                 assignment: Assignment {
-                                    seal: f(data.assignment.seal)?,
-                                    data: data.assignment.data,
+                                    seal: f(owned.assignment.seal)?,
+                                    data: owned.assignment.data,
                                 },
-                                status: data.status,
-                            }))
+                                status: owned.status,
+                            })
                         })
                         .collect();
                     (name, map)
@@ -207,7 +205,7 @@ impl<Seal> ContractState<Seal> {
 ///
 /// Differs from [`IssueParams`] in the fact that it uses full seal data instead of
 /// [`hypersonic::AuthTokens`] for output definitions.
-#[derive(Clone, Debug, From)]
+#[derive(Clone, Debug)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
@@ -217,7 +215,7 @@ impl<Seal> ContractState<Seal> {
     )
 )]
 pub struct CreateParams<Seal: Clone> {
-    pub codex_id: CodexId,
+    pub issuer: IssuerSpec,
     pub consensus: Consensus,
     pub testnet: bool,
     pub method: MethodName,
@@ -228,9 +226,13 @@ pub struct CreateParams<Seal: Clone> {
 }
 
 impl<Seal: Clone> CreateParams<Seal> {
-    pub fn new_testnet(codex_id: CodexId, consensus: Consensus, name: impl Into<TypeName>) -> Self {
+    pub fn new_testnet(
+        issuer: impl Into<IssuerSpec>,
+        consensus: Consensus,
+        name: impl Into<TypeName>,
+    ) -> Self {
         Self {
-            codex_id,
+            issuer: issuer.into(),
             consensus,
             testnet: true,
             method: vname!("issue"),
@@ -270,32 +272,44 @@ pub struct Contract<S: Stock, P: Pile> {
 }
 
 impl<S: Stock, P: Pile> Contract<S, P> {
-    /// Initializes contract from contract articles, with a given persistence configuration.
-    pub fn with_articles(
+    /// Initializes contract from contract articles, consignment and a persistence configuration.
+    pub fn with(
         articles: Articles,
+        consignment: Consignment<P::Seal>,
         conf: S::Conf,
-    ) -> Result<Self, MultiError<IssueError, S::Error, P::Error>>
+    ) -> Result<Self, MultiError<ConsumeError<<P::Seal as RgbSeal>::Definition>, S::Error, P::Error>>
     where
         P::Conf: From<S::Conf>,
+        <P::Seal as RgbSeal>::Client: StrictDecode,
+        <P::Seal as RgbSeal>::Published: StrictDecode,
+        <P::Seal as RgbSeal>::WitnessId: StrictDecode,
     {
         let contract_id = articles.contract_id();
         let genesis_opid = articles.genesis_opid();
-        let ledger = Ledger::new(articles, conf).map_err(MultiError::with_third)?;
+        let ledger = Ledger::new(articles, conf)
+            .map_err(MultiError::with_third)
+            .map_err(MultiError::from_other_a)?;
         let conf: S::Conf = ledger.config();
         let mut pile = P::new(conf.into()).map_err(MultiError::C)?;
         pile.add_seals(genesis_opid, none!());
-        Ok(Self { ledger, pile, contract_id })
+        let mut contract = Self { ledger, pile, contract_id };
+        contract
+            .evaluate_commit(consignment.into_operations())
+            .map_err(MultiError::from_a)?;
+        Ok(contract)
     }
 
     pub fn issue(
         issuer: Issuer,
         params: CreateParams<<P::Seal as RgbSeal>::Definition>,
         conf: impl FnOnce(&Articles) -> Result<S::Conf, S::Error>,
-    ) -> Result<Self, MultiError<IssueError, S::Error, P::Error>>
+    ) -> Result<Self, MultiError<IssuerError, S::Error, P::Error>>
     where
         P::Conf: From<S::Conf>,
     {
-        assert_eq!(params.codex_id, issuer.codex.codex_id());
+        if !params.issuer.check(issuer.issuer_id()) {
+            return Err(MultiError::A(IssuerError::IssuerMismatch));
+        }
 
         let seals = SmallOrdMap::try_from_iter(params.owned.iter().enumerate().filter_map(
             |(pos, assignment)| {
@@ -308,6 +322,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         ))
         .expect("too many outputs");
         let params = IssueParams {
+            issuer: params.issuer,
             name: params.name,
             consensus: params.consensus,
             testnet: params.testnet,
@@ -332,7 +347,9 @@ impl<S: Stock, P: Pile> Contract<S, P> {
 
         let articles = issuer.issue(params);
         let conf = conf(&articles).map_err(MultiError::B)?;
-        let ledger = Ledger::new(articles, conf).map_err(MultiError::with_third)?;
+        let ledger = Ledger::new(articles, conf)
+            .map_err(MultiError::with_third)
+            .map_err(MultiError::from_other_a)?;
         let conf: S::Conf = ledger.config();
         let contract_id = ledger.contract_id();
 
@@ -422,12 +439,16 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         self.ledger.state().raw.auth.get(&auth).copied()
     }
 
+    /// Get the contract state.
+    ///
+    /// The call does not recompute the contract state, but does a seal resolution,
+    /// taking into account the status of the witnesses in the whole history.
     pub fn state(&self) -> ContractState<P::Seal> {
         let mut cache = bmap! {};
         let state = self.ledger.state().main.clone();
         let mut owned = bmap! {};
-        for (name, map) in state.destructible {
-            let mut state = bmap! {};
+        for (name, map) in state.owned {
+            let mut state = vec![];
             for (addr, data) in map {
                 let since = *cache
                     .entry(addr.opid)
@@ -436,14 +457,16 @@ impl<S: Stock, P: Pile> Contract<S, P> {
                     continue;
                 };
                 if let Some(seal) = seal.to_src() {
-                    state.insert(addr, OwnedState {
+                    state.push(OwnedState {
+                        addr,
                         assignment: Assignment { seal, data },
                         status: since,
                     });
                 } else {
                     // We insert a copy of state for each of the witnesses created for the operation
                     for wid in self.pile.op_witness_ids(addr.opid) {
-                        state.insert(addr, OwnedState {
+                        state.push(OwnedState {
+                            addr,
                             assignment: Assignment { seal: seal.resolve(wid), data: data.clone() },
                             status: since,
                         });
@@ -453,21 +476,26 @@ impl<S: Stock, P: Pile> Contract<S, P> {
             owned.insert(name, state);
         }
         let mut immutable = bmap! {};
-        for (name, map) in state.immutable {
-            let mut state = bmap! {};
+        for (name, map) in state.global {
+            let mut state = vec![];
             for (addr, data) in map {
                 let status = *cache
                     .entry(addr.opid)
                     .or_insert_with(|| self.witness_status(addr.opid));
-                state.insert(addr, ImmutableState { data, status });
+                state.push(ImmutableState { addr, data, status });
             }
             immutable.insert(name, state);
         }
         ContractState { immutable, owned, aggregated: state.aggregated }
     }
 
-    pub fn state_all(&self) -> &EffectiveState { self.ledger.state() }
+    pub fn full_state(&self) -> &EffectiveState { self.ledger.state() }
 
+    /// Synchronize the status of all witnesses and single-use seal definitions.
+    ///
+    /// # Panics
+    ///
+    /// If the contract id is not known.
     pub fn sync(
         &mut self,
         changed: impl IntoIterator<Item = (<P::Seal as RgbSeal>::WitnessId, WitnessStatus)>,
@@ -538,6 +566,12 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         Ok(())
     }
 
+    /// Do a call to the contract method, creating and operation.
+    ///
+    /// The operation is automatically included in the contract history.
+    ///
+    /// The state of the contract is not automatically updated, but on the next update it will
+    /// reflect the call results.
     pub fn call(
         &mut self,
         call: CallParams,
@@ -551,6 +585,8 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         Ok(operation)
     }
 
+    /// Include an operation and its witness to the history of known operations and the contract
+    /// state.
     pub fn include(
         &mut self,
         opid: Opid,
@@ -575,43 +611,101 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         self.pile.commit_transaction();
     }
 
+    fn aux<W: WriteRaw>(
+        &self,
+        opid: Opid,
+        op: &Operation,
+        mut writer: StrictWriter<W>,
+    ) -> io::Result<StrictWriter<W>> {
+        // Write seal definitions
+        let seals = self.pile.seals(opid, op.destructible_out.len_u16());
+        writer = seals.strict_encode(writer)?;
+
+        // Write witnesses
+        let witness = self.retrieve(opid);
+        writer = witness.is_some().strict_encode(writer)?;
+        if let Some(witness) = witness {
+            writer = witness.strict_encode(writer)?;
+        }
+
+        Ok(writer)
+    }
+
+    /// Export a contract to a strictly encoded stream.
+    ///
+    /// # Errors
+    ///
+    /// If the output stream failures, like when the stream cannot accept more data or got
+    /// disconnected.
+    pub fn export(&self, writer: StrictWriter<impl WriteRaw>) -> io::Result<()>
+    where
+        <P::Seal as RgbSeal>::Client: StrictDumb + StrictEncode,
+        <P::Seal as RgbSeal>::Published: StrictDumb + StrictEncode,
+        <P::Seal as RgbSeal>::WitnessId: StrictEncode,
+    {
+        self.ledger
+            .export_all_aux(writer, |opid, op, writer| self.aux(opid, op, writer))
+    }
+
+    /// Create a consignment with a history from the genesis to each of the `terminals`, and
+    /// serialize it to a strictly encoded stream `writer`.
+    ///
+    /// # Errors
+    ///
+    /// If the output stream failures, like when the stream cannot accept more data or got
+    /// disconnected.
     pub fn consign(
         &self,
         terminals: impl IntoIterator<Item = impl Borrow<AuthToken>>,
-        mut writer: StrictWriter<impl WriteRaw>,
+        writer: StrictWriter<impl WriteRaw>,
     ) -> io::Result<()>
     where
         <P::Seal as RgbSeal>::Client: StrictDumb + StrictEncode,
         <P::Seal as RgbSeal>::Published: StrictDumb + StrictEncode,
         <P::Seal as RgbSeal>::WitnessId: StrictEncode,
     {
-        // This is compatible with BinFile
-        writer = CONSIGNMENT_MAGIC_NUMBER.strict_encode(writer)?;
-        // Version
-        writer = CONSIGNMENT_VERSION.strict_encode(writer)?;
-        writer = self.contract_id().strict_encode(writer)?;
         self.ledger
-            .export_aux(terminals, writer, |opid, op, mut writer| {
-                // Write seal definitions
-                let seals = self.pile.seals(opid, op.destructible_out.len_u16());
-                writer = seals.strict_encode(writer)?;
-
-                // Write witnesses
-                let witness = self.retrieve(opid);
-                writer = witness.is_some().strict_encode(writer)?;
-                if let Some(witness) = witness {
-                    writer = witness.strict_encode(writer)?;
-                }
-
-                Ok(writer)
-            })
+            .export_aux(terminals, writer, |opid, op, writer| self.aux(opid, op, writer))
     }
 
-    pub fn consume(
+    /// Consume a consignment stream.
+    ///
+    /// The method:
+    /// - validates the consignment;
+    /// - resolves auth tokens into seal definitions known to the current wallet (i.e., coming from
+    ///   the invoices produced by the wallet);
+    /// - checks the signature of the issuer over the contract articles;
+    ///
+    /// # Arguments
+    ///
+    /// - `allow_unknown`: allows importing a contract which was not known to the system;
+    /// - `reader`: the input stream;
+    /// - `seal_resolver`: lambda which knows about the seal definitions from the wallet-generated
+    ///   invoices;
+    /// - `sig_validator`: a validator for the signature of the issuer over the contract articles.
+    pub fn consume<E>(
         &mut self,
         reader: &mut StrictReader<impl ReadRaw>,
         seal_resolver: impl FnMut(&Operation) -> BTreeMap<u16, <P::Seal as RgbSeal>::Definition>,
-        sig_validator: impl SigValidator,
+        sig_validator: impl FnOnce(StrictHash, &Identity, &SigBlob) -> Result<(), E>,
+    ) -> Result<(), MultiError<ConsumeError<<P::Seal as RgbSeal>::Definition>, S::Error>>
+    where
+        <P::Seal as RgbSeal>::Client: StrictDecode,
+        <P::Seal as RgbSeal>::Published: StrictDecode,
+        <P::Seal as RgbSeal>::WitnessId: StrictDecode,
+    {
+        let contract_id = parse_consignment(reader).map_err(MultiError::from_a)?;
+        if contract_id != self.contract_id() {
+            return Err(MultiError::A(ConsumeError::UnknownContract(contract_id)));
+        }
+        self.consume_internal(reader, seal_resolver, sig_validator)
+    }
+
+    pub(crate) fn consume_internal<E>(
+        &mut self,
+        reader: &mut StrictReader<impl ReadRaw>,
+        seal_resolver: impl FnMut(&Operation) -> BTreeMap<u16, <P::Seal as RgbSeal>::Definition>,
+        sig_validator: impl FnOnce(StrictHash, &Identity, &SigBlob) -> Result<(), E>,
     ) -> Result<(), MultiError<ConsumeError<<P::Seal as RgbSeal>::Definition>, S::Error>>
     where
         <P::Seal as RgbSeal>::Client: StrictDecode,
@@ -619,46 +713,64 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         <P::Seal as RgbSeal>::WitnessId: StrictDecode,
     {
         let articles = (|| -> Result<Articles, ConsumeError<_>> {
+            // Read and ignore the extension block
+            let ext_blocks = u8::strict_decode(reader)?;
+            for _ in 0..ext_blocks {
+                let len = u16::strict_decode(reader)?;
+                let r = unsafe { reader.raw_reader() };
+                let _ = r.read_raw::<{ u16::MAX as usize }>(len as usize)?;
+            }
+
             // We need to read articles field by field since we have to evaluate genesis separately
-            let apis = ApiDescriptor::strict_decode(reader)?;
+            let semantics = Semantics::strict_decode(reader)?;
+            let sig = Option::<SigBlob>::strict_decode(reader)?;
 
             let issue_version = ReservedBytes::<1>::strict_decode(reader)?;
             let meta = ContractMeta::strict_decode(reader)?;
             let codex = Codex::strict_decode(reader)?;
 
-            let op_reader = OpReader { stream: reader, seal_resolver, _phantom: PhantomData };
-            self.evaluate(op_reader)
-                .unwrap_or_else(|err| panic!("Error: {err}"));
-            self.ledger.commit_transaction();
-            self.pile.commit_transaction();
+            let op_reader = OpReader {
+                stream: reader,
+                seal_resolver,
+                // We start with this hardcoded value to signal that we need to read the actual
+                // count right after the genesis (first operation).
+                count: u32::MAX,
+                _phantom: PhantomData,
+            };
+            self.evaluate_commit(op_reader)?;
 
             // We need to clone due to a borrow checker.
             let genesis = self.ledger.articles().genesis().clone();
             let issue = Issue { version: issue_version, meta, codex, genesis };
-            let articles = Articles::with(apis, issue)?;
+            let articles = Articles::with(semantics, issue, sig, sig_validator)?;
 
             Ok(articles)
         })()
         .map_err(MultiError::A)?;
 
+        // Here we do not check for the end of the stream,
+        // so in the future we can have arbitrary extensions
+        // put here with no backward compatibility issues.
+
         self.ledger
-            .merge_articles(articles, sig_validator)
+            .upgrade_apis(articles)
             .map_err(MultiError::from_other_a)?;
         Ok(())
     }
 
-    pub fn parse_consignment(
-        reader: &mut StrictReader<impl ReadRaw>,
-    ) -> Result<ContractId, ConsumeError<<P::Seal as RgbSeal>::Definition>> {
-        let magic_bytes = <[u8; 8]>::strict_decode(reader)?;
-        if magic_bytes != CONSIGNMENT_MAGIC_NUMBER {
-            return Err(ConsumeError::UnrecognizedMagic(magic_bytes.to_hex()));
-        }
-        let version = <[u8; 2]>::strict_decode(reader)?;
-        if version != CONSIGNMENT_VERSION {
-            return Err(ConsumeError::UnsupportedVersion(u16::from_be_bytes(version)));
-        }
-        Ok(ContractId::strict_decode(reader)?)
+    pub(crate) fn evaluate_commit<R: ReadOperation<Seal = P::Seal>>(
+        &mut self,
+        reader: R,
+    ) -> Result<(), VerificationError<P::Seal>>
+    where
+        <P::Seal as RgbSeal>::Client: StrictDecode,
+        <P::Seal as RgbSeal>::Published: StrictDecode,
+        <P::Seal as RgbSeal>::WitnessId: StrictDecode,
+    {
+        self.evaluate(reader)?;
+        self.ledger.commit_transaction();
+        self.pile.commit_transaction();
+        Ok(())
     }
 }
 
@@ -669,6 +781,7 @@ pub struct OpReader<
     F: FnMut(&Operation) -> BTreeMap<u16, Seal::Definition>,
 > {
     stream: &'r mut StrictReader<R>,
+    count: u32,
     seal_resolver: F,
     _phantom: PhantomData<Seal>,
 }
@@ -681,16 +794,10 @@ impl<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&Operation) -> BTreeMap<u16, Seal::
     fn read_operation(
         &mut self,
     ) -> Result<Option<OperationSeals<Self::Seal>>, impl Error + 'static> {
-        let Some(operation) =
-            Operation::strict_decode(self.stream)
-                .map(Some)
-                .or_else(|e| match e {
-                    DecodeError::Io(e) if e.kind() == io::ErrorKind::UnexpectedEof => Ok(None),
-                    e => Err(e),
-                })?
-        else {
+        if self.count == 0 {
             return Result::<_, DecodeError>::Ok(None);
-        };
+        }
+        let operation = Operation::strict_decode(self.stream)?;
 
         let mut defined_seals = SmallOrdMap::strict_decode(self.stream)?;
         defined_seals
@@ -701,18 +808,16 @@ impl<'r, Seal: RgbSeal, R: ReadRaw, F: FnMut(&Operation) -> BTreeMap<u16, Seal::
                     operation.opid()
                 ))
             })?;
-        let has_witness = bool::strict_decode(self.stream)?;
 
-        let witness = if has_witness {
-            SealWitness::strict_decode(self.stream)
-                .map(Some)
-                .or_else(|e| match e {
-                    DecodeError::Io(e) if e.kind() == io::ErrorKind::UnexpectedEof => Ok(None),
-                    e => Err(e),
-                })?
+        let witness = Option::<SealWitness<Seal>>::strict_decode(self.stream)?;
+
+        // We start with this hardcoded value to signal that we need to read the actual
+        // count right after the genesis (first operation).
+        if self.count == u32::MAX {
+            self.count = u32::strict_decode(self.stream)?;
         } else {
-            None
-        };
+            self.count -= 1;
+        }
 
         Ok(Some(OperationSeals { operation, defined_seals, witness }))
     }
@@ -753,56 +858,71 @@ pub enum ConsumeError<Seal: RgbSealDef> {
     #[from(io::Error)]
     Io(IoError),
 
-    /// unrecognized magic bytes {0} in the consignment stream
-    #[display(doc_comments)]
-    UnrecognizedMagic(String),
-
-    /// unsupported version {0} of the consignment stream
-    #[display(doc_comments)]
-    UnsupportedVersion(u16),
-
     /// unknown {0} can't be consumed; please import contract articles first.
     #[display(doc_comments)]
     UnknownContract(ContractId),
 
     #[from]
-    Articles(ArticlesError),
+    Semantics(SemanticError),
 
     #[from]
     Decode(DecodeError),
 
     #[from]
     Verify(VerificationError<Seal::Src>),
+
+    #[from]
+    #[from(IssueError)]
+    // FIXME
+    Issue(IssuerError),
 }
 
-#[cfg(feature = "fs")]
+#[cfg(feature = "binfile")]
 mod fs {
-    use std::fs::File;
     use std::path::Path;
 
-    use sonic_persist_fs::StockFs;
-    use strict_encoding::{StreamWriter, StrictDecode, StrictDumb, StrictEncode};
+    use binfile::BinFile;
+    use strict_encoding::{StreamWriter, StrictDumb, StrictEncode};
 
     use super::*;
-    use crate::pile::fs::PileFs;
+    use crate::{CONSIGN_MAGIC_NUMBER, CONSIGN_VERSION};
 
-    impl<SealSrc: RgbSeal> Contract<StockFs, PileFs<SealSrc>>
-    where
-        SealSrc::Client: StrictEncode + StrictDecode,
-        SealSrc::Published: Eq + StrictEncode + StrictDecode,
-        SealSrc::WitnessId: Ord + From<[u8; 32]> + Into<[u8; 32]>,
-    {
+    impl<S: Stock, P: Pile> Contract<S, P> {
+        /// Export a contract to a file at `path`.
+        ///
+        /// # Errors
+        ///
+        /// If writing to the file failures, like when the file already exists, there is no write
+        /// access to it, or no sufficient disk space.
+        pub fn export_to_file(&self, path: impl AsRef<Path>) -> io::Result<()>
+        where
+            <P::Seal as RgbSeal>::Client: StrictDumb + StrictEncode,
+            <P::Seal as RgbSeal>::Published: StrictDumb + StrictEncode,
+            <P::Seal as RgbSeal>::WitnessId: StrictEncode,
+        {
+            let file = BinFile::<CONSIGN_MAGIC_NUMBER, CONSIGN_VERSION>::create_new(path)?;
+            let writer = StrictWriter::with(StreamWriter::new::<{ usize::MAX }>(file));
+            self.export(writer)
+        }
+
+        /// Create a consignment with a history from the genesis to each of the `terminals`, and
+        /// serialize it to a `file`.
+        ///
+        /// # Errors
+        ///
+        /// If writing to the file failures, like when the file already exists, there is no write
+        /// access to it, or no sufficient disk space.
         pub fn consign_to_file(
             &self,
             path: impl AsRef<Path>,
             terminals: impl IntoIterator<Item = impl Borrow<AuthToken>>,
         ) -> io::Result<()>
         where
-            SealSrc::Client: StrictDumb,
-            SealSrc::Published: StrictDumb,
-            SealSrc::WitnessId: StrictEncode,
+            <P::Seal as RgbSeal>::Client: StrictDumb + StrictEncode,
+            <P::Seal as RgbSeal>::Published: StrictDumb + StrictEncode,
+            <P::Seal as RgbSeal>::WitnessId: StrictEncode,
         {
-            let file = File::create_new(path)?;
+            let file = BinFile::<CONSIGN_MAGIC_NUMBER, CONSIGN_VERSION>::create_new(path)?;
             let writer = StrictWriter::with(StreamWriter::new::<{ usize::MAX }>(file));
             self.consign(terminals, writer)
         }

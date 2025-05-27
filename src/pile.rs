@@ -22,9 +22,6 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
-#[cfg(feature = "fs")]
-pub mod fs;
-
 use alloc::collections::BTreeSet;
 use core::error::Error as StdError;
 use core::fmt::Debug;

@@ -22,16 +22,17 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
-#[cfg(feature = "fs")]
-pub mod dir;
-
 use core::error::Error as StdError;
 
 use amplify::MultiError;
-use hypersonic::{CodexId, ContractId, IssueError, Stock};
+use hypersonic::{CodexId, ContractId, Stock};
 use rgb::RgbSeal;
+use strict_encoding::StrictDecode;
 
-use crate::{Articles, Consensus, Contract, CreateParams, Issuer, IssuerError, Pile};
+use crate::{
+    Articles, Consensus, Consignment, ConsumeError, Contract, CreateParams, Issuer, IssuerError,
+    Pile,
+};
 
 /// Stockpile provides a specific persistence implementation for the use in [`crate::Contracts`].
 /// It allows for it to abstract from a specific storage media, whether it is a file system,
@@ -73,13 +74,23 @@ pub trait Stockpile {
     fn contract(&self, contract_id: ContractId) -> Option<Contract<Self::Stock, Self::Pile>>;
 
     fn import_issuer(&mut self, issuer: Issuer) -> Result<Issuer, Self::Error>;
-    fn import_articles(
+
+    fn import_contract(
         &mut self,
         articles: Articles,
+        consignment: Consignment<<Self::Pile as Pile>::Seal>,
     ) -> Result<
         Contract<Self::Stock, Self::Pile>,
-        MultiError<IssueError, <Self::Stock as Stock>::Error, <Self::Pile as Pile>::Error>,
-    >;
+        MultiError<
+            ConsumeError<<<Self::Pile as Pile>::Seal as RgbSeal>::Definition>,
+            <Self::Stock as Stock>::Error,
+            <Self::Pile as Pile>::Error,
+        >,
+    >
+    where
+        <<Self::Pile as Pile>::Seal as RgbSeal>::Client: StrictDecode,
+        <<Self::Pile as Pile>::Seal as RgbSeal>::Published: StrictDecode,
+        <<Self::Pile as Pile>::Seal as RgbSeal>::WitnessId: StrictDecode;
 
     fn issue(
         &mut self,
@@ -88,4 +99,6 @@ pub trait Stockpile {
         Contract<Self::Stock, Self::Pile>,
         MultiError<IssuerError, <Self::Stock as Stock>::Error, <Self::Pile as Pile>::Error>,
     >;
+
+    fn purge(&mut self, contract_id: ContractId) -> Result<(), Self::Error>;
 }

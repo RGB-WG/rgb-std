@@ -22,12 +22,12 @@
 // or implied. See the License for the specific language governing permissions and limitations under
 // the License.
 
+use std::convert::Infallible;
 use std::io::stdout;
 
 use bp::seals::{TxoSeal, WTxoSeal};
 use rgb::popls::bp::PrefabBundle;
 use rgb::Issuer;
-use strict_encoding::StrictDeserialize;
 
 use crate::cmd::{Args, Cmd};
 use crate::dump::{dump_consignment, dump_stockpile};
@@ -37,10 +37,13 @@ impl Args {
         match &self.command {
             Cmd::Info { file } => match file.extension() {
                 Some(ext) if ext == "issuer" => {
-                    let issuer = Issuer::load(file)?;
+                    let issuer = Issuer::load(file, |_, _, _| Result::<_, Infallible>::Ok(()))?;
                     eprintln!("File type: Issuer (contract schema)");
-                    eprintln!("Codex Id: {}", issuer.codex.codex_id());
-                    eprintln!("Default API Id: {}", issuer.api.api_id());
+                    eprintln!("Issuer Id: {}", issuer.issuer_id());
+                    eprintln!(
+                        "Signature: {}",
+                        if issuer.is_signed() { "present" } else { "absent" }
+                    );
                 }
                 Some(_) => {
                     return Err(anyhow!(
@@ -58,12 +61,14 @@ impl Args {
 
             Cmd::Inspect { file } => match file.extension() {
                 Some(ext) if ext == "pfab" => {
-                    let pfab = PrefabBundle::strict_deserialize_from_file::<{ usize::MAX }>(file)?;
+                    let pfab = PrefabBundle::load(file)?;
                     serde_yaml::to_writer(stdout(), &pfab)?;
                 }
                 Some(ext) if ext == "issuer" => {
-                    let issuer = Issuer::load(file)?;
-                    serde_yaml::to_writer(stdout(), &issuer)?;
+                    let issuer = Issuer::load(file, |_, _, _| Result::<_, Infallible>::Ok(()))?;
+                    serde_yaml::to_writer(stdout(), &issuer.codex())?;
+                    serde_yaml::to_writer(stdout(), &issuer.semantics())?;
+                    eprintln!("sig: {}", if issuer.is_signed() { "present" } else { "absent" });
                 }
                 Some(_) => {
                     return Err(anyhow!(
