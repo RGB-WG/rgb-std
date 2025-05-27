@@ -13,7 +13,8 @@ use std::fs;
 use std::path::PathBuf;
 
 use bp::seals::TxoSeal;
-use rgb::{Consensus, Contracts, Operation, StockpileDir};
+use rgb::{Consensus, Contracts, Operation};
+use rgb_persist_fs::StockpileDir;
 
 use crate::utils::setup;
 

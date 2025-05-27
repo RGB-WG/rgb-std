@@ -74,15 +74,11 @@ pub use contract::{
     Assignment, ConsumeError, Contract, ContractState, CreateParams, EitherSeal, ImmutableState,
     OwnedState,
 };
-#[cfg(feature = "fs")]
+#[cfg(feature = "binfile")]
 pub use contracts::CONSIGN_MAGIC_NUMBER;
 pub use contracts::{Contracts, IssuerError, CONSIGN_VERSION};
 pub use hypersonic::*;
-#[cfg(feature = "fs")]
-pub use pile::fs::PileFs;
 pub use pile::{OpRels, Pile, Witness, WitnessStatus};
 pub use rgb::*;
-#[cfg(feature = "fs")]
-pub use stockpile::dir::StockpileDir;
 pub use stockpile::Stockpile;
 pub use util::{ContractRef, InvalidContractRef};

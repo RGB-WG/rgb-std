@@ -31,15 +31,14 @@ use std::str::FromStr;
 use std::{fs, io};
 
 use amplify::MultiError;
-use hypersonic::Stock;
-use rgb::RgbSeal;
+use rgb::{
+    Articles, CodexId, Consensus, Consignment, ConsumeError, Contract, ContractId, CreateParams,
+    Issuer, IssuerError, Pile, RgbSeal, Stock, Stockpile,
+};
 use sonic_persist_fs::{FsError, StockFs};
 use strict_encoding::{StrictDecode, StrictEncode};
 
-use crate::{
-    Articles, CodexId, Consensus, Consignment, ConsumeError, Contract, ContractId, CreateParams,
-    Issuer, IssuerError, Pile, PileFs, Stockpile,
-};
+use crate::PileFs;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct StockpileDir<Seal: RgbSeal> {

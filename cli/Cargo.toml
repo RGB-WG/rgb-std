@@ -16,10 +16,10 @@ readme = "../README.md"
 amplify.workspace = true
 strict_encoding.workspace = true
 hypersonic.workspace = true
-sonic-persist-fs.workspace = true
 sonix.workspace = true
 bp-core.workspace = true
-rgb-std = { workspace = true, features = ["fs", "serde"] }
+rgb-std = { workspace = true, features = ["binfile", "serde"] }
+rgb-persist-fs.workspace = true
 binfile.workspace = true
 serde.workspace = true
 serde_yaml = "0.9.34"

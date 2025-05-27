@@ -918,6 +918,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "rgb-persist-fs"
+version = "0.12.0-rc.1"
+dependencies = [
+ "amplify",
+ "aora",
+ "rgb-std",
+ "sonic-persist-fs",
+ "strict_encoding",
+]
+
+[[package]]
 name = "rgb-std"
 version = "0.12.0-rc.1"
 dependencies = [
@@ -935,10 +946,10 @@ dependencies = [
  "rand 0.9.1",
  "rgb-core",
  "rgb-invoice",
+ "rgb-persist-fs",
  "serde",
  "serde_with",
  "single_use_seals",
- "sonic-persist-fs",
  "strict_encoding",
  "strict_types",
  "wasm-bindgen",
@@ -955,10 +966,10 @@ dependencies = [
  "bp-core",
  "clap",
  "hypersonic",
+ "rgb-persist-fs",
  "rgb-std",
  "serde",
  "serde_yaml",
- "sonic-persist-fs",
  "sonix",
  "strict_encoding",
 ]

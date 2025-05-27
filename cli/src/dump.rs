@@ -31,11 +31,11 @@ use amplify::confinement::{SmallBlob, SmallOrdMap, TinyVec};
 use binfile::BinFile;
 use hypersonic::Operation;
 use rgb::{
-    parse_consignment, Articles, Contract, Issue, PileFs, PublishedWitness, RgbSeal, RgbSealDef,
+    parse_consignment, Articles, Contract, Issue, PublishedWitness, RgbSeal, RgbSealDef,
     SealWitness, Semantics, SigBlob, SingleUseSeal, CONSIGN_MAGIC_NUMBER, CONSIGN_VERSION,
 };
+use rgb_persist_fs::{PileFs, StockFs};
 use serde::{Deserialize, Serialize};
-use sonic_persist_fs::StockFs;
 use sonix::{dump_articles, dump_ledger};
 use strict_encoding::{StreamReader, StrictDecode, StrictEncode, StrictReader};
 

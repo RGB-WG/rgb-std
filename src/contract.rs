@@ -877,7 +877,7 @@ pub enum ConsumeError<Seal: RgbSealDef> {
     Issue(IssuerError),
 }
 
-#[cfg(feature = "fs")]
+#[cfg(feature = "binfile")]
 mod fs {
     use std::path::Path;
 

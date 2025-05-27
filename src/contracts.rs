@@ -46,7 +46,7 @@ use crate::{
 };
 
 pub const CONSIGN_VERSION: u16 = 0;
-#[cfg(feature = "fs")]
+#[cfg(feature = "binfile")]
 pub use _fs::CONSIGN_MAGIC_NUMBER;
 
 /// Collection of RGB smart contracts and contract issuers, which can be cached in memory.
@@ -475,7 +475,7 @@ pub enum IssuerError {
     Inner(hypersonic::IssueError),
 }
 
-#[cfg(feature = "fs")]
+#[cfg(feature = "binfile")]
 mod _fs {
     use std::path::Path;
 

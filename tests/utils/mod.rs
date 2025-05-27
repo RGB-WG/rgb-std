@@ -11,12 +11,10 @@ use commit_verify::{Digest, DigestExt, Sha256};
 use hypersonic::CallParams;
 use rand::prelude::SliceRandom;
 use rand::rng;
-use rgb::{
-    Assignment, CellAddr, Contract, CoreParams, CreateParams, Issuer, NamedState, Outpoint, PileFs,
-};
+use rgb::{Assignment, CellAddr, Contract, CoreParams, CreateParams, Issuer, NamedState, Outpoint};
+use rgb_persist_fs::{PileFs, StockFs};
 use rgbcore::{ContractApi, RgbSealDef};
 use single_use_seals::SealWitness;
-use sonic_persist_fs::StockFs;
 use strict_encoding::{vname, StrictDumb};
 
 pub fn setup(name: &str) -> Contract<StockFs, PileFs<TxoSeal>> {

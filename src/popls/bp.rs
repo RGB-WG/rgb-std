@@ -908,24 +908,31 @@ pub enum IncludeError {
     Mpc(mpc::LeafNotKnown),
 }
 
-#[cfg(feature = "fs")]
+#[cfg(feature = "binfile")]
 mod _fs {
     use std::io;
     use std::path::Path;
 
+    use amplify::confinement::U24 as U24MAX;
     use binfile::BinFile;
     use commit_verify::StrictHash;
-    use sonic_persist_fs::{FsError, StockFs};
-    use strict_encoding::StreamReader;
+    use strict_encoding::{DecodeError, StreamReader, StreamWriter, StrictEncode};
 
     use super::*;
-    use crate::{Identity, PileFs, SigBlob, StockpileDir, CONSIGN_MAGIC_NUMBER, CONSIGN_VERSION};
+    use crate::{Identity, SigBlob, CONSIGN_MAGIC_NUMBER, CONSIGN_VERSION};
 
-    impl<
-            W: WalletProvider,
-            S: KeyedCollection<Key = CodexId, Value = Issuer>,
-            C: KeyedCollection<Key = ContractId, Value = Contract<StockFs, PileFs<TxoSeal>>>,
-        > RgbWallet<W, StockpileDir<TxoSeal>, S, C>
+    /// The magic number used in storing issuer as a binary file.
+    pub const PREFAB_MAGIC_NUMBER: u64 = u64::from_be_bytes(*b"PREFABND");
+    /// The issuer encoding version used in storing issuer as a binary file.
+    pub const PREFAB_VERSION: u16 = 0;
+
+    impl<W, Sp, S, C> RgbWallet<W, Sp, S, C>
+    where
+        W: WalletProvider,
+        Sp: Stockpile,
+        Sp::Pile: Pile<Seal = TxoSeal>,
+        S: KeyedCollection<Key = CodexId, Value = Issuer>,
+        C: KeyedCollection<Key = ContractId, Value = Contract<Sp::Stock, Sp::Pile>>,
     {
         #[allow(clippy::result_large_err)]
         pub fn consume_from_file<E>(
@@ -933,30 +940,23 @@ mod _fs {
             allow_unknown: bool,
             path: impl AsRef<Path>,
             sig_validator: impl FnOnce(StrictHash, &Identity, &SigBlob) -> Result<(), E>,
-        ) -> Result<(), MultiError<ConsumeError<WTxoSeal>, FsError, io::Error>> {
+        ) -> Result<
+            (),
+            MultiError<
+                ConsumeError<WTxoSeal>,
+                <Sp::Stock as Stock>::Error,
+                <Sp::Pile as Pile>::Error,
+            >,
+        >
+        where
+            <Sp::Pile as Pile>::Conf: From<<Sp::Stock as Stock>::Conf>,
+        {
             let file = BinFile::<CONSIGN_MAGIC_NUMBER, CONSIGN_VERSION>::open(path)
                 .map_err(MultiError::from_a)?;
             let mut reader = StrictReader::with(StreamReader::new::<{ usize::MAX }>(file));
             self.consume(allow_unknown, &mut reader, sig_validator)
         }
     }
-}
-
-#[cfg(feature = "binfile")]
-mod _binfile {
-    use std::io;
-    use std::path::Path;
-
-    use amplify::confinement::U24 as U24MAX;
-    use binfile::BinFile;
-    use strict_encoding::{DecodeError, StreamReader, StreamWriter, StrictEncode};
-
-    use super::*;
-
-    /// The magic number used in storing issuer as a binary file.
-    pub const PREFAB_MAGIC_NUMBER: u64 = u64::from_be_bytes(*b"PREFABND");
-    /// The issuer encoding version used in storing issuer as a binary file.
-    pub const PREFAB_VERSION: u16 = 0;
 
     impl PrefabBundle {
         pub fn load(path: impl AsRef<Path>) -> Result<Self, DecodeError> {

@@ -1,6 +1,6 @@
 [workspace]
-members = [".", "cli", "invoice"]
-default-members = [".", "invoice"]
+members = [".", "cli", "invoice", "persistence/fs"]
+default-members = [".", "invoice", "persistence/fs"]
 
 [workspace.package]
 version = "0.12.0-rc.1"
@@ -28,6 +28,7 @@ bp-invoice = "0.12.0-rc.1"
 rgb-core = "0.12.0-rc.1"
 rgb-std = { version = "0.12.0-rc.1", path = "." }
 rgb-invoice = { version = "0.12.0-rc.1", path = "./invoice" }
+rgb-persist-fs = { version = "0.12.0-rc.1", path = "./persistence/fs" }
 aora = ">=0.6.3"
 baid64 = "0.4.1"
 binfile = "0.2.0"
@@ -67,7 +68,6 @@ single_use_seals.workspace = true
 aora.workspace = true
 binfile = { workspace = true, optional = true }
 hypersonic.workspace = true
-sonic-persist-fs.workspace = true
 bp-core = { workspace = true, optional = true }
 bp-invoice = { workspace = true, optional = true }
 rgb-core.workspace = true
@@ -79,10 +79,11 @@ serde_with = { workspace = true, optional = true }
 
 [dev-dependencies]
 rand = "0.9.1"
+rgb-persist-fs.workspace = true
 
 [features]
 default = ["std", "bitcoin"]
-all = ["std", "bitcoin", "liquid", "prime", "fs", "binfile", "uri", "stl", "serde"]
+all = ["std", "bitcoin", "liquid", "prime", "binfile", "uri", "stl", "serde"]
 std = ["rgb-invoice/std", "indexmap/std"]
 
 bitcoin = ["bp-core", "bp-invoice", "rgb-core/bitcoin", "rgb-invoice/bitcoin"]
@@ -90,8 +91,7 @@ liquid = ["rgb-core/liquid", "rgb-invoice/liquid"]
 prime = ["rgb-core/prime", "rgb-invoice/prime"]
 
 uri = ["rgb-invoice/uri"]
-fs = ["std", "binfile", "aora/file-strict"]
-binfile = ["dep:binfile", "hypersonic/binfile"]
+binfile = ["std", "dep:binfile", "hypersonic/binfile", "aora/file-strict"]
 
 stl = ["commit_verify/stl", "hypersonic/stl", "strict_types/armor", "bitcoin", "bp-core/stl"]
 
