@@ -623,7 +623,7 @@ dependencies = [
 [[package]]
 name = "hypersonic"
 version = "0.12.0-rc.1"
-source = "git+https://github.com/AluVM/sonic?branch=v0.12#e6df2aad9b06214d872d91fe6467df768ce83328"
+source = "git+https://github.com/AluVM/sonic?branch=v0.12#34070cdf26fa8adcfb93033e1270f680323f27c8"
 dependencies = [
  "aluvm",
  "amplify",
@@ -1130,7 +1130,7 @@ dependencies = [
 [[package]]
 name = "sonic-api"
 version = "0.12.0-rc.1"
-source = "git+https://github.com/AluVM/sonic?branch=v0.12#e6df2aad9b06214d872d91fe6467df768ce83328"
+source = "git+https://github.com/AluVM/sonic?branch=v0.12#34070cdf26fa8adcfb93033e1270f680323f27c8"
 dependencies = [
  "aluvm",
  "amplify",
@@ -1153,7 +1153,7 @@ dependencies = [
 [[package]]
 name = "sonic-callreq"
 version = "0.12.0-rc.1"
-source = "git+https://github.com/AluVM/sonic?branch=v0.12#e6df2aad9b06214d872d91fe6467df768ce83328"
+source = "git+https://github.com/AluVM/sonic?branch=v0.12#34070cdf26fa8adcfb93033e1270f680323f27c8"
 dependencies = [
  "amplify",
  "baid64",
@@ -1173,7 +1173,7 @@ dependencies = [
 [[package]]
 name = "sonic-persist-fs"
 version = "0.12.0-rc.1"
-source = "git+https://github.com/AluVM/sonic?branch=v0.12#e6df2aad9b06214d872d91fe6467df768ce83328"
+source = "git+https://github.com/AluVM/sonic?branch=v0.12#34070cdf26fa8adcfb93033e1270f680323f27c8"
 dependencies = [
  "amplify",
  "aora",
@@ -1188,7 +1188,7 @@ dependencies = [
 [[package]]
 name = "sonix"
 version = "0.12.0-rc.1"
-source = "git+https://github.com/AluVM/sonic?branch=v0.12#e6df2aad9b06214d872d91fe6467df768ce83328"
+source = "git+https://github.com/AluVM/sonic?branch=v0.12#34070cdf26fa8adcfb93033e1270f680323f27c8"
 dependencies = [
  "amplify",
  "anyhow",

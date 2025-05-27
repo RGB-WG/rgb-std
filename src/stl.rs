@@ -39,7 +39,8 @@ use crate::popls::bp::PrefabBundle;
 use crate::Consignment;
 
 /// Strict types id for the library providing data types for RGB types.
-pub const LIB_ID_RGB: &str = "stl:0VmT3A0g-jWuy4M9-vozTaOx-E9yCtQ6-2mU6Bl3-fL1xj~0#milk-palma-neon";
+pub const LIB_ID_RGB: &str =
+    "stl:wjjLvtfk-o0qv4i1-bpXiUdB-Ert02Al-GrKveWI-JgIe7nk#section-status-input";
 
 #[allow(clippy::result_large_err)]
 fn _rgb_seals() -> Result<TypeLib, CompileError> {
