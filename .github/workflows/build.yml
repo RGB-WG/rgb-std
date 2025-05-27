@@ -33,7 +33,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        feature: [ bitcoin, liquid, prime, uri, fs, serde, stl ]
+        feature: [ bitcoin, liquid, prime, uri, fs, binfile, serde, stl ]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable

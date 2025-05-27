@@ -65,7 +65,7 @@ strict_types.workspace = true
 commit_verify.workspace = true
 single_use_seals.workspace = true
 aora.workspace = true
-binfile.workspace = true
+binfile = { workspace = true, optional = true }
 hypersonic.workspace = true
 sonic-persist-fs.workspace = true
 bp-core = { workspace = true, optional = true }
@@ -82,7 +82,7 @@ rand = "0.9.1"
 
 [features]
 default = ["std", "bitcoin"]
-all = ["std", "bitcoin", "liquid", "prime", "fs", "uri", "stl", "serde"]
+all = ["std", "bitcoin", "liquid", "prime", "fs", "binfile", "uri", "stl", "serde"]
 std = ["rgb-invoice/std", "indexmap/std"]
 
 bitcoin = ["bp-core", "bp-invoice", "rgb-core/bitcoin", "rgb-invoice/bitcoin"]
@@ -90,7 +90,8 @@ liquid = ["rgb-core/liquid", "rgb-invoice/liquid"]
 prime = ["rgb-core/prime", "rgb-invoice/prime"]
 
 uri = ["rgb-invoice/uri"]
-fs = ["std", "aora/file-strict"]
+fs = ["std", "binfile", "aora/file-strict"]
+binfile = ["dep:binfile", "hypersonic/binfile"]
 
 stl = ["commit_verify/stl", "hypersonic/stl", "strict_types/armor", "bitcoin", "bp-core/stl"]
 

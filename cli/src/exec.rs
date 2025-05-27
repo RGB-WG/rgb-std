@@ -28,7 +28,6 @@ use std::io::stdout;
 use bp::seals::{TxoSeal, WTxoSeal};
 use rgb::popls::bp::PrefabBundle;
 use rgb::Issuer;
-use strict_encoding::StrictDeserialize;
 
 use crate::cmd::{Args, Cmd};
 use crate::dump::{dump_consignment, dump_stockpile};
@@ -62,7 +61,7 @@ impl Args {
 
             Cmd::Inspect { file } => match file.extension() {
                 Some(ext) if ext == "pfab" => {
-                    let pfab = PrefabBundle::strict_deserialize_from_file::<{ usize::MAX }>(file)?;
+                    let pfab = PrefabBundle::load(file)?;
                     serde_yaml::to_writer(stdout(), &pfab)?;
                 }
                 Some(ext) if ext == "issuer" => {

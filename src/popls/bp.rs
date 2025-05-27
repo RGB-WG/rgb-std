@@ -49,9 +49,7 @@ use invoice::bp::{Address, WitnessOut};
 use invoice::{RgbBeneficiary, RgbInvoice};
 use rgb::RgbSealDef;
 use rgbcore::LIB_NAME_RGB;
-use strict_encoding::{
-    ReadRaw, StrictDecode, StrictDeserialize, StrictReader, StrictSerialize, TypeName,
-};
+use strict_encoding::{ReadRaw, StrictDecode, StrictReader, TypeName};
 use strict_types::StrictVal;
 
 use crate::{
@@ -336,10 +334,6 @@ pub struct Prefab {
 #[strict_type(lib = LIB_NAME_RGB)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 pub struct PrefabBundle(SmallOrdSet<Prefab>);
-
-// TODO: Use BinFile instead
-impl StrictSerialize for PrefabBundle {}
-impl StrictDeserialize for PrefabBundle {}
 
 impl IntoIterator for PrefabBundle {
     type Item = Prefab;
@@ -916,7 +910,7 @@ pub enum IncludeError {
 }
 
 #[cfg(feature = "fs")]
-mod fs {
+mod _fs {
     use std::io;
     use std::path::Path;
 
@@ -945,6 +939,38 @@ mod fs {
                 .map_err(MultiError::from_a)?;
             let mut reader = StrictReader::with(StreamReader::new::<{ usize::MAX }>(file));
             self.consume(allow_unknown, &mut reader, sig_validator)
+        }
+    }
+}
+
+#[cfg(feature = "binfile")]
+mod _binfile {
+    use std::io;
+    use std::path::Path;
+
+    use amplify::confinement::U24 as U24MAX;
+    use binfile::BinFile;
+    use strict_encoding::{DecodeError, StreamReader, StreamWriter, StrictEncode};
+
+    use super::*;
+
+    /// The magic number used in storing issuer as a binary file.
+    pub const PREFAB_MAGIC_NUMBER: u64 = u64::from_be_bytes(*b"PREFABND");
+    /// The issuer encoding version used in storing issuer as a binary file.
+    pub const PREFAB_VERSION: u16 = 0;
+
+    impl PrefabBundle {
+        pub fn load(path: impl AsRef<Path>) -> Result<Self, DecodeError> {
+            let file = BinFile::<PREFAB_MAGIC_NUMBER, PREFAB_VERSION>::open(path)?;
+            let reader = StreamReader::new::<U24MAX>(file);
+            Self::strict_read(reader)
+            // We do not check for the end of file to allow backwards-compatible extensions
+        }
+
+        pub fn save(&self, path: impl AsRef<Path>) -> io::Result<()> {
+            let file = BinFile::<PREFAB_MAGIC_NUMBER, PREFAB_VERSION>::create_new(path)?;
+            let writer = StreamWriter::new::<U24MAX>(file);
+            self.strict_write(writer)
         }
     }
 }
