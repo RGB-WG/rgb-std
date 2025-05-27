@@ -54,7 +54,7 @@ use strict_types::StrictVal;
 
 use crate::{
     Assignment, CodexId, Consensus, ConsumeError, Contract, ContractState, Contracts, CreateParams,
-    EitherSeal, Identity, Issuer, IssuerError, Pile, SigBlob, Stockpile,
+    EitherSeal, Identity, Issuer, IssuerError, OwnedState, Pile, SigBlob, Stockpile,
 };
 
 /// Trait abstracting a specific implementation of a bitcoin wallet.
@@ -72,12 +72,15 @@ pub trait WalletProvider {
 }
 
 pub trait Coinselect {
-    fn coinselect(
+    fn coinselect<'a>(
         &mut self,
         invoiced_state: &StrictVal,
         calc: &mut StateCalc,
         // Sorted vector by values
-        owned_state: Vec<(CellAddr, &Assignment<Outpoint>)>,
+        owned_state: impl IntoIterator<
+            Item = &'a OwnedState<Outpoint>,
+            IntoIter: DoubleEndedIterator<Item = &'a OwnedState<Outpoint>>,
+        >,
     ) -> Option<Vec<(CellAddr, Outpoint)>>;
 }
 
@@ -474,13 +477,9 @@ where
             .owned
             .get(&state_name)
             .ok_or(FulfillError::StateUnavailable)?;
-        let src = state
-            .iter()
-            .map(|(addr, owned)| (*addr, &owned.assignment))
-            .collect::<Vec<_>>();
         // NB: we do state accumulation with `calc` inside coinselect
         let using = coinselect
-            .coinselect(value, &mut calc, src)
+            .coinselect(value, &mut calc, state)
             .ok_or(FulfillError::StateInsufficient)?;
         let using = using
             .into_iter()
@@ -538,8 +537,8 @@ where
                 .iter()
                 .find_map(|(state_name, map)| {
                     map.iter()
-                        .find(|(addr, _)| **addr == inp.addr)
-                        .map(|(_, value)| (state_name, value))
+                        .find(|owned| owned.addr == inp.addr)
+                        .map(|owned| (state_name, owned))
                 })
                 .expect("unknown state included in the contract stock");
             let calc = match calcs.entry(state_name.clone()) {
@@ -665,14 +664,14 @@ where
             let owned = self.contracts.contract_state(contract_id).owned.clone();
             let (using, prev): (Vec<_>, Vec<_>) = owned
                 .iter()
-                .flat_map(|(name, map)| map.iter().map(move |(addr, val)| (name, *addr, val)))
-                .filter_map(|(name, addr, state)| {
-                    let outpoint = state.assignment.seal.primary;
+                .flat_map(|(name, map)| map.iter().map(move |owned| (name, owned)))
+                .filter_map(|(name, owned)| {
+                    let outpoint = owned.assignment.seal.primary;
                     if !outpoints.contains(&outpoint) {
                         return None;
                     }
-                    let prevout = UsedState { addr, outpoint, satisfaction: None };
-                    Some((prevout, (name.clone(), state)))
+                    let prevout = UsedState { addr: owned.addr, outpoint, satisfaction: None };
+                    Some((prevout, (name.clone(), owned)))
                 })
                 .unzip();
 
