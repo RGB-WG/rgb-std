@@ -165,6 +165,14 @@ where
         self.persistence.contract_ids()
     }
 
+    /// Get the contract state.
+    ///
+    /// The call does not recompute the contract state, but does a seal resolution,
+    /// taking into account the status of the witnesses in the whole history.
+    ///
+    /// # Panics
+    ///
+    /// If the contract id is not known.
     pub fn contract_state(
         &self,
         contract_id: ContractId,
@@ -259,6 +267,16 @@ where
         Ok(id)
     }
 
+    /// Do a call to the contract method, creating and operation.
+    ///
+    /// The operation is automatically included in the contract history.
+    ///
+    /// The state of the contract is not automatically updated, but on the next update it will
+    /// reflect the call results.
+    ///
+    /// # Panics
+    ///
+    /// If the contract id is not known.
     pub fn contract_call(
         &mut self,
         contract_id: ContractId,
@@ -268,6 +286,11 @@ where
         self.with_contract_mut(contract_id, |contract| contract.call(call, seals))
     }
 
+    /// Synchronize the status of all witnesses and single-use seal definitions.
+    ///
+    /// # Panics
+    ///
+    /// If the contract id is not known.
     pub fn sync<'a, I>(
         &mut self,
         changed: I,
@@ -287,6 +310,12 @@ where
         Ok(())
     }
 
+    /// Include an operation and its witness to the history of known operations and the contract
+    /// state.
+    ///
+    /// # Panics
+    ///
+    /// If the contract id is not known.
     pub fn include(
         &mut self,
         contract_id: ContractId,
@@ -297,6 +326,16 @@ where
         self.with_contract_mut(contract_id, |contract| contract.include(opid, anchor, pub_witness))
     }
 
+    /// Export a contract to a strictly encoded stream.
+    ///
+    /// # Panics
+    ///
+    /// If the contract id is not known.
+    ///
+    /// # Errors
+    ///
+    /// If the output stream failures, like when the stream cannot accept more data or got
+    /// disconnected.
     pub fn export(
         &self,
         contract_id: ContractId,
@@ -310,12 +349,24 @@ where
         self.with_contract(contract_id, |contract| contract.export(writer), None)
     }
 
+    /// Purge a contract from the system.
     pub fn purge(&mut self, contract_id: ContractId) -> Result<(), Sp::Error> {
         self.contracts.borrow_mut().remove(&contract_id);
         self.persistence.purge(contract_id)?;
         Ok(())
     }
 
+    /// Create a consignment with a history from the genesis to each of the `terminals`, and
+    /// serialize it to a strictly encoded stream `writer`.
+    ///
+    /// # Panics
+    ///
+    /// If the contract id is not known.
+    ///
+    /// # Errors
+    ///
+    /// If the output stream failures, like when the stream cannot accept more data or got
+    /// disconnected.
     pub fn consign(
         &mut self,
         contract_id: ContractId,
@@ -444,6 +495,17 @@ mod _fs {
         S: KeyedCollection<Key = CodexId, Value = Issuer>,
         C: KeyedCollection<Key = ContractId, Value = Contract<Sp::Stock, Sp::Pile>>,
     {
+        /// Create a consignment with a history from the genesis to each of the `terminals`, and
+        /// serialize it to a `file`.
+        ///
+        /// # Panics
+        ///
+        /// If the contract id is not known.
+        ///
+        /// # Errors
+        ///
+        /// If writing to the file failures, like when the file already exists, there is no write
+        /// access to it, or no sufficient disk space.
         pub fn consign_to_file(
             &mut self,
             path: impl AsRef<Path>,
@@ -460,6 +522,22 @@ mod _fs {
             })
         }
 
+        /// Consume a consignment from a `file`.
+        ///
+        /// The method:
+        /// - validates the consignment;
+        /// - resolves auth tokens into seal definitions known to the current wallet (i.e., coming
+        ///   from the invoices produced by the wallet);
+        /// - checks the signature of the issuer over the contract articles;
+        ///
+        /// # Arguments
+        ///
+        /// - `allow_unknown`: allows importing a contract which was not known to the system;
+        /// - `reader`: the input stream;
+        /// - `seal_resolver`: lambda which knows about the seal definitions from the
+        ///   wallet-generated invoices;
+        /// - `sig_validator`: a validator for the signature of the issuer over the contract
+        ///   articles.
         pub fn consume_from_file<E>(
             &mut self,
             allow_unknown: bool,

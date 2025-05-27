@@ -428,6 +428,10 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         self.ledger.state().raw.auth.get(&auth).copied()
     }
 
+    /// Get the contract state.
+    ///
+    /// The call does not recompute the contract state, but does a seal resolution,
+    /// taking into account the status of the witnesses in the whole history.
     pub fn state(&self) -> ContractState<P::Seal> {
         let mut cache = bmap! {};
         let state = self.ledger.state().main.clone();
@@ -474,6 +478,11 @@ impl<S: Stock, P: Pile> Contract<S, P> {
 
     pub fn full_state(&self) -> &EffectiveState { self.ledger.state() }
 
+    /// Synchronize the status of all witnesses and single-use seal definitions.
+    ///
+    /// # Panics
+    ///
+    /// If the contract id is not known.
     pub fn sync(
         &mut self,
         changed: impl IntoIterator<Item = (<P::Seal as RgbSeal>::WitnessId, WitnessStatus)>,
@@ -544,6 +553,12 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         Ok(())
     }
 
+    /// Do a call to the contract method, creating and operation.
+    ///
+    /// The operation is automatically included in the contract history.
+    ///
+    /// The state of the contract is not automatically updated, but on the next update it will
+    /// reflect the call results.
     pub fn call(
         &mut self,
         call: CallParams,
@@ -557,6 +572,8 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         Ok(operation)
     }
 
+    /// Include an operation and its witness to the history of known operations and the contract
+    /// state.
     pub fn include(
         &mut self,
         opid: Opid,
@@ -601,6 +618,12 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         Ok(writer)
     }
 
+    /// Export a contract to a strictly encoded stream.
+    ///
+    /// # Errors
+    ///
+    /// If the output stream failures, like when the stream cannot accept more data or got
+    /// disconnected.
     pub fn export(&self, writer: StrictWriter<impl WriteRaw>) -> io::Result<()>
     where
         <P::Seal as RgbSeal>::Client: StrictDumb + StrictEncode,
@@ -611,6 +634,13 @@ impl<S: Stock, P: Pile> Contract<S, P> {
             .export_all_aux(writer, |opid, op, writer| self.aux(opid, op, writer))
     }
 
+    /// Create a consignment with a history from the genesis to each of the `terminals`, and
+    /// serialize it to a strictly encoded stream `writer`.
+    ///
+    /// # Errors
+    ///
+    /// If the output stream failures, like when the stream cannot accept more data or got
+    /// disconnected.
     pub fn consign(
         &self,
         terminals: impl IntoIterator<Item = impl Borrow<AuthToken>>,
@@ -625,6 +655,21 @@ impl<S: Stock, P: Pile> Contract<S, P> {
             .export_aux(terminals, writer, |opid, op, writer| self.aux(opid, op, writer))
     }
 
+    /// Consume a consignment stream.
+    ///
+    /// The method:
+    /// - validates the consignment;
+    /// - resolves auth tokens into seal definitions known to the current wallet (i.e., coming from
+    ///   the invoices produced by the wallet);
+    /// - checks the signature of the issuer over the contract articles;
+    ///
+    /// # Arguments
+    ///
+    /// - `allow_unknown`: allows importing a contract which was not known to the system;
+    /// - `reader`: the input stream;
+    /// - `seal_resolver`: lambda which knows about the seal definitions from the wallet-generated
+    ///   invoices;
+    /// - `sig_validator`: a validator for the signature of the issuer over the contract articles.
     pub fn consume<E>(
         &mut self,
         reader: &mut StrictReader<impl ReadRaw>,
@@ -830,6 +875,14 @@ mod fs {
     use crate::{CONSIGN_MAGIC_NUMBER, CONSIGN_VERSION};
 
     impl<S: Stock, P: Pile> Contract<S, P> {
+
+        /// Create a consignment with a history from the genesis to each of the `terminals`, and
+        /// serialize it to a `file`.
+        ///
+        /// # Errors
+        ///
+        /// If writing to the file failures, like when the file already exists, there is no write
+        /// access to it, or no sufficient disk space.
         pub fn consign_to_file(
             &self,
             path: impl AsRef<Path>,
