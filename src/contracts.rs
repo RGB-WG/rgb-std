@@ -40,9 +40,9 @@ use strict_encoding::{
 };
 
 use crate::{
-    parse_consignment, Articles, CallError, Consensus, Consignment, ConsumeError, Contract,
-    ContractRef, ContractState, CreateParams, Identity, Issuer, Operation, Pile, SigBlob,
-    Stockpile, WitnessStatus,
+    parse_consignment, Articles, Consensus, Consignment, ConsumeError, Contract, ContractRef,
+    ContractState, CreateParams, Identity, Issuer, Operation, Pile, SigBlob, Stockpile,
+    WitnessStatus,
 };
 
 pub const CONSIGN_VERSION: u16 = 0;
@@ -469,11 +469,6 @@ pub enum IssuerError {
     MainnetMismatch,
     /// unknown codex for contract issue {0}.
     UnknownCodex(CodexId),
-
-    /// invalid schema; {0}
-    #[from]
-    // TODO: Rename
-    InvalidSchema(CallError),
 
     #[from]
     #[display(inner)]
