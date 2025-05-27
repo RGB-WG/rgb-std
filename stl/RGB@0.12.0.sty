@@ -1,5 +1,5 @@
 {-
-  Id: stl:ba3PyZLB-pTbTP_1-8qeB9H4-foLWfFo-batPf9M-KKDzNAo#rocket-hydro-zodiac
+  Id: stl:LXe3XwdH-Z3DBgHs-Ib4LF5D-wU9lOiW-BBE5ATc-FykRpzs#cobalt-equator-disco
   Name: RGB
   Version: 0.12.0
   Description: RGB smart contracts library
@@ -48,6 +48,22 @@ import UltraSONIC#stuart-memphis-english
 import SingleUseSeals#miracle-model-invest
   use SealWitnessTxoSeal#logic-angel-bravo
 
+import SONIC#orbit-driver-puma
+  use OwnedApi#volume-chess-model
+  use SigBlob#insect-cello-avalon
+  use GlobalApi#break-pizza-polite
+  use StateBuilder#reverse-delphi-camel
+  use Semantics#product-list-ralph
+  use SubAggregator#slalom-galaxy-capital
+  use StateSelector#benny-marina-fashion
+  use Api#rodent-absent-banana
+  use RawConvertor#result-right-amazon
+  use StateArithm#pablo-cotton-mirror
+  use StateConvertor#beach-congo-instant
+  use CallState#sparta-ginger-analyze
+  use Aggregator#whiskey-frozen-culture
+  use RawBuilder#tropic-brenda-reply
+
 import FiniteField#report-canal-convert
   use Fe256#palace-mixer-visual
 
@@ -72,22 +88,6 @@ import Bitcoin#costume-ohio-sharp
   use Tx#radar-salon-page
   use Outpoint#logo-alamo-madam
   use XOnlyPk#clever-swim-carpet
-
-import SONIC#classic-extreme-mimic
-  use StateArithm#meteor-gondola-sweden
-  use SigBlob#insect-cello-avalon
-  use SubAggregator#economy-program-turbo
-  use Aggregator#magenta-harlem-chemist
-  use StateConvertor#random-morris-havana
-  use OwnedApi#nirvana-common-north
-  use StateSelector#benny-marina-fashion
-  use RawBuilder#tomato-gordon-craft
-  use StateBuilder#truck-domain-viking
-  use Api#escape-break-email
-  use RawConvertor#tripod-guitar-bishop
-  use CallState#sparta-ginger-analyze
-  use Semantics#mary-pyramid-analog
-  use GlobalApi#stretch-sushi-mambo
 
 import Std#delete-roman-hair
   use AsciiPrintable#ultra-sunset-format
@@ -130,8 +130,9 @@ import StrictTypes#henry-heart-survive
   use TypeSystem#adrian-boris-sponsor
 
 
-@mnemonic(permit-salad-open)
-data ConsignmentHeaderTxoSeal : semantics SONIC.Semantics
+@mnemonic(amadeus-ground-trade)
+data ConsignmentHeaderTxoSeal : extensions [[Byte] ^ ..0xff]
+                       , semantics SONIC.Semantics
                        , sig SONIC.SigBlob?
                        , issue UltraSONIC.Issue
                        , genesisSeals {U16 -> BPCore.WTxoSeal}

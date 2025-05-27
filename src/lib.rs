@@ -74,9 +74,9 @@ pub use contract::{
     Assignment, ConsumeError, Contract, ContractState, CreateParams, EitherSeal, ImmutableState,
     OwnedState,
 };
-pub use contracts::{Contracts, IssuerError};
 #[cfg(feature = "fs")]
-pub use contracts::{CONSIGN_MAGIC_NUMBER, CONSIGN_VERSION};
+pub use contracts::CONSIGN_MAGIC_NUMBER;
+pub use contracts::{Contracts, IssuerError, CONSIGN_VERSION};
 pub use hypersonic::*;
 #[cfg(feature = "fs")]
 pub use pile::fs::PileFs;

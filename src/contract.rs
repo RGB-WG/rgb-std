@@ -51,8 +51,8 @@ use strict_encoding::{
 use strict_types::StrictVal;
 
 use crate::{
-    parse_consignment, ContractMeta, Identity, Issue, Issuer, IssuerError, OpRels, Pile,
-    VerifiedOperation, Witness, WitnessStatus,
+    parse_consignment, Consignment, ContractMeta, Identity, Issue, Issuer, IssuerError, OpRels,
+    Pile, VerifiedOperation, Witness, WitnessStatus,
 };
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, From)]
@@ -266,22 +266,31 @@ pub struct Contract<S: Stock, P: Pile> {
 }
 
 impl<S: Stock, P: Pile> Contract<S, P> {
-    // TODO: Remove
-    /// Initializes contract from contract articles, with a given persistence configuration.
-    pub fn with_articles(
+    /// Initializes contract from contract articles, consignment and a persistence configuration.
+    pub fn with(
         articles: Articles,
+        consignment: Consignment<P::Seal>,
         conf: S::Conf,
-    ) -> Result<Self, MultiError<IssueError, S::Error, P::Error>>
+    ) -> Result<Self, MultiError<ConsumeError<<P::Seal as RgbSeal>::Definition>, S::Error, P::Error>>
     where
         P::Conf: From<S::Conf>,
+        <P::Seal as RgbSeal>::Client: StrictDecode,
+        <P::Seal as RgbSeal>::Published: StrictDecode,
+        <P::Seal as RgbSeal>::WitnessId: StrictDecode,
     {
         let contract_id = articles.contract_id();
         let genesis_opid = articles.genesis_opid();
-        let ledger = Ledger::new(articles, conf).map_err(MultiError::with_third)?;
+        let ledger = Ledger::new(articles, conf)
+            .map_err(MultiError::with_third)
+            .map_err(MultiError::from_other_a)?;
         let conf: S::Conf = ledger.config();
         let mut pile = P::new(conf.into()).map_err(MultiError::C)?;
         pile.add_seals(genesis_opid, none!());
-        Ok(Self { ledger, pile, contract_id })
+        let mut contract = Self { ledger, pile, contract_id };
+        contract
+            .evaluate_commit(consignment.into_operations())
+            .map_err(MultiError::from_a)?;
+        Ok(contract)
     }
 
     pub fn issue(
@@ -614,7 +623,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         if contract_id != self.contract_id() {
             return Err(MultiError::A(ConsumeError::UnknownContract(contract_id)));
         }
-        self.consume(reader, seal_resolver, sig_validator)
+        self.consume_internal(reader, seal_resolver, sig_validator)
     }
 
     pub(crate) fn consume_internal<E>(

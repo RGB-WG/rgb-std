@@ -40,7 +40,7 @@ use crate::Consignment;
 
 /// Strict types id for the library providing data types for RGB types.
 pub const LIB_ID_RGB: &str =
-    "stl:FYCmKVmM-fZco5CF-751JBG9-zKhu7gN-HBrhPj4-~HjGQNo#lucky-tempo-bogart";
+    "stl:LXe3XwdH-Z3DBgHs-Ib4LF5D-wU9lOiW-BBE5ATc-FykRpzs#cobalt-equator-disco";
 
 #[allow(clippy::result_large_err)]
 fn _rgb_seals() -> Result<TypeLib, CompileError> {

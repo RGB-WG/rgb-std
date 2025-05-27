@@ -46,6 +46,8 @@ use crate::{
 };
 
 pub const CONSIGN_VERSION: u16 = 0;
+#[cfg(feature = "fs")]
+pub use _fs::CONSIGN_MAGIC_NUMBER;
 
 /// Collection of RGB smart contracts and contract issuers, which can be cached in memory.
 ///
@@ -352,6 +354,10 @@ where
         if !self.has_contract(contract_id) {
             if allow_unknown {
                 let consignment = Consignment::strict_decode(reader).map_err(MultiError::from_a)?;
+                // Here we do not check for the end of the stream,
+                // so in the future we can have arbitrary extensions
+                // put here with no backward compatibility issues.
+
                 let articles = consignment
                     .articles(sig_validator)
                     .map_err(MultiError::from_a)?;
@@ -360,16 +366,8 @@ where
                     articles.contract_meta().testnet,
                 )
                 .map_err(MultiError::from_other_a)?;
-                let mut contract = Contract::with_articles(articles, self.persistence.stock_conf())
-                    .map_err(MultiError::from_other_a)?;
-                contract
-                    .evaluate_commit(consignment.into_operations())
-                    .map_err(MultiError::from_a)?;
 
-                // Here we do not check for the end of the stream,
-                // so in the future we can have arbitrary extensions
-                // put here with no backward compatibility issues.
-
+                let contract = self.persistence.import_contract(articles, consignment)?;
                 self.contracts.borrow_mut().insert(contract_id, contract);
                 Ok(())
             } else {
@@ -475,5 +473,3 @@ mod _fs {
         }
     }
 }
-#[cfg(feature = "fs")]
-pub use _fs::*;
