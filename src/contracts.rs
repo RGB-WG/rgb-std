@@ -298,7 +298,7 @@ where
     }
 
     pub fn export(
-        &mut self,
+        &self,
         contract_id: ContractId,
         writer: StrictWriter<impl WriteRaw>,
     ) -> io::Result<()>
@@ -307,12 +307,12 @@ where
         <<Sp::Pile as Pile>::Seal as RgbSeal>::Published: StrictDumb + StrictEncode,
         <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId: StrictEncode,
     {
-        self.with_contract_mut(contract_id, |contract| contract.export(writer))
+        self.with_contract(contract_id, |contract| contract.export(writer), None)
     }
 
     pub fn purge(&mut self, contract_id: ContractId) -> Result<(), Sp::Error> {
-        self.persistence.purge(contract_id)?;
         self.contracts.borrow_mut().remove(&contract_id);
+        self.persistence.purge(contract_id)?;
         Ok(())
     }
 

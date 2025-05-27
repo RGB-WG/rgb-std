@@ -109,7 +109,7 @@ impl<Seal: RgbSeal> StockpileDir<Seal> {
         ));
 
         if fs::exists(&dir)? {
-            return Err(io::Error::other("Contract already exists"));
+            return Err(io::Error::new(io::ErrorKind::AlreadyExists, "Contract already exists"));
         }
         fs::create_dir_all(&dir)?;
 
