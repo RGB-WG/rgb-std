@@ -102,4 +102,6 @@ pub trait Stockpile {
         Contract<Self::Stock, Self::Pile>,
         MultiError<IssuerError, <Self::Stock as Stock>::Error, <Self::Pile as Pile>::Error>,
     >;
+
+    fn purge(&mut self, contract_id: ContractId) -> Result<(), Self::Error>;
 }

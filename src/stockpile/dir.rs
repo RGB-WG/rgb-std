@@ -95,6 +95,12 @@ impl<Seal: RgbSeal> StockpileDir<Seal> {
 
     pub fn dir(&self) -> &Path { self.dir.as_path() }
 
+    fn get_contract_dir(&self, contract_id: ContractId) -> Option<PathBuf> {
+        let subdir = self.contracts.get(&contract_id)?;
+        let path = self.dir.join(format!("{subdir}.{contract_id:-}.contract"));
+        Some(path)
+    }
+
     fn create_contract_dir(&self, articles: &Articles) -> io::Result<PathBuf> {
         let dir = self.dir.join(format!(
             "{}.{:-}.contract",
@@ -147,8 +153,7 @@ where
     }
 
     fn contract(&self, contract_id: ContractId) -> Option<Contract<Self::Stock, Self::Pile>> {
-        let subdir = self.contracts.get(&contract_id)?;
-        let path = self.dir.join(format!("{subdir}.{contract_id:-}.contract"));
+        let path = self.get_contract_dir(contract_id)?;
         let contract = Contract::load(path.clone(), path).ok()?;
         let meta = &contract.articles().issue().meta;
         if meta.consensus != self.consensus || meta.testnet != self.testnet {
@@ -202,5 +207,12 @@ where
         self.contracts
             .insert(contract.contract_id(), contract.articles().issue().meta.name.to_string());
         Ok(contract)
+    }
+
+    fn purge(&mut self, contract_id: ContractId) -> Result<(), Self::Error> {
+        let path = self
+            .get_contract_dir(contract_id)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "Contract not found"))?;
+        fs::remove_dir_all(&path)
     }
 }

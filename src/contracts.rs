@@ -310,6 +310,12 @@ where
         self.with_contract_mut(contract_id, |contract| contract.export(writer))
     }
 
+    pub fn purge(&mut self, contract_id: ContractId) -> Result<(), Sp::Error> {
+        self.persistence.purge(contract_id)?;
+        self.contracts.borrow_mut().remove(&contract_id);
+        Ok(())
+    }
+
     pub fn consign(
         &mut self,
         contract_id: ContractId,
