@@ -131,13 +131,13 @@ impl EitherSeal<Outpoint> {
 
 impl CreateParams<Outpoint> {
     pub fn transform(self, mut noise_engine: Sha256) -> CreateParams<WTxoSeal> {
-        noise_engine.input_raw(self.codex_id.as_slice());
+        noise_engine.input_raw(self.issuer.codex_id().as_slice());
         noise_engine.input_raw(&[self.consensus as u8]);
         noise_engine.input_raw(self.method.as_bytes());
         noise_engine.input_raw(self.name.as_bytes());
         noise_engine.input_raw(&self.timestamp.unwrap_or_default().timestamp().to_le_bytes());
         CreateParams {
-            codex_id: self.codex_id,
+            issuer: self.issuer,
             consensus: self.consensus,
             testnet: self.testnet,
             method: self.method,
@@ -173,7 +173,7 @@ pub struct UsedState {
 
 pub type PaymentScript = OpRequestSet<Option<WoutAssignment>>;
 
-/// A set of multiple operation requests (see [`OpRequests`]) under a single or multiple contracts.
+/// A set of multiple operation requests (see [`OpRequests`]) under single or multiple contracts.
 #[derive(Wrapper, WrapperMut, Clone, Debug, From)]
 #[wrapper(Deref)]
 #[wrapper_mut(DerefMut)]

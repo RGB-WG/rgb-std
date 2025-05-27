@@ -199,8 +199,8 @@ where
     ) -> Result<Contract<Self::Stock, Self::Pile>, MultiError<IssuerError, FsError, io::Error>>
     {
         let schema = self
-            .issuer(params.codex_id)
-            .ok_or(MultiError::A(IssuerError::UnknownCodex(params.codex_id)))?;
+            .issuer(params.issuer.codex_id())
+            .ok_or(MultiError::A(IssuerError::UnknownCodex(params.issuer.codex_id())))?;
         let contract =
             Contract::issue(schema, params, |articles| Ok(self.create_contract_dir(articles)?))
                 .map_err(MultiError::from_other_a)?;

@@ -623,7 +623,7 @@ dependencies = [
 [[package]]
 name = "hypersonic"
 version = "0.12.0-rc.1"
-source = "git+https://github.com/AluVM/sonic?branch=v0.12#e6e71c938544d8787fda739e543b0febd1044a63"
+source = "git+https://github.com/AluVM/sonic?branch=v0.12#d90a5f42316c1198c4cff8a4542b9ee8427dd9aa"
 dependencies = [
  "aluvm",
  "amplify",
@@ -1130,7 +1130,7 @@ dependencies = [
 [[package]]
 name = "sonic-api"
 version = "0.12.0-rc.1"
-source = "git+https://github.com/AluVM/sonic?branch=v0.12#e6e71c938544d8787fda739e543b0febd1044a63"
+source = "git+https://github.com/AluVM/sonic?branch=v0.12#d90a5f42316c1198c4cff8a4542b9ee8427dd9aa"
 dependencies = [
  "aluvm",
  "amplify",
@@ -1142,6 +1142,7 @@ dependencies = [
  "getrandom 0.3.3",
  "indexmap",
  "serde",
+ "serde_yaml",
  "sonic-callreq",
  "strict_encoding",
  "strict_types",
@@ -1152,7 +1153,7 @@ dependencies = [
 [[package]]
 name = "sonic-callreq"
 version = "0.12.0-rc.1"
-source = "git+https://github.com/AluVM/sonic?branch=v0.12#e6e71c938544d8787fda739e543b0febd1044a63"
+source = "git+https://github.com/AluVM/sonic?branch=v0.12#d90a5f42316c1198c4cff8a4542b9ee8427dd9aa"
 dependencies = [
  "amplify",
  "baid64",
@@ -1172,7 +1173,7 @@ dependencies = [
 [[package]]
 name = "sonic-persist-fs"
 version = "0.12.0-rc.1"
-source = "git+https://github.com/AluVM/sonic?branch=v0.12#e6e71c938544d8787fda739e543b0febd1044a63"
+source = "git+https://github.com/AluVM/sonic?branch=v0.12#d90a5f42316c1198c4cff8a4542b9ee8427dd9aa"
 dependencies = [
  "amplify",
  "aora",
@@ -1187,7 +1188,7 @@ dependencies = [
 [[package]]
 name = "sonix"
 version = "0.12.0-rc.1"
-source = "git+https://github.com/AluVM/sonic?branch=v0.12#e6e71c938544d8787fda739e543b0febd1044a63"
+source = "git+https://github.com/AluVM/sonic?branch=v0.12#d90a5f42316c1198c4cff8a4542b9ee8427dd9aa"
 dependencies = [
  "amplify",
  "anyhow",

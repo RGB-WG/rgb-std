@@ -459,6 +459,8 @@ where
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum IssuerError {
+    /// the issuer version does not match the required one.
+    IssuerMismatch,
     /// proof of publication layer mismatch.
     ConsensusMismatch,
     /// unable to consume a testnet contract for mainnet.

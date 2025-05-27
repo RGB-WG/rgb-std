@@ -33,7 +33,7 @@ use amplify::{IoError, MultiError};
 use chrono::{DateTime, Utc};
 use commit_verify::{ReservedBytes, StrictHash};
 use hypersonic::{
-    AcceptError, Articles, AuthToken, CallParams, CellAddr, Codex, CodexId, Consensus, ContractId,
+    AcceptError, Articles, AuthToken, CallParams, CellAddr, Codex, Consensus, ContractId,
     CoreParams, DataCell, EffectiveState, IssueError, IssueParams, Ledger, LibRepo, Memory,
     MethodName, NamedState, Operation, Opid, SemanticError, Semantics, SigBlob, StateAtom,
     StateName, Stock, Transition,
@@ -51,8 +51,8 @@ use strict_encoding::{
 use strict_types::StrictVal;
 
 use crate::{
-    parse_consignment, Consignment, ContractMeta, Identity, Issue, Issuer, IssuerError, OpRels,
-    Pile, VerifiedOperation, Witness, WitnessStatus,
+    parse_consignment, Consignment, ContractMeta, Identity, Issue, Issuer, IssuerError, IssuerSpec,
+    OpRels, Pile, VerifiedOperation, Witness, WitnessStatus,
 };
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, From)]
@@ -213,7 +213,7 @@ impl<Seal> ContractState<Seal> {
     )
 )]
 pub struct CreateParams<Seal: Clone> {
-    pub codex_id: CodexId,
+    pub issuer: IssuerSpec,
     pub consensus: Consensus,
     pub testnet: bool,
     pub method: MethodName,
@@ -224,9 +224,13 @@ pub struct CreateParams<Seal: Clone> {
 }
 
 impl<Seal: Clone> CreateParams<Seal> {
-    pub fn new_testnet(codex_id: CodexId, consensus: Consensus, name: impl Into<TypeName>) -> Self {
+    pub fn new_testnet(
+        issuer: impl Into<IssuerSpec>,
+        consensus: Consensus,
+        name: impl Into<TypeName>,
+    ) -> Self {
         Self {
-            codex_id,
+            issuer: issuer.into(),
             consensus,
             testnet: true,
             method: vname!("issue"),
@@ -297,11 +301,13 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         issuer: Issuer,
         params: CreateParams<<P::Seal as RgbSeal>::Definition>,
         conf: impl FnOnce(&Articles) -> Result<S::Conf, S::Error>,
-    ) -> Result<Self, MultiError<IssueError, S::Error, P::Error>>
+    ) -> Result<Self, MultiError<IssuerError, S::Error, P::Error>>
     where
         P::Conf: From<S::Conf>,
     {
-        assert_eq!(params.codex_id, issuer.codex_id());
+        if !params.issuer.check(issuer.issuer_id()) {
+            return Err(MultiError::A(IssuerError::IssuerMismatch));
+        }
 
         let seals = SmallOrdMap::try_from_iter(params.owned.iter().enumerate().filter_map(
             |(pos, assignment)| {
@@ -314,6 +320,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         ))
         .expect("too many outputs");
         let params = IssueParams {
+            issuer: params.issuer,
             name: params.name,
             consensus: params.consensus,
             testnet: params.testnet,
@@ -338,7 +345,9 @@ impl<S: Stock, P: Pile> Contract<S, P> {
 
         let articles = issuer.issue(params);
         let conf = conf(&articles).map_err(MultiError::B)?;
-        let ledger = Ledger::new(articles, conf).map_err(MultiError::with_third)?;
+        let ledger = Ledger::new(articles, conf)
+            .map_err(MultiError::with_third)
+            .map_err(MultiError::from_other_a)?;
         let conf: S::Conf = ledger.config();
         let contract_id = ledger.contract_id();
 
