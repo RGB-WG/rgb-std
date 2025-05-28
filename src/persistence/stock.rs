@@ -775,6 +775,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
         // 2. Collect all state transitions between terminals and genesis
         let mut ids = vec![];
+        let mut seen_ids = HashSet::new();
         for transition in transitions.values() {
             ids.extend(transition.inputs().iter().map(|input| {
                 (input.op, is_asset_replacement(transition.transition_type, input.ty))
@@ -783,6 +784,9 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         while let Some((id, asset_replacement)) = ids.pop() {
             if id == contract_id {
                 continue; // we skip genesis since it will be present anywhere
+            }
+            if !seen_ids.insert(id) {
+                continue; // we skip seen IDs to avoid re-processing duplicates
             }
             let transition = self.transition(id)?;
             if !asset_replacement {
