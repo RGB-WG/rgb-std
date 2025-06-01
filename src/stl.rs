@@ -29,17 +29,18 @@ use commit_verify::stl::commit_verify_stl;
 use hypersonic::aluvm::alu::stl::aluvm_stl;
 use hypersonic::aluvm::zkstl::finite_field_stl;
 use hypersonic::stl::{sonic_stl, usonic_stl};
-use rgb::{OperationSeals, LIB_NAME_RGB};
+use rgb::LIB_NAME_RGB;
 use single_use_seals::SealWitness;
 use strict_types::stl::{std_stl, strict_types_stl};
 use strict_types::typelib::LibBuilder;
 use strict_types::{CompileError, TypeLib};
 
 use crate::popls::bp::PrefabBundle;
+use crate::Consignment;
 
 /// Strict types id for the library providing data types for RGB types.
 pub const LIB_ID_RGB: &str =
-    "stl:I4OxU3jz-mrnbd0H-nI2xCgd-jPhWOKE-E5uuKAt-xpTTNo0#miracle-model-invest";
+    "stl:oh9dhz11-~Sz2azs-gn3EUNv-LJBaJwr-W2lDlCh-7XgOcTg#joker-austin-null";
 
 #[allow(clippy::result_large_err)]
 fn _rgb_seals() -> Result<TypeLib, CompileError> {
@@ -67,16 +68,16 @@ fn _rgb_stl() -> Result<TypeLib, CompileError> {
         bp_core_stl().to_dependency_types(),
         rgb_seals().to_dependency_types(),
     ])
-    .transpile::<OperationSeals<TxoSeal>>()
+    .transpile::<Consignment<TxoSeal>>()
     .transpile::<PrefabBundle>()
     .compile()
 }
 
 /// Generates a version of SingleUseSeal strict type library specific for RGB.
-pub fn rgb_seals() -> TypeLib { _rgb_stl().expect("invalid strict type SingleUseSeals library") }
+pub fn rgb_seals() -> TypeLib { _rgb_seals().expect("invalid strict type SingleUseSeals library") }
 
 /// Generates a strict type library providing data types for RGB types.
-pub fn rgb_stl() -> TypeLib { _rgb_seals().expect("invalid strict type RGB library") }
+pub fn rgb_stl() -> TypeLib { _rgb_stl().expect("invalid strict type RGB library") }
 
 #[cfg(test)]
 mod test {

@@ -24,26 +24,43 @@
 
 #![cfg_attr(coverage_nightly, feature(coverage_attribute), coverage(off))]
 
-use rgb::stl::rgb_stl;
+use rgb::stl::{rgb_seals, rgb_stl};
 use strict_types::parse_args;
 
 fn main() {
     let (format, dir) = parse_args();
 
-    let lib = rgb_stl();
-    lib.serialize(
-        format,
-        dir.as_ref(),
-        "0.12.0",
-        Some(
-            "
+    rgb_stl()
+        .serialize(
+            format,
+            dir.as_ref(),
+            "0.12.0",
+            Some(
+                "
   Description: RGB smart contracts library
   Author: Dr Maxim Orlovsky <orlovsky@ubideco.org>
   Copyright (C) 2024-2025 LNP/BP Labs, Institute for Distributed and Cognitive Systems, \
-             Switzerland.
+                 Switzerland.
                 All rights reserved.
   License: Apache-2.0",
-        ),
-    )
-    .expect("unable to write to the file");
+            ),
+        )
+        .expect("unable to write to the file");
+
+    rgb_seals()
+        .serialize(
+            format,
+            dir.as_ref(),
+            "0.12.0",
+            Some(
+                "
+  Description: RGB smart contracts library
+  Author: Dr Maxim Orlovsky <orlovsky@ubideco.org>
+  Copyright (C) 2024-2025 LNP/BP Labs, Institute for Distributed and Cognitive Systems, \
+                 Switzerland.
+                All rights reserved.
+  License: Apache-2.0",
+            ),
+        )
+        .expect("unable to write to the file");
 }

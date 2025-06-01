@@ -30,9 +30,9 @@ use std::io;
 
 use amplify::confinement::{KeyedCollection, SmallOrdMap};
 use amplify::MultiError;
+use commit_verify::StrictHash;
 use hypersonic::{
-    AcceptError, AuthToken, CallParams, CodexId, ContractId, ContractName, Opid, SigValidator,
-    Stock,
+    AcceptError, AuthToken, CallParams, CodexId, ContractId, ContractName, Opid, Stock,
 };
 use rgb::RgbSeal;
 use strict_encoding::{
@@ -40,9 +40,14 @@ use strict_encoding::{
 };
 
 use crate::{
-    Articles, CallError, Consensus, ConsumeError, Contract, ContractRef, ContractState,
-    CreateParams, Issuer, Operation, Pile, Stockpile, WitnessStatus,
+    parse_consignment, Articles, Consensus, Consignment, ConsumeError, Contract, ContractRef,
+    ContractState, CreateParams, Identity, Issuer, Operation, Pile, SigBlob, Stockpile,
+    WitnessStatus,
 };
+
+pub const CONSIGN_VERSION: u16 = 0;
+#[cfg(feature = "binfile")]
+pub use _fs::CONSIGN_MAGIC_NUMBER;
 
 /// Collection of RGB smart contracts and contract issuers, which can be cached in memory.
 ///
@@ -160,6 +165,14 @@ where
         self.persistence.contract_ids()
     }
 
+    /// Get the contract state.
+    ///
+    /// The call does not recompute the contract state, but does a seal resolution,
+    /// taking into account the status of the witnesses in the whole history.
+    ///
+    /// # Panics
+    ///
+    /// If the contract id is not known.
     pub fn contract_state(
         &self,
         contract_id: ContractId,
@@ -213,12 +226,8 @@ where
         })
     }
 
-    pub fn export_articles(&self, contract_id: ContractId) -> Articles {
-        self.with_contract(contract_id, |contract| contract.articles().clone(), None)
-    }
-
     pub fn import_issuer(&mut self, issuer: Issuer) -> Result<CodexId, Sp::Error> {
-        let codex_id = issuer.codex.codex_id();
+        let codex_id = issuer.codex_id();
         let schema = self.persistence.import_issuer(issuer)?;
         self.issuers.borrow_mut().insert(codex_id, schema);
         Ok(codex_id)
@@ -244,24 +253,6 @@ where
         }
     }
 
-    pub fn import_articles(
-        &mut self,
-        articles: Articles,
-    ) -> Result<
-        ContractId,
-        MultiError<IssuerError, <Sp::Stock as Stock>::Error, <Sp::Pile as Pile>::Error>,
-    > {
-        let meta = &articles.issue().meta;
-        self.check_layer1(meta.consensus, meta.testnet)?;
-        let contract = self
-            .persistence
-            .import_articles(articles)
-            .map_err(MultiError::from_other_a)?;
-        let contract_id = contract.contract_id();
-        self.contracts.borrow_mut().insert(contract_id, contract);
-        Ok(contract_id)
-    }
-
     pub fn issue(
         &mut self,
         params: CreateParams<<<Sp::Pile as Pile>::Seal as RgbSeal>::Definition>,
@@ -276,6 +267,16 @@ where
         Ok(id)
     }
 
+    /// Do a call to the contract method, creating and operation.
+    ///
+    /// The operation is automatically included in the contract history.
+    ///
+    /// The state of the contract is not automatically updated, but on the next update it will
+    /// reflect the call results.
+    ///
+    /// # Panics
+    ///
+    /// If the contract id is not known.
     pub fn contract_call(
         &mut self,
         contract_id: ContractId,
@@ -285,6 +286,11 @@ where
         self.with_contract_mut(contract_id, |contract| contract.call(call, seals))
     }
 
+    /// Synchronize the status of all witnesses and single-use seal definitions.
+    ///
+    /// # Panics
+    ///
+    /// If the contract id is not known.
     pub fn sync<'a, I>(
         &mut self,
         changed: I,
@@ -304,6 +310,12 @@ where
         Ok(())
     }
 
+    /// Include an operation and its witness to the history of known operations and the contract
+    /// state.
+    ///
+    /// # Panics
+    ///
+    /// If the contract id is not known.
     pub fn include(
         &mut self,
         contract_id: ContractId,
@@ -314,6 +326,47 @@ where
         self.with_contract_mut(contract_id, |contract| contract.include(opid, anchor, pub_witness))
     }
 
+    /// Export a contract to a strictly encoded stream.
+    ///
+    /// # Panics
+    ///
+    /// If the contract id is not known.
+    ///
+    /// # Errors
+    ///
+    /// If the output stream failures, like when the stream cannot accept more data or got
+    /// disconnected.
+    pub fn export(
+        &self,
+        contract_id: ContractId,
+        writer: StrictWriter<impl WriteRaw>,
+    ) -> io::Result<()>
+    where
+        <<Sp::Pile as Pile>::Seal as RgbSeal>::Client: StrictDumb + StrictEncode,
+        <<Sp::Pile as Pile>::Seal as RgbSeal>::Published: StrictDumb + StrictEncode,
+        <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId: StrictEncode,
+    {
+        self.with_contract(contract_id, |contract| contract.export(writer), None)
+    }
+
+    /// Purge a contract from the system.
+    pub fn purge(&mut self, contract_id: ContractId) -> Result<(), Sp::Error> {
+        self.contracts.borrow_mut().remove(&contract_id);
+        self.persistence.purge(contract_id)?;
+        Ok(())
+    }
+
+    /// Create a consignment with a history from the genesis to each of the `terminals`, and
+    /// serialize it to a strictly encoded stream `writer`.
+    ///
+    /// # Panics
+    ///
+    /// If the contract id is not known.
+    ///
+    /// # Errors
+    ///
+    /// If the output stream failures, like when the stream cannot accept more data or got
+    /// disconnected.
     pub fn consign(
         &mut self,
         contract_id: ContractId,
@@ -328,41 +381,86 @@ where
         self.with_contract_mut(contract_id, |contract| contract.consign(terminals, writer))
     }
 
-    pub fn consume(
+    /// Consume a consignment stream.
+    ///
+    /// The method:
+    /// - validates the consignment;
+    /// - resolves auth tokens into seal definitions known to the current wallet (i.e., coming from
+    ///   the invoices produced by the wallet);
+    /// - checks the signature of the issuer over the contract articles;
+    ///
+    /// # Arguments
+    ///
+    /// - `allow_unknown`: allows importing a contract which was not known to the system;
+    /// - `reader`: the input stream;
+    /// - `seal_resolver`: lambda which knows about the seal definitions from the wallet-generated
+    ///   invoices;
+    /// - `sig_validator`: a validator for the signature of the issuer over the contract articles.
+    pub fn consume<E>(
         &mut self,
+        allow_unknown: bool,
         reader: &mut StrictReader<impl ReadRaw>,
         seal_resolver: impl FnMut(
             &Operation,
         )
             -> BTreeMap<u16, <<Sp::Pile as Pile>::Seal as RgbSeal>::Definition>,
-        sig_validator: impl SigValidator,
+        sig_validator: impl FnOnce(StrictHash, &Identity, &SigBlob) -> Result<(), E>,
     ) -> Result<
         (),
         MultiError<
             ConsumeError<<<Sp::Pile as Pile>::Seal as RgbSeal>::Definition>,
             <Sp::Stock as Stock>::Error,
+            <Sp::Pile as Pile>::Error,
         >,
     >
     where
+        <Sp::Pile as Pile>::Conf: From<<Sp::Stock as Stock>::Conf>,
         <<Sp::Pile as Pile>::Seal as RgbSeal>::Client: StrictDecode,
         <<Sp::Pile as Pile>::Seal as RgbSeal>::Published: StrictDecode,
         <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId: StrictDecode,
     {
-        let contract_id =
-            Contract::<Sp::Stock, Sp::Pile>::parse_consignment(reader).map_err(MultiError::A)?;
+        // Checking version and getting contract id
+        let contract_id = parse_consignment(reader).map_err(MultiError::from_a)?;
         if !self.has_contract(contract_id) {
-            return Err(MultiError::A(ConsumeError::UnknownContract(contract_id)));
-        };
+            if allow_unknown {
+                let consignment = Consignment::strict_decode(reader).map_err(MultiError::from_a)?;
+                // Here we do not check for the end of the stream,
+                // so in the future we can have arbitrary extensions
+                // put here with no backward compatibility issues.
 
-        self.with_contract_mut(contract_id, |contract| {
-            contract.consume(reader, seal_resolver, sig_validator)
-        })
+                let articles = consignment
+                    .articles(sig_validator)
+                    .map_err(MultiError::from_a)?;
+                self.check_layer1(
+                    articles.contract_meta().consensus,
+                    articles.contract_meta().testnet,
+                )
+                .map_err(MultiError::from_other_a)?;
+
+                let contract = self.persistence.import_contract(articles, consignment)?;
+                self.contracts.borrow_mut().insert(contract_id, contract);
+                Ok(())
+            } else {
+                Err(MultiError::A(ConsumeError::UnknownContract(contract_id)))
+            }
+        } else {
+            self.with_contract_mut(contract_id, |contract| {
+                contract.consume_internal(reader, seal_resolver, sig_validator)
+            })
+            .map_err(|err| match err {
+                MultiError::A(a) => MultiError::A(a),
+                MultiError::B(b) => MultiError::B(b),
+                MultiError::C(_) => unreachable!(),
+            })
+        }
     }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum IssuerError {
+    /// the issuer version does not match the required one.
+    IssuerMismatch,
     /// proof of publication layer mismatch.
     ConsensusMismatch,
     /// unable to consume a testnet contract for mainnet.
@@ -372,23 +470,21 @@ pub enum IssuerError {
     /// unknown codex for contract issue {0}.
     UnknownCodex(CodexId),
 
-    /// invalid schema; {0}
-    #[from]
-    InvalidSchema(CallError),
-
     #[from]
     #[display(inner)]
     Inner(hypersonic::IssueError),
 }
 
-#[cfg(feature = "fs")]
-mod fs {
-    use std::fs::File;
+#[cfg(feature = "binfile")]
+mod _fs {
     use std::path::Path;
 
-    use strict_encoding::{StreamReader, StreamWriter};
+    use binfile::BinFile;
+    use strict_encoding::StreamReader;
 
     use super::*;
+
+    pub const CONSIGN_MAGIC_NUMBER: u64 = u64::from_be_bytes(*b"RGBCNSGN");
 
     impl<Sp, S, C> Contracts<Sp, S, C>
     where
@@ -396,8 +492,42 @@ mod fs {
         S: KeyedCollection<Key = CodexId, Value = Issuer>,
         C: KeyedCollection<Key = ContractId, Value = Contract<Sp::Stock, Sp::Pile>>,
     {
+        /// Export a contract to a file at `path`.
+        ///
+        /// # Panics
+        ///
+        /// If the contract id is not known.
+        ///
+        /// # Errors
+        ///
+        /// If writing to the file failures, like when the file already exists, there is no write
+        /// access to it, or no sufficient disk space.
+        pub fn export_to_file(
+            &self,
+            path: impl AsRef<Path>,
+            contract_id: ContractId,
+        ) -> io::Result<()>
+        where
+            <<Sp::Pile as Pile>::Seal as RgbSeal>::Client: StrictDumb + StrictEncode,
+            <<Sp::Pile as Pile>::Seal as RgbSeal>::Published: StrictDumb + StrictEncode,
+            <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId: StrictEncode,
+        {
+            self.with_contract(contract_id, |contract| contract.export_to_file(path), None)
+        }
+
+        /// Create a consignment with a history from the genesis to each of the `terminals`, and
+        /// serialize it to a `file`.
+        ///
+        /// # Panics
+        ///
+        /// If the contract id is not known.
+        ///
+        /// # Errors
+        ///
+        /// If writing to the file failures, like when the file already exists, there is no write
+        /// access to it, or no sufficient disk space.
         pub fn consign_to_file(
-            &mut self,
+            &self,
             path: impl AsRef<Path>,
             contract_id: ContractId,
             terminals: impl IntoIterator<Item = impl Borrow<AuthToken>>,
@@ -407,13 +537,32 @@ mod fs {
             <<Sp::Pile as Pile>::Seal as RgbSeal>::Published: StrictDumb + StrictEncode,
             <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId: StrictEncode,
         {
-            let file = File::create_new(path)?;
-            let writer = StrictWriter::with(StreamWriter::new::<{ usize::MAX }>(file));
-            self.consign(contract_id, terminals, writer)
+            self.with_contract(
+                contract_id,
+                |contract| contract.consign_to_file(path, terminals),
+                None,
+            )
         }
 
-        pub fn consume_from_file(
+        /// Consume a consignment from a `file`.
+        ///
+        /// The method:
+        /// - validates the consignment;
+        /// - resolves auth tokens into seal definitions known to the current wallet (i.e., coming
+        ///   from the invoices produced by the wallet);
+        /// - checks the signature of the issuer over the contract articles;
+        ///
+        /// # Arguments
+        ///
+        /// - `allow_unknown`: allows importing a contract which was not known to the system;
+        /// - `reader`: the input stream;
+        /// - `seal_resolver`: lambda which knows about the seal definitions from the
+        ///   wallet-generated invoices;
+        /// - `sig_validator`: a validator for the signature of the issuer over the contract
+        ///   articles.
+        pub fn consume_from_file<E>(
             &mut self,
+            allow_unknown: bool,
             path: impl AsRef<Path>,
             seal_resolver: impl FnMut(
                 &Operation,
@@ -421,22 +570,25 @@ mod fs {
                 u16,
                 <<Sp::Pile as Pile>::Seal as RgbSeal>::Definition,
             >,
-            sig_validator: impl SigValidator,
+            sig_validator: impl FnOnce(StrictHash, &Identity, &SigBlob) -> Result<(), E>,
         ) -> Result<
             (),
             MultiError<
                 ConsumeError<<<Sp::Pile as Pile>::Seal as RgbSeal>::Definition>,
                 <Sp::Stock as Stock>::Error,
+                <Sp::Pile as Pile>::Error,
             >,
         >
         where
+            <Sp::Pile as Pile>::Conf: From<<Sp::Stock as Stock>::Conf>,
             <<Sp::Pile as Pile>::Seal as RgbSeal>::Client: StrictDecode,
             <<Sp::Pile as Pile>::Seal as RgbSeal>::Published: StrictDecode,
             <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId: StrictDecode,
         {
-            let file = File::open(path).map_err(MultiError::from_a)?;
+            let file = BinFile::<CONSIGN_MAGIC_NUMBER, CONSIGN_VERSION>::open(path)
+                .map_err(MultiError::from_a)?;
             let mut reader = StrictReader::with(StreamReader::new::<{ usize::MAX }>(file));
-            self.consume(&mut reader, seal_resolver, sig_validator)
+            self.consume(allow_unknown, &mut reader, seal_resolver, sig_validator)
         }
     }
 }

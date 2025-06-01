@@ -39,7 +39,7 @@ pub use bp::seals;
 use bp::seals::{mmb, Anchor, Noise, TxoSeal, TxoSealExt, WOutpoint, WTxoSeal};
 use bp::{Outpoint, Sats, ScriptPubkey, Tx, Vout};
 use commit_verify::mpc::ProtocolId;
-use commit_verify::{mpc, Digest, DigestExt, Sha256};
+use commit_verify::{mpc, Digest, DigestExt, Sha256, StrictHash};
 use hypersonic::{
     AcceptError, AuthToken, CallParams, CellAddr, ContractId, CoreParams, DataCell, MethodName,
     NamedState, Operation, Satisfaction, StateAtom, StateCalc, StateCalcError, StateName,
@@ -49,14 +49,12 @@ use invoice::bp::{Address, WitnessOut};
 use invoice::{RgbBeneficiary, RgbInvoice};
 use rgb::RgbSealDef;
 use rgbcore::LIB_NAME_RGB;
-use strict_encoding::{
-    ReadRaw, StrictDecode, StrictDeserialize, StrictReader, StrictSerialize, TypeName,
-};
+use strict_encoding::{ReadRaw, StrictDecode, StrictReader, TypeName};
 use strict_types::StrictVal;
 
 use crate::{
     Assignment, CodexId, Consensus, ConsumeError, Contract, ContractState, Contracts, CreateParams,
-    EitherSeal, Issuer, IssuerError, Pile, SigValidator, Stockpile,
+    EitherSeal, Identity, Issuer, IssuerError, OwnedState, Pile, SigBlob, Stockpile,
 };
 
 /// Trait abstracting a specific implementation of a bitcoin wallet.
@@ -74,13 +72,16 @@ pub trait WalletProvider {
 }
 
 pub trait Coinselect {
-    fn coinselect(
+    fn coinselect<'a>(
         &mut self,
         invoiced_state: &StrictVal,
         calc: &mut StateCalc,
         // Sorted vector by values
-        owned_state: Vec<(CellAddr, &StrictVal)>,
-    ) -> Option<Vec<CellAddr>>;
+        owned_state: impl IntoIterator<
+            Item = &'a OwnedState<Outpoint>,
+            IntoIter: DoubleEndedIterator<Item = &'a OwnedState<Outpoint>>,
+        >,
+    ) -> Option<Vec<(CellAddr, Outpoint)>>;
 }
 
 pub const BP_BLANK_METHOD: &str = "_";
@@ -131,13 +132,13 @@ impl EitherSeal<Outpoint> {
 
 impl CreateParams<Outpoint> {
     pub fn transform(self, mut noise_engine: Sha256) -> CreateParams<WTxoSeal> {
-        noise_engine.input_raw(self.codex_id.as_slice());
+        noise_engine.input_raw(self.issuer.codex_id().as_slice());
         noise_engine.input_raw(&[self.consensus as u8]);
         noise_engine.input_raw(self.method.as_bytes());
         noise_engine.input_raw(self.name.as_bytes());
         noise_engine.input_raw(&self.timestamp.unwrap_or_default().timestamp().to_le_bytes());
         CreateParams {
-            codex_id: self.codex_id,
+            issuer: self.issuer,
             consensus: self.consensus,
             testnet: self.testnet,
             method: self.method,
@@ -173,7 +174,7 @@ pub struct UsedState {
 
 pub type PaymentScript = OpRequestSet<Option<WoutAssignment>>;
 
-/// A set of multiple operation requests (see [`OpRequests`]) under a single or multiple contracts.
+/// A set of multiple operation requests (see [`OpRequests`]) under single or multiple contracts.
 #[derive(Wrapper, WrapperMut, Clone, Debug, From)]
 #[wrapper(Deref)]
 #[wrapper_mut(DerefMut)]
@@ -337,9 +338,6 @@ pub struct Prefab {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 pub struct PrefabBundle(SmallOrdSet<Prefab>);
 
-impl StrictSerialize for PrefabBundle {}
-impl StrictDeserialize for PrefabBundle {}
-
 impl IntoIterator for PrefabBundle {
     type Item = Prefab;
     type IntoIter = btree_set::IntoIter<Prefab>;
@@ -461,17 +459,14 @@ where
 
         // Determine method
         let articles = self.contracts.contract_articles(contract_id);
-        let api = &articles.apis().default;
+        let api = articles.default_api();
         let call = invoice
             .call
             .as_ref()
             .or(api.default_call.as_ref())
             .ok_or(FulfillError::CallStateUnknown)?;
         let method = call.method.clone();
-        let state_name = call
-            .destructible
-            .clone()
-            .ok_or(FulfillError::StateNameUnknown)?;
+        let state_name = call.owned.clone().ok_or(FulfillError::StateNameUnknown)?;
         let mut calc = api.calculate(state_name.clone())?;
 
         let value = invoice.data.as_ref().ok_or(FulfillError::ValueMissed)?;
@@ -482,20 +477,13 @@ where
             .owned
             .get(&state_name)
             .ok_or(FulfillError::StateUnavailable)?;
-        let src = state
-            .iter()
-            .map(|(addr, owned)| (*addr, &owned.assignment.data))
-            .collect::<Vec<_>>();
         // NB: we do state accumulation with `calc` inside coinselect
         let using = coinselect
-            .coinselect(value, &mut calc, src)
+            .coinselect(value, &mut calc, state)
             .ok_or(FulfillError::StateInsufficient)?;
         let using = using
             .into_iter()
-            .map(|addr| {
-                let owned = state.get(&addr).expect("just selected");
-                UsedState { addr, outpoint: owned.assignment.seal, satisfaction: None }
-            })
+            .map(|(addr, outpoint)| UsedState { addr, outpoint, satisfaction: None })
             .collect();
 
         // Add beneficiaries
@@ -540,7 +528,7 @@ where
         let contract_id = request.contract_id;
         let state = self.contracts.contract_state(contract_id);
         let articles = self.contracts.contract_articles(contract_id);
-        let api = &articles.apis().default;
+        let api = articles.default_api();
         let mut calcs = BTreeMap::new();
 
         for inp in &request.using {
@@ -549,8 +537,8 @@ where
                 .iter()
                 .find_map(|(state_name, map)| {
                     map.iter()
-                        .find(|(addr, _)| **addr == inp.addr)
-                        .map(|(_, value)| (state_name, value))
+                        .find(|owned| owned.addr == inp.addr)
+                        .map(|owned| (state_name, owned))
                 })
                 .expect("unknown state included in the contract stock");
             let calc = match calcs.entry(state_name.clone()) {
@@ -676,14 +664,14 @@ where
             let owned = self.contracts.contract_state(contract_id).owned.clone();
             let (using, prev): (Vec<_>, Vec<_>) = owned
                 .iter()
-                .flat_map(|(name, map)| map.iter().map(move |(addr, val)| (name, *addr, val)))
-                .filter_map(|(name, addr, state)| {
-                    let outpoint = state.assignment.seal.primary;
+                .flat_map(|(name, map)| map.iter().map(move |owned| (name, owned)))
+                .filter_map(|(name, owned)| {
+                    let outpoint = owned.assignment.seal.primary;
                     if !outpoints.contains(&outpoint) {
                         return None;
                     }
-                    let prevout = UsedState { addr, outpoint, satisfaction: None };
-                    Some((prevout, (name.clone(), state)))
+                    let prevout = UsedState { addr: owned.addr, outpoint, satisfaction: None };
+                    Some((prevout, (name.clone(), owned)))
                 })
                 .unzip();
 
@@ -692,7 +680,7 @@ where
             };
 
             let articles = self.contracts.contract_articles(contract_id);
-            let api = &articles.apis().default;
+            let api = articles.default_api();
             let mut calcs = BTreeMap::<StateName, StateCalc>::new();
             for (name, state) in prev {
                 let calc = match calcs.entry(name.clone()) {
@@ -740,6 +728,7 @@ where
             let prefab = self.prefab(request).map_err(|err| match err {
                 MultiError::A(e) => MultiError::A(BundleError::Blank(e)),
                 MultiError::B(e) => MultiError::B(e),
+                MultiError::C(_) => unreachable!(),
             })?;
             prefabs.push(prefab);
         }
@@ -784,12 +773,31 @@ where
     }
 
     /// Consume consignment.
+    ///
+    /// The method:
+    /// - validates the consignment;
+    /// - resolves auth tokens into seal definitions known to the current wallet (i.e., coming from
+    ///   the invoices produced by the wallet);
+    /// - checks the signature of the issuer over the contract articles;
+    ///
+    /// # Arguments
+    ///
+    /// - `allow_unknown`: allows importing a contract which was not known to the system;
+    /// - `reader`: the input stream;
+    /// - `sig_validator`: a validator for the signature of the issuer over the contract articles.
     #[allow(clippy::result_large_err)]
-    pub fn consume(
+    pub fn consume<E>(
         &mut self,
+        allow_unknown: bool,
         reader: &mut StrictReader<impl ReadRaw>,
-        sig_validator: impl SigValidator,
-    ) -> Result<(), MultiError<ConsumeError<WTxoSeal>, <Sp::Stock as Stock>::Error>> {
+        sig_validator: impl FnOnce(StrictHash, &Identity, &SigBlob) -> Result<(), E>,
+    ) -> Result<
+        (),
+        MultiError<ConsumeError<WTxoSeal>, <Sp::Stock as Stock>::Error, <Sp::Pile as Pile>::Error>,
+    >
+    where
+        <Sp::Pile as Pile>::Conf: From<<Sp::Stock as Stock>::Conf>,
+    {
         let seal_resolver = |op: &Operation| {
             self.wallet
                 .resolve_seals(op.destructible_out.iter().map(|cell| cell.auth))
@@ -804,7 +812,8 @@ where
                 })
                 .collect()
         };
-        self.contracts.consume(reader, seal_resolver, sig_validator)
+        self.contracts
+            .consume(allow_unknown, reader, seal_resolver, sig_validator)
     }
 }
 
@@ -899,32 +908,68 @@ pub enum IncludeError {
     Mpc(mpc::LeafNotKnown),
 }
 
-#[cfg(feature = "fs")]
-mod fs {
-    use std::fs::File;
+#[cfg(feature = "binfile")]
+mod _fs {
+    use std::io;
     use std::path::Path;
 
-    use sonic_persist_fs::{FsError, StockFs};
-    use strict_encoding::StreamReader;
+    use amplify::confinement::U24 as U24MAX;
+    use binfile::BinFile;
+    use commit_verify::StrictHash;
+    use strict_encoding::{DecodeError, StreamReader, StreamWriter, StrictEncode};
 
     use super::*;
-    use crate::{PileFs, StockpileDir};
+    use crate::{Identity, SigBlob, CONSIGN_MAGIC_NUMBER, CONSIGN_VERSION};
 
-    impl<
-            W: WalletProvider,
-            S: KeyedCollection<Key = CodexId, Value = Issuer>,
-            C: KeyedCollection<Key = ContractId, Value = Contract<StockFs, PileFs<TxoSeal>>>,
-        > RgbWallet<W, StockpileDir<TxoSeal>, S, C>
+    /// The magic number used in storing issuer as a binary file.
+    pub const PREFAB_MAGIC_NUMBER: u64 = u64::from_be_bytes(*b"PREFABND");
+    /// The issuer encoding version used in storing issuer as a binary file.
+    pub const PREFAB_VERSION: u16 = 0;
+
+    impl<W, Sp, S, C> RgbWallet<W, Sp, S, C>
+    where
+        W: WalletProvider,
+        Sp: Stockpile,
+        Sp::Pile: Pile<Seal = TxoSeal>,
+        S: KeyedCollection<Key = CodexId, Value = Issuer>,
+        C: KeyedCollection<Key = ContractId, Value = Contract<Sp::Stock, Sp::Pile>>,
     {
         #[allow(clippy::result_large_err)]
-        pub fn consume_from_file(
+        pub fn consume_from_file<E>(
             &mut self,
+            allow_unknown: bool,
             path: impl AsRef<Path>,
-            sig_validator: impl SigValidator,
-        ) -> Result<(), MultiError<ConsumeError<WTxoSeal>, FsError>> {
-            let file = File::open(path).map_err(MultiError::from_a)?;
+            sig_validator: impl FnOnce(StrictHash, &Identity, &SigBlob) -> Result<(), E>,
+        ) -> Result<
+            (),
+            MultiError<
+                ConsumeError<WTxoSeal>,
+                <Sp::Stock as Stock>::Error,
+                <Sp::Pile as Pile>::Error,
+            >,
+        >
+        where
+            <Sp::Pile as Pile>::Conf: From<<Sp::Stock as Stock>::Conf>,
+        {
+            let file = BinFile::<CONSIGN_MAGIC_NUMBER, CONSIGN_VERSION>::open(path)
+                .map_err(MultiError::from_a)?;
             let mut reader = StrictReader::with(StreamReader::new::<{ usize::MAX }>(file));
-            self.consume(&mut reader, sig_validator)
+            self.consume(allow_unknown, &mut reader, sig_validator)
+        }
+    }
+
+    impl PrefabBundle {
+        pub fn load(path: impl AsRef<Path>) -> Result<Self, DecodeError> {
+            let file = BinFile::<PREFAB_MAGIC_NUMBER, PREFAB_VERSION>::open(path)?;
+            let reader = StreamReader::new::<U24MAX>(file);
+            Self::strict_read(reader)
+            // We do not check for the end of file to allow backwards-compatible extensions
+        }
+
+        pub fn save(&self, path: impl AsRef<Path>) -> io::Result<()> {
+            let file = BinFile::<PREFAB_MAGIC_NUMBER, PREFAB_VERSION>::create_new(path)?;
+            let writer = StreamWriter::new::<U24MAX>(file);
+            self.strict_write(writer)
         }
     }
 }

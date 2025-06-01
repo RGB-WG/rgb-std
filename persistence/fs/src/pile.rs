@@ -29,10 +29,8 @@ use std::path::PathBuf;
 use amplify::confinement::SmallOrdMap;
 use aora::file::{FileAoraIndex, FileAoraMap, FileAuraMap};
 use aora::{AoraIndex, AoraMap, AuraMap, TransactionalMap};
-use rgb::RgbSeal;
+use rgb::{CellAddr, OpRels, Opid, Pile, RgbSeal, Witness, WitnessStatus};
 use strict_encoding::{StrictDecode, StrictEncode};
-
-use crate::{CellAddr, OpRels, Opid, Pile, Witness, WitnessStatus};
 
 const HOARD_MAGIC: u64 = u64::from_be_bytes(*b"RGBHOARD");
 const CACHE_MAGIC: u64 = u64::from_be_bytes(*b"RGBCACHE");
