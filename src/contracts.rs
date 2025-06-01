@@ -419,7 +419,7 @@ where
         <<Sp::Pile as Pile>::Seal as RgbSeal>::Published: StrictDecode,
         <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId: StrictDecode,
     {
-        // Checking version
+        // Checking version and getting contract id
         let contract_id = parse_consignment(reader).map_err(MultiError::from_a)?;
         if !self.has_contract(contract_id) {
             if allow_unknown {

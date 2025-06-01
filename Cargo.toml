@@ -3,7 +3,7 @@ members = [".", "cli", "invoice", "persistence/fs"]
 default-members = [".", "invoice", "persistence/fs"]
 
 [workspace.package]
-version = "0.12.0-rc.1"
+version = "0.12.0-rc.2"
 keywords = ["bitcoin", "lightning", "rgb", "smart-contracts", "lnp-bp"]
 categories = ["cryptography::cryptocurrencies"]
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
@@ -19,23 +19,23 @@ strict_encoding = "2.9.1"
 strict_types = "2.9.0"
 commit_verify = "0.12.0-rc.1"
 single_use_seals = "0.12.0-rc.1"
-hypersonic = "0.12.0-rc.1"
-sonic-callreq = "0.12.0-rc.1"
-sonic-persist-fs = "0.12.0-rc.1"
-sonix = "0.12.0-rc.1"
-bp-core = "0.12.0-rc.1"
-bp-invoice = "0.12.0-rc.1"
-rgb-core = "0.12.0-rc.1"
-rgb-std = { version = "0.12.0-rc.1", path = "." }
-rgb-invoice = { version = "0.12.0-rc.1", path = "./invoice" }
-rgb-persist-fs = { version = "0.12.0-rc.1", path = "./persistence/fs" }
-aora = ">=0.6.3"
-baid64 = "0.4.1"
+hypersonic = "0.12.0-rc.2"
+sonic-callreq = "0.12.0-rc.2"
+sonic-persist-fs = "0.12.0-rc.2"
+sonix = "0.12.0-rc.2"
+bp-core = "0.12.0-rc.2"
+bp-invoice = "0.12.0-rc.2"
+rgb-core = "0.12.0-rc.2"
+rgb-std = { version = "0.12.0-rc.2", path = "." }
+rgb-invoice = { version = "0.12.0-rc.2", path = "./invoice" }
+rgb-persist-fs = { version = "0.12.0-rc.2", path = "./persistence/fs" }
+aora = ">=0.6.4"
+baid64 = "0.4.2"
 binfile = "0.2.0"
 indexmap = "2.9.0"
-chrono = "0.4.39"
-serde = "1.0.215"
-serde_with = "1.14.0"
+chrono = "0.4.41"
+serde = "1.0"
+serde_with = "1.14"
 
 [package]
 name = "rgb-std"
@@ -124,10 +124,3 @@ features = ["all"]
 
 [lints.rust]
 unexpected_cfgs = { level = "allow", check-cfg = ['cfg(coverage_nightly)'] }
-
-[patch.crates-io]
-sonic-api = { git = "https://github.com/AluVM/sonic", branch = "v0.12" }
-sonic-callreq = { git = "https://github.com/AluVM/sonic", branch = "v0.12" }
-sonic-persist-fs = { git = "https://github.com/AluVM/sonic", branch = "v0.12" }
-hypersonic = { git = "https://github.com/AluVM/sonic", branch = "v0.12" }
-sonix = { git = "https://github.com/AluVM/sonic", branch = "v0.12" }
