@@ -189,6 +189,8 @@ where
     {
         let dir = self.create_contract_dir(&articles).map_err(MultiError::C)?;
         let contract = Contract::with(articles, consignment, dir)?;
+        self.contracts
+            .insert(contract.contract_id(), contract.articles().issue().meta.name.to_string());
         Ok(contract)
     }
 
