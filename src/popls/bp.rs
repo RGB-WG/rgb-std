@@ -491,7 +491,10 @@ where
             state
                 .iter()
                 .filter(|s| outpoints.contains(&s.assignment.seal) && !addrs.contains(&s.addr))
-                .map(|s| (s.addr, s.assignment.seal)),
+                .filter_map(|s| {
+                    calc.accumulate(&s.assignment.data).ok()?;
+                    Some((s.addr, s.assignment.seal))
+                }),
         );
         let using = using
             .into_iter()
