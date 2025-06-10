@@ -370,12 +370,13 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         Ok(Self { ledger, pile, contract_id })
     }
 
-    /// Get mining status for a given operation.
+    /// Get the best mining status for a given operation ("best" means "the most deeply mined").
     fn witness_status(&self, opid: Opid) -> WitnessStatus {
         self.pile
             .op_witness_ids(opid)
             .map(|wid| self.pile.witness_status(wid))
-            .max()
+            // "best" means "the most deeply mined", i.e., minimal
+            .min()
             .unwrap_or(WitnessStatus::Genesis)
     }
 
@@ -384,7 +385,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
             .pile
             .op_witness_ids(opid)
             .map(|wid| (self.pile.witness_status(wid), wid))
-            .max()?;
+            .min()?;
         if !status.is_valid() {
             return None;
         }
