@@ -465,10 +465,11 @@ impl<S: Stock, P: Pile> Contract<S, P> {
                 } else {
                     // We insert a copy of state for each of the witnesses created for the operation
                     for wid in self.pile.op_witness_ids(addr.opid) {
+                        let status = self.pile.witness_status(wid);
                         state.push(OwnedState {
                             addr,
                             assignment: Assignment { seal: seal.resolve(wid), data: data.clone() },
-                            status: since,
+                            status,
                         });
                     }
                 }
