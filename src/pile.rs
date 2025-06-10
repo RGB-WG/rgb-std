@@ -199,11 +199,6 @@ pub trait Pile {
 
     fn witnesses(&self) -> impl Iterator<Item = Witness<Self::Seal>>;
 
-    fn witnesses_since(
-        &self,
-        transaction_no: u64,
-    ) -> impl Iterator<Item = <Self::Seal as RgbSeal>::WitnessId>;
-
     fn op_witness_ids(
         &self,
         opid: Opid,
