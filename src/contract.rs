@@ -372,12 +372,15 @@ impl<S: Stock, P: Pile> Contract<S, P> {
 
     /// Get the best mining status for a given operation ("best" means "the most deeply mined").
     fn witness_status(&self, opid: Opid) -> WitnessStatus {
+        if self.articles().genesis_opid() == opid {
+            return WitnessStatus::Genesis;
+        }
         self.pile
             .op_witness_ids(opid)
             .map(|wid| self.pile.witness_status(wid))
             // "best" means "the most deeply mined", i.e., minimal
             .min()
-            .unwrap_or(WitnessStatus::Genesis)
+            .unwrap_or(WitnessStatus::Archived)
     }
 
     fn retrieve(&self, opid: Opid) -> Option<SealWitness<P::Seal>> {
