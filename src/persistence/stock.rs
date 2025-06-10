@@ -828,19 +828,9 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             stash.consume_witness(&fascia.seal_witness)?;
 
             for (contract_id, bundle) in fascia.into_bundles() {
-                let ids1 = bundle
-                    .known_transitions
-                    .keys()
-                    .copied()
-                    .collect::<BTreeSet<_>>();
-                let ids2 = bundle
-                    .input_map
-                    .values()
-                    .flat_map(|opids| opids.to_unconfined())
-                    .collect::<BTreeSet<_>>();
-                if !ids1.is_subset(&ids2) {
-                    return Err(FasciaError::InvalidBundle(contract_id, bundle.bundle_id()).into());
-                }
+                bundle
+                    .check_opid_commitments()
+                    .map_err(|_| FasciaError::InvalidBundle(contract_id, bundle.bundle_id()))?;
 
                 index.index_bundle(contract_id, &bundle, witness_id)?;
                 state.update_from_bundle(contract_id, &bundle, witness_id, &resolver)?;
