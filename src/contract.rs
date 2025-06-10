@@ -110,6 +110,7 @@ impl<Seal> Assignment<EitherSeal<Seal>> {
     }
 }
 
+/// Element of the contract owned state, carrying information about its confirmation status.
 #[derive(Clone, PartialEq, Eq, Debug)]
 #[cfg_attr(
     feature = "serde",
@@ -117,9 +118,23 @@ impl<Seal> Assignment<EitherSeal<Seal>> {
     serde(bound = "Seal: serde::Serialize + for<'d> serde::Deserialize<'d>")
 )]
 pub struct OwnedState<Seal> {
+    /// Operation output defining this element of owned state.
     pub addr: CellAddr,
+
+    /// State assignment.
     #[cfg_attr(feature = "serde", serde(flatten))]
     pub assignment: Assignment<Seal>,
+
+    /// Status of the state: the maximal confirmation depth for the whole history of operations
+    /// leading to this status, since genesis.
+    ///
+    /// If any operation has known multiple witnesses (related to RBF'ed transactions or lightning
+    /// channels), the best confirmation is used for that specific operation (i.e., the deepest
+    /// mined).
+    ///
+    /// Formally, if $H$ is a set of all operations in the history between genesis and this state,
+    /// and $W_o$ is a set of all witnesses for operation $o \in H$, the status here is defined as
+    /// $max_{o \in H} min_{w \in W_o} status(w)$.
     pub status: WitnessStatus,
 }
 
@@ -449,14 +464,27 @@ impl<S: Stock, P: Pile> Contract<S, P> {
     /// taking into account the status of the witnesses in the whole history.
     pub fn state(&self) -> ContractState<P::Seal> {
         let mut cache = bmap! {};
+        let mut ancestor_cache = bmap! {};
+        let mut cached_status = |opid: Opid| {
+            *cache
+                .entry(opid)
+                .or_insert_with(|| self.witness_status(opid))
+        };
+        let mut get_status = |opid: Opid, or: WitnessStatus| {
+            (*ancestor_cache.entry(opid).or_insert_with(|| {
+                self.ledger
+                    .ancestors([opid])
+                    .map(|ancestor| self.witness_status(ancestor))
+                    .max()
+                    .unwrap_or(WitnessStatus::Archived)
+            }))
+            .max(or)
+        };
         let state = self.ledger.state().main.clone();
         let mut owned = bmap! {};
         for (name, map) in state.owned {
             let mut state = vec![];
             for (addr, data) in map {
-                let since = *cache
-                    .entry(addr.opid)
-                    .or_insert_with(|| self.witness_status(addr.opid));
                 let Some(seal) = self.pile.seal(addr) else {
                     continue;
                 };
@@ -464,16 +492,15 @@ impl<S: Stock, P: Pile> Contract<S, P> {
                     state.push(OwnedState {
                         addr,
                         assignment: Assignment { seal, data },
-                        status: since,
+                        status: get_status(addr.opid, cached_status(addr.opid)),
                     });
                 } else {
                     // We insert a copy of state for each of the witnesses created for the operation
                     for wid in self.pile.op_witness_ids(addr.opid) {
-                        let status = self.pile.witness_status(wid);
                         state.push(OwnedState {
                             addr,
                             assignment: Assignment { seal: seal.resolve(wid), data: data.clone() },
-                            status,
+                            status: get_status(addr.opid, self.pile.witness_status(wid)),
                         });
                     }
                 }
@@ -484,9 +511,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         for (name, map) in state.global {
             let mut state = vec![];
             for (addr, data) in map {
-                let status = *cache
-                    .entry(addr.opid)
-                    .or_insert_with(|| self.witness_status(addr.opid));
+                let status = get_status(addr.opid, cached_status(addr.opid));
                 state.push(ImmutableState { addr, data, status });
             }
             immutable.insert(name, state);
