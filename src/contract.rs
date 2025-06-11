@@ -391,7 +391,8 @@ impl<S: Stock, P: Pile> Contract<S, P> {
             .op_witness_ids(opid)
             .map(|wid| self.pile.witness_status(wid))
             // "best" means "the most deeply mined"
-            .fold(WitnessStatus::Genesis, |best, other| best.best(other))
+            .reduce(|best, other| best.best(other))
+            .unwrap_or(WitnessStatus::Genesis)
     }
 
     fn retrieve(&self, opid: Opid) -> Option<SealWitness<P::Seal>> {
@@ -471,7 +472,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
                 self.ledger
                     .ancestors([opid])
                     .map(|ancestor| self.witness_status(ancestor))
-                    .fold(WitnessStatus::Archived, |worst, other| worst.worst(other))
+                    .fold(WitnessStatus::Genesis, |worst, other| worst.worst(other))
             }))
             .worst(or)
         };
