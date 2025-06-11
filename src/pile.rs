@@ -108,7 +108,7 @@ impl WitnessStatus {
     }
 
     pub fn worst(self, other: Self) -> Self {
-        if self.is_better(other) {
+        if self.is_worse(other) {
             self
         } else {
             other
