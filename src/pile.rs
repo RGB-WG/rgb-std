@@ -27,7 +27,6 @@ use core::error::Error as StdError;
 use core::fmt::Debug;
 use core::marker::PhantomData;
 use core::num::NonZeroU64;
-use std::cmp::Ordering;
 use std::collections::HashSet;
 
 use amplify::confinement::SmallOrdMap;
@@ -71,16 +70,6 @@ pub enum WitnessStatus {
     Archived,
 }
 
-impl PartialOrd for WitnessStatus {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
-}
-
-impl Ord for WitnessStatus {
-    fn cmp(&self, other: &Self) -> Ordering {
-        <[u8; 8] as Ord>::cmp(&(*self).into(), &(*other).into())
-    }
-}
-
 impl WitnessStatus {
     const GENESIS: u64 = 0;
     const TENTATIVE: u64 = u64::MAX ^ 0x01;
@@ -92,12 +81,45 @@ impl WitnessStatus {
     pub fn is_tentative(&self) -> bool { matches!(self, Self::Tentative) }
     pub fn is_archived(&self) -> bool { matches!(self, Self::Archived) }
     pub fn is_offchain(&self) -> bool { matches!(self, Self::Offchain) }
+
+    fn quasi_height(&self) -> u64 {
+        match self {
+            Self::Genesis => Self::GENESIS,
+            Self::Archived => Self::ARCHIVED,
+            Self::Tentative => Self::TENTATIVE,
+            Self::Offchain => Self::OFFCHAIN,
+            Self::Mined(height) => height.get(),
+        }
+    }
+
+    pub fn is_better(self, other: Self) -> bool {
+        // Lesser height means "mined deeper", which implies better security
+        self.quasi_height() < other.quasi_height()
+    }
+
+    pub fn is_worse(self, other: Self) -> bool { !self.is_better(other) }
+
+    pub fn best(self, other: Self) -> Self {
+        if self.is_better(other) {
+            self
+        } else {
+            other
+        }
+    }
+
+    pub fn worst(self, other: Self) -> Self {
+        if self.is_better(other) {
+            self
+        } else {
+            other
+        }
+    }
 }
 
 // We use big-endian encoding of the inverted numbers to allow lexicographic sorting
 impl From<[u8; 8]> for WitnessStatus {
     fn from(value: [u8; 8]) -> Self {
-        match u64::MAX - u64::from_be_bytes(value) {
+        match u64::from_le_bytes(value) {
             Self::GENESIS => Self::Genesis,
             Self::ARCHIVED => Self::Archived,
             Self::TENTATIVE => Self::Tentative,
@@ -109,17 +131,7 @@ impl From<[u8; 8]> for WitnessStatus {
 
 // We use big-endian encoding of the inverted numbers to allow lexicographic sorting
 impl From<WitnessStatus> for [u8; 8] {
-    fn from(value: WitnessStatus) -> Self {
-        let fake_height = u64::MAX
-            - match value {
-                WitnessStatus::Genesis => WitnessStatus::GENESIS,
-                WitnessStatus::Archived => WitnessStatus::ARCHIVED,
-                WitnessStatus::Tentative => WitnessStatus::TENTATIVE,
-                WitnessStatus::Offchain => WitnessStatus::OFFCHAIN,
-                WitnessStatus::Mined(info) => info.get(),
-            };
-        fake_height.to_be_bytes()
-    }
+    fn from(value: WitnessStatus) -> Self { value.quasi_height().to_le_bytes() }
 }
 
 #[derive(Clone, Debug)]
@@ -265,21 +277,20 @@ mod tests {
 
     #[test]
     fn witness_status_bytes() {
-        assert_eq!(
-            WitnessStatus::Genesis,
-            [0xFFu8, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF].into()
-        );
-        assert_eq!(<[u8; 8]>::from(WitnessStatus::Genesis), [
-            0xFFu8, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
-        ]);
+        assert_eq!(WitnessStatus::Genesis, [0u8; 8].into());
+        assert_eq!(<[u8; 8]>::from(WitnessStatus::Genesis), [0u8; 8]);
     }
 
     #[test]
     fn witness_status_ordering() {
-        assert!(WitnessStatus::Genesis > WitnessStatus::Mined(NonZeroU64::new(1).unwrap()));
-        assert!(WitnessStatus::Mined(NonZeroU64::new(1).unwrap()) > WitnessStatus::Tentative);
-        assert!(WitnessStatus::Tentative < WitnessStatus::Offchain);
-        assert!(WitnessStatus::Offchain > WitnessStatus::Archived);
-        assert!(WitnessStatus::Archived < WitnessStatus::Genesis);
+        assert!(WitnessStatus::Genesis.is_better(WitnessStatus::Mined(NonZeroU64::new(1).unwrap())));
+        assert!(WitnessStatus::Mined(NonZeroU64::new(10).unwrap())
+            .is_better(WitnessStatus::Mined(NonZeroU64::new(100).unwrap())));
+        assert!(
+            WitnessStatus::Mined(NonZeroU64::new(1).unwrap()).is_better(WitnessStatus::Tentative)
+        );
+        assert!(WitnessStatus::Tentative.is_worse(WitnessStatus::Offchain));
+        assert!(WitnessStatus::Offchain.is_better(WitnessStatus::Archived));
+        assert!(WitnessStatus::Archived.is_worse(WitnessStatus::Genesis));
     }
 }

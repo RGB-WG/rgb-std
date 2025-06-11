@@ -387,15 +387,11 @@ impl<S: Stock, P: Pile> Contract<S, P> {
 
     /// Get the best mining status for a given operation ("best" means "the most deeply mined").
     fn witness_status(&self, opid: Opid) -> WitnessStatus {
-        if self.articles().genesis_opid() == opid {
-            return WitnessStatus::Genesis;
-        }
         self.pile
             .op_witness_ids(opid)
             .map(|wid| self.pile.witness_status(wid))
-            // "best" means "the most deeply mined", i.e., minimal
-            .min()
-            .unwrap_or(WitnessStatus::Archived)
+            // "best" means "the most deeply mined"
+            .fold(WitnessStatus::Genesis, |best, other| best.best(other))
     }
 
     fn retrieve(&self, opid: Opid) -> Option<SealWitness<P::Seal>> {
@@ -403,7 +399,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
             .pile
             .op_witness_ids(opid)
             .map(|wid| (self.pile.witness_status(wid), wid))
-            .min()?;
+            .reduce(|best, other| if best.0.is_better(other.0) { best } else { other })?;
         if !status.is_valid() {
             return None;
         }
@@ -475,10 +471,9 @@ impl<S: Stock, P: Pile> Contract<S, P> {
                 self.ledger
                     .ancestors([opid])
                     .map(|ancestor| self.witness_status(ancestor))
-                    .max()
-                    .unwrap_or(WitnessStatus::Archived)
+                    .fold(WitnessStatus::Archived, |worst, other| worst.worst(other))
             }))
-            .max(or)
+            .worst(or)
         };
         let state = self.ledger.state().main.clone();
         let mut owned = bmap! {};
