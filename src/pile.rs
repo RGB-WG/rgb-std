@@ -116,10 +116,11 @@ impl WitnessStatus {
     }
 }
 
-// We use big-endian encoding of the inverted numbers to allow lexicographic sorting
 impl From<[u8; 8]> for WitnessStatus {
     fn from(value: [u8; 8]) -> Self {
-        match u64::from_le_bytes(value) {
+        let depth = u64::from_be_bytes(value);
+        let height = u64::MAX - depth;
+        match height {
             Self::GENESIS => Self::Genesis,
             Self::ARCHIVED => Self::Archived,
             Self::TENTATIVE => Self::Tentative,
@@ -129,9 +130,12 @@ impl From<[u8; 8]> for WitnessStatus {
     }
 }
 
-// We use big-endian encoding of the inverted numbers to allow lexicographic sorting
 impl From<WitnessStatus> for [u8; 8] {
-    fn from(value: WitnessStatus) -> Self { value.quasi_height().to_le_bytes() }
+    fn from(value: WitnessStatus) -> Self {
+        let height = value.quasi_height();
+        let depth = u64::MAX - height;
+        depth.to_be_bytes()
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -277,8 +281,13 @@ mod tests {
 
     #[test]
     fn witness_status_bytes() {
-        assert_eq!(WitnessStatus::Genesis, [0u8; 8].into());
-        assert_eq!(<[u8; 8]>::from(WitnessStatus::Genesis), [0u8; 8]);
+        assert_eq!(
+            WitnessStatus::Genesis,
+            [0xFFu8, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF].into()
+        );
+        assert_eq!(<[u8; 8]>::from(WitnessStatus::Genesis), [
+            0xFFu8, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
+        ]);
     }
 
     #[test]
