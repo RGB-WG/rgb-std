@@ -141,55 +141,6 @@ where
         seals
     }
 
-    fn witnesses_since(
-        &self,
-        transaction_no: u64,
-    ) -> impl Iterator<Item = <Seal as RgbSeal>::WitnessId> {
-        struct WitnessIter<'pile, Id, M>
-        where
-            Id: From<[u8; 32]> + Into<[u8; 32]>,
-            M: AuraMap<Id, WitnessStatus, 32, 8>,
-        {
-            curr: u64,
-            max: u64,
-            mine: &'pile M,
-            iter: Option<Box<dyn Iterator<Item = Id> + 'pile>>,
-            _phantom: PhantomData<Id>,
-        }
-        impl<'pile, Id: 'pile, M> Iterator for WitnessIter<'pile, Id, M>
-        where
-            Id: From<[u8; 32]> + Into<[u8; 32]>,
-            M: AuraMap<Id, WitnessStatus, 32, 8> + TransactionalMap<Id>,
-        {
-            type Item = Id;
-            fn next(&mut self) -> Option<Self::Item> {
-                loop {
-                    match self.iter.as_mut()?.next() {
-                        None => {
-                            self.curr += 1;
-                            if self.curr >= self.max {
-                                return None;
-                            }
-                            self.iter = Some(Box::new(self.mine.transaction_keys(self.curr)));
-                        }
-                        Some(el) => return Some(el),
-                    }
-                }
-            }
-        }
-
-        let to = self.mine.transaction_count();
-
-        let mine = &self.mine;
-        WitnessIter {
-            curr: transaction_no + 1,
-            max: to,
-            mine,
-            iter: Some(Box::new(mine.transaction_keys(transaction_no))),
-            _phantom: PhantomData,
-        }
-    }
-
     fn add_witness(
         &mut self,
         opid: Opid,
