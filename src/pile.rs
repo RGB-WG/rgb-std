@@ -54,10 +54,10 @@ pub enum WitnessStatus {
     #[display(inner)]
     Mined(NonZeroU64),
 
-    /// Indicates offchain status where the used is in a full control over transaction execution
-    /// and the transaction can't be replaced (RBFed) without the receiver participation - for
-    /// instance, like in lightning channel transactions (but only for the current channel
-    /// state).
+    /// Indicates offchain status where the receiver is in at least partial control over
+    /// transaction execution and the transaction can't be replaced (RBFed) without the
+    /// receiver participation - for instance, like in lightning channel transactions (but only
+    /// for the current channel state).
     Offchain,
 
     /// Indicates known public witness which can be replaced or RBF'ed without the control of the
