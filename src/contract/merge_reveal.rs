@@ -142,6 +142,8 @@ impl MergeReveal for TransitionBundle {
         for (opid, other_transition) in &other.known_transitions {
             if let Some(transition) = self_transitions.get_mut(opid) {
                 transition.merge_reveal(other_transition)?;
+            } else {
+                self_transitions.insert(*opid, other_transition.clone());
             }
         }
         self.known_transitions = Confined::from_checked(self_transitions);
