@@ -478,9 +478,24 @@ where
             .get(&state_name)
             .ok_or(FulfillError::StateUnavailable)?;
         // NB: we do state accumulation with `calc` inside coinselect
-        let using = coinselect
+        let mut using = coinselect
             .coinselect(value, &mut calc, state)
             .ok_or(FulfillError::StateInsufficient)?;
+        // Now we need to include all other allocations under the same contract that use the
+        // selected UTXOs.
+        let (addrs, outpoints) = using
+            .iter()
+            .copied()
+            .unzip::<_, _, BTreeSet<_>, BTreeSet<_>>();
+        using.extend(
+            state
+                .iter()
+                .filter(|s| outpoints.contains(&s.assignment.seal) && !addrs.contains(&s.addr))
+                .filter_map(|s| {
+                    calc.accumulate(&s.assignment.data).ok()?;
+                    Some((s.addr, s.assignment.seal))
+                }),
+        );
         let using = using
             .into_iter()
             .map(|(addr, outpoint)| UsedState { addr, outpoint, satisfaction: None })
