@@ -46,8 +46,8 @@ use super::{
     StateInconsistency, StateProvider, StateReadProvider, StateWriteProvider, StoreTransaction,
 };
 use crate::containers::{
-    Consignment, ContainerVer, Contract, Fascia, Kit, SecretSeals, Transfer, TransitionInfoError,
-    ValidConsignment, ValidContract, ValidKit, ValidTransfer, WitnessBundle,
+    Consignment, ContainerVer, Contract, Fascia, Kit, SecretSeals, Transfer, ValidConsignment,
+    ValidContract, ValidKit, ValidTransfer, WitnessBundle,
 };
 use crate::contract::{
     AllocatedState, BuilderError, ContractBuilder, ContractData, IssuerWrapper, SchemaWrapper,
@@ -216,10 +216,6 @@ pub enum ComposeError {
     /// the spent UTXOs contain too many seals which can't fit the state
     /// transition input limit.
     TooManyInputs,
-
-    #[from]
-    #[display(inner)]
-    Transition(TransitionInfoError),
 
     /// the operation produces too many extra state transitions which can't fit
     /// the container requirements.

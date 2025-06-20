@@ -19,84 +19,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::cmp::Ordering;
-use std::collections::BTreeSet;
-use std::hash::{Hash, Hasher};
-
 use amplify::confinement::{Confined, NonEmptyOrdMap, U24};
-use bp::Outpoint;
-use rgb::{ContractId, OpId, Operation, OutputSeal, Transition, TransitionBundle, Txid};
+use rgb::{ContractId, Transition, TransitionBundle, Txid};
 use strict_encoding::{
     StrictDecode, StrictDeserialize, StrictDumb, StrictEncode, StrictSerialize, StrictType,
 };
 
 use super::SealWitness;
 use crate::LIB_NAME_RGB_STD;
-
-#[derive(Clone, Eq, Debug)]
-#[derive(StrictType, StrictEncode, StrictDecode)]
-#[strict_type(lib = LIB_NAME_RGB_STD)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-pub struct TransitionInfo {
-    pub id: OpId,
-    pub inputs: Confined<BTreeSet<Outpoint>, 1, U24>,
-    pub transition: Transition,
-}
-
-impl StrictDumb for TransitionInfo {
-    fn strict_dumb() -> Self { Self::new(strict_dumb!(), [strict_dumb!()]).unwrap() }
-}
-
-impl PartialEq for TransitionInfo {
-    fn eq(&self, other: &Self) -> bool { self.id.eq(&other.id) }
-}
-
-impl Ord for TransitionInfo {
-    fn cmp(&self, other: &Self) -> Ordering { self.id.cmp(&other.id) }
-}
-
-impl PartialOrd for TransitionInfo {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
-}
-
-impl Hash for TransitionInfo {
-    fn hash<H: Hasher>(&self, state: &mut H) { state.write(self.id.as_slice()) }
-}
-
-impl TransitionInfo {
-    /// # Panics
-    ///
-    /// If the number of provided seals is zero.
-    pub fn new(
-        transition: Transition,
-        seals: impl AsRef<[OutputSeal]>,
-    ) -> Result<Self, TransitionInfoError> {
-        let id = transition.id();
-        let seals = seals.as_ref();
-        assert!(!seals.is_empty(), "empty seals provided to transition info constructor");
-        let inputs = Confined::<BTreeSet<_>, 1, U24>::try_from_iter(
-            seals.iter().copied().map(Outpoint::from),
-        )
-        .map_err(|_| TransitionInfoError::TooMany(id))?;
-        Ok(TransitionInfo {
-            id,
-            inputs,
-            transition,
-        })
-    }
-}
-
-#[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error)]
-#[display(doc_comments)]
-pub enum TransitionInfoError {
-    /// the operation produces too many state transitions which can't fit the
-    /// container requirements.
-    TooMany(OpId),
-}
 
 /// A batch of state transitions under different contracts which are associated
 /// with some specific transfer and will be anchored within a single layer 1
@@ -110,15 +40,15 @@ pub enum TransitionInfoError {
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct Batch {
-    pub main: TransitionInfo,
-    pub extras: Confined<Vec<TransitionInfo>, 0, { U24 - 1 }>,
+    pub main: Transition,
+    pub extras: Confined<Vec<Transition>, 0, { U24 - 1 }>,
 }
 
 impl StrictSerialize for Batch {}
 impl StrictDeserialize for Batch {}
 
 impl IntoIterator for Batch {
-    type Item = TransitionInfo;
+    type Item = Transition;
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -130,9 +60,9 @@ impl IntoIterator for Batch {
 
 impl Batch {
     pub fn set_priority(&mut self, priority: u64) {
-        self.main.transition.nonce = priority;
-        for info in &mut self.extras {
-            info.transition.nonce = priority;
+        self.main.nonce = priority;
+        for transition in &mut self.extras {
+            transition.nonce = priority;
         }
     }
 }

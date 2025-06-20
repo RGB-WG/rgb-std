@@ -40,7 +40,7 @@ pub use consignment::{
 pub use file::{FileContent, LoadError, UniversalFile};
 pub use indexed::IndexedConsignment;
 pub use kit::{Kit, KitId, ValidKit};
-pub use partials::{Batch, Fascia, TransitionInfo, TransitionInfoError};
+pub use partials::{Batch, Fascia};
 pub use seal::{BuilderSeal, VoutSeal};
 pub use util::{ContainerVer, SecretSeals};
 
