@@ -63,9 +63,9 @@ impl<'c, const TRANSFER: bool> IndexedConsignment<'c, TRANSFER> {
             let bundle_id = bundle.bundle_id();
             bundle_idx.insert(bundle_id, bundle);
             anchor_idx.insert(bundle_id, (witness_id, anchor));
-            for opid in bundle.known_transitions.keys() {
-                op_witness_idx.insert(*opid, witness_id);
-                op_bundle_idx.insert(*opid, bundle_id);
+            for opid in bundle.known_transitions_opids() {
+                op_witness_idx.insert(opid, witness_id);
+                op_bundle_idx.insert(opid, bundle_id);
             }
         }
         let scripts = Scripts::from_iter_checked(
@@ -89,7 +89,7 @@ impl<'c, const TRANSFER: bool> IndexedConsignment<'c, TRANSFER> {
         self.op_bundle_idx
             .get(&opid)
             .and_then(|id| self.bundle_idx.get(id))
-            .and_then(|bundle| bundle.known_transitions.get(&opid))
+            .and_then(|bundle| bundle.get_transition(opid))
     }
 
     pub fn pub_witness(&self, id: Txid) -> Option<&PubWitness> {

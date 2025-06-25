@@ -280,8 +280,14 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
     pub fn replace_transitions_input_ops(&self) -> BTreeSet<OpId> {
         self.bundles
             .iter()
-            .flat_map(|b| b.bundle().known_transitions.values())
-            .filter(|t| t.transition_type.is_replace())
+            .flat_map(|b| b.bundle().known_transitions.as_unconfined())
+            .filter_map(|kt| {
+                if kt.transition.transition_type.is_replace() {
+                    Some(&kt.transition)
+                } else {
+                    None
+                }
+            })
             .flat_map(|t| t.inputs.iter())
             .filter(|i| i.ty.is_asset())
             .map(|i| i.op)

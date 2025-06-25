@@ -33,9 +33,9 @@ use nonasync::persistence::{CloneNoPersistence, PersistenceError, PersistencePro
 use rgb::validation::{ResolveWitness, UnsafeHistoryMap, WitnessResolverError};
 use rgb::vm::WitnessOrd;
 use rgb::{
-    validation, AssignmentType, BundleId, ChainNet, ContractId, GraphSeal, Identity, OpId,
-    Operation, Opout, OutputSeal, Schema, SchemaId, SecretSeal, Transition, TransitionType,
-    UnrelatedTransition,
+    validation, AssignmentType, BundleId, ChainNet, ContractId, GraphSeal, Identity,
+    KnownTransition, OpId, Operation, Opout, OutputSeal, Schema, SchemaId, SecretSeal, Transition,
+    TransitionType, UnrelatedTransition,
 };
 use strict_types::FieldName;
 
@@ -635,7 +635,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             .map(|(i, (bundle_id, (_, _)))| (*bundle_id, i))
             .collect::<HashMap<_, _>>();
         'outer: for (i, (_, (witness_bundle, _))) in bundles_with_height.iter().enumerate() {
-            for transition in witness_bundle.bundle.known_transitions.values() {
+            for KnownTransition { transition, .. } in &witness_bundle.bundle.known_transitions {
                 for input in &transition.inputs {
                     if input.op != contract_id {
                         let input_bundle_id = self.index.bundle_id_for_op(input.op)?;
@@ -661,11 +661,13 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         let mut known_bundle_dependencies: HashMap<BundleId, HashSet<BundleId>> =
             HashMap::with_capacity(bundles_len);
         for (bundle_id, (witness_bundle, _)) in &bundles_with_height {
-            for transition in witness_bundle.bundle.known_transitions.values() {
+            for KnownTransition { transition, .. } in &witness_bundle.bundle.known_transitions {
                 for input in &transition.inputs {
                     if input.op != contract_id {
                         let input_bundle_id = self.index.bundle_id_for_op(input.op)?;
-                        if bundle_positions.contains_key(&input_bundle_id) {
+                        if bundle_positions.contains_key(&input_bundle_id)
+                            && input_bundle_id != *bundle_id
+                        {
                             known_bundle_dependencies
                                 .entry(*bundle_id)
                                 .or_default()
@@ -946,8 +948,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         let bundle_id = self.index.bundle_id_for_op(opid)?;
         let bundle = self.stash.bundle(bundle_id)?;
         bundle
-            .known_transitions
-            .get(&opid)
+            .get_transition(opid)
             .ok_or(ConsignError::Concealed(bundle_id, opid).into())
     }
 
@@ -992,8 +993,8 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         self.state.update_bundle(*bundle_id, false)?;
         let bundle = self.stash.bundle(*bundle_id)?.clone();
         // recursively set all bundle descendants as invalid
-        for opid in bundle.known_transitions.keys() {
-            let children_bundle_ids = match self.index.bundle_ids_children_of_op(*opid) {
+        for opid in bundle.known_transitions_opids() {
+            let children_bundle_ids = match self.index.bundle_ids_children_of_op(opid) {
                 Ok(bundle_ids) => bundle_ids,
                 Err(IndexError::Inconsistency(IndexInconsistency::BundleAbsent(_))) => {
                     // this transition has no children yet
@@ -1018,7 +1019,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         let bundle = self.stash.bundle(*bundle_id)?.clone();
         let mut valid = true;
         // recursively visit bundle ancestors
-        for transition in bundle.known_transitions.values() {
+        for KnownTransition { transition, .. } in &bundle.known_transitions {
             for input in &transition.inputs {
                 let input_opid = input.op;
                 let input_bundle_id = match self.index.bundle_id_for_op(input_opid) {
@@ -1055,7 +1056,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             self.state.update_bundle(*bundle_id, true)?;
             invalid_bundles.remove(bundle_id).unwrap();
             // recursively visit bundle descendants to check if they became valid as well
-            for (opid, _transition) in bundle.known_transitions {
+            for KnownTransition { opid, .. } in bundle.known_transitions {
                 let children_bundle_ids = match self.index.bundle_ids_children_of_op(opid) {
                     Ok(bundle_ids) => bundle_ids,
                     Err(IndexError::Inconsistency(IndexInconsistency::BundleAbsent(_))) => {
@@ -1221,7 +1222,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
         // recursively check bundle ancestors
         let bundle = self.stash.bundle(*bundle_id)?.clone();
-        for transition in bundle.known_transitions.values() {
+        for KnownTransition { transition, .. } in bundle.known_transitions {
             for input in &transition.inputs {
                 let input_opid = input.op;
                 let input_bundle_id = match self.index.bundle_id_for_op(input_opid) {
