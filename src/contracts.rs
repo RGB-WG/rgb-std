@@ -41,7 +41,7 @@ use strict_encoding::{
 
 use crate::{
     parse_consignment, Articles, Consensus, Consignment, ConsumeError, Contract, ContractRef,
-    ContractState, CreateParams, Identity, Issuer, Operation, Pile, SigBlob, Stockpile,
+    ContractState, CreateParams, Identity, Issuer, Operation, Pile, SigBlob, Stockpile, Witness,
     WitnessStatus,
 };
 
@@ -213,14 +213,23 @@ where
     /// # Nota bene
     ///
     /// Iterator may repeat the same id multiple times.
-    pub fn witness_ids(
+    pub fn witness_ids<P>(
         &self,
-    ) -> impl Iterator<Item = <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId> + use<'_, Sp, S, C>
+        predicate: P,
+    ) -> impl Iterator<Item = <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId> + '_ + use<'_, Sp, S, C, P>
+    where
+        P: for<'w> FnMut(&'w Witness<<Sp::Pile as Pile>::Seal>) -> bool + Copy + 'static,
     {
         self.persistence.contract_ids().flat_map(move |id| {
             self.with_contract(
                 id,
-                |contract| contract.witness_ids().collect::<Vec<_>>(),
+                |contract| {
+                    contract
+                        .witnesses()
+                        .filter(predicate)
+                        .map(|w| w.id)
+                        .collect::<Vec<_>>()
+                },
                 Some(none!()),
             )
         })
