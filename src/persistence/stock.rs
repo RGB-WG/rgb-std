@@ -1291,7 +1291,7 @@ mod test {
             ContractId::from_baid64_str("rgb:qFuT6DN8-9AuO95M-7R8R8Mc-AZvs7zG-obum1Va-BRnweKk")
                 .unwrap();
         if let Ok(transfer) = stock.consign::<true>(contract_id, [], vec![secret_seal], None) {
-            println!("{:?}", transfer)
+            println!("{transfer:?}")
         }
     }
 
