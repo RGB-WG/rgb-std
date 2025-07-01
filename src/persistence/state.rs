@@ -28,8 +28,8 @@ use nonasync::persistence::{CloneNoPersistence, Persisting};
 use rgb::validation::{ResolveWitness, WitnessResolverError};
 use rgb::vm::{ContractStateAccess, WitnessOrd};
 use rgb::{
-    BundleId, ContractId, Genesis, RevealedData, RevealedValue, Schema, SchemaId, Transition,
-    TransitionBundle, Txid, VoidState,
+    BundleId, ContractId, Genesis, KnownTransition, RevealedData, RevealedValue, Schema, SchemaId,
+    Transition, TransitionBundle, Txid, VoidState,
 };
 
 use crate::containers::{ConsignmentExt, ToWitnessId};
@@ -152,7 +152,7 @@ impl<P: StateProvider> State<P> {
             .map_err(StateError::WriteProvider)?
             .ok_or(StateInconsistency::UnknownContract(contract_id))?;
         let bundle_id = bundle.bundle_id();
-        for transition in bundle.known_transitions.values() {
+        for KnownTransition { transition, .. } in &bundle.known_transitions {
             let ord = resolver
                 .resolve_pub_witness_ord(witness_id)
                 .map_err(|e| StateError::Resolver(witness_id, e))?;
@@ -175,7 +175,7 @@ impl<P: StateProvider> State<P> {
         for witness_bundle in consignment.bundled_witnesses() {
             let bundle = witness_bundle.bundle();
             let bundle_id = bundle.bundle_id();
-            for (_, transition) in &bundle.known_transitions {
+            for KnownTransition { transition, .. } in &bundle.known_transitions {
                 let witness_id = witness_bundle.pub_witness.to_witness_id();
                 let witness_ord = resolver
                     .resolve_pub_witness_ord(witness_id)

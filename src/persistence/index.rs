@@ -28,7 +28,7 @@ use bp::{Outpoint, Txid};
 use nonasync::persistence::{CloneNoPersistence, Persisting};
 use rgb::{
     Assign, AssignmentType, BundleId, ContractId, ExposedState, Genesis, GenesisSeal, GraphSeal,
-    OpId, Operation, Opout, TransitionBundle, TypedAssigns,
+    KnownTransition, OpId, Operation, Opout, TransitionBundle, TypedAssigns,
 };
 
 use crate::containers::{ConsignmentExt, ToWitnessId, WitnessBundle};
@@ -211,7 +211,7 @@ impl<P: IndexProvider> Index<P> {
         self.provider
             .register_bundle(bundle_id, witness_id, contract_id)?;
 
-        for (opid, transition) in &bundle.known_transitions {
+        for KnownTransition { opid, transition } in &bundle.known_transitions {
             self.provider.register_operation(*opid, bundle_id)?;
             for input in &transition.inputs {
                 self.provider.register_spending(input.op, bundle_id)?;

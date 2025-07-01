@@ -105,3 +105,6 @@ wasm-bindgen-test = "0.3"
 
 [package.metadata.docs.rs]
 features = ["all"]
+
+[patch.crates-io]
+rgb-core = { git = "https://github.com/zoedberg/rgb-core", branch = "0.11.1-4" }

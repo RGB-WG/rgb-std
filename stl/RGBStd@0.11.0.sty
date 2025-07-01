@@ -1,5 +1,5 @@
 {-
-  Id: stl:Nn~mJpFH-NvnJbK4-KygN4WE-gZ2qLty-s_BnUXh-HhkGA6I#reverse-diana-mirage
+  Id: stl:r1GC~anx-KuJPTuL-5BZ9qof-J2NY2~T-FTYiA6F-Abtg4uU#stick-tornado-absorb
   Name: RGBStd
   Version: 0.11.0
   Description: RGB standard library
@@ -27,7 +27,10 @@ import CommitVerify#violet-panther-herbert
   use MerkleHash#horse-popcorn-bundle
   use MerkleProof#price-aloha-grid
 
-import RGBCommit#support-iris-depend
+import RGBLogic#motel-balance-sofia
+  use DbcProof#needle-change-forest
+
+import RGBCommit#jimmy-clark-canary
   use BundleId#carmen-farmer-diesel
   use AssignRevealedDataBlindSealTxPtr#shake-couple-pogo
   use GlobalDetails#milk-machine-amigo
@@ -48,12 +51,12 @@ import RGBCommit#support-iris-depend
   use GlobalValues#kilo-proxy-symbol
   use GenesisSchema#jasmine-product-totem
   use AssignVoidStateBlindSealTxid#penguin-drink-diego
-  use TransitionBundle#swim-cartoon-sting
+  use KnownTransition#partner-madam-lecture
   use MetaType#quebec-mission-quota
   use GlobalStateSchema#zipper-pioneer-visa
-  use InputOpids#juliet-focus-proton
   use MetaDetails#arena-janet-prepare
   use AssignmentType#secret-penguin-limit
+  use TransitionBundle#darwin-system-trick
   use AssignmentsBlindSealTxPtr#sector-toronto-bikini
   use Opout#yoga-samba-karma
   use AssignVecAssignRevealedValueBlindSealTxid#mouse-village-bravo
@@ -100,9 +103,6 @@ import AluVM#jargon-gorilla-poetic
   use IsaSeg#size-shake-olga
   use LibSeg#lemon-philips-horse
 
-import RGBLogic#colombo-famous-erosion
-  use DbcProof#needle-change-forest
-
 import Bitcoin#quiz-patent-exit
   use SeqNo#copper-verbal-ingrid
   use TxIn#slang-cherry-gizmo
@@ -143,22 +143,22 @@ import StrictTypes#henry-heart-survive
   use TypeSystem#adrian-boris-sponsor
 
 
-@mnemonic(editor-comedy-dialog)
+@mnemonic(jamaica-albino-world)
 data Consignmentfalse  : version ContainerVer
                        , transfer Std.Bool
                        , terminals {RGBCommit.BundleId -> SecretSeals}
                        , genesis RGBCommit.Genesis
-                       , bundles {WitnessBundle ^ ..0xffffffff}
+                       , bundles [WitnessBundle ^ ..0xffffffff]
                        , schema RGBCommit.Schema
                        , types StrictTypes.TypeSystem
                        , scripts {AluVM.Lib ^ ..0x400}
 
-@mnemonic(charm-picasso-trapeze)
+@mnemonic(sigma-slang-nevada)
 data Consignmenttrue   : version ContainerVer
                        , transfer Std.Bool
                        , terminals {RGBCommit.BundleId -> SecretSeals}
                        , genesis RGBCommit.Genesis
-                       , bundles {WitnessBundle ^ ..0xffffffff}
+                       , bundles [WitnessBundle ^ ..0xffffffff]
                        , schema RGBCommit.Schema
                        , types StrictTypes.TypeSystem
                        , scripts {AluVM.Lib ^ ..0x400}
@@ -180,7 +180,7 @@ data PubWitness        : txid Bitcoin.Txid
 @mnemonic(rainbow-sunday-exodus)
 data SecretSeals       : {BPCore.SecretSeal ^ 1..}
 
-@mnemonic(vortex-genesis-risk)
+@mnemonic(miami-cactus-hazard)
 data WitnessBundle     : pubWitness PubWitness
                        , anchor BPCore.AnchorDbcProof
                        , bundle RGBCommit.TransitionBundle

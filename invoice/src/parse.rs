@@ -161,15 +161,15 @@ impl Display for RgbTransport {
         match self {
             RgbTransport::JsonRpc { tls, host } => {
                 let s = if *tls { "s" } else { "" };
-                write!(f, "rpc{s}{TRANSPORT_HOST_SEP}{}", host)?;
+                write!(f, "rpc{s}{TRANSPORT_HOST_SEP}{host}")?;
             }
             RgbTransport::RestHttp { tls, host } => {
                 let s = if *tls { "s" } else { "" };
-                write!(f, "http{s}{TRANSPORT_HOST_SEP}{}", host)?;
+                write!(f, "http{s}{TRANSPORT_HOST_SEP}{host}")?;
             }
             RgbTransport::WebSockets { tls, host } => {
                 let s = if *tls { "s" } else { "" };
-                write!(f, "ws{s}{TRANSPORT_HOST_SEP}{}", host)?;
+                write!(f, "ws{s}{TRANSPORT_HOST_SEP}{host}")?;
             }
             RgbTransport::Storm {} => {
                 write!(f, "storm{TRANSPORT_HOST_SEP}_/")?;

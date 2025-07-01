@@ -33,9 +33,9 @@ use nonasync::persistence::{CloneNoPersistence, PersistenceError, PersistencePro
 use rgb::validation::{ResolveWitness, UnsafeHistoryMap, WitnessResolverError};
 use rgb::vm::WitnessOrd;
 use rgb::{
-    validation, AssignmentType, BundleId, ChainNet, ContractId, GraphSeal, Identity, OpId,
-    Operation, Opout, OutputSeal, Schema, SchemaId, SecretSeal, Transition, TransitionType,
-    UnrelatedTransition,
+    validation, AssignmentType, BundleId, ChainNet, ContractId, GraphSeal, Identity,
+    KnownTransition, OpId, Operation, Opout, OutputSeal, Schema, SchemaId, SecretSeal, Transition,
+    TransitionType, UnrelatedTransition,
 };
 use strict_types::FieldName;
 
@@ -46,8 +46,8 @@ use super::{
     StateInconsistency, StateProvider, StateReadProvider, StateWriteProvider, StoreTransaction,
 };
 use crate::containers::{
-    Consignment, ContainerVer, Contract, Fascia, Kit, SecretSeals, Transfer, TransitionInfoError,
-    ValidConsignment, ValidContract, ValidKit, ValidTransfer, WitnessBundle,
+    Consignment, ContainerVer, Contract, Fascia, Kit, SecretSeals, Transfer, ValidConsignment,
+    ValidContract, ValidKit, ValidTransfer, WitnessBundle,
 };
 use crate::contract::{
     AllocatedState, BuilderError, ContractBuilder, ContractData, IssuerWrapper, SchemaWrapper,
@@ -105,6 +105,9 @@ pub enum StockError<
     /// valid (non-archived) witness is absent in the list of witnesses for a
     /// state transition bundle.
     AbsentValidWitness,
+
+    /// Unable to sort bundles because of data inconsistency.
+    BundlesInconsistency,
 
     /// witness {0} can't be resolved: {1}
     WitnessUnresolved(Txid, WitnessResolverError),
@@ -217,10 +220,6 @@ pub enum ComposeError {
     /// transition input limit.
     TooManyInputs,
 
-    #[from]
-    #[display(inner)]
-    Transition(TransitionInfoError),
-
     /// the operation produces too many extra state transitions which can't fit
     /// the container requirements.
     TooManyExtras,
@@ -282,6 +281,7 @@ macro_rules! stock_err_conv {
                     StockError::StateRead(e) => StockError::StateRead(e),
                     StockError::StateWrite(e) => StockError::StateWrite(e),
                     StockError::AbsentValidWitness => StockError::AbsentValidWitness,
+                    StockError::BundlesInconsistency => StockError::BundlesInconsistency,
                     StockError::StashData(e) => StockError::StashData(e),
                     StockError::StashInconsistency(e) => StockError::StashInconsistency(e),
                     StockError::StateInconsistency(e) => StockError::StateInconsistency(e),
@@ -613,6 +613,103 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         Ok(consignment)
     }
 
+    fn sort_bundles(
+        &self,
+        bundles: BTreeMap<BundleId, (WitnessBundle, u32)>,
+        contract_id: ContractId,
+    ) -> Result<Vec<WitnessBundle>, StockError<S, H, P, ConsignError>> {
+        let bundles_len = bundles.len();
+        if bundles_len <= 1 {
+            return Ok(bundles.into_values().map(|(b, _)| b).collect());
+        }
+
+        // Pre-sort by witness height for efficiency
+        let mut bundles_with_height = bundles.into_iter().collect::<Vec<_>>();
+        bundles_with_height.sort_by_key(|(_, (_, num))| *num);
+
+        // Dependency violation detection
+        let mut needs_reordering = false;
+        let bundle_positions = bundles_with_height
+            .iter()
+            .enumerate()
+            .map(|(i, (bundle_id, (_, _)))| (*bundle_id, i))
+            .collect::<HashMap<_, _>>();
+        'outer: for (i, (_, (witness_bundle, _))) in bundles_with_height.iter().enumerate() {
+            for KnownTransition { transition, .. } in &witness_bundle.bundle.known_transitions {
+                for input in &transition.inputs {
+                    if input.op != contract_id {
+                        let input_bundle_id = self.index.bundle_id_for_op(input.op)?;
+                        // ignore missing input bundles (e.g. can happen in case of replace)
+                        if let Some(&input_pos) = bundle_positions.get(&input_bundle_id) {
+                            if input_pos > i {
+                                needs_reordering = true;
+                                break 'outer;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if !needs_reordering {
+            return Ok(bundles_with_height
+                .into_iter()
+                .map(|(_, (wb, _))| wb)
+                .collect());
+        }
+
+        // Topological sort
+        let mut known_bundle_dependencies: HashMap<BundleId, HashSet<BundleId>> =
+            HashMap::with_capacity(bundles_len);
+        for (bundle_id, (witness_bundle, _)) in &bundles_with_height {
+            for KnownTransition { transition, .. } in &witness_bundle.bundle.known_transitions {
+                for input in &transition.inputs {
+                    if input.op != contract_id {
+                        let input_bundle_id = self.index.bundle_id_for_op(input.op)?;
+                        if bundle_positions.contains_key(&input_bundle_id)
+                            && input_bundle_id != *bundle_id
+                        {
+                            known_bundle_dependencies
+                                .entry(*bundle_id)
+                                .or_default()
+                                .insert(input_bundle_id);
+                        }
+                    }
+                }
+            }
+        }
+        let mut sorted_bundles: Vec<WitnessBundle> = Vec::with_capacity(bundles_len);
+        let mut remaining = bundles_with_height
+            .into_iter()
+            .map(|(id, (wb, _))| (id, wb))
+            .collect::<Vec<_>>();
+        while !remaining.is_empty() {
+            let processed_ids = sorted_bundles
+                .iter()
+                .map(|wb| wb.bundle.bundle_id())
+                .collect::<HashSet<_>>();
+            let mut found = false;
+            let mut i = 0;
+            while i < remaining.len() {
+                let (bundle_id, _) = &remaining[i];
+                let dependencies = known_bundle_dependencies
+                    .get(bundle_id)
+                    .cloned()
+                    .unwrap_or_default();
+                if dependencies.is_subset(&processed_ids) {
+                    let (_, witness_bundle) = remaining.remove(i);
+                    sorted_bundles.push(witness_bundle);
+                    found = true;
+                    break;
+                }
+                i += 1;
+            }
+            if !found {
+                return Err(StockError::BundlesInconsistency);
+            }
+        }
+        Ok(sorted_bundles)
+    }
+
     fn consign<const TRANSFER: bool>(
         &self,
         contract_id: ContractId,
@@ -638,7 +735,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         );
 
         // 1.3. Collect all state transitions assigning state to the provided outpoints
-        let mut bundles = BTreeMap::<BundleId, WitnessBundle>::new();
+        let mut bundles = BTreeMap::<BundleId, (WitnessBundle, u32)>::new();
         let mut transitions = BTreeMap::<OpId, Transition>::new();
         let mut bundle_sec_seals: BTreeMap<BundleId, BTreeSet<SecretSeal>> = BTreeMap::new();
         for opout in opouts {
@@ -680,6 +777,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
         // 2. Collect all state transitions between terminals and genesis
         let mut ids = vec![];
+        let mut seen_ids = HashSet::new();
         for transition in transitions.values() {
             ids.extend(transition.inputs().iter().map(|input| {
                 (input.op, is_asset_replacement(transition.transition_type, input.ty))
@@ -688,6 +786,9 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         while let Some((id, asset_replacement)) = ids.pop() {
             if id == contract_id {
                 continue; // we skip genesis since it will be present anywhere
+            }
+            if !seen_ids.insert(id) {
+                continue; // we skip seen IDs to avoid re-processing duplicates
             }
             let transition = self.transition(id)?;
             if !asset_replacement {
@@ -699,6 +800,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             bundles
                 .entry(bundle_id)
                 .or_insert(self.witness_bundle(bundle_id)?.clone())
+                .0
                 .bundle
                 .reveal_transition(transition.clone())?;
         }
@@ -707,8 +809,10 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
         let schema = self.stash.schema(genesis.schema_id)?.clone();
 
-        let bundles = Confined::try_from_iter(bundles.into_values())
-            .map_err(|_| ConsignError::TooManyBundles)?;
+        let sorted_bundles = self.sort_bundles(bundles, contract_id)?;
+
+        let bundles =
+            Confined::try_from_iter(sorted_bundles).map_err(|_| ConsignError::TooManyBundles)?;
         let terminals = Confined::try_from(
             bundle_sec_seals
                 .into_iter()
@@ -828,19 +932,9 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             stash.consume_witness(&fascia.seal_witness)?;
 
             for (contract_id, bundle) in fascia.into_bundles() {
-                let ids1 = bundle
-                    .known_transitions
-                    .keys()
-                    .copied()
-                    .collect::<BTreeSet<_>>();
-                let ids2 = bundle
-                    .input_map
-                    .values()
-                    .flat_map(|opids| opids.to_unconfined())
-                    .collect::<BTreeSet<_>>();
-                if !ids1.is_subset(&ids2) {
-                    return Err(FasciaError::InvalidBundle(contract_id, bundle.bundle_id()).into());
-                }
+                bundle
+                    .check_opid_commitments()
+                    .map_err(|_| FasciaError::InvalidBundle(contract_id, bundle.bundle_id()))?;
 
                 index.index_bundle(contract_id, &bundle, witness_id)?;
                 state.update_from_bundle(contract_id, &bundle, witness_id, &resolver)?;
@@ -854,15 +948,17 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         let bundle_id = self.index.bundle_id_for_op(opid)?;
         let bundle = self.stash.bundle(bundle_id)?;
         bundle
-            .known_transitions
-            .get(&opid)
+            .get_transition(opid)
             .ok_or(ConsignError::Concealed(bundle_id, opid).into())
     }
 
-    fn witness_bundle(&self, bundle_id: BundleId) -> Result<WitnessBundle, StockError<S, H, P>> {
+    fn witness_bundle(
+        &self,
+        bundle_id: BundleId,
+    ) -> Result<(WitnessBundle, u32), StockError<S, H, P>> {
         let (witness_ids, contract_id) = self.index.bundle_info(bundle_id)?;
         let bundle = self.stash.bundle(bundle_id)?.clone();
-        let (witness_id, _) = self.state.select_valid_witness(witness_ids)?;
+        let (witness_id, witness_ord) = self.state.select_valid_witness(witness_ids)?;
         let witness = self.stash.witness(witness_id)?;
         let pub_witness = witness.public.clone();
         let Ok(mpc_proof) = witness.merkle_block.to_merkle_proof(contract_id.into()) else {
@@ -878,7 +974,14 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
         // TODO: Conceal all transitions except the one we need
 
-        Ok(WitnessBundle::with(pub_witness, anchor, bundle))
+        let height = match witness_ord {
+            WitnessOrd::Mined(pos) => pos.height().into(),
+            WitnessOrd::Tentative => u32::MAX - 1,
+            WitnessOrd::Ignored => u32::MAX,
+            WitnessOrd::Archived => unreachable!("select_valid_witness prevents this"),
+        };
+
+        Ok((WitnessBundle::with(pub_witness, anchor, bundle), height))
     }
 
     pub fn store_secret_seal(&mut self, seal: GraphSeal) -> Result<bool, StockError<S, H, P>> {
@@ -890,8 +993,8 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         self.state.update_bundle(*bundle_id, false)?;
         let bundle = self.stash.bundle(*bundle_id)?.clone();
         // recursively set all bundle descendants as invalid
-        for opid in bundle.known_transitions.keys() {
-            let children_bundle_ids = match self.index.bundle_ids_children_of_op(*opid) {
+        for opid in bundle.known_transitions_opids() {
+            let children_bundle_ids = match self.index.bundle_ids_children_of_op(opid) {
                 Ok(bundle_ids) => bundle_ids,
                 Err(IndexError::Inconsistency(IndexInconsistency::BundleAbsent(_))) => {
                     // this transition has no children yet
@@ -916,7 +1019,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
         let bundle = self.stash.bundle(*bundle_id)?.clone();
         let mut valid = true;
         // recursively visit bundle ancestors
-        for transition in bundle.known_transitions.values() {
+        for KnownTransition { transition, .. } in &bundle.known_transitions {
             for input in &transition.inputs {
                 let input_opid = input.op;
                 let input_bundle_id = match self.index.bundle_id_for_op(input_opid) {
@@ -953,7 +1056,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
             self.state.update_bundle(*bundle_id, true)?;
             invalid_bundles.remove(bundle_id).unwrap();
             // recursively visit bundle descendants to check if they became valid as well
-            for (opid, _transition) in bundle.known_transitions {
+            for KnownTransition { opid, .. } in bundle.known_transitions {
                 let children_bundle_ids = match self.index.bundle_ids_children_of_op(opid) {
                     Ok(bundle_ids) => bundle_ids,
                     Err(IndexError::Inconsistency(IndexInconsistency::BundleAbsent(_))) => {
@@ -1119,7 +1222,7 @@ impl<S: StashProvider, H: StateProvider, P: IndexProvider> Stock<S, H, P> {
 
         // recursively check bundle ancestors
         let bundle = self.stash.bundle(*bundle_id)?.clone();
-        for transition in bundle.known_transitions.values() {
+        for KnownTransition { transition, .. } in bundle.known_transitions {
             for input in &transition.inputs {
                 let input_opid = input.op;
                 let input_bundle_id = match self.index.bundle_id_for_op(input_opid) {
@@ -1188,7 +1291,7 @@ mod test {
             ContractId::from_baid64_str("rgb:qFuT6DN8-9AuO95M-7R8R8Mc-AZvs7zG-obum1Va-BRnweKk")
                 .unwrap();
         if let Ok(transfer) = stock.consign::<true>(contract_id, [], vec![secret_seal], None) {
-            println!("{:?}", transfer)
+            println!("{transfer:?}")
         }
     }
 

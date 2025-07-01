@@ -27,7 +27,7 @@ use std::ops::Deref;
 use std::str::FromStr;
 
 use aluvm::library::Lib;
-use amplify::confinement::{Confined, LargeOrdSet, SmallOrdMap, SmallOrdSet};
+use amplify::confinement::{Confined, LargeVec, SmallOrdMap, SmallOrdSet};
 use amplify::{ByteArray, Bytes32};
 use armor::{ArmorHeader, AsciiArmor, StrictArmor, StrictArmorError};
 use baid64::{Baid64ParseError, DisplayBaid64, FromBaid64Str};
@@ -185,7 +185,7 @@ pub struct Consignment<const TRANSFER: bool> {
 
     /// All bundled state transitions contained in the consignment, together
     /// with their witness data.
-    pub bundles: LargeOrdSet<WitnessBundle>,
+    pub bundles: LargeVec<WitnessBundle>,
 
     /// Schema (plus root schema, if any) under which contract is issued.
     pub schema: Schema,
@@ -210,7 +210,7 @@ impl<const TRANSFER: bool> CommitEncode for Consignment<TRANSFER> {
         e.commit_to_serialized(&self.contract_id());
         e.commit_to_serialized(&self.genesis.disclose_hash());
 
-        e.commit_to_set(&LargeOrdSet::from_iter_checked(
+        e.commit_to_list(&LargeVec::from_iter_checked(
             self.bundles.iter().map(WitnessBundle::commit_id),
         ));
         e.commit_to_map(&self.terminals);
@@ -249,7 +249,7 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
         f: impl Fn(SecretSeal) -> Result<Option<GraphSeal>, E>,
     ) -> Result<Self, E> {
         // We need to clone since ordered set does not allow us to mutate members.
-        let mut bundles = LargeOrdSet::with_capacity(self.bundles.len());
+        let mut bundles = LargeVec::with_capacity(self.bundles.len());
         for mut witness_bundle in self.bundles {
             for (bundle_id, secrets) in &self.terminals {
                 for secret in secrets {
@@ -280,8 +280,14 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
     pub fn replace_transitions_input_ops(&self) -> BTreeSet<OpId> {
         self.bundles
             .iter()
-            .flat_map(|b| b.bundle().known_transitions.values())
-            .filter(|t| t.transition_type.is_replace())
+            .flat_map(|b| b.bundle().known_transitions.as_unconfined())
+            .filter_map(|kt| {
+                if kt.transition.transition_type.is_replace() {
+                    Some(&kt.transition)
+                } else {
+                    None
+                }
+            })
             .flat_map(|t| t.inputs.iter())
             .filter(|i| i.ty.is_asset())
             .map(|i| i.op)
@@ -343,7 +349,7 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
     pub fn modify_bundle<F>(&mut self, witness_id: Txid, modifier: F) -> bool
     where F: Fn(&mut WitnessBundle) {
         let mut found = false;
-        let mut modified_bundles = BTreeSet::new();
+        let mut modified_bundles = Vec::new();
 
         let bundles: Vec<_> = self.bundles.iter().cloned().collect();
 
@@ -351,10 +357,10 @@ impl<const TRANSFER: bool> Consignment<TRANSFER> {
             if bundle.witness_id() == witness_id {
                 let mut modified_bundle = bundle.clone();
                 modifier(&mut modified_bundle);
-                modified_bundles.insert(modified_bundle);
+                modified_bundles.push(modified_bundle);
                 found = true;
             } else {
-                modified_bundles.insert(bundle);
+                modified_bundles.push(bundle);
             }
         }
 

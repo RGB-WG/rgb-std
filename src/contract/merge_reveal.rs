@@ -139,9 +139,11 @@ impl MergeReveal for TransitionBundle {
         debug_assert_eq!(self.bundle_id(), other.bundle_id());
 
         let mut self_transitions = self.known_transitions.to_unconfined();
-        for (opid, other_transition) in &other.known_transitions {
-            if let Some(transition) = self_transitions.get_mut(opid) {
-                transition.merge_reveal(other_transition)?;
+        for other in &other.known_transitions {
+            if let Some(kt) = self_transitions.iter_mut().find(|kt| kt.opid == other.opid) {
+                kt.transition.merge_reveal(&other.transition)?;
+            } else {
+                self_transitions.push(other.clone());
             }
         }
         self.known_transitions = Confined::from_checked(self_transitions);
