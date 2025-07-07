@@ -385,11 +385,16 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         Ok(Self { ledger, pile, contract_id })
     }
 
+    #[inline]
+    pub(crate) fn witness_status(&self, wid: <P::Seal as RgbSeal>::WitnessId) -> WitnessStatus {
+        self.pile.witness_status(wid)
+    }
+
     /// Get the best mining status for a given operation ("best" means "the most deeply mined").
-    fn witness_status(&self, opid: Opid) -> WitnessStatus {
+    fn best_op_status(&self, opid: Opid) -> WitnessStatus {
         self.pile
             .op_witness_ids(opid)
-            .map(|wid| self.pile.witness_status(wid))
+            .map(|wid| self.witness_status(wid))
             // "best" means "the most deeply mined"
             .reduce(|best, other| best.best(other))
             .unwrap_or(WitnessStatus::Genesis)
@@ -465,13 +470,13 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         let mut cached_status = |opid: Opid| {
             *cache
                 .entry(opid)
-                .or_insert_with(|| self.witness_status(opid))
+                .or_insert_with(|| self.best_op_status(opid))
         };
         let mut get_status = |opid: Opid, or: WitnessStatus| {
             (*ancestor_cache.entry(opid).or_insert_with(|| {
                 self.ledger
                     .ancestors([opid])
-                    .map(|ancestor| self.witness_status(ancestor))
+                    .map(|ancestor| self.best_op_status(ancestor))
                     .fold(WitnessStatus::Genesis, |worst, other| worst.worst(other))
             }))
             .worst(or)
@@ -549,7 +554,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         let mut affected_ops = IndexMap::new();
         for wid in affected_wids.keys() {
             for opid in self.pile.ops_by_witness_id(*wid) {
-                let op_status = self.witness_status(opid);
+                let op_status = self.best_op_status(opid);
                 let old = affected_ops.insert(opid, op_status);
                 debug_assert!(old.is_none() || old == Some(op_status));
             }
@@ -568,7 +573,7 @@ impl<S: Stock, P: Pile> Contract<S, P> {
         let mut roll_back = IndexSet::new();
         let mut forward = IndexSet::new();
         for (opid, old_status) in affected_ops {
-            let new_status = self.witness_status(opid);
+            let new_status = self.best_op_status(opid);
             if old_status.is_valid() == new_status.is_valid() {
                 continue;
             }

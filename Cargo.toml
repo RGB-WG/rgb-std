@@ -124,3 +124,6 @@ features = ["all"]
 
 [lints.rust]
 unexpected_cfgs = { level = "allow", check-cfg = ['cfg(coverage_nightly)'] }
+
+[patch.crates-io]
+
