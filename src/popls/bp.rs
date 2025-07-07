@@ -383,6 +383,7 @@ impl PrefabBundle {
 pub struct RgbWallet<
     W,
     Sp,
+    // TODO: Replace with IndexMap
     S = HashMap<CodexId, Issuer>,
     C = HashMap<ContractId, Contract<<Sp as Stockpile>::Stock, <Sp as Stockpile>::Pile>>,
 > where
@@ -404,9 +405,11 @@ where
     S: KeyedCollection<Key = CodexId, Value = Issuer>,
     C: KeyedCollection<Key = ContractId, Value = Contract<Sp::Stock, Sp::Pile>>,
 {
-    pub fn with(wallet: W, contracts: Contracts<Sp, S, C>) -> Self { Self { wallet, contracts } }
+    pub fn with_components(wallet: W, contracts: Contracts<Sp, S, C>) -> Self {
+        Self { wallet, contracts }
+    }
 
-    pub fn unbind(self) -> (W, Contracts<Sp, S, C>) { (self.wallet, self.contracts) }
+    pub fn into_components(self) -> (W, Contracts<Sp, S, C>) { (self.wallet, self.contracts) }
 
     pub fn issue(
         &mut self,
