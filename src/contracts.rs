@@ -104,7 +104,7 @@ where
         } else if let Some(or) = or {
             or
         } else {
-            panic!("Contract {} not found", id)
+            panic!("Contract {id} not found")
         }
     }
 
@@ -123,7 +123,7 @@ where
             self.contracts.borrow_mut().insert(id, contract);
             res
         } else {
-            panic!("Contract {} not found", id)
+            panic!("Contract {id} not found")
         }
     }
 }
