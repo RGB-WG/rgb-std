@@ -277,6 +277,8 @@ where
     pub fn update_witnesses<E: core::error::Error>(
         &mut self,
         resolver: impl Fn(<<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId) -> Result<WitnessStatus, E>,
+        last_block_height: u64,
+        min_conformations: u32,
     ) -> Result<(), MultiError<SyncError<E>, <Sp::Stock as Stock>::Error>> {
         let mut changed_statuses = IndexMap::<_, WitnessStatus>::new();
         let contract_ids = self.persistence.contract_ids().collect::<IndexSet<_>>();
@@ -285,13 +287,16 @@ where
                 contract_id,
                 |contract| -> Result<(), MultiError<SyncError<E>, <Sp::Stock as Stock>::Error>> {
                     for witness_id in contract.witness_ids() {
+                        let old_status = contract.witness_status(witness_id);
+                        if matches!(old_status, WitnessStatus::Mined(height) if last_block_height - height.get() > min_conformations as u64) {
+                            continue
+                        }
                         let new_status = match changed_statuses.get(&witness_id) {
                             None => resolver(witness_id)
                                 .map_err(SyncError::Status)
                                 .map_err(MultiError::A),
                             Some(witness_id) => Ok(*witness_id),
                         }?;
-                        let old_status = contract.witness_status(witness_id);
                         if new_status != old_status {
                             changed_statuses.insert(witness_id, new_status);
                         }

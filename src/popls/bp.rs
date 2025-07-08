@@ -90,6 +90,13 @@ pub trait WalletProvider {
         &self,
     ) -> impl Fn(Txid) -> Box<dyn core::future::Future<Output = Result<WitnessStatus, Self::Error>>>;
 
+    /// Returns the height of the last known block.
+    fn last_block_height(&self) -> u64;
+
+    #[cfg(feature = "async")]
+    /// Returns the height of the last known block.
+    async fn last_block_height_async(&self) -> u64;
+
     /// Broadcasts the transaction, also updating UTXO set accordingly.
     fn broadcast(&mut self, tx: &Tx, change: Option<(Vout, u32, u32)>) -> Result<(), Self::Error>;
 
@@ -872,13 +879,15 @@ where
     /// contracts.
     pub fn update(
         &mut self,
+        min_conformations: u32,
     ) -> Result<(), MultiError<SyncError<W::Error>, <Sp::Stock as Stock>::Error>> {
         self.wallet
             .update_utxos()
             .map_err(SyncError::Wallet)
             .map_err(MultiError::from_a)?;
+        let last_height = self.wallet.last_block_height();
         self.contracts
-            .update_witnesses(self.wallet.txid_resolver())
+            .update_witnesses(self.wallet.txid_resolver(), last_height, min_conformations)
             .map_err(MultiError::from_other_a)
     }
 
@@ -890,6 +899,7 @@ where
     /// contracts.
     pub async fn update_async(
         &mut self,
+        min_conformations: u32,
     ) -> Result<(), MultiError<SyncError<W::Error>, <Sp::Stock as Stock>::Error>>
     where
         Sp::Stock: 'static,
@@ -900,9 +910,10 @@ where
             .await
             .map_err(SyncError::Wallet)
             .map_err(MultiError::from_a)?;
+        let last_height = self.wallet.last_block_height_async().await;
         // TODO: Find a way to use an async version here
         self.contracts
-            .update_witnesses(self.wallet.txid_resolver())
+            .update_witnesses(self.wallet.txid_resolver(), last_height, min_conformations)
             .map_err(MultiError::from_other_a)
     }
 }
