@@ -291,6 +291,7 @@ where
         self.with_contract_mut(contract_id, |contract| contract.call(call, seals))
     }
 
+    #[cfg(not(feature = "async"))]
     /// Update the status of all witnesses and single-use seal definitions.
     ///
     /// Applies rollbacks or forwards if required and recomputes the state of the affected

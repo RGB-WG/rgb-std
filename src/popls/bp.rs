@@ -65,6 +65,7 @@ pub trait WalletProvider {
     fn has_utxo(&self, outpoint: Outpoint) -> bool;
     fn utxos(&self) -> impl Iterator<Item = Outpoint>;
 
+    #[cfg(not(feature = "async"))]
     fn update_utxos(&mut self) -> Result<(), Self::Error>;
     #[cfg(feature = "async")]
     async fn update_utxos_async(&mut self) -> Result<(), Self::Error>;
@@ -79,25 +80,25 @@ pub trait WalletProvider {
     fn next_address(&mut self) -> Address;
     fn next_nonce(&mut self) -> u64;
 
+    #[cfg(not(feature = "async"))]
     /// Returns a closure which can retrieve a witness status of an arbitrary transaction id
     /// (including the ones that are not related to the wallet).
     fn txid_resolver(&self) -> impl Fn(Txid) -> Result<WitnessStatus, Self::Error>;
-
     #[cfg(feature = "async")]
     /// Returns a closure which can retrieve a witness status of an arbitrary transaction id
     /// (including the ones that are not related to the wallet).
     fn txid_resolver_async(&self) -> impl AsyncFn(Txid) -> Result<WitnessStatus, Self::Error>;
 
+    #[cfg(not(feature = "async"))]
     /// Returns the height of the last known block.
     fn last_block_height(&self) -> Result<u64, Self::Error>;
-
     #[cfg(feature = "async")]
     /// Returns the height of the last known block.
     async fn last_block_height_async(&self) -> Result<u64, Self::Error>;
 
+    #[cfg(not(feature = "async"))]
     /// Broadcasts the transaction, also updating UTXO set accordingly.
     fn broadcast(&mut self, tx: &Tx, change: Option<(Vout, u32, u32)>) -> Result<(), Self::Error>;
-
     #[cfg(feature = "async")]
     /// Broadcasts the transaction, also updating UTXO set accordingly.
     async fn broadcast_async(
@@ -870,6 +871,7 @@ where
             .consume(allow_unknown, reader, seal_resolver, sig_validator)
     }
 
+    #[cfg(not(feature = "async"))]
     /// Update a wallet UTXO set and the status of all witnesses and single-use seal
     /// definitions.
     ///
