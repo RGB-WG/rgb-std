@@ -270,11 +270,11 @@ where
         self.with_contract_mut(contract_id, |contract| contract.call(call, seals))
     }
 
-    /// Synchronize the status of all witnesses and single-use seal definitions.
+    /// Update the status of all witnesses and single-use seal definitions.
     ///
     /// Applies rollbacks or forwards if required and recomputes the state of the affected
     /// contracts.
-    pub fn sync_witnesses<E: core::error::Error>(
+    pub fn update_witnesses<E: core::error::Error>(
         &mut self,
         resolver: impl Fn(<<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId) -> Result<WitnessStatus, E>,
     ) -> Result<(), MultiError<SyncError<E>, <Sp::Stock as Stock>::Error>> {

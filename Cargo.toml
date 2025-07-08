@@ -83,8 +83,9 @@ rgb-persist-fs.workspace = true
 
 [features]
 default = ["std", "bitcoin"]
-all = ["std", "bitcoin", "liquid", "prime", "binfile", "uri", "stl", "serde"]
+all = ["std", "bitcoin", "liquid", "prime", "binfile", "uri", "stl", "serde", "async"]
 std = ["rgb-invoice/std", "indexmap/std"]
+async = []
 
 bitcoin = ["bp-core", "bp-invoice", "rgb-core/bitcoin", "rgb-invoice/bitcoin"]
 liquid = ["rgb-core/liquid", "rgb-invoice/liquid"]
