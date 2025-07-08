@@ -89,11 +89,11 @@ pub trait WalletProvider {
     fn txid_resolver_async(&self) -> impl AsyncFn(Txid) -> Result<WitnessStatus, Self::Error>;
 
     /// Returns the height of the last known block.
-    fn last_block_height(&self) -> u64;
+    fn last_block_height(&self) -> Result<u64, Self::Error>;
 
     #[cfg(feature = "async")]
     /// Returns the height of the last known block.
-    async fn last_block_height_async(&self) -> u64;
+    async fn last_block_height_async(&self) -> Result<u64, Self::Error>;
 
     /// Broadcasts the transaction, also updating UTXO set accordingly.
     fn broadcast(&mut self, tx: &Tx, change: Option<(Vout, u32, u32)>) -> Result<(), Self::Error>;
@@ -883,7 +883,11 @@ where
             .update_utxos()
             .map_err(SyncError::Wallet)
             .map_err(MultiError::from_a)?;
-        let last_height = self.wallet.last_block_height();
+        let last_height = self
+            .wallet
+            .last_block_height()
+            .map_err(SyncError::Wallet)
+            .map_err(MultiError::from_a)?;
         self.contracts
             .update_witnesses(self.wallet.txid_resolver(), last_height, min_conformations)
             .map_err(MultiError::from_other_a)
@@ -908,7 +912,12 @@ where
             .await
             .map_err(SyncError::Wallet)
             .map_err(MultiError::from_a)?;
-        let last_height = self.wallet.last_block_height_async().await;
+        let last_height = self
+            .wallet
+            .last_block_height_async()
+            .await
+            .map_err(SyncError::Wallet)
+            .map_err(MultiError::from_a)?;
         self.contracts
             .update_witnesses_async(
                 self.wallet.txid_resolver_async(),
