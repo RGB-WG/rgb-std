@@ -60,11 +60,11 @@ use crate::{
 
 /// Trait abstracting a specific implementation of a bitcoin wallet.
 pub trait WalletProvider {
-    type SyncError: core::error::Error;
+    type Error: core::error::Error;
 
     fn has_utxo(&self, outpoint: Outpoint) -> bool;
     fn utxos(&self) -> impl Iterator<Item = Outpoint>;
-    fn sync_utxos(&mut self) -> Result<(), Self::SyncError>;
+    fn sync_utxos(&mut self) -> Result<(), Self::Error>;
 
     fn register_seal(&mut self, seal: WTxoSeal);
     fn resolve_seals(
@@ -78,7 +78,10 @@ pub trait WalletProvider {
 
     /// Returns a closure which can retrieve a witness status of an arbitrary transaction id
     /// (including the ones that are not related to the wallet).
-    fn txid_resolver(&self) -> impl Fn(Txid) -> Result<WitnessStatus, Self::SyncError>;
+    fn txid_resolver(&self) -> impl Fn(Txid) -> Result<WitnessStatus, Self::Error>;
+
+    /// Broadcasts the transaction, also updating UTXO set accordingly.
+    fn broadcast(&mut self, tx: &Tx, change: Option<(Vout, u32, u32)>) -> Result<(), Self::Error>;
 }
 
 pub trait Coinselect {
@@ -851,7 +854,7 @@ where
     /// contracts.
     pub fn sync(
         &mut self,
-    ) -> Result<(), MultiError<SyncError<W::SyncError>, <Sp::Stock as Stock>::Error>> {
+    ) -> Result<(), MultiError<SyncError<W::Error>, <Sp::Stock as Stock>::Error>> {
         self.wallet
             .sync_utxos()
             .map_err(SyncError::Wallet)
