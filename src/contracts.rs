@@ -128,6 +128,7 @@ where
     }
 
     #[cfg(feature = "async")]
+    #[allow(clippy::await_holding_refcell_ref)]
     async fn with_contract_mut_async<R>(
         &mut self,
         id: ContractId,
