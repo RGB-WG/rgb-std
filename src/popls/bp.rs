@@ -86,9 +86,7 @@ pub trait WalletProvider {
     #[cfg(feature = "async")]
     /// Returns a closure which can retrieve a witness status of an arbitrary transaction id
     /// (including the ones that are not related to the wallet).
-    fn txid_resolver_async(
-        &self,
-    ) -> impl Fn(Txid) -> Box<dyn core::future::Future<Output = Result<WitnessStatus, Self::Error>>>;
+    fn txid_resolver_async(&self) -> impl AsyncFn(Txid) -> Result<WitnessStatus, Self::Error>;
 
     /// Returns the height of the last known block.
     fn last_block_height(&self) -> u64;
@@ -911,9 +909,13 @@ where
             .map_err(SyncError::Wallet)
             .map_err(MultiError::from_a)?;
         let last_height = self.wallet.last_block_height_async().await;
-        // TODO: Find a way to use an async version here
         self.contracts
-            .update_witnesses(self.wallet.txid_resolver(), last_height, min_conformations)
+            .update_witnesses_async(
+                self.wallet.txid_resolver_async(),
+                last_height,
+                min_conformations,
+            )
+            .await
             .map_err(MultiError::from_other_a)
     }
 }
