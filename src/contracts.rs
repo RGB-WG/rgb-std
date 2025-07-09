@@ -84,6 +84,32 @@ impl<Seal> Default for WalletState<Seal> {
     fn default() -> Self { Self { immutable: bmap! {}, owned: bmap! {}, aggregated: bmap! {} } }
 }
 
+impl<Seal> WalletState<Seal> {
+    pub fn from_contracts_state(
+        contracts: impl IntoIterator<Item = (ContractId, ContractState<Seal>)>,
+    ) -> Self {
+        let mut wallet_state = WalletState::default();
+        for (contract_id, contract_state) in contracts {
+            for (state_name, state) in contract_state.immutable {
+                wallet_state
+                    .immutable
+                    .insert(ContractStateName::new(contract_id, state_name), state);
+            }
+            for (state_name, state) in contract_state.owned {
+                wallet_state
+                    .owned
+                    .insert(ContractStateName::new(contract_id, state_name), state);
+            }
+            for (state_name, state) in contract_state.aggregated {
+                wallet_state
+                    .aggregated
+                    .insert(ContractStateName::new(contract_id, state_name), state);
+            }
+        }
+        wallet_state
+    }
+}
+
 /// Collection of RGB smart contracts and contract issuers, which can be cached in memory.
 ///
 /// # Generics

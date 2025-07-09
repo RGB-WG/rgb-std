@@ -55,9 +55,9 @@ use strict_types::StrictVal;
 
 use crate::contracts::SyncError;
 use crate::{
-    Assignment, CodexId, Consensus, ConsumeError, Contract, ContractState, ContractStateName,
-    Contracts, CreateParams, EitherSeal, Identity, Issuer, IssuerError, OwnedState, Pile, SigBlob,
-    Stockpile, WalletState, WitnessStatus,
+    Assignment, CodexId, Consensus, ConsumeError, Contract, ContractState, Contracts, CreateParams,
+    EitherSeal, Identity, Issuer, IssuerError, OwnedState, Pile, SigBlob, Stockpile, WalletState,
+    WitnessStatus,
 };
 
 /// Trait abstracting a specific implementation of a bitcoin wallet.
@@ -468,26 +468,11 @@ where
     }
 
     pub fn wallet_state(&self) -> WalletState<TxoSeal> {
-        let mut wallet_state = WalletState::default();
-        for contract_id in self.contracts.contract_ids() {
-            let contract_state = self.contracts.contract_state(contract_id);
-            for (state_name, state) in contract_state.immutable {
-                wallet_state
-                    .immutable
-                    .insert(ContractStateName::new(contract_id, state_name), state);
-            }
-            for (state_name, state) in contract_state.owned {
-                wallet_state
-                    .owned
-                    .insert(ContractStateName::new(contract_id, state_name), state);
-            }
-            for (state_name, state) in contract_state.aggregated {
-                wallet_state
-                    .aggregated
-                    .insert(ContractStateName::new(contract_id, state_name), state);
-            }
-        }
-        wallet_state
+        let iter = self
+            .contracts
+            .contract_ids()
+            .map(|id| (id, self.contracts.contract_state(id)));
+        WalletState::from_contracts_state(iter)
     }
 
     pub fn wallet_contract_state(&self, contract_id: ContractId) -> ContractState<Outpoint> {
