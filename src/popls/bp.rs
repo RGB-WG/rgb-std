@@ -28,6 +28,7 @@
 use alloc::collections::btree_map::Entry;
 use alloc::collections::{btree_set, BTreeMap, BTreeSet};
 use alloc::vec;
+use core::mem;
 use std::collections::HashMap;
 
 use amplify::confinement::{
@@ -437,6 +438,8 @@ where
     }
 
     pub fn into_components(self) -> (W, Contracts<Sp, S, C>) { (self.wallet, self.contracts) }
+
+    pub fn switch_wallet(&mut self, new: W) -> W { mem::replace(&mut self.wallet, new) }
 
     pub fn issue(
         &mut self,
