@@ -466,7 +466,7 @@ where
         WitnessOut::new(address.payload, nonce)
     }
 
-    pub fn state_own(&self, contract_id: ContractId) -> ContractState<Outpoint> {
+    pub fn wallet_contract_state(&self, contract_id: ContractId) -> ContractState<Outpoint> {
         self.contracts
             .contract_state(contract_id)
             .clone()
@@ -481,7 +481,10 @@ where
             )
     }
 
-    pub fn state_all(&self, contract_id: ContractId) -> ContractState<<Sp::Pile as Pile>::Seal> {
+    pub fn contract_state_full(
+        &self,
+        contract_id: ContractId,
+    ) -> ContractState<<Sp::Pile as Pile>::Seal> {
         self.contracts.contract_state(contract_id)
     }
 
@@ -515,7 +518,7 @@ where
         let value = invoice.data.as_ref().ok_or(FulfillError::ValueMissed)?;
 
         // Do coinselection
-        let state = self.state_own(contract_id);
+        let state = self.wallet_contract_state(contract_id);
         let state = state
             .owned
             .get(&state_name)
