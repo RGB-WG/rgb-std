@@ -59,7 +59,13 @@ pub struct ContractStateName {
     pub state_name: StateName,
 }
 
-#[derive(Clone, Eq, PartialEq, Debug, Default)]
+impl ContractStateName {
+    pub fn new(contract_id: ContractId, state_name: StateName) -> Self {
+        ContractStateName { contract_id, state_name }
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Debug)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
@@ -72,6 +78,10 @@ pub struct WalletState<Seal> {
     pub immutable: BTreeMap<ContractStateName, Vec<ImmutableState>>,
     pub owned: BTreeMap<ContractStateName, Vec<OwnedState<Seal>>>,
     pub aggregated: BTreeMap<ContractStateName, StrictVal>,
+}
+
+impl<Seal> Default for WalletState<Seal> {
+    fn default() -> Self { Self { immutable: bmap! {}, owned: bmap! {}, aggregated: bmap! {} } }
 }
 
 /// Collection of RGB smart contracts and contract issuers, which can be cached in memory.
