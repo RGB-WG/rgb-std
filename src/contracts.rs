@@ -39,16 +39,40 @@ use rgb::RgbSeal;
 use strict_encoding::{
     ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter, WriteRaw,
 };
+use strict_types::StrictVal;
 
 use crate::{
     parse_consignment, Articles, Consensus, Consignment, ConsumeError, Contract, ContractRef,
-    ContractState, CreateParams, Identity, Issuer, Operation, Pile, SigBlob, Stockpile,
-    WitnessStatus,
+    ContractState, CreateParams, Identity, ImmutableState, Issuer, Operation, OwnedState, Pile,
+    SigBlob, StateName, Stockpile, WitnessStatus,
 };
 
 pub const CONSIGN_VERSION: u16 = 0;
 #[cfg(feature = "binfile")]
 pub use _fs::CONSIGN_MAGIC_NUMBER;
+
+#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
+#[display("{contract_id}/{state_name}")]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
+pub struct ContractStateName {
+    pub contract_id: ContractId,
+    pub state_name: StateName,
+}
+
+#[derive(Clone, Eq, PartialEq, Debug, Default)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(
+        rename_all = "camelCase",
+        bound = "Seal: serde::Serialize + for<'d> serde::Deserialize<'d>"
+    )
+)]
+pub struct WalletState<Seal> {
+    pub immutable: BTreeMap<ContractStateName, Vec<ImmutableState>>,
+    pub owned: BTreeMap<ContractStateName, Vec<OwnedState<Seal>>>,
+    pub aggregated: BTreeMap<ContractStateName, StrictVal>,
+}
 
 /// Collection of RGB smart contracts and contract issuers, which can be cached in memory.
 ///
