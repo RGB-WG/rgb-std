@@ -77,7 +77,9 @@ pub use contract::{
 };
 #[cfg(feature = "binfile")]
 pub use contracts::CONSIGN_MAGIC_NUMBER;
-pub use contracts::{Contracts, IssuerError, SyncError, CONSIGN_VERSION};
+pub use contracts::{
+    ContractStateName, Contracts, IssuerError, SyncError, WalletState, CONSIGN_VERSION,
+};
 pub use hypersonic::*;
 pub use pile::{OpRels, Pile, Witness, WitnessStatus};
 pub use rgb::*;

@@ -28,6 +28,7 @@
 use alloc::collections::btree_map::Entry;
 use alloc::collections::{btree_set, BTreeMap, BTreeSet};
 use alloc::vec;
+use core::mem;
 use std::collections::HashMap;
 
 use amplify::confinement::{
@@ -55,7 +56,8 @@ use strict_types::StrictVal;
 use crate::contracts::SyncError;
 use crate::{
     Assignment, CodexId, Consensus, ConsumeError, Contract, ContractState, Contracts, CreateParams,
-    EitherSeal, Identity, Issuer, IssuerError, OwnedState, Pile, SigBlob, Stockpile, WitnessStatus,
+    EitherSeal, Identity, Issuer, IssuerError, OwnedState, Pile, SigBlob, Stockpile, WalletState,
+    WitnessStatus,
 };
 
 /// Trait abstracting a specific implementation of a bitcoin wallet.
@@ -438,6 +440,8 @@ where
 
     pub fn into_components(self) -> (W, Contracts<Sp, S, C>) { (self.wallet, self.contracts) }
 
+    pub fn switch_wallet(&mut self, new: W) -> W { mem::replace(&mut self.wallet, new) }
+
     pub fn issue(
         &mut self,
         params: CreateParams<Outpoint>,
@@ -463,7 +467,15 @@ where
         WitnessOut::new(address.payload, nonce)
     }
 
-    pub fn state_own(&self, contract_id: ContractId) -> ContractState<Outpoint> {
+    pub fn wallet_state(&self) -> WalletState<TxoSeal> {
+        let iter = self
+            .contracts
+            .contract_ids()
+            .map(|id| (id, self.contracts.contract_state(id)));
+        WalletState::from_contracts_state(iter)
+    }
+
+    pub fn wallet_contract_state(&self, contract_id: ContractId) -> ContractState<Outpoint> {
         self.contracts
             .contract_state(contract_id)
             .clone()
@@ -478,7 +490,10 @@ where
             )
     }
 
-    pub fn state_all(&self, contract_id: ContractId) -> ContractState<<Sp::Pile as Pile>::Seal> {
+    pub fn contract_state_full(
+        &self,
+        contract_id: ContractId,
+    ) -> ContractState<<Sp::Pile as Pile>::Seal> {
         self.contracts.contract_state(contract_id)
     }
 
@@ -512,7 +527,7 @@ where
         let value = invoice.data.as_ref().ok_or(FulfillError::ValueMissed)?;
 
         // Do coinselection
-        let state = self.state_own(contract_id);
+        let state = self.wallet_contract_state(contract_id);
         let state = state
             .owned
             .get(&state_name)

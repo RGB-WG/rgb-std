@@ -39,16 +39,76 @@ use rgb::RgbSeal;
 use strict_encoding::{
     ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter, WriteRaw,
 };
+use strict_types::StrictVal;
 
 use crate::{
     parse_consignment, Articles, Consensus, Consignment, ConsumeError, Contract, ContractRef,
-    ContractState, CreateParams, Identity, Issuer, Operation, Pile, SigBlob, Stockpile,
-    WitnessStatus,
+    ContractState, CreateParams, Identity, ImmutableState, Issuer, Operation, OwnedState, Pile,
+    SigBlob, StateName, Stockpile, WitnessStatus,
 };
 
 pub const CONSIGN_VERSION: u16 = 0;
 #[cfg(feature = "binfile")]
 pub use _fs::CONSIGN_MAGIC_NUMBER;
+
+#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
+#[display("{contract_id}/{state_name}")]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
+pub struct ContractStateName {
+    pub contract_id: ContractId,
+    pub state_name: StateName,
+}
+
+impl ContractStateName {
+    pub fn new(contract_id: ContractId, state_name: StateName) -> Self {
+        ContractStateName { contract_id, state_name }
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Debug)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(
+        rename_all = "camelCase",
+        bound = "Seal: serde::Serialize + for<'d> serde::Deserialize<'d>"
+    )
+)]
+pub struct WalletState<Seal> {
+    pub immutable: BTreeMap<ContractStateName, Vec<ImmutableState>>,
+    pub owned: BTreeMap<ContractStateName, Vec<OwnedState<Seal>>>,
+    pub aggregated: BTreeMap<ContractStateName, StrictVal>,
+}
+
+impl<Seal> Default for WalletState<Seal> {
+    fn default() -> Self { Self { immutable: bmap! {}, owned: bmap! {}, aggregated: bmap! {} } }
+}
+
+impl<Seal> WalletState<Seal> {
+    pub fn from_contracts_state(
+        contracts: impl IntoIterator<Item = (ContractId, ContractState<Seal>)>,
+    ) -> Self {
+        let mut wallet_state = WalletState::default();
+        for (contract_id, contract_state) in contracts {
+            for (state_name, state) in contract_state.immutable {
+                wallet_state
+                    .immutable
+                    .insert(ContractStateName::new(contract_id, state_name), state);
+            }
+            for (state_name, state) in contract_state.owned {
+                wallet_state
+                    .owned
+                    .insert(ContractStateName::new(contract_id, state_name), state);
+            }
+            for (state_name, state) in contract_state.aggregated {
+                wallet_state
+                    .aggregated
+                    .insert(ContractStateName::new(contract_id, state_name), state);
+            }
+        }
+        wallet_state
+    }
+}
 
 /// Collection of RGB smart contracts and contract issuers, which can be cached in memory.
 ///
