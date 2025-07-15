@@ -40,6 +40,7 @@
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![allow(clippy::type_complexity)]
+#![cfg_attr(feature = "async", allow(async_fn_in_trait))]
 
 extern crate alloc;
 

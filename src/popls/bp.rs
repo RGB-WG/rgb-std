@@ -64,7 +64,11 @@ pub trait WalletProvider {
 
     fn has_utxo(&self, outpoint: Outpoint) -> bool;
     fn utxos(&self) -> impl Iterator<Item = Outpoint>;
-    fn sync_utxos(&mut self) -> Result<(), Self::Error>;
+
+    #[cfg(not(feature = "async"))]
+    fn update_utxos(&mut self) -> Result<(), Self::Error>;
+    #[cfg(feature = "async")]
+    async fn update_utxos_async(&mut self) -> Result<(), Self::Error>;
 
     fn register_seal(&mut self, seal: WTxoSeal);
     fn resolve_seals(
@@ -76,12 +80,32 @@ pub trait WalletProvider {
     fn next_address(&mut self) -> Address;
     fn next_nonce(&mut self) -> u64;
 
+    #[cfg(not(feature = "async"))]
     /// Returns a closure which can retrieve a witness status of an arbitrary transaction id
     /// (including the ones that are not related to the wallet).
     fn txid_resolver(&self) -> impl Fn(Txid) -> Result<WitnessStatus, Self::Error>;
+    #[cfg(feature = "async")]
+    /// Returns a closure which can retrieve a witness status of an arbitrary transaction id
+    /// (including the ones that are not related to the wallet).
+    fn txid_resolver_async(&self) -> impl AsyncFn(Txid) -> Result<WitnessStatus, Self::Error>;
 
+    #[cfg(not(feature = "async"))]
+    /// Returns the height of the last known block.
+    fn last_block_height(&self) -> Result<u64, Self::Error>;
+    #[cfg(feature = "async")]
+    /// Returns the height of the last known block.
+    async fn last_block_height_async(&self) -> Result<u64, Self::Error>;
+
+    #[cfg(not(feature = "async"))]
     /// Broadcasts the transaction, also updating UTXO set accordingly.
     fn broadcast(&mut self, tx: &Tx, change: Option<(Vout, u32, u32)>) -> Result<(), Self::Error>;
+    #[cfg(feature = "async")]
+    /// Broadcasts the transaction, also updating UTXO set accordingly.
+    async fn broadcast_async(
+        &mut self,
+        tx: &Tx,
+        change: Option<(Vout, u32, u32)>,
+    ) -> Result<(), Self::Error>;
 }
 
 pub trait Coinselect {
@@ -847,20 +871,62 @@ where
             .consume(allow_unknown, reader, seal_resolver, sig_validator)
     }
 
-    /// Synchronize a wallet UTXO set and the status of all witnesses and single-use seal
+    #[cfg(not(feature = "async"))]
+    /// Update a wallet UTXO set and the status of all witnesses and single-use seal
     /// definitions.
     ///
     /// Applies rollbacks or forwards if required and recomputes the state of the affected
     /// contracts.
-    pub fn sync(
+    pub fn update(
         &mut self,
+        min_conformations: u32,
     ) -> Result<(), MultiError<SyncError<W::Error>, <Sp::Stock as Stock>::Error>> {
         self.wallet
-            .sync_utxos()
+            .update_utxos()
+            .map_err(SyncError::Wallet)
+            .map_err(MultiError::from_a)?;
+        let last_height = self
+            .wallet
+            .last_block_height()
             .map_err(SyncError::Wallet)
             .map_err(MultiError::from_a)?;
         self.contracts
-            .sync_witnesses(self.wallet.txid_resolver())
+            .update_witnesses(self.wallet.txid_resolver(), last_height, min_conformations)
+            .map_err(MultiError::from_other_a)
+    }
+
+    #[cfg(feature = "async")]
+    /// Update a wallet UTXO set and the status of all witnesses and single-use seal
+    /// definitions.
+    ///
+    /// Applies rollbacks or forwards if required and recomputes the state of the affected
+    /// contracts.
+    pub async fn update_async(
+        &mut self,
+        min_conformations: u32,
+    ) -> Result<(), MultiError<SyncError<W::Error>, <Sp::Stock as Stock>::Error>>
+    where
+        Sp::Stock: 'static,
+        Sp::Pile: 'static,
+    {
+        self.wallet
+            .update_utxos_async()
+            .await
+            .map_err(SyncError::Wallet)
+            .map_err(MultiError::from_a)?;
+        let last_height = self
+            .wallet
+            .last_block_height_async()
+            .await
+            .map_err(SyncError::Wallet)
+            .map_err(MultiError::from_a)?;
+        self.contracts
+            .update_witnesses_async(
+                self.wallet.txid_resolver_async(),
+                last_height,
+                min_conformations,
+            )
+            .await
             .map_err(MultiError::from_other_a)
     }
 }
