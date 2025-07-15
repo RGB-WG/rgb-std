@@ -1,14 +1,14 @@
 -----BEGIN STRICT TYPE LIB-----
-Id: stl:hdh41KQQ-70dLnJD-PZ2Aimh-S9IbhoU-tIg7CHm-7CRoXqs#marvin-social-senior
+Id: stl:KoSmpKev-rYFEccK-fYBhJ2k-ZweGoAH-tJEJ5vo-BkvXXUQ#robot-albert-first
 Name: SingleUseSeals
 Dependencies:
-	BPCore#point-state-colony,
-	Bitcoin#postal-sunday-basket,
+	Bitcoin#extend-crimson-cable,
+	BPCore#lagoon-concept-trade,
 	CommitVerify#biology-news-adam
-Check-SHA256: f39e6cada67f6d6f55f044acd34a6911cdb847316563b202ebf350e338065f2a
+Check-SHA256: 80de40ba8883d9bafed22f2cc6885f36e7df72670b7669afafb8d8fa442e024e
 
-4pV7vXKZCvb7fOyVQg~)7yDTg-PGpfML@185ctnDQz=W(N2{AICbS*a#}<l520~CnZ*pZCnN(VG?Dv^g
-iSga8WX6NUm*k?K-V>WN(ld*{?d<XgLTPkkZ)tA8eQ=m;w$kuTTN2DG|DHjxGO|nmdVyvRyvRG^7Wn-P
+4pV7vXKZCvb7fOyVQg~)38J+=>7{`RMMx5a)2lr@b++y@Ou6?dYi&yC1U40y2SRCdV{d70p7ey{wsi`Y
+(LccE+ShZVeC89S1olNg9GSn;l<Jgf20~CnZ*pb8eQ=m;w$kuTTN2DG|DHjxGO|nmdVyvRyvRG^7Wn-P
 LvL+uX>?X)a%pCH0|r7+LvM0r2LJ(l2VDR_OBR)w8yCZ2EylR&t_^>1Sz?kFbz0>alMxYAVQ_L~bWU$%
 Wl&*qbZ%vG54IneKN{_;j(f`H9IfkFzO$PG<c0G$nQ(}f*%Js13shlna%FT-a&K>D6U0+eW+%HuC5$^~
 ^vuG3{`}-8x6fV={eh1!etXz_4^&}ra%FT-VRUFva&K>DH8-hI70Bv^+*0?ef%0)>Q3WPbltNdpi4*91
@@ -31,8 +31,8 @@ X>?X)a%pCH1potLnmCQUKfIKMdeaUn;%i1on4VMq8@@As0m&QqLVgBKWprq7WH6O}<{e=)S-S-Y<l(P9
 Y9YVY`}-X+f~R@qMRed+u?kRfZ**^CZ){0qIG#g>Clv)aMjKgwAH@`bu1x<7g|G$};xvA~n-$_S3Qc8l
 YiwmmVRL9ok({ALGPx>x`rRI~Y5)OGH%NCipfaP+#@?w1p3;*GO=WUxY-Lb#Z*OLk_h5K%L=laq&yA1J
 oJ^{7>oKLkF4~iax8KK|47hp@Qe|^xa&~28LV0v$b1?w`5>sViY*%S?Ze??GRCsSwWnpXv0ts++Vr*%1
-Xk}yq8ktmDa_sk+R*CW5u4Kl8#FylvpWYLjG}1GRzwPYu#d{%|zxO$Aaz=oyMOH6-?4fLKKPKJW|NMSz
-1LoXB24ie#Wo~o=7yDTg-PGpfML@185ctnDQz=W(N2{AICbS*a#}<l5R~<ki9&MVhzhH|AR%&fa*3hbE
+Xk}yq38J+=>7{`RMMx5a)2lr@b++y@Ou6?dYi&yC1U40y#d{%|zxO$Aaz=oyMOH6-?4fLKKPKJW|NMSz
+1LoXB24ie#Wo~o=p7ey{wsi`Y(LccE+ShZVeC89S1olNg9GSn;l<JgfR~<ki9&MVhzhH|AR%&fa*3hbE
 5j9z5iDF=M2XjZ(
 
 -----END STRICT TYPE LIB-----

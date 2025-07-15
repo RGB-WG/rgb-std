@@ -3,7 +3,7 @@ members = [".", "cli", "invoice", "persistence/fs"]
 default-members = [".", "invoice", "persistence/fs"]
 
 [workspace.package]
-version = "0.12.0-rc.2"
+version = "0.12.0-rc.3"
 keywords = ["bitcoin", "lightning", "rgb", "smart-contracts", "lnp-bp"]
 categories = ["cryptography::cryptocurrencies"]
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
@@ -17,18 +17,18 @@ license = "Apache-2.0"
 amplify = "4.9.0"
 strict_encoding = "2.9.1"
 strict_types = "2.9.0"
-commit_verify = "0.12.0-rc.1"
-single_use_seals = "0.12.0-rc.1"
-hypersonic = "0.12.0-rc.2"
-sonic-callreq = "0.12.0-rc.2"
-sonic-persist-fs = "0.12.0-rc.2"
-sonix = "0.12.0-rc.2"
-bp-core = "0.12.0-rc.2"
+commit_verify = "0.12.0"
+single_use_seals = "0.12.0"
+hypersonic = "0.12.0"
+sonic-callreq = "0.12.0"
+sonic-persist-fs = "0.12.0"
+sonix = "0.12.0"
+bp-core = "0.12.0"
 bp-invoice = "0.12.0-rc.2"
-rgb-core = "0.12.0-rc.2"
-rgb-std = { version = "0.12.0-rc.2", path = "." }
-rgb-invoice = { version = "0.12.0-rc.2", path = "./invoice" }
-rgb-persist-fs = { version = "0.12.0-rc.2", path = "./persistence/fs" }
+rgb-core = "0.12.0"
+rgb-std = { version = "0.12.0-rc.3", path = "." }
+rgb-invoice = { version = "0.12.0-rc.3", path = "./invoice" }
+rgb-persist-fs = { version = "0.12.0-rc.3", path = "./persistence/fs" }
 aora = ">=0.6.4"
 baid64 = "0.4.2"
 binfile = "0.2.0"
