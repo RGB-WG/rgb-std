@@ -37,7 +37,7 @@ use amplify::{confinement, ByteArray, Bytes32, MultiError, Wrapper};
 use bp::dbc::tapret::TapretProof;
 pub use bp::seals;
 use bp::seals::{mmb, Anchor, Noise, TxoSeal, TxoSealExt, WOutpoint, WTxoSeal};
-use bp::{Outpoint, Sats, ScriptPubkey, Tx, Vout};
+use bp::{Outpoint, Sats, ScriptPubkey, Tx, Txid, Vout};
 use commit_verify::mpc::ProtocolId;
 use commit_verify::{mpc, Digest, DigestExt, Sha256, StrictHash};
 use hypersonic::{
@@ -52,23 +52,36 @@ use rgbcore::LIB_NAME_RGB;
 use strict_encoding::{ReadRaw, StrictDecode, StrictReader, TypeName};
 use strict_types::StrictVal;
 
+use crate::contracts::SyncError;
 use crate::{
     Assignment, CodexId, Consensus, ConsumeError, Contract, ContractState, Contracts, CreateParams,
-    EitherSeal, Identity, Issuer, IssuerError, OwnedState, Pile, SigBlob, Stockpile,
+    EitherSeal, Identity, Issuer, IssuerError, OwnedState, Pile, SigBlob, Stockpile, WitnessStatus,
 };
 
 /// Trait abstracting a specific implementation of a bitcoin wallet.
 pub trait WalletProvider {
-    fn noise_seed(&self) -> Bytes32;
+    type Error: core::error::Error;
+
     fn has_utxo(&self, outpoint: Outpoint) -> bool;
     fn utxos(&self) -> impl Iterator<Item = Outpoint>;
+    fn sync_utxos(&mut self) -> Result<(), Self::Error>;
+
     fn register_seal(&mut self, seal: WTxoSeal);
     fn resolve_seals(
         &self,
         seals: impl Iterator<Item = AuthToken>,
     ) -> impl Iterator<Item = WTxoSeal>;
+
+    fn noise_seed(&self) -> Bytes32;
     fn next_address(&mut self) -> Address;
     fn next_nonce(&mut self) -> u64;
+
+    /// Returns a closure which can retrieve a witness status of an arbitrary transaction id
+    /// (including the ones that are not related to the wallet).
+    fn txid_resolver(&self) -> impl Fn(Txid) -> Result<WitnessStatus, Self::Error>;
+
+    /// Broadcasts the transaction, also updating UTXO set accordingly.
+    fn broadcast(&mut self, tx: &Tx, change: Option<(Vout, u32, u32)>) -> Result<(), Self::Error>;
 }
 
 pub trait Coinselect {
@@ -367,12 +380,13 @@ impl PrefabBundle {
     }
 }
 
-/// Barrow contains a bunch of RGB contracts, which are held by a single owner (a wallet); such that
-/// when a new operation under any of the contracts happens, it may affect other contracts sharing
-/// the same UTXOs.
+/// RGB wallet contains a bunch of RGB contracts, which are held by a single owner (a wallet);
+/// such that when a new operation under any of the contracts happens, it may affect other contracts
+/// sharing the same UTXOs.
 pub struct RgbWallet<
     W,
     Sp,
+    // TODO: Replace with IndexMap
     S = HashMap<CodexId, Issuer>,
     C = HashMap<ContractId, Contract<<Sp as Stockpile>::Stock, <Sp as Stockpile>::Pile>>,
 > where
@@ -394,9 +408,11 @@ where
     S: KeyedCollection<Key = CodexId, Value = Issuer>,
     C: KeyedCollection<Key = ContractId, Value = Contract<Sp::Stock, Sp::Pile>>,
 {
-    pub fn with(wallet: W, contracts: Contracts<Sp, S, C>) -> Self { Self { wallet, contracts } }
+    pub fn with_components(wallet: W, contracts: Contracts<Sp, S, C>) -> Self {
+        Self { wallet, contracts }
+    }
 
-    pub fn unbind(self) -> (W, Contracts<Sp, S, C>) { (self.wallet, self.contracts) }
+    pub fn into_components(self) -> (W, Contracts<Sp, S, C>) { (self.wallet, self.contracts) }
 
     pub fn issue(
         &mut self,
@@ -829,6 +845,23 @@ where
         };
         self.contracts
             .consume(allow_unknown, reader, seal_resolver, sig_validator)
+    }
+
+    /// Synchronize a wallet UTXO set and the status of all witnesses and single-use seal
+    /// definitions.
+    ///
+    /// Applies rollbacks or forwards if required and recomputes the state of the affected
+    /// contracts.
+    pub fn sync(
+        &mut self,
+    ) -> Result<(), MultiError<SyncError<W::Error>, <Sp::Stock as Stock>::Error>> {
+        self.wallet
+            .sync_utxos()
+            .map_err(SyncError::Wallet)
+            .map_err(MultiError::from_a)?;
+        self.contracts
+            .sync_witnesses(self.wallet.txid_resolver())
+            .map_err(MultiError::from_other_a)
     }
 }
 

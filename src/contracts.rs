@@ -34,6 +34,7 @@ use commit_verify::StrictHash;
 use hypersonic::{
     AcceptError, AuthToken, CallParams, CodexId, ContractId, ContractName, Opid, Stock,
 };
+use indexmap::{IndexMap, IndexSet};
 use rgb::RgbSeal;
 use strict_encoding::{
     ReadRaw, StrictDecode, StrictDumb, StrictEncode, StrictReader, StrictWriter, WriteRaw,
@@ -58,6 +59,7 @@ pub use _fs::CONSIGN_MAGIC_NUMBER;
 #[derive(Clone, Debug)]
 pub struct Contracts<
     Sp,
+    // TODO: Use IndexMap instead to be no_std-compatible
     S = HashMap<CodexId, Issuer>,
     C = HashMap<ContractId, Contract<<Sp as Stockpile>::Stock, <Sp as Stockpile>::Pile>>,
 > where
@@ -102,7 +104,7 @@ where
         } else if let Some(or) = or {
             or
         } else {
-            panic!("Contract {} not found", id)
+            panic!("Contract {id} not found")
         }
     }
 
@@ -121,7 +123,7 @@ where
             self.contracts.borrow_mut().insert(id, contract);
             res
         } else {
-            panic!("Contract {} not found", id)
+            panic!("Contract {id} not found")
         }
     }
 }
@@ -208,24 +210,6 @@ where
         }
     }
 
-    /// Iterates over all witness ids known to the set of contracts.
-    ///
-    /// # Nota bene
-    ///
-    /// Iterator may repeat the same id multiple times.
-    pub fn witness_ids(
-        &self,
-    ) -> impl Iterator<Item = <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId> + use<'_, Sp, S, C>
-    {
-        self.persistence.contract_ids().flat_map(move |id| {
-            self.with_contract(
-                id,
-                |contract| contract.witness_ids().collect::<Vec<_>>(),
-                Some(none!()),
-            )
-        })
-    }
-
     pub fn import_issuer(&mut self, issuer: Issuer) -> Result<CodexId, Sp::Error> {
         let codex_id = issuer.codex_id();
         let schema = self.persistence.import_issuer(issuer)?;
@@ -288,24 +272,36 @@ where
 
     /// Synchronize the status of all witnesses and single-use seal definitions.
     ///
-    /// # Panics
-    ///
-    /// If the contract id is not known.
-    pub fn sync<'a, I>(
+    /// Applies rollbacks or forwards if required and recomputes the state of the affected
+    /// contracts.
+    pub fn sync_witnesses<E: core::error::Error>(
         &mut self,
-        changed: I,
-    ) -> Result<(), MultiError<AcceptError, <Sp::Stock as Stock>::Error>>
-    where
-        I: IntoIterator<
-                Item = (&'a <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId, &'a WitnessStatus),
-            > + Copy,
-        <<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId: 'a,
-    {
-        let contract_ids = self.persistence.contract_ids().collect::<Vec<_>>();
-        for contract_id in &contract_ids {
-            self.with_contract_mut(*contract_id, |contract| {
-                contract.sync(changed.into_iter().map(|(id, status)| (*id, *status)))
-            })?;
+        resolver: impl Fn(<<Sp::Pile as Pile>::Seal as RgbSeal>::WitnessId) -> Result<WitnessStatus, E>,
+    ) -> Result<(), MultiError<SyncError<E>, <Sp::Stock as Stock>::Error>> {
+        let mut changed_statuses = IndexMap::<_, WitnessStatus>::new();
+        let contract_ids = self.persistence.contract_ids().collect::<IndexSet<_>>();
+        for contract_id in contract_ids {
+            self.with_contract_mut(
+                contract_id,
+                |contract| -> Result<(), MultiError<SyncError<E>, <Sp::Stock as Stock>::Error>> {
+                    for witness_id in contract.witness_ids() {
+                        let new_status = match changed_statuses.get(&witness_id) {
+                            None => resolver(witness_id)
+                                .map_err(SyncError::Status)
+                                .map_err(MultiError::A),
+                            Some(witness_id) => Ok(*witness_id),
+                        }?;
+                        let old_status = contract.witness_status(witness_id);
+                        if new_status != old_status {
+                            changed_statuses.insert(witness_id, new_status);
+                        }
+                    }
+                    contract
+                        .sync(changed_statuses.iter().map(|(id, status)| (*id, *status)))
+                        .map_err(MultiError::from_other_a)?;
+                    Ok(())
+                },
+            )?;
         }
         Ok(())
     }
@@ -591,4 +587,18 @@ mod _fs {
             self.consume(allow_unknown, &mut reader, seal_resolver, sig_validator)
         }
     }
+}
+
+#[derive(Debug, Display, Error, From)]
+#[display(doc_comments)]
+pub enum SyncError<E: core::error::Error> {
+    /// unable to synchronize wallet. Details: {0}
+    Wallet(E),
+
+    /// unable to retrieve the status of a witness id. Details: {0}
+    Status(E),
+
+    #[from]
+    #[display(inner)]
+    Forward(AcceptError),
 }
